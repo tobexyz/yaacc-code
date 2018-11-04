@@ -34,6 +34,7 @@ import org.fourthline.cling.support.model.DIDLObject;
 import java.net.URI;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.Locale;
 import java.util.TimeZone;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -285,11 +286,11 @@ public class LocalBackgoundMusicPlayer extends AbstractPlayer implements Service
         int seconds = (int) (((millis % (1000 * 60 * 60)) % (1000 * 60)) / 1000);
 
         buf
-                .append(String.format("%02d", hours))
+                .append(String.format(Locale.ENGLISH,"%02d", hours))
                 .append(":")
-                .append(String.format("%02d", minutes))
+                .append(String.format(Locale.ENGLISH,"%02d", minutes))
                 .append(":")
-                .append(String.format("%02d", seconds));
+                .append(String.format(Locale.ENGLISH,"%02d", seconds));
 
         return buf.toString();
 

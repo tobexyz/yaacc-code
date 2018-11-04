@@ -21,6 +21,8 @@ import android.util.Log;
 import org.fourthline.cling.model.types.Datatype;
 import org.fourthline.cling.model.types.InvalidValueException;
 
+import java.util.Locale;
+
 /**
  * Representation of the upnp type SyncOffset.
  * Format of the upnp type:
@@ -201,17 +203,17 @@ public class SyncOffset implements Datatype{
         StringBuilder sb = new StringBuilder();
         sb.append(positive ? "" : "-");
         sb.append("P");
-        sb.append(String.format("%02d", hour));
+        sb.append(String.format(Locale.ENGLISH,"%02d", hour));
         sb.append(":");
-        sb.append(String.format("%02d", minute));
+        sb.append(String.format(Locale.ENGLISH,"%02d", minute));
         sb.append(":");
-        sb.append(String.format("%02d", second));
+        sb.append(String.format(Locale.ENGLISH,"%02d", second));
         sb.append(".");
-        sb.append(String.format("%03d", millis));
+        sb.append(String.format(Locale.ENGLISH,"%03d", millis));
         sb.append(" ");
-        sb.append(String.format("%03d", micros));
+        sb.append(String.format(Locale.ENGLISH,"%03d", micros));
         sb.append(" ");
-        sb.append(String.format("%03d", nanos));
+        sb.append(String.format(Locale.ENGLISH,"%03d", nanos));
         return sb.toString();
     }
 
