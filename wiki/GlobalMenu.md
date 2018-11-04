@@ -3,6 +3,6 @@ This is an overview of all data provided by the media provider. At first our foc
 Behavior:
 * Show all media types
 * Start playing or showing media by touching the corresponding file
-** music file will open a [MusicPlayer](./MusicPlayer.md)
-** video file will open a [VideoPlayer](./VideoPlayer.md)
-** picture file will open a image viewer
+ * music file will open a [MusicPlayer](./MusicPlayer.md)
+ * video file will open a [VideoPlayer](./VideoPlayer.md)
+ * picture file will open a image viewer
