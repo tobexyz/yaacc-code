@@ -60,11 +60,25 @@ public class PlayableItem {
 			// calculate duration
 
 			long millis = defaultDuration;
+			Log.d(getClass().getName(), "resource.getDuration(): " + resource.getDuration() );
 			if (resource.getDuration() != null) {
 			    try{
                     String[] tokens = resource.getDuration().split(":");
-					millis = (Long.valueOf(tokens[0]) * 3600 + Long.valueOf(tokens[1]) * 60 + Long.valueOf(tokens[2])) * 1000;
-
+                    if (tokens.length > 0){
+                        millis = Long.valueOf(tokens[0]) * 3600;
+                    }
+                    if (tokens.length > 1){
+                        millis += Long.valueOf(tokens[1]) * 60;
+                    }
+                    if (tokens.length > 2) {
+                        String seconds = tokens[2];
+                        if (tokens[2].contains(".")) {
+                            Log.d(getClass().getName(), "tokens[2]: " + tokens[2] + "spli: " + tokens[2].split(".").length);
+                            seconds = tokens[2].split("\\.")[0];
+                        }
+                        millis += Long.valueOf(seconds);
+                    }
+                    millis = millis * 1000;
                     Log.d(getClass().getName(), "resource.getDuration(): " + resource.getDuration() +" millis: " + millis);
 
 				} catch (Exception e) {
