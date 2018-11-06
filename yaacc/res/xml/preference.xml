@@ -61,4 +61,9 @@
         android:summary="@string/settings_device_playback_offset_summ"
         android:title="@string/settings_device_playback_offset" />
     </PreferenceScreen>
+    <ListPreference
+        android:title="@string/image_viewer_settings_duration"
+        android:key="@string/image_viewer_settings_duration_key"
+        android:entries="@array/duration_entries_with_never"
+        android:entryValues="@array/duration_values_with_never" />
 </PreferenceScreen>
