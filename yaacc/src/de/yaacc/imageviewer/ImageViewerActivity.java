@@ -47,7 +47,6 @@ import de.yaacc.R;
 import de.yaacc.player.LocalImagePlayer;
 import de.yaacc.player.Player;
 import de.yaacc.player.PlayerFactory;
-import de.yaacc.settings.ImageViewerSettingsActivity;
 import de.yaacc.settings.SettingsActivity;
 import de.yaacc.util.AboutActivity;
 import de.yaacc.util.ActivitySwipeDetector;
@@ -181,6 +180,7 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver {
     public boolean onCreateOptionsMenu(Menu menu) {
 // Inflate the menu; this adds items to the action bar if it is present.
         getMenuInflater().inflate(R.menu.activity_image_viewer, menu);
+
         return true;
     }
     @Override
@@ -188,10 +188,6 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver {
         Intent i = null;
         switch (item.getItemId()) {
             case R.id.menu_settings:
-                i = new Intent(this, ImageViewerSettingsActivity.class);
-                startActivity(i);
-                return true;
-            case R.id.yaacc_menu_settings:
                 i = new Intent(this, SettingsActivity.class);
                 startActivity(i);
                 return true;

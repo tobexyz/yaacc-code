@@ -125,15 +125,6 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter-->
         </activity>
-        <activity
-            android:name="de.yaacc.settings.ImageViewerSettingsActivity"
-            android:label="@string/title_activity_image_viewer_settings">
-            <!--intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-
-                <category android:name="android.intent.category.DEFAULT" />
-            </intent-filter-->
-        </activity>
 
         <receiver android:name="de.yaacc.imageviewer.ImageViewerBroadcastReceiver"></receiver>
 
