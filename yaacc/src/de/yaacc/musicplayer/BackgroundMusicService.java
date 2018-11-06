@@ -127,12 +127,7 @@ public class BackgroundMusicService extends Service {
     public void stop() {
         if (player != null) {
             player.stop();
-            try {
-                player.prepare();
-            } catch (IOException e) {
-                Log.e(this.getClass().getName(), "Error while preparing media player after stop", e);
-                player.reset();
-            }
+
         }
     }
 
@@ -204,6 +199,7 @@ public class BackgroundMusicService extends Service {
             player.prepare();
         } catch (Exception e) {
             Log.e(this.getClass().getName(), "Exception while changing datasource uri", e);
+
 
         }
 

@@ -301,7 +301,7 @@ public class LocalImagePlayer implements Player {
         NotificationCompat.Builder mBuilder = new NotificationCompat.Builder(
                 context)
                 .setOngoing(false)
-                .setSmallIcon(R.drawable.ic_launcher)
+                .setSmallIcon(R.drawable.ic_notification_default)
                 .setContentTitle(
                         "Yaacc player " + (getName() == null ? "" : getName()));
         // .setContentText("Current Title");

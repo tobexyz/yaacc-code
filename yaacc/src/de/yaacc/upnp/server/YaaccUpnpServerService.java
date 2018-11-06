@@ -203,7 +203,7 @@ public class YaaccUpnpServerService extends Service {
 	private void showNotification() {
 		Intent notificationIntent = new Intent(this, YaaccUpnpServerControlActivity.class);
 		PendingIntent contentIntent = PendingIntent.getActivity(this, 0, notificationIntent, 0);
-		NotificationCompat.Builder mBuilder = new NotificationCompat.Builder(this).setOngoing(true).setSmallIcon(R.drawable.ic_launcher)
+		NotificationCompat.Builder mBuilder = new NotificationCompat.Builder(this).setOngoing(true).setSmallIcon(R.drawable.ic_notification_default)
 				.setContentTitle("Yaacc Upnp Server")
 				.setContentText(preferences.getString(getApplicationContext().getString(R.string.settings_local_server_name_key), ""));
 		mBuilder.setContentIntent(contentIntent);

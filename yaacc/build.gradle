@@ -23,8 +23,9 @@ dependencies {
 }
 
 android {
-    compileSdkVersion 19
+    compileSdkVersion 26
     buildToolsVersion '28.0.3'
+    useLibrary 'org.apache.http.legacy'
 
     sourceSets {
         main {
@@ -59,7 +60,7 @@ android {
         abortOnError false
     }
     defaultConfig {
-        targetSdkVersion 19
+        targetSdkVersion 26
         minSdkVersion 15
     }
 
