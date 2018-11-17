@@ -16,10 +16,10 @@ dependencies {
     implementation 'com.android.support:support-v4:19.0.1'
     implementation 'org.fourthline.cling:cling-core:2.1.2'
     implementation 'org.fourthline.cling:cling-support:2.1.2'
-    implementation 'org.eclipse.jetty:jetty-http:8.1.8.v20121106'
-    implementation 'org.eclipse.jetty:jetty-server:8.1.8.v20121106'
-    implementation 'org.eclipse.jetty:jetty-client:8.1.8.v20121106'
-    implementation 'org.eclipse.jetty:jetty-servlet:8.1.8.v20121106'
+    implementation 'org.eclipse.jetty:jetty-http:8.2.0.v20160908'
+    implementation 'org.eclipse.jetty:jetty-server:8.2.0.v20160908'
+    implementation 'org.eclipse.jetty:jetty-client:8.2.0.v20160908'
+    implementation 'org.eclipse.jetty:jetty-servlet:8.2.0.v20160908'
 }
 
 android {

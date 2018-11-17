@@ -74,28 +74,31 @@ public class PlayerListItemAdapter extends BaseAdapter {
     }
 
     @Override
-    public View getView(int position, View arg1, ViewGroup parent) {
+    public View getView(int position, View view, ViewGroup parent) {
         ViewHolder holder;
         SharedPreferences preferences = PreferenceManager
                 .getDefaultSharedPreferences(parent.getContext());
         Context context = parent.getContext();
-        if (arg1 == null) {
-            arg1 = inflator.inflate(R.layout.browse_item, parent, false);
+        if (view == null) {
+            view = inflator.inflate(R.layout.browse_item, parent, false);
             holder = new ViewHolder();
-            holder.icon = (ImageView) arg1.findViewById(R.id.browseItemIcon);
-            holder.name = (TextView) arg1.findViewById(R.id.browseItemName);
-            arg1.setTag(holder);
+            holder.icon = (ImageView) view.findViewById(R.id.browseItemIcon);
+            holder.name = (TextView) view.findViewById(R.id.browseItemName);
+            view.setTag(holder);
         } else {
-            holder = (ViewHolder) arg1.getTag();
+            holder = (ViewHolder) view.getTag();
         }
-        Player player = players.get(position);
+        Player player = null;
+        if(position < players.size()) {
+            player = players.get(position);
+        }
         if (player != null) {
             holder = holder == null ? holder = new ViewHolder() : holder;
             holder.name.setText(player.getName() +
                     " : " + upnpClient.getDevice(player.getDeviceId()).getDetails().getFriendlyName());
             holder.icon.setImageResource(player.getIconResourceId());
         }
-        return arg1;
+        return view;
     }
 
     static class ViewHolder {

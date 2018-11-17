@@ -132,7 +132,7 @@ public class FileDownloader extends AsyncTask<DIDLObject, Void, Void> {
     private void createNotification(String outdir) {
         NotificationCompat.Builder mBuilder = new NotificationCompat.Builder(
                 upnpClient.getContext()).setOngoing(true)
-                .setSmallIcon(R.drawable.ic_launcher)
+                .setSmallIcon(R.drawable.ic_notification_default)
                 .setContentTitle("Yaacc file download")
                 .setContentText("download to: " + outdir );
 

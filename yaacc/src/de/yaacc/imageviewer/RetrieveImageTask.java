@@ -120,8 +120,7 @@ public class RetrieveImageTask extends AsyncTask<Uri, Void, Void> {
 				pd = new Dialog(imageViewerActivity);
 				pd.requestWindowFeature(Window.FEATURE_NO_TITLE);
 				pd.setContentView(R.layout.yaacc_progress_dialog);
-				pd.getWindow().setBackgroundDrawableResource(
-						android.R.color.transparent);
+				pd.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
 				pd.show();
 			}
 		});

@@ -35,8 +35,6 @@ import android.util.Log;
 import android.webkit.MimeTypeMap;
 import android.widget.Toast;
 
-import org.fourthline.cling.UpnpService;
-import org.fourthline.cling.UpnpServiceConfiguration;
 import org.fourthline.cling.android.AndroidUpnpService;
 import org.fourthline.cling.controlpoint.ControlPoint;
 import org.fourthline.cling.model.Namespace;
@@ -77,13 +75,13 @@ import java.net.URI;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+
 
 import de.yaacc.R;
 import de.yaacc.browser.Position;
@@ -110,8 +108,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     private static UpnpClient instance;
 
 
-    private List<UpnpClientListener> listeners = new ArrayList<UpnpClientListener>();
-    private Set<Device> knownDevices = new HashSet<Device>();
+    private List<UpnpClientListener> listeners = new ArrayList<>();
     private AndroidUpnpService androidUpnpService;
     private Context context;
     SharedPreferences preferences;
@@ -168,7 +165,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     }
 
     private void fireDeviceAdded(Device<?, ?, ?> device) {
-        for (UpnpClientListener listener : new ArrayList<UpnpClientListener>(listeners)) {
+        for (UpnpClientListener listener : new ArrayList<>(listeners)) {
             listener.deviceAdded(device);
         }
     }
@@ -379,17 +376,17 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         Intent intent = null;
         if (mime != null) {
             // test if special activity to choose
-            if (mime.indexOf("audio") > -1) {
-                boolean background = preferences.getBoolean(context.getString(R.string.settings_audio_app), true);
+            if (mime.contains("audio")) {
+                boolean background = preferences.getBoolean(getContext().getString(R.string.settings_audio_app), true);
                 if (background) {
                     Log.d(getClass().getName(), "Starting Background service... ");
-                    Intent svc = new Intent(context, BackgroundMusicService.class);
+                    Intent svc = new Intent(getContext(), BackgroundMusicService.class);
                     if (uris.length == 1) {
                         svc.setData(uris[0]);
                     } else {
                         svc.putExtra(BackgroundMusicService.URIS, uris);
                     }
-                    context.startService(svc);
+                    getContext().startService(svc);
                     return;
                 } else {
                     intent = new Intent(Intent.ACTION_VIEW);
@@ -400,10 +397,10 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
                         throw new IllegalStateException("Not yet implemented");
                     }
                 }
-            } else if (mime.indexOf("image") > -1) {
-                boolean yaaccImageViewer = preferences.getBoolean(context.getString(R.string.settings_image_app), true);
+            } else if (mime.contains("image")) {
+                boolean yaaccImageViewer = preferences.getBoolean(getContext().getString(R.string.settings_image_app), true);
                 if (yaaccImageViewer) {
-                    intent = new Intent(context, ImageViewerActivity.class);
+                    intent = new Intent(getContext(), ImageViewerActivity.class);
                     if (uris.length == 1) {
                         intent.setDataAndType(uris[0], mime);
                     } else {
@@ -423,7 +420,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         if (intent != null) {
             intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK |Intent.FLAG_ACTIVITY_NEW_TASK);
             try {
-                context.startActivity(intent);
+                getContext().startActivity(intent);
             } catch (ActivityNotFoundException anfe) {
                 Resources res = getContext().getResources();
                 String text = String.format(res.getString(R.string.error_no_activity_found), mime);
@@ -442,21 +439,14 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         listeners.add(listener);
     }
 
-    /**
-     * Remove the given listener.
-     *
-     * @param listener the listener which is to be removed
-     */
-    public void removeUpnpClientListener(UpnpClientListener listener) {
-        listeners.remove(listener);
-    }
+
 
     /**
      * returns the AndroidUpnpService
      *
      * @return the service
      */
-    protected AndroidUpnpService getAndroidUpnpService() {
+    private AndroidUpnpService getAndroidUpnpService() {
         return androidUpnpService;
     }
 
@@ -469,7 +459,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         if (isInitialized()) {
             return getRegistry().getDevices();
         }
-        return new ArrayList<Device>();
+        return new ArrayList<>();
     }
 
     /**
@@ -481,7 +471,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         if (isInitialized()) {
             return getRegistry().getDevices(new UDAServiceType("ContentDirectory"));
         }
-        return new ArrayList<Device>();
+        return new ArrayList<>();
     }
 
     /**
@@ -490,7 +480,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      * @return the upnpDevices
      */
     public Collection<Device> getDevicesProvidingAvTransportService() {
-        ArrayList<Device> result = new ArrayList<Device>();
+        ArrayList<Device> result = new ArrayList<>();
         result.add(getLocalDummyDevice());
         if (isInitialized()) {
             result.addAll(getRegistry().getDevices(new UDAServiceType("AVTransport")));
@@ -513,17 +503,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         return null;
     }
 
-    /**
-     * Returns the cling UpnpService.
-     *
-     * @return the cling UpnpService
-     */
-    public UpnpService getUpnpService() {
-        if (!isInitialized()) {
-            return null;
-        }
-        return androidUpnpService.get();
-    }
+
 
     /**
      * True if the client is initialized.
@@ -534,17 +514,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         return getAndroidUpnpService() != null;
     }
 
-    /**
-     * returns the upnp service configuration
-     *
-     * @return the configuration
-     */
-    public UpnpServiceConfiguration getConfiguration() {
-        if (!isInitialized()) {
-            return null;
-        }
-        return androidUpnpService.getConfiguration();
-    }
+
 
     /**
      * returns the upnp control point
@@ -581,9 +551,9 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      * Setting an new upnpRegistryService. If the service is not null, refresh
      * the device list.
      *
-     * @param upnpService
+     * @param upnpService upnpservice
      */
-    protected void setAndroidUpnpService(AndroidUpnpService upnpService) {
+    private void setAndroidUpnpService(AndroidUpnpService upnpService) {
         this.androidUpnpService = upnpService;
     }
 
@@ -609,8 +579,8 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      * @param objectID the browsing root
      * @return the browsing result
      */
-    public ContentDirectoryBrowseResult browseSync(Device<?, ?, ?> device, String objectID) {
-        return browseSync(device, objectID, BrowseFlag.DIRECT_CHILDREN, "*", 0L, null, new SortCriterion[0]);
+    private ContentDirectoryBrowseResult browseSync(Device<?, ?, ?> device, String objectID) {
+        return browseSync(device, objectID, BrowseFlag.DIRECT_CHILDREN, "*", 0L, null);
     }
 
     /**
@@ -626,15 +596,15 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         }
         if (pos == null || pos.getDeviceId() == null ) {
             if(getProviderDevice() != null){
-                return browseSync(getProviderDevice(),"0" , BrowseFlag.DIRECT_CHILDREN, "*", 0L, null, new SortCriterion[0]);
+                return browseSync(getProviderDevice(),"0" , BrowseFlag.DIRECT_CHILDREN, "*", 0L, null);
             }else{
                 return null;
             }
         }
         if (getProviderDevice() != null && !pos.getDeviceId().equals(getProviderDevice().getIdentity().getUdn().getIdentifierString())){
-            return browseSync(getProviderDevice(),"0" , BrowseFlag.DIRECT_CHILDREN, "*", 0L, null, new SortCriterion[0]);
+            return browseSync(getProviderDevice(),"0" , BrowseFlag.DIRECT_CHILDREN, "*", 0L, null);
         }
-        return browseSync(getDevice(pos.getDeviceId()), pos.getObjectId(), BrowseFlag.DIRECT_CHILDREN, "*", 0L, null, new SortCriterion[0]);
+        return browseSync(getDevice(pos.getDeviceId()), pos.getObjectId(), BrowseFlag.DIRECT_CHILDREN, "*", 0L, null);
     }
 
     /**
@@ -656,17 +626,15 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
             return result;
         }
         Service service = device.findService(new UDAServiceId("ContentDirectory"));
-        ContentDirectoryBrowseActionCallback actionCallback = null;
+        ContentDirectoryBrowseActionCallback actionCallback;
         if (service != null) {
             Log.d(getClass().getName(), "#####Service found: " + service.getServiceId() + " Type: " + service.getServiceType());
             actionCallback = new ContentDirectoryBrowseActionCallback(service, objectID, flag, filter, firstResult, maxResults, result, orderBy);
             getControlPoint().execute(actionCallback);
-            while (actionCallback.getStatus() == Status.LOADING && actionCallback.getUpnpFailure() == null)
-
-                ;
+            while (actionCallback.getStatus() == Status.LOADING && actionCallback.getUpnpFailure() == null);
         }
 
-        if (preferences.getBoolean(context.getString(R.string.settings_browse_thumbnails_coverlookup_chkbx), false)) {
+        if (preferences.getBoolean(getContext().getString(R.string.settings_browse_thumbnails_coverlookup_chkbx), false)) {
             result = enrichWithCover(result);
         }
         return result;
@@ -688,36 +656,27 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
             return callbackResult;
         }
         URI albumArtUri = null;
-        LinkedList<Item> audioFiles = new LinkedList<Item>();
+        LinkedList<Item> audioFiles = new LinkedList<>();
 
         if (cont.getItems().size() == 1) {
             //nothing to enrich
             return callbackResult;
         }
 
-        for (Item currentItem : cont.getItems()) {
+        for (Item currentItem : cont.getItems())
             if (!(currentItem instanceof AudioItem)) {
                 if (null == albumArtUri && (currentItem instanceof ImageItem)) {
                     albumArtUri = URI.create(((ImageItem) currentItem).getFirstResource().getValue().toString());
                 } else {
                     //There seem to be multiple images or other media files
-                    audioFiles = null;
                     return callbackResult;
                 }
 
             } else {
-
-                if (null != audioFiles) {
-                    audioFiles.add(currentItem);
-                } else {
-                    audioFiles = new LinkedList<Item>();
-                    audioFiles.add(currentItem);
-                }
+                audioFiles.add(currentItem);
             }
-        }
 
         if (null == albumArtUri) {
-            audioFiles = null;
             return callbackResult;
         }
         //We should only be here if there are just musicfiles and exactly one imagefile
@@ -732,16 +691,6 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         return callbackResult;
     }
 
-    /**
-     * Browse ContenDirctory asynchronous
-     *
-     * @param device   the device to be browsed
-     * @param objectID the browsing root
-     * @return the browsing result
-     */
-    public ContentDirectoryBrowseResult browseAsync(Device<?, ?, ?> device, String objectID) {
-        return browseAsync(device, objectID, BrowseFlag.DIRECT_CHILDREN, "*", 0L, null, new SortCriterion[0]);
-    }
 
     /**
      * Browse ContenDirctory asynchronous
@@ -755,8 +704,8 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      * @param orderBy     sorting criteria @see {@link SortCriterion}
      * @return the browsing result
      */
-    public ContentDirectoryBrowseResult browseAsync(Device<?, ?, ?> device, String objectID, BrowseFlag flag, String filter, long firstResult,
-                                                    Long maxResults, SortCriterion... orderBy) {
+    private ContentDirectoryBrowseResult browseAsync(Device<?, ?, ?> device, String objectID, BrowseFlag flag, String filter, long firstResult,
+                                                     Long maxResults, SortCriterion... orderBy) {
         Service service = device.findService(new UDAServiceId("ContentDirectory"));
         ContentDirectoryBrowseResult result = new ContentDirectoryBrowseResult();
         ContentDirectoryBrowseActionCallback actionCallback = null;
@@ -765,7 +714,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
             actionCallback = new ContentDirectoryBrowseActionCallback(service, objectID, flag, filter, firstResult, maxResults, result, orderBy);
             getControlPoint().execute(actionCallback);
         }
-        if (preferences.getBoolean(context.getString(R.string.settings_browse_thumbnails_coverlookup_chkbx), false)) {
+        if (preferences.getBoolean(getContext().getString(R.string.settings_browse_thumbnails_coverlookup_chkbx), false)) {
             result = enrichWithCover(result);
         }
         return result;
@@ -774,7 +723,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     /**
      * Search asynchronously for all devices.
      */
-    public void searchDevices() {
+    private void searchDevices() {
         if (isInitialized()) {
             getAndroidUpnpService().getControlPoint().search();
         }
@@ -797,7 +746,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      * @return the player
      */
     public List<Player> initializePlayers(List<Item> items) {
-        LinkedList<PlayableItem> playableItems = new LinkedList<PlayableItem>();
+        LinkedList<PlayableItem> playableItems = new LinkedList<>();
 
         for (Item currentItem : items) {
             PlayableItem playableItem = new PlayableItem(currentItem, getDefaultDuration());
@@ -807,7 +756,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         synchronizationInfo.setOffset(getDeviceSyncOffset()); //device specific offset
 
         Calendar now = Calendar.getInstance(Locale.getDefault());
-        now.add(Calendar.MILLISECOND, Integer.valueOf(preferences.getString(context.getString(R.string.settings_default_playback_delay_key), "0")));
+        now.add(Calendar.MILLISECOND, Integer.valueOf(preferences.getString(getContext().getString(R.string.settings_default_playback_delay_key), "0")));
         String referencedPresentationTime = new SyncOffset(true, now.get(Calendar.HOUR_OF_DAY), now.get(Calendar.MINUTE), now.get(Calendar.SECOND), now.get(Calendar.MILLISECOND), 0, 0).toString();
         Log.d(getClass().getName(), "CurrentTime: " + new Date().toString() + " representationTime: " + referencedPresentationTime);
         synchronizationInfo.setReferencedPresentationTime(referencedPresentationTime);
@@ -825,7 +774,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         PlayableItem playableItem = new PlayableItem();
         List<PlayableItem> items = new ArrayList<PlayableItem>();
         if (transport == null) {
-            return PlayerFactory.createPlayer(this, transport.getSynchronizationInfo(), items);
+            return PlayerFactory.createPlayer(this, null, items);
         }
         Log.d(getClass().getName(), "TransportId: " + transport.getInstanceId());
         PositionInfo positionInfo = transport.getPositionInfo();
@@ -835,7 +784,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         }
         DIDLContent metadata = null;
         try {
-            if (positionInfo.getTrackMetaData() != null && positionInfo.getTrackMetaData().indexOf("NOT_IMPLEMENTED") == -1) {
+            if (positionInfo.getTrackMetaData() != null && !positionInfo.getTrackMetaData().contains("NOT_IMPLEMENTED")) {
                 metadata = new DIDLParser().parse(positionInfo.getTrackMetaData());
             } else {
                 Log.d(getClass().getName(), "Warning unparsable TackMetaData: " + positionInfo.getTrackMetaData());
@@ -858,7 +807,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
                 break;
             }
         } else {
-            playableItem.setTitle(positionInfo.getTrackURI().toString());
+            playableItem.setTitle(positionInfo.getTrackURI());
             String fileExtension = MimeTypeMap.getFileExtensionFromUrl(positionInfo.getTrackURI());
             mimeType = MimeTypeMap.getSingleton().getMimeTypeFromExtension(fileExtension);
             Log.d(getClass().getName(), "fileextension from trackURI: " + fileExtension);
@@ -892,10 +841,12 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      */
     public List<Player> getCurrentPlayers(AvTransport transport) {
         List<PlayableItem> items = new ArrayList<PlayableItem>();
+        if (transport == null) {
+            return PlayerFactory.createPlayer(this, null, items);
+        }
         SynchronizationInfo synchronizationInfo = transport.getSynchronizationInfo();
         synchronizationInfo.setOffset(getDeviceSyncOffset());
-        if (transport == null)
-            return PlayerFactory.createPlayer(this, synchronizationInfo, items);
+
         Log.d(getClass().getName(), "TransportId: " + transport.getInstanceId());
         PositionInfo positionInfo = transport.getPositionInfo();
         if (positionInfo == null) {
@@ -910,7 +861,10 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
             Log.d(getClass().getName(), "Exception while parsing metadata: ", e);
         }
         String mimeType = "";
-        PlayableItem playableItem = null;
+        PlayableItem playableItem = new PlayableItem();
+        playableItem.setDuration(getDefaultDuration());
+        playableItem.setTitle(positionInfo.getTrackURI());
+        String fileExtension = MimeTypeMap.getFileExtensionFromUrl(positionInfo.getTrackURI());
         if (metadata != null) {
             List<Item> metadataItems = metadata.getItems();
             for (Item item : metadataItems) {
@@ -926,21 +880,14 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
                 break;
             }
             if(mimeType  == null || mimeType.equals("")){
-                String fileExtension = MimeTypeMap.getFileExtensionFromUrl(positionInfo.getTrackURI());
-                mimeType = MimeTypeMap.getSingleton().getMimeTypeFromExtension(fileExtension);
+                fileExtension = MimeTypeMap.getFileExtensionFromUrl(positionInfo.getTrackURI());
             }
-        } else {
-            playableItem = new PlayableItem();
-            playableItem.setDuration(getDefaultDuration());
-            playableItem.setTitle(positionInfo.getTrackURI().toString());
-            String fileExtension = MimeTypeMap.getFileExtensionFromUrl(positionInfo.getTrackURI());
-            mimeType = MimeTypeMap.getSingleton().getMimeTypeFromExtension(fileExtension);
         }
+        mimeType = MimeTypeMap.getSingleton().getMimeTypeFromExtension(fileExtension);
         playableItem.setMimeType(mimeType);
         playableItem.setUri(Uri.parse(positionInfo.getTrackURI()));
         Log.d(getClass().getName(), "MimeType: " + playableItem.getMimeType());
-        List<Player> avTransportPlayers = PlayerFactory.getCurrentPlayersOfType(PlayerFactory.getPlayerClassForMimeType(mimeType), synchronizationInfo);
-        return avTransportPlayers;
+        return PlayerFactory.getCurrentPlayersOfType(PlayerFactory.getPlayerClassForMimeType(mimeType), synchronizationInfo);
     }
 
     /**
@@ -949,7 +896,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      * @return all items included in the content
      **/
     public List<Item> toItemList(DIDLContent didlContent) {
-        List<Item> items = new ArrayList<Item>();
+        List<Item> items = new ArrayList<>();
         if(didlContent == null){
             return items;
         }
@@ -967,7 +914,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      * @return the list of cling items
      */
     public List<Item> toItemList(DIDLObject didlObject) {
-        List<Item> items = new ArrayList<Item>();
+        List<Item> items = new ArrayList<>();
         if (didlObject instanceof Container) {
             DIDLContent content = loadContainer((Container) didlObject);
             if (content != null) {
@@ -1005,10 +952,9 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      * @return the receiverDeviceIds
      */
     public Set<String> getReceiverDeviceIds() {
-        HashSet<String> defaultReceiverSet = new HashSet<String>();
+        HashSet<String> defaultReceiverSet = new HashSet<>();
         defaultReceiverSet.add(UpnpClient.LOCAL_UID);
-        Set<String> receiverDeviceIds = preferences.getStringSet(context.getString(R.string.settings_selected_receivers_title), defaultReceiverSet);
-        return receiverDeviceIds;
+        return preferences.getStringSet(getContext().getString(R.string.settings_selected_receivers_title), defaultReceiverSet);
     }
 
     /**
@@ -1018,8 +964,8 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      * @return the receiverDevices
      */
     public Collection<Device> getReceiverDevices() {
-        ArrayList<Device> result = new ArrayList<Device>();
-        ArrayList<String> unknowsIds = new ArrayList<String>(); // Maybe the the
+        ArrayList<Device> result = new ArrayList<>();
+        ArrayList<String> unknowsIds = new ArrayList<>(); // Maybe the the
         // receiverDevice
         // in the
         // preferences
@@ -1044,7 +990,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     /**
      * add a receiver device
      *
-     * @param receiverDevice
+     * @param receiverDevice receiverDevice
      */
     public void addReceiverDevice(Device receiverDevice) {
         assert (receiverDevice != null);
@@ -1056,7 +1002,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     /**
      * remove a receiver device
      *
-     * @param receiverDevice
+     * @param receiverDevice receiverDevice
      */
     public void removeReceiverDevice(Device receiverDevice) {
         assert (receiverDevice != null);
@@ -1072,7 +1018,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      */
     public void setReceiverDevices(Collection<Device> receiverDevices) {
         assert (receiverDevices != null);
-        HashSet<String> receiverIds = new HashSet<String>();
+        HashSet<String> receiverIds = new HashSet<>();
         for (Device receiver : receiverDevices) {
             Log.d(this.getClass().getName(), "Receiver: " + receiver);
             receiverIds.add(receiver.getIdentity().getUdn().getIdentifierString());
@@ -1085,10 +1031,10 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      *
      * @param receiverDeviceIds the device ids.
      */
-    protected void setReceiverDeviceIds(Set<String> receiverDeviceIds) {
+    private void setReceiverDeviceIds(Set<String> receiverDeviceIds) {
         assert (receiverDeviceIds != null);
         Editor prefEdit = preferences.edit();
-        prefEdit.putStringSet(context.getString(R.string.settings_selected_receivers_title), receiverDeviceIds);
+        prefEdit.putStringSet(getContext().getString(R.string.settings_selected_receivers_title), receiverDeviceIds);
         prefEdit.apply();
     }
 
@@ -1096,7 +1042,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      * @return the providerDeviceId
      */
     public String getProviderDeviceId() {
-        return preferences.getString(context.getString(R.string.settings_selected_provider_title), null);
+        return preferences.getString(getContext().getString(R.string.settings_selected_provider_title), null);
     }
 
     /**
@@ -1104,7 +1050,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      */
     public void setProviderDevice(Device provider) {
         Editor prefEdit = preferences.edit();
-        prefEdit.putString(context.getString(R.string.settings_selected_provider_title), provider.getIdentity().getUdn().getIdentifierString());
+        prefEdit.putString(getContext().getString(R.string.settings_selected_provider_title), provider.getIdentity().getUdn().getIdentifierString());
         prefEdit.apply();
     }
 
@@ -1115,24 +1061,16 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         return this.getDevice(getProviderDeviceId());
     }
 
-    /**
-     * Check's whether local or remote playback is enabled
-     *
-     * @return true if local playback is enabled, false otherwise
-     */
-    public Boolean isLocalPlaybackEnabled() {
-        return getReceiverDeviceIds().contains(LOCAL_UID);
-    }
 
     /**
      * Shutdown the upnp client and all players
      */
     public void shutdown() {
         // shutdown UpnpRegistry
-        boolean result = getContext().stopService(new Intent(context, UpnpRegistryService.class));
+        boolean result = getContext().stopService(new Intent(getContext(), UpnpRegistryService.class));
         Log.d(getClass().getName(), "Stopping UpnpRegistryService succsessful= " + result);
         // shutdown yaacc server service
-        result = getContext().stopService(new Intent(context, YaaccUpnpServerService.class));
+        result = getContext().stopService(new Intent(getContext(), YaaccUpnpServerService.class));
         Log.d(getClass().getName(), "Stopping YaaccUpnpServerService succsessful= " + result);
         // stop all players
         PlayerFactory.shutdown();
@@ -1158,12 +1096,11 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         return Integer.parseInt(preferences.getString(getContext().getString(R.string.settings_silence_duration_key), "2000"));
     }
 
-    public Device<?, ?, ?> getLocalDummyDevice() {
+    private Device<?, ?, ?> getLocalDummyDevice() {
         Device result = null;
         try {
             result = new LocalDummyDevice();
         } catch (ValidationException e) {
-            // TODO Auto-generated catch block
             // Ignore
             Log.d(this.getClass().getName(), "Something wrong with the LocalDummyDevice...", e);
         }
@@ -1177,8 +1114,10 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      */
     public void setMute(boolean mute) {
         this.mute = mute;
-        AudioManager audioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
-        audioManager.setStreamMute(AudioManager.STREAM_MUSIC, mute);
+        AudioManager audioManager = (AudioManager) getContext().getSystemService(Context.AUDIO_SERVICE);
+        if (audioManager != null) {
+            audioManager.setStreamMute(AudioManager.STREAM_MUSIC, mute);
+        }
     }
 
     /**
@@ -1203,9 +1142,11 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
             desired = 100;
         }
         AudioManager audioManager = (AudioManager) getContext().getSystemService(Context.AUDIO_SERVICE);
-        int maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
-        int volume = desired * maxVolume / 100;
-        audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, volume, AudioManager.FLAG_SHOW_UI);
+        if (audioManager != null) {
+            int maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+            int volume = desired * maxVolume / 100;
+            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, volume, AudioManager.FLAG_SHOW_UI);
+        }
     }
 
     /**
@@ -1215,11 +1156,15 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      */
     public int getVolume() {
 
+        int volume = 0;
         AudioManager audioManager = (AudioManager) getContext().getSystemService(Context.AUDIO_SERVICE);
-        int maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
-        int currentVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC);
-        int volume = currentVolume * 100 / maxVolume;
+        if (audioManager != null) {
+            int maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+            int currentVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC);
+            volume = currentVolume * 100 / maxVolume;
+        }
         return volume;
+
     }
 
     public void downloadItem(DIDLObject selectedDIDLObject) {
@@ -1229,70 +1174,60 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
 
     @SuppressWarnings({"unchecked", "rawtypes"})
     private class LocalDummyDevice extends Device {
-        public LocalDummyDevice() throws ValidationException {
+        LocalDummyDevice() throws ValidationException {
             super(new DeviceIdentity(new UDN(LOCAL_UID)));
         }
 
         @Override
         public Service[] getServices() {
-            // TODO Auto-generated method stub
             return null;
         }
 
         @Override
         public Device[] getEmbeddedDevices() {
-            // TODO Auto-generated method stub
             return null;
         }
 
         @Override
         public Device getRoot() {
-            // TODO Auto-generated method stub
             return null;
         }
 
         @Override
         public Device findDevice(UDN udn) {
-            // TODO Auto-generated method stub
             return null;
         }
 
         @Override
         public Resource[] discoverResources(Namespace namespace) {
-            // TODO Auto-generated method stub
             return null;
         }
 
         @Override
         public Device newInstance(UDN arg0, UDAVersion arg1, DeviceType arg2, DeviceDetails arg3, Icon[] arg4, Service[] arg5, List arg6)
                 throws ValidationException {
-            // TODO Auto-generated method stub
             return null;
         }
 
         @Override
         public Service newInstance(ServiceType servicetype, ServiceId serviceid, URI uri, URI uri1, URI uri2, Action[] aaction,
                                    StateVariable[] astatevariable) throws ValidationException {
-            // TODO Auto-generated method stub
             return null;
         }
 
         @Override
         public Device[] toDeviceArray(Collection collection) {
-            // TODO Auto-generated method stub
             return null;
         }
 
         @Override
         public Service[] newServiceArray(int i) {
-            // TODO Auto-generated method stub
             return null;
         }
 
         @Override
         public Service[] toServiceArray(Collection collection) {
-            // TODO Auto-generated method stub
-            return null;
+           return null;
         }
 
         /*

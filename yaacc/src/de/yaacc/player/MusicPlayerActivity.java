@@ -189,6 +189,7 @@ public class MusicPlayerActivity extends Activity {
             public void onClick(View v) {
                 Player player = getPlayer();
                 if (player != null) {
+                    player.stop();
                     player.exit();
                 }
                 finish();

@@ -106,39 +106,40 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver {
         getWindow().clearFlags(
                 WindowManager.LayoutParams.FLAG_ALLOW_LOCK_WHILE_SCREEN_ON);
         setContentView(R.layout.activity_image_viewer);
-        imageView = (ImageView) findViewById(R.id.imageView);
+        imageView = this.<ImageView>findViewById(R.id.imageView);
         ActivitySwipeDetector activitySwipeDetector = new ActivitySwipeDetector(
                 this);
-        RelativeLayout layout = (RelativeLayout) this.findViewById(R.id.layout);
+        RelativeLayout layout = this.findViewById(R.id.layout);
         layout.setOnTouchListener(activitySwipeDetector);
         currentImageIndex = 0;
-        imageUris = new ArrayList<Uri>();
+        imageUris = new ArrayList<>();
         if (savedInstanceState != null) {
             pictureShowActive = savedInstanceState
                     .getBoolean("pictureShowActive");
             currentImageIndex = savedInstanceState.getInt("currentImageIndex");
             imageUris = (List<Uri>) savedInstanceState
                     .getSerializable("imageUris");
-        }
-        Log.d(this.getClass().getName(),
-                "Received Action View! now setting items ");
-        Serializable urisData = intent.getSerializableExtra(URIS);
-        if (urisData != null) {
-            if (urisData instanceof List) {
-                currentImageIndex = 0;
-                imageUris = (List<Uri>) urisData;
-                Log.d(this.getClass().getName(),
-                        "imageUris" + imageUris.toString());
+        }else {
+            Log.d(this.getClass().getName(),
+                    "Received Action View! now setting items ");
+            Serializable urisData = intent.getSerializableExtra(URIS);
+            if (urisData != null) {
+                if (urisData instanceof List) {
+                    currentImageIndex = 0;
+                    imageUris = (List<Uri>) urisData;
+                    Log.d(this.getClass().getName(),
+                            "imageUris" + imageUris.toString());
+                }
+            } else {
+                if (intent.getData() != null) {
+                    currentImageIndex = 0;
+                    imageUris.add(intent.getData());
+                    Log.d(this.getClass().getName(), "imageUris.add(i.getData)"
+                            + imageUris.toString());
+                }
             }
-        } else {
-            if (intent.getData() != null) {
-                currentImageIndex = 0;
-                imageUris.add(intent.getData());
-                Log.d(this.getClass().getName(), "imageUris.add(i.getData)"
-                        + imageUris.toString());
-            }
+            pictureShowActive = intent.getBooleanExtra(AUTO_START_SHOW, false);
         }
-        pictureShowActive = intent.getBooleanExtra(AUTO_START_SHOW, false);
         if (imageUris.size() > 0) {
             loadImage();
         } else {
@@ -160,6 +161,7 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver {
     */
     @Override
     protected void onResume() {
+
         imageViewerBroadcastReceiver = new ImageViewerBroadcastReceiver(this);
         imageViewerBroadcastReceiver.registerReceiver();
         super.onResume();
@@ -172,6 +174,10 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver {
     @Override
     protected void onPause() {
         cancleTimer();
+        if(retrieveImageTask != null){
+            retrieveImageTask.cancel(true);
+            retrieveImageTask = null;
+        }
         unregisterReceiver(imageViewerBroadcastReceiver);
         imageViewerBroadcastReceiver = null;
         super.onPause();
@@ -185,7 +191,7 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver {
     }
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
-        Intent i = null;
+        Intent i;
         switch (item.getItemId()) {
             case R.id.menu_settings:
                 i = new Intent(this, SettingsActivity.class);
@@ -240,10 +246,9 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver {
         savedInstanceState.putBoolean("pictureShowActive", pictureShowActive);
         savedInstanceState.putInt("currentImageIndex", currentImageIndex);
         if (!(imageUris instanceof ArrayList)) {
-            imageUris = new ArrayList<Uri>(imageUris);
+            imageUris = new ArrayList<>(imageUris);
         }
-        savedInstanceState.putSerializable("imageUris",
-                (ArrayList<Uri>) imageUris);
+        savedInstanceState.putSerializable("imageUris",(ArrayList<Uri>) imageUris);
     }
     /**
      * Create and start a timer for the next picture change. The timer runs only
@@ -404,7 +409,7 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver {
     /**
      * Displays an image and start the picture show timer.
      *
-     * @param image
+     * @param image image
      */
     public void showImage(final Drawable image) {
         if (image == null) {
