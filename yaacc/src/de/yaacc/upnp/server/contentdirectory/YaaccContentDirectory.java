@@ -170,7 +170,7 @@ public class YaaccContentDirectory {
                 123456l,
                 "00:02:33",
                 26752L,
-                "http://api.jamendo.com/get2/stream/track/redirect/?id=310355&streamencoding=mp31");
+                "https://api.jamendo.com/get2/stream/track/redirect/?id=310355&streamencoding=mp31");
         res.setSampleFrequency(44100L);
         res.setNrAudioChannels(2L);
 		MusicTrack musicTrack = new MusicTrack(
@@ -197,7 +197,7 @@ public class YaaccContentDirectory {
 						123456l,
 						"00:02:01",
 						8192L,
-						"http://api.jamendo.com/get2/stream/track/redirect/?id=310370&streamencoding=mp31"));
+						"https://api.jamendo.com/get2/stream/track/redirect/?id=310370&streamencoding=mp31"));
 		musicTrack.setRestricted(true);
 		addContent(musicTrack.getId(), musicTrack);
 		result.add(musicTrack);
@@ -214,7 +214,7 @@ public class YaaccContentDirectory {
 						123456l,
 						"00:02:18",
 						8192L,
-						"http://api.jamendo.com/get2/stream/track/redirect/?id=310371&streamencoding=mp31"));
+						"https://api.jamendo.com/get2/stream/track/redirect/?id=310371&streamencoding=mp31"));
 		musicTrack.setRestricted(true);
 		addContent(musicTrack.getId(), musicTrack);
 		result.add(musicTrack);
@@ -228,7 +228,7 @@ public class YaaccContentDirectory {
 		MimeType mimeType = new MimeType("image", "jpeg");
 		List<Photo> result = new ArrayList<Photo>();
 
-		String url = "http://kde-look.org/CONTENT/content-files/156304-DSC_0089-2-1600.jpg";
+		String url = "https://cdn.pixabay.com/photo/2015/04/23/22/00/tree-736881_960_720.jpg";
 
 		Photo photo = new Photo("201", parentId, url, creator, album, new Res(
                 new ProtocolInfo(Protocol.HTTP_GET, ProtocolInfo.WILDCARD, mimeType.toString(), ProtocolInfo.WILDCARD), 123456L, url));
@@ -237,7 +237,7 @@ public class YaaccContentDirectory {
 		addContent(photo.getId(), photo);
 		result.add(photo);
 
-		url = "http://kde-look.org/CONTENT/content-files/156246-DSC_0021-1600.jpg";
+		url = "https://cdn.pixabay.com/photo/2016/08/11/23/48/italy-1587287_960_720.jpg";
 
 		photo = new Photo("202", parentId, url, creator, album, new Res(
                 new ProtocolInfo(Protocol.HTTP_GET, ProtocolInfo.WILDCARD, mimeType.toString(), ProtocolInfo.WILDCARD), 123456L, url));
@@ -246,7 +246,7 @@ public class YaaccContentDirectory {
 		addContent(photo.getId(), photo);
 		result.add(photo);
 
-		url = "http://kde-look.org/CONTENT/content-files/156225-raining-bolt-1920x1200.JPG";
+		url = "https://cdn.pixabay.com/photo/2014/09/10/00/59/utah-440520_960_720.jpg";
 
 		addContent(photo.getId(), photo);
 		photo = new Photo("203", parentId, url, creator, album, new Res(
@@ -255,7 +255,7 @@ public class YaaccContentDirectory {
 		photo.setClazz(new DIDLObject.Class("object.item.imageItem"));
 		result.add(photo);
 
-		url = "http://kde-look.org/CONTENT/content-files/156223-kungsleden1900x1200.JPG";
+		url = "https://cdn.pixabay.com/photo/2015/03/26/09/47/sky-690293_960_720.jpg";
 
 		photo = new Photo("204", parentId, url, creator, album, new Res(
                 new ProtocolInfo(Protocol.HTTP_GET, ProtocolInfo.WILDCARD, mimeType.toString(), ProtocolInfo.WILDCARD), 123456L, url));
@@ -264,7 +264,7 @@ public class YaaccContentDirectory {
 		addContent(photo.getId(), photo);
 		result.add(photo);
 
-		url = "http://kde-look.org/CONTENT/content-files/156218-DSC_0012-1600.jpg";
+		url = "https://cdn.pixabay.com/photo/2013/07/27/05/13/lighthouse-168132_960_720.jpg";
 
 		photo = new Photo("205", parentId, url, creator, album, new Res(
 				mimeType, 123456L, url));
