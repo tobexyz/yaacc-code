@@ -1,0 +1,83 @@
+import org.ajoberstar.grgit.*
+
+buildscript {
+        dependencies {
+            classpath 'org.ajoberstar:gradle-git:1.7.2'
+            classpath "gradle.plugin.com.github.dkorotych.gradle.maven.exec:gradle-maven-exec-plugin:2.0"
+        }
+    }
+
+apply plugin: "com.github.dkorotych.gradle-maven-exec"
+
+
+
+task cloneSeamlessRepo{
+    File dir=new File("$projectDir/build/poms/seamless")
+    String gitRepo='https://github.com/tobexyz/seamless.git'
+    def Grgit grgit
+    if(!dir.exists()) {
+        grgit = Grgit.clone(dir: dir, uri: gitRepo)
+
+    }else{
+       grgit = Grgit.open(dir.toString())
+    }
+    if(grgit.branch.list().find { it.name == 'yaacc_build' }){
+        grgit.checkout(branch: 'yaacc_build')
+    } else {
+        grgit.checkout(branch: 'yaacc_build', startPoint: 'origin/yaacc_build', createBranch: true)
+    }
+    grgit.pull()
+
+}
+
+
+task copyReactorPom(type: Copy)  {
+    from ("${projectDir}/"){
+       include 'reactor-pom.xml'
+    }
+    into "${projectDir}/build/poms"
+    rename ('reactor-pom.xml', 'pom.xml')
+
+}
+
+
+
+task cloneClingRepo{
+    File dir=new File("$projectDir/build/poms/tobexyz-cling")
+    String gitRepo='https://github.com/tobexyz/cling.git'
+    def Grgit grgit
+    if(!dir.exists()) {
+        grgit = Grgit.clone(dir: dir, uri: gitRepo)
+
+    }else{
+        grgit = Grgit.open(dir.toString())
+    }
+    if(grgit.branch.list().find { it.name == 'yaacc_build' }){
+        grgit.checkout(branch: 'yaacc_build')
+    } else {
+        grgit.checkout(branch: 'yaacc_build', startPoint: 'origin/yaacc_build', createBranch: true)
+    }
+    grgit.pull()
+
+}
+
+/*task build{
+    copyReactorPom
+    cloneSeamlessRepo
+    cloneClingRepo
+    buildMavenProjects
+    //goals 'clean', 'install'
+}
+*/
+task build(type: MavenExec) {
+
+    workingDir "${projectDir}/build/poms/"
+    goals 'clean', 'install'
+}
+
+
+build.dependsOn(copyReactorPom)
+build.dependsOn(cloneSeamlessRepo)
+build.dependsOn(cloneClingRepo)
+//preBuild.dependsOn(buildMavenProjects)
+

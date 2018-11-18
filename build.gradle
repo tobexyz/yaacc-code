@@ -1,0 +1,26 @@
+allprojects {
+    buildscript {
+        repositories {
+            jcenter()
+            google()
+            maven {
+                url "https://plugins.gradle.org/m2/"
+            }
+        }
+    }
+
+
+    repositories {
+    def androidHome = System.getenv("ANDROID_HOME")
+        maven {
+            url "$androidHome/extras/android/m2repository/"
+        }
+        jcenter()
+        google()
+        mavenLocal()
+    }
+
+
+}
+
+
