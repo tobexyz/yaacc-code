@@ -13,7 +13,7 @@ apply plugin: 'com.android.application'
 dependencies {
     implementation 'com.android.support:support-v4:26.0.0'
     implementation 'org.fourthline.cling:cling-core:2.1.2.yaacc_2'
-    implementation 'org.fourthline.cling:cling-support:2.1.2.yaacc_1'
+    implementation 'org.fourthline.cling:cling-support:2.1.2.yaacc_2'
     implementation 'org.eclipse.jetty:jetty-http:8.2.0.v20160908'
     implementation 'org.eclipse.jetty:jetty-server:8.2.0.v20160908'
     implementation 'org.eclipse.jetty:jetty-client:8.2.0.v20160908'
