@@ -84,10 +84,14 @@ public class AVTransportPlayerActivity extends Activity {
         updateTime = false;
     }
 
+
+
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_avtransport_player);
+
         // initialize buttons
         playerId = getIntent().getIntExtra(AVTransportPlayer.PLAYER_ID, -1);
         Log.d(getClass().getName(), "Got id from intent: " + playerId);

@@ -16,17 +16,11 @@
 * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 */
 package de.yaacc.player;
-import java.net.URI;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.TimeZone;
-import java.util.Timer;
-import java.util.TimerTask;
-import java.util.UUID;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import android.annotation.SuppressLint;
+import android.app.PendingIntent;
+import android.content.Intent;
+import android.net.Uri;
+import android.util.Log;
 
 import org.fourthline.cling.model.action.ActionInvocation;
 import org.fourthline.cling.model.message.UpnpResponse;
@@ -47,11 +41,12 @@ import org.fourthline.cling.support.renderingcontrol.callback.GetVolume;
 import org.fourthline.cling.support.renderingcontrol.callback.SetMute;
 import org.fourthline.cling.support.renderingcontrol.callback.SetVolume;
 
-import android.annotation.SuppressLint;
-import android.app.PendingIntent;
-import android.content.Intent;
-import android.net.Uri;
-import android.util.Log;
+import java.net.URI;
+import java.text.SimpleDateFormat;
+import java.util.TimeZone;
+import java.util.Timer;
+import java.util.TimerTask;
+import java.util.UUID;
 
 import de.yaacc.R;
 import de.yaacc.upnp.UpnpClient;
@@ -181,7 +176,7 @@ public class AVTransportPlayer extends AbstractPlayer {
 		}
         InternalSetAVTransportURI setAVTransportURI = new InternalSetAVTransportURI(
                 service, playableItem.getUri().toString(), actionState, metadata);
-        getUpnpClient().getControlPoint().execute(setAVTransportURI);        
+        getUpnpClient().getControlPoint().execute(setAVTransportURI);
         waitForActionComplete(actionState);
         int tries = 1;
         if(setAVTransportURI.hasFailures){
@@ -228,7 +223,8 @@ public class AVTransportPlayer extends AbstractPlayer {
      */
     private void waitForActionComplete(final ActionState actionState) {
         actionState.watchdogFlag = false;
-        new Timer().schedule(new TimerTask() {
+        Timer watchdogTimer = new Timer();
+        watchdogTimer.schedule(new TimerTask() {
             @Override
             public void run() {
                 actionState.watchdogFlag = true;
@@ -236,6 +232,7 @@ public class AVTransportPlayer extends AbstractPlayer {
         }, 30000L); // 30sec. Watchdog
         while (!(actionState.actionFinished || actionState.watchdogFlag)) {
 // wait for local device is connected
+            Log.d(getClass().getName(), "wait for action finished ");
         }
         if (actionState.watchdogFlag) {
             Log.d(getClass().getName(), "Watchdog timeout!");

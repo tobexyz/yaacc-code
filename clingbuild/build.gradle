@@ -9,7 +9,7 @@ buildscript {
 
 apply plugin: "com.github.dkorotych.gradle-maven-exec"
 
-def clingVersion='2.1.2.yaacc_1'
+def clingVersion='2.1.2.yaacc_2'
 def seamlessVersion='1.1.2.yaacc_1'
 
 task cloneSeamlessRepo{

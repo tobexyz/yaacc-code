@@ -17,11 +17,16 @@
 */
 package de.yaacc.browser;
 
+import android.Manifest;
 import android.app.ActivityGroup;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
+import android.support.v4.app.ActivityCompat;
+import android.support.v4.content.ContextCompat;
 import android.util.Log;
 import android.view.ContextMenu;
 import android.view.ContextMenu.ContextMenuInfo;
@@ -30,6 +35,7 @@ import android.view.MenuItem;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.widget.TabHost;
+import android.widget.Toast;
 
 import org.fourthline.cling.model.meta.Device;
 
@@ -48,6 +54,17 @@ import de.yaacc.util.YaaccLogActivity;
  */
 public class TabBrowserActivity extends ActivityGroup implements OnClickListener,
         UpnpClientListener {
+    private static String[] permissions = new String[]{
+        Manifest.permission.INTERNET,
+                Manifest.permission.ACCESS_WIFI_STATE,
+                Manifest.permission.ACCESS_NETWORK_STATE,
+                Manifest.permission.CHANGE_WIFI_MULTICAST_STATE,
+                Manifest.permission.READ_EXTERNAL_STORAGE,
+                Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                Manifest.permission.GET_TASKS,
+                Manifest.permission.RECEIVE_BOOT_COMPLETED,
+                Manifest.permission.WAKE_LOCK
+    };
     private TabHost tabHost;
     //FIXME dirty
     public static boolean leftSettings=false;
@@ -86,6 +103,21 @@ public class TabBrowserActivity extends ActivityGroup implements OnClickListener
         outState.putInt(CURRENT_TAB_KEY, tabHost.getCurrentTab());
     }
 
+    private boolean checkIfAlreadyhavePermission() {
+        for (String permission: permissions) {
+            int permissionState = ContextCompat.checkSelfPermission(this, permission);
+            if (permissionState != PackageManager.PERMISSION_GRANTED) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private void requestForSpecificPermission() {
+        ActivityCompat.requestPermissions(this, permissions,
+                101);
+    }
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -104,7 +136,15 @@ public class TabBrowserActivity extends ActivityGroup implements OnClickListener
         tabHost.addTab(receiverTab);
         playerTab = tabHost.newTabSpec("player").setIndicator(getResources().getString(R.string.title_activity_player_list), getResources().getDrawable(R.drawable.player_play)).setContent(new Intent(this, PlayerListActivity.class));
         tabHost.addTab(playerTab);
-
+        // ask for permissions
+        int appVersion = Build.VERSION.SDK_INT;
+        if (appVersion > Build.VERSION_CODES.LOLLIPOP_MR1) {
+            if (!checkIfAlreadyhavePermission()) {
+                requestForSpecificPermission();
+            }else{
+                Log.d(getClass().getName(), "All permissions granted");
+            }
+        }
 
         // add ourself as listener
         upnpClient.addUpnpClientListener(this);

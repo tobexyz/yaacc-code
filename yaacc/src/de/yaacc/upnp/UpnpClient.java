@@ -132,13 +132,14 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      * @return true if initialization completes correctly
      */
     public boolean initialize(Context context) {
-        this.context = context;
-        this.preferences = PreferenceManager.getDefaultSharedPreferences(context);
-
-
-        // FIXME check if this is right: Context.BIND_AUTO_CREATE kills the
-        // service after closing the activity
-        return context.bindService(new Intent(context, UpnpRegistryService.class), this, Context.BIND_AUTO_CREATE);
+        if (context != null) {
+            this.context = context;
+            this.preferences = PreferenceManager.getDefaultSharedPreferences(context);
+            // FIXME check if this is right: Context.BIND_AUTO_CREATE kills the
+            // service after closing the activity
+            return context.bindService(new Intent(context, UpnpRegistryService.class), this, Context.BIND_AUTO_CREATE);
+        }
+        return false;
     }
 
     private SyncOffset getDeviceSyncOffset() {
@@ -1042,7 +1043,10 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      * @return the providerDeviceId
      */
     public String getProviderDeviceId() {
-        return preferences.getString(getContext().getString(R.string.settings_selected_provider_title), null);
+        if (getContext() != null){
+            return preferences.getString(getContext().getString(R.string.settings_selected_provider_title), null);
+        }
+        return "";
     }
 
     /**
