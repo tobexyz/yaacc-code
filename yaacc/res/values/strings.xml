@@ -40,7 +40,7 @@
     <string name="error_upnp_specific">The following error occurred:</string>
     <string name="error_no_receiver_device_found">No receiver device found</string>
     <string name="error_no_activity_found">No activity found for playing mimetype \'%1$s\'</string>
-    <string name="image_viewer_settings_duration">picture stay duration</string>
+    <string name="image_viewer_settings_duration">Picture stay duration</string>
     <string name="image_viewer_settings_duration_key" translatable="false">image_viewer_settings_duration_key</string>
     <string name="yaacc_menu_settings">YAACC settings</string>
     <string name="yaacc_about">About</string>
