@@ -3,8 +3,10 @@ YAACC - UPNP Client and Server
 # I am back!
 
 After a long pause of work on this project I will resume the work on it.
-First I want to bring it back to fdroid (www.fdroid.org) because there is no foss upnp player at the moment.
-After that maybe I will implement new features.
+
+[<img src="https://f-droid.org/badge/get-it-on.png"
+     alt="Get it on F-Droid"
+     height="80">](https://f-droid.org/packages/de.yaacc/)
 
 Have fun!
 
