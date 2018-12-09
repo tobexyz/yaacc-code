@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?><!--
  *
- * Copyright (C) 2013 www.yaacc.de 
+ * Copyright (C) 2013 www.yaacc.de
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -21,7 +21,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     package="de.yaacc"
     android:versionCode="22"
-    android:versionName="2.0.2-SNAPSHOT">
+    android:versionName="2.0.2">
 
 
 
