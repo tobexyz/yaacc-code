@@ -663,7 +663,7 @@ public abstract class AbstractPlayer implements Player {
         if (execTimer != null) {
             execTimer.cancel();
         }
-        Timer execTimer = new Timer();
+        execTimer = new Timer();
         execTimer.schedule(command, executionTime);
     }
 

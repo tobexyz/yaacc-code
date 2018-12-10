@@ -91,15 +91,12 @@ public class BackgroundMusicService extends Service {
         return binder;
     }
 
-    /*
-     * (non-Javadoc)
-     *
-     * @see android.app.Service#onStart(android.content.Intent, int)
-     */
+
     @Override
-    public void onStart(Intent intent, int startid) {
-        Log.d(this.getClass().getName(), "On Start");
+    public int onStartCommand(Intent intent, int flags, int startId) {
+        Log.d(this.getClass().getName(), "Received start id " + startId + ": " + intent);
         initialize(intent);
+        return START_STICKY;
     }
 
     private void initialize(Intent intent) {
