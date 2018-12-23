@@ -20,6 +20,7 @@ package de.yaacc.player;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.Menu;
@@ -28,12 +29,14 @@ import android.view.View;
 import android.view.View.OnClickListener;
 import android.widget.CompoundButton;
 import android.widget.ImageButton;
+import android.widget.ImageView;
 import android.widget.SeekBar;
 import android.widget.Switch;
 import android.widget.TextView;
 
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
+import java.net.URI;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -46,6 +49,7 @@ import de.yaacc.R;
 import de.yaacc.settings.SettingsActivity;
 import de.yaacc.util.AboutActivity;
 import de.yaacc.util.YaaccLogActivity;
+import de.yaacc.util.image.ImageDownloadTask;
 
 /**
  * A avtransport player activity controlling the {@link AVTransportPlayer}.
@@ -330,6 +334,12 @@ public class AVTransportPlayerActivity extends Activity {
     private void doSetTrackInfo() {
         if (getPlayer() == null)
             return;
+        ImageView albumArtView = (ImageView) findViewById(R.id.avtransportPlayerActivityImageView);
+        URI albumArtUri = getPlayer().getAlbumArt();
+        if (null != albumArtUri) {
+            ImageDownloadTask imageDownloadTask = new ImageDownloadTask(albumArtView);
+            imageDownloadTask.execute(Uri.parse(albumArtUri.toString()));
+        }
         TextView duration = (TextView) findViewById(R.id.avtransportPlayerActivityDuration);
         String durationTimeString = getPlayer().getDuration();
         duration.setText(durationTimeString);

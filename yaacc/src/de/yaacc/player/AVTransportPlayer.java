@@ -34,6 +34,7 @@ import org.fourthline.cling.support.avtransport.callback.SetAVTransportURI;
 import org.fourthline.cling.support.avtransport.callback.Stop;
 import org.fourthline.cling.support.contentdirectory.DIDLParser;
 import org.fourthline.cling.support.model.DIDLContent;
+import org.fourthline.cling.support.model.DIDLObject;
 import org.fourthline.cling.support.model.PositionInfo;
 import org.fourthline.cling.support.model.item.Item;
 import org.fourthline.cling.support.renderingcontrol.callback.GetMute;
@@ -64,6 +65,7 @@ public class AVTransportPlayer extends AbstractPlayer {
     private String contentType;
     private PositionInfo currentPositionInfo;
     private ActionState positionActionState = null;
+    private URI albumArtUri;
     /**
      * @param upnpClient the client
      * @param name playerName
@@ -174,6 +176,9 @@ public class AVTransportPlayer extends AbstractPlayer {
 			 Log.d(getClass().getName(), "Error while generating Didl-Item xml: " + e);
 			 metadata = ""; 
 		}
+        DIDLObject.Property<URI> albumArtUriProperty = playableItem.getItem() == null ? null : playableItem.getItem().getFirstProperty(DIDLObject.Property.UPNP.ALBUM_ART_URI.class);
+        albumArtUri = (albumArtUriProperty == null) ? null : albumArtUriProperty.getValue();
+
         InternalSetAVTransportURI setAVTransportURI = new InternalSetAVTransportURI(
                 service, playableItem.getUri().toString(), actionState, metadata);
         getUpnpClient().getControlPoint().execute(setAVTransportURI);
@@ -230,9 +235,14 @@ public class AVTransportPlayer extends AbstractPlayer {
                 actionState.watchdogFlag = true;
             }
         }, 30000L); // 30sec. Watchdog
+        int i = 0;
         while (!(actionState.actionFinished || actionState.watchdogFlag)) {
-// wait for local device is connected
-            Log.d(getClass().getName(), "wait for action finished ");
+            //work around byte code optimization
+            i++;
+            if( i== 10000) {
+                Log.d(getClass().getName(), "wait for action finished ");
+                i=0;
+            }
         }
         if (actionState.watchdogFlag) {
             Log.d(getClass().getName(), "Watchdog timeout!");
@@ -344,7 +354,7 @@ public class AVTransportPlayer extends AbstractPlayer {
 
     @Override
     public URI getAlbumArt() {
-        return null;
+        return albumArtUri;
     }
 
     public boolean getMute(){
@@ -392,8 +402,14 @@ public class AVTransportPlayer extends AbstractPlayer {
         Watchdog watchdog = Watchdog.createWatchdog(10000L);
         watchdog.start();
 
+        int i=0;
         while (!actionState.actionFinished && !watchdog.hasTimeout()) {
             //active wait
+            i++;
+            if( i== 10000) {
+                Log.d(getClass().getName(), "wait for action finished ");
+                i=0;
+            }
         }
         if (watchdog.hasTimeout()) {
             Log.d(getClass().getName(),"Timeout occurred");
@@ -523,9 +539,14 @@ public class AVTransportPlayer extends AbstractPlayer {
         getUpnpClient().getControlPoint().execute(actionCallback);
         Watchdog watchdog = Watchdog.createWatchdog(10000L);
         watchdog.start();
-
+        int i = 0;
         while (!actionState.actionFinished && !watchdog.hasTimeout()) {
             //active wait
+            i++;
+            if( i== 10000) {
+                Log.d(getClass().getName(), "wait for action finished ");
+                i=0;
+            }
         }
         if (watchdog.hasTimeout()) {
             Log.d(getClass().getName(),"Timeout occurred");
