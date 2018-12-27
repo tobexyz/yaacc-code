@@ -39,10 +39,10 @@ import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.SharedPreferences;
 import android.net.Uri;
-import android.net.wifi.WifiManager;
+
 import android.os.Build;
+import android.os.Handler;
 import android.os.IBinder;
-import android.os.PowerManager;
 import android.preference.PreferenceManager;
 import android.provider.Settings;
 import android.support.v4.app.NotificationCompat;
@@ -65,11 +65,11 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
     private List<PlayableItem> items = new ArrayList<PlayableItem>();
     private int previousIndex = 0;
     private int currentIndex = 0;
-    private Timer playerTimer;
+    private Handler playerTimer;
     private Timer execTimer;
     private boolean isPlaying = false;
     private boolean isProcessingCommand = false;
-    private PowerManager.WakeLock wakeLock;
+
 
     private UpnpClient upnpClient;
     private PlayerService playerService;
@@ -82,7 +82,8 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
     private boolean paused;
     private Object loadedItem = null;
     private int currentLoadedIndex = -1;
-    private WifiManager.WifiLock wifiLock;
+
+
 
     /**
      * @param upnpClient
@@ -94,9 +95,12 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
     }
 
     public void onServiceConnected(ComponentName className, IBinder binder) {
-        Log.d("ServiceConnection","connected");
-        playerService  = ((PlayerService.PlayerServiceBinder) binder).getService();
-        playerService.addPlayer(this);
+        if(binder instanceof PlayerService.PlayerServiceBinder) {
+            Log.d("ServiceConnection", "connected");
+
+            playerService = ((PlayerService.PlayerServiceBinder) binder).getService();
+            playerService.addPlayer(this);
+        }
     }
     //binder comes from server to communicate with method's of
 
@@ -264,7 +268,6 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
         if (isProcessingCommand())
             return;
         setProcessingCommand(true);
-        aquireWakeLock();
         int possibleNextIndex = currentIndex;
         if (possibleNextIndex >= 0 && possibleNextIndex < items.size()) {
             loadItem(possibleNextIndex);
@@ -300,71 +303,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
     }
 
 
-    void configureBatteryOptimisation(boolean showDialogRegardless)
-    {
-        PowerManager pm = (PowerManager) getContext().getApplicationContext().getSystemService(Context.POWER_SERVICE);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            Intent intent = new Intent();
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            String packageName = getContext().getPackageName();
-            if (pm.isIgnoringBatteryOptimizations(packageName)) {
-                Log.d(getClass().getName(),"Battery optimisations are being ignored");
-                if (showDialogRegardless) {
-                    intent.setAction(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS);
-                    getContext().startActivity(intent);
-                }
-            }
-            else {
-                Log.d(getClass().getName(),"Battery optimisations are in effect");
-                intent.setAction(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
-                intent.setData(Uri.parse("package:" + packageName));
-                getContext().startActivity(intent );
-            }
-        }
-    }
 
-    protected void aquireWakeLock() {
-        if(wakeLock == null){
-            PowerManager powerManager = (PowerManager) getContext().getSystemService(Context.POWER_SERVICE);
-            wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,
-                    "Yaacc::WakeLockWhilePlaying_" + getId());
-            configureBatteryOptimisation(true);
-        }
-        if(wakeLock != null) {
-            wakeLock.acquire(60000);
-            Log.d(getClass().getName(), "WakeLock aquired");
-        }
-        if (wifiLock == null) {
-            WifiManager wifiManager = (WifiManager) getContext().getApplicationContext().getSystemService(Context.WIFI_SERVICE);
-            wifiLock = wifiManager.createWifiLock(WifiManager.WIFI_MODE_FULL,"Yaacc::WifiLockWhilePlaying_"+ getId());
-        }
-        if (wifiLock != null){
-            wifiLock.acquire();
-            Log.d(getClass().getName(), "WifiLock aquired");
-        }
-    }
-
-    protected void releaseWakeLock() {
-        if(wakeLock != null) {
-            try{
-                wakeLock.release();
-                Log.d(getClass().getName(), "WakeLock released");
-            } catch (Throwable th) {
-                // ignoring this exception, probably wakeLock was already released
-                Log.d(getClass().getName(), "Ignoring exception on WakeLock release maybe no wakelock?");
-            }
-        }
-
-        if(wifiLock != null){
-            try {
-                wifiLock.release();
-                Log.d(getClass().getName(), "WifiLock released");
-            }catch(Throwable th){
-                Log.d(getClass().getName(), "Ignoring exception on WifiLock release maybe no wifilock?");
-            }
-
-        }
-    }
 
     /*
      * (non-Javadoc)
@@ -376,7 +315,6 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
         if (isProcessingCommand())
             return;
         setProcessingCommand(true);
-        releaseWakeLock();
         currentLoadedIndex = -1;
         loadedItem = null;
         executeCommand(new TimerTask() {
@@ -444,7 +382,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
 
     protected void cancelTimer() {
         if (playerTimer != null) {
-            playerTimer.cancel();
+            playerTimer.removeCallbacksAndMessages(null);
         }
     }
 
@@ -566,8 +504,8 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
         if (playerTimer != null) {
             cancelTimer();
         }
-        playerTimer = new Timer();
-        playerTimer.schedule(new TimerTask() {
+        playerTimer = new Handler(playerService.getPlayerHandlerThread().getLooper());
+        playerTimer.postDelayed(new Runnable() {
 
             @Override
             public void run() {
@@ -691,9 +629,6 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
     @Override
     public void onDestroy() {
         stop();
-        if(wakeLock != null){
-            releaseWakeLock();
-        }
         cancleNotification();
         items.clear();
         if(playerService != null){

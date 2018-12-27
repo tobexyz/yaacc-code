@@ -68,9 +68,11 @@ public class AVTransportPlayerActivity extends Activity implements ServiceConnec
     protected SeekBar seekBar = null;
 
     public void onServiceConnected(ComponentName className, IBinder binder) {
-        Log.d(getClass().getName(),"PlayerService connected");
-        playerService  = ((PlayerService.PlayerServiceBinder) binder).getService();
-        initialize();
+        if(binder instanceof PlayerService.PlayerServiceBinder) {
+            Log.d(getClass().getName(), "PlayerService connected");
+            playerService = ((PlayerService.PlayerServiceBinder) binder).getService();
+            initialize();
+        }
     }
     //binder comes from server to communicate with method's of
 

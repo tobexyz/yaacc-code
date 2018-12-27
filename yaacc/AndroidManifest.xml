@@ -116,7 +116,7 @@
         </activity>
         <activity
             android:name=".settings.SettingsActivity"
-            android:label="@string/title_activity_settings"></activity>
+            android:label="@string/title_activity_settings" />
 
         <receiver android:name=".imageviewer.ImageViewerBroadcastReceiver" />
         <receiver
@@ -201,10 +201,18 @@
             android:name=".player.PlayerService"
             android:enabled="true"
             android:exported="false" />
-        <receiver android:name=".player.AlarmBroadCastReceiver"
+
+        <receiver
+            android:name=".player.AlarmBroadCastReceiver"
             android:enabled="true"
-            android:exported="false"
-            />
+            android:exported="false" />
+
+
+        <service
+            android:name=".YaaccService"
+            android:enabled="true"
+            android:process="de.yaacc.serviceprocess"
+            android:exported="true"></service>
     </application>
 
 </manifest>

@@ -18,25 +18,26 @@
 package de.yaacc.player;
 
 import android.app.AlarmManager;
+import android.app.IntentService;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
+import android.net.Uri;
 import android.os.Binder;
 import android.os.Build;
+import android.os.HandlerThread;
 import android.os.IBinder;
-import android.support.v4.app.NotificationCompat;
+import android.provider.Settings;
 import android.util.Log;
+import android.net.wifi.WifiManager;
+import android.os.PowerManager;
 
-import java.util.ArrayList;
+
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
-import de.yaacc.R;
+import java.util.Map;
 
 /**
  * @author Tobias Schoene (tobexyz)
@@ -47,16 +48,23 @@ public class PlayerService extends Service {
     private static final int PALYER_SERVICE_FOREGROUND_ID=432587632;
     private IBinder binder = new PlayerServiceBinder();
     private Map<Integer,Player> currentActivePlayer = new HashMap<>();
-
+    private volatile HandlerThread playerHandlerThread;
+    private PowerManager.WakeLock wakeLock;
+    private WifiManager.WifiLock wifiLock;
     public PlayerService() {
     }
 
     public void addPlayer(Player player) {
+        aquireWakeLock();
         currentActivePlayer.put(player.getId(),player);
     }
 
     public void removePlayer(AbstractPlayer player) {
+
         currentActivePlayer.remove(player.getId());
+        if(currentActivePlayer.isEmpty()){
+            releaseWakeLock();
+        }
     }
 
     public class PlayerServiceBinder extends Binder {
@@ -68,8 +76,12 @@ public class PlayerService extends Service {
     @Override
     public void onDestroy() {
         Log.d(this.getClass().getName(), "On Destroy");
-
+        if(wakeLock != null || wifiLock != null) {
+            releaseWakeLock();
+        }
     }
+
+
 
     @Override
     public IBinder onBind(Intent intent) {
@@ -89,25 +101,30 @@ public class PlayerService extends Service {
 
 
     private void initialize(Intent intent) {
-        if (Build.VERSION.SDK_INT >= 26) {
+       /* if (Build.VERSION.SDK_INT >= 26) {
             Log.d(this.getClass().getName(), "Start foreground service" + intent);
-            NotificationCompat.Builder b=new NotificationCompat.Builder(this);
+           NotificationCompat.Builder b=new NotificationCompat.Builder(this);
 
             b.setOngoing(true)
                     .setContentTitle(getString(R.string.title_activity_main))
                     .setSmallIcon(android.R.drawable.sym_def_app_icon)
                     ;
-                startForeground(PALYER_SERVICE_FOREGROUND_ID,b.build());
+
+            startForeground(PALYER_SERVICE_FOREGROUND_ID,b.build());
         }else{
             Log.d(this.getClass().getName(), "Start as service" + intent);
         }
+        */
+        // An Android handler thread internally operates on a looper.
+        playerHandlerThread = new HandlerThread("de.yaacc.PlayerService.HandlerThread");
+        playerHandlerThread.start();
         //startPreventDozeAlarm();
-        for (Player player:getPlayer()) {
-            Log.d(getClass().getName(),"Player: " + player.getId() + " elapsed time: " + player.getElapsedTime());
-        }
     }
 
 
+    public HandlerThread getPlayerHandlerThread(){
+        return playerHandlerThread;
+    }
 
     public Player getPlayer(int playerId) {
         Log.d(this.getClass().getName(), "Get Player for id " + playerId);
@@ -133,6 +150,50 @@ public class PlayerService extends Service {
         else
         {
             alarmManager.set(AlarmManager.RTC_WAKEUP, 30000, pendingIntent);
+        }
+    }
+
+
+
+    protected void aquireWakeLock() {
+        if(wakeLock == null ){
+            PowerManager powerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
+            wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,
+                    "Yaacc::WakeLockWhilePlaying");
+        }
+        if(wakeLock != null && !wakeLock.isHeld()) {
+            wakeLock.acquire(60000);
+            Log.d(getClass().getName(), "WakeLock aquired");
+        }
+        if (wifiLock == null) {
+            WifiManager wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+            wifiLock = wifiManager.createWifiLock(WifiManager.WIFI_MODE_FULL,"Yaacc::WifiLockWhilePlaying");
+        }
+        if (wifiLock != null && !wifiLock.isHeld()){
+            wifiLock.acquire();
+            Log.d(getClass().getName(), "WifiLock aquired");
+        }
+    }
+
+    protected void releaseWakeLock() {
+        if(wakeLock != null) {
+            try{
+                wakeLock.release();
+                Log.d(getClass().getName(), "WakeLock released");
+            } catch (Throwable th) {
+                // ignoring this exception, probably wakeLock was already released
+                Log.d(getClass().getName(), "Ignoring exception on WakeLock release maybe no wakelock?");
+            }
+        }
+
+        if(wifiLock != null){
+            try {
+                wifiLock.release();
+                Log.d(getClass().getName(), "WifiLock released");
+            }catch(Throwable th){
+                Log.d(getClass().getName(), "Ignoring exception on WifiLock release maybe no wifilock?");
+            }
+
         }
     }
 }

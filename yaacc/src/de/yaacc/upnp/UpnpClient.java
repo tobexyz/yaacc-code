@@ -202,8 +202,11 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
 	 */
     @Override
     public void onServiceConnected(ComponentName className, IBinder service) {
-        setAndroidUpnpService(((AndroidUpnpService) service));
-        refreshUpnpDeviceCatalog();
+        if(service instanceof  AndroidUpnpService) {
+            setAndroidUpnpService(((AndroidUpnpService) service));
+            refreshUpnpDeviceCatalog();
+        }
+
     }
 
     /*
