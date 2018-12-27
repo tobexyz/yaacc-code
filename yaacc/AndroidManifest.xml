@@ -25,6 +25,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.GET_TASKS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
@@ -33,6 +34,7 @@
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
 
     <application
+        android:name=".Yaacc"
         android:allowBackup="false"
         android:icon="@drawable/ic_launcher"
         android:label="@string/app_name"
@@ -114,16 +116,7 @@
         </activity>
         <activity
             android:name=".settings.SettingsActivity"
-            android:label="@string/title_activity_settings">
-
-            <!--
-            intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-
-                <category android:name="android.intent.category.DEFAULT" />
-            </intent-filter
-            -->
-        </activity>
+            android:label="@string/title_activity_settings"></activity>
 
         <receiver android:name=".imageviewer.ImageViewerBroadcastReceiver" />
         <receiver
@@ -204,10 +197,14 @@
             </intent-filter>
         </activity>
 
-        <receiver
-            android:name=".player.PreventDozeAlarmReceiver"
+        <service
+            android:name=".player.PlayerService"
             android:enabled="true"
-            android:exported="false"></receiver>
+            android:exported="false" />
+        <receiver android:name=".player.AlarmBroadCastReceiver"
+            android:enabled="true"
+            android:exported="false"
+            />
     </application>
 
 </manifest>

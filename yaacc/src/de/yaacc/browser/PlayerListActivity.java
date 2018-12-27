@@ -30,6 +30,7 @@ import android.widget.ListView;
 import org.fourthline.cling.model.meta.Device;
 
 import de.yaacc.R;
+import de.yaacc.Yaacc;
 import de.yaacc.player.Player;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.UpnpClientListener;
@@ -58,7 +59,7 @@ public class PlayerListActivity extends Activity implements
     private void init(Bundle savedInstanceState) {
 
         setContentView(R.layout.activity_player_list);
-        upnpClient = UpnpClient.getInstance(getApplicationContext());
+        upnpClient = ((Yaacc)getApplicationContext()).getUpnpClient();
         itemClickListener = new PlayerListItemClickListener();
         contentList = (ListView) findViewById(R.id.playerList);
         registerForContextMenu(contentList);

@@ -27,6 +27,7 @@ import android.widget.ListView;
 import org.fourthline.cling.model.meta.Device;
 
 import de.yaacc.R;
+import de.yaacc.Yaacc;
 import de.yaacc.upnp.UpnpClient;
 
 /**
@@ -48,12 +49,12 @@ public class BrowseReceiverDeviceClickListener implements OnItemClickListener {
         if (checkBox.isChecked()) {
             Log.d(getClass().getName(), "isChecked:" + device.getDisplayString());
             adapter.removeSelectedDevice(device);
-            UpnpClient.getInstance(null).removeReceiverDevice(device);
+            ((Yaacc)listView.getContext().getApplicationContext()).getUpnpClient().removeReceiverDevice(device);
             checkBox.setChecked(false);
         } else {
             Log.d(getClass().getName(), "isNotChecked:" + device.getDisplayString());
             adapter.addSelectedDevice(device);
-            UpnpClient.getInstance(null).addReceiverDevice(device);
+            ((Yaacc)listView.getContext().getApplicationContext()).getUpnpClient().addReceiverDevice(device);
             checkBox.setChecked(true);
         }
     }

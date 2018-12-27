@@ -59,13 +59,14 @@ import de.yaacc.util.Watchdog;
  *
  */
 public class AVTransportPlayer extends AbstractPlayer {
-    public static final String PLAYER_ID = "PlayerId";
+
     private String deviceId="";
     private int id;
     private String contentType;
     private PositionInfo currentPositionInfo;
     private ActionState positionActionState = null;
     private URI albumArtUri;
+
     /**
      * @param upnpClient the client
      * @param name playerName
@@ -239,7 +240,7 @@ public class AVTransportPlayer extends AbstractPlayer {
         while (!(actionState.actionFinished || actionState.watchdogFlag)) {
             //work around byte code optimization
             i++;
-            if( i== 10000) {
+            if( i== 100000) {
                 Log.d(getClass().getName(), "wait for action finished ");
                 i=0;
             }
@@ -406,7 +407,7 @@ public class AVTransportPlayer extends AbstractPlayer {
         while (!actionState.actionFinished && !watchdog.hasTimeout()) {
             //active wait
             i++;
-            if( i== 10000) {
+            if( i== 100000) {
                 Log.d(getClass().getName(), "wait for action finished ");
                 i=0;
             }
@@ -543,7 +544,7 @@ public class AVTransportPlayer extends AbstractPlayer {
         while (!actionState.actionFinished && !watchdog.hasTimeout()) {
             //active wait
             i++;
-            if( i== 10000) {
+            if( i== 100000) {
                 Log.d(getClass().getName(), "wait for action finished ");
                 i=0;
             }

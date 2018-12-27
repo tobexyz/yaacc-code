@@ -147,7 +147,7 @@ public class YaaccUpnpServerService extends Service {
 	 * @see android.app.Service#onStart(android.content.Intent, int)
 	 */
 	@Override
-	public void onStart(Intent intent, int startid) {
+	public int onStartCommand(Intent intent, int flags, int startId) {
 
 		// when the service starts, the preferences are initialized
 		preferences = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
@@ -169,7 +169,7 @@ public class YaaccUpnpServerService extends Service {
 		initializationThread.start();
 		showNotification();
 		Log.d(this.getClass().getName(), "End On Start");
-
+		return START_STICKY;
 	}
 
 	@Override

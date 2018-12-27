@@ -19,9 +19,13 @@ package de.yaacc.player;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.content.ComponentName;
+import android.content.Context;
 import android.content.Intent;
+import android.content.ServiceConnection;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.IBinder;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -56,28 +60,53 @@ import de.yaacc.util.image.ImageDownloadTask;
  *
  * @author Tobias Schoene (openbit)
  */
-public class AVTransportPlayerActivity extends Activity {
+public class AVTransportPlayerActivity extends Activity implements ServiceConnection {
 
-
+    private PlayerService playerService;
     private int playerId;
     protected boolean updateTime = false;
     protected SeekBar seekBar = null;
 
+    public void onServiceConnected(ComponentName className, IBinder binder) {
+        Log.d(getClass().getName(),"PlayerService connected");
+        playerService  = ((PlayerService.PlayerServiceBinder) binder).getService();
+        initialize();
+    }
+    //binder comes from server to communicate with method's of
+
+    public void onServiceDisconnected(ComponentName className) {
+        Log.d(getClass().getName(),"PlayerService disconnected");
+        playerService = null;
+    }
+
+
+    private PlayerService getPlayerService(){
+        return playerService;
+    }
     @Override
     protected void onPause() {
         super.onPause();
         updateTime = false;
+        try {
+            getPlayerService().unbindService(this);
+        }catch (IllegalArgumentException iae){
+            Log.d(getClass().getName(), "Ignore exception on unbind service while activity pause");
+        }
     }
 
     @Override
     protected void onRestart() {
         super.onRestart();
+        this.bindService(new Intent(this, PlayerService.class),
+                this, Context.BIND_AUTO_CREATE);
         updateTime = true;
     }
 
     @Override
     protected void onResume() {
         super.onResume();
+        this.bindService(new Intent(this, PlayerService.class),
+                this, Context.BIND_AUTO_CREATE);
         updateTime = true;
         setTrackInfo();
     }
@@ -86,19 +115,15 @@ public class AVTransportPlayerActivity extends Activity {
     protected void onDestroy() {
         super.onDestroy();
         updateTime = false;
+        try {
+            getPlayerService().unbindService(this);
+        }catch (IllegalArgumentException iae){
+            Log.d(getClass().getName(), "Ignore exception on unbind service while activity destroy");
+        }
+
     }
 
-
-
-
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_avtransport_player);
-
-        // initialize buttons
-        playerId = getIntent().getIntExtra(AVTransportPlayer.PLAYER_ID, -1);
-        Log.d(getClass().getName(), "Got id from intent: " + playerId);
+    protected void initialize(){
         Player player = getPlayer();
         ImageButton btnPrev = (ImageButton) findViewById(R.id.avtransportPlayerActivityControlPrev);
         ImageButton btnNext = (ImageButton) findViewById(R.id.avtransportPlayerActivityControlNext);
@@ -219,8 +244,8 @@ public class AVTransportPlayerActivity extends Activity {
         SeekBar volumeSeekBar = (SeekBar) findViewById(R.id.avtransportPlayerActivityControlVolumeSeekBar);
         volumeSeekBar.setMax(100);
         if (getPlayer() != null) {
-          Log.d(getClass().getName(),"Volumne:" + getPlayer().getVolume());
-          volumeSeekBar.setProgress(getPlayer().getVolume());
+            Log.d(getClass().getName(),"Volumne:" + getPlayer().getVolume());
+            volumeSeekBar.setProgress(getPlayer().getVolume());
         }else{
             volumeSeekBar.setProgress(100);
         }
@@ -275,29 +300,32 @@ public class AVTransportPlayerActivity extends Activity {
             }
 
         });
+    }
+
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_avtransport_player);
+        this.bindService(new Intent(this, PlayerService.class),
+                this, Context.BIND_AUTO_CREATE);
+        // initialize buttons
+        playerId = getIntent().getIntExtra(AVTransportPlayer.PLAYER_ID, -1);
+        Log.d(getClass().getName(), "Got id from intent: " + playerId);
+
+
+
 
 
     }
 
-
-    private Player getPlayer() {
-        Player result = null;
-        List<Player> players = new ArrayList<Player>();
-        players.addAll(PlayerFactory
-                .getCurrentPlayersOfType(AVTransportPlayer.class));
-        players.addAll(PlayerFactory
-                .getCurrentPlayersOfType(SyncAVTransportPlayer.class));
-        if (players != null) { // assume that there
-            for (Player player : players) {
-                Log.d(getClass().getName(), "Found networkplayer: " + player.getId() + " Searched  for id: " + playerId);
-                if (player.getId() == playerId) {
-                    result = player;
-                    break;
-                }
-            }
+    private Player getPlayer(){
+        if (getPlayerService() == null){
+            return null;
         }
-        return result;
+        return getPlayerService().getPlayer(playerId);
     }
+
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {

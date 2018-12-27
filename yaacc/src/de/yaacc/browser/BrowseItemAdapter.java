@@ -47,6 +47,7 @@ import java.util.LinkedList;
 import java.util.List;
 
 import de.yaacc.R;
+import de.yaacc.Yaacc;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.callback.contentdirectory.ContentDirectoryBrowseResult;
 import de.yaacc.util.image.IconDownloadTask;
@@ -72,7 +73,7 @@ public class BrowseItemAdapter extends BaseAdapter {
         inflator = LayoutInflater.from(ctx);
         context = ctx;
         iconDownloadTasks = new ArrayList<IconDownloadTask>();
-        ContentDirectoryBrowseResult result = UpnpClient.getInstance(null)
+        ContentDirectoryBrowseResult result = ((Yaacc)context.getApplicationContext()).getUpnpClient()
                 .browseSync(pos);
         if (result == null)
             return;

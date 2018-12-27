@@ -21,6 +21,13 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import org.fourthline.cling.model.meta.Device;
+
+import android.content.ComponentName;
+import android.content.Context;
+import android.content.Intent;
+import android.content.ServiceConnection;
+import android.os.Build;
+import android.os.IBinder;
 import android.preference.PreferenceManager;
 import android.util.Log;
 import android.widget.Toast;
@@ -34,7 +41,11 @@ import de.yaacc.upnp.UpnpClient;
  *
  */
 public class PlayerFactory {
-    private static List<Player> currentPlayers = new ArrayList<Player>();
+
+    static PlayerFactory instance = new PlayerFactory();
+    private List<Player> currentPlayers = new ArrayList<Player>();
+
+
 
 
     /**
@@ -72,7 +83,7 @@ public class PlayerFactory {
         for (Device device : upnpClient.getReceiverDevices()) {
             result = createPlayer(upnpClient,device, video, image, music,syncInfo);
             if (result != null) {
-                currentPlayers.add(result);
+                instance.getInternalCurrentPlayers().add(result);
                 result.setItems(items.toArray(new PlayableItem[items.size()]));
                 resultList.add(result);
             }
@@ -95,6 +106,7 @@ public class PlayerFactory {
             toast.show();
             return null;
         }
+
         Player result;
         if (!receiverDevice.getIdentity().getUdn().getIdentifierString().equals(UpnpClient.LOCAL_UID)) {
             String deviceName = receiverDevice.getDisplayString();
@@ -194,9 +206,13 @@ public class PlayerFactory {
      * @return the currentPlayer
      */
     public static List<Player> getCurrentPlayers() {
-        return Collections.unmodifiableList(currentPlayers);
+
+        return Collections.unmodifiableList(instance.getInternalCurrentPlayers());
     }
 
+    private List<Player> getInternalCurrentPlayers() {
+        return currentPlayers;
+    }
     /**
      * returns all current players of the given type.
      *
@@ -223,7 +239,7 @@ public class PlayerFactory {
      */
     public static List<Player> getCurrentPlayersOfType(Class typeClazz) {
         List<Player> players = new ArrayList<Player>();
-        for (Player player : currentPlayers) {
+        for (Player player : instance.getInternalCurrentPlayers()) {
             if (typeClazz.isInstance(player)) {
                 players.add(player);
             }
@@ -238,7 +254,7 @@ public class PlayerFactory {
      * @return the currentPlayer
      */
     public static Player getFirstCurrentPlayerOfType(Class typeClazz) {
-        for (Player player : currentPlayers) {
+        for (Player player : instance.getInternalCurrentPlayers()) {
             if (typeClazz.isInstance(player)) {
                 return player;
             }
@@ -279,7 +295,7 @@ public class PlayerFactory {
      */
     public static void shutdown(Player player) {
         assert (player != null);
-        currentPlayers.remove(player);
+        instance.getInternalCurrentPlayers().remove(player);
         player.onDestroy();
     }
     /**
@@ -287,9 +303,29 @@ public class PlayerFactory {
      */
     public static void shutdown() {
         HashSet<Player> players = new HashSet<Player>();
-        players.addAll(currentPlayers);
+        players.addAll(instance.getInternalCurrentPlayers());
         for (Player player : players) {
             shutdown(player);
         }
+
+    }
+
+    public static Player getPlayer(int playerId) {
+        Player result = null;
+        List<Player> players = new ArrayList<Player>();
+        players.addAll(PlayerFactory
+                .getCurrentPlayersOfType(AVTransportPlayer.class));
+        players.addAll(PlayerFactory
+                .getCurrentPlayersOfType(SyncAVTransportPlayer.class));
+        if (players != null) { // assume that there
+            for (Player player : players) {
+                Log.d(PlayerFactory.class.getName(), "Found networkplayer: " + player.getId() + " Searched  for id: " + playerId);
+                if (player.getId() == playerId) {
+                    result = player;
+                    break;
+                }
+            }
+        }
+        return result;
     }
 } 

@@ -38,6 +38,7 @@ import org.fourthline.cling.support.model.DIDLObject;
 import java.util.ArrayList;
 
 import de.yaacc.R;
+import de.yaacc.Yaacc;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.UpnpClientListener;
 import de.yaacc.util.image.IconDownloadCacheHandler;
@@ -101,7 +102,7 @@ public class ContentListActivity extends Activity implements OnClickListener,
 
     private void init(Bundle savedInstanceState) {
         setContentView(R.layout.activity_content_list);
-        upnpClient = UpnpClient.getInstance(getApplicationContext());
+        upnpClient = ((Yaacc)getApplicationContext()).getUpnpClient();
         contentList = (ListView) findViewById(R.id.contentList);
         registerForContextMenu(contentList);
         upnpClient.addUpnpClientListener(this);

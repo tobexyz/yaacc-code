@@ -25,6 +25,7 @@ import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.SharedPreferences;
 import android.net.Uri;
+import android.os.Build;
 import android.os.IBinder;
 import android.preference.PreferenceManager;
 import android.util.Log;
@@ -54,7 +55,6 @@ import de.yaacc.util.NotificationId;
 public class LocalBackgoundMusicPlayer extends AbstractPlayer implements ServiceConnection {
 
     private BackgroundMusicService backgroundMusicService;
-    private boolean watchdog;
     private Timer commandExecutionTimer;
     private URI albumArtUri;
 
@@ -73,10 +73,11 @@ public class LocalBackgoundMusicPlayer extends AbstractPlayer implements Service
         super(upnpClient);
         Log.d(getClass().getName(), "Starting background music service... ");
         Context context = getUpnpClient().getContext();
-        //context.startService(new Intent(context, BackgroundMusicService.class));
-        // Bind Service
-        //Context context = getUpnpClient().getContext();
-        context.startService(new Intent(context, BackgroundMusicService.class));
+        if (Build.VERSION.SDK_INT >= 26) {
+            context.startForegroundService(new Intent(context, BackgroundMusicService.class));
+        }else{
+            context.startService(new Intent(context, BackgroundMusicService.class));
+        }
         context.bindService(new Intent(context, BackgroundMusicService.class), LocalBackgoundMusicPlayer.this, Context.BIND_AUTO_CREATE);
 
     }
@@ -90,9 +91,15 @@ public class LocalBackgoundMusicPlayer extends AbstractPlayer implements Service
     @Override
     public void onDestroy() {
         super.onDestroy();
-        Intent svc = new Intent(getContext(), BackgroundMusicService.class);
-        getContext().stopService(svc);
-        getContext().unbindService(this);
+        if (backgroundMusicService != null){
+            backgroundMusicService.stop();
+            try {
+                backgroundMusicService.unbindService(this);
+            }catch (IllegalArgumentException iex){
+                Log.d(getClass().getName(),"ignoring exception while unbind service");
+            }
+        }
+
     }
 
     /*
@@ -227,6 +234,7 @@ public class LocalBackgoundMusicPlayer extends AbstractPlayer implements Service
     @Override
     public PendingIntent getNotificationIntent() {
         Intent notificationIntent = new Intent(getContext(), MusicPlayerActivity.class);
+        notificationIntent.putExtra(PLAYER_ID, getId());
         PendingIntent contentIntent = PendingIntent.getActivity(getContext(), 0, notificationIntent, 0);
         return contentIntent;
     }
@@ -299,8 +307,12 @@ public class LocalBackgoundMusicPlayer extends AbstractPlayer implements Service
 
     @Override
     public void onServiceConnected(ComponentName className, IBinder binder) {
-        Log.d(getClass().getName(), "onServiceConnected...");
-        backgroundMusicService = ((BackgroundMusicServiceBinder) binder).getService();
+        Log.d(getClass().getName(), "onServiceConnected..." + className );
+        if(binder instanceof BackgroundMusicServiceBinder) {
+            backgroundMusicService = ((BackgroundMusicServiceBinder) binder).getService();
+        }else{
+            super.onServiceConnected(className,  binder);
+        }
 
     }
 

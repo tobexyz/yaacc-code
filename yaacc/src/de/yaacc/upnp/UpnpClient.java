@@ -29,6 +29,7 @@ import android.content.res.Resources;
 import android.media.AudioManager;
 import android.net.Uri;
 import android.os.AsyncTask;
+import android.os.Build;
 import android.os.IBinder;
 import android.preference.PreferenceManager;
 import android.util.Log;
@@ -84,6 +85,7 @@ import java.util.Set;
 
 
 import de.yaacc.R;
+import de.yaacc.Yaacc;
 import de.yaacc.browser.Position;
 import de.yaacc.imageviewer.ImageViewerActivity;
 import de.yaacc.musicplayer.BackgroundMusicService;
@@ -105,7 +107,7 @@ import de.yaacc.util.FileDownloader;
  */
 public class UpnpClient implements RegistryListener, ServiceConnection {
     public static String LOCAL_UID = "LOCAL_UID";
-    private static UpnpClient instance;
+    //private static UpnpClient instance;
 
 
     private List<UpnpClientListener> listeners = new ArrayList<>();
@@ -117,13 +119,19 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     public UpnpClient() {
     }
 
-    public static UpnpClient getInstance(Context context) {
+    public UpnpClient(Context context) {
+        initialize(context);
+    }
+
+    /*public static UpnpClient getInstance(Context context) {
         if (instance == null) {
             instance = new UpnpClient();
             instance.initialize(context);
         }
         return instance;
-    }
+    }*/
+
+
 
     /**
      * Initialize the Object.
@@ -371,6 +379,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      * @param uris the uri to start
      * @param mime mime type
      */
+    /*
     protected void intentView(String mime, Uri... uris) {
         if (uris == null || uris.length == 0)
             return;
@@ -387,7 +396,11 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
                     } else {
                         svc.putExtra(BackgroundMusicService.URIS, uris);
                     }
-                    getContext().startService(svc);
+                    if (Build.VERSION.SDK_INT >= 26) {
+                        getContext().startForegroundService(svc);
+                    }else{
+                        getContext().startService(svc);
+                    }
                     return;
                 } else {
                     intent = new Intent(Intent.ACTION_VIEW);
@@ -430,7 +443,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
             }
         }
     }
-
+*/
     /**
      * Add an listener.
      *
