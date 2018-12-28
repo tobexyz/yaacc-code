@@ -38,7 +38,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.SharedPreferences;
-import android.net.Uri;
 
 import android.os.Build;
 import android.os.Handler;
@@ -82,8 +81,6 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
     private boolean paused;
     private Object loadedItem = null;
     private int currentLoadedIndex = -1;
-
-
 
     /**
      * @param upnpClient
@@ -501,9 +498,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
      */
     public void startTimer(final long duration) {
         Log.d(getClass().getName(), "Start timer duration: " + duration);
-        if (playerTimer != null) {
-            cancelTimer();
-        }
+        cancelTimer();
         playerTimer = new Handler(playerService.getPlayerHandlerThread().getLooper());
         playerTimer.postDelayed(new Runnable() {
 
@@ -511,7 +506,6 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
             public void run() {
                 Log.d(getClass().getName(), "TimerEvent for switching to next item" + this);
                 AbstractPlayer.this.next();
-
             }
         }, duration);
 

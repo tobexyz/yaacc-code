@@ -203,16 +203,26 @@
             android:exported="false" />
 
         <receiver
-            android:name=".player.AlarmBroadCastReceiver"
+            android:name=".AlarmBroadCastReceiver"
             android:enabled="true"
-            android:exported="false" />
-
+            android:exported="false"
+            android:process="de.yaacc.serviceprocess" />
 
         <service
             android:name=".YaaccService"
             android:enabled="true"
-            android:process="de.yaacc.serviceprocess"
-            android:exported="true"></service>
+            android:exported="true"
+            android:process="de.yaacc.serviceprocess" />
+
+        <receiver
+            android:name=".ScreenOffReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.SCREEN_OFF"/>
+                <action android:name="android.intent.action.SCREEN_ON"/>
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>
