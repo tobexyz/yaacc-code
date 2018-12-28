@@ -697,8 +697,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
         Log.d(getClass().getName(), "current time: " + new Date().toString() + " get execution time: " + execTime.getTime().toString());
         if (execTime.getTime().getTime() <= System.currentTimeMillis()){
             Log.d(getClass().getName(), "ExecutionTime is in past!! We will start immediately");
-            execTime = Calendar.getInstance(Locale.getDefault());
-            execTime.add(Calendar.MILLISECOND, 100);
+            return null;
 
         }
         return execTime.getTime();
@@ -709,7 +708,11 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
             execTimer.cancel();
         }
         execTimer = new Timer();
-        execTimer.schedule(command, executionTime);
+        if(executionTime == null){
+            execTimer.schedule(command, 100);
+        }else {
+            execTimer.schedule(command, executionTime);
+        }
     }
 
     public boolean getMute(){

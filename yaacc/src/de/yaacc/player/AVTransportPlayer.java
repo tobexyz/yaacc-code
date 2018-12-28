@@ -713,6 +713,11 @@ public class AVTransportPlayer extends AbstractPlayer {
             @Override
             public void run() {
                 actionState.actionFinished = AVTransportPlayer.this.isProcessingCommand();
+                try {
+                    Thread.sleep(200);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
             }
         };
         waitForActionComplete(actionState,fn);

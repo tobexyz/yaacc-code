@@ -317,15 +317,15 @@ public class AVTransportPlayerActivity extends Activity implements ServiceConnec
                     WindowManager.LayoutParams.FLAG_ALLOW_LOCK_WHILE_SCREEN_ON);
         }
         setContentView(R.layout.activity_avtransport_player);
-        this.bindService(new Intent(this, PlayerService.class),
-                this, Context.BIND_AUTO_CREATE);
+        try {
+            this.bindService(new Intent(this, PlayerService.class),
+                    this, Context.BIND_AUTO_CREATE);
+        }catch(Exception ex){
+            Log.d(getClass().getName(),"ignore exception on service bind during onCreate");
+        }
         // initialize buttons
         playerId = getIntent().getIntExtra(AVTransportPlayer.PLAYER_ID, -1);
         Log.d(getClass().getName(), "Got id from intent: " + playerId);
-
-
-
-
 
     }
 
