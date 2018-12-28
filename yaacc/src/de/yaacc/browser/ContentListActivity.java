@@ -57,7 +57,7 @@ public class ContentListActivity extends Activity implements OnClickListener,
 
     private DIDLObject selectedDIDLObject;
 
-    private Intent serverService = null;
+
     protected ListView contentList;
     private Navigator navigator = null;
 

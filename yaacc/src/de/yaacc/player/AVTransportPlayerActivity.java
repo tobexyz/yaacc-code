@@ -31,6 +31,7 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.View.OnClickListener;
+import android.view.WindowManager;
 import android.widget.CompoundButton;
 import android.widget.ImageButton;
 import android.widget.ImageView;
@@ -50,6 +51,7 @@ import java.util.Timer;
 import java.util.TimerTask;
 
 import de.yaacc.R;
+import de.yaacc.Yaacc;
 import de.yaacc.settings.SettingsActivity;
 import de.yaacc.util.AboutActivity;
 import de.yaacc.util.YaaccLogActivity;
@@ -309,6 +311,11 @@ public class AVTransportPlayerActivity extends Activity implements ServiceConnec
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        if (((Yaacc)getApplicationContext()).isUnplugged()) {
+            getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            getWindow().clearFlags(
+                    WindowManager.LayoutParams.FLAG_ALLOW_LOCK_WHILE_SCREEN_ON);
+        }
         setContentView(R.layout.activity_avtransport_player);
         this.bindService(new Intent(this, PlayerService.class),
                 this, Context.BIND_AUTO_CREATE);

@@ -150,7 +150,7 @@ public class BrowseItemAdapter extends BaseAdapter {
             holder.icon.setImageResource(R.drawable.cdtrack);
             if (preferences.getBoolean(
                     context.getString(R.string.settings_thumbnails_chkbx),
-                    false)) {
+                    true)) {
                 DIDLObject.Property<URI> albumArtProperties = ((AudioItem) currentObject)
                         .getFirstProperty(DIDLObject.Property.UPNP.ALBUM_ART_URI.class);
                 if (null != albumArtProperties) {
@@ -162,14 +162,14 @@ public class BrowseItemAdapter extends BaseAdapter {
             holder.icon.setImageResource(R.drawable.image);
             if (preferences.getBoolean(
                     context.getString(R.string.settings_thumbnails_chkbx),
-                    false))
+                    true))
                 iconDownloadTask.execute(Uri.parse(((ImageItem) currentObject)
                         .getFirstResource().getValue()));
         } else if (currentObject instanceof VideoItem) {
             holder.icon.setImageResource(R.drawable.video);
             if (preferences.getBoolean(
                     context.getString(R.string.settings_thumbnails_chkbx),
-                    false)) {
+                    true)) {
                 DIDLObject.Property<URI> albumArtProperties = ((VideoItem) currentObject)
                         .getFirstProperty(DIDLObject.Property.UPNP.ALBUM_ART_URI.class);
                 if (null != albumArtProperties) {
@@ -209,8 +209,8 @@ public class BrowseItemAdapter extends BaseAdapter {
 
     private Bitmap getThumbnail(ImageItem image) {
         ImageDownloader downloader = new ImageDownloader();
-        return downloader.retrieveIcon(Uri.parse(image.getFirstResource()
-                .getValue()));
+        return downloader.retrieveImageWithCertainSize(Uri.parse(image.getFirstResource()
+                .getValue()),48,48);
     }
 
 }

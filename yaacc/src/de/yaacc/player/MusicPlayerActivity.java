@@ -29,6 +29,7 @@ import java.util.TimerTask;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.ComponentName;
+import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.net.Uri;
@@ -68,6 +69,7 @@ public class MusicPlayerActivity extends Activity implements ServiceConnection {
             Log.d(getClass().getName(), "PlayerService connected");
             playerService = ((PlayerService.PlayerServiceBinder) binder).getService();
             initialize();
+            setTrackInfo();
         }
     }
     //binder comes from server to communicate with method's of
@@ -91,6 +93,7 @@ public class MusicPlayerActivity extends Activity implements ServiceConnection {
             btnNext.setActivated(false);
             btnStop.setActivated(false);
             btnPlay.setActivated(false);
+            btnPause.setActivated(false);
             btnPause.setActivated(false);
             btnExit.setActivated(false);
         } else {
@@ -228,13 +231,16 @@ public class MusicPlayerActivity extends Activity implements ServiceConnection {
     @Override
     protected void onRestart() {
         super.onRestart();
+        this.bindService(new Intent(this, PlayerService.class),
+                this, Context.BIND_AUTO_CREATE);
         updateTime = true;
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        setTrackInfo();
+        this.bindService(new Intent(this, PlayerService.class),
+                this, Context.BIND_AUTO_CREATE);
         updateTime = true;
     }
 
@@ -248,6 +254,8 @@ public class MusicPlayerActivity extends Activity implements ServiceConnection {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_music_player);
+        this.bindService(new Intent(this, PlayerService.class),
+                this, Context.BIND_AUTO_CREATE);
 
     }
 

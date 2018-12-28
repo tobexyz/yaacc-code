@@ -19,6 +19,7 @@ package de.yaacc.player;
 
 import android.app.Activity;
 import android.content.ComponentName;
+import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.os.Bundle;
@@ -153,7 +154,8 @@ public class MultiContentPlayerActivity extends Activity implements ServiceConne
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_multi_content_player);
-
+        this.bindService(new Intent(this, PlayerService.class),
+                this, Context.BIND_AUTO_CREATE);
     }
 
     private Player getPlayer() {

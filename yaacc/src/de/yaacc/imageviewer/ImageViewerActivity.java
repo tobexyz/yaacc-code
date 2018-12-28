@@ -21,6 +21,7 @@ package de.yaacc.imageviewer;
 import android.app.ActionBar;
 import android.app.Activity;
 import android.content.ComponentName;
+import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.SharedPreferences;
@@ -110,6 +111,8 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver, Serv
         Log.d(this.getClass().getName(), "OnCreate");
         super.onCreate(savedInstanceState);
         init(savedInstanceState, getIntent());
+        this.bindService(new Intent(this, PlayerService.class),
+                this, Context.BIND_AUTO_CREATE);
     }
     /*
     * (non-Javadoc)
@@ -186,6 +189,8 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver, Serv
         imageViewerBroadcastReceiver = new ImageViewerBroadcastReceiver(this);
         imageViewerBroadcastReceiver.registerReceiver();
         super.onResume();
+        this.bindService(new Intent(this, PlayerService.class),
+                this, Context.BIND_AUTO_CREATE);
     }
     /*
     * (non-Javadoc)

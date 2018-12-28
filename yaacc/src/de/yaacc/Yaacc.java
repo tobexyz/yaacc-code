@@ -26,7 +26,6 @@ import android.os.BatteryManager;
 import android.os.PowerManager;
 import android.util.Log;
 
-
 import java.util.HashMap;
 
 import de.yaacc.upnp.UpnpClient;

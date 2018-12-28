@@ -30,11 +30,13 @@
         <CheckBoxPreference
             android:summaryOn="@string/settings_browse_thumbnails_on"
             android:summaryOff="@string/settings_browse_thumbnails_off"
+            android:defaultValue="true"
             android:key="@string/settings_thumbnails_chkbx"/>
         <CheckBoxPreference
             android:summaryOn="@string/settings_browse_thumbnails_coverlookup_on"
             android:summaryOff="@string/settings_browse_thumbnails_coverlookup_off"
             android:key="@string/settings_browse_thumbnails_coverlookup_chkbx"
+            android:defaultValue="true"
             android:dependency="@string/settings_thumbnails_chkbx"/>
         <CheckBoxPreference
             android:summaryOn="@string/settings_browse_audio_on"

@@ -19,6 +19,7 @@ package de.yaacc.player;
 
 import android.app.Activity;
 import android.content.ComponentName;
+import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.os.Bundle;
@@ -148,11 +149,27 @@ public class ThirdPartieMusicPlayerActivity extends Activity implements ServiceC
             }
         });
     }
+
+    @Override
+    protected void onRestart() {
+        super.onRestart();
+        this.bindService(new Intent(this, PlayerService.class),
+                this, Context.BIND_AUTO_CREATE);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        this.bindService(new Intent(this, PlayerService.class),
+                this, Context.BIND_AUTO_CREATE);
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_third_partie_music_player);
-
+        this.bindService(new Intent(this, PlayerService.class),
+                this, Context.BIND_AUTO_CREATE);
     }
 
     private Player getPlayer() {

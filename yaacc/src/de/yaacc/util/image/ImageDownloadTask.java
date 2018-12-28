@@ -36,11 +36,11 @@ public class ImageDownloadTask extends AsyncTask<Uri, Integer, Bitmap> {
      */
     @Override
     protected Bitmap doInBackground(Uri... uri) {
-        if(cache.getBitmap(uri[0]) == null){
-            cache.addBitmap(uri[0],new ImageDownloader().retrieveImageWithCertainSize(uri[0],imageView.getWidth(),imageView.getHeight()));
+        if(cache.getBitmap(uri[0],imageView.getWidth(),imageView.getHeight()) == null){
+            cache.addBitmap(uri[0],imageView.getWidth(),imageView.getHeight(),new ImageDownloader().retrieveImageWithCertainSize(uri[0],imageView.getWidth(),imageView.getHeight()));
         }
 
-        return cache.getBitmap(uri[0]);
+        return cache.getBitmap(uri[0],imageView.getWidth(),imageView.getHeight());
     }
 
     /**

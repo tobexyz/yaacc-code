@@ -229,6 +229,12 @@ public class AVTransportPlayer extends AbstractPlayer {
      * Watchdog for async calls to complete
      */
     private void waitForActionComplete(final ActionState actionState) {
+        waitForActionComplete(actionState, null);
+    }
+    /**
+     * Watchdog for async calls to complete
+     */
+    private void waitForActionComplete(final ActionState actionState, Runnable fn) {
         actionState.watchdogFlag = false;
         Timer watchdogTimer = new Timer();
         watchdogTimer.schedule(new TimerTask() {
@@ -239,11 +245,15 @@ public class AVTransportPlayer extends AbstractPlayer {
         }, 30000L); // 30sec. Watchdog
         int i = 0;
         while (!(actionState.actionFinished || actionState.watchdogFlag)) {
-            //work around byte code optimization
-            i++;
-            if( i== 100000) {
-                Log.d(getClass().getName(), "wait for action finished ");
-                i=0;
+            if (fn != null){
+                fn.run();
+            }else {
+                //work around byte code optimization
+                i++;
+                if (i == 100000) {
+                    Log.d(getClass().getName(), "wait for action finished ");
+                    i = 0;
+                }
             }
         }
         if (actionState.watchdogFlag) {
@@ -686,7 +696,7 @@ public class AVTransportPlayer extends AbstractPlayer {
             yaacc.aquireWakeLock(duration + 1000L, getWakeLockTag());
             //bring current player to front
             Intent i = new Intent(yaacc, AVTransportPlayerActivity.class);
-            i.setFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_NEW_TASK);
+            i.setFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_SINGLE_TOP| Intent.FLAG_ACTIVITY_NEW_TASK);
             i.setData(Uri.parse("http://0.0.0.0/"+getId()+"")); //just for making the intents different http://stackoverflow.com/questions/10561419/scheduling-more-than-one-pendingintent-to-same-activity-using-alarmmanager
             i.putExtra(PLAYER_ID, getId());
             yaacc.startActivity(i);
@@ -696,6 +706,16 @@ public class AVTransportPlayer extends AbstractPlayer {
     @Override
     public void exit(){
         ((Yaacc)getContext().getApplicationContext()).releaseWakeLock(getWakeLockTag());
+        stop();
+        final ActionState actionState = new ActionState();
+        actionState.actionFinished = false;
+        Runnable fn = new Runnable() {
+            @Override
+            public void run() {
+                actionState.actionFinished = AVTransportPlayer.this.isProcessingCommand();
+            }
+        };
+        waitForActionComplete(actionState,fn);
         super.exit();
     }
 
