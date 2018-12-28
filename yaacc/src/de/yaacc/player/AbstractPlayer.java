@@ -51,6 +51,7 @@ import android.widget.Toast;
 
 
 import de.yaacc.R;
+import de.yaacc.Yaacc;
 import de.yaacc.upnp.SynchronizationInfo;
 import de.yaacc.upnp.UpnpClient;
 
@@ -549,7 +550,6 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
     @Override
     public void exit() {
         if(isPlaying()){
-
             stop();
         }
         PlayerFactory.shutdown(this);

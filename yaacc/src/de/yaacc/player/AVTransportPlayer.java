@@ -50,6 +50,7 @@ import java.util.TimerTask;
 import java.util.UUID;
 
 import de.yaacc.R;
+import de.yaacc.Yaacc;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.util.Watchdog;
 
@@ -677,6 +678,22 @@ public class AVTransportPlayer extends AbstractPlayer {
         }
         return "00:00:00";
     }
+    @Override
+    public void startTimer(final long duration) {
+        super.startTimer(duration);
+        Yaacc yaacc = (Yaacc) getContext().getApplicationContext();
+        if(yaacc.isUnplugged()){
+            yaacc.aquireWakeLock(duration + 1000L, getWakeLockTag());
+        }
+    }
 
+    @Override
+    public void exit(){
+        ((Yaacc)getContext().getApplicationContext()).releaseWakeLock(getWakeLockTag());
+        super.exit();
+    }
 
+    private String getWakeLockTag() {
+        return "de.yaacc.waklock.player:" + getId();
+    }
 }

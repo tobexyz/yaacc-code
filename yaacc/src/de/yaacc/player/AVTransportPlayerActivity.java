@@ -226,7 +226,6 @@ public class AVTransportPlayerActivity extends Activity implements ServiceConnec
             public void onClick(View v) {
                 Player player = getPlayer();
                 if (player != null) {
-                    player.stop();
                     player.exit();
                 }
                 finish();

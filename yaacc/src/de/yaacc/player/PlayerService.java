@@ -43,7 +43,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 import de.yaacc.Yaacc;
-import de.yaacc.YaaccService;
 
 /**
  * @author Tobias Schoene (tobexyz)
@@ -52,25 +51,19 @@ public class PlayerService extends Service {
 
     private IBinder binder = new PlayerServiceBinder();
     private Map<Integer,Player> currentActivePlayer = new HashMap<>();
-    private volatile HandlerThread playerHandlerThread;
+    private HandlerThread playerHandlerThread;
 
 
     public PlayerService() {
     }
 
     public void addPlayer(Player player) {
-        ((Yaacc)getApplicationContext()).setHasPlayer(true);
-        ((Yaacc)getApplicationContext()).aquireWakeLock();
         currentActivePlayer.put(player.getId(),player);
     }
 
     public void removePlayer(AbstractPlayer player) {
 
         currentActivePlayer.remove(player.getId());
-        if(currentActivePlayer.isEmpty()){
-            ((Yaacc)getApplicationContext()).releaseWakeLock();
-            ((Yaacc)getApplicationContext()).setHasPlayer(false);
-        }
     }
 
     public class PlayerServiceBinder extends Binder {
@@ -82,7 +75,6 @@ public class PlayerService extends Service {
     @Override
     public void onDestroy() {
         Log.d(this.getClass().getName(), "On Destroy");
-        ((Yaacc)getApplicationContext()).releaseWakeLock();
     }
 
 
@@ -106,24 +98,8 @@ public class PlayerService extends Service {
 
 
     private void initialize(Intent intent) {
-       /* if (Build.VERSION.SDK_INT >= 26) {
-            Log.d(this.getClass().getName(), "Start foreground service" + intent);
-           NotificationCompat.Builder b=new NotificationCompat.Builder(this);
-
-            b.setOngoing(true)
-                    .setContentTitle(getString(R.string.title_activity_main))
-                    .setSmallIcon(android.R.drawable.sym_def_app_icon)
-                    ;
-
-            startForeground(PALYER_SERVICE_FOREGROUND_ID,b.build());
-        }else{
-            Log.d(this.getClass().getName(), "Start as service" + intent);
-        }
-        */
-        // An Android handler thread internally operates on a looper.
         playerHandlerThread = new HandlerThread("de.yaacc.PlayerService.HandlerThread");
         playerHandlerThread.start();
-        //startPreventDozeAlarm();
     }
 
 
