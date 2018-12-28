@@ -372,6 +372,12 @@ public class AVTransportPlayerActivity extends Activity implements ServiceConnec
     private void doSetTrackInfo() {
         if (getPlayer() == null)
             return;
+        TextView current = (TextView) findViewById(R.id.avtransportPlayerActivityCurrentItem);
+        current.setText(getPlayer().getCurrentItemTitle());
+        TextView position = (TextView) findViewById(R.id.avtransportPlayerActivityPosition);
+        position.setText(getPlayer().getPositionString());
+        TextView next = (TextView) findViewById(R.id.avtransportPlayerActivityNextItem);
+        next.setText(getPlayer().getNextItemTitle());
         ImageView albumArtView = (ImageView) findViewById(R.id.avtransportPlayerActivityImageView);
         URI albumArtUri = getPlayer().getAlbumArt();
         if (null != albumArtUri) {
