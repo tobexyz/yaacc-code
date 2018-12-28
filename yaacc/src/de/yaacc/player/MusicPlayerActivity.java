@@ -28,9 +28,12 @@ import java.util.TimerTask;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.content.ComponentName;
 import android.content.Intent;
+import android.content.ServiceConnection;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.IBinder;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -55,40 +58,26 @@ import de.yaacc.util.image.ImageDownloadTask;
  *
  * @author Tobias Schoene (openbit)
  */
-public class MusicPlayerActivity extends Activity {
+public class MusicPlayerActivity extends Activity implements ServiceConnection {
 
     protected boolean updateTime = false;
     protected SeekBar seekBar = null;
+    private PlayerService playerService;
+    public void onServiceConnected(ComponentName className, IBinder binder) {
+        if(binder instanceof PlayerService.PlayerServiceBinder) {
+            Log.d(getClass().getName(), "PlayerService connected");
+            playerService = ((PlayerService.PlayerServiceBinder) binder).getService();
+            initialize();
+        }
+    }
+    //binder comes from server to communicate with method's of
 
-    @Override
-    protected void onPause() {
-        super.onPause();
-        updateTime = false;
+    public void onServiceDisconnected(ComponentName className) {
+        Log.d(getClass().getName(),"PlayerService disconnected");
+        playerService = null;
     }
 
-    @Override
-    protected void onRestart() {
-        super.onRestart();
-        updateTime = true;
-    }
-
-    @Override
-    protected void onResume() {
-        super.onResume();
-        setTrackInfo();
-        updateTime = true;
-    }
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        updateTime = false;
-    }
-
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_music_player);
+    protected void initialize(){
         // initialize buttons
         Player player = getPlayer();
         ImageButton btnPrev = (ImageButton) findViewById(R.id.musicActivityControlPrev);
@@ -230,9 +219,40 @@ public class MusicPlayerActivity extends Activity {
         });
 
     }
+    @Override
+    protected void onPause() {
+        super.onPause();
+        updateTime = false;
+    }
+
+    @Override
+    protected void onRestart() {
+        super.onRestart();
+        updateTime = true;
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        setTrackInfo();
+        updateTime = true;
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        updateTime = false;
+    }
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_music_player);
+
+    }
 
     private Player getPlayer() {
-        return PlayerFactory.getFirstCurrentPlayerOfType(LocalBackgoundMusicPlayer.class);
+        return playerService.getFirstCurrentPlayerOfType(LocalBackgoundMusicPlayer.class);
     }
 
     @Override

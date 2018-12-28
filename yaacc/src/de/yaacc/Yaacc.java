@@ -93,16 +93,6 @@ public class Yaacc extends Application {
                 Log.d(getClass().getName(), "Ignoring exception on WakeLock ("+ tag + ") release maybe no wakelock?" );
             }
         }
-        /*
-        if(wifiLock != null && wifiLock.isHeld()){
-            try {
-                wifiLock.release();
-                Log.d(getClass().getName(), "WifiLock released");
-            }catch(Throwable th){
-                Log.d(getClass().getName(), "Ignoring exception on WifiLock release maybe no wifilock?");
-            }
-
-        }*/
 
     }
 

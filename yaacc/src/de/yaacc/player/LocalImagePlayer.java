@@ -19,9 +19,13 @@ package de.yaacc.player;
 
 import android.app.NotificationManager;
 import android.app.PendingIntent;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.ServiceConnection;
 import android.net.Uri;
+import android.os.Build;
+import android.os.IBinder;
 import android.support.v4.app.NotificationCompat;
 import android.util.Log;
 
@@ -44,14 +48,15 @@ import de.yaacc.util.NotificationId;
  *
  * @author Tobias Schoene (openbit)
  */
-public class LocalImagePlayer implements Player {
+public class LocalImagePlayer implements Player, ServiceConnection {
 
-    private Context context;
-    private UpnpClient upnpClient;
+
     private Timer commandExecutionTimer;
     private String name;
+    private UpnpClient upnpClient;
     private SynchronizationInfo syncInfo;
     private PendingIntent notificationIntent;
+    private PlayerService playerService;
 
     /**
      * @param upnpClient
@@ -60,14 +65,44 @@ public class LocalImagePlayer implements Player {
     public LocalImagePlayer(UpnpClient upnpClient, String name) {
         this(upnpClient);
         setName(name);
+        startService();
     }
 
     /**
      * @param upnpClient
      */
     public LocalImagePlayer(UpnpClient upnpClient) {
-        this.context = upnpClient.getContext();
+        this.upnpClient = upnpClient;
     }
+
+    public void startService(){
+        if(playerService == null) {
+            if (Build.VERSION.SDK_INT >= 26) {
+                upnpClient.getContext().startForegroundService(new Intent(upnpClient.getContext(), PlayerService.class));
+            } else {
+                upnpClient.getContext().startService(new Intent(upnpClient.getContext(), PlayerService.class));
+            }
+            upnpClient.getContext().bindService(new Intent(upnpClient.getContext(), PlayerService.class),
+                    this, Context.BIND_AUTO_CREATE);
+        }
+    }
+
+    public void onServiceConnected(ComponentName className, IBinder binder) {
+        if(binder instanceof PlayerService.PlayerServiceBinder) {
+            Log.d("ServiceConnection", "connected");
+
+            playerService = ((PlayerService.PlayerServiceBinder) binder).getService();
+            playerService.addPlayer(this);
+        }
+    }
+
+
+    public void onServiceDisconnected(ComponentName className) {
+        Log.d("ServiceConnection","disconnected");
+        playerService = null;
+        playerService.removePlayer(this);
+    }
+
 
     /*
      * (non-Javadoc)
@@ -88,7 +123,7 @@ public class LocalImagePlayer implements Player {
             public void run() {
                 Intent intent = new Intent();
                 intent.setAction(ImageViewerBroadcastReceiver.ACTION_NEXT);
-                context.sendBroadcast(intent);
+                upnpClient.getContext().sendBroadcast(intent);
 
             }
         }, 500L);
@@ -114,7 +149,7 @@ public class LocalImagePlayer implements Player {
             public void run() {
                 Intent intent = new Intent();
                 intent.setAction(ImageViewerBroadcastReceiver.ACTION_PREVIOUS);
-                context.sendBroadcast(intent);
+                upnpClient.getContext().sendBroadcast(intent);
 
             }
         }, 500L);
@@ -140,7 +175,7 @@ public class LocalImagePlayer implements Player {
             public void run() {
                 Intent intent = new Intent();
                 intent.setAction(ImageViewerBroadcastReceiver.ACTION_PAUSE);
-                context.sendBroadcast(intent);
+                upnpClient.getContext().sendBroadcast(intent);
 
             }
         }, getExecutionTime());
@@ -167,7 +202,7 @@ public class LocalImagePlayer implements Player {
                 Log.d(this.getClass().getName(), "send play");
                 Intent intent = new Intent();
                 intent.setAction(ImageViewerBroadcastReceiver.ACTION_PLAY);
-                context.sendBroadcast(intent);
+                upnpClient.getContext().sendBroadcast(intent);
 
             }
         }, getExecutionTime());
@@ -193,7 +228,7 @@ public class LocalImagePlayer implements Player {
             public void run() {
                 Intent intent = new Intent();
                 intent.setAction(ImageViewerBroadcastReceiver.ACTION_STOP);
-                context.sendBroadcast(intent);
+                upnpClient.getContext().sendBroadcast(intent);
 
             }
         }, getExecutionTime());
@@ -207,7 +242,7 @@ public class LocalImagePlayer implements Player {
      */
     @Override
     public void setItems(PlayableItem... items) {
-        Intent intent = new Intent(context, ImageViewerActivity.class);
+        Intent intent = new Intent(upnpClient.getContext(), ImageViewerActivity.class);
         intent.setAction(Intent.ACTION_VIEW);
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         ArrayList<Uri> uris = new ArrayList<Uri>();
@@ -215,7 +250,7 @@ public class LocalImagePlayer implements Player {
             uris.add(items[i].getUri());
         }
         intent.putExtra(ImageViewerActivity.URIS, uris);
-        context.startActivity(intent);
+        upnpClient.getContext().startActivity(intent);
         showNotification(uris);
     }
 
@@ -249,7 +284,7 @@ public class LocalImagePlayer implements Player {
      */
     @Override
     public void exit() {
-        PlayerFactory.shutdown(this);
+        playerService.shutdown(this);
 
     }
 
@@ -284,7 +319,7 @@ public class LocalImagePlayer implements Player {
             public void run() {
                 Intent intent = new Intent();
                 intent.setAction(ImageViewerBroadcastReceiver.ACTION_EXIT);
-                context.sendBroadcast(intent);
+                upnpClient.getContext().sendBroadcast(intent);
 
             }
         }, 500L);
@@ -299,7 +334,7 @@ public class LocalImagePlayer implements Player {
     private void showNotification(ArrayList<Uri> uris) {
 
         NotificationCompat.Builder mBuilder = new NotificationCompat.Builder(
-                context)
+                upnpClient.getContext())
                 .setOngoing(false)
                 .setSmallIcon(R.drawable.ic_notification_default)
                 .setContentTitle(
@@ -309,7 +344,7 @@ public class LocalImagePlayer implements Player {
         if (contentIntent != null) {
             mBuilder.setContentIntent(contentIntent);
         }
-        NotificationManager mNotificationManager = (NotificationManager) context
+        NotificationManager mNotificationManager = (NotificationManager) upnpClient.getContext()
                 .getSystemService(Context.NOTIFICATION_SERVICE);
         // mId allows you to update the notification later on.
         mNotificationManager.notify(getNotificationId(), mBuilder.build());
@@ -319,7 +354,7 @@ public class LocalImagePlayer implements Player {
      * Cancels the notification.
      */
     private void cancleNotification() {
-        NotificationManager mNotificationManager = (NotificationManager) context
+        NotificationManager mNotificationManager = (NotificationManager) upnpClient.getContext()
                 .getSystemService(Context.NOTIFICATION_SERVICE);
         // mId allows you to update the notification later on.
         mNotificationManager.cancel(getNotificationId());
@@ -332,11 +367,11 @@ public class LocalImagePlayer implements Player {
      * @see de.yaacc.player.AbstractPlayer#getNotificationIntent()
      */
     private PendingIntent getNotificationIntent(ArrayList<Uri> uris) {
-        Intent intent = new Intent(context,
+        Intent intent = new Intent(upnpClient.getContext(),
                 ImageViewerActivity.class);
         intent.setData(Uri.parse("http://0.0.0.0/" + Arrays.hashCode(uris.toArray()) + "")); //just for making the intents different http://stackoverflow.com/questions/10561419/scheduling-more-than-one-pendingintent-to-same-activity-using-alarmmanager
         intent.putExtra(ImageViewerActivity.URIS, uris);
-        notificationIntent = PendingIntent.getActivity(context, 0,
+        notificationIntent = PendingIntent.getActivity(upnpClient.getContext(), 0,
                 intent, 0);
         return notificationIntent;
     }

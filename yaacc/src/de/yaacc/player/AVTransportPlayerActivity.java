@@ -89,10 +89,12 @@ public class AVTransportPlayerActivity extends Activity implements ServiceConnec
     protected void onPause() {
         super.onPause();
         updateTime = false;
-        try {
-            getPlayerService().unbindService(this);
-        }catch (IllegalArgumentException iae){
-            Log.d(getClass().getName(), "Ignore exception on unbind service while activity pause");
+        if (getPlayerService() != null) {
+            try {
+                getPlayerService().unbindService(this);
+            } catch (IllegalArgumentException iae) {
+                Log.d(getClass().getName(), "Ignore exception on unbind service while activity pause");
+            }
         }
     }
 

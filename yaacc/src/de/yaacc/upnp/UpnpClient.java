@@ -18,14 +18,12 @@
  */
 package de.yaacc.upnp;
 
-import android.content.ActivityNotFoundException;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.SharedPreferences;
 import android.content.SharedPreferences.Editor;
-import android.content.res.Resources;
 import android.media.AudioManager;
 import android.net.Uri;
 import android.os.AsyncTask;
@@ -83,15 +81,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
-
 import de.yaacc.R;
-import de.yaacc.Yaacc;
 import de.yaacc.browser.Position;
-import de.yaacc.imageviewer.ImageViewerActivity;
-import de.yaacc.musicplayer.BackgroundMusicService;
 import de.yaacc.player.PlayableItem;
 import de.yaacc.player.Player;
-import de.yaacc.player.PlayerFactory;
+import de.yaacc.player.PlayerService;
 import de.yaacc.upnp.callback.contentdirectory.ContentDirectoryBrowseActionCallback;
 import de.yaacc.upnp.callback.contentdirectory.ContentDirectoryBrowseResult;
 import de.yaacc.upnp.model.types.SyncOffset;
@@ -115,6 +109,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     private Context context;
     SharedPreferences preferences;
     private boolean mute = false;
+    private PlayerService playerService;
 
     public UpnpClient() {
     }
@@ -122,15 +117,6 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     public UpnpClient(Context context) {
         initialize(context);
     }
-
-    /*public static UpnpClient getInstance(Context context) {
-        if (instance == null) {
-            instance = new UpnpClient();
-            instance.initialize(context);
-        }
-        return instance;
-    }*/
-
 
 
     /**
@@ -145,9 +131,23 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
             this.preferences = PreferenceManager.getDefaultSharedPreferences(context);
             // FIXME check if this is right: Context.BIND_AUTO_CREATE kills the
             // service after closing the activity
-            return context.bindService(new Intent(context, UpnpRegistryService.class), this, Context.BIND_AUTO_CREATE);
+            boolean result = context.bindService(new Intent(context, UpnpRegistryService.class), this, Context.BIND_AUTO_CREATE);
+            return result && startService();
         }
         return false;
+    }
+
+    public boolean startService(){
+        if(playerService == null) {
+            if (Build.VERSION.SDK_INT >= 26) {
+                getContext().startForegroundService(new Intent(getContext(), PlayerService.class));
+            } else {
+                getContext().startService(new Intent(getContext(), PlayerService.class));
+            }
+            return  getContext().bindService(new Intent(getContext(), PlayerService.class),
+                    this, Context.BIND_AUTO_CREATE);
+        }
+        return true;
     }
 
     private SyncOffset getDeviceSyncOffset() {
@@ -206,6 +206,10 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
             setAndroidUpnpService(((AndroidUpnpService) service));
             refreshUpnpDeviceCatalog();
         }
+        if(service instanceof PlayerService.PlayerServiceBinder) {
+            playerService = ((PlayerService.PlayerServiceBinder) service).getService();
+
+        }
 
     }
 
@@ -218,7 +222,14 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      */
     @Override
     public void onServiceDisconnected(ComponentName className) {
-        setAndroidUpnpService(null);
+        Log.d(getClass().getName(), "on Service disconnect: " + className);
+        if(AndroidUpnpService.class.getName().equals(className)) {
+            setAndroidUpnpService(null);
+        }
+        if(PlayerService.class.getName().equals(className)) {
+            playerService = null;
+        }
+
     }
 
     // ----------Implementation Upnp RegistryListener Interface
@@ -778,7 +789,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         Log.d(getClass().getName(), "CurrentTime: " + new Date().toString() + " representationTime: " + referencedPresentationTime);
         synchronizationInfo.setReferencedPresentationTime(referencedPresentationTime);
 
-        return PlayerFactory.createPlayer(this, synchronizationInfo, playableItems);
+        return playerService.createPlayer(this, synchronizationInfo, playableItems);
     }
 
     /**
@@ -791,13 +802,13 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         PlayableItem playableItem = new PlayableItem();
         List<PlayableItem> items = new ArrayList<PlayableItem>();
         if (transport == null) {
-            return PlayerFactory.createPlayer(this, null, items);
+            return playerService.createPlayer(this, null, items);
         }
         Log.d(getClass().getName(), "TransportId: " + transport.getInstanceId());
         PositionInfo positionInfo = transport.getPositionInfo();
         Log.d(getClass().getName(), "positionInfo: " + positionInfo);
         if (positionInfo == null) {
-            return PlayerFactory.createPlayer(this, transport.getSynchronizationInfo(), items);
+            return playerService.createPlayer(this, transport.getSynchronizationInfo(), items);
         }
         DIDLContent metadata = null;
         try {
@@ -839,15 +850,15 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         Log.d(getClass().getName(), "Current duration: " + positionInfo.getTrackDuration());
         Log.d(getClass().getName(), "TrackMetaData: " + positionInfo.getTrackMetaData());
         Log.d(getClass().getName(), "MimeType: " + playableItem.getMimeType());
-        return PlayerFactory.createPlayer(this, transport.getSynchronizationInfo(), items);
+        return playerService.createPlayer(this, transport.getSynchronizationInfo(), items);
     }
 
     /**
      * Returns all current player instances
      * @return the player
      */
-    public List<Player> getCurrentPlayers(){
-        return PlayerFactory.getCurrentPlayers();
+    public Collection<Player> getCurrentPlayers(){
+        return playerService.getCurrentPlayers();
     }
 
     /**
@@ -859,7 +870,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     public List<Player> getCurrentPlayers(AvTransport transport) {
         List<PlayableItem> items = new ArrayList<PlayableItem>();
         if (transport == null) {
-            return PlayerFactory.createPlayer(this, null, items);
+            return playerService.createPlayer(this, null, items);
         }
         SynchronizationInfo synchronizationInfo = transport.getSynchronizationInfo();
         synchronizationInfo.setOffset(getDeviceSyncOffset());
@@ -867,7 +878,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         Log.d(getClass().getName(), "TransportId: " + transport.getInstanceId());
         PositionInfo positionInfo = transport.getPositionInfo();
         if (positionInfo == null) {
-            return PlayerFactory.createPlayer(this, synchronizationInfo, items);
+            return playerService.createPlayer(this, synchronizationInfo, items);
         }
         DIDLContent metadata = null;
         try {
@@ -904,7 +915,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         playableItem.setMimeType(mimeType);
         playableItem.setUri(Uri.parse(positionInfo.getTrackURI()));
         Log.d(getClass().getName(), "MimeType: " + playableItem.getMimeType());
-        return PlayerFactory.getCurrentPlayersOfType(PlayerFactory.getPlayerClassForMimeType(mimeType), synchronizationInfo);
+        return playerService.getCurrentPlayersOfType(playerService.getPlayerClassForMimeType(mimeType), synchronizationInfo);
     }
 
     /**
@@ -1093,7 +1104,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         result = getContext().stopService(new Intent(getContext(), YaaccUpnpServerService.class));
         Log.d(getClass().getName(), "Stopping YaaccUpnpServerService succsessful= " + result);
         // stop all players
-        PlayerFactory.shutdown();
+        playerService.shutdown();
     }
 
     /**

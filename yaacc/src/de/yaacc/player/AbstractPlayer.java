@@ -17,6 +17,22 @@
  */
 package de.yaacc.player;
 
+import android.app.Activity;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
+import android.content.ComponentName;
+import android.content.Context;
+import android.content.Intent;
+import android.content.ServiceConnection;
+import android.content.SharedPreferences;
+import android.os.Build;
+import android.os.Handler;
+import android.os.IBinder;
+import android.preference.PreferenceManager;
+import android.support.v4.app.NotificationCompat;
+import android.util.Log;
+import android.widget.Toast;
+
 import java.beans.PropertyChangeListener;
 import java.beans.PropertyChangeSupport;
 import java.net.URI;
@@ -30,28 +46,7 @@ import java.util.Locale;
 import java.util.Timer;
 import java.util.TimerTask;
 
-import android.app.Activity;
-import android.app.NotificationManager;
-import android.app.PendingIntent;
-import android.content.ComponentName;
-import android.content.Context;
-import android.content.Intent;
-import android.content.ServiceConnection;
-import android.content.SharedPreferences;
-
-import android.os.Build;
-import android.os.Handler;
-import android.os.IBinder;
-import android.preference.PreferenceManager;
-import android.provider.Settings;
-import android.support.v4.app.NotificationCompat;
-import android.util.Log;
-import android.widget.Toast;
-
-
-
 import de.yaacc.R;
-import de.yaacc.Yaacc;
 import de.yaacc.upnp.SynchronizationInfo;
 import de.yaacc.upnp.UpnpClient;
 
@@ -100,7 +95,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
             playerService.addPlayer(this);
         }
     }
-    //binder comes from server to communicate with method's of
+
 
     public void onServiceDisconnected(ComponentName className) {
         Log.d("ServiceConnection","disconnected");
@@ -552,7 +547,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
         if(isPlaying()){
             stop();
         }
-        PlayerFactory.shutdown(this);
+        playerService.shutdown(this);
 
     }
 

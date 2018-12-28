@@ -682,8 +682,14 @@ public class AVTransportPlayer extends AbstractPlayer {
     public void startTimer(final long duration) {
         super.startTimer(duration);
         Yaacc yaacc = (Yaacc) getContext().getApplicationContext();
-        if(yaacc.isUnplugged()){
+        if(yaacc.isUnplugged() && getItems().size()>1){
             yaacc.aquireWakeLock(duration + 1000L, getWakeLockTag());
+            //bring current player to front
+            Intent i = new Intent(yaacc, AVTransportPlayerActivity.class);
+            i.setFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_NEW_TASK);
+            i.setData(Uri.parse("http://0.0.0.0/"+getId()+"")); //just for making the intents different http://stackoverflow.com/questions/10561419/scheduling-more-than-one-pendingintent-to-same-activity-using-alarmmanager
+            i.putExtra(PLAYER_ID, getId());
+            yaacc.startActivity(i);
         }
     }
 
@@ -694,6 +700,6 @@ public class AVTransportPlayer extends AbstractPlayer {
     }
 
     private String getWakeLockTag() {
-        return "de.yaacc.waklock.player:" + getId();
+        return "de.yaacc.wakelock.player:" + getId();
     }
 }

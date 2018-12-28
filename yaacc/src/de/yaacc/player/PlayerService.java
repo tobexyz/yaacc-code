@@ -17,32 +17,28 @@
  */
 package de.yaacc.player;
 
-import android.app.AlarmManager;
-import android.app.IntentService;
-import android.app.PendingIntent;
 import android.app.Service;
-import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
-import android.net.Uri;
-import android.os.BatteryManager;
 import android.os.Binder;
-import android.os.Build;
 import android.os.HandlerThread;
 import android.os.IBinder;
-import android.provider.Settings;
+import android.preference.PreferenceManager;
 import android.util.Log;
-import android.net.wifi.WifiManager;
-import android.os.PowerManager;
 import android.widget.Toast;
 
+import org.fourthline.cling.model.meta.Device;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
-
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 
-import de.yaacc.Yaacc;
+import de.yaacc.R;
+import de.yaacc.upnp.SynchronizationInfo;
+import de.yaacc.upnp.UpnpClient;
 
 /**
  * @author Tobias Schoene (tobexyz)
@@ -61,7 +57,7 @@ public class PlayerService extends Service {
         currentActivePlayer.put(player.getId(),player);
     }
 
-    public void removePlayer(AbstractPlayer player) {
+    public void removePlayer(Player player) {
 
         currentActivePlayer.remove(player.getId());
     }
@@ -117,6 +113,264 @@ public class PlayerService extends Service {
 
 
 
+    /**
+     * Creates a player for the given content. Based on the configuration
+     * settings in the upnpClient the player may be a player to play on a remote
+     * device.
+     *
+     * @param upnpClient
+     * the upnpClient
+     * @param items
+     * the items to be played
+     * @return the player
+     */
+    public List<Player> createPlayer(UpnpClient upnpClient,
+                                            SynchronizationInfo syncInfo, List<PlayableItem> items) {
+        List<Player> resultList = new ArrayList<Player>();
+        Player result = null;
+        boolean video = false;
+        boolean image = false;
+        boolean music = false;
+        for (PlayableItem playableItem : items) {
+            if(playableItem.getMimeType() != null){
+                image = image || playableItem.getMimeType().startsWith("image");
+                video = video || playableItem.getMimeType().startsWith("video");
+                music = music || playableItem.getMimeType().startsWith("audio");
+            }else{
+                //no mime type no knowlege about it
+                image = true;
+                music = true;
+                video = true;
+            }
+
+        }
+        Log.d(getClass().getName(), "video:" + video + " image: " + image + "audio:" + music );
+        for (Device device : upnpClient.getReceiverDevices()) {
+            result = createPlayer(upnpClient,device, video, image, music,syncInfo);
+            if (result != null) {
+                addPlayer(result);
+                result.setItems(items.toArray(new PlayableItem[items.size()]));
+                resultList.add(result);
+            }
+        }
+        return resultList;
+    }
+    /**
+     * creates a player for the given device
+     * @param upnpClient the upnpClient
+     * @param receiverDevice the receiverDevice
+     * @param video true if video items
+     * @param image true if image items
+     * @param music true if music items
+     * @return the player or null if no device is present
+     */
+    private Player createPlayer(UpnpClient upnpClient,Device receiverDevice,
+                                       boolean video, boolean image, boolean music, SynchronizationInfo syncInfo) {
+        if( receiverDevice == null){
+            Toast toast = Toast.makeText(upnpClient.getContext(), upnpClient.getContext().getString(R.string.error_no_receiver_device_found), Toast.LENGTH_SHORT);
+            toast.show();
+            return null;
+        }
+
+        Player result;
+        if (!receiverDevice.getIdentity().getUdn().getIdentifierString().equals(UpnpClient.LOCAL_UID)) {
+            String deviceName = receiverDevice.getDisplayString();
+            if (deviceName.length() > 13) {
+                deviceName = deviceName.substring(0, 10) + "...";
+            }
+            String contentType ="multi";
+            if (video && !image && !music) {
+                contentType ="video";
+            } else if (!video && image && !music) {
+                contentType ="image";
+            } else if (!video && !image && music) {
+                contentType ="music";
+            }
+
+            if(receiverDevice.getType().getVersion() == 3){
+                for (Player player : getCurrentPlayersOfType(SyncAVTransportPlayer.class)) {
+                    if(((SyncAVTransportPlayer) player).getDeviceId().equals(receiverDevice.getIdentity().getUdn().getIdentifierString())
+                            &&((SyncAVTransportPlayer) player).getContentType().equals(contentType)){
+                        shutdown(player);
+                    }
+                }
+                result = new SyncAVTransportPlayer(upnpClient,receiverDevice, upnpClient.getContext()
+                        .getString(R.string.playerNameAvTransport)
+                        + "-" + contentType + "@"
+                        + deviceName, contentType);
+            }else {
+                for (Player player : getCurrentPlayersOfType(AVTransportPlayer.class)) {
+                    if(((AVTransportPlayer) player).getDeviceId().equals(receiverDevice.getIdentity().getUdn().getIdentifierString())
+                            && ((AVTransportPlayer) player).getContentType().equals(contentType)){
+                        shutdown(player);
+                    }
+                }
+                result = new AVTransportPlayer(upnpClient,receiverDevice, upnpClient.getContext()
+                        .getString(R.string.playerNameAvTransport)
+                        + "-" + contentType + "@"
+                        + deviceName,contentType);
+            }
+        } else {
+            if (video && !image && !music) {
+// use videoplayer
+                result = getFirstCurrentPlayerOfType(MultiContentPlayer.class);
+                if (result != null) {
+                    shutdown(result);
+                }
+                result = new MultiContentPlayer(upnpClient, upnpClient
+                        .getContext().getString(
+                                R.string.playerNameMultiContent));
+            } else if (!video && image && !music) {
+// use imageplayer
+                result = createImagePlayer(upnpClient);
+            } else if (!video && !image && music) {
+// use musicplayer
+                result = createMusicPlayer(upnpClient);
+            } else {
+// use multiplayer
+                result = new MultiContentPlayer(upnpClient, upnpClient
+                        .getContext()
+                        .getString(R.string.playerNameMultiContent));
+            }
+        }
+        result.setSyncInfo(syncInfo);
+        return result;
+    }
+    private Player createImagePlayer(UpnpClient upnpClient) {
+        Player result = getFirstCurrentPlayerOfType(LocalImagePlayer.class);
+        if (result != null) {
+            shutdown(result);
+        }
+        return new LocalImagePlayer(upnpClient, upnpClient.getContext()
+                .getString(R.string.playerNameImage));
+    }
+    private Player createMusicPlayer(UpnpClient upnpClient) {
+        boolean background = PreferenceManager.getDefaultSharedPreferences(
+                upnpClient.getContext()).getBoolean(
+                upnpClient.getContext().getString(R.string.settings_audio_app),
+                true);
+        Player result = getFirstCurrentPlayerOfType(LocalBackgoundMusicPlayer.class);
+        if (result != null) {
+            shutdown(result);
+        } else {
+            result = getFirstCurrentPlayerOfType(LocalThirdPartieMusicPlayer.class);
+            if (result != null) {
+                shutdown(result);
+            }
+        }
+        if (background) {
+            return new LocalBackgoundMusicPlayer(upnpClient, upnpClient
+                    .getContext().getString(R.string.playerNameMusic));
+        }
+        return new LocalThirdPartieMusicPlayer(upnpClient, upnpClient
+                .getContext().getString(R.string.playerNameMusic));
+    }
+    /**
+     * returns all current players
+     *
+     * @return the currentPlayer
+     */
+    public Collection<Player> getCurrentPlayers() {
+
+        return Collections.unmodifiableCollection(currentActivePlayer.values());
+    }
+
+    /**
+     * returns all current players of the given type.
+     *
+     * @param typeClazz
+     * the requested type
+     * @return the currentPlayer
+     */
+    public List<Player> getCurrentPlayersOfType(Class typeClazz, SynchronizationInfo syncInfo) {
+
+        List<Player> players = getCurrentPlayersOfType(typeClazz);
+        for (Player player : players) {
+            player.setSyncInfo(syncInfo);
+        }
+        return players;
+    }
+
+
+    /**
+     * returns all current players of the given type.
+     *
+     * @param typeClazz
+     * the requested type
+     * @return the currentPlayer
+     */
+    public List<Player> getCurrentPlayersOfType(Class typeClazz) {
+        List<Player> players = new ArrayList<Player>();
+        for (Player player : getCurrentPlayers()) {
+            if (typeClazz.isInstance(player)) {
+                players.add(player);
+            }
+        }
+        return Collections.unmodifiableList(players);
+    }
+    /**
+     * returns the first current player of the given type.
+     *
+     * @param typeClazz
+     * the requested type
+     * @return the currentPlayer
+     */
+    public Player getFirstCurrentPlayerOfType(Class typeClazz) {
+        for (Player player : getCurrentPlayers()) {
+            if (typeClazz.isInstance(player)) {
+                return player;
+            }
+        }
+        return null;
+    }
+    /**
+     * Returns the class of a player for the given mime type.
+     *
+     * @param mimeType
+     * the mime type
+     * @return the player class
+     */
+    public Class getPlayerClassForMimeType(String mimeType) {
+// FIXME don't implement business logic twice
+        Class result = MultiContentPlayer.class;
+        if(mimeType != null){
+            boolean image = mimeType.startsWith("image");
+            boolean video = mimeType.startsWith("video");
+            boolean music = mimeType.startsWith("audio");
+            if (video && !image && !music) {
+// use videoplayer
+                result = MultiContentPlayer.class;
+            } else if (!video && image && !music) {
+// use imageplayer
+                result = LocalImagePlayer.class;
+            } else if (!video && !image && music) {
+// use musicplayer
+                result = LocalBackgoundMusicPlayer.class;
+            }
+        }
+        return result;
+    }
+    /**
+     * Kills the given Player
+     *
+     * @param player
+     */
+    public void shutdown(Player player) {
+        assert (player != null);
+        currentActivePlayer.remove(player.getId());
+        player.onDestroy();
+    }
+    /**
+     * Kill all Players
+     */
+    public void shutdown() {
+        HashSet<Player> players = new HashSet<Player>();
+        players.addAll(getCurrentPlayers());
+        for (Player player : players) {
+            shutdown(player);
+        }
+
+    }
 
 
 
