@@ -17,7 +17,6 @@
  */
 package de.yaacc.player;
 
-import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.ComponentName;
 import android.content.Context;
@@ -44,8 +43,6 @@ import java.beans.PropertyChangeListener;
 import java.net.URI;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.TimeZone;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -287,7 +284,6 @@ public class AVTransportPlayerActivity extends Activity implements ServiceConnec
             }
 
             @Override
-            @SuppressLint("SimpleDateFormat")
             public  void onStopTrackingTouch(android.widget.SeekBar seekBar){
                 String durationString = getPlayer().getDuration();
                 SimpleDateFormat dateFormat = new SimpleDateFormat("HH:mm:ss");
@@ -368,7 +364,7 @@ public class AVTransportPlayerActivity extends Activity implements ServiceConnec
         updateTime();
     }
 
-    @SuppressLint("SimpleDateFormat")
+
     private void doSetTrackInfo() {
         if (getPlayer() == null)
             return;

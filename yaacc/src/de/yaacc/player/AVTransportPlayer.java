@@ -16,7 +16,6 @@
 * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 */
 package de.yaacc.player;
-import android.annotation.SuppressLint;
 import android.app.PendingIntent;
 import android.content.Intent;
 import android.net.Uri;
@@ -630,7 +629,6 @@ public class AVTransportPlayer extends AbstractPlayer {
     }
 
     @Override
-    @SuppressLint("SimpleDateFormat")
     public void seekTo(long millisecondsFromStart){
         if(getDevice() == null) {
             Log.d(getClass().getName(),

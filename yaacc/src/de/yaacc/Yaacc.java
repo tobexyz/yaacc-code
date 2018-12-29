@@ -23,6 +23,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.BatteryManager;
+import android.os.Build;
 import android.os.PowerManager;
 import android.util.Log;
 
@@ -54,9 +55,13 @@ public class Yaacc extends Application {
     public boolean isUnplugged(){
         Intent intent = registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
         int plugged = intent.getIntExtra(BatteryManager.EXTRA_PLUGGED, -1);
+        boolean unplugged=false;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1){
+            unplugged = plugged == BatteryManager.BATTERY_PLUGGED_WIRELESS;
+        }
         return ! (plugged == BatteryManager.BATTERY_PLUGGED_AC ||
-                plugged == BatteryManager.BATTERY_PLUGGED_USB||
-                plugged == BatteryManager.BATTERY_PLUGGED_WIRELESS);
+            plugged == BatteryManager.BATTERY_PLUGGED_USB||
+            unplugged);
 
     }
     public void aquireWakeLock(long timeout, String tag) {

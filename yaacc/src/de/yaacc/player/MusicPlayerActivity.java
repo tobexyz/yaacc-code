@@ -17,16 +17,6 @@
  */
 package de.yaacc.player;
 
-import java.beans.PropertyChangeEvent;
-import java.beans.PropertyChangeListener;
-import java.net.URI;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
-import java.util.TimeZone;
-import java.util.Timer;
-import java.util.TimerTask;
-
-import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.ComponentName;
 import android.content.Context;
@@ -45,10 +35,16 @@ import android.widget.ImageView;
 import android.widget.SeekBar;
 import android.widget.TextView;
 
-import org.fourthline.cling.support.model.DIDLObject;
+import java.beans.PropertyChangeEvent;
+import java.beans.PropertyChangeListener;
+import java.net.URI;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.TimeZone;
+import java.util.Timer;
+import java.util.TimerTask;
 
 import de.yaacc.R;
-import de.yaacc.musicplayer.BackgroundMusicBroadcastReceiver;
 import de.yaacc.settings.SettingsActivity;
 import de.yaacc.util.AboutActivity;
 import de.yaacc.util.YaaccLogActivity;
@@ -202,7 +198,6 @@ public class MusicPlayerActivity extends Activity implements ServiceConnection {
             }
 
             @Override
-            @SuppressLint("SimpleDateFormat")
             public  void onStopTrackingTouch(android.widget.SeekBar seekBar){
                 String durationString = getPlayer().getDuration();
                 SimpleDateFormat dateFormat = new SimpleDateFormat("HH:mm:ss");
@@ -293,7 +288,7 @@ public class MusicPlayerActivity extends Activity implements ServiceConnection {
         doSetTrackInfo();
         updateTime();
     }
-    @SuppressLint("SimpleDateFormat")
+
     private void doSetTrackInfo() {
         if (getPlayer() == null)
             return;

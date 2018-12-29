@@ -17,10 +17,6 @@
  */
 package de.yaacc.player;
 
-import java.net.URI;
-import java.util.List;
-
-import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.ActivityManager;
 import android.app.ActivityManager.RunningAppProcessInfo;
@@ -34,7 +30,8 @@ import android.os.Process;
 import android.util.Log;
 import android.widget.Toast;
 
-import org.fourthline.cling.support.model.DIDLObject;
+import java.net.URI;
+import java.util.List;
 
 import de.yaacc.R;
 import de.yaacc.upnp.UpnpClient;
@@ -44,7 +41,7 @@ import de.yaacc.util.NotificationId;
  * @author Tobias Schoene (openbit)
  * 
  */
-@SuppressLint("ShowToast")
+
 public class MultiContentPlayer extends AbstractPlayer {
 
 	private int appPid;

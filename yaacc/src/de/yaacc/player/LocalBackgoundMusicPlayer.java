@@ -17,7 +17,6 @@
  */
 package de.yaacc.player;
 
-import android.annotation.SuppressLint;
 import android.app.PendingIntent;
 import android.content.ComponentName;
 import android.content.Context;
@@ -33,10 +32,7 @@ import android.util.Log;
 import org.fourthline.cling.support.model.DIDLObject;
 
 import java.net.URI;
-import java.text.SimpleDateFormat;
-import java.util.Date;
 import java.util.Locale;
-import java.util.TimeZone;
 import java.util.Timer;
 import java.util.TimerTask;
 
@@ -284,7 +280,6 @@ public class LocalBackgoundMusicPlayer extends AbstractPlayer implements Service
         return albumArtUri;
     }
 
-    @SuppressLint("SimpleDateFormat")
     private String formatMillis(long millis) {
 
         StringBuffer buf = new StringBuffer();
