@@ -101,7 +101,6 @@ import de.yaacc.util.FileDownloader;
  */
 public class UpnpClient implements RegistryListener, ServiceConnection {
     public static String LOCAL_UID = "LOCAL_UID";
-    //private static UpnpClient instance;
 
 
     private List<UpnpClientListener> listeners = new ArrayList<>();
@@ -387,77 +386,6 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         return service;
     }
 
-    /**
-     * Start an intent with Action.View;
-     *
-     * @param uris the uri to start
-     * @param mime mime type
-     */
-    /*
-    protected void intentView(String mime, Uri... uris) {
-        if (uris == null || uris.length == 0)
-            return;
-        Intent intent = null;
-        if (mime != null) {
-            // test if special activity to choose
-            if (mime.contains("audio")) {
-                boolean background = preferences.getBoolean(getContext().getString(R.string.settings_audio_app), true);
-                if (background) {
-                    Log.d(getClass().getName(), "Starting Background service... ");
-                    Intent svc = new Intent(getContext(), BackgroundMusicService.class);
-                    if (uris.length == 1) {
-                        svc.setData(uris[0]);
-                    } else {
-                        svc.putExtra(BackgroundMusicService.URIS, uris);
-                    }
-                    if (Build.VERSION.SDK_INT >= 26) {
-                        getContext().startForegroundService(svc);
-                    }else{
-                        getContext().startService(svc);
-                    }
-                    return;
-                } else {
-                    intent = new Intent(Intent.ACTION_VIEW);
-                    if (uris.length == 1) {
-                        intent.setDataAndType(uris[0], mime);
-                    } else {
-                        // FIXME How to handle this...
-                        throw new IllegalStateException("Not yet implemented");
-                    }
-                }
-            } else if (mime.contains("image")) {
-                boolean yaaccImageViewer = preferences.getBoolean(getContext().getString(R.string.settings_image_app), true);
-                if (yaaccImageViewer) {
-                    intent = new Intent(getContext(), ImageViewerActivity.class);
-                    if (uris.length == 1) {
-                        intent.setDataAndType(uris[0], mime);
-                    } else {
-                        intent.putExtra(ImageViewerActivity.URIS, uris);
-                    }
-                } else {
-                    intent = new Intent(Intent.ACTION_VIEW);
-                    if (uris.length == 1) {
-                        intent.setDataAndType(uris[0], mime);
-                    } else {
-                        // FIXME How to handle this...
-                        throw new IllegalStateException("Not yet implemented");
-                    }
-                }
-            }
-        }
-        if (intent != null) {
-            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK |Intent.FLAG_ACTIVITY_NEW_TASK);
-            try {
-                getContext().startActivity(intent);
-            } catch (ActivityNotFoundException anfe) {
-                Resources res = getContext().getResources();
-                String text = String.format(res.getString(R.string.error_no_activity_found), mime);
-                Toast toast = Toast.makeText(getContext(), text, Toast.LENGTH_LONG);
-                toast.show();
-            }
-        }
-    }
-*/
     /**
      * Add an listener.
      *

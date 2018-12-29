@@ -397,6 +397,7 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver, Serv
                 currentImageIndex = 0;
             }
         }
+        /*
         runOnUiThread(new Runnable() {
             public void run() {
                 Toast toast = Toast.makeText(ImageViewerActivity.this,
@@ -404,7 +405,7 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver, Serv
                                 + getPositionString(), Toast.LENGTH_SHORT);
                 toast.show();
             }
-        });
+        });*/
         loadImage();
         isProcessingCommand = false;
     }
@@ -421,6 +422,7 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver, Serv
             currentImageIndex = 0;
 // pictureShowActive = false; restart after last image
         }
+        /*
         runOnUiThread(new Runnable() {
             public void run() {
                 Toast toast = Toast.makeText(ImageViewerActivity.this,
@@ -428,7 +430,7 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver, Serv
                                 + getPositionString(), Toast.LENGTH_SHORT);
                 toast.show();
             }
-        });
+        });*/
         loadImage();
         isProcessingCommand = false;
     }
