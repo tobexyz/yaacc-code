@@ -17,20 +17,14 @@
  */
 package de.yaacc.player;
 
-import java.beans.PropertyChangeEvent;
-import java.beans.PropertyChangeListener;
-import java.net.URI;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
-import java.util.TimeZone;
-import java.util.Timer;
-import java.util.TimerTask;
-
-import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.content.ComponentName;
+import android.content.Context;
 import android.content.Intent;
+import android.content.ServiceConnection;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.IBinder;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -41,10 +35,16 @@ import android.widget.ImageView;
 import android.widget.SeekBar;
 import android.widget.TextView;
 
-import org.fourthline.cling.support.model.DIDLObject;
+import java.beans.PropertyChangeEvent;
+import java.beans.PropertyChangeListener;
+import java.net.URI;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.TimeZone;
+import java.util.Timer;
+import java.util.TimerTask;
 
 import de.yaacc.R;
-import de.yaacc.musicplayer.BackgroundMusicBroadcastReceiver;
 import de.yaacc.settings.SettingsActivity;
 import de.yaacc.util.AboutActivity;
 import de.yaacc.util.YaaccLogActivity;
@@ -55,40 +55,27 @@ import de.yaacc.util.image.ImageDownloadTask;
  *
  * @author Tobias Schoene (openbit)
  */
-public class MusicPlayerActivity extends Activity {
+public class MusicPlayerActivity extends Activity implements ServiceConnection {
 
     protected boolean updateTime = false;
     protected SeekBar seekBar = null;
+    private PlayerService playerService;
+    public void onServiceConnected(ComponentName className, IBinder binder) {
+        if(binder instanceof PlayerService.PlayerServiceBinder) {
+            Log.d(getClass().getName(), "PlayerService connected");
+            playerService = ((PlayerService.PlayerServiceBinder) binder).getService();
+            initialize();
+            setTrackInfo();
+        }
+    }
+    //binder comes from server to communicate with method's of
 
-    @Override
-    protected void onPause() {
-        super.onPause();
-        updateTime = false;
+    public void onServiceDisconnected(ComponentName className) {
+        Log.d(getClass().getName(),"PlayerService disconnected");
+        playerService = null;
     }
 
-    @Override
-    protected void onRestart() {
-        super.onRestart();
-        updateTime = true;
-    }
-
-    @Override
-    protected void onResume() {
-        super.onResume();
-        setTrackInfo();
-        updateTime = true;
-    }
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        updateTime = false;
-    }
-
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_music_player);
+    protected void initialize(){
         // initialize buttons
         Player player = getPlayer();
         ImageButton btnPrev = (ImageButton) findViewById(R.id.musicActivityControlPrev);
@@ -102,6 +89,7 @@ public class MusicPlayerActivity extends Activity {
             btnNext.setActivated(false);
             btnStop.setActivated(false);
             btnPlay.setActivated(false);
+            btnPause.setActivated(false);
             btnPause.setActivated(false);
             btnExit.setActivated(false);
         } else {
@@ -210,7 +198,6 @@ public class MusicPlayerActivity extends Activity {
             }
 
             @Override
-            @SuppressLint("SimpleDateFormat")
             public  void onStopTrackingTouch(android.widget.SeekBar seekBar){
                 String durationString = getPlayer().getDuration();
                 SimpleDateFormat dateFormat = new SimpleDateFormat("HH:mm:ss");
@@ -230,9 +217,45 @@ public class MusicPlayerActivity extends Activity {
         });
 
     }
+    @Override
+    protected void onPause() {
+        super.onPause();
+        updateTime = false;
+    }
+
+    @Override
+    protected void onRestart() {
+        super.onRestart();
+        this.bindService(new Intent(this, PlayerService.class),
+                this, Context.BIND_AUTO_CREATE);
+        updateTime = true;
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        this.bindService(new Intent(this, PlayerService.class),
+                this, Context.BIND_AUTO_CREATE);
+        updateTime = true;
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        updateTime = false;
+    }
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_music_player);
+        this.bindService(new Intent(this, PlayerService.class),
+                this, Context.BIND_AUTO_CREATE);
+
+    }
 
     private Player getPlayer() {
-        return PlayerFactory.getFirstCurrentPlayerOfType(LocalBackgoundMusicPlayer.class);
+        return playerService.getFirstCurrentPlayerOfType(LocalBackgoundMusicPlayer.class);
     }
 
     @Override
@@ -265,7 +288,7 @@ public class MusicPlayerActivity extends Activity {
         doSetTrackInfo();
         updateTime();
     }
-    @SuppressLint("SimpleDateFormat")
+
     private void doSetTrackInfo() {
         if (getPlayer() == null)
             return;

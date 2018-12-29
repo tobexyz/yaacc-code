@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.LinkedList;
 
 import de.yaacc.R;
+import de.yaacc.Yaacc;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.UpnpClientListener;
 
@@ -42,19 +43,18 @@ public class SettingsFragment extends PreferenceFragment implements UpnpClientLi
         addPreferencesFromResource(R.xml.preference);
 
         populateDeviceLists();
-        UpnpClient.getInstance(null).addUpnpClientListener(this);
+        ((Yaacc)getActivity().getApplicationContext()).getUpnpClient().addUpnpClientListener(this);
+
 
     }
 
-    public void addDevice() {
 
-    }
 
     private void populateDeviceLists() {
         LinkedList<Device> devices = new LinkedList<Device>();
         // TODO: populate with found devices
 
-        UpnpClient upnpClient = UpnpClient.getInstance(null);
+        UpnpClient upnpClient = ((Yaacc)getActivity().getApplicationContext()).getUpnpClient();
 
         if (upnpClient != null) {
             if (upnpClient.isInitialized()) {

@@ -18,7 +18,7 @@
 */
 package de.yaacc.upnp.server.avtransport;
 
-import android.annotation.SuppressLint;
+
 import android.util.Log;
 
 import org.fourthline.cling.support.avtransport.impl.state.AbstractState;
@@ -165,7 +165,6 @@ public class AvTransportMediaRendererPlaying extends Playing<AvTransport> implem
     * @see org.fourthline.cling.support.avtransport.impl.state.Playing#seek(org.fourthline.cling.support.model.SeekMode, java.lang.String)
     */
     @Override
-    @SuppressLint("SimpleDateFormat")
     public Class<? extends AbstractState<?>> seek(SeekMode unit, String target) {
         Log.d(this.getClass().getName(), "seek");
         if(SeekMode.REL_TIME.equals(unit)) {

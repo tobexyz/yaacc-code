@@ -22,14 +22,7 @@ public class ImageDownloader {
 
     public ImageDownloader(){}
 
-    /**
-     * Loads an iconised version of the handed image location
-     * @param imageUri image location
-     * @return
-     */
-    public Bitmap retrieveIcon(Uri imageUri){
-        return decodeSampledBitmapFromStream(imageUri, 48, 48, true);
-    }
+
 
 
     /**
@@ -38,7 +31,8 @@ public class ImageDownloader {
      * @return
      */
     public Bitmap retrieveImageWithCertainSize(Uri imageUri,int imageWidth, int imageHeight){
-           Bitmap result =  decodeSampledBitmapFromStream(imageUri, imageWidth, imageHeight, false);
+        Log.d(getClass().getName(),"retrieveImage size:" + imageWidth + "x" + imageHeight);
+        Bitmap result =  decodeSampledBitmapFromStream(imageUri, imageWidth, imageHeight, true);
         return result;
     }
 

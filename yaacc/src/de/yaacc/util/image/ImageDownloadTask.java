@@ -18,7 +18,6 @@ public class ImageDownloadTask extends AsyncTask<Uri, Integer, Bitmap> {
 
 
     private ImageView imageView;
-    private int position;
     private IconDownloadCacheHandler cache;
 
     /**
@@ -37,7 +36,11 @@ public class ImageDownloadTask extends AsyncTask<Uri, Integer, Bitmap> {
      */
     @Override
     protected Bitmap doInBackground(Uri... uri) {
-        return new ImageDownloader().retrieveImageWithCertainSize(uri[0],imageView.getWidth(),imageView.getHeight());
+        if(cache.getBitmap(uri[0],imageView.getWidth(),imageView.getHeight()) == null){
+            cache.addBitmap(uri[0],imageView.getWidth(),imageView.getHeight(),new ImageDownloader().retrieveImageWithCertainSize(uri[0],imageView.getWidth(),imageView.getHeight()));
+        }
+
+        return cache.getBitmap(uri[0],imageView.getWidth(),imageView.getHeight());
     }
 
     /**

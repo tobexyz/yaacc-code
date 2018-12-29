@@ -29,6 +29,7 @@ import org.fourthline.cling.model.meta.Device;
 import java.util.LinkedList;
 
 import de.yaacc.R;
+import de.yaacc.Yaacc;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.UpnpClientListener;
 import de.yaacc.util.image.IconDownloadCacheHandler;
@@ -50,7 +51,7 @@ public class ServerListActivity extends Activity implements
 
         setContentView(R.layout.activity_server_list);
 // local server startup
-        upnpClient = UpnpClient.getInstance(getApplicationContext());
+        upnpClient = ((Yaacc)getApplicationContext()).getUpnpClient();
 
 
 // Define where to show the folder contents for media

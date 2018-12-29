@@ -96,6 +96,7 @@
     <string name="exitActivity">stop</string>
     <string name="icon">icon</string>
     <string name="not_yet_implemented">not yet implemented</string>
+    <string name="avtransportPlayerActivityNextLabel">Next:</string>
 
 
 </resources>

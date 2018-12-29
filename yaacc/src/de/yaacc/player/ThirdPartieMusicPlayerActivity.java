@@ -18,8 +18,13 @@
 package de.yaacc.player;
 
 import android.app.Activity;
+import android.content.ComponentName;
+import android.content.Context;
 import android.content.Intent;
+import android.content.ServiceConnection;
 import android.os.Bundle;
+import android.os.IBinder;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
@@ -36,13 +41,24 @@ import de.yaacc.util.YaaccLogActivity;
  *
  * @author Tobias Schoene (openbit)
  */
-public class ThirdPartieMusicPlayerActivity extends Activity {
+public class ThirdPartieMusicPlayerActivity extends Activity implements ServiceConnection {
 
+    private PlayerService playerService;
+    public void onServiceConnected(ComponentName className, IBinder binder) {
+        if(binder instanceof PlayerService.PlayerServiceBinder) {
+            Log.d(getClass().getName(), "PlayerService connected");
+            playerService = ((PlayerService.PlayerServiceBinder) binder).getService();
+            initialize();
+        }
+    }
+    //binder comes from server to communicate with method's of
 
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_third_partie_music_player);
+    public void onServiceDisconnected(ComponentName className) {
+        Log.d(getClass().getName(),"PlayerService disconnected");
+        playerService = null;
+    }
+
+    protected void initialize(){
         // initialize buttons
         Player player = getPlayer();
         ImageButton btnPrev = (ImageButton) findViewById(R.id.thirdPratieMusicActivityControlPrev);
@@ -134,8 +150,30 @@ public class ThirdPartieMusicPlayerActivity extends Activity {
         });
     }
 
+    @Override
+    protected void onRestart() {
+        super.onRestart();
+        this.bindService(new Intent(this, PlayerService.class),
+                this, Context.BIND_AUTO_CREATE);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        this.bindService(new Intent(this, PlayerService.class),
+                this, Context.BIND_AUTO_CREATE);
+    }
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_third_partie_music_player);
+        this.bindService(new Intent(this, PlayerService.class),
+                this, Context.BIND_AUTO_CREATE);
+    }
+
     private Player getPlayer() {
-        return PlayerFactory
+        return playerService
                 .getFirstCurrentPlayerOfType(LocalThirdPartieMusicPlayer.class);
     }
 
