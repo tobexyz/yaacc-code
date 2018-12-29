@@ -46,7 +46,7 @@ import de.yaacc.util.NotificationId;
  * 
  */
 public class LocalThirdPartieMusicPlayer extends AbstractPlayer {
-	PendingIntent pendingIntent;
+
 	private int musicAppPid=0; 
 	
 	/**

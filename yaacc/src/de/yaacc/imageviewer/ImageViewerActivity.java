@@ -20,12 +20,16 @@ package de.yaacc.imageviewer;
 
 import android.app.ActionBar;
 import android.app.Activity;
+import android.content.ComponentName;
+import android.content.Context;
 import android.content.Intent;
+import android.content.ServiceConnection;
 import android.content.SharedPreferences;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.AsyncTask.Status;
 import android.os.Bundle;
+import android.os.IBinder;
 import android.preference.PreferenceManager;
 import android.util.Log;
 import android.view.Menu;
@@ -46,7 +50,7 @@ import java.util.TimerTask;
 import de.yaacc.R;
 import de.yaacc.player.LocalImagePlayer;
 import de.yaacc.player.Player;
-import de.yaacc.player.PlayerFactory;
+import de.yaacc.player.PlayerService;
 import de.yaacc.settings.SettingsActivity;
 import de.yaacc.util.AboutActivity;
 import de.yaacc.util.ActivitySwipeDetector;
@@ -68,7 +72,7 @@ import de.yaacc.util.YaaccLogActivity;
  * @author Tobias Schoene (openbit)
  *
  */
-public class ImageViewerActivity extends Activity implements SwipeReceiver {
+public class ImageViewerActivity extends Activity implements SwipeReceiver, ServiceConnection {
     public static final String URIS = "URIS_PARAM"; // String Intent parameter
     public static final String AUTO_START_SHOW = "AUTO_START_SHOW"; // Boolean
     // Intent
@@ -83,12 +87,32 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver {
     private boolean isProcessingCommand = false; // indicates an command
     private Timer pictureShowTimer;
     private ImageViewerBroadcastReceiver imageViewerBroadcastReceiver;
+    private PlayerService playerService;
+    public void onServiceConnected(ComponentName className, IBinder binder) {
+        if(binder instanceof PlayerService.PlayerServiceBinder) {
+            Log.d(getClass().getName(), "PlayerService connected");
+            playerService = ((PlayerService.PlayerServiceBinder) binder).getService();
+            initialize();
+        }
+    }
+    //binder comes from server to communicate with method's of
+
+    public void onServiceDisconnected(ComponentName className) {
+        Log.d(getClass().getName(),"PlayerService disconnected");
+        playerService = null;
+    }
+
+    protected void initialize(){
+
+    }
     @SuppressWarnings("unchecked")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         Log.d(this.getClass().getName(), "OnCreate");
         super.onCreate(savedInstanceState);
         init(savedInstanceState, getIntent());
+        this.bindService(new Intent(this, PlayerService.class),
+                this, Context.BIND_AUTO_CREATE);
     }
     /*
     * (non-Javadoc)
@@ -165,6 +189,8 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver {
         imageViewerBroadcastReceiver = new ImageViewerBroadcastReceiver(this);
         imageViewerBroadcastReceiver.registerReceiver();
         super.onResume();
+        this.bindService(new Intent(this, PlayerService.class),
+                this, Context.BIND_AUTO_CREATE);
     }
     /*
     * (non-Javadoc)
@@ -227,7 +253,7 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver {
     }
 
     private void exit() {
-        Player player = PlayerFactory.getFirstCurrentPlayerOfType(LocalImagePlayer.class);
+        Player player = playerService.getFirstCurrentPlayerOfType(LocalImagePlayer.class);
         if(player != null){
         player.exit();
         }else{
@@ -371,6 +397,7 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver {
                 currentImageIndex = 0;
             }
         }
+        /*
         runOnUiThread(new Runnable() {
             public void run() {
                 Toast toast = Toast.makeText(ImageViewerActivity.this,
@@ -378,7 +405,7 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver {
                                 + getPositionString(), Toast.LENGTH_SHORT);
                 toast.show();
             }
-        });
+        });*/
         loadImage();
         isProcessingCommand = false;
     }
@@ -395,6 +422,7 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver {
             currentImageIndex = 0;
 // pictureShowActive = false; restart after last image
         }
+        /*
         runOnUiThread(new Runnable() {
             public void run() {
                 Toast toast = Toast.makeText(ImageViewerActivity.this,
@@ -402,7 +430,7 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver {
                                 + getPositionString(), Toast.LENGTH_SHORT);
                 toast.show();
             }
-        });
+        });*/
         loadImage();
         isProcessingCommand = false;
     }

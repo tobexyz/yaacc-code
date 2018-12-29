@@ -44,20 +44,23 @@ public class IconDownloadTask extends AsyncTask<Uri, Integer, Bitmap> {
 	 */
 	@Override
 	protected Bitmap doInBackground(Uri... uri) {
+		int defaultHeight= 48;
+		int defaultWidth = 48;
 		Bitmap result = null;
 		if (cache != null) {
-			result = cache.getBitmap(uri[0]);
+			result = cache.getBitmap(uri[0], defaultHeight,defaultWidth);
 		}
 		if (result == null) {
-			result = new ImageDownloader().retrieveIcon(uri[0]);
+			result = new ImageDownloader().retrieveImageWithCertainSize(uri[0], defaultHeight,defaultWidth);
 			if (result != null) {
 				if (cache != null) {
-					cache.addBitmap(uri[0], result);
+					cache.addBitmap(uri[0], defaultHeight,defaultWidth, result);
 				}
 			}
 		}
 		return result;
 	}
+
 
     public int getPosition() {
         return position;

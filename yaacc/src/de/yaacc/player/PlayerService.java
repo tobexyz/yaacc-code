@@ -1,40 +1,116 @@
 /*
-* Copyright (C) 2013 www.yaacc.de
-*
-* This program is free software; you can redistribute it and/or
-* modify it under the terms of the GNU General Public License
-* as published by the Free Software Foundation; either version 3
-* of the License, or (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program; if not, write to the Free Software
-* Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
-*/
+ * Copyright (C) 2018 www.yaacc.de
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 3
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ */
 package de.yaacc.player;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import org.fourthline.cling.model.meta.Device;
+
+import android.app.Service;
+import android.content.Intent;
+import android.os.Binder;
+import android.os.HandlerThread;
+import android.os.IBinder;
 import android.preference.PreferenceManager;
 import android.util.Log;
 import android.widget.Toast;
+
+import org.fourthline.cling.model.meta.Device;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+
 import de.yaacc.R;
 import de.yaacc.upnp.SynchronizationInfo;
 import de.yaacc.upnp.UpnpClient;
+
 /**
- * Factory for creating player instances-
- *
- * @author Tobias Schoene (openbit)
- *
+ * @author Tobias Schoene (tobexyz)
  */
-public class PlayerFactory {
-    private static List<Player> currentPlayers = new ArrayList<Player>();
+public class PlayerService extends Service {
+
+    private IBinder binder = new PlayerServiceBinder();
+    private Map<Integer,Player> currentActivePlayer = new HashMap<>();
+    private HandlerThread playerHandlerThread;
+
+
+    public PlayerService() {
+    }
+
+    public void addPlayer(Player player) {
+        currentActivePlayer.put(player.getId(),player);
+    }
+
+    public void removePlayer(Player player) {
+
+        currentActivePlayer.remove(player.getId());
+    }
+
+    public class PlayerServiceBinder extends Binder {
+        public PlayerService getService() {
+            return PlayerService.this;
+        }
+    }
+
+    @Override
+    public void onDestroy() {
+        Log.d(this.getClass().getName(), "On Destroy");
+    }
+
+
+
+    @Override
+    public IBinder onBind(Intent intent) {
+        Log.d(this.getClass().getName(), "On Bind");
+        return binder;
+    }
+
+    public Collection<Player> getPlayer(){
+        return currentActivePlayer.values();
+    }
+    @Override
+    public int onStartCommand(Intent intent, int flags, int startId) {
+        super.onStartCommand(intent, flags, startId);
+        Log.d(this.getClass().getName(), "Received start id " + startId + ": " + intent);
+        initialize(intent);
+        return START_STICKY;
+    }
+
+
+    private void initialize(Intent intent) {
+        playerHandlerThread = new HandlerThread("de.yaacc.PlayerService.HandlerThread");
+        playerHandlerThread.start();
+    }
+
+
+    public HandlerThread getPlayerHandlerThread(){
+        return playerHandlerThread;
+    }
+
+    public Player getPlayer(int playerId) {
+        Log.d(this.getClass().getName(), "Get Player for id " + playerId);
+        if (currentActivePlayer.get(playerId) == null){
+            Log.d(this.getClass().getName(), "Get Player not found");
+        }
+        return currentActivePlayer.get(playerId);
+    }
+
 
 
     /**
@@ -48,8 +124,8 @@ public class PlayerFactory {
      * the items to be played
      * @return the player
      */
-    public static List<Player> createPlayer(UpnpClient upnpClient,
-                                            SynchronizationInfo syncInfo,List<PlayableItem> items) {
+    public List<Player> createPlayer(UpnpClient upnpClient,
+                                            SynchronizationInfo syncInfo, List<PlayableItem> items) {
         List<Player> resultList = new ArrayList<Player>();
         Player result = null;
         boolean video = false;
@@ -68,11 +144,11 @@ public class PlayerFactory {
             }
 
         }
-        Log.d(PlayerFactory.class.getName(), "video:" + video + " image: " + image + "audio:" + music );
+        Log.d(getClass().getName(), "video:" + video + " image: " + image + "audio:" + music );
         for (Device device : upnpClient.getReceiverDevices()) {
             result = createPlayer(upnpClient,device, video, image, music,syncInfo);
             if (result != null) {
-                currentPlayers.add(result);
+                addPlayer(result);
                 result.setItems(items.toArray(new PlayableItem[items.size()]));
                 resultList.add(result);
             }
@@ -88,13 +164,14 @@ public class PlayerFactory {
      * @param music true if music items
      * @return the player or null if no device is present
      */
-    private static Player createPlayer(UpnpClient upnpClient,Device receiverDevice,
+    private Player createPlayer(UpnpClient upnpClient,Device receiverDevice,
                                        boolean video, boolean image, boolean music, SynchronizationInfo syncInfo) {
         if( receiverDevice == null){
             Toast toast = Toast.makeText(upnpClient.getContext(), upnpClient.getContext().getString(R.string.error_no_receiver_device_found), Toast.LENGTH_SHORT);
             toast.show();
             return null;
         }
+
         Player result;
         if (!receiverDevice.getIdentity().getUdn().getIdentifierString().equals(UpnpClient.LOCAL_UID)) {
             String deviceName = receiverDevice.getDisplayString();
@@ -159,7 +236,7 @@ public class PlayerFactory {
         result.setSyncInfo(syncInfo);
         return result;
     }
-    private static Player createImagePlayer(UpnpClient upnpClient) {
+    private Player createImagePlayer(UpnpClient upnpClient) {
         Player result = getFirstCurrentPlayerOfType(LocalImagePlayer.class);
         if (result != null) {
             shutdown(result);
@@ -167,7 +244,7 @@ public class PlayerFactory {
         return new LocalImagePlayer(upnpClient, upnpClient.getContext()
                 .getString(R.string.playerNameImage));
     }
-    private static Player createMusicPlayer(UpnpClient upnpClient) {
+    private Player createMusicPlayer(UpnpClient upnpClient) {
         boolean background = PreferenceManager.getDefaultSharedPreferences(
                 upnpClient.getContext()).getBoolean(
                 upnpClient.getContext().getString(R.string.settings_audio_app),
@@ -193,8 +270,9 @@ public class PlayerFactory {
      *
      * @return the currentPlayer
      */
-    public static List<Player> getCurrentPlayers() {
-        return Collections.unmodifiableList(currentPlayers);
+    public Collection<Player> getCurrentPlayers() {
+
+        return Collections.unmodifiableCollection(currentActivePlayer.values());
     }
 
     /**
@@ -204,11 +282,11 @@ public class PlayerFactory {
      * the requested type
      * @return the currentPlayer
      */
-    public static List<Player> getCurrentPlayersOfType(Class typeClazz, SynchronizationInfo syncInfo) {
+    public List<Player> getCurrentPlayersOfType(Class typeClazz, SynchronizationInfo syncInfo) {
 
         List<Player> players = getCurrentPlayersOfType(typeClazz);
         for (Player player : players) {
-                player.setSyncInfo(syncInfo);
+            player.setSyncInfo(syncInfo);
         }
         return players;
     }
@@ -221,9 +299,9 @@ public class PlayerFactory {
      * the requested type
      * @return the currentPlayer
      */
-    public static List<Player> getCurrentPlayersOfType(Class typeClazz) {
+    public List<Player> getCurrentPlayersOfType(Class typeClazz) {
         List<Player> players = new ArrayList<Player>();
-        for (Player player : currentPlayers) {
+        for (Player player : getCurrentPlayers()) {
             if (typeClazz.isInstance(player)) {
                 players.add(player);
             }
@@ -237,8 +315,8 @@ public class PlayerFactory {
      * the requested type
      * @return the currentPlayer
      */
-    public static Player getFirstCurrentPlayerOfType(Class typeClazz) {
-        for (Player player : currentPlayers) {
+    public Player getFirstCurrentPlayerOfType(Class typeClazz) {
+        for (Player player : getCurrentPlayers()) {
             if (typeClazz.isInstance(player)) {
                 return player;
             }
@@ -252,23 +330,23 @@ public class PlayerFactory {
      * the mime type
      * @return the player class
      */
-    public static Class getPlayerClassForMimeType(String mimeType) {
+    public Class getPlayerClassForMimeType(String mimeType) {
 // FIXME don't implement business logic twice
         Class result = MultiContentPlayer.class;
         if(mimeType != null){
             boolean image = mimeType.startsWith("image");
             boolean video = mimeType.startsWith("video");
             boolean music = mimeType.startsWith("audio");
-        if (video && !image && !music) {
+            if (video && !image && !music) {
 // use videoplayer
-            result = MultiContentPlayer.class;
-        } else if (!video && image && !music) {
+                result = MultiContentPlayer.class;
+            } else if (!video && image && !music) {
 // use imageplayer
-            result = LocalImagePlayer.class;
-        } else if (!video && !image && music) {
+                result = LocalImagePlayer.class;
+            } else if (!video && !image && music) {
 // use musicplayer
-            result = LocalBackgoundMusicPlayer.class;
-        }
+                result = LocalBackgoundMusicPlayer.class;
+            }
         }
         return result;
     }
@@ -277,19 +355,23 @@ public class PlayerFactory {
      *
      * @param player
      */
-    public static void shutdown(Player player) {
+    public void shutdown(Player player) {
         assert (player != null);
-        currentPlayers.remove(player);
+        currentActivePlayer.remove(player.getId());
         player.onDestroy();
     }
     /**
      * Kill all Players
      */
-    public static void shutdown() {
+    public void shutdown() {
         HashSet<Player> players = new HashSet<Player>();
-        players.addAll(currentPlayers);
+        players.addAll(getCurrentPlayers());
         for (Player player : players) {
             shutdown(player);
         }
+
     }
-} 
+
+
+
+}

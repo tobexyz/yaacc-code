@@ -16,18 +16,16 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 -->
-
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     package="de.yaacc"
-    android:versionCode="22"
-    android:versionName="2.0.2">
-
-
+    android:versionCode="23"
+    android:versionName="2.1.0">
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.GET_TASKS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
@@ -35,16 +33,15 @@
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
 
-
-
     <application
+        android:name=".Yaacc"
         android:allowBackup="false"
         android:icon="@drawable/ic_launcher"
-        android:supportsRtl="true"
         android:label="@string/app_name"
+        android:supportsRtl="true"
         android:theme="@style/AppTheme">
         <activity
-            android:name="de.yaacc.browser.ServerListActivity"
+            android:name=".browser.ServerListActivity"
             android:label="@string/title_activity_server_list">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
@@ -54,7 +51,7 @@
             </intent-filter>
         </activity>
         <activity
-            android:name="de.yaacc.browser.ContentListActivity"
+            android:name=".browser.ContentListActivity"
             android:label="@string/title_activity_content_list">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
@@ -64,7 +61,7 @@
             </intent-filter>
         </activity>
         <activity
-            android:name="de.yaacc.browser.ReceiverListActivity"
+            android:name=".browser.ReceiverListActivity"
             android:label="@string/title_activity_receiver_list">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
@@ -74,7 +71,7 @@
             </intent-filter>
         </activity>
         <activity
-            android:name="de.yaacc.browser.PlayerListActivity"
+            android:name=".browser.PlayerListActivity"
             android:label="@string/title_activity_player_list">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
@@ -84,28 +81,29 @@
             </intent-filter>
         </activity>
         <activity
-            android:name="de.yaacc.browser.TabBrowserActivity"
+            android:name=".browser.TabBrowserActivity"
             android:label="@string/title_activity_main">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <action android:name="android.intent.action.MAIN" />
+
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
 
         <service
-            android:name="de.yaacc.upnp.UpnpRegistryService"
+            android:name=".upnp.UpnpRegistryService"
             android:enabled="true" />
         <service
-            android:name="de.yaacc.musicplayer.BackgroundMusicService"
+            android:name=".musicplayer.BackgroundMusicService"
             android:enabled="true" />
         <service
-            android:name="de.yaacc.upnp.server.YaaccUpnpServerService"
+            android:name=".upnp.server.YaaccUpnpServerService"
             android:enabled="true" />
 
         <activity
-            android:name="de.yaacc.imageviewer.ImageViewerActivity"
+            android:name=".imageviewer.ImageViewerActivity"
             android:label="@string/title_activity_image_viewer">
             <intent-filter tools:ignore="AppLinkUrlError">
                 <action android:name="android.intent.action.VIEW" />
@@ -117,19 +115,12 @@
             </intent-filter>
         </activity>
         <activity
-            android:name="de.yaacc.settings.SettingsActivity"
-            android:label="@string/title_activity_settings">
-            <!--intent-filter>
-                <action android:name="android.intent.action.VIEW" />
+            android:name=".settings.SettingsActivity"
+            android:label="@string/title_activity_settings" />
 
-                <category android:name="android.intent.category.DEFAULT" />
-            </intent-filter-->
-        </activity>
-
-        <receiver android:name="de.yaacc.imageviewer.ImageViewerBroadcastReceiver"></receiver>
-
+        <receiver android:name=".imageviewer.ImageViewerBroadcastReceiver" />
         <receiver
-            android:name="de.yaacc.upnp.server.ServerAutostart"
+            android:name=".upnp.server.ServerAutostart"
             android:enabled="true"
             android:exported="true"
             android:label="YAACC ServerAutoStart">
@@ -139,47 +130,43 @@
         </receiver>
 
         <activity
-            android:name="de.yaacc.player.MusicPlayerActivity"
+            android:name=".player.MusicPlayerActivity"
             android:label="@string/title_activity_music_player">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
-
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
         <activity
-            android:name="de.yaacc.player.ThirdPartieMusicPlayerActivity"
+            android:name=".player.ThirdPartieMusicPlayerActivity"
             android:label="@string/title_activity_music_player">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
-
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
         <activity
-            android:name="de.yaacc.player.AVTransportPlayerActivity"
+            android:name=".player.AVTransportPlayerActivity"
             android:label="@string/title_activity_avtransport_player">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
-
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
         <activity
-            android:name="de.yaacc.player.MultiContentPlayerActivity"
+            android:name=".player.MultiContentPlayerActivity"
             android:label="@string/title_activity_multi_content_player">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
-
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
         <activity
-            android:name="de.yaacc.util.AboutActivity"
+            android:name=".util.AboutActivity"
             android:label="@string/yaacc_about">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
@@ -187,7 +174,7 @@
             </intent-filter>
         </activity>
         <activity
-            android:name="de.yaacc.upnp.server.YaaccUpnpServerControlActivity"
+            android:name=".upnp.server.YaaccUpnpServerControlActivity"
             android:label="@string/title_activity_yaacc_upnp_server_control">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
@@ -195,13 +182,18 @@
             </intent-filter>
         </activity>
         <activity
-            android:name="de.yaacc.util.YaaccLogActivity"
+            android:name=".util.YaaccLogActivity"
             android:label="@string/title_activity_yaacc_log">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
+
+        <service
+            android:name=".player.PlayerService"
+            android:enabled="true"
+            android:exported="false" />
     </application>
 
 </manifest>

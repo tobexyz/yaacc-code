@@ -17,63 +17,99 @@
  */
 package de.yaacc.player;
 
-import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.content.ComponentName;
+import android.content.Context;
 import android.content.Intent;
+import android.content.ServiceConnection;
+import android.net.Uri;
 import android.os.Bundle;
+import android.os.IBinder;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.View.OnClickListener;
+import android.view.WindowManager;
 import android.widget.CompoundButton;
 import android.widget.ImageButton;
+import android.widget.ImageView;
 import android.widget.SeekBar;
 import android.widget.Switch;
 import android.widget.TextView;
 
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
+import java.net.URI;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.TimeZone;
 import java.util.Timer;
 import java.util.TimerTask;
 
 import de.yaacc.R;
+import de.yaacc.Yaacc;
 import de.yaacc.settings.SettingsActivity;
 import de.yaacc.util.AboutActivity;
 import de.yaacc.util.YaaccLogActivity;
+import de.yaacc.util.image.ImageDownloadTask;
 
 /**
  * A avtransport player activity controlling the {@link AVTransportPlayer}.
  *
  * @author Tobias Schoene (openbit)
  */
-public class AVTransportPlayerActivity extends Activity {
+public class AVTransportPlayerActivity extends Activity implements ServiceConnection {
 
-
+    private PlayerService playerService;
     private int playerId;
     protected boolean updateTime = false;
     protected SeekBar seekBar = null;
 
+    public void onServiceConnected(ComponentName className, IBinder binder) {
+        if(binder instanceof PlayerService.PlayerServiceBinder) {
+            Log.d(getClass().getName(), "PlayerService connected");
+            playerService = ((PlayerService.PlayerServiceBinder) binder).getService();
+            initialize();
+        }
+    }
+    //binder comes from server to communicate with method's of
+
+    public void onServiceDisconnected(ComponentName className) {
+        Log.d(getClass().getName(),"PlayerService disconnected");
+        playerService = null;
+    }
+
+
+    private PlayerService getPlayerService(){
+        return playerService;
+    }
     @Override
     protected void onPause() {
         super.onPause();
         updateTime = false;
+        if (getPlayerService() != null) {
+            try {
+                getPlayerService().unbindService(this);
+            } catch (IllegalArgumentException iae) {
+                Log.d(getClass().getName(), "Ignore exception on unbind service while activity pause");
+            }
+        }
     }
 
     @Override
     protected void onRestart() {
         super.onRestart();
+        this.bindService(new Intent(this, PlayerService.class),
+                this, Context.BIND_AUTO_CREATE);
         updateTime = true;
     }
 
     @Override
     protected void onResume() {
         super.onResume();
+        this.bindService(new Intent(this, PlayerService.class),
+                this, Context.BIND_AUTO_CREATE);
         updateTime = true;
         setTrackInfo();
     }
@@ -82,19 +118,15 @@ public class AVTransportPlayerActivity extends Activity {
     protected void onDestroy() {
         super.onDestroy();
         updateTime = false;
+        try {
+            getPlayerService().unbindService(this);
+        }catch (IllegalArgumentException iae){
+            Log.d(getClass().getName(), "Ignore exception on unbind service while activity destroy");
+        }
+
     }
 
-
-
-
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_avtransport_player);
-
-        // initialize buttons
-        playerId = getIntent().getIntExtra(AVTransportPlayer.PLAYER_ID, -1);
-        Log.d(getClass().getName(), "Got id from intent: " + playerId);
+    protected void initialize(){
         Player player = getPlayer();
         ImageButton btnPrev = (ImageButton) findViewById(R.id.avtransportPlayerActivityControlPrev);
         ImageButton btnNext = (ImageButton) findViewById(R.id.avtransportPlayerActivityControlNext);
@@ -195,7 +227,6 @@ public class AVTransportPlayerActivity extends Activity {
             public void onClick(View v) {
                 Player player = getPlayer();
                 if (player != null) {
-                    player.stop();
                     player.exit();
                 }
                 finish();
@@ -215,8 +246,8 @@ public class AVTransportPlayerActivity extends Activity {
         SeekBar volumeSeekBar = (SeekBar) findViewById(R.id.avtransportPlayerActivityControlVolumeSeekBar);
         volumeSeekBar.setMax(100);
         if (getPlayer() != null) {
-          Log.d(getClass().getName(),"Volumne:" + getPlayer().getVolume());
-          volumeSeekBar.setProgress(getPlayer().getVolume());
+            Log.d(getClass().getName(),"Volumne:" + getPlayer().getVolume());
+            volumeSeekBar.setProgress(getPlayer().getVolume());
         }else{
             volumeSeekBar.setProgress(100);
         }
@@ -253,7 +284,6 @@ public class AVTransportPlayerActivity extends Activity {
             }
 
             @Override
-            @SuppressLint("SimpleDateFormat")
             public  void onStopTrackingTouch(android.widget.SeekBar seekBar){
                 String durationString = getPlayer().getDuration();
                 SimpleDateFormat dateFormat = new SimpleDateFormat("HH:mm:ss");
@@ -271,29 +301,37 @@ public class AVTransportPlayerActivity extends Activity {
             }
 
         });
-
-
     }
 
 
-    private Player getPlayer() {
-        Player result = null;
-        List<Player> players = new ArrayList<Player>();
-        players.addAll(PlayerFactory
-                .getCurrentPlayersOfType(AVTransportPlayer.class));
-        players.addAll(PlayerFactory
-                .getCurrentPlayersOfType(SyncAVTransportPlayer.class));
-        if (players != null) { // assume that there
-            for (Player player : players) {
-                Log.d(getClass().getName(), "Found networkplayer: " + player.getId() + " Searched  for id: " + playerId);
-                if (player.getId() == playerId) {
-                    result = player;
-                    break;
-                }
-            }
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        if (((Yaacc)getApplicationContext()).isUnplugged()) {
+            getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            getWindow().clearFlags(
+                    WindowManager.LayoutParams.FLAG_ALLOW_LOCK_WHILE_SCREEN_ON);
         }
-        return result;
+        setContentView(R.layout.activity_avtransport_player);
+        try {
+            this.bindService(new Intent(this, PlayerService.class),
+                    this, Context.BIND_AUTO_CREATE);
+        }catch(Exception ex){
+            Log.d(getClass().getName(),"ignore exception on service bind during onCreate");
+        }
+        // initialize buttons
+        playerId = getIntent().getIntExtra(AVTransportPlayer.PLAYER_ID, -1);
+        Log.d(getClass().getName(), "Got id from intent: " + playerId);
+
     }
+
+    private Player getPlayer(){
+        if (getPlayerService() == null){
+            return null;
+        }
+        return getPlayerService().getPlayer(playerId);
+    }
+
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
@@ -326,10 +364,22 @@ public class AVTransportPlayerActivity extends Activity {
         updateTime();
     }
 
-    @SuppressLint("SimpleDateFormat")
+
     private void doSetTrackInfo() {
         if (getPlayer() == null)
             return;
+        TextView current = (TextView) findViewById(R.id.avtransportPlayerActivityCurrentItem);
+        current.setText(getPlayer().getCurrentItemTitle());
+        TextView position = (TextView) findViewById(R.id.avtransportPlayerActivityPosition);
+        position.setText(getPlayer().getPositionString());
+        TextView next = (TextView) findViewById(R.id.avtransportPlayerActivityNextItem);
+        next.setText(getPlayer().getNextItemTitle());
+        ImageView albumArtView = (ImageView) findViewById(R.id.avtransportPlayerActivityImageView);
+        URI albumArtUri = getPlayer().getAlbumArt();
+        if (null != albumArtUri) {
+            ImageDownloadTask imageDownloadTask = new ImageDownloadTask(albumArtView);
+            imageDownloadTask.execute(Uri.parse(albumArtUri.toString()));
+        }
         TextView duration = (TextView) findViewById(R.id.avtransportPlayerActivityDuration);
         String durationTimeString = getPlayer().getDuration();
         duration.setText(durationTimeString);

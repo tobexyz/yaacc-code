@@ -25,6 +25,7 @@ import android.media.MediaPlayer;
 import android.net.Uri;
 import android.os.Binder;
 import android.os.IBinder;
+import android.os.PowerManager;
 import android.util.Log;
 
 import java.io.IOException;
@@ -91,15 +92,12 @@ public class BackgroundMusicService extends Service {
         return binder;
     }
 
-    /*
-     * (non-Javadoc)
-     *
-     * @see android.app.Service#onStart(android.content.Intent, int)
-     */
+
     @Override
-    public void onStart(Intent intent, int startid) {
-        Log.d(this.getClass().getName(), "On Start");
+    public int onStartCommand(Intent intent, int flags, int startId) {
+        Log.d(this.getClass().getName(), "Received start id " + startId + ": " + intent);
         initialize(intent);
+        return START_STICKY;
     }
 
     private void initialize(Intent intent) {
@@ -174,6 +172,7 @@ public class BackgroundMusicService extends Service {
             player.release();
         }
         player = new MediaPlayer();
+        player.setWakeMode(getApplicationContext(), PowerManager.PARTIAL_WAKE_LOCK);
         player.setOnErrorListener(new MediaPlayer.OnErrorListener() {
             @Override
             public boolean onError(MediaPlayer mediaPlayer,  int what, int extra) {
@@ -234,8 +233,5 @@ public class BackgroundMusicService extends Service {
     }
 
 
-    private static class ActionState {
-        public boolean actionFinished = false;
-        public boolean watchdogFlag = false;
-    }
+
 }

@@ -9,7 +9,7 @@ import android.util.LruCache;
  * @author Christoph Hähnel (eyeless)
  */
 public class IconDownloadCacheHandler {
-    private LruCache<Uri, Bitmap> cache;
+    private LruCache<String, Bitmap> cache;
     private static IconDownloadCacheHandler instance;
     private IconDownloadCacheHandler(){
         initializeCache();
@@ -29,16 +29,17 @@ public class IconDownloadCacheHandler {
      * @param uri uri the image is saved at
      * @return required image
      */
-    public Bitmap getBitmap(Uri uri){
-        return cache.get(uri);
+    public Bitmap getBitmap(Uri uri, int width,int height){
+        return cache.get(uri.toString() + width + "x"+ height);
     }
     /**
      * Adds image to cache
      * @param uri uri the image is saved at
      * @param img image to save
      */
-    public void addBitmap(Uri uri, Bitmap img){
-        cache.put(uri,img);
+    public void addBitmap(Uri uri, int width,int height,Bitmap img){
+
+        cache.put(uri.toString() + width + "x"+ height,img);
     }
     /**
      * Clear the whole cache.
@@ -53,6 +54,6 @@ public class IconDownloadCacheHandler {
     private void initializeCache(){
         Long maxCacheSize = Runtime.getRuntime().maxMemory();
         int cacheSize = maxCacheSize.intValue() / 1024 / 8;
-        cache = new LruCache<Uri, Bitmap>(cacheSize);
+        cache = new LruCache<String, Bitmap>(cacheSize);
     }
 } 

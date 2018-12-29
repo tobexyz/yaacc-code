@@ -16,7 +16,6 @@
 * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 */
 package de.yaacc.player;
-import android.annotation.SuppressLint;
 import android.app.PendingIntent;
 import android.content.Intent;
 import android.net.Uri;
@@ -34,6 +33,7 @@ import org.fourthline.cling.support.avtransport.callback.SetAVTransportURI;
 import org.fourthline.cling.support.avtransport.callback.Stop;
 import org.fourthline.cling.support.contentdirectory.DIDLParser;
 import org.fourthline.cling.support.model.DIDLContent;
+import org.fourthline.cling.support.model.DIDLObject;
 import org.fourthline.cling.support.model.PositionInfo;
 import org.fourthline.cling.support.model.item.Item;
 import org.fourthline.cling.support.renderingcontrol.callback.GetMute;
@@ -49,6 +49,7 @@ import java.util.TimerTask;
 import java.util.UUID;
 
 import de.yaacc.R;
+import de.yaacc.Yaacc;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.util.Watchdog;
 
@@ -58,12 +59,14 @@ import de.yaacc.util.Watchdog;
  *
  */
 public class AVTransportPlayer extends AbstractPlayer {
-    public static final String PLAYER_ID = "PlayerId";
+
     private String deviceId="";
     private int id;
     private String contentType;
     private PositionInfo currentPositionInfo;
     private ActionState positionActionState = null;
+    private URI albumArtUri;
+
     /**
      * @param upnpClient the client
      * @param name playerName
@@ -174,6 +177,9 @@ public class AVTransportPlayer extends AbstractPlayer {
 			 Log.d(getClass().getName(), "Error while generating Didl-Item xml: " + e);
 			 metadata = ""; 
 		}
+        DIDLObject.Property<URI> albumArtUriProperty = playableItem.getItem() == null ? null : playableItem.getItem().getFirstProperty(DIDLObject.Property.UPNP.ALBUM_ART_URI.class);
+        albumArtUri = (albumArtUriProperty == null) ? null : albumArtUriProperty.getValue();
+
         InternalSetAVTransportURI setAVTransportURI = new InternalSetAVTransportURI(
                 service, playableItem.getUri().toString(), actionState, metadata);
         getUpnpClient().getControlPoint().execute(setAVTransportURI);
@@ -222,6 +228,12 @@ public class AVTransportPlayer extends AbstractPlayer {
      * Watchdog for async calls to complete
      */
     private void waitForActionComplete(final ActionState actionState) {
+        waitForActionComplete(actionState, null);
+    }
+    /**
+     * Watchdog for async calls to complete
+     */
+    private void waitForActionComplete(final ActionState actionState, Runnable fn) {
         actionState.watchdogFlag = false;
         Timer watchdogTimer = new Timer();
         watchdogTimer.schedule(new TimerTask() {
@@ -230,9 +242,18 @@ public class AVTransportPlayer extends AbstractPlayer {
                 actionState.watchdogFlag = true;
             }
         }, 30000L); // 30sec. Watchdog
+        int i = 0;
         while (!(actionState.actionFinished || actionState.watchdogFlag)) {
-// wait for local device is connected
-            Log.d(getClass().getName(), "wait for action finished ");
+            if (fn != null){
+                fn.run();
+            }else {
+                //work around byte code optimization
+                i++;
+                if (i == 100000) {
+                    Log.d(getClass().getName(), "wait for action finished ");
+                    i = 0;
+                }
+            }
         }
         if (actionState.watchdogFlag) {
             Log.d(getClass().getName(), "Watchdog timeout!");
@@ -344,7 +365,7 @@ public class AVTransportPlayer extends AbstractPlayer {
 
     @Override
     public URI getAlbumArt() {
-        return null;
+        return albumArtUri;
     }
 
     public boolean getMute(){
@@ -392,8 +413,14 @@ public class AVTransportPlayer extends AbstractPlayer {
         Watchdog watchdog = Watchdog.createWatchdog(10000L);
         watchdog.start();
 
+        int i=0;
         while (!actionState.actionFinished && !watchdog.hasTimeout()) {
             //active wait
+            i++;
+            if( i== 100000) {
+                Log.d(getClass().getName(), "wait for action finished ");
+                i=0;
+            }
         }
         if (watchdog.hasTimeout()) {
             Log.d(getClass().getName(),"Timeout occurred");
@@ -523,9 +550,14 @@ public class AVTransportPlayer extends AbstractPlayer {
         getUpnpClient().getControlPoint().execute(actionCallback);
         Watchdog watchdog = Watchdog.createWatchdog(10000L);
         watchdog.start();
-
+        int i = 0;
         while (!actionState.actionFinished && !watchdog.hasTimeout()) {
             //active wait
+            i++;
+            if( i== 100000) {
+                Log.d(getClass().getName(), "wait for action finished ");
+                i=0;
+            }
         }
         if (watchdog.hasTimeout()) {
             Log.d(getClass().getName(),"Timeout occurred");
@@ -597,7 +629,6 @@ public class AVTransportPlayer extends AbstractPlayer {
     }
 
     @Override
-    @SuppressLint("SimpleDateFormat")
     public void seekTo(long millisecondsFromStart){
         if(getDevice() == null) {
             Log.d(getClass().getName(),
@@ -655,6 +686,43 @@ public class AVTransportPlayer extends AbstractPlayer {
         }
         return "00:00:00";
     }
+    @Override
+    public void startTimer(final long duration) {
+        super.startTimer(duration);
+        Yaacc yaacc = (Yaacc) getContext().getApplicationContext();
+        if(yaacc.isUnplugged() && getItems().size()>1){
+            yaacc.aquireWakeLock(duration + 1000L, getWakeLockTag());
+            //bring current player to front
+            Intent i = new Intent(yaacc, AVTransportPlayerActivity.class);
+            i.setFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_SINGLE_TOP| Intent.FLAG_ACTIVITY_NEW_TASK);
+            i.setData(Uri.parse("http://0.0.0.0/"+getId()+"")); //just for making the intents different http://stackoverflow.com/questions/10561419/scheduling-more-than-one-pendingintent-to-same-activity-using-alarmmanager
+            i.putExtra(PLAYER_ID, getId());
+            yaacc.startActivity(i);
+        }
+    }
 
+    @Override
+    public void exit(){
+        ((Yaacc)getContext().getApplicationContext()).releaseWakeLock(getWakeLockTag());
+        stop();
+        final ActionState actionState = new ActionState();
+        actionState.actionFinished = false;
+        Runnable fn = new Runnable() {
+            @Override
+            public void run() {
+                actionState.actionFinished = AVTransportPlayer.this.isProcessingCommand();
+                try {
+                    Thread.sleep(200);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+        };
+        waitForActionComplete(actionState,fn);
+        super.exit();
+    }
 
+    private String getWakeLockTag() {
+        return "de.yaacc.wakelock.player:" + getId();
+    }
 }

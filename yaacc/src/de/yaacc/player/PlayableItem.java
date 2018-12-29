@@ -17,18 +17,12 @@
  */
 package de.yaacc.player;
 
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.TimeZone;
-
-import org.fourthline.cling.support.model.Res;
-import org.fourthline.cling.support.model.item.Item;
-
-import android.annotation.SuppressLint;
 import android.net.Uri;
 import android.util.Log;
 import android.webkit.MimeTypeMap;
+
+import org.fourthline.cling.support.model.Res;
+import org.fourthline.cling.support.model.item.Item;
 
 /**
  * representation of an item which is to be played
@@ -43,7 +37,7 @@ public class PlayableItem {
 	private long duration;	
 	private Item item;
 
-    @SuppressLint("SimpleDateFormat")
+
 	public PlayableItem(Item item, int defaultDuration){
 		this.item =item;
 		setTitle(item.getTitle());		

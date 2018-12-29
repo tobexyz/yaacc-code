@@ -27,6 +27,8 @@ import android.widget.BaseAdapter;
 import android.widget.ImageView;
 import android.widget.TextView;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 import de.yaacc.R;
@@ -51,7 +53,7 @@ public class PlayerListItemAdapter extends BaseAdapter {
 
     private void initialize() {
         inflator = LayoutInflater.from(upnpClient.getContext());
-        players = upnpClient.getCurrentPlayers();
+        players = new ArrayList<>(upnpClient.getCurrentPlayers());
 
     }
 

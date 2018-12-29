@@ -17,6 +17,22 @@
  */
 package de.yaacc.player;
 
+import android.app.Activity;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
+import android.content.ComponentName;
+import android.content.Context;
+import android.content.Intent;
+import android.content.ServiceConnection;
+import android.content.SharedPreferences;
+import android.os.Build;
+import android.os.Handler;
+import android.os.IBinder;
+import android.preference.PreferenceManager;
+import android.support.v4.app.NotificationCompat;
+import android.util.Log;
+import android.widget.Toast;
+
 import java.beans.PropertyChangeListener;
 import java.beans.PropertyChangeSupport;
 import java.net.URI;
@@ -30,18 +46,6 @@ import java.util.Locale;
 import java.util.Timer;
 import java.util.TimerTask;
 
-import android.app.Activity;
-import android.app.NotificationManager;
-import android.app.PendingIntent;
-import android.content.Context;
-import android.content.SharedPreferences;
-import android.preference.PreferenceManager;
-import android.support.v4.app.NotificationCompat;
-import android.util.Log;
-import android.widget.Toast;
-
-import javax.xml.datatype.Duration;
-
 import de.yaacc.R;
 import de.yaacc.upnp.SynchronizationInfo;
 import de.yaacc.upnp.UpnpClient;
@@ -49,19 +53,23 @@ import de.yaacc.upnp.UpnpClient;
 /**
  * @author Tobias Schoene (openbit)
  */
-public abstract class AbstractPlayer implements Player {
+public abstract class AbstractPlayer implements Player, ServiceConnection {
 
+    public static final String PLAYER_ID = "PlayerId";
     public static final String PROPERTY_ITEM = "item";
     private List<PlayableItem> items = new ArrayList<PlayableItem>();
     private int previousIndex = 0;
     private int currentIndex = 0;
-    private Timer playerTimer;
+    private Handler playerTimer;
     private Timer execTimer;
     private boolean isPlaying = false;
     private boolean isProcessingCommand = false;
 
+
     private UpnpClient upnpClient;
+    private PlayerService playerService;
     private String name;
+
 
 
     private final PropertyChangeSupport pcs = new PropertyChangeSupport(this);
@@ -76,7 +84,25 @@ public abstract class AbstractPlayer implements Player {
     public AbstractPlayer(UpnpClient upnpClient) {
         super();
         this.upnpClient = upnpClient;
+        startService();
     }
+
+    public void onServiceConnected(ComponentName className, IBinder binder) {
+        if(binder instanceof PlayerService.PlayerServiceBinder) {
+            Log.d("ServiceConnection", "connected");
+
+            playerService = ((PlayerService.PlayerServiceBinder) binder).getService();
+            playerService.addPlayer(this);
+        }
+    }
+
+
+    public void onServiceDisconnected(ComponentName className) {
+        Log.d("ServiceConnection","disconnected");
+        playerService = null;
+        playerService.removePlayer(this);
+    }
+
 
     /**
      * @return the context
@@ -90,6 +116,18 @@ public abstract class AbstractPlayer implements Player {
      */
     public UpnpClient getUpnpClient() {
         return upnpClient;
+    }
+
+    public void startService(){
+        if(playerService == null) {
+            if (Build.VERSION.SDK_INT >= 26) {
+                upnpClient.getContext().startForegroundService(new Intent(upnpClient.getContext(), PlayerService.class));
+            } else {
+                upnpClient.getContext().startService(new Intent(upnpClient.getContext(), PlayerService.class));
+            }
+            upnpClient.getContext().bindService(new Intent(upnpClient.getContext(), PlayerService.class),
+                    this, Context.BIND_AUTO_CREATE);
+        }
     }
 
     /*
@@ -257,6 +295,9 @@ public abstract class AbstractPlayer implements Player {
 
     }
 
+
+
+
     /*
      * (non-Javadoc)
      *
@@ -334,7 +375,7 @@ public abstract class AbstractPlayer implements Player {
 
     protected void cancelTimer() {
         if (playerTimer != null) {
-            playerTimer.cancel();
+            playerTimer.removeCallbacksAndMessages(null);
         }
     }
 
@@ -453,17 +494,14 @@ public abstract class AbstractPlayer implements Player {
      */
     public void startTimer(final long duration) {
         Log.d(getClass().getName(), "Start timer duration: " + duration);
-        if (playerTimer != null) {
-            cancelTimer();
-        }
-        playerTimer = new Timer();
-        playerTimer.schedule(new TimerTask() {
+        cancelTimer();
+        playerTimer = new Handler(playerService.getPlayerHandlerThread().getLooper());
+        playerTimer.postDelayed(new Runnable() {
 
             @Override
             public void run() {
-                Log.d(getClass().getName(), "TimerEvent" + this);
+                Log.d(getClass().getName(), "TimerEvent for switching to next item" + this);
                 AbstractPlayer.this.next();
-
             }
         }, duration);
 
@@ -507,10 +545,9 @@ public abstract class AbstractPlayer implements Player {
     @Override
     public void exit() {
         if(isPlaying()){
-
             stop();
         }
-        PlayerFactory.shutdown(this);
+        playerService.shutdown(this);
 
     }
 
@@ -583,6 +620,14 @@ public abstract class AbstractPlayer implements Player {
         stop();
         cancleNotification();
         items.clear();
+        if(playerService != null){
+            try {
+                playerService.unbindService(this);
+            }catch(IllegalArgumentException iex){
+                Log.d(getClass().getName(), "Exception while unbind service");
+            }
+
+        }
 
     }
 
@@ -652,8 +697,7 @@ public abstract class AbstractPlayer implements Player {
         Log.d(getClass().getName(), "current time: " + new Date().toString() + " get execution time: " + execTime.getTime().toString());
         if (execTime.getTime().getTime() <= System.currentTimeMillis()){
             Log.d(getClass().getName(), "ExecutionTime is in past!! We will start immediately");
-            execTime = Calendar.getInstance(Locale.getDefault());
-            execTime.add(Calendar.MILLISECOND, 100);
+            return null;
 
         }
         return execTime.getTime();
@@ -663,8 +707,12 @@ public abstract class AbstractPlayer implements Player {
         if (execTimer != null) {
             execTimer.cancel();
         }
-        Timer execTimer = new Timer();
-        execTimer.schedule(command, executionTime);
+        execTimer = new Timer();
+        if(executionTime == null){
+            execTimer.schedule(command, 100);
+        }else {
+            execTimer.schedule(command, executionTime);
+        }
     }
 
     public boolean getMute(){

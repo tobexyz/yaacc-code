@@ -40,6 +40,7 @@ import android.widget.Toast;
 import org.fourthline.cling.model.meta.Device;
 
 import de.yaacc.R;
+import de.yaacc.Yaacc;
 import de.yaacc.settings.SettingsActivity;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.UpnpClientListener;
@@ -123,7 +124,7 @@ public class TabBrowserActivity extends ActivityGroup implements OnClickListener
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_tab_browse);
         // local server startup
-        upnpClient = UpnpClient.getInstance(getApplicationContext());
+        upnpClient = ((Yaacc)getApplicationContext()).getUpnpClient();
 
 
         tabHost = (TabHost) findViewById(R.id.browserTabHost);
