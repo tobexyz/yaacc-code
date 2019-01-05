@@ -21,7 +21,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".MultiContentPlayerActivity" >
+    tools:context=".player.MultiContentPlayerActivity" >
 
      <RelativeLayout
          android:id="@+id/multiContentPlayerActivityControls"
@@ -104,6 +104,6 @@
          android:layout_alignParentRight="true"
          android:layout_alignParentEnd="true"
          android:layout_alignParentTop="true"
-         android:src="@drawable/ic_launcher" />
+         android:src="@drawable/yaacc192_32" />
 
 </RelativeLayout>

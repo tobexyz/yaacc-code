@@ -360,7 +360,7 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver, Serv
      */
     private void showDefaultImage() {
         imageView.setImageDrawable(getResources().getDrawable(
-                R.drawable.ic_launcher));
+                R.drawable.yaacc192_32));
     }
     /**
      * Stop the timer.
