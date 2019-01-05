@@ -20,7 +20,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     package="de.yaacc"
     android:versionCode="24"
-    android:versionName="2.1.1-SNAPSHOT">
+    android:versionName="2.1.1">
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
