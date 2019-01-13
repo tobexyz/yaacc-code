@@ -78,9 +78,9 @@ public class ContentListClickListener implements OnItemClickListener {
             }
             navigator.pushPosition(new Position(newObjectId, upnpClient.getProviderDeviceId()));
             contentListActivity.populateItemList();
-        } else {
+        } else if (currentObject instanceof Item){
             PlayableItem playableItem = new PlayableItem((Item)currentObject, 0);
-            if (playableItem.getMimeType().startsWith("video")){
+            if (playableItem.getMimeType() != null && playableItem.getMimeType().startsWith("video")){
                 play(upnpClient.initializePlayers(currentObject));
             }else{
                 playAll();

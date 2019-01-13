@@ -130,21 +130,9 @@ public class ContentListActivity extends Activity implements OnClickListener,
 
 
     /**
-     * load app preferences
-     *
-     * @return app preferences
-     */
-    private SharedPreferences getPreferences() {
-        return PreferenceManager
-                .getDefaultSharedPreferences(getApplicationContext());
-
-    }
-
-    /**
      * Tries to populate the browsing area if a providing device is configured
      */
     private void showMainFolder() {
-        Device providerDevice = upnpClient.getProviderDevice();
         navigator = new Navigator();
         Position pos = new Position(Navigator.ITEM_ROOT_OBJECT_ID, upnpClient.getProviderDevice().getIdentity().getUdn().getIdentifierString());
         navigator.pushPosition(pos);
@@ -184,12 +172,17 @@ public class ContentListActivity extends Activity implements OnClickListener,
             final ListView itemList = (ListView) findViewById(R.id.contentList);
             Position pos = navigator.popPosition(); // First pop is our
             // currentPosition
-            bItemAdapter = new BrowseItemAdapter(this,
-                    navigator.getCurrentPosition());
-            itemList.setAdapter(bItemAdapter);
+            initBrowsItemAdapter(itemList);
             ContentListClickListener bItemClickListener = new ContentListClickListener(upnpClient,this);
             itemList.setOnItemClickListener(bItemClickListener);
         }
+    }
+
+    private void initBrowsItemAdapter(ListView itemList) {
+        bItemAdapter = new BrowseItemAdapter(this,navigator);
+        itemList.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
+        itemList.setAdapter(bItemAdapter);
+        itemList.setOnScrollListener(bItemAdapter);
     }
 
     /**
@@ -226,17 +219,13 @@ public class ContentListActivity extends Activity implements OnClickListener,
      */
     public void populateItemList() {
 
-        IconDownloadCacheHandler.getInstance().resetCache();
+        //IconDownloadCacheHandler.getInstance().resetCache();
         this.runOnUiThread(new Runnable() {
             public void run() {
                 if(bItemAdapter != null){
                     bItemAdapter.cancelRunningTasks();
-
                 }
-                bItemAdapter = new BrowseItemAdapter(getApplicationContext(),
-                        navigator.getCurrentPosition());
-                contentList.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
-                contentList.setAdapter(bItemAdapter);
+                initBrowsItemAdapter(contentList);
                 contentList.setOnItemClickListener(bItemClickListener);
             }
         });
@@ -248,8 +237,7 @@ public class ContentListActivity extends Activity implements OnClickListener,
                 navigator = new Navigator();
                 Position pos =  new Position(Navigator.ITEM_ROOT_OBJECT_ID, null);
                 navigator.pushPosition(pos);
-                bItemAdapter = new BrowseItemAdapter(getApplicationContext(),
-                        navigator.getCurrentPosition());
+                bItemAdapter = new BrowseItemAdapter(getApplicationContext(),navigator);
                 contentList.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
                 contentList.setAdapter(bItemAdapter);
                 contentList.setOnItemClickListener(bItemClickListener);
