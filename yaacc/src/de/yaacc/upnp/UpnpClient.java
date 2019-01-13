@@ -1130,7 +1130,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     }
 
     public void downloadItem(DIDLObject selectedDIDLObject) {
-        AsyncTask<DIDLObject, Void, Void> fileDownloader = new FileDownloader(this).execute(selectedDIDLObject);
+        new FileDownloader(this).execute(selectedDIDLObject);
     }
 
 

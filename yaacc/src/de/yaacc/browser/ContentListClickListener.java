@@ -83,16 +83,23 @@ public class ContentListClickListener implements OnItemClickListener {
                 adapter.loadMore();
             } else {
                 PlayableItem playableItem = new PlayableItem((Item) currentObject, 0);
+                ContentItemPlayTask task = new ContentItemPlayTask(this);
                 if (playableItem.getMimeType() != null && playableItem.getMimeType().startsWith("video")) {
-                    play(upnpClient.initializePlayers(currentObject));
+                    task.execute(ContentItemPlayTask.PLAY_CURRENT);
                 } else {
-                    playAll();
+                    task.execute(ContentItemPlayTask.PLAY_ALL);
                 }
+
+
+
             }
         }
     }
 
-    private void playAll() {
+    public void playCurrent(){
+        play(upnpClient.initializePlayers(currentObject));
+    }
+    public void playAll() {
         if(currentObject == null){
             return;
         }
@@ -130,9 +137,9 @@ public class ContentListClickListener implements OnItemClickListener {
      */
     public boolean onContextItemSelected(DIDLObject selectedDIDLObject, MenuItem item, Context applicationContext) {
         if (item.getTitle().equals(applicationContext.getString(R.string.browse_context_play))) {
-            play(upnpClient.initializePlayers(currentObject));
+            new ContentItemPlayTask(this).execute(ContentItemPlayTask.PLAY_CURRENT);
         } else if (item.getTitle().equals(applicationContext.getString(R.string.browse_context_play_all))) {
-            playAll();
+            new ContentItemPlayTask(this).execute(ContentItemPlayTask.PLAY_ALL);
         } else if (item.getTitle().equals(applicationContext.getString(R.string.browse_context_download))) {
             try {
                 upnpClient.downloadItem(selectedDIDLObject);
