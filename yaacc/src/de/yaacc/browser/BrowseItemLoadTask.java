@@ -32,15 +32,21 @@ public class BrowseItemLoadTask extends AsyncTask<Long,Integer,ContentDirectoryB
     @Override
     protected void onPostExecute(ContentDirectoryBrowseResult result) {
         Log.d(getClass().getName(),"Ended AsyncTask for loading:" + result);
-        int currentItemCount = itemAdapter.getCount();
         if (result == null)
             return ;
+        itemAdapter.removeLoadMoreItem();
+        int currentItemCount = itemAdapter.getCount();
         DIDLContent content = result.getResult();
         if (content != null) {
             // Add all children in two steps to get containers first
             itemAdapter.addAll(content.getContainers());
             itemAdapter.addAll(content.getItems());
-            itemAdapter.setAllItemsFetched(chunkSize > itemAdapter.getCount() - currentItemCount);
+            boolean allItemsFetched = chunkSize > itemAdapter.getCount() - currentItemCount;
+            itemAdapter.setAllItemsFetched(allItemsFetched);
+            if (!allItemsFetched){
+                itemAdapter.addLoadMoreItem();
+            }
+
         } else {
             // If result is null it may be an empty result
             // only in case of an UpnpFailure in the result it is really an

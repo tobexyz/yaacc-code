@@ -31,9 +31,6 @@ import android.widget.BaseAdapter;
 import android.widget.ImageView;
 import android.widget.ListView;
 import android.widget.TextView;
-import android.widget.Toast;
-
-import org.fourthline.cling.support.model.DIDLContent;
 import org.fourthline.cling.support.model.DIDLObject;
 import org.fourthline.cling.support.model.container.Container;
 import org.fourthline.cling.support.model.item.AudioItem;
@@ -50,8 +47,6 @@ import java.util.LinkedList;
 import java.util.List;
 
 import de.yaacc.R;
-import de.yaacc.Yaacc;
-import de.yaacc.upnp.callback.contentdirectory.ContentDirectoryBrowseResult;
 import de.yaacc.util.image.IconDownloadTask;
 
 /**
@@ -60,7 +55,8 @@ import de.yaacc.util.image.IconDownloadTask;
  * @author Christoph Haehnel (eyeless)
  */
 public class BrowseItemAdapter extends BaseAdapter implements AbsListView.OnScrollListener {
-    private static final long CHUNK_SIZE = 10 ;
+    private static final long CHUNK_SIZE = 10;
+    public static final Item LOAD_MORE_FAKE_ITEM = new Item("LoadMoreFakeItem", (String) null,"...","",(DIDLObject.Class)null);
     private boolean loading = false;
 
 
@@ -82,7 +78,7 @@ public class BrowseItemAdapter extends BaseAdapter implements AbsListView.OnScro
         this.navigator = navigator;
         asyncTasks = new ArrayList<AsyncTask>();
         allItemsFetched = false;
-        loadMore(0L, CHUNK_SIZE);
+        loadMore();
 
     }
 
@@ -189,6 +185,8 @@ public class BrowseItemAdapter extends BaseAdapter implements AbsListView.OnScro
             holder.icon.setImageResource(R.drawable.playlist);
         } else if (currentObject instanceof TextItem) {
             holder.icon.setImageResource(R.drawable.txt);
+        } else if (currentObject == LOAD_MORE_FAKE_ITEM) {
+            holder.icon.setImageResource(R.drawable.refresh);
         } else {
             holder.icon.setImageResource(R.drawable.unknown);
         }
@@ -208,6 +206,17 @@ public class BrowseItemAdapter extends BaseAdapter implements AbsListView.OnScro
         if(asyncTasks != null && task != null){
             asyncTasks.remove(task);
         }
+    }
+
+    public void addLoadMoreItem() {
+        if (!objects.contains(LOAD_MORE_FAKE_ITEM)){
+            objects.add(LOAD_MORE_FAKE_ITEM);
+        }
+
+    }
+
+    public void removeLoadMoreItem() {
+        objects.remove(LOAD_MORE_FAKE_ITEM);
     }
 
     static class ViewHolder {
@@ -230,18 +239,23 @@ public class BrowseItemAdapter extends BaseAdapter implements AbsListView.OnScro
     public void onScroll(AbsListView view, int firstVisibleItem,
                          int visibleItemCount, int totalItemCount) {
         // check if the List needs more data
-        if(!loading && !allItemsFetched && ((firstVisibleItem + visibleItemCount ) >= (totalItemCount - 10))) {
+        if((firstVisibleItem + visibleItemCount ) > (totalItemCount -10)) {
             // List needs more data. Go fetch !!
-            loadMore(firstVisibleItem + visibleItemCount +1L, CHUNK_SIZE);
+            loadMore();
         }
     }
 
 
-    public void loadMore(Long from, Long chunkSize){
-        if (loading) return;
+    public void loadMore(){
+        if (loading || allItemsFetched) return;
         setLoading(true);
-        Log.d(getClass().getName(),"loadMore from: " + from + " chunkSize: " + chunkSize);
-        BrowseItemLoadTask browseItemLoadTask = new BrowseItemLoadTask(this, chunkSize);
+        Long from = getCount() -0L;
+        if (from > 0){
+            from--;
+        }
+        Log.d(getClass().getName(),"loadMore from: " + from);
+
+        BrowseItemLoadTask browseItemLoadTask = new BrowseItemLoadTask(this, CHUNK_SIZE);
         asyncTasks.add(browseItemLoadTask);
         browseItemLoadTask.execute(from);
 
