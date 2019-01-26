@@ -225,11 +225,7 @@ public class AVTransportPlayerActivity extends Activity implements ServiceConnec
 
             @Override
             public void onClick(View v) {
-                Player player = getPlayer();
-                if (player != null) {
-                    player.exit();
-                }
-                finish();
+                exit();
 
             }
         });
@@ -303,6 +299,14 @@ public class AVTransportPlayerActivity extends Activity implements ServiceConnec
         });
     }
 
+    private void exit() {
+        Player player = getPlayer();
+        if (player != null) {
+            player.exit();
+        }
+        finish();
+    }
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -344,6 +348,9 @@ public class AVTransportPlayerActivity extends Activity implements ServiceConnec
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         switch (item.getItemId()) {
+            case R.id.menu_exit:
+                exit();
+                return true;
             case R.id.menu_settings:
                 Intent i = new Intent(this, SettingsActivity.class);
                 startActivity(i);

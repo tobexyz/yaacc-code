@@ -18,13 +18,15 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  -->
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
+
+
     <item android:id="@+id/menu_settings"
         android:title="@string/title_activity_settings"
         android:orderInCategory="100"
         android:showAsAction="never" />
     <item
         android:id="@+id/yaacc_log"
-        android:orderInCategory="120"
+        android:orderInCategory="110"
         android:showAsAction="never"
         android:title="@string/title_activity_yaacc_log"/>
     <item
@@ -32,5 +34,10 @@
         android:orderInCategory="120"
         android:showAsAction="never"
         android:title="@string/yaacc_about"/>
-    
+    <item
+        android:id="@+id/menu_exit"
+        android:icon="@drawable/button_cancel"
+        android:orderInCategory="130"
+        android:showAsAction="never"
+        android:title="@string/exit"/>
 </menu>

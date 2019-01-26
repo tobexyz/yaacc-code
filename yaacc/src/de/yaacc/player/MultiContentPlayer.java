@@ -160,10 +160,10 @@ public class MultiContentPlayer extends AbstractPlayer {
 	 */
 	@Override
 	public void onDestroy() {
-		super.onDestroy();
 		if (appPid != 0) {
 			Process.killProcess(appPid);
 		}
+		super.onDestroy();
 	}
 
     @Override

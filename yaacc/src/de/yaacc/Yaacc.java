@@ -100,5 +100,10 @@ public class Yaacc extends Application {
 
     }
 
+    public void exit(){
+        int p = android.os.Process.myPid();
+        upnpClient.shutdown();
 
+        android.os.Process.killProcess(p);
+    }
 }
