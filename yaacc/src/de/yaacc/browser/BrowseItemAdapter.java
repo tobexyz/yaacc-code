@@ -57,6 +57,7 @@ import de.yaacc.util.image.IconDownloadTask;
 public class BrowseItemAdapter extends BaseAdapter implements AbsListView.OnScrollListener {
     private static final long CHUNK_SIZE = 10;
     public static final Item LOAD_MORE_FAKE_ITEM = new Item("LoadMoreFakeItem", (String) null,"...","",(DIDLObject.Class)null);
+    private static final Item LOADING_FAKE_ITEM = new Item("LoadingFakeItem", (String) null,"Loading...","",(DIDLObject.Class)null);;
     private boolean loading = false;
 
 
@@ -95,6 +96,12 @@ public class BrowseItemAdapter extends BaseAdapter implements AbsListView.OnScro
     }
 
     public void setLoading(boolean loading) {
+        if(loading){
+            addLoadingItem();
+        }else {
+            removeLoadingItem();
+        }
+        notifyDataSetChanged();
         this.loading = loading;
     }
 
@@ -124,7 +131,6 @@ public class BrowseItemAdapter extends BaseAdapter implements AbsListView.OnScro
     @Override
     public long getItemId(int arg0) {
         return arg0;
-        // return folders.get(arg0).getId();
     }
 
     @Override
@@ -187,6 +193,8 @@ public class BrowseItemAdapter extends BaseAdapter implements AbsListView.OnScro
             holder.icon.setImageResource(R.drawable.txt);
         } else if (currentObject == LOAD_MORE_FAKE_ITEM) {
             holder.icon.setImageResource(R.drawable.refresh);
+        } else if (currentObject == LOADING_FAKE_ITEM) {
+            holder.icon.setImageResource(R.drawable.download);
         } else {
             holder.icon.setImageResource(R.drawable.unknown);
         }
@@ -215,8 +223,19 @@ public class BrowseItemAdapter extends BaseAdapter implements AbsListView.OnScro
 
     }
 
+    public void addLoadingItem() {
+        if (!objects.contains(LOADING_FAKE_ITEM)){
+            objects.add(LOADING_FAKE_ITEM);
+        }
+
+    }
+
     public void removeLoadMoreItem() {
         objects.remove(LOAD_MORE_FAKE_ITEM);
+    }
+
+    public void removeLoadingItem() {
+        objects.remove(LOADING_FAKE_ITEM);
     }
 
     static class ViewHolder {
