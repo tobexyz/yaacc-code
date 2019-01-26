@@ -25,6 +25,7 @@ import java.util.List;
 import org.fourthline.cling.support.model.DIDLObject;
 import org.fourthline.cling.support.model.Res;
 import org.fourthline.cling.support.model.DIDLObject.Property.UPNP;
+import org.fourthline.cling.support.model.SortCriterion;
 import org.fourthline.cling.support.model.container.Container;
 import org.fourthline.cling.support.model.container.PhotoAlbum;
 import org.fourthline.cling.support.model.item.Item;
@@ -51,7 +52,7 @@ public class ImagesByBucketNameFolderBrowser extends ContentBrowser {
     }
 
     @Override
-	public DIDLObject browseMeta(YaaccContentDirectory contentDirectory, String myId) {
+	public DIDLObject browseMeta(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults,SortCriterion[] orderby) {
 		
 		PhotoAlbum photoAlbum = new PhotoAlbum(myId, ContentDirectoryIDs.IMAGES_BY_BUCKET_NAMES_FOLDER.getId(),getName(
 				contentDirectory, myId), "yaacc", getSize(contentDirectory, myId));
@@ -94,13 +95,13 @@ public class ImagesByBucketNameFolderBrowser extends ContentBrowser {
 		return result;
 	}
 	@Override
-	public List<Container> browseContainer(YaaccContentDirectory contentDirectory, String myId) {
+	public List<Container> browseContainer(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults,SortCriterion[] orderby) {
 		
 		return new ArrayList<Container>();
 	}
 
 	@Override
-	public List<Item> browseItem(YaaccContentDirectory contentDirectory, String myId) {
+	public List<Item> browseItem(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults,SortCriterion[] orderby) {
 		List<Item> result = new ArrayList<Item>();
 		// Query for all images on external storage
 		String[] projection = { MediaStore.Images.Media._ID, MediaStore.Images.Media.DISPLAY_NAME, MediaStore.Images.Media.MIME_TYPE,
@@ -111,27 +112,33 @@ public class ImagesByBucketNameFolderBrowser extends ContentBrowser {
 				selectionArgs, MediaStore.Images.Media.BUCKET_DISPLAY_NAME + " ASC");
 		if (mImageCursor != null) {
 			mImageCursor.moveToFirst();
-			while (!mImageCursor.isAfterLast()) {
-				String id = mImageCursor.getString(mImageCursor.getColumnIndex(MediaStore.Images.ImageColumns._ID));
-				String name = mImageCursor.getString(mImageCursor.getColumnIndex(MediaStore.Images.ImageColumns.DISPLAY_NAME));
-				Long size = Long.valueOf(mImageCursor.getString(mImageCursor.getColumnIndex(MediaStore.Images.ImageColumns.SIZE)));
-				Log.d(getClass().getName(),
-						"Mimetype: " + mImageCursor.getString(mImageCursor.getColumnIndex(MediaStore.Images.ImageColumns.MIME_TYPE)));
-				MimeType mimeType = MimeType.valueOf(mImageCursor.getString(mImageCursor.getColumnIndex(MediaStore.Images.ImageColumns.MIME_TYPE)));
-				// file parameter only needed for media players which decide the
-				// ability of playing a file by the file extension
-                String uri = getUriString(contentDirectory, id, mimeType);
-				Res resource = new Res(mimeType, size, uri);
-				
-				Photo photo = new Photo(ContentDirectoryIDs.IMAGE_BY_BUCKET_PREFIX.getId()+id, myId, name, "", "", resource);
-				URI albumArtUri = URI.create("http://"
-						+ contentDirectory.getIpAddress() + ":"
-						+ YaaccUpnpServerService.PORT + "/?thumb=" + id);
-				photo.replaceFirstProperty(new UPNP.ALBUM_ART_URI(
-						albumArtUri));
-				
-				result.add(photo);
-				Log.d(getClass().getName(), "Image: " + id + " Name: " + name + " uri: " + uri);
+			int currentIndex = 0;
+			int currentCount = 0;
+			while (!mImageCursor.isAfterLast() && currentCount < maxResults) {
+				if (firstResult <= currentIndex) {
+					String id = mImageCursor.getString(mImageCursor.getColumnIndex(MediaStore.Images.ImageColumns._ID));
+					String name = mImageCursor.getString(mImageCursor.getColumnIndex(MediaStore.Images.ImageColumns.DISPLAY_NAME));
+					Long size = Long.valueOf(mImageCursor.getString(mImageCursor.getColumnIndex(MediaStore.Images.ImageColumns.SIZE)));
+					Log.d(getClass().getName(),
+							"Mimetype: " + mImageCursor.getString(mImageCursor.getColumnIndex(MediaStore.Images.ImageColumns.MIME_TYPE)));
+					MimeType mimeType = MimeType.valueOf(mImageCursor.getString(mImageCursor.getColumnIndex(MediaStore.Images.ImageColumns.MIME_TYPE)));
+					// file parameter only needed for media players which decide the
+					// ability of playing a file by the file extension
+					String uri = getUriString(contentDirectory, id, mimeType);
+					Res resource = new Res(mimeType, size, uri);
+
+					Photo photo = new Photo(ContentDirectoryIDs.IMAGE_BY_BUCKET_PREFIX.getId()+id, myId, name, "", "", resource);
+					URI albumArtUri = URI.create("http://"
+							+ contentDirectory.getIpAddress() + ":"
+							+ YaaccUpnpServerService.PORT + "/?thumb=" + id);
+					photo.replaceFirstProperty(new UPNP.ALBUM_ART_URI(
+							albumArtUri));
+
+					result.add(photo);
+					Log.d(getClass().getName(), "Image: " + id + " Name: " + name + " uri: " + uri);
+					currentCount++;
+				}
+				currentIndex++;
 				mImageCursor.moveToNext();
 			}
 			mImageCursor.close();

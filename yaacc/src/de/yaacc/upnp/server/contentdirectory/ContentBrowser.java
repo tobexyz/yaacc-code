@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.fourthline.cling.support.model.DIDLObject;
+import org.fourthline.cling.support.model.SortCriterion;
 import org.fourthline.cling.support.model.container.Container;
 import org.fourthline.cling.support.model.item.Item;
 import org.seamless.util.MimeType;
@@ -52,17 +53,17 @@ public abstract class ContentBrowser {
     }
 
 
-	public abstract DIDLObject browseMeta(YaaccContentDirectory contentDirectory, String myId);
+	public abstract DIDLObject browseMeta(YaaccContentDirectory contentDirectory, String myId,long firstResult, long maxResults,SortCriterion[] orderby);
 
 	public abstract List<Container> browseContainer(
-			YaaccContentDirectory content, String myId);
+			YaaccContentDirectory content, String myId, long firstResult, long maxResults,SortCriterion[] orderby);
 
-	public abstract List<Item> browseItem(YaaccContentDirectory contentDirectory, String myId);
+	public abstract List<Item> browseItem(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults,SortCriterion[] orderby);
 
-	public List<DIDLObject> browseChildren(YaaccContentDirectory contentDirectory, String myId) {
+	public List<DIDLObject> browseChildren(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults,SortCriterion[] orderby) {
 		List<DIDLObject> result = new ArrayList<DIDLObject>();
-		result.addAll(browseContainer(contentDirectory, myId));
-		result.addAll(browseItem(contentDirectory, myId));
+		result.addAll(browseContainer(contentDirectory, myId, firstResult,maxResults,orderby ));
+		result.addAll(browseItem(contentDirectory, myId,firstResult,maxResults,orderby));
 		return result;
 	}
 

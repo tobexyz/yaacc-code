@@ -25,6 +25,7 @@ import java.util.List;
 import org.fourthline.cling.support.model.DIDLObject;
 import org.fourthline.cling.support.model.Res;
 import org.fourthline.cling.support.model.DIDLObject.Property.UPNP;
+import org.fourthline.cling.support.model.SortCriterion;
 import org.fourthline.cling.support.model.container.Container;
 import org.fourthline.cling.support.model.container.PhotoAlbum;
 import org.fourthline.cling.support.model.item.Item;
@@ -52,7 +53,7 @@ public class ImageAllItemBrowser extends ContentBrowser {
 
     @Override
 	public DIDLObject browseMeta(YaaccContentDirectory contentDirectory,
-			String myId) {
+			String myId, long firstResult, long maxResults,SortCriterion[] orderby) {
 		Item result = null;
 		String[] projection = { MediaStore.Images.Media._ID,
 				MediaStore.Images.Media.DISPLAY_NAME,
@@ -106,16 +107,16 @@ public class ImageAllItemBrowser extends ContentBrowser {
 
 	@Override
 	public List<Container> browseContainer(
-			YaaccContentDirectory contentDirectory, String myId) {
+			YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults,SortCriterion[] orderby) {
 
 		return new ArrayList<Container>();
 	}
 
 	@Override
 	public List<Item> browseItem(YaaccContentDirectory contentDirectory,
-			String myId) {
+			String myId, long firstResult, long maxResults,SortCriterion[] orderby) {
 		List<Item> result = new ArrayList<Item>();
-        result.add((Item)browseMeta(contentDirectory,myId));
+        result.add((Item)browseMeta(contentDirectory,myId,firstResult,maxResults,orderby));
 		return result;
 
 	}

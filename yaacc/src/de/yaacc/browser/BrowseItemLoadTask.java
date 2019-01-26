@@ -14,6 +14,7 @@ public class BrowseItemLoadTask extends AsyncTask<Long,Integer,ContentDirectoryB
     private BrowseItemAdapter itemAdapter;
     private Long chunkSize= 0L;
 
+
     public BrowseItemLoadTask(BrowseItemAdapter itemAdapter, Long chunkSize) {
         this.itemAdapter = itemAdapter;
         this.chunkSize = chunkSize;
@@ -24,6 +25,7 @@ public class BrowseItemLoadTask extends AsyncTask<Long,Integer,ContentDirectoryB
         if (params == null ||params.length < 1){
             return null;
         }
+
         Long from = params[0];
         return ((Yaacc)itemAdapter.getContext().getApplicationContext()).getUpnpClient().browseSync(itemAdapter.getNavigator().getCurrentPosition(), from, this.chunkSize);
 
@@ -35,13 +37,13 @@ public class BrowseItemLoadTask extends AsyncTask<Long,Integer,ContentDirectoryB
         if (result == null)
             return ;
         itemAdapter.removeLoadMoreItem();
-        int currentItemCount = itemAdapter.getCount();
+        int previousItemCount = itemAdapter.getCount();
         DIDLContent content = result.getResult();
         if (content != null) {
             // Add all children in two steps to get containers first
             itemAdapter.addAll(content.getContainers());
             itemAdapter.addAll(content.getItems());
-            boolean allItemsFetched = chunkSize > itemAdapter.getCount() - currentItemCount;
+            boolean allItemsFetched = chunkSize != (itemAdapter.getCount() - previousItemCount);
             itemAdapter.setAllItemsFetched(allItemsFetched);
             if (!allItemsFetched){
                 itemAdapter.addLoadMoreItem();
@@ -67,7 +69,6 @@ public class BrowseItemLoadTask extends AsyncTask<Long,Integer,ContentDirectoryB
         if (itemAdapter != null){
             itemAdapter.removeTask(this);
         }
-        itemAdapter.notifyDataSetChanged();
         itemAdapter.setLoading(false);
 
     }

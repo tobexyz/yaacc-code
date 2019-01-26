@@ -29,6 +29,7 @@ import java.util.List;
 import org.fourthline.cling.support.model.DIDLObject;
 import org.fourthline.cling.support.model.Res;
 import org.fourthline.cling.support.model.DIDLObject.Property.UPNP;
+import org.fourthline.cling.support.model.SortCriterion;
 import org.fourthline.cling.support.model.container.Container;
 import org.fourthline.cling.support.model.container.MusicAlbum;
 import org.fourthline.cling.support.model.item.Item;
@@ -56,7 +57,7 @@ public class MusicGenreFolderBrowser extends ContentBrowser {
 
     @Override
 	public DIDLObject browseMeta(YaaccContentDirectory contentDirectory,
-			String myId) {
+			String myId, long firstResult, long maxResults,SortCriterion[] orderby) {
 
 		MusicAlbum folder = new MusicAlbum(myId,
 				ContentDirectoryIDs.MUSIC_GENRES_FOLDER.getId(), getName(
@@ -109,14 +110,14 @@ public class MusicGenreFolderBrowser extends ContentBrowser {
 
 	@Override
 	public List<Container> browseContainer(
-			YaaccContentDirectory contentDirectory, String myId) {
+			YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults,SortCriterion[] orderby) {
 
 		return new ArrayList<Container>();
 	}
 
 	@Override
 	public List<Item> browseItem(YaaccContentDirectory contentDirectory,
-			String myId) {
+			String myId, long firstResult, long maxResults,SortCriterion[] orderby) {
 		List<Item> result = new ArrayList<Item>();
 		String[] projection = { MediaStore.Audio.Genres.Members.AUDIO_ID,
 				MediaStore.Audio.Genres.Members.GENRE_ID,
@@ -144,63 +145,68 @@ public class MusicGenreFolderBrowser extends ContentBrowser {
 
 		if (mediaCursor != null) {
 			mediaCursor.moveToFirst();
-			while (!mediaCursor.isAfterLast()) {
-				String id = mediaCursor
-						.getString(mediaCursor
-								.getColumnIndex(MediaStore.Audio.Genres.Members.AUDIO_ID));
-				String genreId = mediaCursor
-						.getString(mediaCursor
-								.getColumnIndex(MediaStore.Audio.Genres.Members.GENRE_ID));
-				String name = mediaCursor
-						.getString(mediaCursor
-								.getColumnIndex(MediaStore.Audio.Genres.Members.DISPLAY_NAME));
-				Long size = Long.valueOf(mediaCursor.getString(mediaCursor
-						.getColumnIndex(MediaStore.Audio.Genres.Members.SIZE)));
+            int currentIndex = 0;
+            int currentCount = 0;
+            while (!mediaCursor.isAfterLast() && currentCount < maxResults) {
+                if (firstResult <= currentIndex) {
+                    String id = mediaCursor
+                            .getString(mediaCursor
+                                    .getColumnIndex(MediaStore.Audio.Genres.Members.AUDIO_ID));
+                    String genreId = mediaCursor
+                            .getString(mediaCursor
+                                    .getColumnIndex(MediaStore.Audio.Genres.Members.GENRE_ID));
+                    String name = mediaCursor
+                            .getString(mediaCursor
+                                    .getColumnIndex(MediaStore.Audio.Genres.Members.DISPLAY_NAME));
+                    Long size = Long.valueOf(mediaCursor.getString(mediaCursor
+                            .getColumnIndex(MediaStore.Audio.Genres.Members.SIZE)));
 
-				String album = mediaCursor.getString(mediaCursor
-						.getColumnIndex(MediaStore.Audio.Genres.Members.ALBUM));
-				String albumId = mediaCursor
-						.getString(mediaCursor
-								.getColumnIndex(MediaStore.Audio.Genres.Members.ALBUM_ID));
-				String title = mediaCursor.getString(mediaCursor
-						.getColumnIndex(MediaStore.Audio.Genres.Members.TITLE));
-				String artist = mediaCursor
-						.getString(mediaCursor
-								.getColumnIndex(MediaStore.Audio.Genres.Members.ARTIST));
-				String duration = mediaCursor
-						.getString(mediaCursor
-								.getColumnIndex(MediaStore.Audio.Genres.Members.DURATION));
-				duration = contentDirectory.formatDuration(duration);
-				Log.d(getClass().getName(),
-						"Mimetype: "
-								+ mediaCursor.getString(mediaCursor
-										.getColumnIndex(MediaStore.Audio.Genres.Members.MIME_TYPE)));
-				MimeType mimeType = MimeType
-						.valueOf(mediaCursor.getString(mediaCursor
-								.getColumnIndex(MediaStore.Audio.Genres.Members.MIME_TYPE)));
-				// file parameter only needed for media players which decide
-				// the
-				// ability of playing a file by the file extension				
-				String uri = getUriString(contentDirectory, id, mimeType);
-				URI albumArtUri = URI.create("http://"
-						+ contentDirectory.getIpAddress() + ":"
-						+ YaaccUpnpServerService.PORT + "/?album=" + albumId);
-				Res resource = new Res(mimeType, size, uri);
-				resource.setDuration(duration);
+                    String album = mediaCursor.getString(mediaCursor
+                            .getColumnIndex(MediaStore.Audio.Genres.Members.ALBUM));
+                    String albumId = mediaCursor
+                            .getString(mediaCursor
+                                    .getColumnIndex(MediaStore.Audio.Genres.Members.ALBUM_ID));
+                    String title = mediaCursor.getString(mediaCursor
+                            .getColumnIndex(MediaStore.Audio.Genres.Members.TITLE));
+                    String artist = mediaCursor
+                            .getString(mediaCursor
+                                    .getColumnIndex(MediaStore.Audio.Genres.Members.ARTIST));
+                    String duration = mediaCursor
+                            .getString(mediaCursor
+                                    .getColumnIndex(MediaStore.Audio.Genres.Members.DURATION));
+                    duration = contentDirectory.formatDuration(duration);
+                    Log.d(getClass().getName(),
+                            "Mimetype: "
+                                    + mediaCursor.getString(mediaCursor
+                                            .getColumnIndex(MediaStore.Audio.Genres.Members.MIME_TYPE)));
+                    MimeType mimeType = MimeType
+                            .valueOf(mediaCursor.getString(mediaCursor
+                                    .getColumnIndex(MediaStore.Audio.Genres.Members.MIME_TYPE)));
+                    // file parameter only needed for media players which decide
+                    // the
+                    // ability of playing a file by the file extension
+                    String uri = getUriString(contentDirectory, id, mimeType);
+                    URI albumArtUri = URI.create("http://"
+                            + contentDirectory.getIpAddress() + ":"
+                            + YaaccUpnpServerService.PORT + "/?album=" + albumId);
+                    Res resource = new Res(mimeType, size, uri);
+                    resource.setDuration(duration);
 
-				MusicTrack musicTrack = new MusicTrack(
-						ContentDirectoryIDs.MUSIC_GENRE_ITEM_PREFIX.getId()
-								+ id,
-						ContentDirectoryIDs.MUSIC_GENRE_PREFIX.getId()
-								+ genreId, title + "-(" + name + ")", "",
-						album, artist, resource);
-				musicTrack.replaceFirstProperty(new UPNP.ALBUM_ART_URI(
-						albumArtUri));
-				result.add(musicTrack);
+                    MusicTrack musicTrack = new MusicTrack(
+                            ContentDirectoryIDs.MUSIC_GENRE_ITEM_PREFIX.getId()
+                                    + id,
+                            ContentDirectoryIDs.MUSIC_GENRE_PREFIX.getId()
+                                    + genreId, title + "-(" + name + ")", "",
+                            album, artist, resource);
+                    musicTrack.replaceFirstProperty(new UPNP.ALBUM_ART_URI(
+                            albumArtUri));
+                    result.add(musicTrack);
 
-				Log.d(getClass().getName(), "MusicTrack: " + id + " Name: "
-						+ name + " uri: " + uri);
-
+                    Log.d(getClass().getName(), "MusicTrack: " + id + " Name: "
+                            + name + " uri: " + uri);
+                    currentCount++;
+                }
+                currentIndex++;
 				mediaCursor.moveToNext();
 			}
 			mediaCursor.close();
