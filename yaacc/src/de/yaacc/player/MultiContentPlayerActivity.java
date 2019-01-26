@@ -141,15 +141,20 @@ public class MultiContentPlayerActivity extends Activity implements ServiceConne
 
             @Override
             public void onClick(View v) {
-                Player player = getPlayer();
-                if (player != null) {
-                    player.exit();
-                }
-                finish();
+                exit();
 
             }
         });
     }
+
+    private void exit() {
+        Player player = getPlayer();
+        if (player != null) {
+            player.exit();
+        }
+        finish();
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -173,6 +178,9 @@ public class MultiContentPlayerActivity extends Activity implements ServiceConne
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         switch (item.getItemId()) {
+            case R.id.menu_exit:
+                exit();
+                return true;
             case R.id.menu_settings:
                 Intent i = new Intent(this, SettingsActivity.class);
                 startActivity(i);

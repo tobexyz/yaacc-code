@@ -255,6 +255,9 @@ public class TabBrowserActivity extends ActivityGroup implements OnClickListener
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         switch (item.getItemId()) {
+            case R.id.menu_exit:
+                ((Yaacc)getApplicationContext()).exit();
+                return true;
             case R.id.menu_settings:
                 Intent i = new Intent(this, SettingsActivity.class);
                 startActivity(i);

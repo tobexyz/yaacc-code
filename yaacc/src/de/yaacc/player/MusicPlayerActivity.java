@@ -175,12 +175,7 @@ public class MusicPlayerActivity extends Activity implements ServiceConnection {
 
             @Override
             public void onClick(View v) {
-                Player player = getPlayer();
-                if (player != null) {
-                    player.stop();
-                    player.exit();
-                }
-                finish();
+                MusicPlayerActivity.this.exit();
             }
         });
 
@@ -269,6 +264,9 @@ public class MusicPlayerActivity extends Activity implements ServiceConnection {
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         switch (item.getItemId()) {
+            case R.id.menu_exit:
+                exit();
+                return true;
             case R.id.menu_settings:
                 Intent i = new Intent(this, SettingsActivity.class);
                 startActivity(i);
@@ -282,6 +280,15 @@ public class MusicPlayerActivity extends Activity implements ServiceConnection {
             default:
                 return super.onOptionsItemSelected(item);
         }
+    }
+
+    private void exit() {
+        Player player = getPlayer();
+        if (player != null) {
+            player.stop();
+            player.exit();
+        }
+        finish();
     }
 
     private void setTrackInfo() {

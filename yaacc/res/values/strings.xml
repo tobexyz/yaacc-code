@@ -50,7 +50,7 @@
     <string name="pause">pause</string>
     <string name="previous">previous</string>
     <string name="next">next</string>
-    <string name="exit">exit</string>
+    <string name="exit">Exit</string>
     <string name="title_activity_music_player">Yaacc Music player</string>
     <string name="musicActivityImageView">Cover</string>
     <string name="avtransportPlayerActivityImageView">Device</string>

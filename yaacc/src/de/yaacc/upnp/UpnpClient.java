@@ -547,20 +547,23 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      * @return the browsing result
      */
     public ContentDirectoryBrowseResult browseSync(Position pos) {
+        return browseSync( pos, 0L, null);
+    }
+    public ContentDirectoryBrowseResult browseSync(Position pos, Long firstResult, Long maxResult) {
         if(getProviderDevice() == null){
             return  null;
         }
         if (pos == null || pos.getDeviceId() == null ) {
             if(getProviderDevice() != null){
-                return browseSync(getProviderDevice(),"0" , BrowseFlag.DIRECT_CHILDREN, "*", 0L, null);
+                return browseSync(getProviderDevice(),"0" , BrowseFlag.DIRECT_CHILDREN, "*", firstResult, maxResult);
             }else{
                 return null;
             }
         }
         if (getProviderDevice() != null && !pos.getDeviceId().equals(getProviderDevice().getIdentity().getUdn().getIdentifierString())){
-            return browseSync(getProviderDevice(),"0" , BrowseFlag.DIRECT_CHILDREN, "*", 0L, null);
+            return browseSync(getProviderDevice(),"0" , BrowseFlag.DIRECT_CHILDREN, "*", firstResult, maxResult);
         }
-        return browseSync(getDevice(pos.getDeviceId()), pos.getObjectId(), BrowseFlag.DIRECT_CHILDREN, "*", 0L, null);
+        return browseSync(getDevice(pos.getDeviceId()), pos.getObjectId(), BrowseFlag.DIRECT_CHILDREN, "*", firstResult, maxResult);
     }
 
     /**
@@ -1033,6 +1036,8 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         Log.d(getClass().getName(), "Stopping YaaccUpnpServerService succsessful= " + result);
         // stop all players
         playerService.shutdown();
+        //wait a very short time until all player are stopped
+
     }
 
     /**
@@ -1127,7 +1132,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     }
 
     public void downloadItem(DIDLObject selectedDIDLObject) {
-        AsyncTask<DIDLObject, Void, Void> fileDownloader = new FileDownloader(this).execute(selectedDIDLObject);
+        new FileDownloader(this).execute(selectedDIDLObject);
     }
 
 

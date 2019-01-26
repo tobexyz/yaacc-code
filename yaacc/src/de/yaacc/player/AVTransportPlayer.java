@@ -702,7 +702,12 @@ public class AVTransportPlayer extends AbstractPlayer {
     }
 
     @Override
-    public void exit(){
+    public void onDestroy(){
+        doExit();
+        super.onDestroy();
+    }
+
+    private void doExit(){
         ((Yaacc)getContext().getApplicationContext()).releaseWakeLock(getWakeLockTag());
         stop();
         final ActionState actionState = new ActionState();
@@ -719,6 +724,10 @@ public class AVTransportPlayer extends AbstractPlayer {
             }
         };
         waitForActionComplete(actionState,fn);
+    }
+    @Override
+    public void exit(){
+        doExit();
         super.exit();
     }
 

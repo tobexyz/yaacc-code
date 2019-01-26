@@ -618,6 +618,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
     @Override
     public void onDestroy() {
         stop();
+        int i = 0;
         cancleNotification();
         items.clear();
         if(playerService != null){
