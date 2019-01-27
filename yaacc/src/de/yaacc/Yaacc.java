@@ -19,6 +19,7 @@ package de.yaacc;
 
 
 import android.app.Application;
+import android.app.NotificationManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -30,6 +31,7 @@ import android.util.Log;
 import java.util.HashMap;
 
 import de.yaacc.upnp.UpnpClient;
+import de.yaacc.util.NotificationId;
 
 /**
  * application which holds the global state
@@ -103,7 +105,10 @@ public class Yaacc extends Application {
     public void exit(){
         int p = android.os.Process.myPid();
         upnpClient.shutdown();
-
+        //FIXME work around to be fixed with new ui
+        NotificationManager mNotificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        // mId allows you to update the notification later on.
+        mNotificationManager.cancel(NotificationId.UPNP_SERVER.getId());
         android.os.Process.killProcess(p);
     }
 }

@@ -18,6 +18,8 @@
 package de.yaacc.upnp.server;
 
 import android.app.Activity;
+import android.app.NotificationManager;
+import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Build;
@@ -33,6 +35,7 @@ import android.widget.CheckBox;
 import de.yaacc.R;
 import de.yaacc.settings.SettingsActivity;
 import de.yaacc.util.AboutActivity;
+import de.yaacc.util.NotificationId;
 
 /**
  * Control activity for the yaacc upnp server
@@ -132,6 +135,10 @@ public class YaaccUpnpServerControlActivity extends Activity {
 
     private void exit() {
 	    stop();
+	    //FIXME work around to be fixed with new ui
+		NotificationManager mNotificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+		// mId allows you to update the notification later on.
+		mNotificationManager.cancel(NotificationId.UPNP_SERVER.getId());
 	    finish();
     }
 
