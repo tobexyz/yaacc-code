@@ -29,6 +29,8 @@ import android.os.PowerManager;
 import android.util.Log;
 
 import java.util.HashMap;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.util.NotificationId;
@@ -41,7 +43,8 @@ import de.yaacc.util.NotificationId;
 public class Yaacc extends Application {
     private UpnpClient upnpClient;
     private HashMap<String, PowerManager.WakeLock> wakeLocks  = new HashMap<>();
-
+    private Executor iconLoadThreadPool = Executors.newFixedThreadPool(1);
+    private Executor contentLoadThreadPool = Executors.newFixedThreadPool(2);
 
 
     @Override
@@ -50,6 +53,12 @@ public class Yaacc extends Application {
         upnpClient = new UpnpClient(this);
     }
 
+    public Executor getIconLoadExecutor(){
+        return iconLoadThreadPool;
+    }
+    public Executor getContentLoadExecutor(){
+        return contentLoadThreadPool;
+    }
     public UpnpClient getUpnpClient() {
         return upnpClient;
     }

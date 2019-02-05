@@ -385,7 +385,7 @@ public class AVTransportPlayerActivity extends Activity implements ServiceConnec
         URI albumArtUri = getPlayer().getAlbumArt();
         if (null != albumArtUri) {
             ImageDownloadTask imageDownloadTask = new ImageDownloadTask(albumArtView);
-            imageDownloadTask.execute(Uri.parse(albumArtUri.toString()));
+            imageDownloadTask.executeOnExecutor(((Yaacc)getApplicationContext()).getIconLoadExecutor(),Uri.parse(albumArtUri.toString()));
         }
         TextView duration = (TextView) findViewById(R.id.avtransportPlayerActivityDuration);
         String durationTimeString = getPlayer().getDuration();

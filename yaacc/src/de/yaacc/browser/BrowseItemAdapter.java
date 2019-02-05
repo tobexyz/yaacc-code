@@ -47,6 +47,7 @@ import java.util.LinkedList;
 import java.util.List;
 
 import de.yaacc.R;
+import de.yaacc.Yaacc;
 import de.yaacc.util.image.IconDownloadTask;
 
 /**
@@ -149,11 +150,12 @@ public class BrowseItemAdapter extends BaseAdapter implements AbsListView.OnScro
             holder = (ViewHolder) arg1.getTag();
         }
 
+
+        DIDLObject currentObject = (DIDLObject) getItem(position);
+        holder.name.setText(currentObject.getTitle());
         IconDownloadTask iconDownloadTask = new IconDownloadTask(
                 this,(ListView) parent, position);
         asyncTasks.add(iconDownloadTask);
-        DIDLObject currentObject = (DIDLObject) getItem(position);
-        holder.name.setText(currentObject.getTitle());
         if (currentObject instanceof Container) {
             holder.icon.setImageResource(R.drawable.folder);
         } else if (currentObject instanceof AudioItem) {
@@ -164,7 +166,8 @@ public class BrowseItemAdapter extends BaseAdapter implements AbsListView.OnScro
                 DIDLObject.Property<URI> albumArtProperties = ((AudioItem) currentObject)
                         .getFirstProperty(DIDLObject.Property.UPNP.ALBUM_ART_URI.class);
                 if (null != albumArtProperties) {
-                    iconDownloadTask.execute(Uri.parse(albumArtProperties
+                    iconDownloadTask.executeOnExecutor(((Yaacc)getContext().getApplicationContext()).getIconLoadExecutor(),
+                            Uri.parse(albumArtProperties
                             .getValue().toString()));
                 }
             }
@@ -173,7 +176,8 @@ public class BrowseItemAdapter extends BaseAdapter implements AbsListView.OnScro
             if (preferences.getBoolean(
                     context.getString(R.string.settings_thumbnails_chkbx),
                     true))
-                iconDownloadTask.execute(Uri.parse(((ImageItem) currentObject)
+                iconDownloadTask.executeOnExecutor(((Yaacc)getContext().getApplicationContext()).getIconLoadExecutor(),
+                        Uri.parse(((ImageItem) currentObject)
                         .getFirstResource().getValue()));
         } else if (currentObject instanceof VideoItem) {
             holder.icon.setImageResource(R.drawable.video);
@@ -183,7 +187,8 @@ public class BrowseItemAdapter extends BaseAdapter implements AbsListView.OnScro
                 DIDLObject.Property<URI> albumArtProperties = ((VideoItem) currentObject)
                         .getFirstProperty(DIDLObject.Property.UPNP.ALBUM_ART_URI.class);
                 if (null != albumArtProperties) {
-                    iconDownloadTask.execute(Uri.parse(albumArtProperties
+                    iconDownloadTask.executeOnExecutor(((Yaacc)getContext().getApplicationContext()).getIconLoadExecutor(),
+                            Uri.parse(albumArtProperties
                             .getValue().toString()));
                 }
             }
@@ -276,7 +281,7 @@ public class BrowseItemAdapter extends BaseAdapter implements AbsListView.OnScro
 
         BrowseItemLoadTask browseItemLoadTask = new BrowseItemLoadTask(this, CHUNK_SIZE);
         asyncTasks.add(browseItemLoadTask);
-        browseItemLoadTask.execute(from);
+        browseItemLoadTask.executeOnExecutor(((Yaacc)getContext().getApplicationContext()).getContentLoadExecutor(),from);
 
     }
 
