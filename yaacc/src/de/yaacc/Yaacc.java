@@ -44,7 +44,7 @@ public class Yaacc extends Application {
     private UpnpClient upnpClient;
     private HashMap<String, PowerManager.WakeLock> wakeLocks  = new HashMap<>();
     private Executor iconLoadThreadPool = Executors.newFixedThreadPool(1);
-    private Executor contentLoadThreadPool = Executors.newFixedThreadPool(2);
+    private Executor contentLoadThreadPool = Executors.newFixedThreadPool(1);
 
 
     @Override
