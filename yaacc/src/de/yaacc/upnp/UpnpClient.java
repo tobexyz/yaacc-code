@@ -26,13 +26,11 @@ import android.content.SharedPreferences;
 import android.content.SharedPreferences.Editor;
 import android.media.AudioManager;
 import android.net.Uri;
-import android.os.AsyncTask;
 import android.os.Build;
 import android.os.IBinder;
 import android.preference.PreferenceManager;
 import android.util.Log;
 import android.webkit.MimeTypeMap;
-import android.widget.Toast;
 
 import org.fourthline.cling.android.AndroidUpnpService;
 import org.fourthline.cling.controlpoint.ControlPoint;
@@ -910,8 +908,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     private DIDLContent loadContainer(Container container) {
         ContentDirectoryBrowseResult result = browseSync(getProviderDevice(), container.getId());
         if (result.getUpnpFailure() != null) {
-            Toast toast = Toast.makeText(getContext(), result.getUpnpFailure().getDefaultMsg(), Toast.LENGTH_LONG);
-            toast.show();
+            Log.e(getClass().getName(), "Error while loading container:" + result.getUpnpFailure().getDefaultMsg());
             return null;
         }
         return result.getResult();
