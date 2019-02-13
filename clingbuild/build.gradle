@@ -25,7 +25,7 @@ task cloneSeamlessRepo{
     if(grgit.tag.list().find { it.name == seamlessVersion }){
         grgit.checkout(branch: seamlessVersion)
     } else {
-        grgit.checkout(branch: 'local_build', startPoint: 'origin/yaacc_build', createBranch: true)
+        grgit.checkout(branch: 'local_build', startPoint: 'origin/yaacc_build', createBranch: true, orphan: true)
         grgit.pull()
     }
 
@@ -57,7 +57,7 @@ task cloneClingRepo{
     if(grgit.tag.list().find { it.name == clingVersion }){
         grgit.checkout(branch: clingVersion)
     } else {
-        grgit.checkout(branch: 'local_build', startPoint: 'origin/yaacc_build', createBranch: true,orphan: true)
+        grgit.checkout(branch: 'local_build', startPoint: 'origin/yaacc_build', createBranch: true, orphan: true)
         grgit.pull()
     }
 
