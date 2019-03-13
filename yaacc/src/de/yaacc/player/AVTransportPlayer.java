@@ -79,7 +79,7 @@ public class AVTransportPlayer extends AbstractPlayer {
         this.contentType = contentType;
         id =  Math.abs(UUID.randomUUID().hashCode());
     }
-    private Device<?, ?, ?> getDevice(){
+    protected Device<?, ?, ?> getDevice(){
         return getUpnpClient().getDevice(deviceId);
     }
     /**
@@ -115,7 +115,6 @@ public class AVTransportPlayer extends AbstractPlayer {
                             + getDevice().getDisplayString());
             return;
         }
-        Log.d(getClass().getName(), "Action SetAVTransportURI ");
         final ActionState actionState = new ActionState();
 // Now start Stopping
         Log.d(getClass().getName(), "Action Stop");
@@ -292,7 +291,7 @@ public class AVTransportPlayer extends AbstractPlayer {
             actionState.actionFinished = true;
         }
     }
-    private static class ActionState {
+    protected static class ActionState {
         public boolean actionFinished = false;
         public boolean watchdogFlag = false;
         public Object result = null;
