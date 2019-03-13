@@ -1048,7 +1048,8 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         if (playerService != null){
             playerService.shutdown();
         }
-        //wait a very short time until all player are stopped
+        result = getContext().stopService(new Intent(getContext(), PlayerService.class));
+        Log.d(getClass().getName(), "Stopping PlayerService succsessful= " + result);
 
     }
 

@@ -116,8 +116,8 @@ public class Yaacc extends Application {
         upnpClient.shutdown();
         //FIXME work around to be fixed with new ui
         NotificationManager mNotificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-        // mId allows you to update the notification later on.
         mNotificationManager.cancel(NotificationId.UPNP_SERVER.getId());
+
         android.os.Process.killProcess(p);
     }
 }
