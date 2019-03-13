@@ -57,7 +57,12 @@ task cloneClingRepo{
     if(grgit.tag.list().find { it.name == clingVersion }){
         grgit.checkout(branch: clingVersion)
     } else {
-        grgit.checkout(branch: 'local_build', startPoint: 'origin/yaacc_build', createBranch: true, orphan: true)
+        try{
+            grgit.checkout(branch: 'local_build', startPoint: 'origin/yaacc_build', createBranch: true, orphan: true)
+        }catch (Exception e){
+            //Ignore branch already exist
+        }
+
         grgit.pull()
     }
 

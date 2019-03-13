@@ -271,7 +271,8 @@ public class BrowseItemAdapter extends BaseAdapter implements AbsListView.OnScro
 
 
     public void loadMore(){
-        if (loading || allItemsFetched) return;
+        if (navigator == null || navigator.getCurrentPosition() == null || navigator.getCurrentPosition().getDeviceId()==null) return;
+        if (loading || allItemsFetched ) return;
         setLoading(true);
         Long from = getCount() -0L;
         if (from > 0){
