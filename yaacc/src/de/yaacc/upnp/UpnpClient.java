@@ -1148,6 +1148,11 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         new FileDownloader(this).execute(selectedDIDLObject);
     }
 
+    public void controlDevice(Device device) {
+        if (playerService == null)return;
+        playerService.controlDevice(this, device);
+    }
+
 
     @SuppressWarnings({"unchecked", "rawtypes"})
     private class LocalDummyDevice extends Device {
