@@ -8,6 +8,9 @@ I resumed the work on the project and the App is now back on f-droid, too.
      alt="Get it on F-Droid"
      height="80">](https://f-droid.org/packages/de.yaacc/)
 
+YAACC is a hobby project I am working on in my free time.
+So it's not perfect and I am only able to test the app with my own hardware setup.
+Please, help improving YAACC by reporting problems or sending pull requests.
 
 Have fun!
 
