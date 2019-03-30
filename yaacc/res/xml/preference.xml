@@ -38,6 +38,12 @@
             android:key="@string/settings_browse_thumbnails_coverlookup_chkbx"
             android:defaultValue="true"
             android:dependency="@string/settings_thumbnails_chkbx"/>
+        <CheckBoxPreference
+            android:summaryOff="@string/settings_browse_load_single_threaded_off"
+            android:summaryOn="@string/settings_browse_load_single_threaded_on"
+            android:key="@string/settings_browse_load_single_threaded_chkbx"
+            android:defaultValue="true"
+            />
     </PreferenceScreen>
     <PreferenceScreen android:title="@string/settings_category_playing">
         <ListPreference

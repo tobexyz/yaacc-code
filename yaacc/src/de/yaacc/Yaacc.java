@@ -23,9 +23,11 @@ import android.app.NotificationManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.SharedPreferences;
 import android.os.BatteryManager;
 import android.os.Build;
 import android.os.PowerManager;
+import android.preference.PreferenceManager;
 import android.util.Log;
 
 import java.util.HashMap;
@@ -54,6 +56,10 @@ public class Yaacc extends Application {
     }
 
     public Executor getIconLoadExecutor(){
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
+        if (preferences.getBoolean(getString(R.string.settings_browse_load_single_threaded_chkbx), true)){
+            return  contentLoadThreadPool;
+        }
         return iconLoadThreadPool;
     }
     public Executor getContentLoadExecutor(){
