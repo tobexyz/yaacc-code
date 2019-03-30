@@ -26,13 +26,11 @@ import android.content.SharedPreferences;
 import android.content.SharedPreferences.Editor;
 import android.media.AudioManager;
 import android.net.Uri;
-import android.os.AsyncTask;
 import android.os.Build;
 import android.os.IBinder;
 import android.preference.PreferenceManager;
 import android.util.Log;
 import android.webkit.MimeTypeMap;
-import android.widget.Toast;
 
 import org.fourthline.cling.android.AndroidUpnpService;
 import org.fourthline.cling.controlpoint.ControlPoint;
@@ -74,6 +72,7 @@ import java.net.URI;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -705,6 +704,9 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      * @return the player
      */
     public List<Player> initializePlayers(List<Item> items) {
+        if (playerService == null){
+            return Collections.emptyList();
+        }
         LinkedList<PlayableItem> playableItems = new LinkedList<>();
 
         for (Item currentItem : items) {
@@ -730,6 +732,9 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      * @return the player
      */
     public List<Player> initializePlayers(AvTransport transport) {
+        if (playerService == null){
+            return Collections.emptyList();
+        }
         PlayableItem playableItem = new PlayableItem();
         List<PlayableItem> items = new ArrayList<PlayableItem>();
         if (transport == null) {
@@ -789,6 +794,9 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      * @return the player
      */
     public Collection<Player> getCurrentPlayers(){
+        if(playerService == null){
+            return Collections.emptyList();
+        }
         return playerService.getCurrentPlayers();
     }
 
@@ -799,6 +807,9 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      * @return the player
      */
     public List<Player> getCurrentPlayers(AvTransport transport) {
+        if (playerService == null){
+            return Collections.emptyList();
+        }
         List<PlayableItem> items = new ArrayList<PlayableItem>();
         if (transport == null) {
             return playerService.createPlayer(this, null, items);
@@ -897,8 +908,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     private DIDLContent loadContainer(Container container) {
         ContentDirectoryBrowseResult result = browseSync(getProviderDevice(), container.getId());
         if (result.getUpnpFailure() != null) {
-            Toast toast = Toast.makeText(getContext(), result.getUpnpFailure().getDefaultMsg(), Toast.LENGTH_LONG);
-            toast.show();
+            Log.e(getClass().getName(), "Error while loading container:" + result.getUpnpFailure().getDefaultMsg());
             return null;
         }
         return result.getResult();
@@ -1035,8 +1045,11 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         result = getContext().stopService(new Intent(getContext(), YaaccUpnpServerService.class));
         Log.d(getClass().getName(), "Stopping YaaccUpnpServerService succsessful= " + result);
         // stop all players
-        playerService.shutdown();
-        //wait a very short time until all player are stopped
+        if (playerService != null){
+            playerService.shutdown();
+        }
+        result = getContext().stopService(new Intent(getContext(), PlayerService.class));
+        Log.d(getClass().getName(), "Stopping PlayerService succsessful= " + result);
 
     }
 

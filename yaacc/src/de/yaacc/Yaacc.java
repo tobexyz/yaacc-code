@@ -23,12 +23,16 @@ import android.app.NotificationManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.SharedPreferences;
 import android.os.BatteryManager;
 import android.os.Build;
 import android.os.PowerManager;
+import android.preference.PreferenceManager;
 import android.util.Log;
 
 import java.util.HashMap;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.util.NotificationId;
@@ -41,7 +45,8 @@ import de.yaacc.util.NotificationId;
 public class Yaacc extends Application {
     private UpnpClient upnpClient;
     private HashMap<String, PowerManager.WakeLock> wakeLocks  = new HashMap<>();
-
+    private Executor iconLoadThreadPool = Executors.newFixedThreadPool(1);
+    private Executor contentLoadThreadPool = Executors.newFixedThreadPool(1);
 
 
     @Override
@@ -50,6 +55,16 @@ public class Yaacc extends Application {
         upnpClient = new UpnpClient(this);
     }
 
+    public Executor getIconLoadExecutor(){
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
+        if (preferences.getBoolean(getString(R.string.settings_browse_load_single_threaded_chkbx), true)){
+            return  contentLoadThreadPool;
+        }
+        return iconLoadThreadPool;
+    }
+    public Executor getContentLoadExecutor(){
+        return contentLoadThreadPool;
+    }
     public UpnpClient getUpnpClient() {
         return upnpClient;
     }
@@ -107,8 +122,8 @@ public class Yaacc extends Application {
         upnpClient.shutdown();
         //FIXME work around to be fixed with new ui
         NotificationManager mNotificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-        // mId allows you to update the notification later on.
         mNotificationManager.cancel(NotificationId.UPNP_SERVER.getId());
+
         android.os.Process.killProcess(p);
     }
 }

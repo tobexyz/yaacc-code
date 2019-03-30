@@ -48,6 +48,7 @@ import java.util.Timer;
 import java.util.TimerTask;
 
 import de.yaacc.R;
+import de.yaacc.Yaacc;
 import de.yaacc.player.LocalImagePlayer;
 import de.yaacc.player.Player;
 import de.yaacc.player.PlayerService;
@@ -323,7 +324,7 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver, Serv
         retrieveImageTask = new RetrieveImageTask(this);
         Log.d(getClass().getName(),
                 "showImage(" + imageUris.get(currentImageIndex) + ")");
-        retrieveImageTask.execute(imageUris.get(currentImageIndex));
+        retrieveImageTask.executeOnExecutor(((Yaacc)getApplicationContext()).getContentLoadExecutor(),imageUris.get(currentImageIndex));
     }
     /**
      * Stop picture show timer and reset the current playlist index. Display

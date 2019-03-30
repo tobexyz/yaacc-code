@@ -45,6 +45,7 @@ import java.util.Timer;
 import java.util.TimerTask;
 
 import de.yaacc.R;
+import de.yaacc.Yaacc;
 import de.yaacc.settings.SettingsActivity;
 import de.yaacc.util.AboutActivity;
 import de.yaacc.util.YaaccLogActivity;
@@ -309,7 +310,7 @@ public class MusicPlayerActivity extends Activity implements ServiceConnection {
         URI albumArtUri = getPlayer().getAlbumArt();
         if (null != albumArtUri) {
             ImageDownloadTask imageDownloadTask = new ImageDownloadTask(albumArtView);
-            imageDownloadTask.execute(Uri.parse(albumArtUri.toString()));
+            imageDownloadTask.executeOnExecutor(((Yaacc)getApplicationContext()).getIconLoadExecutor(),Uri.parse(albumArtUri.toString()));
         }
         TextView duration = (TextView) findViewById(R.id.musicActivityDuration);
         duration.setText(getPlayer().getDuration());

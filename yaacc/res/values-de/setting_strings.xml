@@ -40,6 +40,9 @@
     <string name="settings_browse_video_off">Videodateien verbergen</string>
     <string name="settings_browse_image_on">Bilddateien anzeigen</string>
     <string name="settings_browse_image_off">Bilddateien verbergen</string>
+    <string name="settings_browse_load_single_threaded_chkbx">settings_browse_load_single_threaded_chkbx</string>
+    <string name="settings_browse_load_single_threaded_on">Content browsing in einem Thread</string>
+    <string name="settings_browse_load_single_threaded_off">Content browsing in mehreren Threads</string>
     <string name="settings_audio_chkbx">audio_chkbx</string>
     <string name="settings_video_chkbx">video_chkbx</string>
     <string name="settings_image_chkbx">image_chkbx</string>
