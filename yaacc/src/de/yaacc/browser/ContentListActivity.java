@@ -108,7 +108,6 @@ public class ContentListActivity extends Activity implements OnClickListener,
         upnpClient.addUpnpClientListener(this);
         bItemClickListener = new ContentListClickListener(upnpClient, this);
         if (upnpClient.getProviderDevice() != null) {
-            /*
             if(savedInstanceState == null || savedInstanceState.getSerializable(CONTENT_LIST_NAVIGATOR) == null){
 
                 showMainFolder();
@@ -116,8 +115,6 @@ public class ContentListActivity extends Activity implements OnClickListener,
                 navigator = (Navigator) savedInstanceState.getSerializable(CONTENT_LIST_NAVIGATOR);
                 populateItemList();
             }
-            */
-            showMainFolder();
         } else {
 
             clearItemList();
