@@ -166,7 +166,7 @@ public class BrowseItemAdapter extends BaseAdapter implements AbsListView.OnScro
                 DIDLObject.Property<URI> albumArtProperties = ((AudioItem) currentObject)
                         .getFirstProperty(DIDLObject.Property.UPNP.ALBUM_ART_URI.class);
                 if (null != albumArtProperties) {
-                    iconDownloadTask.executeOnExecutor(((Yaacc)getContext().getApplicationContext()).getIconLoadExecutor(),
+                    iconDownloadTask.executeOnExecutor(((Yaacc)getContext().getApplicationContext()).getContentLoadExecutor(),
                             Uri.parse(albumArtProperties
                             .getValue().toString()));
                 }
@@ -176,7 +176,7 @@ public class BrowseItemAdapter extends BaseAdapter implements AbsListView.OnScro
             if (preferences.getBoolean(
                     context.getString(R.string.settings_thumbnails_chkbx),
                     true))
-                iconDownloadTask.executeOnExecutor(((Yaacc)getContext().getApplicationContext()).getIconLoadExecutor(),
+                iconDownloadTask.executeOnExecutor(((Yaacc)getContext().getApplicationContext()).getContentLoadExecutor(),
                         Uri.parse(((ImageItem) currentObject)
                         .getFirstResource().getValue()));
         } else if (currentObject instanceof VideoItem) {
@@ -187,7 +187,7 @@ public class BrowseItemAdapter extends BaseAdapter implements AbsListView.OnScro
                 DIDLObject.Property<URI> albumArtProperties = ((VideoItem) currentObject)
                         .getFirstProperty(DIDLObject.Property.UPNP.ALBUM_ART_URI.class);
                 if (null != albumArtProperties) {
-                    iconDownloadTask.executeOnExecutor(((Yaacc)getContext().getApplicationContext()).getIconLoadExecutor(),
+                    iconDownloadTask.executeOnExecutor(((Yaacc)getContext().getApplicationContext()).getContentLoadExecutor(),
                             Uri.parse(albumArtProperties
                             .getValue().toString()));
                 }

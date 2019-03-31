@@ -38,12 +38,13 @@
             android:key="@string/settings_browse_thumbnails_coverlookup_chkbx"
             android:defaultValue="true"
             android:dependency="@string/settings_thumbnails_chkbx"/>
-        <CheckBoxPreference
-            android:summaryOff="@string/settings_browse_load_single_threaded_off"
-            android:summaryOn="@string/settings_browse_load_single_threaded_on"
-            android:key="@string/settings_browse_load_single_threaded_chkbx"
-            android:defaultValue="true"
-            />
+        <EditTextPreference
+            android:defaultValue="10"
+            android:dialogTitle="@string/settings_browse_load_threads"
+            android:inputType="number"
+            android:key="@string/settings_browse_load_threads_key"
+            android:summary="@string/settings_browse_load_threads_summ"
+            android:title="@string/settings_browse_load_threads" />
     </PreferenceScreen>
     <PreferenceScreen android:title="@string/settings_category_playing">
         <ListPreference

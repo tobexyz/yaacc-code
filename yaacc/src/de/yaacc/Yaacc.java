@@ -45,24 +45,21 @@ import de.yaacc.util.NotificationId;
 public class Yaacc extends Application {
     private UpnpClient upnpClient;
     private HashMap<String, PowerManager.WakeLock> wakeLocks  = new HashMap<>();
-    private Executor iconLoadThreadPool = Executors.newFixedThreadPool(1);
-    private Executor contentLoadThreadPool = Executors.newFixedThreadPool(1);
+    private Executor contentLoadThreadPool;
 
 
     @Override
     public void onCreate() {
         super.onCreate();
         upnpClient = new UpnpClient(this);
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
+        Integer numThreads = Integer.valueOf(preferences.getString(getString(R.string.settings_browse_load_threads_key),"10"));
+        Log.d(getClass().getName(),"Number of Threads used for content loading: " + numThreads);
+        contentLoadThreadPool = Executors.newFixedThreadPool(numThreads);
     }
 
-    public Executor getIconLoadExecutor(){
-        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
-        if (preferences.getBoolean(getString(R.string.settings_browse_load_single_threaded_chkbx), true)){
-            return  contentLoadThreadPool;
-        }
-        return iconLoadThreadPool;
-    }
     public Executor getContentLoadExecutor(){
+
         return contentLoadThreadPool;
     }
     public UpnpClient getUpnpClient() {
