@@ -61,12 +61,12 @@ public class MultiContentPlayerActivity extends Activity implements ServiceConne
     protected void initialize(){
         Player player = getPlayer();
 
-        ImageButton btnPrev = (ImageButton) findViewById(R.id.multiContentPlayerActivityControlPrev);
-        ImageButton btnNext = (ImageButton) findViewById(R.id.multiContentPlayerActivityControlNext);
-        ImageButton btnStop = (ImageButton) findViewById(R.id.multiContentPlayerActivityControlStop);
-        ImageButton btnPlay = (ImageButton) findViewById(R.id.multiContentPlayerActivityControlPlay);
-        ImageButton btnPause = (ImageButton) findViewById(R.id.multiContentPlayerActivityControlPause);
-        ImageButton btnExit = (ImageButton) findViewById(R.id.multiContentPlayerActivityControlExit);
+        ImageButton btnPrev = findViewById(R.id.multiContentPlayerActivityControlPrev);
+        ImageButton btnNext = findViewById(R.id.multiContentPlayerActivityControlNext);
+        ImageButton btnStop = findViewById(R.id.multiContentPlayerActivityControlStop);
+        ImageButton btnPlay = findViewById(R.id.multiContentPlayerActivityControlPlay);
+        ImageButton btnPause = findViewById(R.id.multiContentPlayerActivityControlPause);
+        ImageButton btnExit = findViewById(R.id.multiContentPlayerActivityControlExit);
         if (player == null) {
             btnPrev.setActivated(false);
             btnNext.setActivated(false);
@@ -153,6 +153,12 @@ public class MultiContentPlayerActivity extends Activity implements ServiceConne
             player.exit();
         }
         finish();
+    }
+
+    @Override
+    protected void onDestroy(){
+        super.onDestroy();
+        unbindService(this);
     }
 
     @Override

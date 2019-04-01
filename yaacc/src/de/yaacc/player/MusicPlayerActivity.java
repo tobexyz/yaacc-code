@@ -239,6 +239,11 @@ public class MusicPlayerActivity extends Activity implements ServiceConnection {
     protected void onDestroy() {
         super.onDestroy();
         updateTime = false;
+        try {
+            unbindService(this);
+        }catch (IllegalArgumentException iae){
+            Log.d(getClass().getName(), "Ignore exception on unbind service while activity destroy");
+        }
     }
 
     @Override

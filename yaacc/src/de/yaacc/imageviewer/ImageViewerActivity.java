@@ -179,6 +179,16 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver, Serv
             });
         }
     }
+
+    @Override
+    protected void onDestroy(){
+        super.onDestroy();
+        try {
+            unbindService(this);
+        }catch (IllegalArgumentException iae){
+            Log.d(getClass().getName(), "Ignore exception on unbind service while activity destroy");
+        }
+    }
     /*
     * (non-Javadoc)
     *

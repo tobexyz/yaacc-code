@@ -125,7 +125,7 @@ public class AVTransportPlayerActivity extends Activity implements ServiceConnec
         super.onDestroy();
         updateTime = false;
         try {
-            getPlayerService().unbindService(this);
+            unbindService(this);
         }catch (IllegalArgumentException iae){
             Log.d(getClass().getName(), "Ignore exception on unbind service while activity destroy");
         }

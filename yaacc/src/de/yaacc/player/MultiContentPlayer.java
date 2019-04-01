@@ -142,6 +142,9 @@ public class MultiContentPlayer extends AbstractPlayer {
 																			// last
 																			// started
 																			// task
+		if (packageName.equals(getContext().getPackageName())){
+			packageName = services.get(1).topActivity.getPackageName();
+		}
 		for (int i = 0; i < apps.size(); i++) {
 			if (apps.get(i).processName.equals(packageName)) {
 				appPid = apps.get(i).pid;

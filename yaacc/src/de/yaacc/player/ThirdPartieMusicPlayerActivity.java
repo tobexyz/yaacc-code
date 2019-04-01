@@ -180,6 +180,15 @@ public class ThirdPartieMusicPlayerActivity extends Activity implements ServiceC
         return playerService
                 .getFirstCurrentPlayerOfType(LocalThirdPartieMusicPlayer.class);
     }
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        try {
+            unbindService(this);
+        } catch (IllegalArgumentException iae) {
+            Log.d(getClass().getName(), "Ignore exception on unbind service while activity destroy");
+        }
+    }
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
