@@ -129,6 +129,9 @@ public class PlayerService extends Service {
     public List<Player> createPlayer(UpnpClient upnpClient,
                                             SynchronizationInfo syncInfo, List<PlayableItem> items) {
         List<Player> resultList = new ArrayList<Player>();
+        if (items.isEmpty()) {
+            return resultList;
+        }
         Player result = null;
         boolean video = false;
         boolean image = false;

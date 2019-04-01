@@ -117,8 +117,8 @@ public class ContentListClickListener implements OnItemClickListener {
             int index = items.indexOf(currentObject);
             if(index > 0){
                 //sort selected item to the beginning
-                List<Item> tempItems = new ArrayList<Item>(items.subList(index,items.size()-1));
-                tempItems.addAll(items.subList(0,index-1));
+                List<Item> tempItems = new ArrayList<Item>(items.subList(index,items.size()));
+                tempItems.addAll(items.subList(0,index));
                 items = tempItems;
             }
 
