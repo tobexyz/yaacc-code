@@ -22,9 +22,9 @@
     <PreferenceScreen android:title="@string/settings_category_send_rec">
       <ListPreference android:title="@string/settings_selected_provider_title" android:key="@string/settings_selected_provider_title"/>  
       <MultiSelectListPreference android:title="@string/settings_selected_receivers_title" android:key="@string/settings_selected_receivers_title"/>      
-      <CheckBoxPreference android:defaultValue="true" android:summaryOff="@string/settings_image_app_off" android:disableDependentsState="true" android:summaryOn="@string/settings_image_app_on" android:key="@string/settings_image_app"/>
-      <CheckBoxPreference android:defaultValue="true" android:summaryOff="@string/settings_video_app_off" android:disableDependentsState="true" android:summaryOn="@string/settings_video_app_on" android:key="@string/settings_video_app"/>
-      <CheckBoxPreference android:defaultValue="true" android:summaryOff="@string/settings_audio_app_off" android:disableDependentsState="true" android:summaryOn="@string/settings_audio_app_on" android:key="@string/settings_audio_app"/>
+      <!--CheckBoxPreference android:defaultValue="true" android:summaryOff="@string/settings_image_app_off" android:disableDependentsState="true" android:summaryOn="@string/settings_image_app_on" android:key="@string/settings_image_app"/-->
+      <!--CheckBoxPreference android:defaultValue="true" android:summaryOff="@string/settings_video_app_off" android:disableDependentsState="true" android:summaryOn="@string/settings_video_app_on" android:key="@string/settings_video_app"/-->
+      <!--CheckBoxPreference android:defaultValue="true" android:summaryOff="@string/settings_audio_app_off" android:disableDependentsState="true" android:summaryOn="@string/settings_audio_app_on" android:key="@string/settings_audio_app"/-->
     </PreferenceScreen>
     <PreferenceScreen android:title="@string/settings_category_browsing">
         <CheckBoxPreference
@@ -38,21 +38,13 @@
             android:key="@string/settings_browse_thumbnails_coverlookup_chkbx"
             android:defaultValue="true"
             android:dependency="@string/settings_thumbnails_chkbx"/>
-        <CheckBoxPreference
-            android:summaryOn="@string/settings_browse_audio_on"
-            android:disableDependentsState="true"
-            android:summaryOff="@string/settings_browse_audio_off"
-            android:key="@string/settings_audio_chkbx"/>
-        <CheckBoxPreference
-            android:summaryOn="@string/settings_browse_video_on"
-            android:disableDependentsState="true"
-            android:summaryOff="@string/settings_browse_video_off"
-            android:key="@string/settings_video_chkbx"/>
-        <CheckBoxPreference
-            android:summaryOn="@string/settings_browse_image_on"
-            android:disableDependentsState="true"
-            android:summaryOff="@string/settings_browse_image_off"
-            android:key="@string/settings_image_chkbx"/>
+        <EditTextPreference
+            android:defaultValue="10"
+            android:dialogTitle="@string/settings_browse_load_threads"
+            android:inputType="number"
+            android:key="@string/settings_browse_load_threads_key"
+            android:summary="@string/settings_browse_load_threads_summ"
+            android:title="@string/settings_browse_load_threads" />
     </PreferenceScreen>
     <PreferenceScreen android:title="@string/settings_category_playing">
         <ListPreference

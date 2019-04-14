@@ -141,13 +141,17 @@ public class ThirdPartieMusicPlayerActivity extends Activity implements ServiceC
 
             @Override
             public void onClick(View v) {
-                Player player = getPlayer();
-                if (player != null) {
-                    player.exit();
-                }
-                finish();
+                exit();
             }
         });
+    }
+
+    private void exit() {
+        Player player = getPlayer();
+        if (player != null) {
+            player.exit();
+        }
+        finish();
     }
 
     @Override
@@ -176,6 +180,15 @@ public class ThirdPartieMusicPlayerActivity extends Activity implements ServiceC
         return playerService
                 .getFirstCurrentPlayerOfType(LocalThirdPartieMusicPlayer.class);
     }
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        try {
+            unbindService(this);
+        } catch (IllegalArgumentException iae) {
+            Log.d(getClass().getName(), "Ignore exception on unbind service while activity destroy");
+        }
+    }
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
@@ -188,6 +201,9 @@ public class ThirdPartieMusicPlayerActivity extends Activity implements ServiceC
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         switch (item.getItemId()) {
+            case R.id.menu_exit:
+                exit();
+                return true;
             case R.id.menu_settings:
                 Intent i = new Intent(this, SettingsActivity.class);
                 startActivity(i);

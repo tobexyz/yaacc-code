@@ -45,6 +45,7 @@ import java.util.Timer;
 import java.util.TimerTask;
 
 import de.yaacc.R;
+import de.yaacc.Yaacc;
 import de.yaacc.settings.SettingsActivity;
 import de.yaacc.util.AboutActivity;
 import de.yaacc.util.YaaccLogActivity;
@@ -175,12 +176,7 @@ public class MusicPlayerActivity extends Activity implements ServiceConnection {
 
             @Override
             public void onClick(View v) {
-                Player player = getPlayer();
-                if (player != null) {
-                    player.stop();
-                    player.exit();
-                }
-                finish();
+                MusicPlayerActivity.this.exit();
             }
         });
 
@@ -243,6 +239,11 @@ public class MusicPlayerActivity extends Activity implements ServiceConnection {
     protected void onDestroy() {
         super.onDestroy();
         updateTime = false;
+        try {
+            unbindService(this);
+        }catch (IllegalArgumentException iae){
+            Log.d(getClass().getName(), "Ignore exception on unbind service while activity destroy");
+        }
     }
 
     @Override
@@ -269,6 +270,9 @@ public class MusicPlayerActivity extends Activity implements ServiceConnection {
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         switch (item.getItemId()) {
+            case R.id.menu_exit:
+                exit();
+                return true;
             case R.id.menu_settings:
                 Intent i = new Intent(this, SettingsActivity.class);
                 startActivity(i);
@@ -282,6 +286,15 @@ public class MusicPlayerActivity extends Activity implements ServiceConnection {
             default:
                 return super.onOptionsItemSelected(item);
         }
+    }
+
+    private void exit() {
+        Player player = getPlayer();
+        if (player != null) {
+            player.stop();
+            player.exit();
+        }
+        finish();
     }
 
     private void setTrackInfo() {
@@ -302,7 +315,7 @@ public class MusicPlayerActivity extends Activity implements ServiceConnection {
         URI albumArtUri = getPlayer().getAlbumArt();
         if (null != albumArtUri) {
             ImageDownloadTask imageDownloadTask = new ImageDownloadTask(albumArtView);
-            imageDownloadTask.execute(Uri.parse(albumArtUri.toString()));
+            imageDownloadTask.executeOnExecutor(((Yaacc)getApplicationContext()).getContentLoadExecutor(),Uri.parse(albumArtUri.toString()));
         }
         TextView duration = (TextView) findViewById(R.id.musicActivityDuration);
         duration.setText(getPlayer().getDuration());

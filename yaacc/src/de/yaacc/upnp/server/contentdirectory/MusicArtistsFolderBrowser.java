@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.fourthline.cling.support.model.DIDLObject;
+import org.fourthline.cling.support.model.SortCriterion;
 import org.fourthline.cling.support.model.container.Container;
 import org.fourthline.cling.support.model.container.MusicAlbum;
 import org.fourthline.cling.support.model.container.StorageFolder;
@@ -52,7 +53,7 @@ public class MusicArtistsFolderBrowser extends ContentBrowser {
     }
 
     @Override
-	public DIDLObject browseMeta(YaaccContentDirectory contentDirectory, String myId) {
+	public DIDLObject browseMeta(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults,SortCriterion[] orderby) {
 		
 		StorageFolder folder = new StorageFolder(ContentDirectoryIDs.MUSIC_ARTISTS_FOLDER.getId(), ContentDirectoryIDs.MUSIC_FOLDER.getId(), getContext().getString(R.string.artists), "yaacc", getSize(contentDirectory,myId),
 				907000L);
@@ -93,7 +94,7 @@ public class MusicArtistsFolderBrowser extends ContentBrowser {
 	}
 	
 	@Override
-	public List<Container> browseContainer(YaaccContentDirectory contentDirectory, String myId) {
+	public List<Container> browseContainer(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults,SortCriterion[] orderby) {
 		List<Container> result = new ArrayList<Container>();
 		String[] projection = { MediaStore.Audio.Artists._ID, MediaStore.Audio.Artists.ARTIST };
 		String selection = "";
@@ -104,12 +105,18 @@ public class MusicArtistsFolderBrowser extends ContentBrowser {
 
 		if (mediaCursor != null) {
 			mediaCursor.moveToFirst();
-			while (!mediaCursor.isAfterLast()) {
-				String id = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Audio.Albums._ID));
-				String name = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Audio.Albums.ARTIST));
-				MusicAlbum musicAlbum = new MusicAlbum(ContentDirectoryIDs.MUSIC_ARTIST_PREFIX.getId()+id, ContentDirectoryIDs.MUSIC_ALBUMS_FOLDER.getId(), name, "", 0);
-                folderMap.put(id, musicAlbum);
-				Log.d(getClass().getName(), "Artists Folder: " + id + " Name: " + name);
+			int currentIndex = 0;
+			int currentCount = 0;
+			while (!mediaCursor.isAfterLast() && currentCount < maxResults) {
+				if (firstResult <= currentIndex) {
+					String id = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Audio.Albums._ID));
+					String name = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Audio.Albums.ARTIST));
+					MusicAlbum musicAlbum = new MusicAlbum(ContentDirectoryIDs.MUSIC_ARTIST_PREFIX.getId() + id, ContentDirectoryIDs.MUSIC_ALBUMS_FOLDER.getId(), name, "", 0);
+					folderMap.put(id, musicAlbum);
+					Log.d(getClass().getName(), "Artists Folder: " + id + " Name: " + name);
+                    currentCount++;
+				}
+				currentIndex++;
 				mediaCursor.moveToNext();
 			}
             mediaCursor.close();
@@ -127,12 +134,12 @@ public class MusicArtistsFolderBrowser extends ContentBrowser {
 				return lhs.getTitle().compareTo(rhs.getTitle());
 			}
 		});
-
+        Log.d(getClass().getName(), "Returning " + result.size() + " MusicAlbum Containers");
 		return result;
 	}
 
 	@Override
-	public List<Item> browseItem(YaaccContentDirectory contentDirectory, String myId) {
+	public List<Item> browseItem(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults,SortCriterion[] orderby) {
 		List<Item> result = new ArrayList<Item>();
 		
 		return result;

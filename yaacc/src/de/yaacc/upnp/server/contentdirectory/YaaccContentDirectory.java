@@ -396,21 +396,17 @@ public class YaaccContentDirectory {
 			
 		} else {
 			if (browseFlag == BrowseFlag.METADATA) {
-				didlObject = findBrowserFor(objectID).browseMeta(this,objectID);
+				didlObject = findBrowserFor(objectID).browseMeta(this,objectID,firstResult, maxResults, orderby);
 				didl.addObject(didlObject);
 				childCount = 1;
 			}else {
                 childCount = 0;
-				List<DIDLObject> children = findBrowserFor(objectID).browseChildren(this, objectID);
+				List<DIDLObject> children = findBrowserFor(objectID).browseChildren(this, objectID,firstResult, maxResults, orderby);
 
 				for (DIDLObject child : children) {
-                    if(childCount >= maxResults){
-                        break;
-                    }
-                    if(firstResult <= childCount){
-					    didl.addObject(child);
-                        childCount++;
-                    }
+					didl.addObject(child);
+					childCount++;
+
 				}
 			}
 		}

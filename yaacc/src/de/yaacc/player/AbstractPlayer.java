@@ -618,6 +618,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
     @Override
     public void onDestroy() {
         stop();
+        int i = 0;
         cancleNotification();
         items.clear();
         if(playerService != null){
@@ -734,7 +735,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
 
     public int getIconResourceId(){
 
-        return R.drawable.ic_launcher;
+        return R.drawable.yaacc192_32;
     }
 
     public String getDeviceId() {

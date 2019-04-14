@@ -80,10 +80,9 @@ public class ServerListActivity extends Activity implements
     @Override
     public void onBackPressed() {
         Log.d(ServerListActivity.class.getName(), "onBackPressed()");
-        int p = android.os.Process.myPid();
-        upnpClient.shutdown();
+        ((Yaacc)getApplicationContext()).exit();
         super.finish();
-        android.os.Process.killProcess(p);
+
 
     }
 

@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.fourthline.cling.support.model.DIDLObject;
+import org.fourthline.cling.support.model.SortCriterion;
 import org.fourthline.cling.support.model.container.Container;
 import org.fourthline.cling.support.model.container.StorageFolder;
 import org.fourthline.cling.support.model.item.Item;
@@ -45,7 +46,7 @@ public class RootFolderBrowser extends ContentBrowser {
     }
 
     @Override
-	public DIDLObject browseMeta(YaaccContentDirectory contentDirectory, String myId) {
+	public DIDLObject browseMeta(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults,SortCriterion[] orderby) {
 		
 		StorageFolder folder = new StorageFolder(ContentDirectoryIDs.ROOT.getId(), ContentDirectoryIDs.PARENT_OF_ROOT.getId(), "Yaacc", "yaacc", getSize(),
 				907000L);
@@ -68,23 +69,24 @@ public class RootFolderBrowser extends ContentBrowser {
 
 
     @Override
-	public List<Container> browseContainer(YaaccContentDirectory contentDirectory, String myId) {
+	public List<Container> browseContainer(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults,SortCriterion[] orderby) {
 		List<Container> result = new ArrayList<Container>();
         if(isServingMusic()){
-        result.add((Container)new MusicFolderBrowser(getContext()).browseMeta(contentDirectory, ContentDirectoryIDs.MUSIC_FOLDER.getId()));
+        result.add((Container)new MusicFolderBrowser(getContext()).browseMeta(contentDirectory, ContentDirectoryIDs.MUSIC_FOLDER.getId(),firstResult,maxResults,orderby
+                ));
         }
         if(isServingImages()){
-            result.add((Container)new ImagesFolderBrowser(getContext()).browseMeta(contentDirectory, ContentDirectoryIDs.IMAGES_FOLDER.getId()));
+            result.add((Container)new ImagesFolderBrowser(getContext()).browseMeta(contentDirectory, ContentDirectoryIDs.IMAGES_FOLDER.getId(),firstResult,maxResults,orderby));
         }
         if(isServingVideos()){
-            result.add((Container)new VideosFolderBrowser(getContext()).browseMeta(contentDirectory, ContentDirectoryIDs.VIDEOS_FOLDER.getId()));
+            result.add((Container)new VideosFolderBrowser(getContext()).browseMeta(contentDirectory, ContentDirectoryIDs.VIDEOS_FOLDER.getId(),firstResult,maxResults,orderby));
         }
 
         return result;
 	}
 
 	@Override
-	public List<Item> browseItem(YaaccContentDirectory contentDirectory, String myId) {
+	public List<Item> browseItem(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults,SortCriterion[] orderby) {
 		List<Item> result = new ArrayList<Item>();
 		
 		return result;

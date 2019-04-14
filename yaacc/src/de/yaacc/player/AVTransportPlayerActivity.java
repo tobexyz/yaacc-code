@@ -18,6 +18,7 @@
 package de.yaacc.player;
 
 import android.app.Activity;
+import android.bluetooth.BluetoothClass;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -38,6 +39,8 @@ import android.widget.SeekBar;
 import android.widget.Switch;
 import android.widget.TextView;
 
+import org.fourthline.cling.model.meta.Device;
+
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.net.URI;
@@ -50,6 +53,7 @@ import java.util.TimerTask;
 import de.yaacc.R;
 import de.yaacc.Yaacc;
 import de.yaacc.settings.SettingsActivity;
+import de.yaacc.upnp.UpnpClient;
 import de.yaacc.util.AboutActivity;
 import de.yaacc.util.YaaccLogActivity;
 import de.yaacc.util.image.ImageDownloadTask;
@@ -65,6 +69,8 @@ public class AVTransportPlayerActivity extends Activity implements ServiceConnec
     private int playerId;
     protected boolean updateTime = false;
     protected SeekBar seekBar = null;
+    private String deviceId;
+    private AVTransportController player;
 
     public void onServiceConnected(ComponentName className, IBinder binder) {
         if(binder instanceof PlayerService.PlayerServiceBinder) {
@@ -119,7 +125,7 @@ public class AVTransportPlayerActivity extends Activity implements ServiceConnec
         super.onDestroy();
         updateTime = false;
         try {
-            getPlayerService().unbindService(this);
+            unbindService(this);
         }catch (IllegalArgumentException iae){
             Log.d(getClass().getName(), "Ignore exception on unbind service while activity destroy");
         }
@@ -225,11 +231,7 @@ public class AVTransportPlayerActivity extends Activity implements ServiceConnec
 
             @Override
             public void onClick(View v) {
-                Player player = getPlayer();
-                if (player != null) {
-                    player.exit();
-                }
-                finish();
+                exit();
 
             }
         });
@@ -303,6 +305,14 @@ public class AVTransportPlayerActivity extends Activity implements ServiceConnec
         });
     }
 
+    private void exit() {
+        Player player = getPlayer();
+        if (player != null) {
+            player.exit();
+        }
+        finish();
+    }
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -321,11 +331,30 @@ public class AVTransportPlayerActivity extends Activity implements ServiceConnec
         }
         // initialize buttons
         playerId = getIntent().getIntExtra(AVTransportPlayer.PLAYER_ID, -1);
+        deviceId = getIntent().getStringExtra(AVTransportController.DEVICE_ID);
+        if(deviceId != null){
+            UpnpClient upnpClient = ((Yaacc) getApplicationContext()).getUpnpClient();
+            Device device = upnpClient.getDevice(deviceId);
+            if (device != null) {
+                player = new AVTransportController(upnpClient,device );
+                findViewById(R.id.avtransportPlayerActivityControlSeekBar).setVisibility(View.INVISIBLE);;
+                findViewById(R.id.avtransportPlayerActivityCurrentItem).setVisibility(View.INVISIBLE);
+                findViewById(R.id.avtransportPlayerActivityDuration).setVisibility(View.INVISIBLE);
+                findViewById(R.id.avtransportPlayerActivityElapsedTime).setVisibility(View.INVISIBLE);
+                findViewById(R.id.avtransportPlayerActivityPosition).setVisibility(View.INVISIBLE);
+                findViewById(R.id.avtransportPlayerActivityNextItem).setVisibility(View.INVISIBLE);
+                findViewById(R.id.avtransportPlayerActivityNextLabel).setVisibility(View.INVISIBLE);
+                findViewById(R.id.avtransportPlayerActivitySeparator).setVisibility(View.INVISIBLE);
+            }
+        }
         Log.d(getClass().getName(), "Got id from intent: " + playerId);
 
     }
 
     private Player getPlayer(){
+        if(player != null){
+            return player;
+        }
         if (getPlayerService() == null){
             return null;
         }
@@ -344,6 +373,9 @@ public class AVTransportPlayerActivity extends Activity implements ServiceConnec
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         switch (item.getItemId()) {
+            case R.id.menu_exit:
+                exit();
+                return true;
             case R.id.menu_settings:
                 Intent i = new Intent(this, SettingsActivity.class);
                 startActivity(i);
@@ -378,7 +410,7 @@ public class AVTransportPlayerActivity extends Activity implements ServiceConnec
         URI albumArtUri = getPlayer().getAlbumArt();
         if (null != albumArtUri) {
             ImageDownloadTask imageDownloadTask = new ImageDownloadTask(albumArtView);
-            imageDownloadTask.execute(Uri.parse(albumArtUri.toString()));
+            imageDownloadTask.executeOnExecutor(((Yaacc)getApplicationContext()).getContentLoadExecutor(),Uri.parse(albumArtUri.toString()));
         }
         TextView duration = (TextView) findViewById(R.id.avtransportPlayerActivityDuration);
         String durationTimeString = getPlayer().getDuration();

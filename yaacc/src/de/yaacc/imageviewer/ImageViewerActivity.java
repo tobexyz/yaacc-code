@@ -48,6 +48,7 @@ import java.util.Timer;
 import java.util.TimerTask;
 
 import de.yaacc.R;
+import de.yaacc.Yaacc;
 import de.yaacc.player.LocalImagePlayer;
 import de.yaacc.player.Player;
 import de.yaacc.player.PlayerService;
@@ -176,6 +177,16 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver, Serv
                     menuBarsHide();
                 }
             });
+        }
+    }
+
+    @Override
+    protected void onDestroy(){
+        super.onDestroy();
+        try {
+            unbindService(this);
+        }catch (IllegalArgumentException iae){
+            Log.d(getClass().getName(), "Ignore exception on unbind service while activity destroy");
         }
     }
     /*
@@ -323,7 +334,7 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver, Serv
         retrieveImageTask = new RetrieveImageTask(this);
         Log.d(getClass().getName(),
                 "showImage(" + imageUris.get(currentImageIndex) + ")");
-        retrieveImageTask.execute(imageUris.get(currentImageIndex));
+        retrieveImageTask.executeOnExecutor(((Yaacc)getApplicationContext()).getContentLoadExecutor(),imageUris.get(currentImageIndex));
     }
     /**
      * Stop picture show timer and reset the current playlist index. Display
@@ -360,7 +371,7 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver, Serv
      */
     private void showDefaultImage() {
         imageView.setImageDrawable(getResources().getDrawable(
-                R.drawable.ic_launcher));
+                R.drawable.yaacc192_32));
     }
     /**
      * Stop the timer.

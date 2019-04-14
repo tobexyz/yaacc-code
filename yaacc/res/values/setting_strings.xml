@@ -49,6 +49,9 @@
     <string name="settings_browse_thumbnails_coverlookup_on">Images in directories are used as music covers</string>
     <string name="settings_browse_thumbnails_coverlookup_off">Images in directories are not used as covers</string>
     <string name="settings_browse_thumbnails_coverlookup_chkbx" translatable="false">thumbnail_cover_lookup_chkbx</string>
+    <string name="settings_browse_load_threads_key">settings_browse_load_threads_key</string>
+    <string name="settings_browse_load_threads">Number of threads</string>
+    <string name="settings_browse_load_threads_summ">Configure the number of threads used for loading content from the upnp server. More threads causes faster loading but increase the possibility of errors. Changes are effect after restart of yaacc.</string>
     <string name="settings_no_content_found">No content found for browsing</string>
     <string name="settings_audio_chkbx">audio_chkbx</string>
     <string name="settings_video_chkbx">video_chkbx</string>
@@ -95,5 +98,6 @@
     <string name="settings_device_playback_offset">Device offset</string>
     <string name ="settings_device_playback_offset_summ">offset in ms</string>
     <string name="settings_device_playback_offset_key">settings_device_playback_offset_key</string>
+
 
 </resources>

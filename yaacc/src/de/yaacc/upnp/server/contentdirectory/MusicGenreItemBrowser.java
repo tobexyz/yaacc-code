@@ -27,6 +27,7 @@ import java.util.List;
 import org.fourthline.cling.support.model.DIDLObject;
 import org.fourthline.cling.support.model.DIDLObject.Property.UPNP;
 import org.fourthline.cling.support.model.Res;
+import org.fourthline.cling.support.model.SortCriterion;
 import org.fourthline.cling.support.model.container.Container;
 import org.fourthline.cling.support.model.item.Item;
 import org.fourthline.cling.support.model.item.MusicTrack;
@@ -54,7 +55,7 @@ public class MusicGenreItemBrowser extends ContentBrowser {
 
     @Override
 	public DIDLObject browseMeta(YaaccContentDirectory contentDirectory,
-			String myId) {
+			String myId, long firstResult, long maxResults,SortCriterion[] orderby) {
 		Item result = null;
 		String[] projection = { MediaStore.Audio.Genres.Members.AUDIO_ID,
 				MediaStore.Audio.Genres.Members.GENRE_ID,
@@ -138,14 +139,14 @@ public class MusicGenreItemBrowser extends ContentBrowser {
 
 	@Override
 	public List<Container> browseContainer(
-			YaaccContentDirectory contentDirectory, String myId) {
+			YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults,SortCriterion[] orderby) {
 
 		return new ArrayList<Container>();
 	}
 
 	@Override
 	public List<Item> browseItem(YaaccContentDirectory contentDirectory,
-			String myId) {
+			String myId, long firstResult, long maxResults,SortCriterion[] orderby) {
 		List<Item> result = new ArrayList<Item>();
 		return result;
 

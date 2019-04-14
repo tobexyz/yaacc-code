@@ -48,7 +48,7 @@
     <string name="pause">pausiere</string>
     <string name="previous">vorheriges</string>
     <string name="next">nächstes</string> 
-    <string name="exit">beenden</string>
+    <string name="exit">Beenden</string>
     <string name="musicActivityImageView">Albumbild</string>
     <string name="avtransportPlayerActivityImageView">Gerät</string>
     <string name="playerNameMusic">Musik</string>
@@ -97,4 +97,5 @@
     <string name="icon">Icon</string>
     <string name="not_yet_implemented">not yet implemented</string>
     <string name="avtransportPlayerActivityNextLabel">Nächstes:</string>
+    <string name="browse_context_control_device">Control device</string>
 </resources>

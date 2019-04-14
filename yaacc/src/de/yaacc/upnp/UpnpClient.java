@@ -26,13 +26,11 @@ import android.content.SharedPreferences;
 import android.content.SharedPreferences.Editor;
 import android.media.AudioManager;
 import android.net.Uri;
-import android.os.AsyncTask;
 import android.os.Build;
 import android.os.IBinder;
 import android.preference.PreferenceManager;
 import android.util.Log;
 import android.webkit.MimeTypeMap;
-import android.widget.Toast;
 
 import org.fourthline.cling.android.AndroidUpnpService;
 import org.fourthline.cling.controlpoint.ControlPoint;
@@ -74,6 +72,7 @@ import java.net.URI;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -547,20 +546,23 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      * @return the browsing result
      */
     public ContentDirectoryBrowseResult browseSync(Position pos) {
+        return browseSync( pos, 0L, null);
+    }
+    public ContentDirectoryBrowseResult browseSync(Position pos, Long firstResult, Long maxResult) {
         if(getProviderDevice() == null){
             return  null;
         }
         if (pos == null || pos.getDeviceId() == null ) {
             if(getProviderDevice() != null){
-                return browseSync(getProviderDevice(),"0" , BrowseFlag.DIRECT_CHILDREN, "*", 0L, null);
+                return browseSync(getProviderDevice(),"0" , BrowseFlag.DIRECT_CHILDREN, "*", firstResult, maxResult);
             }else{
                 return null;
             }
         }
         if (getProviderDevice() != null && !pos.getDeviceId().equals(getProviderDevice().getIdentity().getUdn().getIdentifierString())){
-            return browseSync(getProviderDevice(),"0" , BrowseFlag.DIRECT_CHILDREN, "*", 0L, null);
+            return browseSync(getProviderDevice(),"0" , BrowseFlag.DIRECT_CHILDREN, "*", firstResult, maxResult);
         }
-        return browseSync(getDevice(pos.getDeviceId()), pos.getObjectId(), BrowseFlag.DIRECT_CHILDREN, "*", 0L, null);
+        return browseSync(getDevice(pos.getDeviceId()), pos.getObjectId(), BrowseFlag.DIRECT_CHILDREN, "*", firstResult, maxResult);
     }
 
     /**
@@ -702,6 +704,9 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      * @return the player
      */
     public List<Player> initializePlayers(List<Item> items) {
+        if (playerService == null){
+            return Collections.emptyList();
+        }
         LinkedList<PlayableItem> playableItems = new LinkedList<>();
 
         for (Item currentItem : items) {
@@ -727,6 +732,9 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      * @return the player
      */
     public List<Player> initializePlayers(AvTransport transport) {
+        if (playerService == null){
+            return Collections.emptyList();
+        }
         PlayableItem playableItem = new PlayableItem();
         List<PlayableItem> items = new ArrayList<PlayableItem>();
         if (transport == null) {
@@ -786,6 +794,9 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      * @return the player
      */
     public Collection<Player> getCurrentPlayers(){
+        if(playerService == null){
+            return Collections.emptyList();
+        }
         return playerService.getCurrentPlayers();
     }
 
@@ -796,6 +807,9 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      * @return the player
      */
     public List<Player> getCurrentPlayers(AvTransport transport) {
+        if (playerService == null){
+            return Collections.emptyList();
+        }
         List<PlayableItem> items = new ArrayList<PlayableItem>();
         if (transport == null) {
             return playerService.createPlayer(this, null, items);
@@ -894,8 +908,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     private DIDLContent loadContainer(Container container) {
         ContentDirectoryBrowseResult result = browseSync(getProviderDevice(), container.getId());
         if (result.getUpnpFailure() != null) {
-            Toast toast = Toast.makeText(getContext(), result.getUpnpFailure().getDefaultMsg(), Toast.LENGTH_LONG);
-            toast.show();
+            Log.e(getClass().getName(), "Error while loading container:" + result.getUpnpFailure().getDefaultMsg());
             return null;
         }
         return result.getResult();
@@ -1032,7 +1045,12 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         result = getContext().stopService(new Intent(getContext(), YaaccUpnpServerService.class));
         Log.d(getClass().getName(), "Stopping YaaccUpnpServerService succsessful= " + result);
         // stop all players
-        playerService.shutdown();
+        if (playerService != null){
+            playerService.shutdown();
+        }
+        result = getContext().stopService(new Intent(getContext(), PlayerService.class));
+        Log.d(getClass().getName(), "Stopping PlayerService succsessful= " + result);
+
     }
 
     /**
@@ -1127,7 +1145,12 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     }
 
     public void downloadItem(DIDLObject selectedDIDLObject) {
-        AsyncTask<DIDLObject, Void, Void> fileDownloader = new FileDownloader(this).execute(selectedDIDLObject);
+        new FileDownloader(this).execute(selectedDIDLObject);
+    }
+
+    public void controlDevice(Device device) {
+        if (playerService == null)return;
+        playerService.controlDevice(this, device);
     }
 
 

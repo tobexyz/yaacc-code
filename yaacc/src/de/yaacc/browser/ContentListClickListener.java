@@ -78,17 +78,28 @@ public class ContentListClickListener implements OnItemClickListener {
             }
             navigator.pushPosition(new Position(newObjectId, upnpClient.getProviderDeviceId()));
             contentListActivity.populateItemList();
-        } else {
-            PlayableItem playableItem = new PlayableItem((Item)currentObject, 0);
-            if (playableItem.getMimeType().startsWith("video")){
-                play(upnpClient.initializePlayers(currentObject));
-            }else{
-                playAll();
+        } else if (currentObject instanceof Item){
+            if (currentObject == BrowseItemAdapter.LOAD_MORE_FAKE_ITEM){
+                adapter.loadMore();
+            } else {
+                PlayableItem playableItem = new PlayableItem((Item) currentObject, 0);
+                ContentItemPlayTask task = new ContentItemPlayTask(this);
+                if (playableItem.getMimeType() != null && playableItem.getMimeType().startsWith("video")) {
+                    task.execute(ContentItemPlayTask.PLAY_CURRENT);
+                } else {
+                    task.execute(ContentItemPlayTask.PLAY_ALL);
+                }
+
+
+
             }
         }
     }
 
-    private void playAll() {
+    public void playCurrent(){
+        play(upnpClient.initializePlayers(currentObject));
+    }
+    public void playAll() {
         if(currentObject == null){
             return;
         }
@@ -106,8 +117,8 @@ public class ContentListClickListener implements OnItemClickListener {
             int index = items.indexOf(currentObject);
             if(index > 0){
                 //sort selected item to the beginning
-                List<Item> tempItems = new ArrayList<Item>(items.subList(index,items.size()-1));
-                tempItems.addAll(items.subList(0,index-1));
+                List<Item> tempItems = new ArrayList<Item>(items.subList(index,items.size()));
+                tempItems.addAll(items.subList(0,index));
                 items = tempItems;
             }
 
@@ -126,9 +137,9 @@ public class ContentListClickListener implements OnItemClickListener {
      */
     public boolean onContextItemSelected(DIDLObject selectedDIDLObject, MenuItem item, Context applicationContext) {
         if (item.getTitle().equals(applicationContext.getString(R.string.browse_context_play))) {
-            play(upnpClient.initializePlayers(currentObject));
+            new ContentItemPlayTask(this).execute(ContentItemPlayTask.PLAY_CURRENT);
         } else if (item.getTitle().equals(applicationContext.getString(R.string.browse_context_play_all))) {
-            playAll();
+            new ContentItemPlayTask(this).execute(ContentItemPlayTask.PLAY_ALL);
         } else if (item.getTitle().equals(applicationContext.getString(R.string.browse_context_download))) {
             try {
                 upnpClient.downloadItem(selectedDIDLObject);

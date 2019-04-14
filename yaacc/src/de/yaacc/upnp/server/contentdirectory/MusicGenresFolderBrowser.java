@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.fourthline.cling.support.model.DIDLObject;
+import org.fourthline.cling.support.model.SortCriterion;
 import org.fourthline.cling.support.model.container.Container;
 import org.fourthline.cling.support.model.container.MusicAlbum;
 import org.fourthline.cling.support.model.container.StorageFolder;
@@ -51,7 +52,7 @@ public class MusicGenresFolderBrowser extends ContentBrowser {
     }
 
     @Override
-	public DIDLObject browseMeta(YaaccContentDirectory contentDirectory, String myId) {
+	public DIDLObject browseMeta(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults,SortCriterion[] orderby) {
 		
 		StorageFolder folder = new StorageFolder(ContentDirectoryIDs.MUSIC_GENRES_FOLDER.getId(), ContentDirectoryIDs.MUSIC_FOLDER.getId(),getContext().getString(R.string.genres) , "yaacc", getSize(contentDirectory,myId),
 				907000L);
@@ -92,7 +93,7 @@ public class MusicGenresFolderBrowser extends ContentBrowser {
 	}
 	
 	@Override
-	public List<Container> browseContainer(YaaccContentDirectory contentDirectory, String myId) {
+	public List<Container> browseContainer(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults,SortCriterion[] orderby) {
 		List<Container> result = new ArrayList<Container>();
 		String[] projection = { MediaStore.Audio.Genres._ID, MediaStore.Audio.Genres.NAME };
 		String selection = "";
@@ -103,12 +104,18 @@ public class MusicGenresFolderBrowser extends ContentBrowser {
 
 		if (mediaCursor != null) {
 			mediaCursor.moveToFirst();
-			while (!mediaCursor.isAfterLast()) {
-				String id = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Audio.Genres._ID));
-				String name = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Audio.Genres.NAME));
-				MusicAlbum musicAlbum = new MusicAlbum(ContentDirectoryIDs.MUSIC_GENRE_PREFIX.getId()+id, ContentDirectoryIDs.MUSIC_GENRES_FOLDER.getId(), name, "", 0);
-                folderMap.put(id, musicAlbum);
-				Log.d(getClass().getName(), "Genre Folder: " + id + " Name: " + name);
+			int currentIndex = 0;
+			int currentCount = 0;
+			while (!mediaCursor.isAfterLast() && currentCount < maxResults) {
+				if (firstResult <= currentIndex) {
+					String id = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Audio.Genres._ID));
+					String name = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Audio.Genres.NAME));
+					MusicAlbum musicAlbum = new MusicAlbum(ContentDirectoryIDs.MUSIC_GENRE_PREFIX.getId()+id, ContentDirectoryIDs.MUSIC_GENRES_FOLDER.getId(), name, "", 0);
+					folderMap.put(id, musicAlbum);
+					Log.d(getClass().getName(), "Genre Folder: " + id + " Name: " + name);
+					currentCount++;
+				}
+				currentIndex++;
 				mediaCursor.moveToNext();
 			}
             mediaCursor.close();
@@ -131,7 +138,7 @@ public class MusicGenresFolderBrowser extends ContentBrowser {
 	}
 
 	@Override
-	public List<Item> browseItem(YaaccContentDirectory contentDirectory, String myId) {
+	public List<Item> browseItem(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults,SortCriterion[] orderby) {
 		List<Item> result = new ArrayList<Item>();
 		
 		return result;

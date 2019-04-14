@@ -61,12 +61,12 @@ public class MultiContentPlayerActivity extends Activity implements ServiceConne
     protected void initialize(){
         Player player = getPlayer();
 
-        ImageButton btnPrev = (ImageButton) findViewById(R.id.multiContentPlayerActivityControlPrev);
-        ImageButton btnNext = (ImageButton) findViewById(R.id.multiContentPlayerActivityControlNext);
-        ImageButton btnStop = (ImageButton) findViewById(R.id.multiContentPlayerActivityControlStop);
-        ImageButton btnPlay = (ImageButton) findViewById(R.id.multiContentPlayerActivityControlPlay);
-        ImageButton btnPause = (ImageButton) findViewById(R.id.multiContentPlayerActivityControlPause);
-        ImageButton btnExit = (ImageButton) findViewById(R.id.multiContentPlayerActivityControlExit);
+        ImageButton btnPrev = findViewById(R.id.multiContentPlayerActivityControlPrev);
+        ImageButton btnNext = findViewById(R.id.multiContentPlayerActivityControlNext);
+        ImageButton btnStop = findViewById(R.id.multiContentPlayerActivityControlStop);
+        ImageButton btnPlay = findViewById(R.id.multiContentPlayerActivityControlPlay);
+        ImageButton btnPause = findViewById(R.id.multiContentPlayerActivityControlPause);
+        ImageButton btnExit = findViewById(R.id.multiContentPlayerActivityControlExit);
         if (player == null) {
             btnPrev.setActivated(false);
             btnNext.setActivated(false);
@@ -141,15 +141,26 @@ public class MultiContentPlayerActivity extends Activity implements ServiceConne
 
             @Override
             public void onClick(View v) {
-                Player player = getPlayer();
-                if (player != null) {
-                    player.exit();
-                }
-                finish();
+                exit();
 
             }
         });
     }
+
+    private void exit() {
+        Player player = getPlayer();
+        if (player != null) {
+            player.exit();
+        }
+        finish();
+    }
+
+    @Override
+    protected void onDestroy(){
+        super.onDestroy();
+        unbindService(this);
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -173,6 +184,9 @@ public class MultiContentPlayerActivity extends Activity implements ServiceConne
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         switch (item.getItemId()) {
+            case R.id.menu_exit:
+                exit();
+                return true;
             case R.id.menu_settings:
                 Intent i = new Intent(this, SettingsActivity.class);
                 startActivity(i);

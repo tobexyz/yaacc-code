@@ -23,6 +23,7 @@ import java.util.List;
 
 import org.fourthline.cling.support.model.DIDLObject;
 import org.fourthline.cling.support.model.Res;
+import org.fourthline.cling.support.model.SortCriterion;
 import org.fourthline.cling.support.model.container.Container;
 import org.fourthline.cling.support.model.container.StorageFolder;
 import org.fourthline.cling.support.model.item.Item;
@@ -31,6 +32,7 @@ import org.seamless.util.MimeType;
 
 import android.content.Context;
 import android.database.Cursor;
+import android.provider.BaseColumns;
 import android.provider.MediaStore;
 import android.util.Log;
 import android.webkit.MimeTypeMap;
@@ -51,7 +53,7 @@ public class VideosFolderBrowser extends ContentBrowser {
     }
 
     @Override
-	public DIDLObject browseMeta(YaaccContentDirectory contentDirectory, String myId) {
+	public DIDLObject browseMeta(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults,SortCriterion[] orderby) {
 		
 		StorageFolder videosFolder = new StorageFolder(ContentDirectoryIDs.VIDEOS_FOLDER.getId(), ContentDirectoryIDs.ROOT.getId(), getContext().getString(R.string.videos), "yaacc", getSize(contentDirectory,myId),
 				907000L);
@@ -75,38 +77,45 @@ public class VideosFolderBrowser extends ContentBrowser {
 	}
 	
 	@Override
-	public List<Container> browseContainer(YaaccContentDirectory contentDirectory, String myId) {
+	public List<Container> browseContainer(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults,SortCriterion[] orderby) {
 		
 		return new ArrayList<Container>();
 	}
 
 	@Override
-	public List<Item> browseItem(YaaccContentDirectory contentDirectory, String myId) {
+	public List<Item> browseItem(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults,SortCriterion[] orderby) {
 		List<Item> result = new ArrayList<Item>();
 		String[] projection = { MediaStore.Video.Media._ID, MediaStore.Video.Media.DISPLAY_NAME, MediaStore.Video.Media.MIME_TYPE,
 				MediaStore.Video.Media.SIZE, MediaStore.Video.Media.DURATION };
 		String selection = "";
 		String[] selectionArgs = null;
+		String sortOrder = String.format("%s limit 100",BaseColumns._ID);
 		Cursor mediaCursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, projection, selection,
 				selectionArgs, MediaStore.Video.Media.DISPLAY_NAME + " ASC");
 
 		if (mediaCursor != null) {
 			mediaCursor.moveToFirst();
-			while (!mediaCursor.isAfterLast()) {
-				String id = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Video.VideoColumns._ID));
-				String name = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Video.VideoColumns.DISPLAY_NAME));
-				String duration = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Video.VideoColumns.DURATION));
-				duration = contentDirectory.formatDuration(duration);
-				Long size = Long.valueOf(mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Video.VideoColumns.SIZE)));
-				Log.d(getClass().getName(), "Mimetype: " + mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Video.VideoColumns.MIME_TYPE)));
-				MimeType mimeType = MimeType.valueOf(mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Video.VideoColumns.MIME_TYPE)));
-				// file parameter only needed for media players which decide the
-				// ability of playing a file by the file extension
-                String uri = getUriString(contentDirectory, id, mimeType);
-				Res resource = new Res(mimeType, size, uri);
-				resource.setDuration(duration);
-				result.add(new VideoItem(ContentDirectoryIDs.VIDEO_PREFIX.getId() +  id, ContentDirectoryIDs.VIDEOS_FOLDER.getId(), name, "", resource));
-				Log.d(getClass().getName(), "VideoItem: " + id + " Name: " + name + " uri: " + uri);
+            int currentIndex = 0;
+            int currentCount = 0;
+            while (!mediaCursor.isAfterLast() && currentCount < maxResults) {
+                if (firstResult <= currentIndex) {
+                    String id = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Video.VideoColumns._ID));
+                    String name = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Video.VideoColumns.DISPLAY_NAME));
+                    String duration = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Video.VideoColumns.DURATION));
+                    duration = contentDirectory.formatDuration(duration);
+                    Long size = Long.valueOf(mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Video.VideoColumns.SIZE)));
+                    Log.d(getClass().getName(), "Mimetype: " + mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Video.VideoColumns.MIME_TYPE)));
+                    MimeType mimeType = MimeType.valueOf(mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Video.VideoColumns.MIME_TYPE)));
+                    // file parameter only needed for media players which decide the
+                    // ability of playing a file by the file extension
+                    String uri = getUriString(contentDirectory, id, mimeType);
+                    Res resource = new Res(mimeType, size, uri);
+                    resource.setDuration(duration);
+                    result.add(new VideoItem(ContentDirectoryIDs.VIDEO_PREFIX.getId() + id, ContentDirectoryIDs.VIDEOS_FOLDER.getId(), name, "", resource));
+                    Log.d(getClass().getName(), "VideoItem: " + id + " Name: " + name + " uri: " + uri);
+                    currentCount++;
+                }
+                currentIndex++;
 				mediaCursor.moveToNext();
 			}
 			mediaCursor.close();

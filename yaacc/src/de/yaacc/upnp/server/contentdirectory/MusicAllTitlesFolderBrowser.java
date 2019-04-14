@@ -26,6 +26,7 @@ import android.util.Log;
 import org.fourthline.cling.support.model.DIDLObject;
 import org.fourthline.cling.support.model.DIDLObject.Property.UPNP;
 import org.fourthline.cling.support.model.Res;
+import org.fourthline.cling.support.model.SortCriterion;
 import org.fourthline.cling.support.model.container.Container;
 import org.fourthline.cling.support.model.container.MusicAlbum;
 import org.fourthline.cling.support.model.item.Item;
@@ -55,7 +56,7 @@ public class MusicAllTitlesFolderBrowser extends ContentBrowser {
 
     @Override
 	public DIDLObject browseMeta(YaaccContentDirectory contentDirectory,
-			String myId) {
+			String myId, long firstResult, long maxResults,SortCriterion[] orderby) {
 
 		MusicAlbum folder = new MusicAlbum(
 				ContentDirectoryIDs.MUSIC_ALL_TITLES_FOLDER.getId(),
@@ -85,14 +86,14 @@ public class MusicAllTitlesFolderBrowser extends ContentBrowser {
 
 	@Override
 	public List<Container> browseContainer(
-			YaaccContentDirectory contentDirectory, String myId) {
+			YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults,SortCriterion[] orderby) {
 
 		return new ArrayList<Container>();
 	}
 
 	@Override
 	public List<Item> browseItem(YaaccContentDirectory contentDirectory,
-			String myId) {
+			String myId, long firstResult, long maxResults,SortCriterion[] orderby) {
 		List<Item> result = new ArrayList<Item>();
 		String[] projection = { MediaStore.Audio.Media._ID,
 				MediaStore.Audio.Media.DISPLAY_NAME,
@@ -110,52 +111,57 @@ public class MusicAllTitlesFolderBrowser extends ContentBrowser {
 
 		if (mediaCursor != null) {
 			mediaCursor.moveToFirst();
-			while (!mediaCursor.isAfterLast()) {
-				String id = mediaCursor.getString(mediaCursor
-						.getColumnIndex(MediaStore.Audio.Media._ID));
-				String name = mediaCursor.getString(mediaCursor
-						.getColumnIndex(MediaStore.Audio.Media.DISPLAY_NAME));
-				Long size = Long.valueOf(mediaCursor.getString(mediaCursor
-						.getColumnIndex(MediaStore.Audio.Media.SIZE)));
+			int currentIndex = 0;
+			int currentCount = 0;
+			while (!mediaCursor.isAfterLast() && currentCount < maxResults) {
+				if (firstResult <= currentIndex) {
+					String id = mediaCursor.getString(mediaCursor
+							.getColumnIndex(MediaStore.Audio.Media._ID));
+					String name = mediaCursor.getString(mediaCursor
+							.getColumnIndex(MediaStore.Audio.Media.DISPLAY_NAME));
+					Long size = Long.valueOf(mediaCursor.getString(mediaCursor
+							.getColumnIndex(MediaStore.Audio.Media.SIZE)));
 
-				String album = mediaCursor.getString(mediaCursor
-						.getColumnIndex(MediaStore.Audio.Media.ALBUM));
-				String albumId = mediaCursor.getString(mediaCursor
-						.getColumnIndex(MediaStore.Audio.Media.ALBUM_ID));
-				String title = mediaCursor.getString(mediaCursor
-						.getColumnIndex(MediaStore.Audio.Media.TITLE));
-				String artist = mediaCursor.getString(mediaCursor
-						.getColumnIndex(MediaStore.Audio.Media.ARTIST));
-				String duration = mediaCursor.getString(mediaCursor
-						.getColumnIndex(MediaStore.Audio.Media.DURATION));
-				duration = contentDirectory.formatDuration(duration);
-				Log.d(getClass().getName(),
-						"Mimetype: "
-								+ mediaCursor.getString(mediaCursor
-										.getColumnIndex(MediaStore.Audio.Media.MIME_TYPE)));
+					String album = mediaCursor.getString(mediaCursor
+							.getColumnIndex(MediaStore.Audio.Media.ALBUM));
+					String albumId = mediaCursor.getString(mediaCursor
+							.getColumnIndex(MediaStore.Audio.Media.ALBUM_ID));
+					String title = mediaCursor.getString(mediaCursor
+							.getColumnIndex(MediaStore.Audio.Media.TITLE));
+					String artist = mediaCursor.getString(mediaCursor
+							.getColumnIndex(MediaStore.Audio.Media.ARTIST));
+					String duration = mediaCursor.getString(mediaCursor
+							.getColumnIndex(MediaStore.Audio.Media.DURATION));
+					duration = contentDirectory.formatDuration(duration);
+					Log.d(getClass().getName(),
+							"Mimetype: "
+									+ mediaCursor.getString(mediaCursor
+											.getColumnIndex(MediaStore.Audio.Media.MIME_TYPE)));
 
-				MimeType mimeType = MimeType
-						.valueOf(mediaCursor.getString(mediaCursor
-								.getColumnIndex(MediaStore.Audio.Media.MIME_TYPE)));
-				// file parameter only needed for media players which decide
-				// the
-				// ability of playing a file by the file extension				
-                String uri = getUriString(contentDirectory, id, mimeType);
-				URI albumArtUri = URI.create("http://"
-						+ contentDirectory.getIpAddress() + ":"
-						+ YaaccUpnpServerService.PORT + "/?album=" + albumId);
-				Res resource = new Res(mimeType, size, uri);
-				resource.setDuration(duration);
-				MusicTrack musicTrack = new MusicTrack(
-						ContentDirectoryIDs.MUSIC_ALL_TITLES_ITEM_PREFIX.getId()
-								+ id, ContentDirectoryIDs.MUSIC_FOLDER.getId(),
-						title + "-(" + name + ")", "", album, artist, resource);
-				musicTrack.replaceFirstProperty(new UPNP.ALBUM_ART_URI(
-						albumArtUri));
-				result.add(musicTrack);
-				Log.d(getClass().getName(), "MusicTrack: " + id + " Name: "
-						+ name + " uri: " + uri);
-
+					MimeType mimeType = MimeType
+							.valueOf(mediaCursor.getString(mediaCursor
+									.getColumnIndex(MediaStore.Audio.Media.MIME_TYPE)));
+					// file parameter only needed for media players which decide
+					// the
+					// ability of playing a file by the file extension
+					String uri = getUriString(contentDirectory, id, mimeType);
+					URI albumArtUri = URI.create("http://"
+							+ contentDirectory.getIpAddress() + ":"
+							+ YaaccUpnpServerService.PORT + "/?album=" + albumId);
+					Res resource = new Res(mimeType, size, uri);
+					resource.setDuration(duration);
+					MusicTrack musicTrack = new MusicTrack(
+							ContentDirectoryIDs.MUSIC_ALL_TITLES_ITEM_PREFIX.getId()
+									+ id, ContentDirectoryIDs.MUSIC_FOLDER.getId(),
+							title + "-(" + name + ")", "", album, artist, resource);
+					musicTrack.replaceFirstProperty(new UPNP.ALBUM_ART_URI(
+							albumArtUri));
+					result.add(musicTrack);
+					Log.d(getClass().getName(), "MusicTrack: " + id + " Name: "
+							+ name + " uri: " + uri);
+					currentCount++;
+				}
+				currentIndex++;
 				mediaCursor.moveToNext();
 			}
 			mediaCursor.close();

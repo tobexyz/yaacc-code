@@ -88,19 +88,22 @@ public class BrowseDeviceAdapter extends BaseAdapter {
         }
 
         Device device = (Device) getItem(position);
-        holder.icon.setImageResource(R.drawable.device);
-        if (device instanceof RemoteDevice && device.hasIcons()) {
-            Icon[] icons = device.getIcons();
-            for (int i = 0; i < icons.length; i++) {
-                if (48 == icons[i].getHeight() && 48 == icons[i].getWidth() && "image/png".equals(icons[i].getMimeType().toString())) {
-                    URL iconUri = ((RemoteDevice) device).normalizeURI(icons[i].getUri());
-                    if (iconUri != null) {
-                        Log.d(getClass().getName(), "Device icon uri:" + iconUri);
-                        new IconDownloadTask((ListView) parent, position).execute(Uri.parse(iconUri.toString()));
-                        break;
+        if (device instanceof RemoteDevice) {
+            if (device.hasIcons()) {
+                Icon[] icons = device.getIcons();
+                for (int i = 0; i < icons.length; i++) {
+                    if (48 == icons[i].getHeight() && 48 == icons[i].getWidth() && "image/png".equals(icons[i].getMimeType().toString())) {
+                        URL iconUri = ((RemoteDevice) device).normalizeURI(icons[i].getUri());
+                        if (iconUri != null) {
+                            Log.d(getClass().getName(), "Device icon uri:" + iconUri);
+                            new IconDownloadTask((ListView) parent, position).execute(Uri.parse(iconUri.toString()));
+                            break;
 
+                        }
                     }
                 }
+            }else{
+                holder.icon.setImageResource(R.drawable.device);
             }
         } else if (device instanceof LocalDevice) {
             //We know our icon

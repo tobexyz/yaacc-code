@@ -40,6 +40,9 @@
     <string name="settings_browse_video_off">Videodateien verbergen</string>
     <string name="settings_browse_image_on">Bilddateien anzeigen</string>
     <string name="settings_browse_image_off">Bilddateien verbergen</string>
+    <string name="settings_browse_load_threads_key">settings_browse_load_threads_key</string>
+    <string name="settings_browse_load_threads">Anzahl Threads</string>
+    <string name="settings_browse_load_threads_summ">Festlegen der Anzahl der Threads mit denen Inhalte von UPNP Server geladen werden. Mehrere Threads können das Laden beschleunigen, aber auch zu Instabilitäten führen. Änderung werden erst nach Neustart von Yaacc wirksam.</string>
     <string name="settings_audio_chkbx">audio_chkbx</string>
     <string name="settings_video_chkbx">video_chkbx</string>
     <string name="settings_image_chkbx">image_chkbx</string>

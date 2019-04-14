@@ -8,6 +8,7 @@ import android.widget.ImageView;
 import android.widget.ListView;
 
 import de.yaacc.R;
+import de.yaacc.browser.BrowseItemAdapter;
 
 /**
  * AsyncTask fpr retrieving icons while browsing.
@@ -16,7 +17,8 @@ import de.yaacc.R;
  */
 public class IconDownloadTask extends AsyncTask<Uri, Integer, Bitmap> {
 
-	private ListView listView;
+    private BrowseItemAdapter browseItemAdapter;
+    private ListView listView;
 	private int position;
 	private IconDownloadCacheHandler cache;
 
@@ -32,6 +34,13 @@ public class IconDownloadTask extends AsyncTask<Uri, Integer, Bitmap> {
 	public IconDownloadTask(ListView list, int position) {
 		this.listView = list;
 		this.position = position;
+		this.cache = IconDownloadCacheHandler.getInstance();
+	}
+
+	public IconDownloadTask(BrowseItemAdapter adapter, ListView list, int position) {
+		this.listView = list;
+		this.position = position;
+		this.browseItemAdapter = adapter;
 		this.cache = IconDownloadCacheHandler.getInstance();
 	}
 
@@ -77,9 +86,12 @@ public class IconDownloadTask extends AsyncTask<Uri, Integer, Bitmap> {
 		int visiblePosition = listView.getFirstVisiblePosition();
 		View v = listView.getChildAt(position - visiblePosition);
 		if (v != null && result != null) {
-			ImageView c = (ImageView) v.findViewById(R.id.browseItemIcon);
+			ImageView c = v.findViewById(R.id.browseItemIcon);
 			c.setImageBitmap(result);
 		}
+		if (browseItemAdapter != null){
+		    browseItemAdapter.removeTask(this);
+        }
 	}
 
 

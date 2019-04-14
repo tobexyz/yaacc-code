@@ -18,18 +18,27 @@
 package de.yaacc.browser;
 
 import android.app.Activity;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
 import android.util.Log;
+import android.view.ContextMenu;
+import android.view.Menu;
+import android.view.MenuItem;
+import android.view.View;
+import android.widget.AdapterView;
 import android.widget.ListView;
 
 import org.fourthline.cling.model.meta.Device;
+import org.fourthline.cling.support.model.DIDLObject;
 
+import java.util.ArrayList;
 import java.util.LinkedList;
 
 import de.yaacc.R;
 import de.yaacc.Yaacc;
+import de.yaacc.settings.SettingsActivity;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.UpnpClientListener;
 import de.yaacc.util.image.IconDownloadCacheHandler;
@@ -45,6 +54,7 @@ public class ReceiverListActivity extends Activity implements
     private UpnpClient upnpClient = null;
     BrowseReceiverDeviceClickListener bReceiverDeviceClickListener = null;
     protected ListView contentList;
+    private Device selectedDevice=null;
 
     @Override
     public void onResume() {
@@ -138,5 +148,35 @@ public class ReceiverListActivity extends Activity implements
 
     }
 
+    /**
+     * Creates context menu for certain actions on a specific item.
+     */
+    @Override
+    public void onCreateContextMenu(ContextMenu menu, View v,
+                                    ContextMenu.ContextMenuInfo menuInfo) {
+        AdapterView.AdapterContextMenuInfo info = (AdapterView.AdapterContextMenuInfo) menuInfo;
+        if (v instanceof ListView) {
+            ListView listView = (ListView) v;
+            Object item = listView.getAdapter().getItem(info.position);
+            if (item instanceof Device) {
+                selectedDevice = (Device) item;
+            }
+        }
+        menu.setHeaderTitle(v.getContext().getString(
+                R.string.browse_context_title));
+        ArrayList<String> menuItems = new ArrayList<String>();
+        menuItems.add(v.getContext().getString(R.string.browse_context_control_device));
+        for (int i = 0; i < menuItems.size(); i++) {
+            menu.add(Menu.NONE, i, i, menuItems.get(i));
+        }
+    }
 
+    @Override
+    public boolean onContextItemSelected(MenuItem item) {
+        if (item.getTitle().equals(getApplication().getString(R.string.browse_context_control_device))){
+            upnpClient.controlDevice(selectedDevice);
+        }
+
+        return true;
+    }
 }
