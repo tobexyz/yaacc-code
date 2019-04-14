@@ -111,7 +111,27 @@ public class BrowseItemAdapter extends BaseAdapter implements AbsListView.OnScro
         if (objects == null) {
             return 0;
         }
-        return objects.size();
+        int result = objects.size();
+        if (objects.contains(LOAD_MORE_FAKE_ITEM)) {
+            result--;
+        }
+        if (objects.contains(LOADING_FAKE_ITEM)) {
+            result--;
+        }
+        return result;
+    }
+
+
+    public int getCountWithoutFakeItems() {
+        int result = getCount();
+        if (objects.contains(LOAD_MORE_FAKE_ITEM)) {
+            result--;
+        }
+        if (objects.contains(LOADING_FAKE_ITEM)) {
+            result--;
+        }
+        result = result < 0 ? 0: result;
+        return result;
     }
 
     public void addAll(Collection<? extends DIDLObject> objects ){
@@ -274,7 +294,7 @@ public class BrowseItemAdapter extends BaseAdapter implements AbsListView.OnScro
         if (navigator == null || navigator.getCurrentPosition() == null || navigator.getCurrentPosition().getDeviceId()==null) return;
         if (loading || allItemsFetched ) return;
         setLoading(true);
-        Long from = getCount() -0L;
+        Long from = getCountWithoutFakeItems() -0L;
         if (from > 0){
             from--;
         }
