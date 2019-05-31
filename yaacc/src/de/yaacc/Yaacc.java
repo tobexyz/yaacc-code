@@ -55,6 +55,10 @@ public class Yaacc extends Application {
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
         Integer numThreads = Integer.valueOf(preferences.getString(getString(R.string.settings_browse_load_threads_key),"10"));
         Log.d(getClass().getName(),"Number of Threads used for content loading: " + numThreads);
+        if (numThreads <=0){
+            Log.d(getClass().getName(),"Number of Threads invalid using 10 threads instead: " + numThreads);
+            numThreads=10;
+        }
         contentLoadThreadPool = Executors.newFixedThreadPool(numThreads);
     }
 
