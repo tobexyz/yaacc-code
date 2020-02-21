@@ -36,7 +36,11 @@ UPNP renderer in your network.
 * Allow download files to the device
 * Implemented parts of UPnP Version 3 at once (sending synchronization information to the renderer)
 
-# build from source
+# Build dependencies
+Android SDK (set ANDROID_HOME or create a local.properties file to point to it)
+Maven (tested with 3.6.0)
+
+# Build from source
 Build the project by running following command in the project root:
 
 ```./gradlew build```
