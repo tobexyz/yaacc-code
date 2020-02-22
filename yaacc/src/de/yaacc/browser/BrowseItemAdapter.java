@@ -121,19 +121,6 @@ public class BrowseItemAdapter extends BaseAdapter implements AbsListView.OnScro
         return result;
     }
 
-
-    public int getCountWithoutFakeItems() {
-        int result = getCount();
-        if (objects.contains(LOAD_MORE_FAKE_ITEM)) {
-            result--;
-        }
-        if (objects.contains(LOADING_FAKE_ITEM)) {
-            result--;
-        }
-        result = result < 0 ? 0: result;
-        return result;
-    }
-
     public void addAll(Collection<? extends DIDLObject> objects ){
         Log.d(getClass().getName(), "added objects; " + objects);
         this.objects.addAll(objects);
@@ -294,10 +281,8 @@ public class BrowseItemAdapter extends BaseAdapter implements AbsListView.OnScro
         if (navigator == null || navigator.getCurrentPosition() == null || navigator.getCurrentPosition().getDeviceId()==null) return;
         if (loading || allItemsFetched ) return;
         setLoading(true);
-        Long from = getCountWithoutFakeItems() -0L;
-        if (from > 0){
-            from--;
-        }
+        Long from = getCount() - 0L;
+
         Log.d(getClass().getName(),"loadMore from: " + from);
 
         BrowseItemLoadTask browseItemLoadTask = new BrowseItemLoadTask(this, CHUNK_SIZE);
