@@ -100,6 +100,7 @@ public class ContentListActivity extends Activity implements OnClickListener,
         setContentView(R.layout.activity_content_list);
         upnpClient = ((Yaacc)getApplicationContext()).getUpnpClient();
         contentList = (ListView) findViewById(R.id.contentList);
+        contentList.setFastScrollEnabled(true);
         registerForContextMenu(contentList);
         upnpClient.addUpnpClientListener(this);
         bItemClickListener = new ContentListClickListener(upnpClient, this);
