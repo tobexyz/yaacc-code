@@ -9,8 +9,13 @@ buildscript {
 
 apply plugin: "com.github.dkorotych.gradle-maven-exec"
 
+
 def clingVersion='2.1.2.yaacc_2'
 def seamlessVersion='1.1.2.yaacc_1'
+
+configurations {
+  build
+}
 
 task cloneSeamlessRepo{
     File dir=new File("$projectDir/build/poms/seamless")
@@ -75,6 +80,8 @@ task build(type: MavenExec) {
     workingDir "${projectDir}/build/poms/"
     goals 'clean', 'install'
 }
+
+
 
 
 build.dependsOn(copyReactorPom)
