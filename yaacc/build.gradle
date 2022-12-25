@@ -15,6 +15,7 @@ dependencies {
     implementation files('../clingbuild/build/poms/tobexyz-cling/support/target/cling-support-2.1.2.yaacc_2.jar')
     implementation files('../clingbuild/build/poms/seamless/util/target/seamless-util-1.1.2.yaacc_1.jar')
     implementation files('../clingbuild/build/poms/seamless/xml/target/seamless-xml-1.1.2.yaacc_1.jar')
+    implementation files('../clingbuild/build/poms/seamless/http/target/seamless-http-1.1.2.yaacc_1.jar')
     implementation 'com.android.support:support-v4:26.0.0'
     implementation 'org.eclipse.jetty:jetty-http:8.2.0.v20160908'
     implementation 'org.eclipse.jetty:jetty-server:8.2.0.v20160908'
