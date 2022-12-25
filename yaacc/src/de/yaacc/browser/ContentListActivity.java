@@ -160,7 +160,7 @@ public class ContentListActivity extends Activity implements OnClickListener,
         String currentObjectId = navigator.getCurrentPosition() == null ? Navigator.ITEM_ROOT_OBJECT_ID : navigator.getCurrentPosition().getObjectId();
         if (Navigator.ITEM_ROOT_OBJECT_ID.equals(currentObjectId)) {
             if (getParent() instanceof TabBrowserActivity) {
-                ((TabBrowserActivity) getParent()).setCurrentTab(TabBrowserActivity.Tabs.SERVER);
+                ((TabBrowserActivity) getParent()).setCurrentTab(BrowserTabs.SERVER);
             }
 
         } else {

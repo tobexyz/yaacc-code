@@ -27,6 +27,7 @@ public class BrowseItemLoadTask extends AsyncTask<Long,Integer,ContentDirectoryB
         }
 
         Long from = params[0];
+        Log.d(getClass().getName(),"loading from:" + from + " chunkSize: " + chunkSize);
         return ((Yaacc)itemAdapter.getContext().getApplicationContext()).getUpnpClient().browseSync(itemAdapter.getNavigator().getCurrentPosition(), from, this.chunkSize);
 
     }

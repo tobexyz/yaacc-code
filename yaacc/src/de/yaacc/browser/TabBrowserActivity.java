@@ -1,5 +1,5 @@
 /*
-* Copyright (C) 2014 www.yaacc.de
+* Copyright (C) 2014-2022 www.yaacc.de
 *
 * This program is free software; you can redistribute it and/or
 * modify it under the terms of the GNU General Public License
@@ -18,15 +18,19 @@
 package de.yaacc.browser;
 
 import android.Manifest;
-import android.app.ActivityGroup;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
-import android.os.Build;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
-import android.support.v4.app.ActivityCompat;
-import android.support.v4.content.ContextCompat;
+
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+import androidx.fragment.app.FragmentActivity;
+import androidx.viewpager2.adapter.FragmentStateAdapter;
+import androidx.viewpager2.widget.ViewPager2;
+
 import android.util.Log;
 import android.view.ContextMenu;
 import android.view.ContextMenu.ContextMenuInfo;
@@ -34,8 +38,8 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.View.OnClickListener;
-import android.widget.TabHost;
-import android.widget.Toast;
+
+import com.google.android.material.tabs.TabLayout;
 
 import org.fourthline.cling.model.meta.Device;
 
@@ -53,12 +57,13 @@ import de.yaacc.util.YaaccLogActivity;
  *
  * @author Tobias Schoene (the openbit)
  */
-public class TabBrowserActivity extends ActivityGroup implements OnClickListener,
+public class TabBrowserActivity extends FragmentActivity implements OnClickListener,
         UpnpClientListener {
     private static String[] permissions = new String[]{
         Manifest.permission.INTERNET,
                 Manifest.permission.ACCESS_WIFI_STATE,
                 Manifest.permission.ACCESS_NETWORK_STATE,
+                Manifest.permission.CHANGE_WIFI_STATE,
                 Manifest.permission.CHANGE_WIFI_MULTICAST_STATE,
                 Manifest.permission.READ_EXTERNAL_STORAGE,
                 Manifest.permission.WRITE_EXTERNAL_STORAGE,
@@ -66,42 +71,29 @@ public class TabBrowserActivity extends ActivityGroup implements OnClickListener
                 Manifest.permission.RECEIVE_BOOT_COMPLETED,
                 Manifest.permission.WAKE_LOCK
     };
-    private TabHost tabHost;
+    private TabLayout tabLayout;
     //FIXME dirty
     public static boolean leftSettings=false;
     private static String CURRENT_TAB_KEY="currentTab";
+    private ViewPager2 viewPager;
+    private FragmentStateAdapter pagerAdapter;
 
-    public enum Tabs {
-        SERVER,
-        CONTENT,
-        RECEIVER,
-        PLAYER;
 
-        public static Tabs valueOf(int ordinal){
-            for( Tabs tab : values()){
-                if(tab.ordinal() == ordinal){
-                    return tab;
 
-                }
-            }
-            return null;
-        }
-
-    }
 
     private UpnpClient upnpClient = null;
 
 
     private Intent serverService = null;
-    private TabHost.TabSpec serverTab;
-    private TabHost.TabSpec contentTab;
-    private TabHost.TabSpec receiverTab;
-    private TabHost.TabSpec playerTab;
+    private TabLayout.Tab serverTab;
+    private TabLayout.Tab contentTab;
+    private TabLayout.Tab receiverTab;
+    private TabLayout.Tab playerTab;
 
     @Override
     protected void onSaveInstanceState(Bundle outState) {
         super.onSaveInstanceState(outState);
-        outState.putInt(CURRENT_TAB_KEY, tabHost.getCurrentTab());
+        outState.putInt(CURRENT_TAB_KEY, tabLayout.getSelectedTabPosition());
     }
 
     private boolean checkIfAlreadyhavePermission() {
@@ -123,59 +115,68 @@ public class TabBrowserActivity extends ActivityGroup implements OnClickListener
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_tab_browse);
-        // local server startup
-        upnpClient = ((Yaacc)getApplicationContext()).getUpnpClient();
 
+        viewPager = findViewById(R.id.browserTabPager);
+        tabLayout =  findViewById(R.id.browserTabLayout);
+        pagerAdapter = new TabBrowserFragmentStateAdapter(this);
+        viewPager.setAdapter(pagerAdapter);
 
-        tabHost = (TabHost) findViewById(R.id.browserTabHost);
-        tabHost.setup(this.getLocalActivityManager());
-        serverTab = tabHost.newTabSpec("server").setIndicator(getResources().getString(R.string.title_activity_server_list), getResources().getDrawable(R.drawable.device_48_48)).setContent(new Intent(this, ServerListActivity.class));
-        tabHost.addTab(serverTab);
-        contentTab = tabHost.newTabSpec("content").setIndicator(getResources().getString(R.string.title_activity_content_list), getResources().getDrawable(R.drawable.cdtrack)).setContent(new Intent(this, ContentListActivity.class));
-        tabHost.addTab(contentTab);
-        receiverTab = tabHost.newTabSpec("receiver").setIndicator(getResources().getString(R.string.title_activity_receiver_list), getResources().getDrawable(R.drawable.laptop_48_48)).setContent(new Intent(this, ReceiverListActivity.class));
-        tabHost.addTab(receiverTab);
-        playerTab = tabHost.newTabSpec("player").setIndicator(getResources().getString(R.string.title_activity_player_list), getResources().getDrawable(R.drawable.player_play)).setContent(new Intent(this, PlayerListActivity.class));
-        tabHost.addTab(playerTab);
-        // ask for permissions
-        int appVersion = Build.VERSION.SDK_INT;
-        if (appVersion > Build.VERSION_CODES.LOLLIPOP_MR1) {
-            if (!checkIfAlreadyhavePermission()) {
-                requestForSpecificPermission();
-            }else{
-                Log.d(getClass().getName(), "All permissions granted");
-            }
+        /*
+        tabLayout = (TabLayout) findViewById(R.id.browserTabLayout);
+        //FIXME tabLayout.setup(this.getLocalActivityManager());
+        serverTab = tabLayout.newTab().setText("server"); //FIXME.setIndicator(getResources().getString(R.string.title_activity_server_list), getResources().getDrawable(R.drawable.device_48_48)).setContent(new Intent(this, ServerListActivity.class));
+        tabLayout.addTab(serverTab);
+        contentTab = tabLayout.newTab().setText("content"); //FIXME.setIndicator(getResources().getString(R.string.title_activity_content_list), getResources().getDrawable(R.drawable.cdtrack)).setContent(new Intent(this, ContentListActivity.class));
+        tabLayout.addTab(contentTab);
+        receiverTab = tabLayout.newTab().setText("receiver"); //FIXME.setIndicator(getResources().getString(R.string.title_activity_receiver_list), getResources().getDrawable(R.drawable.laptop_48_48)).setContent(new Intent(this, ReceiverListActivity.class));
+        tabLayout.addTab(receiverTab);
+        playerTab = tabLayout.newTab().setText("player"); //FIXME.setIndicator(getResources().getString(R.string.title_activity_player_list), getResources().getDrawable(R.drawable.player_play)).setContent(new Intent(this, PlayerListActivity.class));
+        tabLayout.addTab(playerTab);
+        */
+        if (!checkIfAlreadyhavePermission()) {
+            requestForSpecificPermission();
+        }else{
+            Log.d(getClass().getName(), "All permissions granted");
         }
 
+        // local server startup
+/*        upnpClient = ((Yaacc)getApplicationContext()).getUpnpClient();
+        if (upnpClient == null){
+           Log.d(getClass().getName(), "Upnp client is null");
+          return;
+        }
         // add ourself as listener
         upnpClient.addUpnpClientListener(this);
+
+ */
         if(savedInstanceState != null){
-            setCurrentTab(Tabs.valueOf(savedInstanceState.getInt(CURRENT_TAB_KEY, Tabs.CONTENT.ordinal())));
+            setCurrentTab(BrowserTabs.valueOf(savedInstanceState.getInt(CURRENT_TAB_KEY, BrowserTabs.CONTENT.ordinal())));
         }else if (upnpClient.getProviderDevice() != null) {
-            setCurrentTab(Tabs.CONTENT);
+            setCurrentTab(BrowserTabs.CONTENT);
 
         }
     }
 
-    public void setCurrentTab(final Tabs content) {
+    public void setCurrentTab(final BrowserTabs content) {
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
                 switch (content) {
                     case CONTENT: {
-                        tabHost.setCurrentTab(Tabs.CONTENT.ordinal());
+                        //FIXMEtabLayout.setSelectedTabIndicator(ContextCompat.getDrawable(TabBrowserActivity.this, R.drawable.device_48_48)).setContent(new Intent(this, ContentListActivity.class));
+                        //FIXMEtabLayout.setCurrentTab(Tabs.CONTENT.ordinal());
                         break;
                     }
                     case SERVER: {
-                        tabHost.setCurrentTab(Tabs.SERVER.ordinal());
+                        //FIXMEtabLayout.setCurrentTab(Tabs.SERVER.ordinal());
                         break;
                     }
                     case PLAYER: {
-                        tabHost.setCurrentTab(Tabs.PLAYER.ordinal());
+                        //FIXMEtabLayout.setCurrentTab(Tabs.PLAYER.ordinal());
                         break;
                     }
                     case RECEIVER: {
-                        tabHost.setCurrentTab(Tabs.RECEIVER.ordinal());
+                        //FIXMEtabLayout.setCurrentTab(Tabs.RECEIVER.ordinal());
                         break;
                     }
                 }

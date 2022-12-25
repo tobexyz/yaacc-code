@@ -1,21 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?><!--
- *
- * Copyright (C) 2013 www.yaacc.de
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 3
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
--->
+<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     package="de.yaacc"
@@ -27,7 +10,6 @@
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission android:name="android.permission.GET_TASKS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
@@ -42,6 +24,7 @@
         android:theme="@style/AppTheme">
         <activity
             android:name=".browser.ServerListActivity"
+            android:exported="true"
             android:label="@string/title_activity_server_list">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
@@ -52,6 +35,7 @@
         </activity>
         <activity
             android:name=".browser.ContentListActivity"
+            android:exported="true"
             android:label="@string/title_activity_content_list">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
@@ -62,6 +46,7 @@
         </activity>
         <activity
             android:name=".browser.ReceiverListActivity"
+            android:exported="true"
             android:label="@string/title_activity_receiver_list">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
@@ -72,6 +57,7 @@
         </activity>
         <activity
             android:name=".browser.PlayerListActivity"
+            android:exported="true"
             android:label="@string/title_activity_player_list">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
@@ -82,6 +68,7 @@
         </activity>
         <activity
             android:name=".browser.TabBrowserActivity"
+            android:exported="true"
             android:label="@string/title_activity_main">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
@@ -104,6 +91,7 @@
 
         <activity
             android:name=".imageviewer.ImageViewerActivity"
+            android:exported="true"
             android:label="@string/title_activity_image_viewer">
             <intent-filter tools:ignore="AppLinkUrlError">
                 <action android:name="android.intent.action.VIEW" />
@@ -131,61 +119,75 @@
 
         <activity
             android:name=".player.MusicPlayerActivity"
+            android:exported="true"
             android:label="@string/title_activity_music_player">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
+
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
         <activity
             android:name=".player.ThirdPartieMusicPlayerActivity"
+            android:exported="true"
             android:label="@string/title_activity_music_player">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
+
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
         <activity
             android:name=".player.AVTransportPlayerActivity"
+            android:exported="true"
             android:label="@string/title_activity_avtransport_player">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
+
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
         <activity
             android:name=".player.MultiContentPlayerActivity"
+            android:exported="true"
             android:label="@string/title_activity_multi_content_player">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
+
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
         <activity
             android:name=".util.AboutActivity"
+            android:exported="true"
             android:label="@string/yaacc_about">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
+
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
         <activity
             android:name=".upnp.server.YaaccUpnpServerControlActivity"
+            android:exported="true"
             android:label="@string/title_activity_yaacc_upnp_server_control">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
+
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
         <activity
             android:name=".util.YaaccLogActivity"
+            android:exported="true"
             android:label="@string/title_activity_yaacc_log">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
+
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>

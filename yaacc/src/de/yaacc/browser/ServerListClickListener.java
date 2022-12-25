@@ -44,7 +44,7 @@ public class ServerListClickListener implements OnItemClickListener {
         BrowseDeviceAdapter adapter = (BrowseDeviceAdapter) listView.getAdapter();
         upnpClient.setProviderDevice((Device) adapter.getItem(position));
         if (parent.getParent() instanceof TabBrowserActivity) {
-            ((TabBrowserActivity) parent.getParent()).setCurrentTab(TabBrowserActivity.Tabs.CONTENT);
+            ((TabBrowserActivity) parent.getParent()).setCurrentTab(BrowserTabs.CONTENT);
         }
     }
 

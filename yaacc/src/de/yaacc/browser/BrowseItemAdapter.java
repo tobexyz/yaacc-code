@@ -58,12 +58,12 @@ import de.yaacc.util.image.IconDownloadTask;
 public class BrowseItemAdapter extends BaseAdapter implements AbsListView.OnScrollListener {
     private static final long CHUNK_SIZE = 10;
     public static final Item LOAD_MORE_FAKE_ITEM = new Item("LoadMoreFakeItem", (String) null,"...","",(DIDLObject.Class)null);
-    private static final Item LOADING_FAKE_ITEM = new Item("LoadingFakeItem", (String) null,"Loading...","",(DIDLObject.Class)null);;
+    private static final Item LOADING_FAKE_ITEM = new Item("LoadingFakeItem", (String) null,"Loading...","",(DIDLObject.Class)null);
     private boolean loading = false;
 
 
     private LayoutInflater inflator;
-    private List<DIDLObject> objects= new LinkedList<DIDLObject>();
+    private List<DIDLObject> objects= new LinkedList<>();
     private Context context;
     private Navigator navigator;
     private List <AsyncTask> asyncTasks;
@@ -150,8 +150,8 @@ public class BrowseItemAdapter extends BaseAdapter implements AbsListView.OnScro
         if (arg1 == null) {
             arg1 = inflator.inflate(R.layout.browse_item, parent, false);
             holder = new ViewHolder();
-            holder.icon = (ImageView) arg1.findViewById(R.id.browseItemIcon);
-            holder.name = (TextView) arg1.findViewById(R.id.browseItemName);
+            holder.icon = arg1.findViewById(R.id.browseItemIcon);
+            holder.name = arg1.findViewById(R.id.browseItemName);
             arg1.setTag(holder);
         } else {
             holder = (ViewHolder) arg1.getTag();

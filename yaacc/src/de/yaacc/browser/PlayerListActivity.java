@@ -112,7 +112,7 @@ public class PlayerListActivity extends Activity implements
     @Override
     public void onBackPressed() {
         if (getParent() instanceof TabBrowserActivity) {
-            ((TabBrowserActivity) getParent()).setCurrentTab(TabBrowserActivity.Tabs.RECEIVER);
+            ((TabBrowserActivity) getParent()).setCurrentTab(BrowserTabs.RECEIVER);
         }
     }
 

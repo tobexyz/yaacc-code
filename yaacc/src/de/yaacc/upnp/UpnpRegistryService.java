@@ -43,6 +43,7 @@ public class UpnpRegistryService extends AndroidUpnpServiceImpl {
 
 			@Override
 			public ServiceType[] getExclusiveServiceTypes() {
+
 				return new ServiceType[] { new UDAServiceType("AVTransport"), new UDAServiceType("ContentDirectory"), new UDAServiceType("ConnectionManager"), new UDAServiceType("RenderingControl"), new UDAServiceType("X_MS_MediaReceiverRegistrar") };
 			}
 

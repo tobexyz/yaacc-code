@@ -18,7 +18,6 @@
 package de.yaacc.browser;
 
 import android.app.Activity;
-import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
@@ -31,14 +30,12 @@ import android.widget.AdapterView;
 import android.widget.ListView;
 
 import org.fourthline.cling.model.meta.Device;
-import org.fourthline.cling.support.model.DIDLObject;
 
 import java.util.ArrayList;
 import java.util.LinkedList;
 
 import de.yaacc.R;
 import de.yaacc.Yaacc;
-import de.yaacc.settings.SettingsActivity;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.UpnpClientListener;
 import de.yaacc.util.image.IconDownloadCacheHandler;
@@ -95,7 +92,7 @@ public class ReceiverListActivity extends Activity implements
         Log.d(ReceiverListActivity.class.getName(), "onBackPressed() CurrentPosition");
 
         if (getParent() instanceof TabBrowserActivity) {
-            ((TabBrowserActivity) getParent()).setCurrentTab(TabBrowserActivity.Tabs.CONTENT);
+            ((TabBrowserActivity) getParent()).setCurrentTab(BrowserTabs.CONTENT);
         }
 
     }

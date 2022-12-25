@@ -3,12 +3,15 @@ import org.ajoberstar.grgit.*
 buildscript {
         dependencies {
             classpath 'org.ajoberstar:gradle-git:1.7.2'
-            classpath "gradle.plugin.com.github.dkorotych.gradle.maven.exec:gradle-maven-exec-plugin:2.2.1"
+//           classpath "gradle.plugin.com.github.dkorotych.gradle.maven.exec:gradle-maven-exec-plugin:2.2"
+
         }
     }
 
-apply plugin: "com.github.dkorotych.gradle-maven-exec"
-
+plugins {
+    id "com.github.dkorotych.gradle-maven-exec" version "3.0"
+}
+//apply plugin: "com.github.dkorotych.gradle-maven-exec"
 
 def clingVersion='2.1.2.yaacc_2'
 def seamlessVersion='1.1.2.yaacc_1'

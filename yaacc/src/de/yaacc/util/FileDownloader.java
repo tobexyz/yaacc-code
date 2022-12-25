@@ -19,11 +19,10 @@
 package de.yaacc.util;
 
 import android.app.NotificationManager;
-import android.app.PendingIntent;
 import android.content.Context;
 import android.os.AsyncTask;
 import android.os.Environment;
-import android.support.v4.app.NotificationCompat;
+import androidx.core.app.NotificationCompat;
 import android.util.Log;
 import android.webkit.MimeTypeMap;
 

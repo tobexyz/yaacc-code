@@ -114,7 +114,7 @@ public class ServerListActivity extends Activity implements
 
         if (upnpClient.getProviderDevice() != null && upnpClient.getProviderDevice().equals(device)) {
             if (getParent() instanceof TabBrowserActivity) {
-                ((TabBrowserActivity) getParent()).setCurrentTab(TabBrowserActivity.Tabs.CONTENT);
+                ((TabBrowserActivity) getParent()).setCurrentTab(BrowserTabs.CONTENT);
             }
         }
     }
