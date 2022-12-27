@@ -2,12 +2,12 @@ buildscript {
 
     dependencies {
         classpath 'com.android.tools.build:gradle:7.3.1'
+
     }
 }
 
 
 apply plugin: 'com.android.application'
-
 
 dependencies {
 
@@ -27,11 +27,12 @@ dependencies {
     implementation 'androidx.lifecycle:lifecycle-livedata-ktx:2.4.1'
     implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.4.1'
 //https://developer.android.com/jetpack/androidx/migrate/artifact-mappings
+
 }
 
 android {
     compileSdkVersion 32
-    //useLibrary 'org.apache.http.legacy'
+
 
     sourceSets {
         main {
@@ -60,9 +61,13 @@ android {
         resources {
             excludes += ['META-INF/beans.xml', 'META-INF/NOTICE.md', 'META-INF/LICENSE.md']
         }
+
     }
 
-
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+    }
     defaultConfig {
         targetSdkVersion 32
         minSdkVersion 28
@@ -73,5 +78,6 @@ android {
     buildFeatures {
         viewBinding true
     }
+
 
 }

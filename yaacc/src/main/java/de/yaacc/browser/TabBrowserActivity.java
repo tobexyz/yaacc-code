@@ -1,20 +1,20 @@
 /*
-* Copyright (C) 2014-2022 www.yaacc.de
-*
-* This program is free software; you can redistribute it and/or
-* modify it under the terms of the GNU General Public License
-* as published by the Free Software Foundation; either version 3
-* of the License, or (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program; if not, write to the Free Software
-* Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
-*/
+ * Copyright (C) 2014-2022 www.yaacc.de
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 3
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ */
 package de.yaacc.browser;
 
 import android.Manifest;
@@ -23,14 +23,6 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
-
-import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.app.ActivityCompat;
-import androidx.core.content.ContextCompat;
-import androidx.fragment.app.FragmentActivity;
-import androidx.viewpager2.adapter.FragmentStateAdapter;
-import androidx.viewpager2.widget.ViewPager2;
-
 import android.util.Log;
 import android.view.ContextMenu;
 import android.view.ContextMenu.ContextMenuInfo;
@@ -38,6 +30,12 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.View.OnClickListener;
+
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+import androidx.fragment.app.FragmentActivity;
+import androidx.viewpager2.adapter.FragmentStateAdapter;
+import androidx.viewpager2.widget.ViewPager2;
 
 import com.google.android.material.tabs.TabLayout;
 
@@ -59,26 +57,24 @@ import de.yaacc.util.YaaccLogActivity;
  */
 public class TabBrowserActivity extends FragmentActivity implements OnClickListener,
         UpnpClientListener {
-    private static String[] permissions = new String[]{
-        Manifest.permission.INTERNET,
-                Manifest.permission.ACCESS_WIFI_STATE,
-                Manifest.permission.ACCESS_NETWORK_STATE,
-                Manifest.permission.CHANGE_WIFI_STATE,
-                Manifest.permission.CHANGE_WIFI_MULTICAST_STATE,
-                Manifest.permission.READ_EXTERNAL_STORAGE,
-                Manifest.permission.WRITE_EXTERNAL_STORAGE,
-                Manifest.permission.GET_TASKS,
-                Manifest.permission.RECEIVE_BOOT_COMPLETED,
-                Manifest.permission.WAKE_LOCK
-    };
-    private TabLayout tabLayout;
     //FIXME dirty
-    public static boolean leftSettings=false;
-    private static String CURRENT_TAB_KEY="currentTab";
+    public static boolean leftSettings = false;
+    private static String[] permissions = new String[]{
+            Manifest.permission.INTERNET,
+            Manifest.permission.ACCESS_WIFI_STATE,
+            Manifest.permission.ACCESS_NETWORK_STATE,
+            Manifest.permission.CHANGE_WIFI_STATE,
+            Manifest.permission.CHANGE_WIFI_MULTICAST_STATE,
+            Manifest.permission.READ_EXTERNAL_STORAGE,
+            Manifest.permission.WRITE_EXTERNAL_STORAGE,
+            Manifest.permission.GET_TASKS,
+            Manifest.permission.RECEIVE_BOOT_COMPLETED,
+            Manifest.permission.WAKE_LOCK
+    };
+    private static String CURRENT_TAB_KEY = "currentTab";
+    private TabLayout tabLayout;
     private ViewPager2 viewPager;
     private FragmentStateAdapter pagerAdapter;
-
-
 
 
     private UpnpClient upnpClient = null;
@@ -97,7 +93,7 @@ public class TabBrowserActivity extends FragmentActivity implements OnClickListe
     }
 
     private boolean checkIfAlreadyhavePermission() {
-        for (String permission: permissions) {
+        for (String permission : permissions) {
             int permissionState = ContextCompat.checkSelfPermission(this, permission);
             if (permissionState != PackageManager.PERMISSION_GRANTED) {
                 return false;
@@ -117,7 +113,7 @@ public class TabBrowserActivity extends FragmentActivity implements OnClickListe
         setContentView(R.layout.activity_tab_browse);
 
         viewPager = findViewById(R.id.browserTabPager);
-        tabLayout =  findViewById(R.id.browserTabLayout);
+        tabLayout = findViewById(R.id.browserTabLayout);
         pagerAdapter = new TabBrowserFragmentStateAdapter(this);
         viewPager.setAdapter(pagerAdapter);
 
@@ -135,23 +131,23 @@ public class TabBrowserActivity extends FragmentActivity implements OnClickListe
         */
         if (!checkIfAlreadyhavePermission()) {
             requestForSpecificPermission();
-        }else{
+        } else {
             Log.d(getClass().getName(), "All permissions granted");
         }
 
         // local server startup
-/*        upnpClient = ((Yaacc)getApplicationContext()).getUpnpClient();
-        if (upnpClient == null){
-           Log.d(getClass().getName(), "Upnp client is null");
-          return;
+        upnpClient = ((Yaacc) getApplicationContext()).getUpnpClient();
+        if (upnpClient == null) {
+            Log.d(getClass().getName(), "Upnp client is null");
+            return;
         }
         // add ourself as listener
         upnpClient.addUpnpClientListener(this);
 
- */
-        if(savedInstanceState != null){
+
+        if (savedInstanceState != null) {
             setCurrentTab(BrowserTabs.valueOf(savedInstanceState.getInt(CURRENT_TAB_KEY, BrowserTabs.CONTENT.ordinal())));
-        }else if (upnpClient.getProviderDevice() != null) {
+        } else if (upnpClient.getProviderDevice() != null) {
             setCurrentTab(BrowserTabs.CONTENT);
 
         }
@@ -203,7 +199,7 @@ public class TabBrowserActivity extends FragmentActivity implements OnClickListe
                 getString(R.string.settings_local_server_chkbx), false);
         if (serverOn) {
             // (Re)Start upnpserver service for avtransport
-            if(leftSettings){
+            if (leftSettings) {
                 getApplicationContext().stopService(getYaaccUpnpServerService());
             }
             getApplicationContext().startService(getYaaccUpnpServerService());
@@ -215,7 +211,6 @@ public class TabBrowserActivity extends FragmentActivity implements OnClickListe
         leftSettings = false;
         super.onResume();
     }
-
 
 
     /**
@@ -257,7 +252,7 @@ public class TabBrowserActivity extends FragmentActivity implements OnClickListe
     public boolean onOptionsItemSelected(MenuItem item) {
         switch (item.getItemId()) {
             case R.id.menu_exit:
-                ((Yaacc)getApplicationContext()).exit();
+                ((Yaacc) getApplicationContext()).exit();
                 return true;
             case R.id.menu_settings:
                 Intent i = new Intent(this, SettingsActivity.class);

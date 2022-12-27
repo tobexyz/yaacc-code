@@ -34,6 +34,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import de.yaacc.upnp.server.AndroidServerConnector;
 import jakarta.servlet.Servlet;
 import jakarta.servlet.http.HttpServletRequest;
 
@@ -111,7 +112,7 @@ public class JettyServletContainer implements ServletContainerAdapter {
 
     @Override
     synchronized public int addConnector(String host, int port) throws IOException {
-        ServerConnector connector = new ServerConnector(server);
+        ServerConnector connector = new AndroidServerConnector(server);
         connector.setHost(host);
         connector.setPort(port);
 
