@@ -17,6 +17,19 @@ package org.fourthline.cling.support.lastchange;
 
 import static org.fourthline.cling.model.XMLUtil.appendNewElement;
 
+import org.fourthline.cling.model.XMLUtil;
+import org.fourthline.cling.model.types.UnsignedIntegerFourBytes;
+import org.fourthline.cling.support.shared.AbstractMap;
+import org.seamless.util.Exceptions;
+import org.seamless.util.io.IO;
+import org.seamless.xml.DOMParser;
+import org.seamless.xml.SAXParser;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.xml.sax.Attributes;
+import org.xml.sax.InputSource;
+import org.xml.sax.SAXException;
+
 import java.io.InputStream;
 import java.io.StringReader;
 import java.lang.reflect.Constructor;
@@ -27,19 +40,6 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import javax.xml.parsers.DocumentBuilderFactory;
-
-import org.fourthline.cling.model.XMLUtil;
-import org.fourthline.cling.model.types.UnsignedIntegerFourBytes;
-import org.fourthline.cling.support.shared.AbstractMap;
-import org.seamless.util.io.IO;
-import org.seamless.util.Exceptions;
-import org.seamless.xml.DOMParser;
-import org.seamless.xml.SAXParser;
-import org.w3c.dom.Document;
-import org.w3c.dom.Element;
-import org.xml.sax.Attributes;
-import org.xml.sax.InputSource;
-import org.xml.sax.SAXException;
 
 /**
  * Reads and writes the "LastChange" XML content.
@@ -58,16 +58,6 @@ import org.xml.sax.SAXException;
 public abstract class LastChangeParser extends SAXParser {
 
     final private static Logger log = Logger.getLogger(LastChangeParser.class.getName());
-
-    public enum CONSTANTS {
-        Event,
-        InstanceID,
-        val;
-
-        public boolean equals(String s) {
-            return this.name().equals(s);
-        }
-    }
 
     abstract protected String getNamespace();
 
@@ -120,16 +110,70 @@ public abstract class LastChangeParser extends SAXParser {
         parse(new InputSource(new StringReader(xml)));
 
         log.fine("Parsed event with instances IDs: " + event.getInstanceIDs().size());
-        if (log.isLoggable(Level.FINEST)) {
+        if (log.isLoggable(Level.INFO)) {
             for (InstanceID instanceID : event.getInstanceIDs()) {
-                log.finest("InstanceID '" + instanceID.getId() + "' has values: " + instanceID.getValues().size());
+                log.log(Level.INFO, "InstanceID '" + instanceID.getId() + "' has values: " + instanceID.getValues().size());
                 for (EventedValue eventedValue : instanceID.getValues()) {
-                    log.finest(eventedValue.getName() + " => " + eventedValue.getValue());
+                    log.log(Level.INFO, eventedValue.getName() + " => " + eventedValue.getValue());
                 }
             }
         }
 
         return event;
+    }
+
+    public String generate(Event event) throws Exception {
+        return XMLUtil.documentToFragmentString(buildDOM(event));
+    }
+
+    protected Document buildDOM(Event event) throws Exception {
+
+        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+        factory.setNamespaceAware(true);
+
+        Document d = factory.newDocumentBuilder().newDocument();
+        generateRoot(event, d);
+
+        return d;
+    }
+
+    protected void generateRoot(Event event, Document descriptor) {
+        Element eventElement = descriptor.createElementNS(getNamespace(), CONSTANTS.Event.name());
+        descriptor.appendChild(eventElement);
+        generateInstanceIDs(event, descriptor, eventElement);
+    }
+
+    protected void generateInstanceIDs(Event event, Document descriptor, Element rootElement) {
+        for (InstanceID instanceID : event.getInstanceIDs()) {
+            if (instanceID.getId() == null) continue;
+            Element instanceIDElement = appendNewElement(descriptor, rootElement, CONSTANTS.InstanceID.name());
+            instanceIDElement.setAttribute(CONSTANTS.val.name(), instanceID.getId().toString());
+
+            for (EventedValue eventedValue : instanceID.getValues()) {
+                generateEventedValue(eventedValue, descriptor, instanceIDElement);
+            }
+        }
+    }
+
+    protected void generateEventedValue(EventedValue eventedValue, Document descriptor, Element parentElement) {
+        String name = eventedValue.getName();
+        Map.Entry<String, String>[] attributes = eventedValue.getAttributes();
+        if (attributes != null && attributes.length > 0) {
+            Element evElement = appendNewElement(descriptor, parentElement, name);
+            for (Map.Entry<String, String> attr : attributes) {
+                evElement.setAttribute(attr.getKey(), DOMParser.escape(attr.getValue()));
+            }
+        }
+    }
+
+    public enum CONSTANTS {
+        Event,
+        InstanceID,
+        val;
+
+        public boolean equals(String s) {
+            return this.name().equals(s);
+        }
     }
 
     class RootHandler extends SAXParser.Handler<Event> {
@@ -186,50 +230,6 @@ public abstract class LastChangeParser extends SAXParser {
         @Override
         protected boolean isLastElement(String uri, String localName, String qName) {
             return CONSTANTS.InstanceID.equals(localName);
-        }
-    }
-
-    public String generate(Event event) throws Exception {
-        return XMLUtil.documentToFragmentString(buildDOM(event));
-    }
-
-    protected Document buildDOM(Event event) throws Exception {
-
-        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-        factory.setNamespaceAware(true);
-
-        Document d = factory.newDocumentBuilder().newDocument();
-        generateRoot(event, d);
-
-        return d;
-    }
-
-    protected void generateRoot(Event event, Document descriptor) {
-        Element eventElement = descriptor.createElementNS(getNamespace(), CONSTANTS.Event.name());
-        descriptor.appendChild(eventElement);
-        generateInstanceIDs(event, descriptor, eventElement);
-    }
-
-    protected void generateInstanceIDs(Event event, Document descriptor, Element rootElement) {
-        for (InstanceID instanceID : event.getInstanceIDs()) {
-            if (instanceID.getId() == null) continue;
-            Element instanceIDElement = appendNewElement(descriptor, rootElement, CONSTANTS.InstanceID.name());
-            instanceIDElement.setAttribute(CONSTANTS.val.name(), instanceID.getId().toString());
-
-            for (EventedValue eventedValue : instanceID.getValues()) {
-                generateEventedValue(eventedValue, descriptor, instanceIDElement);
-            }
-        }
-    }
-
-    protected void generateEventedValue(EventedValue eventedValue, Document descriptor, Element parentElement) {
-        String name = eventedValue.getName();
-        Map.Entry<String, String>[] attributes = eventedValue.getAttributes();
-        if (attributes != null && attributes.length > 0) {
-            Element evElement = appendNewElement(descriptor, parentElement, name);
-            for (Map.Entry<String, String> attr : attributes) {
-                evElement.setAttribute(attr.getKey(), DOMParser.escape(attr.getValue()));
-            }
         }
     }
 

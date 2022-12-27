@@ -22,6 +22,7 @@ import android.content.IntentFilter;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.wifi.WifiManager;
+
 import org.fourthline.cling.UpnpServiceConfiguration;
 import org.fourthline.cling.model.ModelUtil;
 import org.fourthline.cling.protocol.ProtocolFactory;
@@ -69,8 +70,8 @@ public class AndroidRouter extends RouterImpl {
     }
 
     protected BroadcastReceiver createConnectivityBroadcastReceiver() {
-		return new ConnectivityBroadcastReceiver();
-	}
+        return new ConnectivityBroadcastReceiver();
+    }
 
     @Override
     protected int getLockTimeoutMillis() {
@@ -85,6 +86,7 @@ public class AndroidRouter extends RouterImpl {
 
     @Override
     public boolean enable() throws RouterException {
+        log.info("in android router enable");
         lock(writeLock);
         try {
             boolean enabled;
@@ -99,11 +101,13 @@ public class AndroidRouter extends RouterImpl {
             return enabled;
         } finally {
             unlock(writeLock);
+            log.info("leave android router enable");
         }
     }
 
     @Override
     public boolean disable() throws RouterException {
+        log.info("in android router disable");
         lock(writeLock);
         try {
             // Disable multicast on WiFi network interface,
@@ -115,6 +119,7 @@ public class AndroidRouter extends RouterImpl {
             return super.disable();
         } finally {
             unlock(writeLock);
+            log.info("leave android router disable");
         }
     }
 
@@ -209,13 +214,13 @@ public class AndroidRouter extends RouterImpl {
      */
     protected void onNetworkTypeChange(NetworkInfo oldNetwork, NetworkInfo newNetwork) throws RouterException {
         log.info(String.format("Network type changed %s => %s",
-            oldNetwork == null ? "" : oldNetwork.getTypeName(),
-            newNetwork == null ? "NONE" : newNetwork.getTypeName()));
+                oldNetwork == null ? "" : oldNetwork.getTypeName(),
+                newNetwork == null ? "NONE" : newNetwork.getTypeName()));
 
         if (disable()) {
             log.info(String.format(
-                "Disabled router on network type change (old network: %s)",
-                oldNetwork == null ? "NONE" : oldNetwork.getTypeName()
+                    "Disabled router on network type change (old network: %s)",
+                    oldNetwork == null ? "NONE" : oldNetwork.getTypeName()
             ));
         }
 
@@ -224,8 +229,8 @@ public class AndroidRouter extends RouterImpl {
             // Can return false (via earlier InitializationException thrown by NetworkAddressFactory) if
             // no bindable network address found!
             log.info(String.format(
-                "Enabled router on network type change (new network: %s)",
-                newNetwork == null ? "NONE" : newNetwork.getTypeName()
+                    "Enabled router on network type change (new network: %s)",
+                    newNetwork == null ? "NONE" : newNetwork.getTypeName()
             ));
         }
     }
@@ -252,8 +257,20 @@ public class AndroidRouter extends RouterImpl {
             if (!intent.getAction().equals(ConnectivityManager.CONNECTIVITY_ACTION))
                 return;
 
-            displayIntentInfo(intent);
 
+            Thread thread = new Thread(new Runnable() {
+
+                @Override
+                public void run() {
+                    handleNewNetworkInfo(intent);
+                }
+            });
+            thread.run();
+        }
+
+        private void handleNewNetworkInfo(Intent intent) {
+            log.info("in handle networkinfo");
+            displayIntentInfo(intent);
             NetworkInfo newNetworkInfo = NetworkUtils.getConnectedNetworkInfo(context);
 
             // When Android switches WiFI => MOBILE, sometimes we may have a short transition
@@ -265,13 +282,14 @@ public class AndroidRouter extends RouterImpl {
             if (networkInfo != null && newNetworkInfo == null) {
                 for (int i = 1; i <= 3; i++) {
                     try {
+                        log.info("wait for new network info");
                         Thread.sleep(1000);
                     } catch (InterruptedException e) {
                         return;
                     }
                     log.warning(String.format(
-                        "%s => NONE network transition, waiting for new network... retry #%d",
-                        networkInfo.getTypeName(), i
+                            "%s => NONE network transition, waiting for new network... retry #%d",
+                            networkInfo.getTypeName(), i
                     ));
                     newNetworkInfo = NetworkUtils.getConnectedNetworkInfo(context);
                     if (newNetworkInfo != null)
@@ -299,6 +317,7 @@ public class AndroidRouter extends RouterImpl {
         }
 
         protected void displayIntentInfo(Intent intent) {
+            log.info("in display IntentInfo:" + intent.getAction());
             boolean noConnectivity = intent.getBooleanExtra(ConnectivityManager.EXTRA_NO_CONNECTIVITY, false);
             String reason = intent.getStringExtra(ConnectivityManager.EXTRA_REASON);
             boolean isFailover = intent.getBooleanExtra(ConnectivityManager.EXTRA_IS_FAILOVER, false);

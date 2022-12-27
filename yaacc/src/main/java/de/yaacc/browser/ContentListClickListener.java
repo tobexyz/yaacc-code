@@ -1,20 +1,20 @@
 /*
-* Copyright (C) 2014 www.yaacc.de
-*
-* This program is free software; you can redistribute it and/or
-* modify it under the terms of the GNU General Public License
-* as published by the Free Software Foundation; either version 3
-* of the License, or (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program; if not, write to the Free Software
-* Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
-*/
+ * Copyright (C) 2014 www.yaacc.de
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 3
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ */
 package de.yaacc.browser;
 
 import android.content.Context;
@@ -38,7 +38,6 @@ import de.yaacc.player.PlayableItem;
 import de.yaacc.player.Player;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.callback.contentdirectory.ContentDirectoryBrowseResult;
-import de.yaacc.util.image.IconDownloadCacheHandler;
 
 /**
  * ClickListener when browsing folders.
@@ -48,14 +47,14 @@ import de.yaacc.util.image.IconDownloadCacheHandler;
 public class ContentListClickListener implements OnItemClickListener {
     //FIXME: just for easter egg to play all items on prev button
     public static DIDLObject currentObject;
-    private final ContentListActivity contentListActivity;
+    private final ContentListFragment contentListFragment;
     private UpnpClient upnpClient;
     private Navigator navigator;
 
-    public ContentListClickListener(UpnpClient upnpClient, ContentListActivity contentListActivity) {
+    public ContentListClickListener(UpnpClient upnpClient, ContentListFragment contentListFragment) {
         this.upnpClient = upnpClient;
-        this.navigator = contentListActivity.getNavigator();
-        this.contentListActivity = contentListActivity;
+        this.navigator = contentListFragment.getNavigator();
+        this.contentListFragment = contentListFragment;
 
     }
 
@@ -70,16 +69,16 @@ public class ContentListClickListener implements OnItemClickListener {
             //IconDownloadCacheHandler.getInstance().resetCache();
             // if the current id is null, go back to the top level
             String newObjectId = Navigator.ITEM_ROOT_OBJECT_ID;
-            if (navigator == null || currentObject.getId() == null){
+            if (navigator == null || currentObject.getId() == null) {
                 navigator = new Navigator();
-                contentListActivity.setNavigator(navigator);
-            }else {
-                newObjectId =  adapter.getFolder(position).getId();
+                contentListFragment.setNavigator(navigator);
+            } else {
+                newObjectId = adapter.getFolder(position).getId();
             }
             navigator.pushPosition(new Position(newObjectId, upnpClient.getProviderDeviceId()));
-            contentListActivity.populateItemList();
-        } else if (currentObject instanceof Item){
-            if (currentObject == BrowseItemAdapter.LOAD_MORE_FAKE_ITEM){
+            contentListFragment.populateItemList();
+        } else if (currentObject instanceof Item) {
+            if (currentObject == BrowseItemAdapter.LOAD_MORE_FAKE_ITEM) {
                 adapter.loadMore();
             } else {
                 PlayableItem playableItem = new PlayableItem((Item) currentObject, 0);
@@ -91,34 +90,34 @@ public class ContentListClickListener implements OnItemClickListener {
                 }
 
 
-
             }
         }
     }
 
-    public void playCurrent(){
+    public void playCurrent() {
         play(upnpClient.initializePlayers(currentObject));
     }
+
     public void playAll() {
-        if(currentObject == null){
+        if (currentObject == null) {
             return;
         }
         ContentDirectoryBrowseResult result = upnpClient.browseSync(new Position(currentObject.getParentID(), upnpClient.getProviderDevice().getIdentity().getUdn().getIdentifierString()));
         if (result == null || (result.getResult() != null && result.getResult().getItems().size() == 0)) {
             Log.d(getClass().getName(), "Browse result of parent no direct items found...");
-            if(result.getResult() != null && result.getResult().getContainers().size() > 0){
+            if (result.getResult() != null && result.getResult().getContainers().size() > 0) {
                 play(upnpClient.initializePlayers(upnpClient.toItemList(result.getResult())));
-            }else {
+            } else {
                 play(upnpClient.initializePlayers(currentObject));
             }
         } else {
-            List<Item> items = result.getResult() == null ? new ArrayList<Item>(): result.getResult().getItems();
+            List<Item> items = result.getResult() == null ? new ArrayList<Item>() : result.getResult().getItems();
             Log.d(getClass().getName(), "Browse result items: " + items.size());
             int index = items.indexOf(currentObject);
-            if(index > 0){
+            if (index > 0) {
                 //sort selected item to the beginning
-                List<Item> tempItems = new ArrayList<Item>(items.subList(index,items.size()));
-                tempItems.addAll(items.subList(0,index));
+                List<Item> tempItems = new ArrayList<Item>(items.subList(index, items.size()));
+                tempItems.addAll(items.subList(0, index));
                 items = tempItems;
             }
 

@@ -33,8 +33,6 @@ import org.fourthline.cling.transport.impl.MulticastReceiverConfigurationImpl;
 import org.fourthline.cling.transport.impl.MulticastReceiverImpl;
 import org.fourthline.cling.transport.impl.NetworkAddressFactoryImpl;
 import org.fourthline.cling.transport.impl.SOAPActionProcessorImpl;
-import org.fourthline.cling.transport.impl.jetty.StreamClientConfigurationImpl;
-import org.fourthline.cling.transport.impl.jetty.StreamClientImpl;
 import org.fourthline.cling.transport.spi.DatagramIO;
 import org.fourthline.cling.transport.spi.DatagramProcessor;
 import org.fourthline.cling.transport.spi.GENAEventProcessor;
@@ -146,12 +144,14 @@ public class DefaultUpnpServiceConfiguration implements UpnpServiceConfiguration
         return genaEventProcessor;
     }
 
+
     public StreamClient createStreamClient() {
-        return new StreamClientImpl(
+        /*return new StreamClientImpl(
                 new StreamClientConfigurationImpl(
                         getSyncProtocolExecutorService()
                 )
-        );
+        );*/
+        return null;
     }
 
     public MulticastReceiver createMulticastReceiver(NetworkAddressFactory networkAddressFactory) {

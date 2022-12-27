@@ -38,8 +38,9 @@ public abstract class AbstractStreamClient<C extends StreamClientConfiguration, 
     @Override
     public StreamResponseMessage sendRequest(StreamRequestMessage requestMessage) throws InterruptedException {
 
-        if (log.isLoggable(Level.FINE))
-            log.fine("Preparing HTTP request: " + requestMessage);
+
+        log.info("Preparing HTTP request: " + requestMessage);
+        log.info("HTTP body: " + requestMessage.getBodyString());
 
         REQUEST request = createRequest(requestMessage);
         if (request == null)
@@ -56,18 +57,17 @@ public abstract class AbstractStreamClient<C extends StreamClientConfiguration, 
 
         // Wait on the current thread for completion
         try {
-            if (log.isLoggable(Level.FINE))
-                log.fine(
-                        "Waiting " + getConfiguration().getTimeoutSeconds()
-                                + " seconds for HTTP request to complete: " + requestMessage
-                );
+            log.info(
+                    "Waiting " + getConfiguration().getTimeoutSeconds()
+                            + " seconds for HTTP request to complete: " + requestMessage
+            );
             StreamResponseMessage response =
                     future.get(getConfiguration().getTimeoutSeconds(), TimeUnit.SECONDS);
 
             // Log a warning if it took too long
             long elapsed = System.currentTimeMillis() - start;
-            if (log.isLoggable(Level.FINEST))
-                log.finest("Got HTTP response in " + elapsed + "ms: " + requestMessage);
+
+            log.log(Level.INFO, "Got HTTP response in " + elapsed + "ms: " + requestMessage);
             if (getConfiguration().getLogWarningSeconds() > 0
                     && elapsed > getConfiguration().getLogWarningSeconds() * 1000) {
                 log.warning("HTTP request took a long time (" + elapsed + "ms): " + requestMessage);

@@ -37,7 +37,7 @@ import java.util.logging.Logger;
  */
 public abstract class SendingAsync implements Runnable {
 
-    final private static Logger log = Logger.getLogger(UpnpService.class.getName());
+    final private static Logger log = Logger.getLogger(SendingAsync.class.getName());
 
     private final UpnpService upnpService;
 
@@ -58,7 +58,7 @@ public abstract class SendingAsync implements Runnable {
                 log.log(Level.INFO, "Interrupted protocol '" + getClass().getSimpleName() + "': " + ex, cause);
             } else {
                 throw new RuntimeException(
-                    "Fatal error while executing protocol '" + getClass().getSimpleName() + "': " + ex, ex
+                        "Fatal error while executing protocol '" + getClass().getSimpleName() + "': " + ex, ex
                 );
             }
         }

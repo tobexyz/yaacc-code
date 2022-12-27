@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013 www.yaacc.de 
+ * Copyright (C) 2013 www.yaacc.de
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -24,10 +24,10 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.net.Uri;
-import android.os.Build;
 import android.os.IBinder;
-import androidx.core.app.NotificationCompat;
 import android.util.Log;
+
+import androidx.core.app.NotificationCompat;
 
 import java.beans.PropertyChangeListener;
 import java.net.URI;
@@ -37,6 +37,7 @@ import java.util.Timer;
 import java.util.TimerTask;
 
 import de.yaacc.R;
+import de.yaacc.Yaacc;
 import de.yaacc.imageviewer.ImageViewerActivity;
 import de.yaacc.imageviewer.ImageViewerBroadcastReceiver;
 import de.yaacc.upnp.SynchronizationInfo;
@@ -75,20 +76,16 @@ public class LocalImagePlayer implements Player, ServiceConnection {
         this.upnpClient = upnpClient;
     }
 
-    public void startService(){
-        if(playerService == null) {
-            if (Build.VERSION.SDK_INT >= 26) {
-                upnpClient.getContext().startForegroundService(new Intent(upnpClient.getContext(), PlayerService.class));
-            } else {
-                upnpClient.getContext().startService(new Intent(upnpClient.getContext(), PlayerService.class));
-            }
+    public void startService() {
+        if (playerService == null) {
+            upnpClient.getContext().startForegroundService(new Intent(upnpClient.getContext(), PlayerService.class));
             upnpClient.getContext().bindService(new Intent(upnpClient.getContext(), PlayerService.class),
                     this, Context.BIND_AUTO_CREATE);
         }
     }
 
     public void onServiceConnected(ComponentName className, IBinder binder) {
-        if(binder instanceof PlayerService.PlayerServiceBinder) {
+        if (binder instanceof PlayerService.PlayerServiceBinder) {
             Log.d("ServiceConnection", "connected");
 
             playerService = ((PlayerService.PlayerServiceBinder) binder).getService();
@@ -98,7 +95,7 @@ public class LocalImagePlayer implements Player, ServiceConnection {
 
 
     public void onServiceDisconnected(ComponentName className) {
-        Log.d("ServiceConnection","disconnected");
+        Log.d("ServiceConnection", "disconnected");
         playerService = null;
         playerService.removePlayer(this);
     }
@@ -254,6 +251,16 @@ public class LocalImagePlayer implements Player, ServiceConnection {
         showNotification(uris);
     }
 
+    /*
+     * (non-Javadoc)
+     *
+     * @see de.yaacc.player.Player#getName()
+     */
+    @Override
+    public String getName() {
+
+        return name;
+    }
 
     /*
      * (non-Javadoc)
@@ -264,17 +271,6 @@ public class LocalImagePlayer implements Player, ServiceConnection {
     public void setName(String name) {
         this.name = name;
 
-    }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see de.yaacc.player.Player#getName()
-     */
-    @Override
-    public String getName() {
-
-        return name;
     }
 
     /*
@@ -334,7 +330,7 @@ public class LocalImagePlayer implements Player, ServiceConnection {
     private void showNotification(ArrayList<Uri> uris) {
 
         NotificationCompat.Builder mBuilder = new NotificationCompat.Builder(
-                upnpClient.getContext())
+                upnpClient.getContext(), Yaacc.NOTIFICATION_CHANNEL_ID)
                 .setOngoing(false)
                 .setSmallIcon(R.drawable.ic_notification_default)
                 .setContentTitle(
@@ -451,16 +447,16 @@ public class LocalImagePlayer implements Player, ServiceConnection {
     }
 
     @Override
+    public SynchronizationInfo getSyncInfo() {
+        return syncInfo;
+    }
+
+    @Override
     public void setSyncInfo(SynchronizationInfo syncInfo) {
         if (syncInfo == null) {
             syncInfo = new SynchronizationInfo();
         }
         this.syncInfo = syncInfo;
-    }
-
-    @Override
-    public SynchronizationInfo getSyncInfo() {
-        return syncInfo;
     }
 
     private long getExecutionTime() {
@@ -477,12 +473,12 @@ public class LocalImagePlayer implements Player, ServiceConnection {
         upnpClient.setMute(mute);
     }
 
-    public void setVolume(int volume) {
-        upnpClient.setVolume(volume);
-    }
-
     public int getVolume() {
         return upnpClient.getVolume();
+    }
+
+    public void setVolume(int volume) {
+        upnpClient.setVolume(volume);
     }
 
     @Override
@@ -501,8 +497,8 @@ public class LocalImagePlayer implements Player, ServiceConnection {
     }
 
     @Override
-    public void seekTo(long millisecondsFromStart){
-    // Do nothing
+    public void seekTo(long millisecondsFromStart) {
+        // Do nothing
     }
 
 }

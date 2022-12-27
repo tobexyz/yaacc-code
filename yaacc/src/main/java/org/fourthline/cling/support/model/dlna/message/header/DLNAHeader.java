@@ -15,14 +15,14 @@
 
 package org.fourthline.cling.support.model.dlna.message.header;
 
+import org.fourthline.cling.model.message.header.InvalidHeaderException;
+import org.fourthline.cling.model.message.header.UpnpHeader;
 import org.seamless.util.Exceptions;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import org.fourthline.cling.model.message.header.InvalidHeaderException;
-import org.fourthline.cling.model.message.header.UpnpHeader;
 
 /**
  * Transforms known and standardized DLNA/HTTP headers from/to string representation.
@@ -37,6 +37,44 @@ import org.fourthline.cling.model.message.header.UpnpHeader;
 public abstract class DLNAHeader<T> extends UpnpHeader<T> {
 
     final private static Logger log = Logger.getLogger(DLNAHeader.class.getName());
+
+    /**
+     * Create a new instance of a {@link DLNAHeader} subtype that matches the given type and value.
+     * <p>
+     * This method iterates through all potential header subtype classes as declared in {@link Type}.
+     * It creates a new instance of the subtype class and calls its {@link #setString(String)} method.
+     * If no {@link org.fourthline.cling.model.message.header.InvalidHeaderException} is thrown, the subtype
+     * instance is returned.
+     * </p>
+     *
+     * @param type        The type (or name) of the header.
+     * @param headerValue The value of the header.
+     * @return The best matching header subtype instance, or <code>null</code> if no subtype can be found.
+     */
+    public static DLNAHeader newInstance(DLNAHeader.Type type, String headerValue) {
+
+        // Try all the UPnP headers and see if one matches our value parsers
+        DLNAHeader upnpHeader = null;
+        for (int i = 0; i < type.getHeaderTypes().length && upnpHeader == null; i++) {
+            Class<? extends DLNAHeader> headerClass = type.getHeaderTypes()[i];
+            try {
+                log.log(Level.INFO, "Trying to parse '" + type + "' with class: " + headerClass.getSimpleName());
+                upnpHeader = headerClass.newInstance();
+                if (headerValue != null) {
+                    upnpHeader.setString(headerValue);
+                }
+            } catch (InvalidHeaderException ex) {
+                log.log(Level.INFO, "Invalid header value for tested type: " + headerClass.getSimpleName() + " - " + ex.getMessage());
+                upnpHeader = null;
+            } catch (Exception ex) {
+                log.severe("Error instantiating header of type '" + type + "' with value: " + headerValue);
+                log.log(Level.SEVERE, "Exception root cause: ", Exceptions.unwrap(ex));
+            }
+
+        }
+        return upnpHeader;
+    }
+
 
     /**
      * Maps a standardized DLNA header to potential header subtypes.
@@ -67,7 +105,7 @@ public abstract class DLNAHeader<T> extends UpnpHeader<T> {
         RTPAMRDeInterleaving("rtp-amr-deint-buf-cap.dlna.org", BufferBytesHeader.class),
         RTPAMRWBPlusDeInterleaving("rtp-amrwbplus-deint-buf-cap.dlna.org", BufferBytesHeader.class),
         PRAGMA("PRAGMA", PragmaHeader.class);
-            
+
         private static Map<String, Type> byName = new HashMap<String, Type>() {{
             for (Type t : Type.values()) {
                 put(t.getHttpName(), t);
@@ -81,6 +119,14 @@ public abstract class DLNAHeader<T> extends UpnpHeader<T> {
         private Type(String httpName, Class<? extends DLNAHeader>... headerClass) {
             this.httpName = httpName;
             this.headerTypes = headerClass;
+        }
+
+        /**
+         * @param httpName A case-insensitive HTTP header name.
+         */
+        public static Type getByHttpName(String httpName) {
+            if (httpName == null) return null;
+            return byName.get(httpName);
         }
 
         public String getHttpName() {
@@ -99,52 +145,5 @@ public abstract class DLNAHeader<T> extends UpnpHeader<T> {
             }
             return false;
         }
-
-        /**
-         * @param httpName A case-insensitive HTTP header name.
-         */
-        public static Type getByHttpName(String httpName) {
-            if (httpName == null) return null;
-        	return byName.get(httpName);
-        }
-    }
-
-
-
-    /**
-     * Create a new instance of a {@link DLNAHeader} subtype that matches the given type and value.
-     * <p>
-     * This method iterates through all potential header subtype classes as declared in {@link Type}.
-     * It creates a new instance of the subtype class and calls its {@link #setString(String)} method.
-     * If no {@link org.fourthline.cling.model.message.header.InvalidHeaderException} is thrown, the subtype
-     * instance is returned.
-     * </p>
-     *
-     * @param type The type (or name) of the header.
-     * @param headerValue The value of the header.
-     * @return The best matching header subtype instance, or <code>null</code> if no subtype can be found.
-     */
-    public static DLNAHeader newInstance(DLNAHeader.Type type, String headerValue) {
-
-        // Try all the UPnP headers and see if one matches our value parsers
-        DLNAHeader upnpHeader = null;
-        for (int i = 0; i < type.getHeaderTypes().length && upnpHeader == null; i++) {
-            Class<? extends DLNAHeader> headerClass = type.getHeaderTypes()[i];
-            try {
-                log.finest("Trying to parse '" + type + "' with class: " + headerClass.getSimpleName());
-                upnpHeader = headerClass.newInstance();
-                if (headerValue != null) {
-                    upnpHeader.setString(headerValue);
-                }
-            } catch (InvalidHeaderException ex) {
-                log.finest("Invalid header value for tested type: " + headerClass.getSimpleName() + " - " + ex.getMessage());
-                upnpHeader = null;
-            } catch (Exception ex) {
-                log.severe("Error instantiating header of type '" + type + "' with value: " + headerValue);
-                log.log(Level.SEVERE, "Exception root cause: ", Exceptions.unwrap(ex));
-            }
-
-        }
-        return upnpHeader;
     }
 }

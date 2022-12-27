@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (C) 2013 www.yaacc.de 
+ * Copyright (C) 2013 www.yaacc.de
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -18,36 +18,111 @@
  */
 package de.yaacc.upnp;
 
-import org.fourthline.cling.android.AndroidUpnpServiceConfiguration;
-import org.fourthline.cling.android.AndroidUpnpServiceImpl;
-import org.fourthline.cling.model.types.ServiceType;
-import org.fourthline.cling.model.types.UDADeviceType;
-import org.fourthline.cling.model.types.UDAServiceType;
+import android.app.Service;
+import android.content.Context;
+import android.content.Intent;
+import android.os.IBinder;
+import android.util.Log;
+
+import org.fourthline.cling.UpnpService;
+import org.fourthline.cling.UpnpServiceConfiguration;
+import org.fourthline.cling.UpnpServiceImpl;
+import org.fourthline.cling.android.AndroidRouter;
+import org.fourthline.cling.android.AndroidUpnpService;
+import org.fourthline.cling.controlpoint.ControlPoint;
+import org.fourthline.cling.protocol.ProtocolFactory;
+import org.fourthline.cling.registry.Registry;
+import org.fourthline.cling.transport.Router;
 
 /**
  * This is an android service to provide access to an upnp registry.
- * 
+ *
  * @author Tobias Schöne (openbit)
- * 
  */
-public class UpnpRegistryService extends AndroidUpnpServiceImpl {
+public class UpnpRegistryService extends Service {
 
-	@Override
-	protected AndroidUpnpServiceConfiguration createConfiguration() {
+    protected UpnpService upnpService;
+    protected Binder binder = new Binder();
 
-		return new AndroidUpnpServiceConfiguration() {
-			@Override
-			public int getRegistryMaintenanceIntervalMillis() {
-				return 7000;
-			}
 
-			@Override
-			public ServiceType[] getExclusiveServiceTypes() {
+    /**
+     * Starts the UPnP service.
+     */
+    @Override
+    public void onCreate() {
+        long start = System.currentTimeMillis();
+        super.onCreate();
 
-				return new ServiceType[] { new UDAServiceType("AVTransport"), new UDAServiceType("ContentDirectory"), new UDAServiceType("ConnectionManager"), new UDAServiceType("RenderingControl"), new UDAServiceType("X_MS_MediaReceiverRegistrar") };
-			}
+        upnpService = new UpnpServiceImpl(createConfiguration()) {
 
-		};
-	}
+            @Override
+            protected Router createRouter(ProtocolFactory protocolFactory, Registry registry) {
+                return UpnpRegistryService.this.createRouter(
+                        getConfiguration(),
+                        protocolFactory,
+                        UpnpRegistryService.this
+                );
+            }
+
+            @Override
+            public synchronized void shutdown() {
+                // First have to remove the receiver, so Android won't complain about it leaking
+                // when the main UI thread exits.
+                ((AndroidRouter) getRouter()).unregisterBroadcastReceiver();
+
+                // Now we can concurrently run the Cling shutdown code, without occupying the
+                // Android main UI thread. This will complete probably after the main UI thread
+                // is done.
+                super.shutdown(true);
+            }
+        };
+        Log.d(this.getClass().getName(), "on start took: " + (System.currentTimeMillis() - start));
+    }
+
+    protected YaaccUpnpServiceConfiguration createConfiguration() {
+
+        return new YaaccUpnpServiceConfiguration(upnpService);
+    }
+
+
+    protected AndroidRouter createRouter(UpnpServiceConfiguration configuration,
+                                         ProtocolFactory protocolFactory,
+                                         Context context) {
+        return new AndroidRouter(configuration, protocolFactory, context);
+    }
+
+    @Override
+    public IBinder onBind(Intent intent) {
+        return binder;
+    }
+
+    /**
+     * Stops the UPnP service, when the last Activity unbinds from this Service.
+     */
+    @Override
+    public void onDestroy() {
+        upnpService.shutdown();
+        super.onDestroy();
+    }
+
+    protected class Binder extends android.os.Binder implements AndroidUpnpService {
+
+        public UpnpService get() {
+            return upnpService;
+        }
+
+        public UpnpServiceConfiguration getConfiguration() {
+            return upnpService.getConfiguration();
+        }
+
+        public Registry getRegistry() {
+            return upnpService.getRegistry();
+        }
+
+        public ControlPoint getControlPoint() {
+            return upnpService.getControlPoint();
+        }
+    }
+
 
 }

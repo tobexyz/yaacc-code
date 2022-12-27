@@ -349,6 +349,7 @@ public class YaaccContentDirectory {
         } catch (ContentDirectoryException ex) {
             throw ex;
         } catch (Exception ex) {
+            Log.d(getClass().getName(), "exception on browse", ex);
             throw new ContentDirectoryException(ErrorCode.ACTION_FAILED,
                     ex.toString());
         }

@@ -18,8 +18,8 @@ package org.fourthline.cling.model.message.header;
 import org.seamless.util.Exceptions;
 
 import java.util.HashMap;
-import java.util.Map;
 import java.util.Locale;
+import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -35,6 +35,68 @@ import java.util.logging.Logger;
 public abstract class UpnpHeader<T> {
 
     final private static Logger log = Logger.getLogger(UpnpHeader.class.getName());
+    private T value;
+
+    /**
+     * Create a new instance of a {@link UpnpHeader} subtype that matches the given type and value.
+     * <p>
+     * This method iterates through all potential header subtype classes as declared in {@link Type}.
+     * It creates a new instance of the subtype class and calls its {@link #setString(String)} method.
+     * If no {@link org.fourthline.cling.model.message.header.InvalidHeaderException} is thrown, the subtype
+     * instance is returned.
+     * </p>
+     *
+     * @param type        The type (or name) of the header.
+     * @param headerValue The value of the header.
+     * @return The best matching header subtype instance, or <code>null</code> if no subtype can be found.
+     */
+    public static UpnpHeader newInstance(UpnpHeader.Type type, String headerValue) {
+
+        // Try all the UPnP headers and see if one matches our value parsers
+        UpnpHeader upnpHeader = null;
+        for (int i = 0; i < type.getHeaderTypes().length && upnpHeader == null; i++) {
+            Class<? extends UpnpHeader> headerClass = type.getHeaderTypes()[i];
+            try {
+                log.log(Level.INFO, "Trying to parse '" + type + "' with class: " + headerClass.getSimpleName());
+                upnpHeader = headerClass.newInstance();
+                if (headerValue != null) {
+                    upnpHeader.setString(headerValue);
+                }
+            } catch (InvalidHeaderException ex) {
+                log.log(Level.INFO, "Invalid header value for tested type: " + headerClass.getSimpleName() + " - " + ex.getMessage());
+                upnpHeader = null;
+            } catch (Exception ex) {
+                log.severe("Error instantiating header of type '" + type + "' with value: " + headerValue);
+                log.log(Level.SEVERE, "Exception root cause: ", Exceptions.unwrap(ex));
+            }
+
+        }
+        return upnpHeader;
+    }
+
+    public T getValue() {
+        return value;
+    }
+
+    public void setValue(T value) {
+        this.value = value;
+    }
+
+    /**
+     * @return A string representing this header's value.
+     */
+    public abstract String getString();
+
+    /**
+     * @param s This header's value as a string representation.
+     * @throws InvalidHeaderException If the value is invalid for this UPnP header.
+     */
+    public abstract void setString(String s) throws InvalidHeaderException;
+
+    @Override
+    public String toString() {
+        return "(" + getClass().getSimpleName() + ") '" + getValue() + "'";
+    }
 
     /**
      * Maps a standardized UPnP header to potential header subtypes.
@@ -83,7 +145,7 @@ public abstract class UpnpHeader<T> {
         RANGE("RANGE", RangeHeader.class),
         CONTENT_RANGE("CONTENT-RANGE", ContentRangeHeader.class),
         PRAGMA("PRAGMA", PragmaHeader.class),
-        
+
         EXT_IFACE_MAC("X-CLING-IFACE-MAC", InterfaceMacHeader.class),
         EXT_AV_CLIENT_INFO("X-AV-CLIENT-INFO", AVClientInfoHeader.class);
 
@@ -102,6 +164,14 @@ public abstract class UpnpHeader<T> {
             this.headerTypes = headerClass;
         }
 
+        /**
+         * @param httpName A case-insensitive HTTP header name.
+         */
+        public static Type getByHttpName(String httpName) {
+            if (httpName == null) return null;
+            return byName.get(httpName.toUpperCase(Locale.ROOT));
+        }
+
         public String getHttpName() {
             return httpName;
         }
@@ -118,76 +188,5 @@ public abstract class UpnpHeader<T> {
             }
             return false;
         }
-
-        /**
-         * @param httpName A case-insensitive HTTP header name.
-         */
-        public static Type getByHttpName(String httpName) {
-            if (httpName == null) return null;
-        	return byName.get(httpName.toUpperCase(Locale.ROOT));
-        }
-    }
-
-    private T value;
-
-    public void setValue(T value) {
-        this.value = value;
-    }
-
-    public T getValue() {
-        return value;
-    }
-
-    /**
-     * @param s This header's value as a string representation.
-     * @throws InvalidHeaderException If the value is invalid for this UPnP header.
-     */
-    public abstract void setString(String s) throws InvalidHeaderException;
-
-    /**
-     * @return A string representing this header's value.
-     */
-    public abstract String getString();
-
-    /**
-     * Create a new instance of a {@link UpnpHeader} subtype that matches the given type and value.
-     * <p>
-     * This method iterates through all potential header subtype classes as declared in {@link Type}.
-     * It creates a new instance of the subtype class and calls its {@link #setString(String)} method.
-     * If no {@link org.fourthline.cling.model.message.header.InvalidHeaderException} is thrown, the subtype
-     * instance is returned.
-     * </p>
-     *
-     * @param type The type (or name) of the header.
-     * @param headerValue The value of the header.
-     * @return The best matching header subtype instance, or <code>null</code> if no subtype can be found.
-     */
-    public static UpnpHeader newInstance(UpnpHeader.Type type, String headerValue) {
-
-        // Try all the UPnP headers and see if one matches our value parsers
-        UpnpHeader upnpHeader = null;
-        for (int i = 0; i < type.getHeaderTypes().length && upnpHeader == null; i++) {
-            Class<? extends UpnpHeader> headerClass = type.getHeaderTypes()[i];
-            try {
-                log.finest("Trying to parse '" + type + "' with class: " + headerClass.getSimpleName());
-                upnpHeader = headerClass.newInstance();
-                if (headerValue != null) {
-                    upnpHeader.setString(headerValue);
-                }
-            } catch (InvalidHeaderException ex) {
-                log.finest("Invalid header value for tested type: " + headerClass.getSimpleName() + " - " + ex.getMessage());
-                upnpHeader = null;
-            } catch (Exception ex) {
-                log.severe("Error instantiating header of type '" + type + "' with value: " + headerValue);
-                log.log(Level.SEVERE, "Exception root cause: ", Exceptions.unwrap(ex));
-            }
-
-        }
-        return upnpHeader;
-    }
-
-    @Override
-    public String toString() {
-        return "(" + getClass().getSimpleName() + ") '" + getValue() + "'";
     }
 }

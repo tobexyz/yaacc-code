@@ -2,12 +2,12 @@ buildscript {
 
     dependencies {
         classpath 'com.android.tools.build:gradle:7.3.1'
+
     }
 }
 
 
 apply plugin: 'com.android.application'
-
 
 dependencies {
 
@@ -18,20 +18,19 @@ dependencies {
     implementation 'jakarta.enterprise:jakarta.enterprise.cdi-api:4.0.1'
     implementation 'com.google.android.material:material:1.7.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
-    implementation 'org.eclipse.jetty:jetty-http:11.0.13'
-    implementation 'org.eclipse.jetty:jetty-server:11.0.13'
-    implementation 'org.eclipse.jetty:jetty-client:11.0.13'
-    implementation 'org.eclipse.jetty:jetty-servlet:11.0.13'
+    implementation 'org.apache.httpcomponents.client5:httpclient5:5.2.1'
+    implementation 'org.apache.httpcomponents.core5:httpcore5:5.2'
     implementation 'org.slf4j:slf4j-simple:2.0.6'
     implementation 'androidx.appcompat:appcompat:1.5.1'
     implementation 'androidx.lifecycle:lifecycle-livedata-ktx:2.4.1'
     implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.4.1'
 //https://developer.android.com/jetpack/androidx/migrate/artifact-mappings
+
 }
 
 android {
     compileSdkVersion 32
-    //useLibrary 'org.apache.http.legacy'
+
 
     sourceSets {
         main {
@@ -58,11 +57,15 @@ android {
     }
     packagingOptions {
         resources {
-            excludes += ['META-INF/beans.xml', 'META-INF/NOTICE.md', 'META-INF/LICENSE.md']
+            excludes += ['META-INF/beans.xml', 'META-INF/NOTICE.md', 'META-INF/LICENSE.md', 'META-INF/DEPENDENCIES']
         }
+
     }
 
-
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+    }
     defaultConfig {
         targetSdkVersion 32
         minSdkVersion 28
@@ -73,5 +76,6 @@ android {
     buildFeatures {
         viewBinding true
     }
+
 
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013 www.yaacc.de 
+ * Copyright (C) 2013 www.yaacc.de
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -29,9 +29,10 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.preference.PreferenceManager;
-import androidx.core.app.NotificationCompat;
 import android.util.Log;
 import android.widget.Toast;
+
+import androidx.core.app.NotificationCompat;
 
 import java.beans.PropertyChangeListener;
 import java.beans.PropertyChangeSupport;
@@ -47,6 +48,7 @@ import java.util.Timer;
 import java.util.TimerTask;
 
 import de.yaacc.R;
+import de.yaacc.Yaacc;
 import de.yaacc.upnp.SynchronizationInfo;
 import de.yaacc.upnp.UpnpClient;
 
@@ -57,6 +59,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
 
     public static final String PLAYER_ID = "PlayerId";
     public static final String PROPERTY_ITEM = "item";
+    private final PropertyChangeSupport pcs = new PropertyChangeSupport(this);
     private List<PlayableItem> items = new ArrayList<PlayableItem>();
     private int previousIndex = 0;
     private int currentIndex = 0;
@@ -64,15 +67,9 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
     private Timer execTimer;
     private boolean isPlaying = false;
     private boolean isProcessingCommand = false;
-
-
     private UpnpClient upnpClient;
     private PlayerService playerService;
     private String name;
-
-
-
-    private final PropertyChangeSupport pcs = new PropertyChangeSupport(this);
     private SynchronizationInfo syncInfo;
     private boolean paused;
     private Object loadedItem = null;
@@ -88,7 +85,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
     }
 
     public void onServiceConnected(ComponentName className, IBinder binder) {
-        if(binder instanceof PlayerService.PlayerServiceBinder) {
+        if (binder instanceof PlayerService.PlayerServiceBinder) {
             Log.d("ServiceConnection", "connected");
 
             playerService = ((PlayerService.PlayerServiceBinder) binder).getService();
@@ -98,7 +95,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
 
 
     public void onServiceDisconnected(ComponentName className) {
-        Log.d("ServiceConnection","disconnected");
+        Log.d("ServiceConnection", "disconnected");
         playerService = null;
         playerService.removePlayer(this);
     }
@@ -118,8 +115,8 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
         return upnpClient;
     }
 
-    public void startService(){
-        if(playerService == null) {
+    public void startService() {
+        if (playerService == null) {
             if (Build.VERSION.SDK_INT >= 26) {
                 upnpClient.getContext().startForegroundService(new Intent(upnpClient.getContext(), PlayerService.class));
             } else {
@@ -296,8 +293,6 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
     }
 
 
-
-
     /*
      * (non-Javadoc)
      *
@@ -336,23 +331,6 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
         }, getExecutionTime());
     }
 
-    /*
-     * (non-Javadoc)
-     *
-     * @see de.yaacc.player.Player#setItems(de.yaacc.player.PlayableItem[])
-     */
-    @Override
-    public void setItems(PlayableItem... playableItems) {
-        List<PlayableItem> itemsList = Arrays.asList(playableItems);
-
-        if (isShufflePlay()) {
-            Collections.shuffle(itemsList);
-        }
-        items.addAll(itemsList);
-        showNotification();
-    }
-
-
     /**
      * is shuffle play enabled.
      *
@@ -387,7 +365,6 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
         this.isPlaying = isPlaying;
     }
 
-
     public int getCurrentIndex() {
         return currentIndex;
     }
@@ -398,6 +375,22 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
 
     public List<PlayableItem> getItems() {
         return items;
+    }
+
+    /*
+     * (non-Javadoc)
+     *
+     * @see de.yaacc.player.Player#setItems(de.yaacc.player.PlayableItem[])
+     */
+    @Override
+    public void setItems(PlayableItem... playableItems) {
+        List<PlayableItem> itemsList = Arrays.asList(playableItems);
+
+        if (isShufflePlay()) {
+            Collections.shuffle(itemsList);
+        }
+        items.addAll(itemsList);
+        showNotification();
     }
 
     /**
@@ -461,7 +454,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
                 items.get(nextIndex));
         startItem(playableItem, loadedItem);
         if (isPlaying() && items.size() > 1) {
-            if(playableItem.getDuration() > -1) {
+            if (playableItem.getDuration() > -1) {
                 //Only start timer if automatic track change is active
                 startTimer(playableItem.getDuration() + getSilenceDuration());
             }
@@ -510,23 +503,23 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
     /*
      * (non-Javadoc)
      *
-     * @see de.yaacc.player.Player#setName(java.lang.String)
-     */
-    @Override
-    public void setName(String name) {
-        this.name = name;
-
-    }
-
-    /*
-     * (non-Javadoc)
-     *
      * @see de.yaacc.player.Player#getName()
      */
     @Override
     public String getName() {
 
         return name;
+    }
+
+    /*
+     * (non-Javadoc)
+     *
+     * @see de.yaacc.player.Player#setName(java.lang.String)
+     */
+    @Override
+    public void setName(String name) {
+        this.name = name;
+
     }
 
     public boolean isProcessingCommand() {
@@ -538,13 +531,13 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
     }
 
     /*
-             * (non-Javadoc)
-             *
-             * @see de.yaacc.player.Player#exit()
-             */
+     * (non-Javadoc)
+     *
+     * @see de.yaacc.player.Player#exit()
+     */
     @Override
     public void exit() {
-        if(isPlaying()){
+        if (isPlaying()) {
             stop();
         }
         playerService.shutdown(this);
@@ -557,7 +550,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
     private void showNotification() {
 
         NotificationCompat.Builder mBuilder = new NotificationCompat.Builder(
-                getContext()).setOngoing(false)
+                getContext(), Yaacc.NOTIFICATION_CHANNEL_ID).setOngoing(false)
                 .setSmallIcon(R.drawable.ic_notification_default)
                 .setContentTitle("Yaacc player")
                 .setContentText(getName() == null ? "" : getName());
@@ -621,10 +614,10 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
         int i = 0;
         cancleNotification();
         items.clear();
-        if(playerService != null){
+        if (playerService != null) {
             try {
                 playerService.unbindService(this);
-            }catch(IllegalArgumentException iex){
+            } catch (IllegalArgumentException iex) {
                 Log.d(getClass().getName(), "Exception while unbind service");
             }
 
@@ -672,16 +665,16 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
     }
 
     @Override
+    public SynchronizationInfo getSyncInfo() {
+        return syncInfo;
+    }
+
+    @Override
     public void setSyncInfo(SynchronizationInfo syncInfo) {
         if (syncInfo == null) {
             syncInfo = new SynchronizationInfo();
         }
         this.syncInfo = syncInfo;
-    }
-
-    @Override
-    public SynchronizationInfo getSyncInfo() {
-        return syncInfo;
     }
 
     protected Date getExecutionTime() {
@@ -696,7 +689,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
         execTime.add(Calendar.MILLISECOND, getSyncInfo().getOffset().getMillis());
         Log.d(getClass().getName(), "ReferencedRepresentationTimeOffset: " + getSyncInfo().getReferencedPresentationTimeOffset());
         Log.d(getClass().getName(), "current time: " + new Date().toString() + " get execution time: " + execTime.getTime().toString());
-        if (execTime.getTime().getTime() <= System.currentTimeMillis()){
+        if (execTime.getTime().getTime() <= System.currentTimeMillis()) {
             Log.d(getClass().getName(), "ExecutionTime is in past!! We will start immediately");
             return null;
 
@@ -709,31 +702,31 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
             execTimer.cancel();
         }
         execTimer = new Timer();
-        if(executionTime == null){
+        if (executionTime == null) {
             execTimer.schedule(command, 100);
-        }else {
+        } else {
             execTimer.schedule(command, executionTime);
         }
     }
 
-    public boolean getMute(){
+    public boolean getMute() {
         return upnpClient.isMute();
     }
 
 
-    public void setMute(boolean mute){
+    public void setMute(boolean mute) {
         upnpClient.setMute(mute);
     }
 
-    public void setVolume(int volume){
-        upnpClient.setVolume(volume);
-    }
-
-    public int getVolume(){
+    public int getVolume() {
         return upnpClient.getVolume();
     }
 
-    public int getIconResourceId(){
+    public void setVolume(int volume) {
+        upnpClient.setVolume(volume);
+    }
+
+    public int getIconResourceId() {
 
         return R.drawable.yaacc192_32;
     }

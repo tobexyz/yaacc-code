@@ -23,6 +23,7 @@ import org.fourthline.cling.model.message.header.UpnpHeader;
 import org.fourthline.cling.protocol.SendingAsync;
 import org.fourthline.cling.transport.RouterException;
 
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
@@ -80,7 +81,7 @@ public class SendingSearch extends SendingAsync {
 
     protected void execute() throws RouterException {
 
-        log.fine("Executing search for target: " + searchTarget.getString() + " with MX seconds: " + getMxSeconds());
+        log.info("Executing search for target: " + searchTarget.getString() + " with MX seconds: " + getMxSeconds());
 
         OutgoingSearchRequest msg = new OutgoingSearchRequest(searchTarget, getMxSeconds());
         prepareOutgoingSearchRequest(msg);
@@ -91,11 +92,12 @@ public class SendingSearch extends SendingAsync {
                 getUpnpService().getRouter().send(msg);
 
                 // UDA 1.0 is silent about this but UDA 1.1 recommends "a few hundred milliseconds"
-                log.finer("Sleeping " + getBulkIntervalMilliseconds() + " milliseconds");
+                log.info("Sleeping " + getBulkIntervalMilliseconds() + " milliseconds");
                 Thread.sleep(getBulkIntervalMilliseconds());
 
             } catch (InterruptedException ex) {
                 // Interruption means we stop sending search messages, e.g. on shutdown of thread pool
+                log.log(Level.INFO, "got exception on search", ex);
                 break;
             }
         }

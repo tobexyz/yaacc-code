@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (C) 2013-2022 www.yaacc.de
+ * Copyright (C) 2013 www.yaacc.de
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -28,6 +28,7 @@ import android.content.pm.PackageManager.NameNotFoundException;
 import android.graphics.Bitmap;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
+import android.os.Binder;
 import android.os.Build;
 import android.os.IBinder;
 import android.preference.PreferenceManager;
@@ -35,11 +36,12 @@ import android.util.Log;
 
 import androidx.core.app.NotificationCompat;
 
-import org.eclipse.jetty.server.Connector;
-import org.eclipse.jetty.server.Server;
-import org.eclipse.jetty.server.ServerConnector;
-import org.eclipse.jetty.servlet.ServletHandler;
-import org.eclipse.jetty.servlet.ServletHolder;
+import org.apache.hc.core5.http.ConnectionClosedException;
+import org.apache.hc.core5.http.ExceptionListener;
+import org.apache.hc.core5.http.HttpConnection;
+import org.apache.hc.core5.http.impl.bootstrap.HttpServer;
+import org.apache.hc.core5.http.impl.bootstrap.ServerBootstrap;
+import org.apache.hc.core5.http.io.SocketConfig;
 import org.fourthline.cling.binding.annotations.AnnotationLocalServiceBinder;
 import org.fourthline.cling.model.DefaultServiceManager;
 import org.fourthline.cling.model.ValidationError;
@@ -64,10 +66,14 @@ import org.fourthline.cling.support.renderingcontrol.AbstractAudioRenderingContr
 import org.fourthline.cling.support.xmicrosoft.AbstractMediaReceiverRegistrarService;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.net.BindException;
+import java.net.SocketTimeoutException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.concurrent.TimeUnit;
 
 import de.yaacc.R;
 import de.yaacc.upnp.UpnpClient;
@@ -80,7 +86,7 @@ import de.yaacc.util.NotificationId;
  * and registration of local upnp services. it is implemented as a android
  * service in order to run in background
  *
- * @author Tobias Schoene (tobexyz)
+ * @author Tobias Schoene (openbit)
  */
 public class YaaccUpnpServerService extends Service {
 
@@ -92,18 +98,17 @@ public class YaaccUpnpServerService extends Service {
     public static final String MEDIA_SERVER_UDN_ID = UDN_ID;
     public static final String MEDIA_RENDERER_UDN_ID = UDN_ID + "-1";
     public static int PORT = 4711;
+    protected IBinder binder = new YaaccUpnpServerServiceBinder();
     // make preferences available for the whole service, since there might be
     // more things to configure in the future
     SharedPreferences preferences;
     private LocalDevice localServer;
     private LocalDevice localRenderer;
     private UpnpClient upnpClient;
-
     private boolean watchdog;
 
 
-    private Server server;
-
+    private HttpServer httpServer;
     private boolean initialized = false;
 
     /*
@@ -115,7 +120,7 @@ public class YaaccUpnpServerService extends Service {
     public IBinder onBind(Intent intent) {
         Log.d(this.getClass().getName(), "On Bind");
         // do nothing
-        return null;
+        return binder;
     }
 
     /*
@@ -125,6 +130,7 @@ public class YaaccUpnpServerService extends Service {
      */
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        long start = System.currentTimeMillis();
 
         // when the service starts, the preferences are initialized
         preferences = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
@@ -146,6 +152,7 @@ public class YaaccUpnpServerService extends Service {
         initializationThread.start();
         showNotification();
         Log.d(this.getClass().getName(), "End On Start");
+        Log.d(this.getClass().getName(), "on start took: " + (System.currentTimeMillis() - start));
         return START_STICKY;
     }
 
@@ -163,12 +170,10 @@ public class YaaccUpnpServerService extends Service {
             }
 
         }
-        if (server != null) {
-            try {
-                server.stop();
-            } catch (Exception e) {
-                Log.e(this.getClass().getName(), "Error while stopping jetty server", e);
-            }
+        if (httpServer != null) {
+
+            httpServer.stop();
+
         }
         cancleNotification();
         super.onDestroy();
@@ -243,19 +248,56 @@ public class YaaccUpnpServerService extends Service {
         startUpnpAliveNotifications();
     }
 
+    /**
+     * creates a http request thread
+     */
     private void createHttpServer() {
-        server = new Server();
-        ServerConnector connector = new ServerConnector(server);
-        connector.setPort(PORT);
-        server.setConnectors(new Connector[]{connector});
-        ServletHandler handler = new ServletHandler();
-        server.setHandler(handler);
-        handler.addServletWithMapping(new ServletHolder(new YaaccUpnpServerServlet(getApplicationContext())), "/*");
+        // Create a HttpService for providing content in the network.
         try {
-            server.start();
 
-        } catch (Exception e) {
-            throw new IllegalStateException("Unable to start jetty server ", e);
+            //FIXME set correct timeout
+            SocketConfig socketConfig = SocketConfig.custom()
+                    .setSoTimeout(15, TimeUnit.SECONDS)
+                    .setTcpNoDelay(true)
+                    .build();
+
+            // Set up the HTTP service
+            httpServer = ServerBootstrap.bootstrap()
+                    .setListenerPort(PORT)
+                    .setSocketConfig(socketConfig)
+                    .setExceptionListener(new ExceptionListener() {
+
+                        @Override
+                        public void onError(final Exception ex) {
+                            Log.i(getClass().getName(), "YaaccHttpServer throws exception:", ex);
+                        }
+
+                        @Override
+                        public void onError(final HttpConnection conn, final Exception ex) {
+                            if (ex instanceof SocketTimeoutException) {
+                                Log.i(getClass().getName(), "connection timeout:", ex);
+                            } else if (ex instanceof ConnectionClosedException) {
+                                Log.i(getClass().getName(), "connection closed:", ex);
+                            } else {
+                                Log.i(getClass().getName(), "connection error:", ex);
+                            }
+                        }
+
+                    })
+                    .register("*", new YaaccHttpHandler(getApplicationContext()))
+                    .create();
+
+
+            httpServer.start();
+
+        } catch (BindException e) {
+            Log.w(this.getClass().getName(), "Server already running");
+        } catch (IOException e) {
+            // FIXME Ignored right error handling on rebind needed
+            Log.w(this.getClass().getName(), "ContentProvider can not be initialized!", e);
+            // throw new
+            // IllegalStateException("ContentProvider can not be initialized!",
+            // e);
         }
     }
 
@@ -775,6 +817,13 @@ public class YaaccUpnpServerService extends Service {
         return upnpClient;
     }
 
+    /**
+     * @param upnpClient the upnpClient to set
+     */
+    private void setUpnpClient(UpnpClient upnpClient) {
+        this.upnpClient = upnpClient;
+    }
+
     // private boolean isYaaccUpnpServerServiceRunning() {
     // ActivityManager manager = (ActivityManager)
     // getSystemService(Context.ACTIVITY_SERVICE);
@@ -788,17 +837,15 @@ public class YaaccUpnpServerService extends Service {
     // }
 
     /**
-     * @param upnpClient the upnpClient to set
-     */
-    private void setUpnpClient(UpnpClient upnpClient) {
-        this.upnpClient = upnpClient;
-    }
-
-    /**
      * @return the initialized
      */
     public boolean isInitialized() {
         return initialized;
     }
 
+    public class YaaccUpnpServerServiceBinder extends Binder {
+        public YaaccUpnpServerService getService() {
+            return YaaccUpnpServerService.this;
+        }
+    }
 }

@@ -15,6 +15,13 @@
 
 package org.fourthline.cling.model;
 
+import org.fourthline.cling.model.meta.LocalService;
+import org.fourthline.cling.model.meta.StateVariable;
+import org.fourthline.cling.model.state.StateVariableAccessor;
+import org.fourthline.cling.model.state.StateVariableValue;
+import org.seamless.util.Exceptions;
+import org.seamless.util.Reflections;
+
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.beans.PropertyChangeSupport;
@@ -26,13 +33,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-
-import org.fourthline.cling.model.meta.LocalService;
-import org.fourthline.cling.model.meta.StateVariable;
-import org.fourthline.cling.model.state.StateVariableAccessor;
-import org.fourthline.cling.model.state.StateVariableValue;
-import org.seamless.util.Exceptions;
-import org.seamless.util.Reflections;
 
 /**
  * Default implementation, creates and manages a single instance of a plain Java bean.
@@ -75,7 +75,7 @@ public class DefaultServiceManager<T> implements ServiceManager<T> {
         try {
             if (lock.tryLock(getLockTimeoutMillis(), TimeUnit.MILLISECONDS)) {
                 if (log.isLoggable(Level.FINEST))
-                    log.finest("Acquired lock");
+                    log.log(Level.INFO, "Acquired lock");
             } else {
                 throw new RuntimeException("Failed to acquire lock in milliseconds: " + getLockTimeoutMillis());
             }
@@ -85,8 +85,8 @@ public class DefaultServiceManager<T> implements ServiceManager<T> {
     }
 
     protected void unlock() {
-        if (log.isLoggable(Level.FINEST))
-            log.finest("Releasing lock");
+
+        log.log(Level.INFO, "Releasing lock");
         lock.unlock();
     }
 
@@ -212,7 +212,7 @@ public class DefaultServiceManager<T> implements ServiceManager<T> {
     protected PropertyChangeSupport createPropertyChangeSupport(T serviceImpl) throws Exception {
         Method m;
         if ((m = Reflections.getGetterMethod(serviceImpl.getClass(), "propertyChangeSupport")) != null &&
-            PropertyChangeSupport.class.isAssignableFrom(m.getReturnType())) {
+                PropertyChangeSupport.class.isAssignableFrom(m.getReturnType())) {
             log.fine("Service implementation instance offers PropertyChangeSupport, using that: " + serviceImpl.getClass().getName());
             return (PropertyChangeSupport) m.invoke(serviceImpl);
         }
@@ -249,18 +249,18 @@ public class DefaultServiceManager<T> implements ServiceManager<T> {
 
                 if (!currentValues.isEmpty()) {
                     getPropertyChangeSupport().firePropertyChange(
-                        EVENTED_STATE_VARIABLES,
-                        null,
-                        currentValues
+                            EVENTED_STATE_VARIABLES,
+                            null,
+                            currentValues
                     );
                 }
 
             } catch (Exception ex) {
                 // TODO: Is it OK to only log this error? It means we keep running although we couldn't send events?
                 log.log(
-                    Level.SEVERE,
-                    "Error reading state of service after state variable update event: " + Exceptions.unwrap(ex),
-                    ex
+                        Level.SEVERE,
+                        "Error reading state of service after state variable update event: " + Exceptions.unwrap(ex),
+                        ex
                 );
             }
         }

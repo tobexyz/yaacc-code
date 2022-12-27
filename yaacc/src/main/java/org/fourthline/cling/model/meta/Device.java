@@ -16,11 +16,11 @@
 package org.fourthline.cling.model.meta;
 
 import org.fourthline.cling.model.Namespace;
-import org.fourthline.cling.model.profile.RemoteClientInfo;
-import org.fourthline.cling.model.resource.Resource;
 import org.fourthline.cling.model.Validatable;
 import org.fourthline.cling.model.ValidationError;
 import org.fourthline.cling.model.ValidationException;
+import org.fourthline.cling.model.profile.RemoteClientInfo;
+import org.fourthline.cling.model.resource.Resource;
 import org.fourthline.cling.model.types.DeviceType;
 import org.fourthline.cling.model.types.ServiceId;
 import org.fourthline.cling.model.types.ServiceType;
@@ -43,16 +43,13 @@ import java.util.logging.Logger;
 public abstract class Device<DI extends DeviceIdentity, D extends Device, S extends Service> implements Validatable {
 
     final private static Logger log = Logger.getLogger(Device.class.getName());
-
+    final protected S[] services;
+    final protected D[] embeddedDevices;
     final private DI identity;
-
     final private UDAVersion version;
     final private DeviceType type;
     final private DeviceDetails details;
     final private Icon[] icons;
-    final protected S[] services;
-    final protected D[] embeddedDevices;
-
     // Package mutable state
     private D parentDevice;
 
@@ -87,7 +84,7 @@ public abstract class Device<DI extends DeviceIdentity, D extends Device, S exte
                 if (icon != null) {
                     icon.setDevice(this); // Set before validate()!
                     List<ValidationError> iconErrors = icon.validate();
-                    if(iconErrors.isEmpty()) {
+                    if (iconErrors.isEmpty()) {
                         validIcons.add(icon);
                     } else {
                         log.warning("Discarding invalid '" + icon + "': " + iconErrors);
@@ -117,13 +114,13 @@ public abstract class Device<DI extends DeviceIdentity, D extends Device, S exte
                 }
             }
         }
-        this.embeddedDevices = embeddedDevices == null || allNullEmbedded  ? null : embeddedDevices;
+        this.embeddedDevices = embeddedDevices == null || allNullEmbedded ? null : embeddedDevices;
 
         List<ValidationError> errors = validate();
         if (errors.size() > 0) {
-            if (log.isLoggable(Level.FINEST)) {
+            if (log.isLoggable(Level.INFO)) {
                 for (ValidationError error : errors) {
-                    log.finest(error.toString());
+                    log.log(Level.INFO, error.toString());
                 }
             }
             throw new ValidationException("Validation of device graph failed, call getErrors() on exception", errors);
@@ -386,9 +383,9 @@ public abstract class Device<DI extends DeviceIdentity, D extends Device, S exte
             // type. Now that is a risky assumption...
 
             errors.addAll(getVersion().validate());
-            
-            if(getIdentity() != null) {
-            	errors.addAll(getIdentity().validate());
+
+            if (getIdentity() != null) {
+                errors.addAll(getIdentity().validate());
             }
 
             if (getDetails() != null) {

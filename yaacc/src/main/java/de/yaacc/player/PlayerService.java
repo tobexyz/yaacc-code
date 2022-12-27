@@ -17,6 +17,7 @@
  */
 package de.yaacc.player;
 
+import android.app.Notification;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Intent;
@@ -27,6 +28,8 @@ import android.os.IBinder;
 import android.preference.PreferenceManager;
 import android.util.Log;
 import android.widget.Toast;
+
+import androidx.core.app.NotificationCompat;
 
 import org.fourthline.cling.model.meta.Device;
 
@@ -39,6 +42,7 @@ import java.util.List;
 import java.util.Map;
 
 import de.yaacc.R;
+import de.yaacc.browser.TabBrowserActivity;
 import de.yaacc.upnp.SynchronizationInfo;
 import de.yaacc.upnp.UpnpClient;
 
@@ -46,9 +50,10 @@ import de.yaacc.upnp.UpnpClient;
  * @author Tobias Schoene (tobexyz)
  */
 public class PlayerService extends Service {
+    private static final String CHANNEL_ID = "YaaccNotifications";
 
     private IBinder binder = new PlayerServiceBinder();
-    private Map<Integer,Player> currentActivePlayer = new HashMap<>();
+    private Map<Integer, Player> currentActivePlayer = new HashMap<>();
     private HandlerThread playerHandlerThread;
 
 
@@ -56,7 +61,7 @@ public class PlayerService extends Service {
     }
 
     public void addPlayer(Player player) {
-        currentActivePlayer.put(player.getId(),player);
+        currentActivePlayer.put(player.getId(), player);
     }
 
     public void removePlayer(Player player) {
@@ -64,18 +69,10 @@ public class PlayerService extends Service {
         currentActivePlayer.remove(player.getId());
     }
 
-    public class PlayerServiceBinder extends Binder {
-        public PlayerService getService() {
-            return PlayerService.this;
-        }
-    }
-
     @Override
     public void onDestroy() {
         Log.d(this.getClass().getName(), "On Destroy");
     }
-
-
 
     @Override
     public IBinder onBind(Intent intent) {
@@ -83,51 +80,58 @@ public class PlayerService extends Service {
         return binder;
     }
 
-    public Collection<Player> getPlayer(){
+    public Collection<Player> getPlayer() {
         return currentActivePlayer.values();
     }
+
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         super.onStartCommand(intent, flags, startId);
         Log.d(this.getClass().getName(), "Received start id " + startId + ": " + intent);
+        Intent notificationIntent = new Intent(this, TabBrowserActivity.class);
+        PendingIntent pendingIntent = PendingIntent.getActivity(this,
+                0, notificationIntent, 0);
+        Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
+                .setContentTitle("Player Service")
+                .setContentText("running")
+                .setSmallIcon(R.drawable.yaacc32_24_bmp)
+                .setContentIntent(pendingIntent)
+                .build();
+        startForeground(1, notification);
         initialize(intent);
+
         return START_STICKY;
     }
-
 
     private void initialize(Intent intent) {
         playerHandlerThread = new HandlerThread("de.yaacc.PlayerService.HandlerThread");
         playerHandlerThread.start();
     }
 
-
-    public HandlerThread getPlayerHandlerThread(){
+    public HandlerThread getPlayerHandlerThread() {
         return playerHandlerThread;
     }
 
     public Player getPlayer(int playerId) {
         Log.d(this.getClass().getName(), "Get Player for id " + playerId);
-        if (currentActivePlayer.get(playerId) == null){
+        if (currentActivePlayer.get(playerId) == null) {
             Log.d(this.getClass().getName(), "Get Player not found");
         }
         return currentActivePlayer.get(playerId);
     }
-
-
 
     /**
      * Creates a player for the given content. Based on the configuration
      * settings in the upnpClient the player may be a player to play on a remote
      * device.
      *
-     * @param upnpClient
-     * the upnpClient
-     * @param items
-     * the items to be played
+     * @param upnpClient the upnpClient
+     * @param items      the items to be played
      * @return the player
      */
     public List<Player> createPlayer(UpnpClient upnpClient,
-                                            SynchronizationInfo syncInfo, List<PlayableItem> items) {
+                                     SynchronizationInfo syncInfo, List<PlayableItem> items) {
+        Log.d(getClass().getName(), "create player...");
         List<Player> resultList = new ArrayList<Player>();
         if (items.isEmpty()) {
             return resultList;
@@ -137,11 +141,11 @@ public class PlayerService extends Service {
         boolean image = false;
         boolean music = false;
         for (PlayableItem playableItem : items) {
-            if(playableItem.getMimeType() != null){
+            if (playableItem.getMimeType() != null) {
                 image = image || playableItem.getMimeType().startsWith("image");
                 video = video || playableItem.getMimeType().startsWith("video");
                 music = music || playableItem.getMimeType().startsWith("audio");
-            }else{
+            } else {
                 //no mime type no knowlege about it
                 image = true;
                 music = true;
@@ -149,9 +153,9 @@ public class PlayerService extends Service {
             }
 
         }
-        Log.d(getClass().getName(), "video:" + video + " image: " + image + "audio:" + music );
+        Log.d(getClass().getName(), "video:" + video + " image: " + image + "audio:" + music);
         for (Device device : upnpClient.getReceiverDevices()) {
-            result = createPlayer(upnpClient,device, video, image, music,syncInfo);
+            result = createPlayer(upnpClient, device, video, image, music, syncInfo);
             if (result != null) {
                 addPlayer(result);
                 result.setItems(items.toArray(new PlayableItem[items.size()]));
@@ -160,18 +164,20 @@ public class PlayerService extends Service {
         }
         return resultList;
     }
+
     /**
      * creates a player for the given device
-     * @param upnpClient the upnpClient
+     *
+     * @param upnpClient     the upnpClient
      * @param receiverDevice the receiverDevice
-     * @param video true if video items
-     * @param image true if image items
-     * @param music true if music items
+     * @param video          true if video items
+     * @param image          true if image items
+     * @param music          true if music items
      * @return the player or null if no device is present
      */
-    private Player createPlayer(UpnpClient upnpClient,Device receiverDevice,
-                                       boolean video, boolean image, boolean music, SynchronizationInfo syncInfo) {
-        if( receiverDevice == null){
+    private Player createPlayer(UpnpClient upnpClient, Device receiverDevice,
+                                boolean video, boolean image, boolean music, SynchronizationInfo syncInfo) {
+        if (receiverDevice == null) {
             Toast toast = Toast.makeText(upnpClient.getContext(), upnpClient.getContext().getString(R.string.error_no_receiver_device_found), Toast.LENGTH_SHORT);
             toast.show();
             return null;
@@ -183,37 +189,37 @@ public class PlayerService extends Service {
             if (deviceName.length() > 13) {
                 deviceName = deviceName.substring(0, 10) + "...";
             }
-            String contentType ="multi";
+            String contentType = "multi";
             if (video && !image && !music) {
-                contentType ="video";
+                contentType = "video";
             } else if (!video && image && !music) {
-                contentType ="image";
+                contentType = "image";
             } else if (!video && !image && music) {
-                contentType ="music";
+                contentType = "music";
             }
 
-            if(receiverDevice.getType().getVersion() == 3){
+            if (receiverDevice.getType().getVersion() == 3) {
                 for (Player player : getCurrentPlayersOfType(SyncAVTransportPlayer.class)) {
-                    if(((SyncAVTransportPlayer) player).getDeviceId().equals(receiverDevice.getIdentity().getUdn().getIdentifierString())
-                            &&((SyncAVTransportPlayer) player).getContentType().equals(contentType)){
+                    if (((SyncAVTransportPlayer) player).getDeviceId().equals(receiverDevice.getIdentity().getUdn().getIdentifierString())
+                            && ((SyncAVTransportPlayer) player).getContentType().equals(contentType)) {
                         shutdown(player);
                     }
                 }
-                result = new SyncAVTransportPlayer(upnpClient,receiverDevice, upnpClient.getContext()
+                result = new SyncAVTransportPlayer(upnpClient, receiverDevice, upnpClient.getContext()
                         .getString(R.string.playerNameAvTransport)
                         + "-" + contentType + "@"
                         + deviceName, contentType);
-            }else {
+            } else {
                 for (Player player : getCurrentPlayersOfType(AVTransportPlayer.class)) {
-                    if(((AVTransportPlayer) player).getDeviceId().equals(receiverDevice.getIdentity().getUdn().getIdentifierString())
-                            && ((AVTransportPlayer) player).getContentType().equals(contentType)){
+                    if (((AVTransportPlayer) player).getDeviceId().equals(receiverDevice.getIdentity().getUdn().getIdentifierString())
+                            && ((AVTransportPlayer) player).getContentType().equals(contentType)) {
                         shutdown(player);
                     }
                 }
-                result = new AVTransportPlayer(upnpClient,receiverDevice, upnpClient.getContext()
+                result = new AVTransportPlayer(upnpClient, receiverDevice, upnpClient.getContext()
                         .getString(R.string.playerNameAvTransport)
                         + "-" + contentType + "@"
-                        + deviceName,contentType);
+                        + deviceName, contentType);
             }
         } else {
             if (video && !image && !music) {
@@ -241,6 +247,7 @@ public class PlayerService extends Service {
         result.setSyncInfo(syncInfo);
         return result;
     }
+
     private Player createImagePlayer(UpnpClient upnpClient) {
         Player result = getFirstCurrentPlayerOfType(LocalImagePlayer.class);
         if (result != null) {
@@ -249,6 +256,7 @@ public class PlayerService extends Service {
         return new LocalImagePlayer(upnpClient, upnpClient.getContext()
                 .getString(R.string.playerNameImage));
     }
+
     private Player createMusicPlayer(UpnpClient upnpClient) {
         boolean background = PreferenceManager.getDefaultSharedPreferences(
                 upnpClient.getContext()).getBoolean(
@@ -270,6 +278,7 @@ public class PlayerService extends Service {
         return new LocalThirdPartieMusicPlayer(upnpClient, upnpClient
                 .getContext().getString(R.string.playerNameMusic));
     }
+
     /**
      * returns all current players
      *
@@ -283,8 +292,7 @@ public class PlayerService extends Service {
     /**
      * returns all current players of the given type.
      *
-     * @param typeClazz
-     * the requested type
+     * @param typeClazz the requested type
      * @return the currentPlayer
      */
     public List<Player> getCurrentPlayersOfType(Class typeClazz, SynchronizationInfo syncInfo) {
@@ -296,12 +304,10 @@ public class PlayerService extends Service {
         return players;
     }
 
-
     /**
      * returns all current players of the given type.
      *
-     * @param typeClazz
-     * the requested type
+     * @param typeClazz the requested type
      * @return the currentPlayer
      */
     public List<Player> getCurrentPlayersOfType(Class typeClazz) {
@@ -313,11 +319,11 @@ public class PlayerService extends Service {
         }
         return Collections.unmodifiableList(players);
     }
+
     /**
      * returns the first current player of the given type.
      *
-     * @param typeClazz
-     * the requested type
+     * @param typeClazz the requested type
      * @return the currentPlayer
      */
     public Player getFirstCurrentPlayerOfType(Class typeClazz) {
@@ -328,17 +334,17 @@ public class PlayerService extends Service {
         }
         return null;
     }
+
     /**
      * Returns the class of a player for the given mime type.
      *
-     * @param mimeType
-     * the mime type
+     * @param mimeType the mime type
      * @return the player class
      */
     public Class getPlayerClassForMimeType(String mimeType) {
 // FIXME don't implement business logic twice
         Class result = MultiContentPlayer.class;
-        if(mimeType != null){
+        if (mimeType != null) {
             boolean image = mimeType.startsWith("image");
             boolean video = mimeType.startsWith("video");
             boolean music = mimeType.startsWith("audio");
@@ -355,6 +361,7 @@ public class PlayerService extends Service {
         }
         return result;
     }
+
     /**
      * Kills the given Player
      *
@@ -365,6 +372,7 @@ public class PlayerService extends Service {
         currentActivePlayer.remove(player.getId());
         player.onDestroy();
     }
+
     /**
      * Kill all Players
      */
@@ -377,24 +385,30 @@ public class PlayerService extends Service {
 
     }
 
-    public void controlDevice(UpnpClient upnpClient,Device device){
+    public void controlDevice(UpnpClient upnpClient, Device device) {
         if (device == null || upnpClient == null) return;
-        if (!device.getIdentity().getUdn().getIdentifierString().equals(UpnpClient.LOCAL_UID)){
+        if (!device.getIdentity().getUdn().getIdentifierString().equals(UpnpClient.LOCAL_UID)) {
             Intent notificationIntent = new Intent(getApplicationContext(),
                     AVTransportPlayerActivity.class);
             Log.d(getClass().getName(), "Put id into intent: " + device.getIdentity().getUdn().getIdentifierString());
-            notificationIntent.setData(Uri.parse("http://0.0.0.0/"+device.getIdentity().getUdn().getIdentifierString()+"")); //just for making the intents different http://stackoverflow.com/questions/10561419/scheduling-more-than-one-pendingintent-to-same-activity-using-alarmmanager
+            notificationIntent.setData(Uri.parse("http://0.0.0.0/" + device.getIdentity().getUdn().getIdentifierString() + "")); //just for making the intents different http://stackoverflow.com/questions/10561419/scheduling-more-than-one-pendingintent-to-same-activity-using-alarmmanager
             notificationIntent.putExtra(AVTransportController.DEVICE_ID, device.getIdentity().getUdn().getIdentifierString());
-            PendingIntent contentIntent = PendingIntent.getActivity(getApplicationContext(), 0 ,
+            PendingIntent contentIntent = PendingIntent.getActivity(getApplicationContext(), 0,
                     notificationIntent, PendingIntent.FLAG_CANCEL_CURRENT);
             try {
-                contentIntent.send(getApplicationContext(),0,new Intent());
+                contentIntent.send(getApplicationContext(), 0, new Intent());
             } catch (PendingIntent.CanceledException e) {
                 Log.e(this.getClass().getName(), "Exception on start controller activity", e);
             }
 
         }
 
+    }
+
+    public class PlayerServiceBinder extends Binder {
+        public PlayerService getService() {
+            return PlayerService.this;
+        }
     }
 
 }

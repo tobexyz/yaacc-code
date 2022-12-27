@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (C) 2013 www.yaacc.de 
+ * Copyright (C) 2013 www.yaacc.de
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -18,6 +18,8 @@
  */
 package de.yaacc.musicplayer;
 
+import android.app.Notification;
+import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Intent;
 import android.media.AudioManager;
@@ -28,7 +30,10 @@ import android.os.IBinder;
 import android.os.PowerManager;
 import android.util.Log;
 
-import java.io.IOException;
+import androidx.core.app.NotificationCompat;
+
+import de.yaacc.R;
+import de.yaacc.browser.TabBrowserActivity;
 
 /**
  * A simple service for playing music in background.
@@ -36,8 +41,8 @@ import java.io.IOException;
  * @author Tobias Schoene (openbit)
  */
 public class BackgroundMusicService extends Service {
-
     public static final String URIS = "URIS_PARAM"; // String Intent parameter
+    private static final String CHANNEL_ID = "YaaccNotifications";
     private MediaPlayer player;
     private IBinder binder = new BackgroundMusicServiceBinder();
     private BackgroundMusicBroadcastReceiver backgroundMusicBroadcastReceiver;
@@ -46,12 +51,6 @@ public class BackgroundMusicService extends Service {
 
     public BackgroundMusicService() {
         super();
-    }
-
-    public class BackgroundMusicServiceBinder extends Binder {
-        public BackgroundMusicService getService() {
-            return BackgroundMusicService.this;
-        }
     }
 
     /*
@@ -63,6 +62,16 @@ public class BackgroundMusicService extends Service {
     public void onCreate() {
         super.onCreate();
         Log.d(this.getClass().getName(), "On Create");
+        Intent notificationIntent = new Intent(this, TabBrowserActivity.class);
+        PendingIntent pendingIntent = PendingIntent.getActivity(this,
+                0, notificationIntent, 0);
+        Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
+                .setContentTitle("Background Music Service")
+                .setContentText("running")
+                .setSmallIcon(R.drawable.yaacc32_24_bmp)
+                .setContentIntent(pendingIntent)
+                .build();
+        startForeground(1, notification);
 
     }
 
@@ -91,7 +100,6 @@ public class BackgroundMusicService extends Service {
         Log.d(this.getClass().getName(), "On Bind");
         return binder;
     }
-
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
@@ -152,9 +160,10 @@ public class BackgroundMusicService extends Service {
 
     /**
      * Seeks to position
+     *
      * @param pos
      */
-    public void seekTo(long pos){
+    public void seekTo(long pos) {
         if (player != null) {
             player.seekTo(Long.valueOf(pos).intValue());
         }
@@ -175,8 +184,8 @@ public class BackgroundMusicService extends Service {
         player.setWakeMode(getApplicationContext(), PowerManager.PARTIAL_WAKE_LOCK);
         player.setOnErrorListener(new MediaPlayer.OnErrorListener() {
             @Override
-            public boolean onError(MediaPlayer mediaPlayer,  int what, int extra) {
-                Log.e(getClass().getName(),"Error in State  " + what + " extra: " + extra );
+            public boolean onError(MediaPlayer mediaPlayer, int what, int extra) {
+                Log.e(getClass().getName(), "Error in State  " + what + " extra: " + extra);
                 return true;
             }
         });
@@ -232,6 +241,11 @@ public class BackgroundMusicService extends Service {
         return currentPosition;
     }
 
+    public class BackgroundMusicServiceBinder extends Binder {
+        public BackgroundMusicService getService() {
+            return BackgroundMusicService.this;
+        }
+    }
 
 
 }

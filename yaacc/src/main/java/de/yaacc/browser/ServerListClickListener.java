@@ -17,10 +17,11 @@
  */
 package de.yaacc.browser;
 
-import android.app.Activity;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.AdapterView.OnItemClickListener;
+
+import androidx.fragment.app.Fragment;
 
 import org.fourthline.cling.model.meta.Device;
 
@@ -32,9 +33,9 @@ import de.yaacc.upnp.UpnpClient;
 public class ServerListClickListener implements OnItemClickListener {
 
     private UpnpClient upnpClient;
-    private Activity parent;
+    private Fragment parent;
 
-    public ServerListClickListener(UpnpClient upnpClient, Activity parent) {
+    public ServerListClickListener(UpnpClient upnpClient, Fragment parent) {
         this.upnpClient = upnpClient;
         this.parent = parent;
     }
@@ -43,8 +44,8 @@ public class ServerListClickListener implements OnItemClickListener {
     public void onItemClick(AdapterView<?> listView, View arg1, int position, long id) {
         BrowseDeviceAdapter adapter = (BrowseDeviceAdapter) listView.getAdapter();
         upnpClient.setProviderDevice((Device) adapter.getItem(position));
-        if (parent.getParent() instanceof TabBrowserActivity) {
-            ((TabBrowserActivity) parent.getParent()).setCurrentTab(BrowserTabs.CONTENT);
+        if (parent.getActivity() instanceof TabBrowserActivity) {
+            ((TabBrowserActivity) parent.getActivity()).setCurrentTab(BrowserTabs.CONTENT);
         }
     }
 

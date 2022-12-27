@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013 www.yaacc.de 
+ * Copyright (C) 2013 www.yaacc.de
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -24,7 +24,6 @@ import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.SharedPreferences;
 import android.net.Uri;
-import android.os.Build;
 import android.os.IBinder;
 import android.preference.PreferenceManager;
 import android.util.Log;
@@ -49,7 +48,7 @@ import de.yaacc.util.NotificationId;
  * @author Tobias Schoene (openbit)
  */
 public class LocalBackgoundMusicPlayer extends AbstractPlayer implements ServiceConnection {
-
+    private static final String CHANNEL_ID = "YaaccNotifications";
     private BackgroundMusicService backgroundMusicService;
     private Timer commandExecutionTimer;
     private URI albumArtUri;
@@ -69,11 +68,9 @@ public class LocalBackgoundMusicPlayer extends AbstractPlayer implements Service
         super(upnpClient);
         Log.d(getClass().getName(), "Starting background music service... ");
         Context context = getUpnpClient().getContext();
-        if (Build.VERSION.SDK_INT >= 26) {
-            context.startForegroundService(new Intent(context, BackgroundMusicService.class));
-        }else{
-            context.startService(new Intent(context, BackgroundMusicService.class));
-        }
+
+        context.startForegroundService(new Intent(context, BackgroundMusicService.class));
+
         context.bindService(new Intent(context, BackgroundMusicService.class), LocalBackgoundMusicPlayer.this, Context.BIND_AUTO_CREATE);
 
     }
@@ -87,12 +84,12 @@ public class LocalBackgoundMusicPlayer extends AbstractPlayer implements Service
     @Override
     public void onDestroy() {
         super.onDestroy();
-        if (backgroundMusicService != null){
+        if (backgroundMusicService != null) {
             backgroundMusicService.stop();
             try {
                 backgroundMusicService.unbindService(this);
-            }catch (IllegalArgumentException iex){
-                Log.d(getClass().getName(),"ignoring exception while unbind service");
+            } catch (IllegalArgumentException iex) {
+                Log.d(getClass().getName(), "ignoring exception while unbind service");
             }
         }
 
@@ -289,11 +286,11 @@ public class LocalBackgoundMusicPlayer extends AbstractPlayer implements Service
         int seconds = (int) (((millis % (1000 * 60 * 60)) % (1000 * 60)) / 1000);
 
         buf
-                .append(String.format(Locale.ENGLISH,"%02d", hours))
+                .append(String.format(Locale.ENGLISH, "%02d", hours))
                 .append(":")
-                .append(String.format(Locale.ENGLISH,"%02d", minutes))
+                .append(String.format(Locale.ENGLISH, "%02d", minutes))
                 .append(":")
-                .append(String.format(Locale.ENGLISH,"%02d", seconds));
+                .append(String.format(Locale.ENGLISH, "%02d", seconds));
 
         return buf.toString();
 
@@ -302,11 +299,11 @@ public class LocalBackgoundMusicPlayer extends AbstractPlayer implements Service
 
     @Override
     public void onServiceConnected(ComponentName className, IBinder binder) {
-        Log.d(getClass().getName(), "onServiceConnected..." + className );
-        if(binder instanceof BackgroundMusicServiceBinder) {
+        Log.d(getClass().getName(), "onServiceConnected..." + className);
+        if (binder instanceof BackgroundMusicServiceBinder) {
             backgroundMusicService = ((BackgroundMusicServiceBinder) binder).getService();
-        }else{
-            super.onServiceConnected(className,  binder);
+        } else {
+            super.onServiceConnected(className, binder);
         }
 
     }
@@ -336,7 +333,7 @@ public class LocalBackgoundMusicPlayer extends AbstractPlayer implements Service
         return R.drawable.cdtrack;
     }
 
-    public void seekTo(long millisecondsFromStart){
+    public void seekTo(long millisecondsFromStart) {
         backgroundMusicService.seekTo(millisecondsFromStart);
 
     }

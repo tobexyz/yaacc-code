@@ -19,6 +19,7 @@ package de.yaacc;
 
 
 import android.app.Application;
+import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.content.Context;
 import android.content.Intent;
@@ -39,86 +40,89 @@ import de.yaacc.util.NotificationId;
 
 /**
  * application which holds the global state
- * @author Tobias Schoene (tobexyz)
  *
+ * @author Tobias Schoene (tobexyz)
  */
 public class Yaacc extends Application {
+    public static final String NOTIFICATION_CHANNEL_ID = "YaaccNotifications";
     private UpnpClient upnpClient;
-    private HashMap<String, PowerManager.WakeLock> wakeLocks  = new HashMap<>();
+    private HashMap<String, PowerManager.WakeLock> wakeLocks = new HashMap<>();
     private Executor contentLoadThreadPool;
 
 
     @Override
     public void onCreate() {
         super.onCreate();
+        createNotificationChannel();
         upnpClient = new UpnpClient(this);
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
-        Integer numThreads = Integer.valueOf(preferences.getString(getString(R.string.settings_browse_load_threads_key),"10"));
-        Log.d(getClass().getName(),"Number of Threads used for content loading: " + numThreads);
-        if (numThreads <=0){
-            Log.d(getClass().getName(),"Number of Threads invalid using 10 threads instead: " + numThreads);
-            numThreads=10;
+        Integer numThreads = Integer.valueOf(preferences.getString(getString(R.string.settings_browse_load_threads_key), "10"));
+        Log.d(getClass().getName(), "Number of Threads used for content loading: " + numThreads);
+        if (numThreads <= 0) {
+            Log.d(getClass().getName(), "Number of Threads invalid using 10 threads instead: " + numThreads);
+            numThreads = 10;
         }
         contentLoadThreadPool = Executors.newFixedThreadPool(numThreads);
+
     }
 
-    public Executor getContentLoadExecutor(){
+    public Executor getContentLoadExecutor() {
 
         return contentLoadThreadPool;
     }
+
     public UpnpClient getUpnpClient() {
         return upnpClient;
     }
 
-    public boolean isUnplugged(){
+    public boolean isUnplugged() {
         Intent intent = registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
         int plugged = intent.getIntExtra(BatteryManager.EXTRA_PLUGGED, -1);
-        boolean unplugged=false;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1){
+        boolean unplugged = false;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
             unplugged = plugged == BatteryManager.BATTERY_PLUGGED_WIRELESS;
         }
-        return ! (plugged == BatteryManager.BATTERY_PLUGGED_AC ||
-            plugged == BatteryManager.BATTERY_PLUGGED_USB||
-            unplugged);
+        return !(plugged == BatteryManager.BATTERY_PLUGGED_AC ||
+                plugged == BatteryManager.BATTERY_PLUGGED_USB ||
+                unplugged);
 
     }
+
     public void aquireWakeLock(long timeout, String tag) {
 
         if (!wakeLocks.containsKey(tag)) {
             PowerManager powerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
-            wakeLocks.put(tag,powerManager.newWakeLock(PowerManager.FULL_WAKE_LOCK,tag));
+            wakeLocks.put(tag, powerManager.newWakeLock(PowerManager.FULL_WAKE_LOCK, tag));
         }
         PowerManager.WakeLock wakeLock = wakeLocks.get(tag);
         if (wakeLock != null) {
-            if (wakeLock.isHeld()){
+            if (wakeLock.isHeld()) {
                 releaseWakeLock(tag);
             }
-            while(!wakeLock.isHeld()) {
+            while (!wakeLock.isHeld()) {
                 wakeLock.acquire(timeout);
             }
             Log.d(getClass().getName(), "WakeLock aquired Tag:" + tag + " timeout: " + timeout);
         }
 
 
-
-
     }
 
     public void releaseWakeLock(String tag) {
         PowerManager.WakeLock wakeLock = wakeLocks.get(tag);
-        if(wakeLock != null && wakeLock.isHeld()) {
-            try{
+        if (wakeLock != null && wakeLock.isHeld()) {
+            try {
                 wakeLock.release();
-                Log.d(getClass().getName(), "WakeLock released: " + tag );
+                Log.d(getClass().getName(), "WakeLock released: " + tag);
             } catch (Throwable th) {
                 // ignoring this exception, probably wakeLock was already released
-                Log.d(getClass().getName(), "Ignoring exception on WakeLock ("+ tag + ") release maybe no wakelock?" );
+                Log.d(getClass().getName(), "Ignoring exception on WakeLock (" + tag + ") release maybe no wakelock?");
             }
         }
 
     }
 
-    public void exit(){
+    public void exit() {
         int p = android.os.Process.myPid();
         upnpClient.shutdown();
         //FIXME work around to be fixed with new ui
@@ -127,4 +131,21 @@ public class Yaacc extends Application {
 
         android.os.Process.killProcess(p);
     }
+
+    private void createNotificationChannel() {
+        // Create the NotificationChannel, but only on API 26+ because
+        // the NotificationChannel class is new and not in the support library
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            CharSequence name = getString(R.string.channel_name);
+            String description = getString(R.string.channel_description);
+            int importance = NotificationManager.IMPORTANCE_DEFAULT;
+            NotificationChannel channel = new NotificationChannel(NOTIFICATION_CHANNEL_ID, name, importance);
+            channel.setDescription(description);
+            // Register the channel with the system; you can't change the importance
+            // or other notification behaviors after this
+            NotificationManager notificationManager = getSystemService(NotificationManager.class);
+            notificationManager.createNotificationChannel(channel);
+        }
+    }
+
 }

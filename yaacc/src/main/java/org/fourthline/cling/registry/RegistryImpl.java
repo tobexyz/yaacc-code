@@ -33,8 +33,6 @@ import org.fourthline.cling.model.types.ServiceType;
 import org.fourthline.cling.model.types.UDN;
 import org.fourthline.cling.protocol.ProtocolFactory;
 
-import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.inject.Inject;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -46,6 +44,9 @@ import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+
 /**
  * Default implementation of {@link Registry}.
  *
@@ -55,24 +56,30 @@ import java.util.logging.Logger;
 public class RegistryImpl implements Registry {
 
     private static Logger log = Logger.getLogger(Registry.class.getName());
-
+    protected final Set<RemoteGENASubscription> pendingSubscriptionsLock = new HashSet<>();
+    protected final Set<RegistryListener> registryListeners = new HashSet<>();
+    protected final Set<RegistryItem<URI, Resource>> resourceItems = new HashSet<>();
+    protected final List<Runnable> pendingExecutions = new ArrayList<>();
+    protected final RemoteItems remoteItems = new RemoteItems(this);
+    protected final LocalItems localItems = new LocalItems(this);
     protected UpnpService upnpService;
     protected RegistryMaintainer registryMaintainer;
-    protected final Set<RemoteGENASubscription> pendingSubscriptionsLock = new HashSet<>();
 
     public RegistryImpl() {
     }
+
+    // #################################################################################################
 
     /**
      * Starts background maintenance immediately.
      */
     @Inject
     public RegistryImpl(UpnpService upnpService) {
-        log.fine("Creating Registry: " + getClass().getName());
+        log.log(Level.INFO, "Creating Registry: " + getClass().getName());
 
         this.upnpService = upnpService;
 
-        log.fine("Starting registry background maintenance...");
+        log.log(Level.INFO, "Starting registry background maintenance...");
         registryMaintainer = createRegistryMaintainer();
         if (registryMaintainer != null) {
             getConfiguration().getRegistryMaintainerExecutor().execute(registryMaintainer);
@@ -100,15 +107,6 @@ public class RegistryImpl implements Registry {
 
     // #################################################################################################
 
-    protected final Set<RegistryListener> registryListeners = new HashSet<>();
-    protected final Set<RegistryItem<URI, Resource>> resourceItems = new HashSet<>();
-    protected final List<Runnable> pendingExecutions = new ArrayList<>();
-
-    protected final RemoteItems remoteItems = new RemoteItems(this);
-    protected final LocalItems localItems = new LocalItems(this);
-
-    // #################################################################################################
-
     synchronized public void addListener(RegistryListener listener) {
         registryListeners.add(listener);
     }
@@ -124,7 +122,7 @@ public class RegistryImpl implements Registry {
     synchronized public boolean notifyDiscoveryStart(final RemoteDevice device) {
         // Exit if we have it already, this is atomic inside this method, finally
         if (getUpnpService().getRegistry().getRemoteDevice(device.getIdentity().getUdn(), true) != null) {
-            log.finer("Not notifying listeners, already registered: " + device);
+            log.log(Level.INFO, "Not notifying listeners, already registered: " + device);
             return false;
         }
         for (final RegistryListener listener : getListeners()) {
@@ -267,9 +265,9 @@ public class RegistryImpl implements Registry {
 
         // Note: Uses field access on resourceItems for performance reasons
 
-		for (RegistryItem<URI, Resource> resourceItem : resourceItems) {
-        	Resource resource = resourceItem.getItem();
-        	if (resource.matches(pathQuery)) {
+        for (RegistryItem<URI, Resource> resourceItem : resourceItems) {
+            Resource resource = resourceItem.getItem();
+            if (resource.matches(pathQuery)) {
                 return resource;
             }
         }
@@ -279,9 +277,9 @@ public class RegistryImpl implements Registry {
         if (pathQuery.getPath().endsWith("/")) {
             URI pathQueryWithoutSlash = URI.create(pathQuery.toString().substring(0, pathQuery.toString().length() - 1));
 
- 			for (RegistryItem<URI, Resource> resourceItem : resourceItems) {
-            	Resource resource = resourceItem.getItem();
-            	if (resource.matches(pathQueryWithoutSlash)) {
+            for (RegistryItem<URI, Resource> resourceItem : resourceItems) {
+                Resource resource = resourceItem.getItem();
+                if (resource.matches(pathQueryWithoutSlash)) {
                     return resource;
                 }
             }
@@ -365,22 +363,22 @@ public class RegistryImpl implements Registry {
 
     /* ############################################################################################################ */
 
-   	synchronized public void advertiseLocalDevices() {
-   		localItems.advertiseLocalDevices();
-   	}
+    synchronized public void advertiseLocalDevices() {
+        localItems.advertiseLocalDevices();
+    }
 
     /* ############################################################################################################ */
 
     // When you call this, make sure you have the Router lock before this lock is obtained!
     synchronized public void shutdown() {
-        log.fine("Shutting down registry...");
+        log.log(Level.INFO, "Shutting down registry...");
 
         if (registryMaintainer != null)
             registryMaintainer.stop();
-        
+
         // Final cleanup run to flush out pending executions which might
         // not have been caught by the maintainer before it stopped
-        log.finest("Executing final pending operations on shutdown: " + pendingExecutions.size());
+        log.log(Level.INFO, "Executing final pending operations on shutdown: " + pendingExecutions.size());
         runPendingExecutions(false);
 
         for (RegistryListener listener : registryListeners) {
@@ -402,7 +400,7 @@ public class RegistryImpl implements Registry {
 
     synchronized public void pause() {
         if (registryMaintainer != null) {
-            log.fine("Pausing registry maintenance");
+            log.log(Level.INFO, "Pausing registry maintenance");
             runPendingExecutions(true);
             registryMaintainer.stop();
             registryMaintainer = null;
@@ -411,7 +409,7 @@ public class RegistryImpl implements Registry {
 
     synchronized public void resume() {
         if (registryMaintainer == null) {
-            log.fine("Resuming registry maintenance");
+            log.log(Level.INFO, "Resuming registry maintenance");
             remoteItems.resume();
             registryMaintainer = createRegistryMaintainer();
             if (registryMaintainer != null) {
@@ -428,16 +426,16 @@ public class RegistryImpl implements Registry {
 
     synchronized void maintain() {
 
-        if (log.isLoggable(Level.FINEST))
-            log.finest("Maintaining registry...");
+
+        log.log(Level.INFO, "Maintaining registry...");
 
         // Remove expired resources
         Iterator<RegistryItem<URI, Resource>> it = resourceItems.iterator();
         while (it.hasNext()) {
             RegistryItem<URI, Resource> item = it.next();
             if (item.getExpirationDetails().hasExpired()) {
-                if (log.isLoggable(Level.FINER))
-                    log.finer("Removing expired resource: " + item);
+
+                log.log(Level.INFO, "Removing expired resource: " + item);
                 it.remove();
             }
         }
@@ -463,8 +461,8 @@ public class RegistryImpl implements Registry {
     }
 
     synchronized void runPendingExecutions(boolean async) {
-        if (log.isLoggable(Level.FINEST))
-            log.finest("Executing pending operations: " + pendingExecutions.size());
+
+        log.log(Level.INFO, "Executing pending operations: " + pendingExecutions.size());
         for (Runnable pendingExecution : pendingExecutions) {
             if (async)
                 getConfiguration().getAsyncProtocolExecutor().execute(pendingExecution);
@@ -479,46 +477,46 @@ public class RegistryImpl implements Registry {
     /* ############################################################################################################ */
 
     public void printDebugLog() {
-        if (log.isLoggable(Level.FINE)) {
-            log.fine("====================================    REMOTE   ================================================");
+        {
+            log.log(Level.INFO, "====================================    REMOTE   ================================================");
 
             for (RemoteDevice remoteDevice : remoteItems.get()) {
-                log.fine(remoteDevice.toString());
+                log.log(Level.INFO, remoteDevice.toString());
             }
 
-            log.fine("====================================    LOCAL    ================================================");
+            log.log(Level.INFO, "====================================    LOCAL    ================================================");
 
             for (LocalDevice localDevice : localItems.get()) {
-                log.fine(localDevice.toString());
+                log.log(Level.INFO, localDevice.toString());
             }
 
-            log.fine("====================================  RESOURCES  ================================================");
+            log.log(Level.INFO, "====================================  RESOURCES  ================================================");
 
             for (RegistryItem<URI, Resource> resourceItem : resourceItems) {
-                log.fine(resourceItem.toString());
+                log.log(Level.INFO, resourceItem.toString());
             }
 
-            log.fine("=================================================================================================");
+            log.log(Level.INFO, "=================================================================================================");
 
         }
 
     }
 
- 	@Override
-	public void registerPendingRemoteSubscription(RemoteGENASubscription subscription) {
-		synchronized (pendingSubscriptionsLock) {
+    @Override
+    public void registerPendingRemoteSubscription(RemoteGENASubscription subscription) {
+        synchronized (pendingSubscriptionsLock) {
             pendingSubscriptionsLock.add(subscription);
         }
-	}
-	
-	@Override
-	public void unregisterPendingRemoteSubscription(RemoteGENASubscription subscription) {
+    }
+
+    @Override
+    public void unregisterPendingRemoteSubscription(RemoteGENASubscription subscription) {
         synchronized (pendingSubscriptionsLock) {
-            if(pendingSubscriptionsLock.remove(subscription)) {
+            if (pendingSubscriptionsLock.remove(subscription)) {
                 pendingSubscriptionsLock.notifyAll();
             }
         }
-	}
+    }
 
     @Override
     public RemoteGENASubscription getWaitRemoteSubscription(String subscriptionId) {
@@ -526,7 +524,7 @@ public class RegistryImpl implements Registry {
             RemoteGENASubscription subscription = getRemoteSubscription(subscriptionId);
             while (subscription == null && !pendingSubscriptionsLock.isEmpty()) {
                 try {
-                    log.finest("Subscription not found, waiting for pending subscription procedure to terminate.");
+                    log.log(Level.INFO, "Subscription not found, waiting for pending subscription procedure to terminate.");
                     pendingSubscriptionsLock.wait();
                 } catch (InterruptedException e) {
                 }
