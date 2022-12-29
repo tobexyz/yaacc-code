@@ -22,9 +22,10 @@ import android.app.NotificationManager;
 import android.content.Context;
 import android.os.AsyncTask;
 import android.os.Environment;
-import androidx.core.app.NotificationCompat;
 import android.util.Log;
 import android.webkit.MimeTypeMap;
+
+import androidx.core.app.NotificationCompat;
 
 import org.fourthline.cling.support.model.DIDLObject;
 import org.fourthline.cling.support.model.item.Item;
@@ -36,6 +37,7 @@ import java.net.URL;
 import java.util.List;
 
 import de.yaacc.R;
+import de.yaacc.Yaacc;
 import de.yaacc.player.PlayableItem;
 import de.yaacc.upnp.UpnpClient;
 
@@ -126,14 +128,15 @@ public class FileDownloader extends AsyncTask<DIDLObject, Void, Void> {
 
     /**
      * Cancels the notification.
+     *
      * @param outdir name of the output dir
      */
     private void createNotification(String outdir) {
         NotificationCompat.Builder mBuilder = new NotificationCompat.Builder(
-                upnpClient.getContext()).setOngoing(true)
+                upnpClient.getContext(), Yaacc.NOTIFICATION_CHANNEL_ID).setOngoing(true)
                 .setSmallIcon(R.drawable.ic_notification_default)
                 .setContentTitle("Yaacc file download")
-                .setContentText("download to: " + outdir );
+                .setContentText("download to: " + outdir);
 
         NotificationManager mNotificationManager = (NotificationManager) upnpClient.getContext()
                 .getSystemService(Context.NOTIFICATION_SERVICE);

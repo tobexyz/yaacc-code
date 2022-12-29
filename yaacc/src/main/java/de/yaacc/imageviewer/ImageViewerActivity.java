@@ -1,21 +1,21 @@
 /*
-*
-* Copyright (C) 2013 www.yaacc.de
-*
-* This program is free software; you can redistribute it and/or
-* modify it under the terms of the GNU General Public License
-* as published by the Free Software Foundation; either version 3
-* of the License, or (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program; if not, write to the Free Software
-* Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
-*/
+ *
+ * Copyright (C) 2013 www.yaacc.de
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 3
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ */
 package de.yaacc.imageviewer;
 
 import android.app.ActionBar;
@@ -60,18 +60,17 @@ import de.yaacc.util.YaaccLogActivity;
 
 /**
  * a simple ImageViewer based on the android ImageView component;
- *
+ * <p>
  * you are able to start the activity either by using intnet.setData(anUri) or
  * by intent.putExtra(ImageViewerActivity.URIS, aList<Uri>); in the later case
  * the activity needed to be started with Intent.ACTION_SEND_MULTIPLE
- *
- *
+ * <p>
+ * <p>
  * The image viewer retrieves all images in a background task
  * (RetrieveImageTask). The images are written in a memory cache. The picture
  * show is processed by the ImageViewerActivity using the images in the cache.
  *
  * @author Tobias Schoene (openbit)
- *
  */
 public class ImageViewerActivity extends Activity implements SwipeReceiver, ServiceConnection {
     public static final String URIS = "URIS_PARAM"; // String Intent parameter
@@ -89,8 +88,9 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver, Serv
     private Timer pictureShowTimer;
     private ImageViewerBroadcastReceiver imageViewerBroadcastReceiver;
     private PlayerService playerService;
+
     public void onServiceConnected(ComponentName className, IBinder binder) {
-        if(binder instanceof PlayerService.PlayerServiceBinder) {
+        if (binder instanceof PlayerService.PlayerServiceBinder) {
             Log.d(getClass().getName(), "PlayerService connected");
             playerService = ((PlayerService.PlayerServiceBinder) binder).getService();
             initialize();
@@ -99,13 +99,14 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver, Serv
     //binder comes from server to communicate with method's of
 
     public void onServiceDisconnected(ComponentName className) {
-        Log.d(getClass().getName(),"PlayerService disconnected");
+        Log.d(getClass().getName(), "PlayerService disconnected");
         playerService = null;
     }
 
-    protected void initialize(){
+    protected void initialize() {
 
     }
+
     @SuppressWarnings("unchecked")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -115,16 +116,18 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver, Serv
         this.bindService(new Intent(this, PlayerService.class),
                 this, Context.BIND_AUTO_CREATE);
     }
+
     /*
-    * (non-Javadoc)
-    *
-    * @see android.app.Activity#onNewIntent(android.content.Intent)
-    */
+     * (non-Javadoc)
+     *
+     * @see android.app.Activity#onNewIntent(android.content.Intent)
+     */
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         init(null, intent);
     }
+
     private void init(Bundle savedInstanceState, Intent intent) {
         menuBarsHide();
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
@@ -144,7 +147,7 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver, Serv
             currentImageIndex = savedInstanceState.getInt("currentImageIndex");
             imageUris = (List<Uri>) savedInstanceState
                     .getSerializable("imageUris");
-        }else {
+        } else {
             Log.d(this.getClass().getName(),
                     "Received Action View! now setting items ");
             Serializable urisData = intent.getSerializableExtra(URIS);
@@ -181,19 +184,20 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver, Serv
     }
 
     @Override
-    protected void onDestroy(){
+    protected void onDestroy() {
         super.onDestroy();
         try {
             unbindService(this);
-        }catch (IllegalArgumentException iae){
+        } catch (IllegalArgumentException iae) {
             Log.d(getClass().getName(), "Ignore exception on unbind service while activity destroy");
         }
     }
+
     /*
-    * (non-Javadoc)
-    *
-    * @see android.app.Activity#onResume()
-    */
+     * (non-Javadoc)
+     *
+     * @see android.app.Activity#onResume()
+     */
     @Override
     protected void onResume() {
 
@@ -203,15 +207,16 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver, Serv
         this.bindService(new Intent(this, PlayerService.class),
                 this, Context.BIND_AUTO_CREATE);
     }
+
     /*
-    * (non-Javadoc)
-    *
-    * @see android.app.Activity#onPause()
-    */
+     * (non-Javadoc)
+     *
+     * @see android.app.Activity#onPause()
+     */
     @Override
     protected void onPause() {
         cancleTimer();
-        if(retrieveImageTask != null){
+        if (retrieveImageTask != null) {
             retrieveImageTask.cancel(true);
             retrieveImageTask = null;
         }
@@ -219,6 +224,7 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver, Serv
         imageViewerBroadcastReceiver = null;
         super.onPause();
     }
+
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
 // Inflate the menu; this adds items to the action bar if it is present.
@@ -226,6 +232,7 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver, Serv
 
         return true;
     }
+
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         Intent i;
@@ -265,9 +272,9 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver, Serv
 
     private void exit() {
         Player player = playerService.getFirstCurrentPlayerOfType(LocalImagePlayer.class);
-        if(player != null){
-        player.exit();
-        }else{
+        if (player != null) {
+            player.exit();
+        } else {
             finish();
         }
     }
@@ -285,8 +292,9 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver, Serv
         if (!(imageUris instanceof ArrayList)) {
             imageUris = new ArrayList<>(imageUris);
         }
-        savedInstanceState.putSerializable("imageUris",(ArrayList<Uri>) imageUris);
+        savedInstanceState.putSerializable("imageUris", (ArrayList<Uri>) imageUris);
     }
+
     /**
      * Create and start a timer for the next picture change. The timer runs only
      * once.
@@ -301,6 +309,7 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver, Serv
             }
         }, getDuration());
     }
+
     /**
      * Start playing the picture show.
      */
@@ -323,6 +332,7 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver, Serv
             isProcessingCommand = false;
         }
     }
+
     /**
      *
      */
@@ -334,8 +344,9 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver, Serv
         retrieveImageTask = new RetrieveImageTask(this);
         Log.d(getClass().getName(),
                 "showImage(" + imageUris.get(currentImageIndex) + ")");
-        retrieveImageTask.executeOnExecutor(((Yaacc)getApplicationContext()).getContentLoadExecutor(),imageUris.get(currentImageIndex));
+        retrieveImageTask.executeOnExecutor(((Yaacc) getApplicationContext()).getContentLoadExecutor(), imageUris.get(currentImageIndex));
     }
+
     /**
      * Stop picture show timer and reset the current playlist index. Display
      * default image;
@@ -358,6 +369,7 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver, Serv
         pictureShowActive = false;
         isProcessingCommand = false;
     }
+
     /**
      *
      */
@@ -366,6 +378,7 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver, Serv
             pictureShowTimer.cancel();
         }
     }
+
     /**
      *
      */
@@ -373,6 +386,7 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver, Serv
         imageView.setImageDrawable(getResources().getDrawable(
                 R.drawable.yaacc192_32));
     }
+
     /**
      * Stop the timer.
      */
@@ -392,6 +406,7 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver, Serv
         pictureShowActive = false;
         isProcessingCommand = false;
     }
+
     /**
      * show the previous image
      */
@@ -420,6 +435,7 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver, Serv
         loadImage();
         isProcessingCommand = false;
     }
+
     /**
      * show the next image.
      */
@@ -445,6 +461,7 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver, Serv
         loadImage();
         isProcessingCommand = false;
     }
+
     /**
      * Displays an image and start the picture show timer.
      *
@@ -466,6 +483,7 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver, Serv
             }
         });
     }
+
     /**
      * Return the configured slide stay duration
      */
@@ -477,6 +495,7 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver, Serv
                         getString(R.string.image_viewer_settings_duration_key),
                         "2000"));
     }
+
     // interface SwipeReceiver
     @Override
     public void onRightToLeftSwipe() {
@@ -484,20 +503,24 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver, Serv
             next();
         }
     }
+
     @Override
     public void onLeftToRightSwipe() {
         if (imageUris.size() > 1) {
             previous();
         }
     }
+
     @Override
     public void onTopToBottomSwipe() {
 // do nothing
     }
+
     @Override
     public void onBottomToTopSwipe() {
 // do nothing
     }
+
     @Override
     public void beginOnTouchProcessing(View v, MotionEvent event) {
         runOnUiThread(new Runnable() {
@@ -506,10 +529,12 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver, Serv
             }
         });
     }
+
     @Override
     public void endOnTouchProcessing(View v, MotionEvent event) {
         startMenuHideTimer();
     }
+
     /**
      *
      */
@@ -526,12 +551,16 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver, Serv
             }
         }, 5000);
     }
+
     public boolean isPictureShowActive() {
         return pictureShowActive && imageUris != null && imageUris.size() > 1;
     }
+
     private String getPositionString() {
         return " (" + (currentImageIndex + 1) + "/" + imageUris.size() + ")";
     }
+
+    //FIXME https://stackoverflow.com/questions/26580117/android-how-to-create-overlay-drop-down-menu-similar-to-google-app
     private void menuBarsHide() {
         Log.d(getClass().getName(), "menuBarsHide");
         ActionBar actionBar = getActionBar();
@@ -549,6 +578,7 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver, Serv
                 View.SYSTEM_UI_FLAG_LOW_PROFILE);
         actionBar.hide(); // slides out
     }
+
     private void menuBarsShow() {
         Log.d(getClass().getName(), "menuBarsShow");
         ActionBar actionBar = getActionBar();

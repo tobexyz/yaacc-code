@@ -92,6 +92,23 @@ public abstract class SubscriptionCallback implements Runnable {
         this.requestedDurationSeconds = requestedDurationSeconds;
     }
 
+    /**
+     * @param responseStatus The (HTTP) response or <code>null</code> if there was no response.
+     * @param exception      The exception or <code>null</code> if there was no exception.
+     * @return A human-friendly error message.
+     */
+    public static String createDefaultFailureMessage(UpnpResponse responseStatus, Exception exception) {
+        String message = "Subscription failed: ";
+        if (responseStatus != null) {
+            message = message + " HTTP response was: " + responseStatus.getResponseDetails();
+        } else if (exception != null) {
+            message = message + " Exception occured: " + exception;
+        } else {
+            message = message + " No response received.";
+        }
+        return message;
+    }
+
     public Service getService() {
         return service;
     }
@@ -113,7 +130,7 @@ public abstract class SubscriptionCallback implements Runnable {
     }
 
     synchronized public void run() {
-        if (getControlPoint()  == null) {
+        if (getControlPoint() == null) {
             throw new IllegalStateException("Callback must be executed through ControlPoint");
         }
 
@@ -164,29 +181,29 @@ public abstract class SubscriptionCallback implements Runnable {
 
                         public void eventReceived() {
                             synchronized (SubscriptionCallback.this) {
-                                log.fine("Local service state updated, notifying callback, sequence is: " + getCurrentSequence());
+                                log.info("Local service state updated, notifying callback, sequence is: " + getCurrentSequence());
                                 SubscriptionCallback.this.eventReceived(this);
                                 incrementSequence();
                             }
                         }
                     };
 
-            log.fine("Local device service is currently registered, also registering subscription");
+            log.info("Local device service is currently registered, also registering subscription");
             getControlPoint().getRegistry().addLocalSubscription(localSubscription);
 
-            log.fine("Notifying subscription callback of local subscription availablity");
+            log.info("Notifying subscription callback of local subscription availablity");
             localSubscription.establish();
 
-            log.fine("Simulating first initial event for local subscription callback, sequence: " + localSubscription.getCurrentSequence());
+            log.info("Simulating first initial event for local subscription callback, sequence: " + localSubscription.getCurrentSequence());
             eventReceived(localSubscription);
             localSubscription.incrementSequence();
 
-            log.fine("Starting to monitor state changes of local service");
+            log.info("Starting to monitor state changes of local service");
             localSubscription.registerOnService();
 
         } catch (Exception ex) {
-            log.fine("Local callback creation failed: " + ex.toString());
-            log.log(Level.FINE, "Exception root cause: ", Exceptions.unwrap(ex));
+            log.info("Local callback creation failed: " + ex.toString());
+            log.log(Level.INFO, "Exception root cause: ", Exceptions.unwrap(ex));
             if (localSubscription != null)
                 getControlPoint().getRegistry().removeLocalSubscription(localSubscription);
             failed(localSubscription, null, ex);
@@ -230,11 +247,11 @@ public abstract class SubscriptionCallback implements Runnable {
                         }
                     }
 
-					public void invalidMessage(UnsupportedDataException ex) {
-						synchronized (SubscriptionCallback.this) {
-							SubscriptionCallback.this.invalidMessage(this, ex);
-						}
-					}
+                    public void invalidMessage(UnsupportedDataException ex) {
+                        synchronized (SubscriptionCallback.this) {
+                            SubscriptionCallback.this.invalidMessage(this, ex);
+                        }
+                    }
                 };
 
         SendingSubscribe protocol;
@@ -250,9 +267,9 @@ public abstract class SubscriptionCallback implements Runnable {
     synchronized public void end() {
         if (subscription == null) return;
         if (subscription instanceof LocalGENASubscription) {
-            endLocalSubscription((LocalGENASubscription)subscription);
+            endLocalSubscription((LocalGENASubscription) subscription);
         } else if (subscription instanceof RemoteGENASubscription) {
-            endRemoteSubscription((RemoteGENASubscription)subscription);
+            endRemoteSubscription((RemoteGENASubscription) subscription);
         }
     }
 
@@ -319,27 +336,11 @@ public abstract class SubscriptionCallback implements Runnable {
      * <p>
      * It's up to you if you want to react to missed events or if you (can) silently ignore them.
      * </p>
-     * @param subscription The established subscription.
+     *
+     * @param subscription         The established subscription.
      * @param numberOfMissedEvents The number of missed events.
      */
     protected abstract void eventsMissed(GENASubscription subscription, int numberOfMissedEvents);
-
-    /**
-     * @param responseStatus The (HTTP) response or <code>null</code> if there was no response.
-     * @param exception The exception or <code>null</code> if there was no exception.
-     * @return A human-friendly error message.
-     */
-    public static String createDefaultFailureMessage(UpnpResponse responseStatus, Exception exception) {
-        String message = "Subscription failed: ";
-        if (responseStatus != null) {
-            message = message + " HTTP response was: " + responseStatus.getResponseDetails();
-        } else if (exception != null) {
-            message = message + " Exception occured: " + exception;
-        } else {
-            message = message + " No response received.";
-        }
-        return message;
-    }
 
     /**
      * Called when a received event message could not be parsed successfully.
@@ -354,9 +355,9 @@ public abstract class SubscriptionCallback implements Runnable {
      * </p>
      *
      * @param remoteGENASubscription The established subscription.
-     * @param ex Call {@link org.fourthline.cling.model.UnsupportedDataException#getData()} to access the invalid XML.
+     * @param ex                     Call {@link org.fourthline.cling.model.UnsupportedDataException#getData()} to access the invalid XML.
      */
-	protected void invalidMessage(RemoteGENASubscription remoteGENASubscription,
+    protected void invalidMessage(RemoteGENASubscription remoteGENASubscription,
                                   UnsupportedDataException ex) {
         log.info("Invalid event message received, causing: " + ex);
         if (log.isLoggable(Level.FINE)) {

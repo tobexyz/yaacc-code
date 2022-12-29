@@ -76,6 +76,7 @@ import java.util.TimerTask;
 import java.util.concurrent.TimeUnit;
 
 import de.yaacc.R;
+import de.yaacc.Yaacc;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.server.avtransport.YaaccAVTransportService;
 import de.yaacc.upnp.server.contentdirectory.YaaccContentDirectory;
@@ -185,7 +186,7 @@ public class YaaccUpnpServerService extends Service {
     private void showNotification() {
         Intent notificationIntent = new Intent(this, YaaccUpnpServerControlActivity.class);
         PendingIntent contentIntent = PendingIntent.getActivity(this, 0, notificationIntent, 0);
-        NotificationCompat.Builder mBuilder = new NotificationCompat.Builder(this).setOngoing(true).setSmallIcon(R.drawable.ic_notification_default)
+        NotificationCompat.Builder mBuilder = new NotificationCompat.Builder(this, Yaacc.NOTIFICATION_CHANNEL_ID).setOngoing(true).setSmallIcon(R.drawable.ic_notification_default)
                 .setContentTitle("Yaacc Upnp Server")
                 .setContentText(preferences.getString(getApplicationContext().getString(R.string.settings_local_server_name_key), ""));
         mBuilder.setContentIntent(contentIntent);

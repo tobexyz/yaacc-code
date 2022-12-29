@@ -42,6 +42,7 @@ import java.util.List;
 import java.util.Map;
 
 import de.yaacc.R;
+import de.yaacc.Yaacc;
 import de.yaacc.browser.TabBrowserActivity;
 import de.yaacc.upnp.SynchronizationInfo;
 import de.yaacc.upnp.UpnpClient;
@@ -50,7 +51,6 @@ import de.yaacc.upnp.UpnpClient;
  * @author Tobias Schoene (tobexyz)
  */
 public class PlayerService extends Service {
-    private static final String CHANNEL_ID = "YaaccNotifications";
 
     private IBinder binder = new PlayerServiceBinder();
     private Map<Integer, Player> currentActivePlayer = new HashMap<>();
@@ -91,7 +91,7 @@ public class PlayerService extends Service {
         Intent notificationIntent = new Intent(this, TabBrowserActivity.class);
         PendingIntent pendingIntent = PendingIntent.getActivity(this,
                 0, notificationIntent, 0);
-        Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
+        Notification notification = new NotificationCompat.Builder(this, Yaacc.NOTIFICATION_CHANNEL_ID)
                 .setContentTitle("Player Service")
                 .setContentText("running")
                 .setSmallIcon(R.drawable.yaacc32_24_bmp)
