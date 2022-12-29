@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (C) 2014 www.yaacc.de 
+ * Copyright (C) 2014 www.yaacc.de
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -18,12 +18,11 @@
  */
 package de.yaacc.upnp.server.contentdirectory;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import android.annotation.SuppressLint;
+import android.content.Context;
+import android.database.Cursor;
+import android.provider.MediaStore;
+import android.util.Log;
 
 import org.fourthline.cling.support.model.DIDLObject;
 import org.fourthline.cling.support.model.SortCriterion;
@@ -32,19 +31,19 @@ import org.fourthline.cling.support.model.container.PhotoAlbum;
 import org.fourthline.cling.support.model.container.StorageFolder;
 import org.fourthline.cling.support.model.item.Item;
 
-import android.content.Context;
-import android.database.Cursor;
-import android.provider.MediaStore;
-import android.util.Log;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import de.yaacc.R;
 
 /**
  * Browser  for the image folder.
- * 
- * 
+ *
  * @author TheOpenBit (Tobias Schoene)
- * 
  */
 public class ImagesByBucketNamesFolderBrowser extends ContentBrowser {
 
@@ -54,65 +53,56 @@ public class ImagesByBucketNamesFolderBrowser extends ContentBrowser {
     }
 
     @Override
-	public DIDLObject browseMeta(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults,SortCriterion[] orderby) {
-		
-		PhotoAlbum photoAlbum = new PhotoAlbum(ContentDirectoryIDs.IMAGES_BY_BUCKET_NAMES_FOLDER.getId(), ContentDirectoryIDs.IMAGES_FOLDER.getId(), getContext().getString(R.string.bucket_names), "yaacc", getSize(contentDirectory, myId));
-		return photoAlbum;
-	}
+    public DIDLObject browseMeta(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
 
-	private Integer getSize(YaaccContentDirectory contentDirectory, String myId){
-		 Integer result = 0;
-				String[] projection = { "count(*) as count" };
-				String selection = "0 == 0 ) group by ( " + MediaStore.Images.Media.BUCKET_ID;
-				String[] selectionArgs = null;
-				Cursor cursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, projection, selection,
-						selectionArgs, null);
+        PhotoAlbum photoAlbum = new PhotoAlbum(ContentDirectoryIDs.IMAGES_BY_BUCKET_NAMES_FOLDER.getId(), ContentDirectoryIDs.IMAGES_FOLDER.getId(), getContext().getString(R.string.bucket_names), "yaacc", getSize(contentDirectory, myId));
+        return photoAlbum;
+    }
 
-				if (cursor != null) {
-					cursor.moveToFirst();
-					result = Integer.valueOf(cursor.getString(0));
-					cursor.close();
-				}
-				return result;
-	}
-	
-	private Integer getBucketNameFolderSize(YaaccContentDirectory contentDirectory, String id){
-		 Integer result = 0;
-				String[] projection = { "count(*) as count" };
-				String selection = MediaStore.Images.Media.BUCKET_ID + "=?";
-				String[] selectionArgs = new String[]{id};
-				Cursor cursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, projection, selection,
-						selectionArgs, null);
+    private Integer getSize(YaaccContentDirectory contentDirectory, String myId) {
 
-				if (cursor != null) {
-					cursor.moveToFirst();
-					result = Integer.valueOf(cursor.getString(0));
-					cursor.close();
-				}
-				return result;
-	}
-	
-	
-	
-	
-	@Override
-	public List<Container> browseContainer(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults,SortCriterion[] orderby) {
-		List<Container> result = new ArrayList<Container>();
-        Map<String,StorageFolder> folderMap= new HashMap<String,StorageFolder>();
-		String[] projection = { MediaStore.Images.Media.BUCKET_ID, MediaStore.Images.Media.BUCKET_DISPLAY_NAME};
-		String selection = "0 == 0 ) group by ( " + MediaStore.Images.Media.BUCKET_ID;
-		String[] selectionArgs = null;
-		Cursor mediaCursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, projection, selection,
-				selectionArgs, MediaStore.Images.Media.BUCKET_DISPLAY_NAME + " ASC");
-		if (mediaCursor != null) {
-			mediaCursor.moveToFirst();
+        String[] projection = {MediaStore.Images.Media._ID};
+        String selection = "0 == 0 ) group by ( " + MediaStore.Images.Media.BUCKET_ID;
+        String[] selectionArgs = null;
+        try (Cursor cursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, projection, selection,
+                selectionArgs, null)) {
+            return cursor.getCount();
+        }
+
+    }
+
+    private Integer getBucketNameFolderSize(YaaccContentDirectory contentDirectory, String id) {
+
+        String[] projection = {MediaStore.Images.Media.BUCKET_ID};
+        String selection = MediaStore.Images.Media.BUCKET_ID + "=?";
+        String[] selectionArgs = new String[]{id};
+        try (Cursor cursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, projection, selection,
+                selectionArgs, null)) {
+            return cursor.getCount();
+        }
+
+    }
+
+
+    @Override
+    public List<Container> browseContainer(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
+        List<Container> result = new ArrayList<Container>();
+        Map<String, StorageFolder> folderMap = new HashMap<String, StorageFolder>();
+        String[] projection = {MediaStore.Images.Media.BUCKET_ID, MediaStore.Images.Media.BUCKET_DISPLAY_NAME};
+        String selection = "0 == 0 ) group by ( " + MediaStore.Images.Media.BUCKET_ID;
+        String[] selectionArgs = null;
+        Cursor mediaCursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, projection, selection,
+                selectionArgs, MediaStore.Images.Media.BUCKET_DISPLAY_NAME + " ASC");
+        if (mediaCursor != null) {
+            mediaCursor.moveToFirst();
             int currentIndex = 0;
             int currentCount = 0;
             while (!mediaCursor.isAfterLast() && currentCount < maxResults) {
                 if (firstResult <= currentIndex) {
-                    String id = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Images.Media.BUCKET_ID));
-                    String name = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Images.Media.BUCKET_DISPLAY_NAME));;
-                    StorageFolder imageFolder = new StorageFolder(ContentDirectoryIDs.IMAGES_BY_BUCKET_NAME_PREFIX.getId()+id, ContentDirectoryIDs.IMAGES_BY_BUCKET_NAMES_FOLDER.getId(), name, "yaacc", 0,90700L);
+                    @SuppressLint("Range") String id = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Images.Media.BUCKET_ID));
+                    @SuppressLint("Range") String name = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Images.Media.BUCKET_DISPLAY_NAME));
+                    ;
+                    StorageFolder imageFolder = new StorageFolder(ContentDirectoryIDs.IMAGES_BY_BUCKET_NAME_PREFIX.getId() + id, ContentDirectoryIDs.IMAGES_BY_BUCKET_NAMES_FOLDER.getId(), name, "yaacc", 0, 90700L);
                     folderMap.put(id, imageFolder);
                     Log.d(getClass().getName(), "image by bucket names folder: " + id + " Name: " + name);
                     currentCount++;
@@ -122,7 +112,7 @@ public class ImagesByBucketNamesFolderBrowser extends ContentBrowser {
             }
             mediaCursor.close();
             //Fetch folder size
-            for(Map.Entry<String,StorageFolder> entry : folderMap.entrySet()){
+            for (Map.Entry<String, StorageFolder> entry : folderMap.entrySet()) {
                 entry.getValue().setChildCount(getBucketNameFolderSize(contentDirectory, entry.getKey()));
                 result.add(entry.getValue());
             }
@@ -131,20 +121,20 @@ public class ImagesByBucketNamesFolderBrowser extends ContentBrowser {
         }
         Collections.sort(result, new Comparator<Container>() {
 
-			@Override
-			public int compare(Container lhs, Container rhs) {
-				return lhs.getTitle().compareTo(rhs.getTitle());
-			}
-		});
+            @Override
+            public int compare(Container lhs, Container rhs) {
+                return lhs.getTitle().compareTo(rhs.getTitle());
+            }
+        });
 
-		return result;		
-	}
+        return result;
+    }
 
-	@Override
-	public List<Item> browseItem(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults,SortCriterion[] orderby) {
-		List<Item> result = new ArrayList<Item>();		
-		return result;
-		
-	}
+    @Override
+    public List<Item> browseItem(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
+        List<Item> result = new ArrayList<Item>();
+        return result;
+
+    }
 
 }

@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (C) 2014 www.yaacc.de 
+ * Copyright (C) 2014 www.yaacc.de
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -18,6 +18,7 @@
  */
 package de.yaacc.upnp.server.contentdirectory;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.database.Cursor;
 import android.provider.MediaStore;
@@ -44,10 +45,8 @@ import de.yaacc.upnp.server.YaaccUpnpServerService;
 
 /**
  * Browser for the music all titles folder.
- * 
- * 
+ *
  * @author openbit (Tobias Schoene)
- * 
  */
 public class MusicAllTitlesFolderBrowser extends ContentBrowser {
     public MusicAllTitlesFolderBrowser(Context context) {
@@ -55,129 +54,126 @@ public class MusicAllTitlesFolderBrowser extends ContentBrowser {
     }
 
     @Override
-	public DIDLObject browseMeta(YaaccContentDirectory contentDirectory,
-			String myId, long firstResult, long maxResults,SortCriterion[] orderby) {
+    public DIDLObject browseMeta(YaaccContentDirectory contentDirectory,
+                                 String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
 
-		MusicAlbum folder = new MusicAlbum(
-				ContentDirectoryIDs.MUSIC_ALL_TITLES_FOLDER.getId(),
-				ContentDirectoryIDs.MUSIC_FOLDER.getId(), getContext().getString(R.string.all), "yaacc",
-				getSize(contentDirectory, myId));
-		return folder;
-	}
+        MusicAlbum folder = new MusicAlbum(
+                ContentDirectoryIDs.MUSIC_ALL_TITLES_FOLDER.getId(),
+                ContentDirectoryIDs.MUSIC_FOLDER.getId(), getContext().getString(R.string.all), "yaacc",
+                getSize(contentDirectory, myId));
+        return folder;
+    }
 
-	private Integer getSize(YaaccContentDirectory contentDirectory, String myId) {
-		Integer result = 0;
-		String[] projection = { "count(*) as count" };
-		String selection = "";
-		String[] selectionArgs = null;
-		Cursor cursor = contentDirectory
-				.getContext()
-				.getContentResolver()
-				.query(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, projection,
-						selection, selectionArgs, null);
+    private Integer getSize(YaaccContentDirectory contentDirectory, String myId) {
 
-		if (cursor != null) {
-			cursor.moveToFirst();
-			result = Integer.valueOf(cursor.getString(0));
-			cursor.close();
-		}
-		return result;
-	}
+        String[] projection = {MediaStore.Audio.Media._ID};
+        String selection = "";
+        String[] selectionArgs = null;
+        try (Cursor cursor = contentDirectory
+                .getContext()
+                .getContentResolver()
+                .query(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, projection,
+                        selection, selectionArgs, null)) {
+            return cursor.getCount();
+        }
 
-	@Override
-	public List<Container> browseContainer(
-			YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults,SortCriterion[] orderby) {
+    }
 
-		return new ArrayList<Container>();
-	}
+    @Override
+    public List<Container> browseContainer(
+            YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
 
-	@Override
-	public List<Item> browseItem(YaaccContentDirectory contentDirectory,
-			String myId, long firstResult, long maxResults,SortCriterion[] orderby) {
-		List<Item> result = new ArrayList<Item>();
-		String[] projection = { MediaStore.Audio.Media._ID,
-				MediaStore.Audio.Media.DISPLAY_NAME,
-				MediaStore.Audio.Media.MIME_TYPE, MediaStore.Audio.Media.SIZE,
-				MediaStore.Audio.Media.ALBUM, MediaStore.Audio.Media.ALBUM_ID,
-				MediaStore.Audio.Media.TITLE, MediaStore.Audio.Media.ARTIST,
-				MediaStore.Audio.Media.DURATION };
-		String selection = "";
-		String[] selectionArgs = null;
-		Cursor mediaCursor = contentDirectory
-				.getContext()
-				.getContentResolver()
-				.query(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, projection,
-						selection, selectionArgs, MediaStore.Audio.Media.DISPLAY_NAME + " ASC");
+        return new ArrayList<Container>();
+    }
 
-		if (mediaCursor != null) {
-			mediaCursor.moveToFirst();
-			int currentIndex = 0;
-			int currentCount = 0;
-			while (!mediaCursor.isAfterLast() && currentCount < maxResults) {
-				if (firstResult <= currentIndex) {
-					String id = mediaCursor.getString(mediaCursor
-							.getColumnIndex(MediaStore.Audio.Media._ID));
-					String name = mediaCursor.getString(mediaCursor
-							.getColumnIndex(MediaStore.Audio.Media.DISPLAY_NAME));
-					Long size = Long.valueOf(mediaCursor.getString(mediaCursor
-							.getColumnIndex(MediaStore.Audio.Media.SIZE)));
+    @SuppressLint("Range")
+    @Override
+    public List<Item> browseItem(YaaccContentDirectory contentDirectory,
+                                 String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
+        List<Item> result = new ArrayList<Item>();
+        String[] projection = {MediaStore.Audio.Media._ID,
+                MediaStore.Audio.Media.DISPLAY_NAME,
+                MediaStore.Audio.Media.MIME_TYPE, MediaStore.Audio.Media.SIZE,
+                MediaStore.Audio.Media.ALBUM, MediaStore.Audio.Media.ALBUM_ID,
+                MediaStore.Audio.Media.TITLE, MediaStore.Audio.Media.ARTIST,
+                MediaStore.Audio.Media.DURATION};
+        String selection = "";
+        String[] selectionArgs = null;
+        Cursor mediaCursor = contentDirectory
+                .getContext()
+                .getContentResolver()
+                .query(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, projection,
+                        selection, selectionArgs, MediaStore.Audio.Media.DISPLAY_NAME + " ASC");
 
-					String album = mediaCursor.getString(mediaCursor
-							.getColumnIndex(MediaStore.Audio.Media.ALBUM));
-					String albumId = mediaCursor.getString(mediaCursor
-							.getColumnIndex(MediaStore.Audio.Media.ALBUM_ID));
-					String title = mediaCursor.getString(mediaCursor
-							.getColumnIndex(MediaStore.Audio.Media.TITLE));
-					String artist = mediaCursor.getString(mediaCursor
-							.getColumnIndex(MediaStore.Audio.Media.ARTIST));
-					String duration = mediaCursor.getString(mediaCursor
-							.getColumnIndex(MediaStore.Audio.Media.DURATION));
-					duration = contentDirectory.formatDuration(duration);
-					Log.d(getClass().getName(),
-							"Mimetype: "
-									+ mediaCursor.getString(mediaCursor
-											.getColumnIndex(MediaStore.Audio.Media.MIME_TYPE)));
+        if (mediaCursor != null) {
+            mediaCursor.moveToFirst();
+            int currentIndex = 0;
+            int currentCount = 0;
+            while (!mediaCursor.isAfterLast() && currentCount < maxResults) {
+                if (firstResult <= currentIndex) {
+                    @SuppressLint("Range") String id = mediaCursor.getString(mediaCursor
+                            .getColumnIndex(MediaStore.Audio.Media._ID));
+                    @SuppressLint("Range") String name = mediaCursor.getString(mediaCursor
+                            .getColumnIndex(MediaStore.Audio.Media.DISPLAY_NAME));
+                    @SuppressLint("Range") Long size = Long.valueOf(mediaCursor.getString(mediaCursor
+                            .getColumnIndex(MediaStore.Audio.Media.SIZE)));
 
-					MimeType mimeType = MimeType
-							.valueOf(mediaCursor.getString(mediaCursor
-									.getColumnIndex(MediaStore.Audio.Media.MIME_TYPE)));
-					// file parameter only needed for media players which decide
-					// the
-					// ability of playing a file by the file extension
-					String uri = getUriString(contentDirectory, id, mimeType);
-					URI albumArtUri = URI.create("http://"
-							+ contentDirectory.getIpAddress() + ":"
-							+ YaaccUpnpServerService.PORT + "/?album=" + albumId);
-					Res resource = new Res(mimeType, size, uri);
-					resource.setDuration(duration);
-					MusicTrack musicTrack = new MusicTrack(
-							ContentDirectoryIDs.MUSIC_ALL_TITLES_ITEM_PREFIX.getId()
-									+ id, ContentDirectoryIDs.MUSIC_FOLDER.getId(),
-							title + "-(" + name + ")", "", album, artist, resource);
-					musicTrack.replaceFirstProperty(new UPNP.ALBUM_ART_URI(
-							albumArtUri));
-					result.add(musicTrack);
-					Log.d(getClass().getName(), "MusicTrack: " + id + " Name: "
-							+ name + " uri: " + uri);
-					currentCount++;
-				}
-				currentIndex++;
-				mediaCursor.moveToNext();
-			}
-			mediaCursor.close();
+                    @SuppressLint("Range") String album = mediaCursor.getString(mediaCursor
+                            .getColumnIndex(MediaStore.Audio.Media.ALBUM));
+                    @SuppressLint("Range") String albumId = mediaCursor.getString(mediaCursor
+                            .getColumnIndex(MediaStore.Audio.Media.ALBUM_ID));
+                    @SuppressLint("Range") String title = mediaCursor.getString(mediaCursor
+                            .getColumnIndex(MediaStore.Audio.Media.TITLE));
+                    @SuppressLint("Range") String artist = mediaCursor.getString(mediaCursor
+                            .getColumnIndex(MediaStore.Audio.Media.ARTIST));
+                    @SuppressLint("Range") String duration = mediaCursor.getString(mediaCursor
+                            .getColumnIndex(MediaStore.Audio.Media.DURATION));
+                    duration = contentDirectory.formatDuration(duration);
+                    Log.d(getClass().getName(),
+                            "Mimetype: "
+                                    + mediaCursor.getString(mediaCursor
+                                    .getColumnIndex(MediaStore.Audio.Media.MIME_TYPE)));
+
+                    MimeType mimeType = MimeType
+                            .valueOf(mediaCursor.getString(mediaCursor
+                                    .getColumnIndex(MediaStore.Audio.Media.MIME_TYPE)));
+                    // file parameter only needed for media players which decide
+                    // the
+                    // ability of playing a file by the file extension
+                    String uri = getUriString(contentDirectory, id, mimeType);
+                    URI albumArtUri = URI.create("http://"
+                            + contentDirectory.getIpAddress() + ":"
+                            + YaaccUpnpServerService.PORT + "/?album=" + albumId);
+                    Res resource = new Res(mimeType, size, uri);
+                    resource.setDuration(duration);
+                    MusicTrack musicTrack = new MusicTrack(
+                            ContentDirectoryIDs.MUSIC_ALL_TITLES_ITEM_PREFIX.getId()
+                                    + id, ContentDirectoryIDs.MUSIC_FOLDER.getId(),
+                            title + "-(" + name + ")", "", album, artist, resource);
+                    musicTrack.replaceFirstProperty(new UPNP.ALBUM_ART_URI(
+                            albumArtUri));
+                    result.add(musicTrack);
+                    Log.d(getClass().getName(), "MusicTrack: " + id + " Name: "
+                            + name + " uri: " + uri);
+                    currentCount++;
+                }
+                currentIndex++;
+                mediaCursor.moveToNext();
+            }
+            mediaCursor.close();
 
         } else {
             Log.d(getClass().getName(), "System media store is empty.");
         }
-		Collections.sort(result, new Comparator<Item>() {
+        Collections.sort(result, new Comparator<Item>() {
 
-			@Override
-			public int compare(Item lhs, Item rhs) {
-				return lhs.getTitle().compareTo(rhs.getTitle());
-			}
-		});
-		return result;
+            @Override
+            public int compare(Item lhs, Item rhs) {
+                return lhs.getTitle().compareTo(rhs.getTitle());
+            }
+        });
+        return result;
 
-	}
+    }
 
 }

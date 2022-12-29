@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (C) 2014 www.yaacc.de 
+ * Copyright (C) 2014 www.yaacc.de
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -18,8 +18,11 @@
  */
 package de.yaacc.upnp.server.contentdirectory;
 
-import java.util.ArrayList;
-import java.util.List;
+import android.content.Context;
+import android.database.Cursor;
+import android.provider.BaseColumns;
+import android.provider.MediaStore;
+import android.util.Log;
 
 import org.fourthline.cling.support.model.DIDLObject;
 import org.fourthline.cling.support.model.Res;
@@ -30,21 +33,15 @@ import org.fourthline.cling.support.model.item.Item;
 import org.fourthline.cling.support.model.item.VideoItem;
 import org.seamless.util.MimeType;
 
-import android.content.Context;
-import android.database.Cursor;
-import android.provider.BaseColumns;
-import android.provider.MediaStore;
-import android.util.Log;
-import android.webkit.MimeTypeMap;
+import java.util.ArrayList;
+import java.util.List;
 
 import de.yaacc.R;
-import de.yaacc.upnp.server.YaaccUpnpServerService;
+
 /**
  * Browser  for the video folder.
- * 
- * 
+ *
  * @author openbit (Tobias Schoene)
- * 
  */
 public class VideosFolderBrowser extends ContentBrowser {
 
@@ -53,48 +50,42 @@ public class VideosFolderBrowser extends ContentBrowser {
     }
 
     @Override
-	public DIDLObject browseMeta(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults,SortCriterion[] orderby) {
-		
-		StorageFolder videosFolder = new StorageFolder(ContentDirectoryIDs.VIDEOS_FOLDER.getId(), ContentDirectoryIDs.ROOT.getId(), getContext().getString(R.string.videos), "yaacc", getSize(contentDirectory,myId),
-				907000L);
-		return videosFolder;
-	}
+    public DIDLObject browseMeta(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
 
-	private Integer getSize(YaaccContentDirectory contentDirectory, String myId){
-		 Integer result = 0;
-				String[] projection = { "count(*) as count" };
-				String selection = "";
-				String[] selectionArgs = null;
-				Cursor cursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, projection, selection,
-						selectionArgs, null);
+        StorageFolder videosFolder = new StorageFolder(ContentDirectoryIDs.VIDEOS_FOLDER.getId(), ContentDirectoryIDs.ROOT.getId(), getContext().getString(R.string.videos), "yaacc", getSize(contentDirectory, myId),
+                907000L);
+        return videosFolder;
+    }
 
-				if (cursor != null) {
-					cursor.moveToFirst();
-					result = Integer.valueOf(cursor.getString(0));
-					cursor.close();
-				}
-				return result;
-	}
-	
-	@Override
-	public List<Container> browseContainer(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults,SortCriterion[] orderby) {
-		
-		return new ArrayList<Container>();
-	}
+    private Integer getSize(YaaccContentDirectory contentDirectory, String myId) {
+        String[] projection = {MediaStore.Video.Media._ID};
+        String selection = "";
+        String[] selectionArgs = null;
+        try (Cursor cursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, projection, selection,
+                selectionArgs, null)) {
+            return cursor.getCount();
+        }
+    }
 
-	@Override
-	public List<Item> browseItem(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults,SortCriterion[] orderby) {
-		List<Item> result = new ArrayList<Item>();
-		String[] projection = { MediaStore.Video.Media._ID, MediaStore.Video.Media.DISPLAY_NAME, MediaStore.Video.Media.MIME_TYPE,
-				MediaStore.Video.Media.SIZE, MediaStore.Video.Media.DURATION };
-		String selection = "";
-		String[] selectionArgs = null;
-		String sortOrder = String.format("%s limit 100",BaseColumns._ID);
-		Cursor mediaCursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, projection, selection,
-				selectionArgs, MediaStore.Video.Media.DISPLAY_NAME + " ASC");
+    @Override
+    public List<Container> browseContainer(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
 
-		if (mediaCursor != null) {
-			mediaCursor.moveToFirst();
+        return new ArrayList<Container>();
+    }
+
+    @Override
+    public List<Item> browseItem(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
+        List<Item> result = new ArrayList<Item>();
+        String[] projection = {MediaStore.Video.Media._ID, MediaStore.Video.Media.DISPLAY_NAME, MediaStore.Video.Media.MIME_TYPE,
+                MediaStore.Video.Media.SIZE, MediaStore.Video.Media.DURATION};
+        String selection = "";
+        String[] selectionArgs = null;
+        String sortOrder = String.format("%s limit 100", BaseColumns._ID);
+        Cursor mediaCursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, projection, selection,
+                selectionArgs, MediaStore.Video.Media.DISPLAY_NAME + " ASC");
+
+        if (mediaCursor != null) {
+            mediaCursor.moveToFirst();
             int currentIndex = 0;
             int currentCount = 0;
             while (!mediaCursor.isAfterLast() && currentCount < maxResults) {
@@ -116,14 +107,14 @@ public class VideosFolderBrowser extends ContentBrowser {
                     currentCount++;
                 }
                 currentIndex++;
-				mediaCursor.moveToNext();
-			}
-			mediaCursor.close();
-		} else {
-			Log.d(getClass().getName(), "System media store is empty.");
-		}
-		return result;
-		
-	}
+                mediaCursor.moveToNext();
+            }
+            mediaCursor.close();
+        } else {
+            Log.d(getClass().getName(), "System media store is empty.");
+        }
+        return result;
+
+    }
 
 }

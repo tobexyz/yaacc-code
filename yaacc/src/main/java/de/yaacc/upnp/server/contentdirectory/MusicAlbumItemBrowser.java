@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (C) 2014 www.yaacc.de 
+ * Copyright (C) 2014 www.yaacc.de
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -18,11 +18,11 @@
  */
 package de.yaacc.upnp.server.contentdirectory;
 
-import java.io.UnsupportedEncodingException;
-import java.net.URI;
-import java.net.URLEncoder;
-import java.util.ArrayList;
-import java.util.List;
+import android.annotation.SuppressLint;
+import android.content.Context;
+import android.database.Cursor;
+import android.provider.MediaStore;
+import android.util.Log;
 
 import org.fourthline.cling.support.model.DIDLObject;
 import org.fourthline.cling.support.model.DIDLObject.Property.UPNP;
@@ -33,11 +33,9 @@ import org.fourthline.cling.support.model.item.Item;
 import org.fourthline.cling.support.model.item.MusicTrack;
 import org.seamless.util.MimeType;
 
-import android.content.Context;
-import android.database.Cursor;
-import android.provider.MediaStore;
-import android.util.Log;
-import android.webkit.MimeTypeMap;
+import java.net.URI;
+import java.util.ArrayList;
+import java.util.List;
 
 import de.yaacc.upnp.server.YaaccUpnpServerService;
 
@@ -52,9 +50,10 @@ public class MusicAlbumItemBrowser extends ContentBrowser {
         super(context);
     }
 
+    @SuppressLint("Range")
     @Override
     public DIDLObject browseMeta(YaaccContentDirectory contentDirectory,
-                                 String myId, long firstResult, long maxResults,SortCriterion[] orderby) {
+                                 String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
         Item result = null;
         String[] projection = {MediaStore.Audio.Media._ID,
                 MediaStore.Audio.Media.DISPLAY_NAME,
@@ -65,7 +64,7 @@ public class MusicAlbumItemBrowser extends ContentBrowser {
         String selection = MediaStore.Audio.Media._ID + "=?";
         String[] selectionArgs = new String[]{myId
                 .substring(ContentDirectoryIDs.MUSIC_ALBUM_ITEM_PREFIX.getId()
-                        .length())};
+                .length())};
         Cursor mediaCursor = contentDirectory
                 .getContext()
                 .getContentResolver()
@@ -74,22 +73,22 @@ public class MusicAlbumItemBrowser extends ContentBrowser {
 
         if (mediaCursor != null) {
             mediaCursor.moveToFirst();
-            String id = mediaCursor.getString(mediaCursor
+            @SuppressLint("Range") String id = mediaCursor.getString(mediaCursor
                     .getColumnIndex(MediaStore.Audio.Media._ID));
-            String name = mediaCursor.getString(mediaCursor
+            @SuppressLint("Range") String name = mediaCursor.getString(mediaCursor
                     .getColumnIndex(MediaStore.Audio.Media.DISPLAY_NAME));
-            Long size = Long.valueOf(mediaCursor.getString(mediaCursor
+            @SuppressLint("Range") Long size = Long.valueOf(mediaCursor.getString(mediaCursor
                     .getColumnIndex(MediaStore.Audio.Media.SIZE)));
 
-            String album = mediaCursor.getString(mediaCursor
+            @SuppressLint("Range") String album = mediaCursor.getString(mediaCursor
                     .getColumnIndex(MediaStore.Audio.Media.ALBUM));
-            String albumId = mediaCursor.getString(mediaCursor
+            @SuppressLint("Range") String albumId = mediaCursor.getString(mediaCursor
                     .getColumnIndex(MediaStore.Audio.Media.ALBUM_ID));
-            String title = mediaCursor.getString(mediaCursor
+            @SuppressLint("Range") String title = mediaCursor.getString(mediaCursor
                     .getColumnIndex(MediaStore.Audio.Media.TITLE));
-            String artist = mediaCursor.getString(mediaCursor
+            @SuppressLint("Range") String artist = mediaCursor.getString(mediaCursor
                     .getColumnIndex(MediaStore.Audio.Media.ARTIST));
-            String duration = mediaCursor.getString(mediaCursor
+            @SuppressLint("Range") String duration = mediaCursor.getString(mediaCursor
                     .getColumnIndex(MediaStore.Audio.Media.DURATION));
             duration = contentDirectory.formatDuration(duration);
             Log.d(getClass().getName(),
@@ -130,16 +129,16 @@ public class MusicAlbumItemBrowser extends ContentBrowser {
 
     @Override
     public List<Container> browseContainer(
-            YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults,SortCriterion[] orderby) {
+            YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
 
         return new ArrayList<Container>();
     }
 
     @Override
     public List<Item> browseItem(YaaccContentDirectory contentDirectory,
-                                 String myId, long firstResult, long maxResults,SortCriterion[] orderby) {
+                                 String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
         List<Item> result = new ArrayList<Item>();
-        result.add((Item)browseMeta(contentDirectory,myId,firstResult,maxResults,orderby));
+        result.add((Item) browseMeta(contentDirectory, myId, firstResult, maxResults, orderby));
         return result;
 
     }
