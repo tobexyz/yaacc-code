@@ -487,17 +487,18 @@ public class YaaccContentDirectory {
                          .hasMoreElements(); ) {
                 NetworkInterface networkInterface = networkInterfaces
                         .nextElement();
+                if (!networkInterface.getName().startsWith("rmnet")) {
+                    for (Enumeration<InetAddress> inetAddresses = networkInterface
+                            .getInetAddresses(); inetAddresses.hasMoreElements(); ) {
+                        InetAddress inetAddress = inetAddresses.nextElement();
+                        if (!inetAddress.isLoopbackAddress()
+                                && IPV4_PATTERN.matcher(inetAddress
+                                .getHostAddress()).matches()) {
 
-                for (Enumeration<InetAddress> inetAddresses = networkInterface
-                        .getInetAddresses(); inetAddresses.hasMoreElements(); ) {
-                    InetAddress inetAddress = inetAddresses.nextElement();
-                    if (!inetAddress.isLoopbackAddress()
-                            && IPV4_PATTERN.matcher(inetAddress
-                            .getHostAddress()).matches()) {
+                            hostAddress = inetAddress.getHostAddress();
+                        }
 
-                        hostAddress = inetAddress.getHostAddress();
                     }
-
                 }
             }
         } catch (SocketException se) {
