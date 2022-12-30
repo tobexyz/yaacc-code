@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013 www.yaacc.de 
+ * Copyright (C) 2013 www.yaacc.de
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -18,7 +18,6 @@
 package de.yaacc.player;
 
 import android.app.Activity;
-import android.bluetooth.BluetoothClass;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -65,15 +64,15 @@ import de.yaacc.util.image.ImageDownloadTask;
  */
 public class AVTransportPlayerActivity extends Activity implements ServiceConnection {
 
-    private PlayerService playerService;
-    private int playerId;
     protected boolean updateTime = false;
     protected SeekBar seekBar = null;
+    private PlayerService playerService;
+    private int playerId;
     private String deviceId;
     private AVTransportController player;
 
     public void onServiceConnected(ComponentName className, IBinder binder) {
-        if(binder instanceof PlayerService.PlayerServiceBinder) {
+        if (binder instanceof PlayerService.PlayerServiceBinder) {
             Log.d(getClass().getName(), "PlayerService connected");
             playerService = ((PlayerService.PlayerServiceBinder) binder).getService();
             initialize();
@@ -82,14 +81,15 @@ public class AVTransportPlayerActivity extends Activity implements ServiceConnec
     //binder comes from server to communicate with method's of
 
     public void onServiceDisconnected(ComponentName className) {
-        Log.d(getClass().getName(),"PlayerService disconnected");
+        Log.d(getClass().getName(), "PlayerService disconnected");
         playerService = null;
     }
 
 
-    private PlayerService getPlayerService(){
+    private PlayerService getPlayerService() {
         return playerService;
     }
+
     @Override
     protected void onPause() {
         super.onPause();
@@ -126,13 +126,13 @@ public class AVTransportPlayerActivity extends Activity implements ServiceConnec
         updateTime = false;
         try {
             unbindService(this);
-        }catch (IllegalArgumentException iae){
+        } catch (IllegalArgumentException iae) {
             Log.d(getClass().getName(), "Ignore exception on unbind service while activity destroy");
         }
 
     }
 
-    protected void initialize(){
+    protected void initialize() {
         Player player = getPlayer();
         ImageButton btnPrev = (ImageButton) findViewById(R.id.avtransportPlayerActivityControlPrev);
         ImageButton btnNext = (ImageButton) findViewById(R.id.avtransportPlayerActivityControlNext);
@@ -248,9 +248,9 @@ public class AVTransportPlayerActivity extends Activity implements ServiceConnec
         SeekBar volumeSeekBar = (SeekBar) findViewById(R.id.avtransportPlayerActivityControlVolumeSeekBar);
         volumeSeekBar.setMax(100);
         if (getPlayer() != null) {
-            Log.d(getClass().getName(),"Volumne:" + getPlayer().getVolume());
+            Log.d(getClass().getName(), "Volumne:" + getPlayer().getVolume());
             volumeSeekBar.setProgress(getPlayer().getVolume());
-        }else{
+        } else {
             volumeSeekBar.setProgress(100);
         }
         volumeSeekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
@@ -272,7 +272,7 @@ public class AVTransportPlayerActivity extends Activity implements ServiceConnec
             }
         });
 
-        seekBar = (SeekBar)findViewById(R.id.avtransportPlayerActivityControlSeekBar);
+        seekBar = (SeekBar) findViewById(R.id.avtransportPlayerActivityControlSeekBar);
         seekBar.setMax(100);
         seekBar.setProgress(0);
         seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
@@ -281,12 +281,12 @@ public class AVTransportPlayerActivity extends Activity implements ServiceConnec
             }
 
             @Override
-            public  void onStartTrackingTouch(android.widget.SeekBar seekBar){
+            public void onStartTrackingTouch(android.widget.SeekBar seekBar) {
 
             }
 
             @Override
-            public  void onStopTrackingTouch(android.widget.SeekBar seekBar){
+            public void onStopTrackingTouch(android.widget.SeekBar seekBar) {
                 String durationString = getPlayer().getDuration();
                 SimpleDateFormat dateFormat = new SimpleDateFormat("HH:mm:ss");
                 dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
@@ -294,10 +294,10 @@ public class AVTransportPlayerActivity extends Activity implements ServiceConnec
                     Long durationTimeMillis = dateFormat.parse(durationString).getTime();
 
                     int targetPosition = Double.valueOf(durationTimeMillis * (Double.valueOf(seekBar.getProgress()).doubleValue() / 100)).intValue();
-                    Log.d(getClass().getName(),"TargetPosition" + targetPosition);
+                    Log.d(getClass().getName(), "TargetPosition" + targetPosition);
                     getPlayer().seekTo(targetPosition);
-                }catch(ParseException pex){
-                    Log.d(getClass().getName(),"Error while parsing time string" , pex);
+                } catch (ParseException pex) {
+                    Log.d(getClass().getName(), "Error while parsing time string", pex);
                 }
 
             }
@@ -317,7 +317,7 @@ public class AVTransportPlayerActivity extends Activity implements ServiceConnec
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        if (((Yaacc)getApplicationContext()).isUnplugged()) {
+        if (((Yaacc) getApplicationContext()).isUnplugged()) {
             getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
             getWindow().clearFlags(
                     WindowManager.LayoutParams.FLAG_ALLOW_LOCK_WHILE_SCREEN_ON);
@@ -326,18 +326,19 @@ public class AVTransportPlayerActivity extends Activity implements ServiceConnec
         try {
             this.bindService(new Intent(this, PlayerService.class),
                     this, Context.BIND_AUTO_CREATE);
-        }catch(Exception ex){
-            Log.d(getClass().getName(),"ignore exception on service bind during onCreate");
+        } catch (Exception ex) {
+            Log.d(getClass().getName(), "ignore exception on service bind during onCreate");
         }
         // initialize buttons
         playerId = getIntent().getIntExtra(AVTransportPlayer.PLAYER_ID, -1);
         deviceId = getIntent().getStringExtra(AVTransportController.DEVICE_ID);
-        if(deviceId != null){
+        if (deviceId != null) {
             UpnpClient upnpClient = ((Yaacc) getApplicationContext()).getUpnpClient();
             Device device = upnpClient.getDevice(deviceId);
             if (device != null) {
-                player = new AVTransportController(upnpClient,device );
-                findViewById(R.id.avtransportPlayerActivityControlSeekBar).setVisibility(View.INVISIBLE);;
+                player = new AVTransportController(upnpClient, device);
+                findViewById(R.id.avtransportPlayerActivityControlSeekBar).setVisibility(View.INVISIBLE);
+                ;
                 findViewById(R.id.avtransportPlayerActivityCurrentItem).setVisibility(View.INVISIBLE);
                 findViewById(R.id.avtransportPlayerActivityDuration).setVisibility(View.INVISIBLE);
                 findViewById(R.id.avtransportPlayerActivityElapsedTime).setVisibility(View.INVISIBLE);
@@ -351,11 +352,11 @@ public class AVTransportPlayerActivity extends Activity implements ServiceConnec
 
     }
 
-    private Player getPlayer(){
-        if(player != null){
+    private Player getPlayer() {
+        if (player != null) {
             return player;
         }
-        if (getPlayerService() == null){
+        if (getPlayerService() == null) {
             return null;
         }
         return getPlayerService().getPlayer(playerId);
@@ -408,9 +409,13 @@ public class AVTransportPlayerActivity extends Activity implements ServiceConnec
         next.setText(getPlayer().getNextItemTitle());
         ImageView albumArtView = (ImageView) findViewById(R.id.avtransportPlayerActivityImageView);
         URI albumArtUri = getPlayer().getAlbumArt();
+
         if (null != albumArtUri) {
             ImageDownloadTask imageDownloadTask = new ImageDownloadTask(albumArtView);
-            imageDownloadTask.executeOnExecutor(((Yaacc)getApplicationContext()).getContentLoadExecutor(),Uri.parse(albumArtUri.toString()));
+            imageDownloadTask.executeOnExecutor(((Yaacc) getApplicationContext()).getContentLoadExecutor(), Uri.parse(albumArtUri.toString()));
+        } else if (getPlayer().getIcon() != null) {
+
+            albumArtView.setImageBitmap(getPlayer().getIcon());
         }
         TextView duration = (TextView) findViewById(R.id.avtransportPlayerActivityDuration);
         String durationTimeString = getPlayer().getDuration();
@@ -424,14 +429,15 @@ public class AVTransportPlayerActivity extends Activity implements ServiceConnec
             Long elapsedTimeMillis = dateFormat.parse(elapsedTimeString).getTime();
             Long durationTimeMillis = dateFormat.parse(durationTimeString).getTime();
             int progress;
-            progress = Double.valueOf((elapsedTimeMillis.doubleValue()/  durationTimeMillis.doubleValue()) *100).intValue();
-            if(seekBar != null) {
+            progress = Double.valueOf((elapsedTimeMillis.doubleValue() / durationTimeMillis.doubleValue()) * 100).intValue();
+            if (seekBar != null) {
                 seekBar.setProgress(progress);
             }
-        }catch(ParseException pex){
-            Log.d(getClass().getName(),"Error while parsing time string" , pex);
+        } catch (ParseException pex) {
+            Log.d(getClass().getName(), "Error while parsing time string", pex);
         }
     }
+
     private void updateTime() {
         Timer commandExecutionTimer = new Timer();
         commandExecutionTimer.schedule(new TimerTask() {

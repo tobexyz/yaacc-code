@@ -11,12 +11,6 @@ import org.fourthline.cling.model.meta.Service;
 import org.fourthline.cling.support.avtransport.callback.Next;
 import org.fourthline.cling.support.avtransport.callback.Play;
 import org.fourthline.cling.support.avtransport.callback.Previous;
-import org.fourthline.cling.support.contentdirectory.DIDLParser;
-import org.fourthline.cling.support.model.DIDLContent;
-import org.fourthline.cling.support.model.DIDLObject;
-import org.fourthline.cling.support.model.item.Item;
-
-import java.net.URI;
 
 import de.yaacc.R;
 import de.yaacc.upnp.SynchronizationInfo;
@@ -28,46 +22,47 @@ public class AVTransportController extends AVTransportPlayer {
 
     public AVTransportController(UpnpClient upnpClient, Device receiverDevice) {
 
-        super(upnpClient, receiverDevice, "", null);
-        String deviceName = receiverDevice.getDisplayString();
+        super(upnpClient, receiverDevice, "", "", null);
+        String deviceName = receiverDevice.getDetails().getFriendlyName();
         if (deviceName.length() > 13) {
             deviceName = deviceName.substring(0, 10) + "...";
         }
         deviceName = upnpClient.getContext()
                 .getString(R.string.playerNameAvTransport)
-                + "@"+ deviceName;
+                + "@" + deviceName;
         setName(deviceName);
+        setShortName(receiverDevice.getDetails().getFriendlyName());
         setSyncInfo(new SynchronizationInfo());
     }
 
     public void onServiceConnected(ComponentName className, IBinder binder) {
-        if(binder instanceof PlayerService.PlayerServiceBinder) {
-            Log.d(getClass().getName(),"ignore service connected");
+        if (binder instanceof PlayerService.PlayerServiceBinder) {
+            Log.d(getClass().getName(), "ignore service connected");
 
         }
     }
 
 
     public void onServiceDisconnected(ComponentName className) {
-        Log.d(getClass().getName(),"ignore service disconnected");
+        Log.d(getClass().getName(), "ignore service disconnected");
 
     }
 
 
     @Override
-    public void exit(){
+    public void exit() {
 
     }
 
     @Override
-    public void stop(){
+    public void stop() {
         stopItem(null);
     }
 
 
     @Override
-    public void next(){
-        if ( getDevice() == null)
+    public void next() {
+        if (getDevice() == null)
             return;
         Service<?, ?> service = getUpnpClient().getAVTransportService(getDevice());
         if (service == null) {
@@ -92,6 +87,7 @@ public class AVTransportController extends AVTransportPlayer {
                 Log.d(getClass().getName(), "s: " + s);
                 actionState.actionFinished = true;
             }
+
             @Override
             public void success(ActionInvocation actioninvocation) {
                 super.success(actioninvocation);
@@ -102,8 +98,8 @@ public class AVTransportController extends AVTransportPlayer {
     }
 
     @Override
-    public void previous(){
-        if ( getDevice() == null)
+    public void previous() {
+        if (getDevice() == null)
             return;
         Service<?, ?> service = getUpnpClient().getAVTransportService(getDevice());
         if (service == null) {
@@ -128,6 +124,7 @@ public class AVTransportController extends AVTransportPlayer {
                 Log.d(getClass().getName(), "s: " + s);
                 actionState.actionFinished = true;
             }
+
             @Override
             public void success(ActionInvocation actioninvocation) {
                 super.success(actioninvocation);
@@ -138,8 +135,8 @@ public class AVTransportController extends AVTransportPlayer {
     }
 
     @Override
-    public void play(){
-        if ( getDevice() == null)
+    public void play() {
+        if (getDevice() == null)
             return;
         Service<?, ?> service = getUpnpClient().getAVTransportService(getDevice());
         if (service == null) {
@@ -164,6 +161,7 @@ public class AVTransportController extends AVTransportPlayer {
                 Log.d(getClass().getName(), "s: " + s);
                 actionState.actionFinished = true;
             }
+
             @Override
             public void success(ActionInvocation actioninvocation) {
                 super.success(actioninvocation);

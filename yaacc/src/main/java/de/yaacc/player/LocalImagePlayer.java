@@ -23,6 +23,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.IBinder;
 import android.util.Log;
@@ -54,19 +55,23 @@ public class LocalImagePlayer implements Player, ServiceConnection {
 
     private Timer commandExecutionTimer;
     private String name;
+    private String shortName;
     private UpnpClient upnpClient;
     private SynchronizationInfo syncInfo;
     private PendingIntent notificationIntent;
     private PlayerService playerService;
 
+
     /**
      * @param upnpClient
      * @param name       playerName
      */
-    public LocalImagePlayer(UpnpClient upnpClient, String name) {
+    public LocalImagePlayer(UpnpClient upnpClient, String name, String shortName) {
         this(upnpClient);
         setName(name);
+        setShortName(shortName);
         startService();
+
     }
 
     /**
@@ -273,6 +278,17 @@ public class LocalImagePlayer implements Player, ServiceConnection {
 
     }
 
+    @Override
+    public String getShortName() {
+        return shortName;
+    }
+
+    @Override
+    public void setShortName(String name) {
+        shortName = name;
+
+    }
+
     /*
      * (non-Javadoc)
      *
@@ -331,8 +347,10 @@ public class LocalImagePlayer implements Player, ServiceConnection {
 
         NotificationCompat.Builder mBuilder = new NotificationCompat.Builder(
                 upnpClient.getContext(), Yaacc.NOTIFICATION_CHANNEL_ID)
+                .setGroup(Yaacc.NOTIFICATION_GROUP_KEY)
                 .setOngoing(false)
                 .setSmallIcon(R.drawable.ic_notification_default)
+                .setLargeIcon(getIcon())
                 .setContentTitle(
                         "Yaacc player " + (getName() == null ? "" : getName()));
         // .setContentText("Current Title");
@@ -444,6 +462,16 @@ public class LocalImagePlayer implements Player, ServiceConnection {
     @Override
     public URI getAlbumArt() {
         return null;
+    }
+
+    @Override
+    public Bitmap getIcon() {
+        return null;
+    }
+
+    @Override
+    public void setIcon(Bitmap icon) {
+
     }
 
     @Override

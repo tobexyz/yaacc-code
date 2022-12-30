@@ -104,6 +104,9 @@
     <string name="hello_blank_fragment">Hello blank fragment</string>
     <string name="channel_name">Yaacc</string>
     <string name="channel_description">Yaacc notifications</string>
+    <string name="playerNameImageShort">Images</string>
+    <string name="playerShortNameMusic">Music</string>
+    <string name="playerShortNameMultiContent">multi</string>
 
 
 </resources>

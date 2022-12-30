@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013 www.yaacc.de 
+ * Copyright (C) 2013 www.yaacc.de
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -17,9 +17,6 @@
  */
 package de.yaacc.player;
 
-import java.net.URI;
-import java.util.List;
-
 import android.app.ActivityManager;
 import android.app.ActivityManager.RunningAppProcessInfo;
 import android.app.ActivityManager.RunningTaskInfo;
@@ -33,7 +30,8 @@ import android.os.Process;
 import android.util.Log;
 import android.widget.Toast;
 
-import org.fourthline.cling.support.model.DIDLObject;
+import java.net.URI;
+import java.util.List;
 
 import de.yaacc.R;
 import de.yaacc.upnp.UpnpClient;
@@ -41,25 +39,24 @@ import de.yaacc.util.NotificationId;
 
 /**
  * A Player for local music playing
- * 
+ *
  * @author Tobias Schoene (openbit)
- * 
  */
 public class LocalThirdPartieMusicPlayer extends AbstractPlayer {
 
-	private int musicAppPid=0; 
-	
+	private int musicAppPid = 0;
+
 	/**
 	 * @param upnpClient
-	 * @param name playerName
-	 * 
+	 * @param name       playerName
 	 */
-	public LocalThirdPartieMusicPlayer(UpnpClient upnpClient, String name) {		
+	public LocalThirdPartieMusicPlayer(UpnpClient upnpClient, String name, String shortName) {
 		this(upnpClient);
 		setName(name);
+		setShortName(shortName);
 	}
-	
-	
+
+
 	/**
 	 * @param upnpClient
 	 */
@@ -70,20 +67,20 @@ public class LocalThirdPartieMusicPlayer extends AbstractPlayer {
 
 	/*
 	 * (non-Javadoc)
-	 * 
+	 *
 	 * @see
 	 * de.yaacc.player.AbstractPlayer#stopItem(de.yaacc.player.PlayableItem)
 	 */
 	@Override
 	protected void stopItem(PlayableItem playableItem) {
-		if(musicAppPid != 0){
+		if (musicAppPid != 0) {
 			Process.killProcess(musicAppPid);
-		}	
+		}
 	}
 
 	/*
 	 * (non-Javadoc)
-	 * 
+	 *
 	 * @see
 	 * de.yaacc.player.AbstractPlayer#loadItem(de.yaacc.player.PlayableItem)
 	 */
@@ -99,20 +96,20 @@ public class LocalThirdPartieMusicPlayer extends AbstractPlayer {
 
 	/*
 	 * (non-Javadoc)
-	 * 
+	 *
 	 * @see
 	 * de.yaacc.player.AbstractPlayer#startItem(de.yaacc.player.PlayableItem,
 	 * java.lang.Object)
 	 */
 	@Override
-	protected void startItem(PlayableItem playableItem, Object loadedItem) {		
+	protected void startItem(PlayableItem playableItem, Object loadedItem) {
 		if (loadedItem instanceof Intent) {
-			
+
 			Intent intent = (Intent) loadedItem;
-			try {				
+			try {
 				getContext().startActivity(intent);
 				discoverMusicActivityPid();
-				
+
 
 			} catch (ActivityNotFoundException anfe) {
 				Resources res = getContext().getResources();
@@ -130,7 +127,7 @@ public class LocalThirdPartieMusicPlayer extends AbstractPlayer {
 	}
 
 	private void discoverMusicActivityPid() {
-		
+
 		ActivityManager activityManager = (ActivityManager) getContext()
 				.getSystemService(Context.ACTIVITY_SERVICE);
 		List<RunningTaskInfo> services = activityManager
@@ -138,11 +135,11 @@ public class LocalThirdPartieMusicPlayer extends AbstractPlayer {
 		List<RunningAppProcessInfo> apps = activityManager.getRunningAppProcesses();
 		String packageName = services.get(0).topActivity.getPackageName(); //fist Task is the last started task		
 		for (int i = 0; i < apps.size(); i++) {
-		    if(apps.get(i).processName .equals(packageName)){
-		    	musicAppPid = apps.get(i).pid;
-		    	Log.d(getClass().getName(), "Found music activity process: " + apps.get(i).processName + " PID: " + musicAppPid);
-		    }
-			
+			if (apps.get(i).processName.equals(packageName)) {
+				musicAppPid = apps.get(i).pid;
+				Log.d(getClass().getName(), "Found music activity process: " + apps.get(i).processName + " PID: " + musicAppPid);
+			}
+
 		}
 	}
 
@@ -150,49 +147,49 @@ public class LocalThirdPartieMusicPlayer extends AbstractPlayer {
 	 * @see de.yaacc.player.AbstractPlayer#onDestroy()
 	 */
 	@Override
-	public void onDestroy() {		
+	public void onDestroy() {
 		super.onDestroy();
-		if(musicAppPid != 0){
+		if (musicAppPid != 0) {
 			Process.killProcess(musicAppPid);
 		}
 	}
 
-    @Override
-    public URI getAlbumArt() {
-        return null;
-    }
-
-    /*
-     * (non-Javadoc)
-     * @see de.yaacc.player.AbstractPlayer#getNotificationIntent()
-     */
 	@Override
-	public PendingIntent getNotificationIntent(){
-		Intent notificationIntent = new Intent(getContext(),
-			    ThirdPartieMusicPlayerActivity.class);
-			PendingIntent contentIntent = PendingIntent.getActivity(getContext(), 0,
-			    notificationIntent, 0);
-			return contentIntent;
+	public URI getAlbumArt() {
+		return null;
 	}
-	
+
+	/*
+	 * (non-Javadoc)
+	 * @see de.yaacc.player.AbstractPlayer#getNotificationIntent()
+	 */
+	@Override
+	public PendingIntent getNotificationIntent() {
+		Intent notificationIntent = new Intent(getContext(),
+				ThirdPartieMusicPlayerActivity.class);
+		PendingIntent contentIntent = PendingIntent.getActivity(getContext(), 0,
+				notificationIntent, 0);
+		return contentIntent;
+	}
+
 	/*
 	 * (non-Javadoc)
 	 * @see de.yaacc.player.AbstractPlayer#getNotificationId()
 	 */
 	@Override
 	protected int getNotificationId() {
-		 
+
 		return NotificationId.LOCAL_THIRD_PARTIE_MUSIC_PLAYER.getId();
 	}
 
-    @Override
-    public void seekTo(long millisecondsFromStart){
-        Resources res = getContext().getResources();
-        String text = String.format(
-                res.getString(R.string.not_yet_implemented));
-        Toast toast = Toast.makeText(getContext(), text,
-                Toast.LENGTH_LONG);
-        toast.show();
-    }
+	@Override
+	public void seekTo(long millisecondsFromStart) {
+		Resources res = getContext().getResources();
+		String text = String.format(
+				res.getString(R.string.not_yet_implemented));
+		Toast toast = Toast.makeText(getContext(), text,
+				Toast.LENGTH_LONG);
+		toast.show();
+	}
 
 }

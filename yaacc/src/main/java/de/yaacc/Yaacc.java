@@ -21,6 +21,7 @@ package de.yaacc;
 import android.app.Application;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -31,10 +32,13 @@ import android.os.PowerManager;
 import android.preference.PreferenceManager;
 import android.util.Log;
 
+import androidx.core.app.NotificationCompat;
+
 import java.util.HashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 
+import de.yaacc.browser.TabBrowserActivity;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.util.NotificationId;
 
@@ -45,6 +49,7 @@ import de.yaacc.util.NotificationId;
  */
 public class Yaacc extends Application {
     public static final String NOTIFICATION_CHANNEL_ID = "YaaccNotifications";
+    public static final String NOTIFICATION_GROUP_KEY = "Yaacc";
     private UpnpClient upnpClient;
     private HashMap<String, PowerManager.WakeLock> wakeLocks = new HashMap<>();
     private Executor contentLoadThreadPool;
@@ -128,24 +133,34 @@ public class Yaacc extends Application {
         //FIXME work around to be fixed with new ui
         NotificationManager mNotificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         mNotificationManager.cancel(NotificationId.UPNP_SERVER.getId());
-
+        mNotificationManager.cancel(NotificationId.PLAYER_SERVICE.getId());
         android.os.Process.killProcess(p);
     }
 
     private void createNotificationChannel() {
-        // Create the NotificationChannel, but only on API 26+ because
-        // the NotificationChannel class is new and not in the support library
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            CharSequence name = getString(R.string.channel_name);
-            String description = getString(R.string.channel_description);
-            int importance = NotificationManager.IMPORTANCE_DEFAULT;
-            NotificationChannel channel = new NotificationChannel(NOTIFICATION_CHANNEL_ID, name, importance);
-            channel.setDescription(description);
-            // Register the channel with the system; you can't change the importance
-            // or other notification behaviors after this
-            NotificationManager notificationManager = getSystemService(NotificationManager.class);
-            notificationManager.createNotificationChannel(channel);
-        }
+
+        CharSequence name = getString(R.string.channel_name);
+        String description = getString(R.string.channel_description);
+        int importance = NotificationManager.IMPORTANCE_DEFAULT;
+        NotificationChannel channel = new NotificationChannel(NOTIFICATION_CHANNEL_ID, name, importance);
+        channel.setDescription(description);
+        // Register the channel with the system; you can't change the importance
+        // or other notification behaviors after this
+        NotificationManager notificationManager = getSystemService(NotificationManager.class);
+        notificationManager.createNotificationChannel(channel);
+        Intent notificationIntent = new Intent(this, TabBrowserActivity.class);
+        PendingIntent pendingIntent = PendingIntent.getActivity(this,
+                0, notificationIntent, 0);
+        NotificationCompat.Builder mBuilder = new NotificationCompat.Builder(
+                getApplicationContext(), Yaacc.NOTIFICATION_CHANNEL_ID)
+                .setGroup(Yaacc.NOTIFICATION_GROUP_KEY)
+                .setGroupSummary(true)
+                .setSmallIcon(R.drawable.ic_notification_default)
+                .setContentTitle("Yaacc")
+                .setContentText("All about UPNP connections")
+                .setContentIntent(pendingIntent);
+        notificationManager.notify(NotificationId.YAACC.getId(), mBuilder.build());
+
     }
 
 }

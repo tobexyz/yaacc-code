@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013 www.yaacc.de 
+ * Copyright (C) 2013 www.yaacc.de
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -39,135 +39,133 @@ import de.yaacc.util.NotificationId;
 
 /**
  * @author Tobias Schoene (openbit)
- * 
  */
 
 public class MultiContentPlayer extends AbstractPlayer {
 
-	private int appPid;
+    private int appPid;
 
-	/**
-	 * @param upnpClient
-	 * @param name
-	 *            playerName
-	 * 
-	 */
-	public MultiContentPlayer(UpnpClient upnpClient, String name) {
-		this(upnpClient);
-		setName(name);
-	}
+    /**
+     * @param upnpClient
+     * @param name       playerName
+     */
+    public MultiContentPlayer(UpnpClient upnpClient, String name, String shortName) {
+        this(upnpClient);
+        setName(name);
+        setShortName(shortName);
+    }
 
-	/**
-	 * @param upnpClient
-	 */
-	public MultiContentPlayer(UpnpClient upnpClient) {
-		super(upnpClient);
-		// TODO Auto-generated constructor stub
-	}
+    /**
+     * @param upnpClient
+     */
+    public MultiContentPlayer(UpnpClient upnpClient) {
+        super(upnpClient);
+        // TODO Auto-generated constructor stub
+    }
 
-	/*
-	 * (non-Javadoc)
-	 * 
-	 * @see
-	 * de.yaacc.player.AbstractPlayer#stopItem(de.yaacc.player.PlayableItem)
-	 */
-	@Override
-	protected void stopItem(PlayableItem playableItem) {
-		if (appPid != 0) {
-			Process.killProcess(appPid);
-		}
+    /*
+     * (non-Javadoc)
+     *
+     * @see
+     * de.yaacc.player.AbstractPlayer#stopItem(de.yaacc.player.PlayableItem)
+     */
+    @Override
+    protected void stopItem(PlayableItem playableItem) {
+        if (appPid != 0) {
+            Process.killProcess(appPid);
+        }
 
-	}
+    }
 
-	/*
-	 * (non-Javadoc)
-	 * 
-	 * @see
-	 * de.yaacc.player.AbstractPlayer#loadItem(de.yaacc.player.PlayableItem)
-	 */
-	@Override
-	protected Object loadItem(PlayableItem playableItem) {
-		// DO nothing special
-		return null;
-	}
+    /*
+     * (non-Javadoc)
+     *
+     * @see
+     * de.yaacc.player.AbstractPlayer#loadItem(de.yaacc.player.PlayableItem)
+     */
+    @Override
+    protected Object loadItem(PlayableItem playableItem) {
+        // DO nothing special
+        return null;
+    }
 
-	/*
-	 * (non-Javadoc)
-	 * 
-	 * @see
-	 * de.yaacc.player.AbstractPlayer#startItem(de.yaacc.player.PlayableItem,
-	 * java.lang.Object)
-	 */
-	@Override
-	protected void startItem(PlayableItem playableItem, Object loadedItem) {
-		Intent intent = new Intent(Intent.ACTION_VIEW);
-		intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-		intent.addFlags(Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
-		intent.setDataAndType(playableItem.getUri(), playableItem.getMimeType());
-		try {
-			getContext().startActivity(intent);
-		} catch (final ActivityNotFoundException anfe) {
-			Context context = getUpnpClient().getContext();
-			if (context instanceof Activity) {
-				((Activity) context).runOnUiThread(new Runnable() {
-					public void run() {
-						Toast.makeText(
-								getContext(),
-								R.string.can_not_start_activity
-										+ anfe.getMessage(), Toast.LENGTH_LONG)
-								.show();
-					}
-				});
-			}
-			Log.e(getClass().getName(), R.string.can_not_start_activity
-										+ anfe.getMessage(), anfe);
+    /*
+     * (non-Javadoc)
+     *
+     * @see
+     * de.yaacc.player.AbstractPlayer#startItem(de.yaacc.player.PlayableItem,
+     * java.lang.Object)
+     */
+    @Override
+    protected void startItem(PlayableItem playableItem, Object loadedItem) {
+        Intent intent = new Intent(Intent.ACTION_VIEW);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        intent.addFlags(Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
+        intent.setDataAndType(playableItem.getUri(), playableItem.getMimeType());
+        try {
+            getContext().startActivity(intent);
+        } catch (final ActivityNotFoundException anfe) {
+            Context context = getUpnpClient().getContext();
+            if (context instanceof Activity) {
+                ((Activity) context).runOnUiThread(new Runnable() {
+                    public void run() {
+                        Toast.makeText(
+                                        getContext(),
+                                        R.string.can_not_start_activity
+                                                + anfe.getMessage(), Toast.LENGTH_LONG)
+                                .show();
+                    }
+                });
+            }
+            Log.e(getClass().getName(), R.string.can_not_start_activity
+                    + anfe.getMessage(), anfe);
 
-		}
-		discoverStartedActivityPid();
+        }
+        discoverStartedActivityPid();
 
-	}
+    }
 
-	private void discoverStartedActivityPid() {
+    private void discoverStartedActivityPid() {
 
-		ActivityManager activityManager = (ActivityManager) getContext()
-				.getSystemService(Context.ACTIVITY_SERVICE);
-		List<RunningTaskInfo> services = activityManager
-				.getRunningTasks(Integer.MAX_VALUE);
-		List<RunningAppProcessInfo> apps = activityManager
-				.getRunningAppProcesses();
-		String packageName = services.get(0).topActivity.getPackageName(); // fist
-																			// Task
-																			// is
-																			// the
-																			// last
-																			// started
-																			// task
-		if (packageName.equals(getContext().getPackageName())){
-			packageName = services.get(1).topActivity.getPackageName();
-		}
-		for (int i = 0; i < apps.size(); i++) {
-			if (apps.get(i).processName.equals(packageName)) {
-				appPid = apps.get(i).pid;
-				Log.d(getClass().getName(),
-						"Found activity process: " + apps.get(i).processName
-								+ " PID: " + appPid);
-			}
+        ActivityManager activityManager = (ActivityManager) getContext()
+                .getSystemService(Context.ACTIVITY_SERVICE);
+        List<RunningTaskInfo> services = activityManager
+                .getRunningTasks(Integer.MAX_VALUE);
+        List<RunningAppProcessInfo> apps = activityManager
+                .getRunningAppProcesses();
+        String packageName = services.get(0).topActivity.getPackageName(); // fist
+        // Task
+        // is
+        // the
+        // last
+        // started
+        // task
+        if (packageName.equals(getContext().getPackageName())) {
+            packageName = services.get(1).topActivity.getPackageName();
+        }
+        for (int i = 0; i < apps.size(); i++) {
+            if (apps.get(i).processName.equals(packageName)) {
+                appPid = apps.get(i).pid;
+                Log.d(getClass().getName(),
+                        "Found activity process: " + apps.get(i).processName
+                                + " PID: " + appPid);
+            }
 
-		}
-	}
+        }
+    }
 
-	/*
-	 * (non-Javadoc)
-	 * 
-	 * @see de.yaacc.player.AbstractPlayer#onDestroy()
-	 */
-	@Override
-	public void onDestroy() {
-		if (appPid != 0) {
-			Process.killProcess(appPid);
-		}
-		super.onDestroy();
-	}
+    /*
+     * (non-Javadoc)
+     *
+     * @see de.yaacc.player.AbstractPlayer#onDestroy()
+     */
+    @Override
+    public void onDestroy() {
+        if (appPid != 0) {
+            Process.killProcess(appPid);
+        }
+        super.onDestroy();
+    }
 
     @Override
     public URI getAlbumArt() {
@@ -179,28 +177,28 @@ public class MultiContentPlayer extends AbstractPlayer {
      *
      * @see de.yaacc.player.AbstractPlayer#getNotificationIntent()
      */
-	@Override
-	public PendingIntent getNotificationIntent() {
-		Intent notificationIntent = new Intent(getContext(),
-				MultiContentPlayerActivity.class);
-		PendingIntent contentIntent = PendingIntent.getActivity(getContext(),
-				0, notificationIntent, 0);
-		return contentIntent;
-	}
+    @Override
+    public PendingIntent getNotificationIntent() {
+        Intent notificationIntent = new Intent(getContext(),
+                MultiContentPlayerActivity.class);
+        PendingIntent contentIntent = PendingIntent.getActivity(getContext(),
+                0, notificationIntent, 0);
+        return contentIntent;
+    }
 
-	/*
-	 * (non-Javadoc)
-	 * 
-	 * @see de.yaacc.player.AbstractPlayer#getNotificationId()
-	 */
-	@Override
-	protected int getNotificationId() {
+    /*
+     * (non-Javadoc)
+     *
+     * @see de.yaacc.player.AbstractPlayer#getNotificationId()
+     */
+    @Override
+    protected int getNotificationId() {
 
-		return NotificationId.MULTI_CONTENT_PLAYER.getId();
-	}
+        return NotificationId.MULTI_CONTENT_PLAYER.getId();
+    }
 
     @Override
-    public void seekTo(long millisecondsFromStart){
+    public void seekTo(long millisecondsFromStart) {
         Resources res = getContext().getResources();
         String text = String.format(
                 res.getString(R.string.not_yet_implemented));

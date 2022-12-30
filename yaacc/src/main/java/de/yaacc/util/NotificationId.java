@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013 www.yaacc.de 
+ * Copyright (C) 2013 www.yaacc.de
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -19,31 +19,34 @@ package de.yaacc.util;
 
 /**
  * all Yaacc-NotificationIDs.
- * @author Tobias Schoene (openbit)  
  *
+ * @author Tobias Schoene (openbit)
  */
 public enum NotificationId {
-	LOCAL_BACKGROUND_MUSIC_PLAYER(1),
-	AVTRANSPORT_PLAYER(2),
-	LOCAL_IMAGE_PLAYER(3),
-	MULTI_CONTENT_PLAYER(4),
-	UPNP_SERVER(5),
-	LOCAL_THIRD_PARTIE_MUSIC_PLAYER(6),
-    FILE_DOWNLOADER(7);
+    LOCAL_BACKGROUND_MUSIC_PLAYER(1),
+    AVTRANSPORT_PLAYER(2),
+    LOCAL_IMAGE_PLAYER(3),
+    MULTI_CONTENT_PLAYER(4),
+    UPNP_SERVER(5),
+    LOCAL_THIRD_PARTIE_MUSIC_PLAYER(6),
+    FILE_DOWNLOADER(7),
+    PLAYER_SERVICE(8),
+    BACKGROUND_MUSIC_SERVICE(9),
+    YAACC(10);
 
-	
-	private int id=0;
-    
 
-	/**
-	 * @param id
-	 */
-	private NotificationId(int id) {
-		this.id = id;
-	}
-	
-	public int getId(){
-		return id;
-	}
-	
+    private int id = 0;
+
+
+    /**
+     * @param id
+     */
+    private NotificationId(int id) {
+        this.id = id;
+    }
+
+    public int getId() {
+        return id;
+    }
+
 }

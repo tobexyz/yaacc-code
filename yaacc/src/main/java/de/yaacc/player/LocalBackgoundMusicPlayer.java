@@ -56,9 +56,10 @@ public class LocalBackgoundMusicPlayer extends AbstractPlayer implements Service
     /**
      * @param name playerName
      */
-    public LocalBackgoundMusicPlayer(UpnpClient upnpClient, String name) {
+    public LocalBackgoundMusicPlayer(UpnpClient upnpClient, String name, String shortName) {
         this(upnpClient);
         setName(name);
+        setShortName(shortName);
     }
 
     /**

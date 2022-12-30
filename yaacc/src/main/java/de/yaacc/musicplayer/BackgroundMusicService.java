@@ -33,7 +33,9 @@ import android.util.Log;
 import androidx.core.app.NotificationCompat;
 
 import de.yaacc.R;
+import de.yaacc.Yaacc;
 import de.yaacc.browser.TabBrowserActivity;
+import de.yaacc.util.NotificationId;
 
 /**
  * A simple service for playing music in background.
@@ -42,7 +44,6 @@ import de.yaacc.browser.TabBrowserActivity;
  */
 public class BackgroundMusicService extends Service {
     public static final String URIS = "URIS_PARAM"; // String Intent parameter
-    private static final String CHANNEL_ID = "YaaccNotifications";
     private MediaPlayer player;
     private IBinder binder = new BackgroundMusicServiceBinder();
     private BackgroundMusicBroadcastReceiver backgroundMusicBroadcastReceiver;
@@ -65,13 +66,14 @@ public class BackgroundMusicService extends Service {
         Intent notificationIntent = new Intent(this, TabBrowserActivity.class);
         PendingIntent pendingIntent = PendingIntent.getActivity(this,
                 0, notificationIntent, 0);
-        Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
+        Notification notification = new NotificationCompat.Builder(this, Yaacc.NOTIFICATION_CHANNEL_ID)
                 .setContentTitle("Background Music Service")
                 .setContentText("running")
-                .setSmallIcon(R.drawable.yaacc32_24_bmp)
+                .setSmallIcon(R.drawable.ic_notification_default)
                 .setContentIntent(pendingIntent)
+                .setGroup(Yaacc.NOTIFICATION_GROUP_KEY)
                 .build();
-        startForeground(1, notification);
+        startForeground(NotificationId.BACKGROUND_MUSIC_SERVICE.getId(), notification);
 
     }
 

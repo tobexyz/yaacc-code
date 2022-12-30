@@ -46,6 +46,7 @@ import de.yaacc.Yaacc;
 import de.yaacc.browser.TabBrowserActivity;
 import de.yaacc.upnp.SynchronizationInfo;
 import de.yaacc.upnp.UpnpClient;
+import de.yaacc.util.NotificationId;
 
 /**
  * @author Tobias Schoene (tobexyz)
@@ -92,12 +93,13 @@ public class PlayerService extends Service {
         PendingIntent pendingIntent = PendingIntent.getActivity(this,
                 0, notificationIntent, 0);
         Notification notification = new NotificationCompat.Builder(this, Yaacc.NOTIFICATION_CHANNEL_ID)
+                .setGroup(Yaacc.NOTIFICATION_GROUP_KEY)
                 .setContentTitle("Player Service")
                 .setContentText("running")
-                .setSmallIcon(R.drawable.yaacc32_24_bmp)
+                .setSmallIcon(R.drawable.ic_notification_default)
                 .setContentIntent(pendingIntent)
                 .build();
-        startForeground(1, notification);
+        startForeground(NotificationId.PLAYER_SERVICE.getId(), notification);
         initialize(intent);
 
         return START_STICKY;
@@ -208,7 +210,7 @@ public class PlayerService extends Service {
                 result = new SyncAVTransportPlayer(upnpClient, receiverDevice, upnpClient.getContext()
                         .getString(R.string.playerNameAvTransport)
                         + "-" + contentType + "@"
-                        + deviceName, contentType);
+                        + deviceName, receiverDevice.getDetails().getFriendlyName(), contentType);
             } else {
                 for (Player player : getCurrentPlayersOfType(AVTransportPlayer.class)) {
                     if (((AVTransportPlayer) player).getDeviceId().equals(receiverDevice.getIdentity().getUdn().getIdentifierString())
@@ -219,7 +221,7 @@ public class PlayerService extends Service {
                 result = new AVTransportPlayer(upnpClient, receiverDevice, upnpClient.getContext()
                         .getString(R.string.playerNameAvTransport)
                         + "-" + contentType + "@"
-                        + deviceName, contentType);
+                        + deviceName, receiverDevice.getDetails().getFriendlyName(), contentType);
             }
         } else {
             if (video && !image && !music) {
@@ -230,7 +232,9 @@ public class PlayerService extends Service {
                 }
                 result = new MultiContentPlayer(upnpClient, upnpClient
                         .getContext().getString(
-                                R.string.playerNameMultiContent));
+                                R.string.playerNameMultiContent), upnpClient
+                        .getContext().getString(
+                                R.string.playerShortNameMultiContent));
             } else if (!video && image && !music) {
 // use imageplayer
                 result = createImagePlayer(upnpClient);
@@ -241,7 +245,9 @@ public class PlayerService extends Service {
 // use multiplayer
                 result = new MultiContentPlayer(upnpClient, upnpClient
                         .getContext()
-                        .getString(R.string.playerNameMultiContent));
+                        .getString(R.string.playerNameMultiContent), upnpClient
+                        .getContext().getString(
+                                R.string.playerShortNameMultiContent));
             }
         }
         result.setSyncInfo(syncInfo);
@@ -254,7 +260,8 @@ public class PlayerService extends Service {
             shutdown(result);
         }
         return new LocalImagePlayer(upnpClient, upnpClient.getContext()
-                .getString(R.string.playerNameImage));
+                .getString(R.string.playerNameImage), upnpClient.getContext()
+                .getString(R.string.playerNameImageShort));
     }
 
     private Player createMusicPlayer(UpnpClient upnpClient) {
@@ -273,10 +280,12 @@ public class PlayerService extends Service {
         }
         if (background) {
             return new LocalBackgoundMusicPlayer(upnpClient, upnpClient
-                    .getContext().getString(R.string.playerNameMusic));
+                    .getContext().getString(R.string.playerNameMusic), upnpClient
+                    .getContext().getString(R.string.playerShortNameMusic));
         }
         return new LocalThirdPartieMusicPlayer(upnpClient, upnpClient
-                .getContext().getString(R.string.playerNameMusic));
+                .getContext().getString(R.string.playerNameMusic), upnpClient
+                .getContext().getString(R.string.playerShortNameMusic));
     }
 
     /**

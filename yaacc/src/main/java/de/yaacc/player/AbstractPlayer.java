@@ -25,6 +25,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.SharedPreferences;
+import android.graphics.Bitmap;
 import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
@@ -70,10 +71,12 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
     private UpnpClient upnpClient;
     private PlayerService playerService;
     private String name;
+    private String shortName;
     private SynchronizationInfo syncInfo;
     private boolean paused;
     private Object loadedItem = null;
     private int currentLoadedIndex = -1;
+    private Bitmap icon = null;
 
     /**
      * @param upnpClient
@@ -106,6 +109,14 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
      */
     public Context getContext() {
         return upnpClient.getContext();
+    }
+
+    public Bitmap getIcon() {
+        return icon;
+    }
+
+    public void setIcon(Bitmap icon) {
+        this.icon = icon;
     }
 
     /**
@@ -551,9 +562,11 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
 
         NotificationCompat.Builder mBuilder = new NotificationCompat.Builder(
                 getContext(), Yaacc.NOTIFICATION_CHANNEL_ID).setOngoing(false)
+                .setGroup(Yaacc.NOTIFICATION_GROUP_KEY)
                 .setSmallIcon(R.drawable.ic_notification_default)
+                .setLargeIcon(getIcon())
                 .setContentTitle("Yaacc player")
-                .setContentText(getName() == null ? "" : getName());
+                .setContentText(getShortName() == null ? "" : getShortName());
         PendingIntent contentIntent = getNotificationIntent();
         if (contentIntent != null) {
             mBuilder.setContentIntent(contentIntent);
@@ -737,4 +750,11 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
 
     public abstract void seekTo(long millisecondsFromStart);
 
+    public String getShortName() {
+        return shortName;
+    }
+
+    public void setShortName(String name) {
+        shortName = name;
+    }
 }

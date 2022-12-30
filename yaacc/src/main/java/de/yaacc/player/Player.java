@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013 www.yaacc.de 
+ * Copyright (C) 2013 www.yaacc.de
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -18,8 +18,7 @@
 package de.yaacc.player;
 
 import android.app.PendingIntent;
-
-import org.fourthline.cling.support.model.DIDLObject;
+import android.graphics.Bitmap;
 
 import java.beans.PropertyChangeListener;
 import java.net.URI;
@@ -28,146 +27,177 @@ import de.yaacc.upnp.SynchronizationInfo;
 
 
 /**
- * A Player is able to play stop a couple of MediaObjects  
- * @author Tobias Schoene (openbit)  
- * 
+ * A Player is able to play stop a couple of MediaObjects
+ *
+ * @author Tobias Schoene (openbit)
  */
 public interface Player {
-	
-	/**
-	 * play the next item
-	 */
-	void next();
-	
-	/**
-	 * play the previous item
-	 */
-	void previous();
-	
-	/**
-	 * Pause the current item
-	 */
-	void pause();
-	
-	/**
-	 * start playing the current item 
-	 */
-	void play();
-	
-	/**
-	 * stops playing. And returns to the beginning of the item list.
-	 */
-	void stop();
-	
-	/**
-	 * Set a List of Items 
-	 * @param items the items to be played
-	 */
-	void setItems(PlayableItem... items);
-	
-	
+
+    /**
+     * play the next item
+     */
+    void next();
+
+    /**
+     * play the previous item
+     */
+    void previous();
+
+    /**
+     * Pause the current item
+     */
+    void pause();
+
+    /**
+     * start playing the current item
+     */
+    void play();
+
+    /**
+     * stops playing. And returns to the beginning of the item list.
+     */
+    void stop();
+
+    /**
+     * Set a List of Items
+     *
+     * @param items the items to be played
+     */
+    void setItems(PlayableItem... items);
+
+
     /**
      * Drops all Items.
      */
-	void clear();
-	
-	/**
-	 * Kill the  player.
-	 */
-	void onDestroy();
-	
-	/**
-	 * Set the name of the player.
-	 * @param name the name
-	 */
-	void setName(String name);
-	
-	/**
-	 * Get the player name.
-	 * @return the name
-	 */
-	String getName();
+    void clear();
 
-	/**
-	 * Exit the player.
-	 */
-	void exit();
-	
-	/**
-	 * Returns the id of the Player.
-	 * @return the id
-	 */
-	int getId();
-
-	
-	/**
-	 * add a property change listener
-	 * @param listener
-	 */
-	void addPropertyChangeListener(PropertyChangeListener listener);
-
-	/**
-	 * remove a property change listener
-	 * @param listener
-	 */
-    void removePropertyChangeListener(PropertyChangeListener listener);
-    
     /**
-	 * returns the current item position in the playlist 
-	 * @return the position string
-	 */
-	String getPositionString();
+     * Kill the  player.
+     */
+    void onDestroy();
 
-	/**
-	 * returns the title of the current item 
-	 * @return the title
-	 */
-	String getCurrentItemTitle();
+    /**
+     * Get the player name.
+     *
+     * @return the name
+     */
+    String getName();
 
-	
-	/**
-	 * returns the title of the next item 
-	 * @return the title
-	 */
-	String getNextItemTitle();
-	
-	/**
-	 * returns the duration of the current item 
-	 * @return the duration
-	 */
-	String getDuration();
-	
-	/**
-	 * returns the elapsed time of the current item 
-	 * @return the elapsed time
-	 */
-	String getElapsedTime();
+    /**
+     * Set the name of the player.
+     *
+     * @param name the name
+     */
+    void setName(String name);
+
+    /**
+     * Get the player short name.
+     *
+     * @return the name
+     */
+    String getShortName();
+
+    /**
+     * Set the short name of the player.
+     *
+     * @param name the name
+     */
+    void setShortName(String name);
+
+    /**
+     * Exit the player.
+     */
+    void exit();
+
+    /**
+     * Returns the id of the Player.
+     *
+     * @return the id
+     */
+    int getId();
+
+
+    /**
+     * add a property change listener
+     *
+     * @param listener
+     */
+    void addPropertyChangeListener(PropertyChangeListener listener);
+
+    /**
+     * remove a property change listener
+     *
+     * @param listener
+     */
+    void removePropertyChangeListener(PropertyChangeListener listener);
+
+    /**
+     * returns the current item position in the playlist
+     *
+     * @return the position string
+     */
+    String getPositionString();
+
+    /**
+     * returns the title of the current item
+     *
+     * @return the title
+     */
+    String getCurrentItemTitle();
+
+
+    /**
+     * returns the title of the next item
+     *
+     * @return the title
+     */
+    String getNextItemTitle();
+
+    /**
+     * returns the duration of the current item
+     *
+     * @return the duration
+     */
+    String getDuration();
+
+    /**
+     * returns the elapsed time of the current item
+     *
+     * @return the elapsed time
+     */
+    String getElapsedTime();
 
     /**
      *
      */
     URI getAlbumArt();
 
-    /**
-     * Set the synchronization information
-     * @param syncInfo the info object
-     */
-    void setSyncInfo(SynchronizationInfo syncInfo);
+    Bitmap getIcon();
+
+    void setIcon(Bitmap icon);
 
     /**
      * Get the synchronization information
+     *
      * @return the info object
      */
-    SynchronizationInfo  getSyncInfo();
+    SynchronizationInfo getSyncInfo();
+
+    /**
+     * Set the synchronization information
+     *
+     * @param syncInfo the info object
+     */
+    void setSyncInfo(SynchronizationInfo syncInfo);
 
     boolean getMute();
 
 
     void setMute(boolean mute);
 
-    void setVolume(int volume);
-
     public int getVolume();
+
+    void setVolume(int volume);
 
     int getIconResourceId();
 

@@ -99,4 +99,7 @@
     <string name="browse_context_control_device">Control device</string>
     <string name="channel_name">Yaacc</string>
     <string name="channel_description">Yaacc notifications</string>
+    <string name="playerNameImageShort">Images</string>
+    <string name="playerShortNameMusic">Music</string>
+    <string name="playerShortNameMultiContent">multi</string>
 </resources>
