@@ -187,10 +187,7 @@ public class PlayerService extends Service {
 
         Player result;
         if (!receiverDevice.getIdentity().getUdn().getIdentifierString().equals(UpnpClient.LOCAL_UID)) {
-            String deviceName = receiverDevice.getDisplayString();
-            if (deviceName.length() > 13) {
-                deviceName = deviceName.substring(0, 10) + "...";
-            }
+            String deviceName = receiverDevice.getDetails().getFriendlyName() + " - " + receiverDevice.getDisplayString();
             String contentType = "multi";
             if (video && !image && !music) {
                 contentType = "video";

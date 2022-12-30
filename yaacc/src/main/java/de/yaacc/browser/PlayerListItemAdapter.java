@@ -19,6 +19,7 @@ package de.yaacc.browser;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.graphics.Bitmap;
 import android.preference.PreferenceManager;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -28,7 +29,6 @@ import android.widget.ImageView;
 import android.widget.TextView;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 
 import de.yaacc.R;
@@ -91,14 +91,18 @@ public class PlayerListItemAdapter extends BaseAdapter {
             holder = (ViewHolder) view.getTag();
         }
         Player player = null;
-        if(position < players.size()) {
+        if (position < players.size()) {
             player = players.get(position);
         }
         if (player != null) {
             holder = holder == null ? holder = new ViewHolder() : holder;
-            holder.name.setText(player.getName() +
-                    " : " + upnpClient.getDevice(player.getDeviceId()).getDetails().getFriendlyName());
-            holder.icon.setImageResource(player.getIconResourceId());
+            holder.name.setText(player.getName());
+            if (player.getIcon() != null) {
+                holder.icon.setImageBitmap(Bitmap.createScaledBitmap(player.getIcon(), 48, 48, false));
+            } else {
+                holder.icon.setImageResource(player.getIconResourceId());
+
+            }
         }
         return view;
     }

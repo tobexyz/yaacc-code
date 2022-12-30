@@ -79,16 +79,17 @@ public class ServerListFragment extends Fragment implements
     private void populateDeviceList() {
         //FIXME: Cache should be able to decide whether it is used for browsing or for devices lists
         IconDownloadCacheHandler.getInstance().resetCache();
-
-        getActivity().runOnUiThread(new Runnable() {
-            public void run() {
-                ListView deviceList = contentList;
-                deviceList.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
-                BrowseDeviceAdapter bDeviceAdapter = new BrowseDeviceAdapter(getActivity().getApplicationContext(), new LinkedList<Device>(upnpClient.getDevicesProvidingContentDirectoryService()));
-                deviceList.setAdapter(bDeviceAdapter);
-                deviceList.setOnItemClickListener(new ServerListClickListener(upnpClient, ServerListFragment.this));
-            }
-        });
+        if (getActivity() != null) {
+            getActivity().runOnUiThread(new Runnable() {
+                public void run() {
+                    ListView deviceList = contentList;
+                    deviceList.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
+                    BrowseDeviceAdapter bDeviceAdapter = new BrowseDeviceAdapter(getActivity(), new LinkedList<Device>(upnpClient.getDevicesProvidingContentDirectoryService()));
+                    deviceList.setAdapter(bDeviceAdapter);
+                    deviceList.setOnItemClickListener(new ServerListClickListener(upnpClient, ServerListFragment.this));
+                }
+            });
+        }
     }
 
 

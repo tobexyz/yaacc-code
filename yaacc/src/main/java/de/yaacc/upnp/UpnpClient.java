@@ -1148,7 +1148,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
 
 
     @SuppressWarnings({"unchecked", "rawtypes"})
-    private class LocalDummyDevice extends Device {
+    public class LocalDummyDevice extends Device {
         LocalDummyDevice() throws ValidationException {
             super(new DeviceIdentity(new UDN(LOCAL_UID)));
         }

@@ -23,10 +23,7 @@ public class AVTransportController extends AVTransportPlayer {
     public AVTransportController(UpnpClient upnpClient, Device receiverDevice) {
 
         super(upnpClient, receiverDevice, "", "", null);
-        String deviceName = receiverDevice.getDetails().getFriendlyName();
-        if (deviceName.length() > 13) {
-            deviceName = deviceName.substring(0, 10) + "...";
-        }
+        String deviceName = receiverDevice.getDetails().getFriendlyName() + " - " + receiverDevice.getDisplayString();
         deviceName = upnpClient.getContext()
                 .getString(R.string.playerNameAvTransport)
                 + "@" + deviceName;
