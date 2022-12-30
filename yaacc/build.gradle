@@ -68,7 +68,7 @@ android {
     }
     defaultConfig {
         targetSdkVersion 32
-        minSdkVersion 28
+        minSdkVersion 27
     }
     lint {
         abortOnError false
