@@ -36,6 +36,7 @@ import org.seamless.util.Exceptions;
 
 import java.net.BindException;
 import java.net.DatagramPacket;
+import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.util.ArrayList;
@@ -125,7 +126,7 @@ public class RouterImpl implements Router {
                 try {
                     log.fine("Starting networking services...");
                     networkAddressFactory = getConfiguration().createNetworkAddressFactory();
-
+                    
                     startInterfaceBasedTransports(networkAddressFactory.getNetworkInterfaces());
                     startAddressBasedTransports(networkAddressFactory.getBindAddresses());
 
@@ -376,7 +377,6 @@ public class RouterImpl implements Router {
     protected void startInterfaceBasedTransports(Iterator<NetworkInterface> interfaces) throws InitializationException {
         while (interfaces.hasNext()) {
             NetworkInterface networkInterface = interfaces.next();
-
             // We only have the MulticastReceiver as an interface-based transport
             MulticastReceiver multicastReceiver = getConfiguration().createMulticastReceiver(networkAddressFactory);
             if (multicastReceiver == null) {
@@ -421,6 +421,9 @@ public class RouterImpl implements Router {
         while (addresses.hasNext()) {
             InetAddress address = addresses.next();
 
+            if (!(address instanceof Inet4Address)) {
+                continue;
+            }
             // HTTP servers
             StreamServer streamServer = getConfiguration().createStreamServer(networkAddressFactory);
             if (streamServer == null) {

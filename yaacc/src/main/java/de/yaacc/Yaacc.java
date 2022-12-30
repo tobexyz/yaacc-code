@@ -39,7 +39,12 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 
 import de.yaacc.browser.TabBrowserActivity;
+import de.yaacc.musicplayer.BackgroundMusicService;
+import de.yaacc.player.PlayerService;
 import de.yaacc.upnp.UpnpClient;
+import de.yaacc.upnp.UpnpRegistryService;
+import de.yaacc.upnp.server.YaaccAudioRenderingControlService;
+import de.yaacc.upnp.server.YaaccUpnpServerService;
 import de.yaacc.util.NotificationId;
 
 /**
@@ -130,10 +135,17 @@ public class Yaacc extends Application {
     public void exit() {
         int p = android.os.Process.myPid();
         upnpClient.shutdown();
+        stopService(new Intent(this, PlayerService.class));
+        stopService(new Intent(this, BackgroundMusicService.class));
+        stopService(new Intent(this, YaaccAudioRenderingControlService.class));
+        stopService(new Intent(this, YaaccUpnpServerService.class));
+        stopService(new Intent(this, UpnpRegistryService.class));
+
         //FIXME work around to be fixed with new ui
         NotificationManager mNotificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         mNotificationManager.cancel(NotificationId.UPNP_SERVER.getId());
         mNotificationManager.cancel(NotificationId.PLAYER_SERVICE.getId());
+        mNotificationManager.cancel(NotificationId.YAACC.getId());
         android.os.Process.killProcess(p);
     }
 
@@ -157,7 +169,7 @@ public class Yaacc extends Application {
                 .setGroupSummary(true)
                 .setSmallIcon(R.drawable.ic_notification_default)
                 .setContentTitle("Yaacc")
-                .setContentText("All about UPNP connections")
+                .setContentText("Yet Another Android Client Controller")
                 .setContentIntent(pendingIntent);
         notificationManager.notify(NotificationId.YAACC.getId(), mBuilder.build());
 

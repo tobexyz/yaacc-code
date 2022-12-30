@@ -15,12 +15,12 @@
 
 package org.fourthline.cling.transport.impl;
 
+import org.fourthline.cling.model.UnsupportedDataException;
 import org.fourthline.cling.model.message.OutgoingDatagramMessage;
 import org.fourthline.cling.transport.Router;
 import org.fourthline.cling.transport.spi.DatagramIO;
 import org.fourthline.cling.transport.spi.DatagramProcessor;
 import org.fourthline.cling.transport.spi.InitializationException;
-import org.fourthline.cling.model.UnsupportedDataException;
 
 import java.net.DatagramPacket;
 import java.net.InetAddress;
@@ -40,6 +40,7 @@ import java.util.logging.Logger;
  * Thread-safety is guaranteed through synchronization of methods of this service and
  * by the thread-safe underlying socket.
  * </p>
+ *
  * @author Christian Bauer
  */
 public class DatagramIOImpl implements DatagramIO<DatagramIOConfigurationImpl> {
@@ -146,7 +147,7 @@ public class DatagramIOImpl implements DatagramIO<DatagramIOConfigurationImpl> {
         if (log.isLoggable(Level.FINE)) {
             log.fine("Sending UDP datagram packet to: " + message.getDestinationAddress() + ":" + message.getDestinationPort());
         }
-        
+
         send(packet);
     }
 
@@ -154,7 +155,7 @@ public class DatagramIOImpl implements DatagramIO<DatagramIOConfigurationImpl> {
         if (log.isLoggable(Level.FINE)) {
             log.fine("Sending message from address: " + localAddress);
         }
-            
+
         try {
             socket.send(datagram);
         } catch (SocketException ex) {
@@ -162,7 +163,11 @@ public class DatagramIOImpl implements DatagramIO<DatagramIOConfigurationImpl> {
         } catch (RuntimeException ex) {
             throw ex;
         } catch (Exception ex) {
-            log.log(Level.SEVERE, "Exception sending datagram to: " + datagram.getAddress() + ": " + ex, ex);
+            try {
+                log.log(Level.SEVERE, socket.getNetworkInterface() + " Exception sending datagram to: " + datagram.getAddress() + ": " + ex, ex);
+            } catch (SocketException se) {
+                log.log(Level.SEVERE, " Exception sending datagram to: " + datagram.getAddress() + ": " + ex, ex);
+            }
         }
     }
 }
