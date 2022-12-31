@@ -106,6 +106,7 @@ public class YaaccUpnpServerService extends Service {
     private LocalDevice localServer;
     private LocalDevice localRenderer;
     private UpnpClient upnpClient;
+    private LocalService<YaaccContentDirectory> contentDirectoryService;
     private boolean watchdog;
 
 
@@ -185,14 +186,17 @@ public class YaaccUpnpServerService extends Service {
      */
     private void showNotification() {
         Intent notificationIntent = new Intent(this, YaaccUpnpServerControlActivity.class);
-        PendingIntent contentIntent = PendingIntent.getActivity(this, 0, notificationIntent, 0);
-        NotificationCompat.Builder mBuilder = new NotificationCompat.Builder(this, Yaacc.NOTIFICATION_CHANNEL_ID).setOngoing(true).setSmallIcon(R.drawable.ic_notification_default)
+        PendingIntent contentIntent = PendingIntent.getActivity(this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE);
+        NotificationCompat.Builder mBuilder = new NotificationCompat.Builder(this, Yaacc.NOTIFICATION_CHANNEL_ID)
+                .setOngoing(true)
+                .setSmallIcon(R.drawable.ic_notification_default)
                 .setContentTitle("Yaacc Upnp Server")
+                .setGroup(Yaacc.NOTIFICATION_GROUP_KEY)
                 .setContentText(preferences.getString(getApplicationContext().getString(R.string.settings_local_server_name_key), ""));
         mBuilder.setContentIntent(contentIntent);
         NotificationManager mNotificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-        // mId allows you to update the notification later on.
-        mNotificationManager.notify(NotificationId.UPNP_SERVER.getId(), mBuilder.build());
+        startForeground(NotificationId.UPNP_SERVER.getId(), mBuilder.build());
+
     }
 
     /**
@@ -263,33 +267,36 @@ public class YaaccUpnpServerService extends Service {
                     .build();
 
             // Set up the HTTP service
-            httpServer = ServerBootstrap.bootstrap()
-                    .setListenerPort(PORT)
-                    .setSocketConfig(socketConfig)
-                    .setExceptionListener(new ExceptionListener() {
+            if (httpServer == null) {
+                httpServer = ServerBootstrap.bootstrap()
+                        .setListenerPort(PORT)
+                        .setSocketConfig(socketConfig)
+                        .setExceptionListener(new ExceptionListener() {
 
-                        @Override
-                        public void onError(final Exception ex) {
-                            Log.i(getClass().getName(), "YaaccHttpServer throws exception:", ex);
-                        }
-
-                        @Override
-                        public void onError(final HttpConnection conn, final Exception ex) {
-                            if (ex instanceof SocketTimeoutException) {
-                                Log.i(getClass().getName(), "connection timeout:", ex);
-                            } else if (ex instanceof ConnectionClosedException) {
-                                Log.i(getClass().getName(), "connection closed:", ex);
-                            } else {
-                                Log.i(getClass().getName(), "connection error:", ex);
+                            @Override
+                            public void onError(final Exception ex) {
+                                Log.i(getClass().getName(), "YaaccHttpServer throws exception:", ex);
                             }
-                        }
 
-                    })
-                    .register("*", new YaaccHttpHandler(getApplicationContext()))
-                    .create();
+                            @Override
+                            public void onError(final HttpConnection conn, final Exception ex) {
+                                if (ex instanceof SocketTimeoutException) {
+                                    Log.i(getClass().getName(), "connection timeout:", ex);
+                                } else if (ex instanceof ConnectionClosedException) {
+                                    Log.i(getClass().getName(), "connection closed:", ex);
+                                } else {
+                                    Log.i(getClass().getName(), "connection error:", ex);
+                                }
+                            }
+
+                        })
+                        .setCanonicalHostName(contentDirectoryService.getManager().getImplementation().getIpAddress())
+                        .register("*", new YaaccHttpHandler(getApplicationContext()))
+                        .create();
 
 
-            httpServer.start();
+                httpServer.start();
+            }
 
         } catch (BindException e) {
             Log.w(this.getClass().getName(), "Server already running");
@@ -481,7 +488,7 @@ public class YaaccUpnpServerService extends Service {
      */
     @SuppressWarnings("unchecked")
     private LocalService<YaaccContentDirectory> createContentDirectoryService() {
-        LocalService<YaaccContentDirectory> contentDirectoryService = new AnnotationLocalServiceBinder().read(YaaccContentDirectory.class);
+        contentDirectoryService = new AnnotationLocalServiceBinder().read(YaaccContentDirectory.class);
         contentDirectoryService.setManager(new DefaultServiceManager<YaaccContentDirectory>(contentDirectoryService, null) {
 
             @Override

@@ -33,6 +33,8 @@ public class YaaccAsyncStreamServerImpl implements StreamServer<YaaccAsyncStream
     public YaaccAsyncStreamServerImpl(ProtocolFactory protocolFactory, YaaccAsyncStreamServerConfigurationImpl configuration) {
         this.configuration = configuration;
         this.protocolFactory = protocolFactory;
+        this.localPort = configuration.getListenPort();
+
     }
 
     public YaaccAsyncStreamServerConfigurationImpl getConfiguration() {

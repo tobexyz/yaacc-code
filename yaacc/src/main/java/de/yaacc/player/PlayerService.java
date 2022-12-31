@@ -91,7 +91,7 @@ public class PlayerService extends Service {
         Log.d(this.getClass().getName(), "Received start id " + startId + ": " + intent);
         Intent notificationIntent = new Intent(this, TabBrowserActivity.class);
         PendingIntent pendingIntent = PendingIntent.getActivity(this,
-                0, notificationIntent, 0);
+                0, notificationIntent, PendingIntent.FLAG_IMMUTABLE);
         Notification notification = new NotificationCompat.Builder(this, Yaacc.NOTIFICATION_CHANNEL_ID)
                 .setGroup(Yaacc.NOTIFICATION_GROUP_KEY)
                 .setContentTitle("Player Service")

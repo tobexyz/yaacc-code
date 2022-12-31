@@ -562,8 +562,9 @@ public class SyncAVTransportPlayer extends AbstractPlayer {
             }
         }, getExecutionTime());
 
-
-        stopItem(getItems().get(getCurrentIndex()));
+        if (getItems().size() > 0) {
+            stopItem(getItems().get(getCurrentIndex()));
+        }
 
     }
 

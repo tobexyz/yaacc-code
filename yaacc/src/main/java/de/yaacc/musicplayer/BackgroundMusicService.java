@@ -65,7 +65,7 @@ public class BackgroundMusicService extends Service {
         Log.d(this.getClass().getName(), "On Create");
         Intent notificationIntent = new Intent(this, TabBrowserActivity.class);
         PendingIntent pendingIntent = PendingIntent.getActivity(this,
-                0, notificationIntent, 0);
+                0, notificationIntent, PendingIntent.FLAG_IMMUTABLE);
         Notification notification = new NotificationCompat.Builder(this, Yaacc.NOTIFICATION_CHANNEL_ID)
                 .setContentTitle("Background Music Service")
                 .setContentText("running")

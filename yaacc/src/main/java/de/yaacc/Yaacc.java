@@ -162,7 +162,7 @@ public class Yaacc extends Application {
         notificationManager.createNotificationChannel(channel);
         Intent notificationIntent = new Intent(this, TabBrowserActivity.class);
         PendingIntent pendingIntent = PendingIntent.getActivity(this,
-                0, notificationIntent, 0);
+                0, notificationIntent, PendingIntent.FLAG_IMMUTABLE);
         NotificationCompat.Builder mBuilder = new NotificationCompat.Builder(
                 getApplicationContext(), Yaacc.NOTIFICATION_CHANNEL_ID)
                 .setGroup(Yaacc.NOTIFICATION_GROUP_KEY)

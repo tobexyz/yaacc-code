@@ -21,10 +21,11 @@ import org.fourthline.cling.transport.spi.StreamServer;
 
 public class YaaccUpnpServiceConfiguration extends DefaultUpnpServiceConfiguration {
 
+    private static int PORT = 4712;
     private final UpnpService upnpService;
 
     public YaaccUpnpServiceConfiguration(UpnpService upnpService) {
-        this(upnpService, 0); // Ephemeral port
+        this(upnpService, 4712); // Ephemeral port
     }
 
     public YaaccUpnpServiceConfiguration(UpnpService upnpService, int streamListenPort) {

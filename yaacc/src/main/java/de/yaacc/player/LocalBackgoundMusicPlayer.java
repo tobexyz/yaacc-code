@@ -229,7 +229,7 @@ public class LocalBackgoundMusicPlayer extends AbstractPlayer implements Service
     public PendingIntent getNotificationIntent() {
         Intent notificationIntent = new Intent(getContext(), MusicPlayerActivity.class);
         notificationIntent.putExtra(PLAYER_ID, getId());
-        PendingIntent contentIntent = PendingIntent.getActivity(getContext(), 0, notificationIntent, 0);
+        PendingIntent contentIntent = PendingIntent.getActivity(getContext(), 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE);
         return contentIntent;
     }
 

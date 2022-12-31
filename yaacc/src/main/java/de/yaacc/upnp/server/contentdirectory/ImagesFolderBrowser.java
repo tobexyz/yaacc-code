@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (C) 2014 www.yaacc.de 
+ * Copyright (C) 2014 www.yaacc.de
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -20,23 +20,21 @@ package de.yaacc.upnp.server.contentdirectory;
 
 import android.content.Context;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import org.fourthline.cling.support.model.DIDLObject;
 import org.fourthline.cling.support.model.SortCriterion;
 import org.fourthline.cling.support.model.container.Container;
 import org.fourthline.cling.support.model.container.StorageFolder;
 import org.fourthline.cling.support.model.item.Item;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import de.yaacc.R;
 
 /**
  * Browser  for the image folder.
- * 
- * 
+ *
  * @author openbit (Tobias Schoene)
- * 
  */
 public class ImagesFolderBrowser extends ContentBrowser {
 
@@ -45,29 +43,28 @@ public class ImagesFolderBrowser extends ContentBrowser {
     }
 
     @Override
-	public DIDLObject browseMeta(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults,SortCriterion[] orderby) {
-		
-		StorageFolder folder = new StorageFolder(ContentDirectoryIDs.IMAGES_FOLDER.getId(), ContentDirectoryIDs.ROOT.getId(), getContext().getString(R.string.images), "yaacc", 4,
-				907000L);
-		return folder;
-	}
+    public DIDLObject browseMeta(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
+
+        StorageFolder folder = new StorageFolder(ContentDirectoryIDs.IMAGES_FOLDER.getId(), ContentDirectoryIDs.ROOT.getId(), getContext().getString(R.string.images), "yaacc", 4,
+                907000L);
+        return folder;
+    }
 
 
-	
-	@Override
-	public List<Container> browseContainer(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults,SortCriterion[] orderby) {
-		List<Container> result = new ArrayList<Container>();
-        result.add((Container)new ImagesAllFolderBrowser(getContext()).browseMeta(contentDirectory, ContentDirectoryIDs.IMAGES_ALL_FOLDER.getId(),firstResult,maxResults,orderby));
-        result.add((Container)new ImagesByBucketNamesFolderBrowser(getContext()).browseMeta(contentDirectory, ContentDirectoryIDs.IMAGES_BY_BUCKET_NAMES_FOLDER.getId(),firstResult,maxResults,orderby));
+    @Override
+    public List<Container> browseContainer(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
+        List<Container> result = new ArrayList<Container>();
+        result.add((Container) new ImagesAllFolderBrowser(getContext()).browseMeta(contentDirectory, ContentDirectoryIDs.IMAGES_ALL_FOLDER.getId(), firstResult, maxResults, orderby));
+        result.add((Container) new ImagesByBucketNamesFolderBrowser(getContext()).browseMeta(contentDirectory, ContentDirectoryIDs.IMAGES_BY_BUCKET_NAMES_FOLDER.getId(), firstResult, maxResults, orderby));
         return result;
-	}
+    }
 
-	@Override
-	public List<Item> browseItem(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults,SortCriterion[] orderby) {
-		List<Item> result = new ArrayList<Item>();
-		
-		return result;
-		
-	}
+    @Override
+    public List<Item> browseItem(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
+        List<Item> result = new ArrayList<Item>();
+
+        return result;
+
+    }
 
 }

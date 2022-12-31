@@ -182,7 +182,7 @@ public class MultiContentPlayer extends AbstractPlayer {
         Intent notificationIntent = new Intent(getContext(),
                 MultiContentPlayerActivity.class);
         PendingIntent contentIntent = PendingIntent.getActivity(getContext(),
-                0, notificationIntent, 0);
+                0, notificationIntent, PendingIntent.FLAG_IMMUTABLE);
         return contentIntent;
     }
 

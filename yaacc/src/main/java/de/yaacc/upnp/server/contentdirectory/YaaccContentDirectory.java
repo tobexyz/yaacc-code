@@ -158,23 +158,23 @@ public class YaaccContentDirectory {
     }
 
     private List<MusicTrack> createMusicTracks(String parentId) {
-        String album = "Music"; // "Voice Mail";
-        String creator = null;// "Dr. Athur";
+        String album = "Music";
+        String creator = "freetestdata.com";
         PersonWithRole artist = new PersonWithRole(creator, "");
         MimeType mimeType = new MimeType("audio", "mpeg");
         List<MusicTrack> result = new ArrayList<MusicTrack>();
         Res res = new Res(
                 new ProtocolInfo(Protocol.HTTP_GET, ProtocolInfo.WILDCARD, mimeType.toString(), ProtocolInfo.WILDCARD),
                 123456l,
-                "00:02:33",
+                "00:01:27",
                 26752L,
-                "https://api.jamendo.com/get2/stream/track/redirect/?id=310355&streamencoding=mp31");
+                "https://freetestdata.com/wp-content/uploads/2021/09/Free_Test_Data_2MB_MP3.mp3");
         res.setSampleFrequency(44100L);
         res.setNrAudioChannels(2L);
         MusicTrack musicTrack = new MusicTrack(
                 "101",
                 parentId,
-                "Bluey Shoey",
+                "Free_Test_Data_2MB_MP3",
                 creator,
                 album,
                 artist,
@@ -182,40 +182,24 @@ public class YaaccContentDirectory {
         musicTrack.setRestricted(true);
         addContent(musicTrack.getId(), musicTrack);
         result.add(musicTrack);
-
+        mimeType = new MimeType("audio", "ogg");
         musicTrack = new MusicTrack(
                 "102",
                 parentId,
-                "8-Bit",
+                "Free_Test_Data_2MB_OGG",
                 creator,
                 album,
                 artist,
                 new Res(
                         new ProtocolInfo(Protocol.HTTP_GET, ProtocolInfo.WILDCARD, mimeType.toString(), ProtocolInfo.WILDCARD),
                         123456l,
-                        "00:02:01",
+                        "00:01:49",
                         8192L,
-                        "https://api.jamendo.com/get2/stream/track/redirect/?id=310370&streamencoding=mp31"));
+                        "https://freetestdata.com/wp-content/uploads/2021/09/Free_Test_Data_2MB_OGG.ogg"));
         musicTrack.setRestricted(true);
         addContent(musicTrack.getId(), musicTrack);
         result.add(musicTrack);
 
-        musicTrack = new MusicTrack(
-                "103",
-                parentId,
-                "Spooky Number 3",
-                creator,
-                album,
-                artist,
-                new Res(
-                        new ProtocolInfo(Protocol.HTTP_GET, ProtocolInfo.WILDCARD, mimeType.toString(), ProtocolInfo.WILDCARD),
-                        123456l,
-                        "00:02:18",
-                        8192L,
-                        "https://api.jamendo.com/get2/stream/track/redirect/?id=310371&streamencoding=mp31"));
-        musicTrack.setRestricted(true);
-        addContent(musicTrack.getId(), musicTrack);
-        result.add(musicTrack);
         return result;
     }
 
@@ -253,7 +237,7 @@ public class YaaccContentDirectory {
         photo.setClazz(new DIDLObject.Class("object.item.imageItem"));
         result.add(photo);
 
-        url = "https://cdn.pixabay.com/photo/2015/03/26/09/47/sky-690293_960_720.jpg";
+        url = "https://cdn.pixabay.com/photo/2017/01/04/21/00/fireworks-1953253_960_720.jpg";
 
         photo = new Photo("204", parentId, url, creator, album, new Res(
                 new ProtocolInfo(Protocol.HTTP_GET, ProtocolInfo.WILDCARD, mimeType.toString(), ProtocolInfo.WILDCARD), 123456L, url));
@@ -392,17 +376,23 @@ public class YaaccContentDirectory {
             }
 
         } else {
-            if (browseFlag == BrowseFlag.METADATA) {
-                didlObject = findBrowserFor(objectID).browseMeta(this, objectID, firstResult, maxResults, orderby);
-                didl.addObject(didlObject);
-                childCount = 1;
-            } else {
-                childCount = 0;
-                List<DIDLObject> children = findBrowserFor(objectID).browseChildren(this, objectID, firstResult, maxResults, orderby);
+            childCount = 0;
+            if (findBrowserFor(objectID) != null) {
+                if (browseFlag == BrowseFlag.METADATA) {
+                    didlObject = findBrowserFor(objectID).browseMeta(this, objectID, firstResult, maxResults, orderby);
+                    didl.addObject(didlObject);
+                    childCount = 1;
+                } else {
+                    childCount = 0;
 
-                for (DIDLObject child : children) {
-                    didl.addObject(child);
-                    childCount++;
+
+                    List<DIDLObject> children = findBrowserFor(objectID).browseChildren(this, objectID, firstResult, maxResults, orderby);
+
+                    for (DIDLObject child : children) {
+                        didl.addObject(child);
+                        childCount++;
+
+                    }
 
                 }
             }

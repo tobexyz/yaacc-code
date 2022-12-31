@@ -386,7 +386,7 @@ public class LocalImagePlayer implements Player, ServiceConnection {
         intent.setData(Uri.parse("http://0.0.0.0/" + Arrays.hashCode(uris.toArray()) + "")); //just for making the intents different http://stackoverflow.com/questions/10561419/scheduling-more-than-one-pendingintent-to-same-activity-using-alarmmanager
         intent.putExtra(ImageViewerActivity.URIS, uris);
         notificationIntent = PendingIntent.getActivity(upnpClient.getContext(), 0,
-                intent, 0);
+                intent, PendingIntent.FLAG_IMMUTABLE);
         return notificationIntent;
     }
 
