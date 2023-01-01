@@ -25,6 +25,7 @@ import org.fourthline.cling.model.message.UpnpHeaders;
 import org.fourthline.cling.model.meta.RemoteDeviceIdentity;
 import org.fourthline.cling.model.meta.RemoteService;
 import org.fourthline.cling.model.types.ServiceType;
+import org.fourthline.cling.protocol.ProtocolFactory;
 import org.fourthline.cling.transport.impl.DatagramIOConfigurationImpl;
 import org.fourthline.cling.transport.impl.DatagramIOImpl;
 import org.fourthline.cling.transport.impl.DatagramProcessorImpl;
@@ -168,7 +169,7 @@ public class DefaultUpnpServiceConfiguration implements UpnpServiceConfiguration
     }
 
     @Override
-    public StreamServer createStreamServer(NetworkAddressFactory networkAddressFactory) {
+    public StreamServer createStreamServer(ProtocolFactory protocolFactory, NetworkAddressFactory networkAddressFactory) {
         return null;
     }
 

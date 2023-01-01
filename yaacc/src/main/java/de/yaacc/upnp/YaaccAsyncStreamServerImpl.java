@@ -32,8 +32,8 @@ public class YaaccAsyncStreamServerImpl implements StreamServer<YaaccAsyncStream
 
     public YaaccAsyncStreamServerImpl(ProtocolFactory protocolFactory, YaaccAsyncStreamServerConfigurationImpl configuration) {
         this.configuration = configuration;
-        this.protocolFactory = protocolFactory;
         this.localPort = configuration.getListenPort();
+        this.protocolFactory = protocolFactory;
 
     }
 
@@ -61,8 +61,9 @@ public class YaaccAsyncStreamServerImpl implements StreamServer<YaaccAsyncStream
                                 .setTcpNoDelay(true)
                                 .build();
                         server = H2ServerBootstrap.bootstrap()
+                                .setCanonicalHostName(bindAddress.getHostAddress())
                                 .setIOReactorConfig(config)
-                                .register(router.getConfiguration().getNamespace().getBasePath().getPath(), new YaaccAsyncStreamServerRequestHandler(protocolFactory))
+                                .register(router.getConfiguration().getNamespace().getBasePath().getPath() + "/*", new YaaccAsyncStreamServerRequestHandler(protocolFactory))
                                 .create();
                         server.start();
                         listenerEndpointFuture = server.listen(new InetSocketAddress(getConfiguration().getListenPort()), URIScheme.HTTP);

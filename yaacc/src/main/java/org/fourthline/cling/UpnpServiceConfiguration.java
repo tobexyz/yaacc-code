@@ -22,6 +22,7 @@ import org.fourthline.cling.model.message.UpnpHeaders;
 import org.fourthline.cling.model.meta.RemoteDeviceIdentity;
 import org.fourthline.cling.model.meta.RemoteService;
 import org.fourthline.cling.model.types.ServiceType;
+import org.fourthline.cling.protocol.ProtocolFactory;
 import org.fourthline.cling.transport.spi.DatagramIO;
 import org.fourthline.cling.transport.spi.DatagramProcessor;
 import org.fourthline.cling.transport.spi.GENAEventProcessor;
@@ -91,7 +92,7 @@ public interface UpnpServiceConfiguration {
      * @param networkAddressFactory The configured {@link org.fourthline.cling.transport.spi.NetworkAddressFactory}.
      * @return A new instance of the {@link org.fourthline.cling.transport.spi.StreamServer} interface.
      */
-    public StreamServer createStreamServer(NetworkAddressFactory networkAddressFactory);
+    public StreamServer createStreamServer(ProtocolFactory protocolFactory, NetworkAddressFactory networkAddressFactory);
 
     /**
      * @return The executor which runs the listening background threads for multicast datagrams.
@@ -134,8 +135,8 @@ public interface UpnpServiceConfiguration {
      * </p>
      *
      * @return An array of service types that are exclusively discovered, no other service will
-     *         be discovered. A <code>null</code> return value will disable discovery!
-     *         An empty array means all services will be discovered.
+     * be discovered. A <code>null</code> return value will disable discovery!
+     * An empty array means all services will be discovered.
      */
     public ServiceType[] getExclusiveServiceTypes();
 
@@ -143,7 +144,7 @@ public interface UpnpServiceConfiguration {
      * @return The time in milliseconds to wait between each registry maintenance operation.
      */
     public int getRegistryMaintenanceIntervalMillis();
-    
+
     /**
      * Optional setting for flooding alive NOTIFY messages for local devices.
      * <p>
@@ -171,9 +172,8 @@ public interface UpnpServiceConfiguration {
      * </p>
      *
      * @return <code>true</code> if the timeout in incoming event subscriptions should be ignored
-     *         and the default value ({@link org.fourthline.cling.model.UserConstants#DEFAULT_SUBSCRIPTION_DURATION_SECONDS})
-     *         should be used instead.
-     *
+     * and the default value ({@link org.fourthline.cling.model.UserConstants#DEFAULT_SUBSCRIPTION_DURATION_SECONDS})
+     * should be used instead.
      */
     public boolean isReceivedSubscriptionTimeoutIgnored();
 
@@ -193,7 +193,7 @@ public interface UpnpServiceConfiguration {
      * </p>
      *
      * @return <code>null</code> (the default) to accept the remote device's proposed maximum age, or
-     *         <code>0</code> for unlimited age, or a value in seconds.
+     * <code>0</code> for unlimited age, or a value in seconds.
      */
     public Integer getRemoteDeviceMaxAgeSeconds();
 

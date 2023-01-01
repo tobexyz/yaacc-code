@@ -120,6 +120,9 @@ public class YaaccAsyncStreamServerRequestHandler extends UpnpStream implements 
 
         // Body
         byte[] bodyBytes = message.getBody();
+        if (bodyBytes == null) {
+            bodyBytes = new byte[]{};
+        }
         if (log.isLoggable(Level.FINER))
             log.finer("Reading request body bytes: " + bodyBytes.length);
 

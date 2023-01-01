@@ -76,14 +76,18 @@ public class UpnpRegistryService extends Service {
                 super.shutdown(true);
             }
         };
+
         Log.d(this.getClass().getName(), "on start took: " + (System.currentTimeMillis() - start));
     }
 
     protected YaaccUpnpServiceConfiguration createConfiguration() {
 
-        return new YaaccUpnpServiceConfiguration(upnpService);
+        return new YaaccUpnpServiceConfiguration(this);
     }
 
+    public UpnpService getUpnpService() {
+        return upnpService;
+    }
 
     protected AndroidRouter createRouter(UpnpServiceConfiguration configuration,
                                          ProtocolFactory protocolFactory,

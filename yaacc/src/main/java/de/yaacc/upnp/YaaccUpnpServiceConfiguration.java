@@ -1,7 +1,6 @@
 package de.yaacc.upnp;
 
 import org.fourthline.cling.DefaultUpnpServiceConfiguration;
-import org.fourthline.cling.UpnpService;
 import org.fourthline.cling.android.AndroidNetworkAddressFactory;
 import org.fourthline.cling.binding.xml.DeviceDescriptorBinder;
 import org.fourthline.cling.binding.xml.RecoveringUDA10DeviceDescriptorBinderImpl;
@@ -10,7 +9,7 @@ import org.fourthline.cling.binding.xml.UDA10ServiceDescriptorBinderSAXImpl;
 import org.fourthline.cling.model.Namespace;
 import org.fourthline.cling.model.types.ServiceType;
 import org.fourthline.cling.model.types.UDAServiceType;
-import org.fourthline.cling.protocol.ProtocolFactoryImpl;
+import org.fourthline.cling.protocol.ProtocolFactory;
 import org.fourthline.cling.transport.impl.RecoveringGENAEventProcessorImpl;
 import org.fourthline.cling.transport.impl.RecoveringSOAPActionProcessorImpl;
 import org.fourthline.cling.transport.spi.GENAEventProcessor;
@@ -22,13 +21,13 @@ import org.fourthline.cling.transport.spi.StreamServer;
 public class YaaccUpnpServiceConfiguration extends DefaultUpnpServiceConfiguration {
 
     private static int PORT = 4712;
-    private final UpnpService upnpService;
+    private final UpnpRegistryService upnpService;
 
-    public YaaccUpnpServiceConfiguration(UpnpService upnpService) {
+    public YaaccUpnpServiceConfiguration(UpnpRegistryService upnpService) {
         this(upnpService, 4712); // Ephemeral port
     }
 
-    public YaaccUpnpServiceConfiguration(UpnpService upnpService, int streamListenPort) {
+    public YaaccUpnpServiceConfiguration(UpnpRegistryService upnpService, int streamListenPort) {
         super(streamListenPort, false);
         this.upnpService = upnpService;
         // This should be the default on Android 2.1 but it's not set by default
@@ -63,9 +62,9 @@ public class YaaccUpnpServiceConfiguration extends DefaultUpnpServiceConfigurati
     }
 
     @Override
-    public StreamServer createStreamServer(NetworkAddressFactory networkAddressFactory) {
+    public StreamServer createStreamServer(ProtocolFactory protocolFactory, NetworkAddressFactory networkAddressFactory) {
 
-        return new YaaccAsyncStreamServerImpl(new ProtocolFactoryImpl(upnpService),
+        return new YaaccAsyncStreamServerImpl(protocolFactory,
                 new YaaccAsyncStreamServerConfigurationImpl(networkAddressFactory.getStreamListenPort())
         );
     }

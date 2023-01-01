@@ -126,7 +126,7 @@ public class RouterImpl implements Router {
                 try {
                     log.fine("Starting networking services...");
                     networkAddressFactory = getConfiguration().createNetworkAddressFactory();
-                    
+
                     startInterfaceBasedTransports(networkAddressFactory.getNetworkInterfaces());
                     startAddressBasedTransports(networkAddressFactory.getBindAddresses());
 
@@ -425,7 +425,7 @@ public class RouterImpl implements Router {
                 continue;
             }
             // HTTP servers
-            StreamServer streamServer = getConfiguration().createStreamServer(networkAddressFactory);
+            StreamServer streamServer = getConfiguration().createStreamServer(protocolFactory, networkAddressFactory);
             if (streamServer == null) {
                 log.info("Configuration did not create a StreamServer for: " + address);
             } else {
