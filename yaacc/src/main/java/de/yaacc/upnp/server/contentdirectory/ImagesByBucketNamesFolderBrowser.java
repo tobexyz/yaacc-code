@@ -61,8 +61,8 @@ public class ImagesByBucketNamesFolderBrowser extends ContentBrowser {
 
     private Integer getSize(YaaccContentDirectory contentDirectory, String myId) {
 
-        String[] projection = {MediaStore.Images.Media._ID};
-        String selection = "0 == 0 ) group by ( " + MediaStore.Images.Media.BUCKET_ID;
+        String[] projection = {MediaStore.Images.Media.BUCKET_ID};
+        String selection = null;
         String[] selectionArgs = null;
         try (Cursor cursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, projection, selection,
                 selectionArgs, null)) {
@@ -89,7 +89,7 @@ public class ImagesByBucketNamesFolderBrowser extends ContentBrowser {
         List<Container> result = new ArrayList<Container>();
         Map<String, StorageFolder> folderMap = new HashMap<String, StorageFolder>();
         String[] projection = {MediaStore.Images.Media.BUCKET_ID, MediaStore.Images.Media.BUCKET_DISPLAY_NAME};
-        String selection = "0 == 0 ) group by ( " + MediaStore.Images.Media.BUCKET_ID;
+        String selection = null;
         String[] selectionArgs = null;
         Cursor mediaCursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, projection, selection,
                 selectionArgs, MediaStore.Images.Media.BUCKET_DISPLAY_NAME + " ASC");
