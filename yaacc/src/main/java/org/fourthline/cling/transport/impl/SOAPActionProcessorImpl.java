@@ -16,6 +16,7 @@
 package org.fourthline.cling.transport.impl;
 
 import org.fourthline.cling.model.Constants;
+import org.fourthline.cling.model.UnsupportedDataException;
 import org.fourthline.cling.model.XMLUtil;
 import org.fourthline.cling.model.action.ActionArgumentValue;
 import org.fourthline.cling.model.action.ActionException;
@@ -27,7 +28,6 @@ import org.fourthline.cling.model.meta.ActionArgument;
 import org.fourthline.cling.model.types.ErrorCode;
 import org.fourthline.cling.model.types.InvalidValueException;
 import org.fourthline.cling.transport.spi.SOAPActionProcessor;
-import org.fourthline.cling.model.UnsupportedDataException;
 import org.w3c.dom.Attr;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -38,16 +38,16 @@ import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
 import org.xml.sax.SAXParseException;
 
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.parsers.FactoryConfigurationError;
-
 import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.FactoryConfigurationError;
 
 /**
  * Default implementation based on the <em>W3C DOM</em> XML processing API.
@@ -57,9 +57,9 @@ import java.util.logging.Logger;
 public class SOAPActionProcessorImpl implements SOAPActionProcessor, ErrorHandler {
 
     private static Logger log = Logger.getLogger(SOAPActionProcessor.class.getName());
-    
+
     protected DocumentBuilderFactory createDocumentBuilderFactory() throws FactoryConfigurationError {
-    	return DocumentBuilderFactory.newInstance();
+        return DocumentBuilderFactory.newInstance();
     }
 
     public void writeBody(ActionRequestMessage requestMessage, ActionInvocation actionInvocation) throws UnsupportedDataException {
@@ -172,7 +172,7 @@ public class SOAPActionProcessorImpl implements SOAPActionProcessor, ErrorHandle
             }
 
         } catch (Exception ex) {
-    		throw new UnsupportedDataException("Can't transform message payload: " + ex, ex, body);
+            throw new UnsupportedDataException("Can't transform message payload: " + ex, ex, body);
         }
     }
 
@@ -249,7 +249,7 @@ public class SOAPActionProcessorImpl implements SOAPActionProcessor, ErrorHandle
     protected Element readBodyElement(Document d) {
 
         Element envelopeElement = d.getDocumentElement();
-        
+
         if (envelopeElement == null || !getUnprefixedNodeName(envelopeElement).equals("Envelope")) {
             throw new RuntimeException("Response root element was not 'Envelope'");
         }
@@ -303,16 +303,16 @@ public class SOAPActionProcessorImpl implements SOAPActionProcessor, ErrorHandle
             String unprefixedName = getUnprefixedNodeName(bodyChild);
             if (unprefixedName.equals(actionInvocation.getAction().getName())) {
                 if (bodyChild.getNamespaceURI() == null
-                    || !bodyChild.getNamespaceURI().equals(message.getActionNamespace()))
+                        || !bodyChild.getNamespaceURI().equals(message.getActionNamespace()))
                     throw new UnsupportedDataException(
-                        "Illegal or missing namespace on action request element: " + bodyChild
+                            "Illegal or missing namespace on action request element: " + bodyChild
                     );
                 log.fine("Reading action request element: " + unprefixedName);
                 return (Element) bodyChild;
             }
         }
         throw new UnsupportedDataException(
-            "Could not read action request element matching namespace: " + message.getActionNamespace()
+                "Could not read action request element matching namespace: " + message.getActionNamespace()
         );
     }
 
@@ -507,9 +507,10 @@ public class SOAPActionProcessorImpl implements SOAPActionProcessor, ErrorHandle
 
     protected String getMessageBody(ActionMessage message) throws UnsupportedDataException {
         if (!message.isBodyNonEmptyString())
-            throw new UnsupportedDataException(
+            /*throw new UnsupportedDataException(
                 "Can't transform null or non-string/zero-length body of: " + message
-            );
+            );*/
+            return "";
         return message.getBodyString().trim();
     }
 
@@ -543,10 +544,10 @@ public class SOAPActionProcessorImpl implements SOAPActionProcessor, ErrorHandle
         ActionArgumentValue[] values = new ActionArgumentValue[args.length];
 
         for (int i = 0; i < args.length; i++) {
-        	
+
             ActionArgument arg = args[i];
             Node node = findActionArgumentNode(nodes, arg);
-            if(node == null) {
+            if (node == null) {
                 throw new ActionException(
                         ErrorCode.ARGUMENT_VALUE_INVALID,
                         "Could not find argument '" + arg.getName() + "' node");
@@ -612,10 +613,10 @@ public class SOAPActionProcessorImpl implements SOAPActionProcessor, ErrorHandle
      * name/alias or <code>null</code>.
      */
     protected Node findActionArgumentNode(List<Node> nodes, ActionArgument arg) {
-    	for(Node node : nodes) {
-    		if(arg.isNameOrAlias(getUnprefixedNodeName(node))) return node;
-    	}
-    	return null;
+        for (Node node : nodes) {
+            if (arg.isNameOrAlias(getUnprefixedNodeName(node))) return node;
+        }
+        return null;
     }
 
     public void warning(SAXParseException e) throws SAXException {

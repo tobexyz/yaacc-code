@@ -10,7 +10,7 @@ import org.apache.hc.core5.http.Message;
 import org.apache.hc.core5.http.nio.AsyncRequestConsumer;
 import org.apache.hc.core5.http.nio.AsyncServerRequestHandler;
 import org.apache.hc.core5.http.nio.entity.AsyncEntityProducers;
-import org.apache.hc.core5.http.nio.entity.DiscardingEntityConsumer;
+import org.apache.hc.core5.http.nio.entity.BasicAsyncEntityConsumer;
 import org.apache.hc.core5.http.nio.support.AsyncResponseBuilder;
 import org.apache.hc.core5.http.nio.support.BasicRequestConsumer;
 import org.apache.hc.core5.http.protocol.HttpContext;
@@ -42,7 +42,7 @@ public class YaaccAsyncStreamServerRequestHandler extends UpnpStream implements 
             final HttpRequest request,
             final EntityDetails entityDetails,
             final HttpContext context) throws HttpException {
-        return new BasicRequestConsumer<>(entityDetails != null ? new DiscardingEntityConsumer<>() : null);
+        return new BasicRequestConsumer<>(entityDetails != null ? new BasicAsyncEntityConsumer() : null);
     }
 
     @Override
@@ -54,8 +54,7 @@ public class YaaccAsyncStreamServerRequestHandler extends UpnpStream implements 
 
         try {
             StreamRequestMessage requestMessage = readRequestMessage(message);
-            if (log.isLoggable(Level.FINER))
-                log.finer("Processing new request message: " + requestMessage);
+            log.info("Processing new request message: " + requestMessage);
 
             StreamResponseMessage responseMessage = process(requestMessage);
 
