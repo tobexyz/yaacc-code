@@ -81,12 +81,12 @@ public class ReceivingNotification extends ReceivingAsync<IncomingNotificationRe
 
         UDN udn = getInputMessage().getUDN();
         if (udn == null) {
-            log.fine("Ignoring notification message without UDN: " + getInputMessage());
+            log.info("Ignoring notification message without UDN: " + getInputMessage());
             return;
         }
 
         RemoteDeviceIdentity rdIdentity = new RemoteDeviceIdentity(getInputMessage());
-        log.fine("Received device notification: " + rdIdentity);
+        log.info("Received device notification: " + rdIdentity);
 
         RemoteDevice rd;
         try {
@@ -101,7 +101,7 @@ public class ReceivingNotification extends ReceivingAsync<IncomingNotificationRe
 
         if (getInputMessage().isAliveMessage()) {
 
-            log.fine("Received device ALIVE advertisement, descriptor location is: " + rdIdentity.getDescriptorURL());
+            log.info("Received device ALIVE advertisement, descriptor location is: " + rdIdentity.getDescriptorURL());
 
             if (rdIdentity.getDescriptorURL() == null) {
                 log.finer("Ignoring message without location URL header: " + getInputMessage());
@@ -109,12 +109,12 @@ public class ReceivingNotification extends ReceivingAsync<IncomingNotificationRe
             }
 
             if (rdIdentity.getMaxAgeSeconds() == null) {
-                log.finer("Ignoring message without max-age header: " + getInputMessage());
+                log.info("Ignoring message without max-age header: " + getInputMessage());
                 return;
             }
 
             if (getUpnpService().getRegistry().update(rdIdentity)) {
-                log.finer("Remote device was already known: " + udn);
+                log.info("Remote device was already known: " + udn);
                 return;
             }
 
@@ -126,14 +126,14 @@ public class ReceivingNotification extends ReceivingAsync<IncomingNotificationRe
 
         } else if (getInputMessage().isByeByeMessage()) {
 
-            log.fine("Received device BYEBYE advertisement");
+            log.info("Received device BYEBYE advertisement");
             boolean removed = getUpnpService().getRegistry().removeDevice(rd);
             if (removed) {
-                log.fine("Removed remote device from registry: " + rd);
+                log.info("Removed remote device from registry: " + rd);
             }
 
         } else {
-            log.finer("Ignoring unknown notification message: " + getInputMessage());
+            log.info("Ignoring unknown notification message: " + getInputMessage());
         }
 
     }

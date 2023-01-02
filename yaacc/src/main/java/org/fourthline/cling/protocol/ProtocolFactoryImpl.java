@@ -85,16 +85,16 @@ public class ProtocolFactoryImpl implements ProtocolFactory {
     }
 
     public ReceivingAsync createReceivingAsync(IncomingDatagramMessage message) throws ProtocolCreationException {
-        if (log.isLoggable(Level.FINE)) {
-            log.fine("Creating protocol for incoming asynchronous: " + message);
-        }
+
+        log.info("Creating protocol for incoming asynchronous: " + message);
+
 
         if (message.getOperation() instanceof UpnpRequest) {
             IncomingDatagramMessage<UpnpRequest> incomingRequest = message;
 
             switch (incomingRequest.getOperation().getMethod()) {
                 case NOTIFY:
-                    return isByeBye(incomingRequest) || isSupportedServiceAdvertisement(incomingRequest)
+                    return isSsdpAlive(incomingRequest) || isByeBye(incomingRequest) || isSupportedServiceAdvertisement(incomingRequest)
                             ? createReceivingNotification(incomingRequest) : null;
                 case MSEARCH:
                     return createReceivingSearch(incomingRequest);
@@ -127,6 +127,11 @@ public class ProtocolFactoryImpl implements ProtocolFactory {
     protected boolean isByeBye(IncomingDatagramMessage message) {
         String ntsHeader = message.getHeaders().getFirstHeader(UpnpHeader.Type.NTS.getHttpName());
         return ntsHeader != null && ntsHeader.equals(NotificationSubtype.BYEBYE.getHeaderString());
+    }
+
+    protected boolean isSsdpAlive(IncomingDatagramMessage message) {
+        String ntsHeader = message.getHeaders().getFirstHeader(UpnpHeader.Type.NTS.getHttpName());
+        return ntsHeader != null && ntsHeader.equals(NotificationSubtype.ALIVE.getHeaderString());
     }
 
     protected boolean isSupportedServiceAdvertisement(IncomingDatagramMessage message) {

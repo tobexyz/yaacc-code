@@ -18,6 +18,7 @@
  */
 package de.yaacc.upnp.server.contentdirectory;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.database.Cursor;
 import android.provider.MediaStore;
@@ -72,7 +73,6 @@ public class MusicArtistsFolderBrowser extends ContentBrowser {
 
 
     private Integer getMusicTrackSize(YaaccContentDirectory contentDirectory, String parentId) {
-        Integer result = 0;
         String[] projection = {MediaStore.Audio.Media.ARTIST_ID};
         String selection = MediaStore.Audio.Media.ARTIST_ID + "=?";
         String[] selectionArgs = new String[]{parentId};
@@ -98,8 +98,8 @@ public class MusicArtistsFolderBrowser extends ContentBrowser {
             int currentCount = 0;
             while (!mediaCursor.isAfterLast() && currentCount < maxResults) {
                 if (firstResult <= currentIndex) {
-                    String id = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Audio.Albums._ID));
-                    String name = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Audio.Albums.ARTIST));
+                    @SuppressLint("Range") String id = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Audio.Albums._ID));
+                    @SuppressLint("Range") String name = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Audio.Albums.ARTIST));
                     MusicAlbum musicAlbum = new MusicAlbum(ContentDirectoryIDs.MUSIC_ARTIST_PREFIX.getId() + id, ContentDirectoryIDs.MUSIC_ALBUMS_FOLDER.getId(), name, "", 0);
                     folderMap.put(id, musicAlbum);
                     Log.d(getClass().getName(), "Artists Folder: " + id + " Name: " + name);

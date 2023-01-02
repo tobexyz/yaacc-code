@@ -73,10 +73,10 @@ public class MusicGenresFolderBrowser extends ContentBrowser {
 
     private Integer getMusicTrackSize(YaaccContentDirectory contentDirectory, String parentId) {
 
-        String[] projection = {MediaStore.Audio.Genres._ID};
-        String selection = "";
-        String[] selectionArgs = null;
-        try (Cursor cursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Audio.Genres.Members.getContentUri("external", Long.parseLong(parentId)), projection, selection,
+        String[] projection = {MediaStore.Audio.Media._ID};
+        String selection = MediaStore.Audio.Media.GENRE_ID + "=?";
+        String[] selectionArgs = new String[]{parentId};
+        try (Cursor cursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, projection, selection,
                 selectionArgs, null)) {
             return cursor.getCount();
         }
@@ -102,9 +102,12 @@ public class MusicGenresFolderBrowser extends ContentBrowser {
                     @SuppressLint("Range") String id = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Audio.Genres._ID));
                     @SuppressLint("Range") String name = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Audio.Genres.NAME));
                     MusicAlbum musicAlbum = new MusicAlbum(ContentDirectoryIDs.MUSIC_GENRE_PREFIX.getId() + id, ContentDirectoryIDs.MUSIC_GENRES_FOLDER.getId(), name, "", 0);
-                    folderMap.put(id, musicAlbum);
-                    Log.d(getClass().getName(), "Genre Folder: " + id + " Name: " + name);
+                    if (id != null) {
+                        folderMap.put(id, musicAlbum);
+                        Log.d(getClass().getName(), "Genre Folder: " + id + " Name: " + name);
+                    }
                     currentCount++;
+
                 }
                 currentIndex++;
                 mediaCursor.moveToNext();

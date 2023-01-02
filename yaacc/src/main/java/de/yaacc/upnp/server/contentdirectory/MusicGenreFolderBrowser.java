@@ -111,28 +111,25 @@ public class MusicGenreFolderBrowser extends ContentBrowser {
     public List<Item> browseItem(YaaccContentDirectory contentDirectory,
                                  String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
         List<Item> result = new ArrayList<Item>();
-        String[] projection = {MediaStore.Audio.Genres.Members.AUDIO_ID,
-                MediaStore.Audio.Genres.Members.GENRE_ID,
-                MediaStore.Audio.Genres.Members.DISPLAY_NAME,
-                MediaStore.Audio.Genres.Members.MIME_TYPE,
-                MediaStore.Audio.Genres.Members.SIZE,
-                MediaStore.Audio.Genres.Members.ALBUM,
-                MediaStore.Audio.Genres.Members.ALBUM_ID,
-                MediaStore.Audio.Genres.Members.TITLE,
-                MediaStore.Audio.Genres.Members.ARTIST,
-                MediaStore.Audio.Genres.Members.DURATION};
+        String[] projection = {MediaStore.Audio.Media._ID,
+                MediaStore.Audio.Media.GENRE_ID,
+                MediaStore.Audio.Media.DISPLAY_NAME,
+                MediaStore.Audio.Media.MIME_TYPE,
+                MediaStore.Audio.Media.SIZE,
+                MediaStore.Audio.Media.ALBUM,
+                MediaStore.Audio.Media.ALBUM_ID,
+                MediaStore.Audio.Media.TITLE,
+                MediaStore.Audio.Media.ARTIST,
+                MediaStore.Audio.Media.DURATION};
         // String selection = MediaStore.Audio.Genres.Members.GENRE_ID + "=?";
         // String[] selectionArgs = new String[]{genreID};
-        String selection = "";
-        String[] selectionArgs = null;
+        String selection = MediaStore.Audio.Media.GENRE_ID + "=?";
+        String[] selectionArgs = new String[]{myId.substring(myId
+                .indexOf(ContentDirectoryIDs.MUSIC_GENRE_PREFIX.getId()))};
         Cursor mediaCursor = contentDirectory
                 .getContext()
                 .getContentResolver()
-                .query(MediaStore.Audio.Genres.Members.getContentUri(
-                                "external",
-                                Long.parseLong(myId
-                                        .substring(ContentDirectoryIDs.MUSIC_GENRE_PREFIX
-                                                .getId().length()))), projection,
+                .query(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, projection,
                         selection, selectionArgs, MediaStore.Audio.Genres.Members.DISPLAY_NAME + " ASC");
 
         if (mediaCursor != null) {
