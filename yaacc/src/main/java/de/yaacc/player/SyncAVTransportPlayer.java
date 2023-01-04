@@ -278,7 +278,7 @@ public class SyncAVTransportPlayer extends AbstractPlayer {
         notificationIntent.setData(Uri.parse("http://0.0.0.0/" + getId() + "")); //just for making the intents different http://stackoverflow.com/questions/10561419/scheduling-more-than-one-pendingintent-to-same-activity-using-alarmmanager
         notificationIntent.putExtra(PLAYER_ID, getId());
         PendingIntent contentIntent = PendingIntent.getActivity(getContext(), 0,
-                notificationIntent, PendingIntent.FLAG_CANCEL_CURRENT);
+                notificationIntent, PendingIntent.FLAG_IMMUTABLE);
         return contentIntent;
     }
 
