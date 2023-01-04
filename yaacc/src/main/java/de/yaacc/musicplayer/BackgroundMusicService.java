@@ -134,7 +134,11 @@ public class BackgroundMusicService extends Service {
      */
     public void stop() {
         if (player != null) {
-            player.stop();
+            try {
+                player.stop();
+            } catch (Exception ex) {
+                Log.d(getClass().getName(), "Ignoring exception on stop action: ", ex);
+            }
 
         }
     }
@@ -145,8 +149,11 @@ public class BackgroundMusicService extends Service {
     public void play() {
         //final ActionState actionState = new ActionState();
         if (player != null && !player.isPlaying()) {
-
-            player.start();
+            try {
+                player.start();
+            } catch (Exception ex) {
+                Log.d(getClass().getName(), "Ignoring exception on start action: ", ex);
+            }
 
         }
     }
@@ -156,7 +163,11 @@ public class BackgroundMusicService extends Service {
      */
     public void pause() {
         if (player != null) {
-            player.pause();
+            try {
+                player.pause();
+            } catch (Exception ex) {
+                Log.d(getClass().getName(), "Ignoring exception on pause action: ", ex);
+            }
         }
     }
 
@@ -167,7 +178,11 @@ public class BackgroundMusicService extends Service {
      */
     public void seekTo(long pos) {
         if (player != null) {
-            player.seekTo(Long.valueOf(pos).intValue());
+            try {
+                player.seekTo(Long.valueOf(pos).intValue());
+            } catch (Exception ex) {
+                Log.d(getClass().getName(), "Ignoring exception on steekTo action: ", ex);
+            }
         }
 
     }

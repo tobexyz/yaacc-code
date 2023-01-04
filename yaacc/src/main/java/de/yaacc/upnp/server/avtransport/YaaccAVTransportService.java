@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (C) 2013 www.yaacc.de 
+ * Copyright (C) 2013 www.yaacc.de
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -33,7 +33,6 @@ import org.fourthline.cling.model.types.ErrorCode;
 import org.fourthline.cling.model.types.UnsignedIntegerFourBytes;
 import org.fourthline.cling.support.avtransport.AVTransportErrorCode;
 import org.fourthline.cling.support.avtransport.AVTransportException;
-import org.fourthline.cling.support.avtransport.impl.AVTransportService;
 import org.fourthline.cling.support.avtransport.impl.AVTransportStateMachine;
 import org.fourthline.cling.support.avtransport.impl.state.AbstractState;
 import org.fourthline.cling.support.avtransport.lastchange.AVTransportLastChangeParser;
@@ -60,8 +59,6 @@ import java.beans.PropertyChangeSupport;
 import java.net.URI;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.model.types.SyncOffset;
@@ -236,19 +233,14 @@ import de.yaacc.upnp.model.types.SyncOffset;
 })
 public class YaaccAVTransportService implements LastChangeDelegator {
 
-    private UpnpClient upnpClient = null;
-
-
-    private Map<Long, AVTransportStateMachine> stateMachines = new ConcurrentHashMap();
-
+    protected PropertyChangeSupport propertyChangeSupport = null;
     Class<? extends AVTransportStateMachine> stateMachineDefinition = null;
     Class<? extends AbstractState> initialState = null;
     Class<? extends AVTransport> transportClass = null;
-
-
+    private UpnpClient upnpClient = null;
+    private Map<Long, AVTransportStateMachine> stateMachines = new ConcurrentHashMap();
     @UpnpStateVariable(eventMaximumRateMilliseconds = 200)
     private LastChange lastChange = new LastChange(new AVTransportLastChangeParser());
-    protected PropertyChangeSupport propertyChangeSupport = null;
 
 
     protected YaaccAVTransportService() {
@@ -259,7 +251,7 @@ public class YaaccAVTransportService implements LastChangeDelegator {
 
     protected YaaccAVTransportService(LastChange lastChange) {
         this.propertyChangeSupport = new PropertyChangeSupport(this);
-        this.lastChange = lastChange ;
+        this.lastChange = lastChange;
     }
 
     protected YaaccAVTransportService(PropertyChangeSupport propertyChangeSupport) {
@@ -295,10 +287,13 @@ public class YaaccAVTransportService implements LastChangeDelegator {
         this.upnpClient = upnpClient;
     }
 
+    public static UnsignedIntegerFourBytes getDefaultInstanceID() {
+        return new UnsignedIntegerFourBytes(0);
+    }
 
     @Override
     public LastChange getLastChange() {
-        if(lastChange == null){
+        if (lastChange == null) {
             lastChange = new LastChange(new AVTransportLastChangeParser());
         }
         return lastChange;
@@ -343,40 +338,35 @@ public class YaaccAVTransportService implements LastChangeDelegator {
         return propertyChangeSupport;
     }
 
-    public static UnsignedIntegerFourBytes getDefaultInstanceID() {
-        return new UnsignedIntegerFourBytes(0);
-    }
-
     /**
      * Create a StateMachine for AVTransport
-     *
      */
     protected AVTransportStateMachine createStateMachine(
             UnsignedIntegerFourBytes instanceId) {
         return StateMachineBuilder.build(
                 AvTransportStateMachine.class,
                 AvTransportMediaRendererNoMediaPresent.class, new Class[]{
-                AvTransport.class, UpnpClient.class}, new Object[]{
-                new AvTransport(instanceId, getLastChange(), StorageMedium.NETWORK),
-                upnpClient});
+                        AvTransport.class, UpnpClient.class}, new Object[]{
+                        new AvTransport(instanceId, getLastChange(), StorageMedium.NETWORK),
+                        upnpClient});
     }
 
     @UpnpAction(name = "GetSyncOffset",
             out = {@UpnpOutputArgument(name = "CurrentSyncOffset", stateVariable = "SyncOffset", getterName = "toString")})
     public SyncOffset getSyncOffset(@UpnpInputArgument(name = "InstanceID") UnsignedIntegerFourBytes instanceId) throws AVTransportException {
-        return ((AvTransport)findStateMachine(instanceId).getCurrentState().getTransport()).getSynchronizationInfo().getOffset();
+        return ((AvTransport) findStateMachine(instanceId).getCurrentState().getTransport()).getSynchronizationInfo().getOffset();
     }
 
     @UpnpAction(name = "SetSyncOffset")
     public void setSyncOffset(@UpnpInputArgument(name = "InstanceID") UnsignedIntegerFourBytes instanceId,
                               @UpnpInputArgument(name = "NewSyncOffset", stateVariable = "SyncOffset") String offset) throws AVTransportException {
-        ((AvTransport)findStateMachine(instanceId).getCurrentState().getTransport()).getSynchronizationInfo().setOffset(new SyncOffset(offset));
+        ((AvTransport) findStateMachine(instanceId).getCurrentState().getTransport()).getSynchronizationInfo().setOffset(new SyncOffset(offset));
     }
 
     @UpnpAction(name = "AdjustSyncOffset")
     public void adjustSyncOffset(@UpnpInputArgument(name = "InstanceID") UnsignedIntegerFourBytes instanceId,
                                  @UpnpInputArgument(name = "Adjustment", stateVariable = "SyncOffset") String offset) throws AVTransportException {
-        ((AvTransport)findStateMachine(instanceId).getCurrentState().getTransport()).getSynchronizationInfo().getOffset().add(new SyncOffset(offset));
+        ((AvTransport) findStateMachine(instanceId).getCurrentState().getTransport()).getSynchronizationInfo().getOffset().add(new SyncOffset(offset));
     }
 
 
@@ -422,7 +412,7 @@ public class YaaccAVTransportService implements LastChangeDelegator {
     public String getCurrentTransportActionsString(@UpnpInputArgument(name = "InstanceID") UnsignedIntegerFourBytes instanceId)
             throws AVTransportException {
         try {
-            return ModelUtil.toCommaSeparatedList(getCurrentTransportActions(instanceId));
+            return ModelUtil.toCommaSeparatedList(getCurrentYaaccTransportActions(instanceId));
         } catch (Exception ex) {
             return ""; // TODO: Empty string is not defined in spec but seems reasonable for no available action?
         }
@@ -434,11 +424,10 @@ public class YaaccAVTransportService implements LastChangeDelegator {
         try {
             return ((YaaccState) stateMachine.getCurrentState()).getPossibleTransportActions();
         } catch (TransitionException ex) {
-            Log.d(getClass().getName(),"Exception in state transition ignoring it", ex);
+            Log.d(getClass().getName(), "Exception in state transition ignoring it", ex);
             return new TransportAction[0];
         }
     }
-
 
 
     @UpnpAction
@@ -462,7 +451,7 @@ public class YaaccAVTransportService implements LastChangeDelegator {
         } catch (TransitionException ex) {
             throw new AVTransportException(AVTransportErrorCode.TRANSITION_NOT_AVAILABLE, ex.getMessage());
         }
-        Log.d(getClass().getName(),"setAVTransportURI: " + uri + " currentURIMetaData: " + currentURIMetaData );
+        Log.d(getClass().getName(), "setAVTransportURI: " + uri + " currentURIMetaData: " + currentURIMetaData);
     }
 
     @UpnpAction
@@ -564,7 +553,7 @@ public class YaaccAVTransportService implements LastChangeDelegator {
     })
     public PositionInfo getPositionInfo(@UpnpInputArgument(name = "InstanceID") UnsignedIntegerFourBytes instanceId)
             throws AVTransportException {
-        Log.d(getClass().getName(),"Transport: " + findStateMachine(instanceId).getCurrentState().getTransport() + " PositionInfo: " + findStateMachine(instanceId).getCurrentState().getTransport().getPositionInfo());
+        Log.d(getClass().getName(), "Transport: " + findStateMachine(instanceId).getCurrentState().getTransport() + " PositionInfo: " + findStateMachine(instanceId).getCurrentState().getTransport().getPositionInfo());
         return findStateMachine(instanceId).getCurrentState().getTransport().getPositionInfo();
     }
 
@@ -602,9 +591,13 @@ public class YaaccAVTransportService implements LastChangeDelegator {
                      @UpnpInputArgument(name = "Speed", stateVariable = "TransportPlaySpeed") String speed)
             throws AVTransportException {
         try {
+
             findStateMachine(instanceId).play(speed);
+
         } catch (TransitionException ex) {
+
             throw new AVTransportException(AVTransportErrorCode.TRANSITION_NOT_AVAILABLE, ex.getMessage());
+
         }
     }
 
@@ -669,12 +662,24 @@ public class YaaccAVTransportService implements LastChangeDelegator {
         }
     }
 
+    private TransportAction[] getCurrentYaaccTransportActions(UnsignedIntegerFourBytes instanceId) throws Exception {
+        AVTransportStateMachine stateMachine = findStateMachine(instanceId);
+        try {
+            if (stateMachine.getCurrentState() instanceof YaaccState) {
+                return ((YaaccState) stateMachine.getCurrentState()).getPossibleTransportActions();
+            }
+            return new TransportAction[0];
+        } catch (TransitionException ex) {
+            return new TransportAction[0];
+        }
+    }
 
     protected org.fourthline.cling.support.model.TransportAction[] getCurrentTransportActions(UnsignedIntegerFourBytes instanceId) throws Exception {
         AVTransportStateMachine stateMachine = findStateMachine(instanceId);
         try {
             return stateMachine.getCurrentState().getCurrentTransportActions();
         } catch (TransitionException ex) {
+            //FIXME transport action not compatible with sync player
             return new org.fourthline.cling.support.model.TransportAction[0];
         }
     }
@@ -701,13 +706,13 @@ public class YaaccAVTransportService implements LastChangeDelegator {
             long id = instanceId.getValue();
             AVTransportStateMachine stateMachine = stateMachines.get(id);
             if (stateMachine == null && createDefaultTransport) {
-                Log.d(getClass().getName(),"Creating stateMachine instance with ID '"+id+"'");
+                Log.d(getClass().getName(), "Creating stateMachine instance with ID '" + id + "'");
                 stateMachine = createStateMachine(instanceId);
                 stateMachines.put(id, stateMachine);
             } else if (stateMachine == null) {
                 throw new AVTransportException(AVTransportErrorCode.INVALID_INSTANCE_ID);
             }
-            Log.d(getClass().getName(),"Found transport control with ID '" + id + "'");
+            Log.d(getClass().getName(), "Found transport control with ID '" + id + "'");
             return stateMachine;
         }
     }
