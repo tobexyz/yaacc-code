@@ -55,8 +55,9 @@ public class BrowseDeviceAdapter extends BaseAdapter {
         this.devices = devices;
 
         inflator = LayoutInflater.from(ctx);
+        notifyDataSetChanged();
     }
-
+    
     @Override
     public int getCount() {
         return devices.size();
@@ -118,6 +119,7 @@ public class BrowseDeviceAdapter extends BaseAdapter {
     public void setDevices(Collection<Device<?, ?, ?>> devices) {
         this.devices = new LinkedList<>();
         this.devices.addAll(devices);
+        notifyDataSetChanged();
     }
 
 }

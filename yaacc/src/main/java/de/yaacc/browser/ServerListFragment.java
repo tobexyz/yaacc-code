@@ -36,7 +36,6 @@ import de.yaacc.R;
 import de.yaacc.Yaacc;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.UpnpClientListener;
-import de.yaacc.util.image.IconDownloadCacheHandler;
 
 /**
  * Activity for browsing devices and folders. Represents the entrypoint for the whole application.
@@ -47,7 +46,7 @@ public class ServerListFragment extends Fragment implements
         UpnpClientListener, OnBackPressedListener {
     private UpnpClient upnpClient = null;
     private ListView contentList;
-
+    private BrowseDeviceAdapter bDeviceAdapter;
 
     /**
      * load app preferences
@@ -63,7 +62,6 @@ public class ServerListFragment extends Fragment implements
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
     }
 
     public boolean onBackPressed() {
@@ -78,15 +76,21 @@ public class ServerListFragment extends Fragment implements
      */
     private void populateDeviceList() {
         //FIXME: Cache should be able to decide whether it is used for browsing or for devices lists
-        IconDownloadCacheHandler.getInstance().resetCache();
+        //IconDownloadCacheHandler.getInstance().resetCache();
         if (getActivity() != null) {
             getActivity().runOnUiThread(() -> {
                 ListView deviceList = contentList;
                 deviceList.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
-                BrowseDeviceAdapter bDeviceAdapter = new BrowseDeviceAdapter(getActivity(), new LinkedList<>(upnpClient.getDevicesProvidingContentDirectoryService()));
-                deviceList.setAdapter(bDeviceAdapter);
-                deviceList.setOnItemClickListener(new ServerListClickListener(upnpClient, ServerListFragment.this));
+                if (deviceList.getAdapter() == null) {
+                    bDeviceAdapter = new BrowseDeviceAdapter(getActivity(), new LinkedList<>(upnpClient.getDevicesProvidingContentDirectoryService()));
+                    deviceList.setAdapter(bDeviceAdapter);
+                    deviceList.setOnItemClickListener(new ServerListClickListener(upnpClient, ServerListFragment.this));
+                } else {
+                    bDeviceAdapter.setDevices(new LinkedList<>(upnpClient.getDevicesProvidingContentDirectoryService()));
+                }
+
             });
+
         }
     }
 

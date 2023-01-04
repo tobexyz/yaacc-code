@@ -21,6 +21,7 @@ package de.yaacc.util.image;
 import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.AsyncTask;
+import android.util.Log;
 import android.view.View;
 import android.widget.ImageView;
 import android.widget.ListView;
@@ -39,6 +40,7 @@ public class IconDownloadTask extends AsyncTask<Uri, Integer, Bitmap> {
     private final int position;
     private final IconDownloadCacheHandler cache;
     private BrowseItemAdapter browseItemAdapter;
+   
 
     /**
      * Initialize a new download by handing over the the list and the position
@@ -72,13 +74,13 @@ public class IconDownloadTask extends AsyncTask<Uri, Integer, Bitmap> {
         int defaultWidth = 48;
         Bitmap result = null;
         if (cache != null) {
-            result = cache.getBitmap(uri[0], defaultWidth, defaultHeight);
+            result = cache.getBitmap(uri[0], defaultHeight, defaultWidth);
         }
         if (result == null) {
-            result = new ImageDownloader().retrieveImageWithCertainSize(uri[0], defaultWidth, defaultHeight);
+            result = new ImageDownloader().retrieveImageWithCertainSize(uri[0], defaultHeight, defaultWidth);
             if (result != null) {
                 if (cache != null) {
-                    cache.addBitmap(uri[0], defaultWidth, defaultHeight, result);
+                    cache.addBitmap(uri[0], defaultHeight, defaultWidth, result);
                 }
             }
         }
@@ -101,6 +103,7 @@ public class IconDownloadTask extends AsyncTask<Uri, Integer, Bitmap> {
         View v = listView.getChildAt(position - visiblePosition);
         if (v != null && result != null) {
             ImageView c = v.findViewById(R.id.browseItemIcon);
+            Log.d(getClass().getName(), "Set image on position:" + visiblePosition);
             c.setImageBitmap(result);
         }
         if (browseItemAdapter != null) {
