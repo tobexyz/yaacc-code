@@ -90,34 +90,35 @@ public class MusicAlbumsFolderBrowser extends ContentBrowser {
         String selection = "";
         String[] selectionArgs = null;
         Map<String, MusicAlbum> folderMap = new HashMap<String, MusicAlbum>();
-        Cursor mediaCursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI, projection, selection,
-                selectionArgs, MediaStore.Audio.Albums.ALBUM + " ASC");
+        try (Cursor mediaCursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI, projection, selection,
+                selectionArgs, MediaStore.Audio.Albums.ALBUM + " ASC")) {
 
-        if (mediaCursor != null) {
-            mediaCursor.moveToFirst();
-            int currentIndex = 0;
-            int currentCount = 0;
-            while (!mediaCursor.isAfterLast() && currentCount < maxResults) {
-                if (firstResult <= currentIndex) {
-                    @SuppressLint("Range") String id = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Audio.Albums._ID));
-                    @SuppressLint("Range") String name = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Audio.Albums.ALBUM));
-                    MusicAlbum musicAlbum = new MusicAlbum(ContentDirectoryIDs.MUSIC_ALBUM_PREFIX.getId() + id, ContentDirectoryIDs.MUSIC_ALBUMS_FOLDER.getId(), name, "", 0);
-                    folderMap.put(id, musicAlbum);
-                    Log.d(getClass().getName(), "Album Folder: " + id + " Name: " + name);
-                    currentCount++;
+            if (mediaCursor != null && mediaCursor.getCount() > 0) {
+                mediaCursor.moveToFirst();
+                int currentIndex = 0;
+                int currentCount = 0;
+                while (!mediaCursor.isAfterLast() && currentCount < maxResults) {
+                    if (firstResult <= currentIndex) {
+                        @SuppressLint("Range") String id = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Audio.Albums._ID));
+                        @SuppressLint("Range") String name = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Audio.Albums.ALBUM));
+                        MusicAlbum musicAlbum = new MusicAlbum(ContentDirectoryIDs.MUSIC_ALBUM_PREFIX.getId() + id, ContentDirectoryIDs.MUSIC_ALBUMS_FOLDER.getId(), name, "", 0);
+                        folderMap.put(id, musicAlbum);
+                        Log.d(getClass().getName(), "Album Folder: " + id + " Name: " + name);
+                        currentCount++;
+                    }
+                    currentIndex++;
+                    mediaCursor.moveToNext();
                 }
-                currentIndex++;
-                mediaCursor.moveToNext();
-            }
-            mediaCursor.close();
-            //Fetch folder size
 
-            for (Map.Entry<String, MusicAlbum> entry : folderMap.entrySet()) {
-                entry.getValue().setChildCount(getMusicTrackSize(contentDirectory, entry.getKey()));
-                result.add(entry.getValue());
+                //Fetch folder size
+
+                for (Map.Entry<String, MusicAlbum> entry : folderMap.entrySet()) {
+                    entry.getValue().setChildCount(getMusicTrackSize(contentDirectory, entry.getKey()));
+                    result.add(entry.getValue());
+                }
+            } else {
+                Log.d(getClass().getName(), "System media store is empty.");
             }
-        } else {
-            Log.d(getClass().getName(), "System media store is empty.");
         }
         Collections.sort(result, new Comparator<Container>() {
 

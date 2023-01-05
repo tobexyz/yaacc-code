@@ -54,29 +54,30 @@ public class VideoItemBrowser extends ContentBrowser {
                 MediaStore.Video.Media.SIZE, MediaStore.Video.Media.DURATION};
         String selection = MediaStore.Video.Media._ID + "=?";
         String[] selectionArgs = new String[]{myId.substring(ContentDirectoryIDs.VIDEO_PREFIX.getId().length())};
-        Cursor mediaCursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, projection, selection,
-                selectionArgs, null);
+        try (Cursor mediaCursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, projection, selection,
+                selectionArgs, null)) {
 
-        if (mediaCursor != null) {
-            mediaCursor.moveToFirst();
-            @SuppressLint("Range") String id = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Video.VideoColumns._ID));
-            @SuppressLint("Range") String name = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Video.VideoColumns.DISPLAY_NAME));
-            @SuppressLint("Range") String duration = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Video.VideoColumns.DURATION));
-            duration = contentDirectory.formatDuration(duration);
-            @SuppressLint("Range") Long size = Long.valueOf(mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Video.VideoColumns.SIZE)));
-            Log.d(getClass().getName(), "Mimetype: " + mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Video.VideoColumns.MIME_TYPE)));
-            MimeType mimeType = MimeType.valueOf(mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Video.VideoColumns.MIME_TYPE)));
-            // file parameter only needed for media players which decide the
-            // ability of playing a file by the file extension
-            String uri = getUriString(contentDirectory, id, mimeType);
-            Res resource = new Res(mimeType, size, uri);
-            resource.setDuration(duration);
-            result = new VideoItem(ContentDirectoryIDs.VIDEO_PREFIX.getId() + id, ContentDirectoryIDs.VIDEOS_FOLDER.getId(), name, "", resource);
-            Log.d(getClass().getName(), "VideoItem: " + id + " Name: " + name + " uri: " + uri);
+            if (mediaCursor != null && mediaCursor.getCount() > 0) {
+                mediaCursor.moveToFirst();
+                @SuppressLint("Range") String id = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Video.VideoColumns._ID));
+                @SuppressLint("Range") String name = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Video.VideoColumns.DISPLAY_NAME));
+                @SuppressLint("Range") String duration = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Video.VideoColumns.DURATION));
+                duration = contentDirectory.formatDuration(duration);
+                @SuppressLint("Range") Long size = Long.valueOf(mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Video.VideoColumns.SIZE)));
+                Log.d(getClass().getName(), "Mimetype: " + mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Video.VideoColumns.MIME_TYPE)));
+                MimeType mimeType = MimeType.valueOf(mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Video.VideoColumns.MIME_TYPE)));
+                // file parameter only needed for media players which decide the
+                // ability of playing a file by the file extension
+                String uri = getUriString(contentDirectory, id, mimeType);
+                Res resource = new Res(mimeType, size, uri);
+                resource.setDuration(duration);
+                result = new VideoItem(ContentDirectoryIDs.VIDEO_PREFIX.getId() + id, ContentDirectoryIDs.VIDEOS_FOLDER.getId(), name, "", resource);
+                Log.d(getClass().getName(), "VideoItem: " + id + " Name: " + name + " uri: " + uri);
 
-            mediaCursor.close();
-        } else {
-            Log.d(getClass().getName(), "Item " + myId + "  not found.");
+
+            } else {
+                Log.d(getClass().getName(), "Item " + myId + "  not found.");
+            }
         }
 
         return result;

@@ -91,33 +91,33 @@ public class ImagesByBucketNamesFolderBrowser extends ContentBrowser {
         String[] projection = {MediaStore.Images.Media.BUCKET_ID, MediaStore.Images.Media.BUCKET_DISPLAY_NAME};
         String selection = null;
         String[] selectionArgs = null;
-        Cursor mediaCursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, projection, selection,
-                selectionArgs, MediaStore.Images.Media.BUCKET_DISPLAY_NAME + " ASC");
-        if (mediaCursor != null) {
-            mediaCursor.moveToFirst();
-            int currentIndex = 0;
-            int currentCount = 0;
-            while (!mediaCursor.isAfterLast() && currentCount < maxResults) {
-                if (firstResult <= currentIndex) {
-                    @SuppressLint("Range") String id = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Images.Media.BUCKET_ID));
-                    @SuppressLint("Range") String name = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Images.Media.BUCKET_DISPLAY_NAME));
-                    ;
-                    StorageFolder imageFolder = new StorageFolder(ContentDirectoryIDs.IMAGES_BY_BUCKET_NAME_PREFIX.getId() + id, ContentDirectoryIDs.IMAGES_BY_BUCKET_NAMES_FOLDER.getId(), name, "yaacc", 0, 90700L);
-                    folderMap.put(id, imageFolder);
-                    Log.d(getClass().getName(), "image by bucket names folder: " + id + " Name: " + name);
-                    currentCount++;
+        try (Cursor mediaCursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, projection, selection,
+                selectionArgs, MediaStore.Images.Media.BUCKET_DISPLAY_NAME + " ASC")) {
+            if (mediaCursor != null && mediaCursor.getCount() > 0) {
+                mediaCursor.moveToFirst();
+                int currentIndex = 0;
+                int currentCount = 0;
+                while (!mediaCursor.isAfterLast() && currentCount < maxResults) {
+                    if (firstResult <= currentIndex) {
+                        @SuppressLint("Range") String id = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Images.Media.BUCKET_ID));
+                        @SuppressLint("Range") String name = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Images.Media.BUCKET_DISPLAY_NAME));
+                        ;
+                        StorageFolder imageFolder = new StorageFolder(ContentDirectoryIDs.IMAGES_BY_BUCKET_NAME_PREFIX.getId() + id, ContentDirectoryIDs.IMAGES_BY_BUCKET_NAMES_FOLDER.getId(), name, "yaacc", 0, 90700L);
+                        folderMap.put(id, imageFolder);
+                        Log.d(getClass().getName(), "image by bucket names folder: " + id + " Name: " + name);
+                        currentCount++;
+                    }
+                    currentIndex++;
+                    mediaCursor.moveToNext();
                 }
-                currentIndex++;
-                mediaCursor.moveToNext();
+                //Fetch folder size
+                for (Map.Entry<String, StorageFolder> entry : folderMap.entrySet()) {
+                    entry.getValue().setChildCount(getBucketNameFolderSize(contentDirectory, entry.getKey()));
+                    result.add(entry.getValue());
+                }
+            } else {
+                Log.d(getClass().getName(), "System media store is empty.");
             }
-            mediaCursor.close();
-            //Fetch folder size
-            for (Map.Entry<String, StorageFolder> entry : folderMap.entrySet()) {
-                entry.getValue().setChildCount(getBucketNameFolderSize(contentDirectory, entry.getKey()));
-                result.add(entry.getValue());
-            }
-        } else {
-            Log.d(getClass().getName(), "System media store is empty.");
         }
         Collections.sort(result, new Comparator<Container>() {
 
@@ -126,7 +126,6 @@ public class ImagesByBucketNamesFolderBrowser extends ContentBrowser {
                 return lhs.getTitle().compareTo(rhs.getTitle());
             }
         });
-
         return result;
     }
 

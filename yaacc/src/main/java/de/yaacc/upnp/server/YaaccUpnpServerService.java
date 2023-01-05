@@ -91,6 +91,7 @@ import de.yaacc.util.NotificationId;
  */
 public class YaaccUpnpServerService extends Service {
 
+    public static final int LOCK_TIMEOUT = 5000;
     private static final String UDN_ID = "35"
             + // we make this look like a valid IMEI
             Build.BOARD.length() % 10 + Build.BRAND.length() % 10 + Build.CPU_ABI.length() % 10 + Build.DEVICE.length() % 10 + Build.DISPLAY.length()
@@ -493,7 +494,7 @@ public class YaaccUpnpServerService extends Service {
 
             @Override
             protected int getLockTimeoutMillis() {
-                return 1000;
+                return LOCK_TIMEOUT;
             }
 
             @Override
@@ -515,7 +516,7 @@ public class YaaccUpnpServerService extends Service {
         avTransportService.setManager(new DefaultServiceManager<YaaccAVTransportService>(avTransportService, null) {
             @Override
             protected int getLockTimeoutMillis() {
-                return 1000;
+                return LOCK_TIMEOUT;
             }
 
             @Override
@@ -532,7 +533,7 @@ public class YaaccUpnpServerService extends Service {
         renderingControlService.setManager(new DefaultServiceManager<AbstractAudioRenderingControl>(renderingControlService, null) {
             @Override
             protected int getLockTimeoutMillis() {
-                return 1000;
+                return LOCK_TIMEOUT;
             }
 
             @Override
@@ -550,7 +551,7 @@ public class YaaccUpnpServerService extends Service {
 
             @Override
             protected int getLockTimeoutMillis() {
-                return 1000;
+                return LOCK_TIMEOUT;
             }
 
             @Override
@@ -575,7 +576,7 @@ public class YaaccUpnpServerService extends Service {
 
             @Override
             protected int getLockTimeoutMillis() {
-                return 1000;
+                return LOCK_TIMEOUT;
             }
 
             @Override
@@ -600,7 +601,7 @@ public class YaaccUpnpServerService extends Service {
 
             @Override
             protected int getLockTimeoutMillis() {
-                return 1000;
+                return LOCK_TIMEOUT;
             }
 
             @Override

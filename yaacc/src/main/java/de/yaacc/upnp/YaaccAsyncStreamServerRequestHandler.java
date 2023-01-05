@@ -166,7 +166,11 @@ public class YaaccAsyncStreamServerRequestHandler extends UpnpStream implements 
 
         if (contentLength > 0) {
             log.finer("Response message has body, writing bytes to stream...");
-            responseBuilder.setEntity(AsyncEntityProducers.create(responseBodyBytes, ContentType.parse(responseMessage.getContentTypeHeader().getValue().toString())));
+            ContentType ct = ContentType.APPLICATION_XML;
+            if (responseMessage.getContentTypeHeader() != null) {
+                ct = ContentType.parse(responseMessage.getContentTypeHeader().getValue().toString());
+            }
+            responseBuilder.setEntity(AsyncEntityProducers.create(responseBodyBytes, ct));
         }
     }
 

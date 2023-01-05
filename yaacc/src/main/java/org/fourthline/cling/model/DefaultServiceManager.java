@@ -91,7 +91,7 @@ public class DefaultServiceManager<T> implements ServiceManager<T> {
     }
 
     protected int getLockTimeoutMillis() {
-        return 500;
+        return 1000;
     }
 
     public LocalService<T> getService() {
