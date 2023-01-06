@@ -25,7 +25,7 @@ import android.provider.MediaStore;
 import android.util.Log;
 
 import org.fourthline.cling.support.model.DIDLObject;
-import org.fourthline.cling.support.model.DIDLObject.Property.UPNP;
+import org.fourthline.cling.support.model.PersonWithRole;
 import org.fourthline.cling.support.model.Res;
 import org.fourthline.cling.support.model.SortCriterion;
 import org.fourthline.cling.support.model.container.Container;
@@ -121,7 +121,9 @@ public class MusicGenreFolderBrowser extends ContentBrowser {
                 MediaStore.Audio.Media.ALBUM_ID,
                 MediaStore.Audio.Media.TITLE,
                 MediaStore.Audio.Media.ARTIST,
-                MediaStore.Audio.Media.DURATION};
+                MediaStore.Audio.Media.DURATION,
+                MediaStore.Audio.Media.GENRE,
+                MediaStore.Audio.Media.BITRATE};
         // String selection = MediaStore.Audio.Genres.Members.GENRE_ID + "=?";
         // String[] selectionArgs = new String[]{genreID};
         String selection = MediaStore.Audio.Media.GENRE_ID + "=?";
@@ -169,6 +171,10 @@ public class MusicGenreFolderBrowser extends ContentBrowser {
                         duration = contentDirectory.formatDuration(duration);
                         @SuppressLint("Range") String mimeTypeString = mediaCursor.getString(mediaCursor
                                 .getColumnIndex(MediaStore.Audio.Media.MIME_TYPE));
+                        @SuppressLint("Range") String genre = mediaCursor.getString(mediaCursor
+                                .getColumnIndex(MediaStore.Audio.Media.GENRE));
+                        @SuppressLint("Range") String bitrate = mediaCursor.getString(mediaCursor
+                                .getColumnIndex(MediaStore.Audio.Media.BITRATE));
                         Log.d(getClass().getName(),
                                 "Mimetype: "
                                         + mimeTypeString);
@@ -180,9 +186,13 @@ public class MusicGenreFolderBrowser extends ContentBrowser {
                         String uri = getUriString(contentDirectory, id, mimeType);
                         URI albumArtUri = URI.create("http://"
                                 + contentDirectory.getIpAddress() + ":"
-                                + YaaccUpnpServerService.PORT + "/?album=" + albumId);
+                                + YaaccUpnpServerService.PORT + "?album=" + albumId);
+
                         Res resource = new Res(mimeType, size, uri);
+
                         resource.setDuration(duration);
+                        resource.setBitrate(Long.valueOf(bitrate));
+
 
                         MusicTrack musicTrack = new MusicTrack(
                                 ContentDirectoryIDs.MUSIC_GENRE_ITEM_PREFIX.getId()
@@ -190,8 +200,12 @@ public class MusicGenreFolderBrowser extends ContentBrowser {
                                 ContentDirectoryIDs.MUSIC_GENRE_PREFIX.getId()
                                         + genreId, title + "-(" + name + ")", "",
                                 album, artist, resource);
-                        musicTrack.replaceFirstProperty(new UPNP.ALBUM_ART_URI(
+                        musicTrack.replaceFirstProperty(new DIDLObject.Property.UPNP.ALBUM_ART_URI(
                                 albumArtUri));
+
+
+                        musicTrack.setGenres(new String[]{genre});
+                        musicTrack.setArtists(new PersonWithRole[]{new PersonWithRole(artist, "AlbumArtist")});
                         result.add(musicTrack);
 
                         Log.d(getClass().getName(), "MusicTrack: " + id + " Name: "

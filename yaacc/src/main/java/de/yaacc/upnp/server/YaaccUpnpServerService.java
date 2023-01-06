@@ -99,7 +99,7 @@ public class YaaccUpnpServerService extends Service {
             + Build.PRODUCT.length() % 10 + Build.TAGS.length() % 10 + Build.TYPE.length() % 10 + Build.USER.length() % 10;
     public static final String MEDIA_SERVER_UDN_ID = UDN_ID;
     public static final String MEDIA_RENDERER_UDN_ID = UDN_ID + "-1";
-    public static int PORT = 4711;
+    public static int PORT = 49157;
     protected IBinder binder = new YaaccUpnpServerServiceBinder();
     // make preferences available for the whole service, since there might be
     // more things to configure in the future
