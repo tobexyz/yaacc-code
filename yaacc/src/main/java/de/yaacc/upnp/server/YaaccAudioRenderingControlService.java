@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (C) 2013 www.yaacc.de 
+ * Copyright (C) 2013 Tobias Schoene www.yaacc.de
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -18,71 +18,70 @@
  */
 package de.yaacc.upnp.server;
 
+import android.util.Log;
+
 import org.fourthline.cling.model.types.UnsignedIntegerFourBytes;
 import org.fourthline.cling.model.types.UnsignedIntegerTwoBytes;
 import org.fourthline.cling.support.model.Channel;
 import org.fourthline.cling.support.renderingcontrol.AbstractAudioRenderingControl;
 import org.fourthline.cling.support.renderingcontrol.RenderingControlException;
 
-import android.util.Log;
-
 import de.yaacc.upnp.UpnpClient;
-
 
 
 /**
  * @author Tobias Schoene (openbit)
  */
 public class YaaccAudioRenderingControlService extends
-		AbstractAudioRenderingControl {
+        AbstractAudioRenderingControl {
 
-	
-	private final UpnpClient upnpClient;
 
-	public YaaccAudioRenderingControlService(UpnpClient upnpClient) {
-		this.upnpClient = upnpClient;
-	}
+    private final UpnpClient upnpClient;
 
-	@Override
-	public boolean getMute(UnsignedIntegerFourBytes instanceId, String channelName)
-			throws RenderingControlException {
-		Log.d(getClass().getName(), "getMute() ");
-		return upnpClient.isMute();
-	}
+    public YaaccAudioRenderingControlService(UpnpClient upnpClient) {
+        this.upnpClient = upnpClient;
+    }
 
-	@Override
-	public UnsignedIntegerTwoBytes getVolume(UnsignedIntegerFourBytes instanceId,
-			String channelName) throws RenderingControlException {
-		Log.d(getClass().getName(), "getVolume() ");
-		
-		return new UnsignedIntegerTwoBytes(upnpClient.getVolume());
-	}
+    @Override
+    public boolean getMute(UnsignedIntegerFourBytes instanceId, String channelName)
+            throws RenderingControlException {
+        Log.d(getClass().getName(), "getMute() ");
+        return upnpClient.isMute();
+    }
 
-	@Override
-	public void setMute(UnsignedIntegerFourBytes instanceId, String channelName, boolean desiredMute)
-			throws RenderingControlException {
-		Log.d(getClass().getName(), "setMute()");
-		upnpClient.setMute(desiredMute);
-		
-	}
+    @Override
+    public UnsignedIntegerTwoBytes getVolume(UnsignedIntegerFourBytes instanceId,
+                                             String channelName) throws RenderingControlException {
+        Log.d(getClass().getName(), "getVolume() ");
 
-	@Override
-	public void setVolume(UnsignedIntegerFourBytes instanceId, String channelName,
-			UnsignedIntegerTwoBytes desiredVolume) throws RenderingControlException {
-		Log.d(getClass().getName(), "setVolume() ");
-		upnpClient.setVolume(desiredVolume.getValue().intValue());
-	}
+        return new UnsignedIntegerTwoBytes(upnpClient.getVolume());
+    }
 
-	@Override
-	public UnsignedIntegerFourBytes[] getCurrentInstanceIds() {
-		Log.d(getClass().getName(), " getCurrentInstanceIds() - not yet implemented");
-		return null;
-	}
+    @Override
+    public void setMute(UnsignedIntegerFourBytes instanceId, String channelName, boolean desiredMute)
+            throws RenderingControlException {
+        Log.d(getClass().getName(), "setMute()");
+        upnpClient.setMute(desiredMute);
 
-	@Override
-	protected Channel[] getCurrentChannels() {
-		Log.d(getClass().getName(), " getCurrentChannels() - not yet implemented");
-		return null;
-	}
+    }
+
+    @Override
+    public void setVolume(UnsignedIntegerFourBytes instanceId, String channelName,
+                          UnsignedIntegerTwoBytes desiredVolume) throws RenderingControlException {
+        Log.d(getClass().getName(), "setVolume() ");
+        upnpClient.setVolume(desiredVolume.getValue().intValue());
+    }
+
+    @Override
+    public UnsignedIntegerFourBytes[] getCurrentInstanceIds() {
+        Log.d(getClass().getName(), " getCurrentInstanceIds() - not yet implemented");
+        return null;
+    }
+
+    @Override
+    protected Channel[] getCurrentChannels() {
+        Log.d(getClass().getName(), " getCurrentChannels() - not yet implemented");
+        return null;
+    }
 
 }

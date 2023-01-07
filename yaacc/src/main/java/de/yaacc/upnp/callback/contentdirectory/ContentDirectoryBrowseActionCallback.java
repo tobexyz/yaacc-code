@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (C) 2013 www.yaacc.de 
+ * Copyright (C) 2013 Tobias Schoene www.yaacc.de
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -32,78 +32,73 @@ import android.util.Log;
 import de.yaacc.upnp.UpnpFailure;
 
 /**
- * ActionCallback for content directory browsing. 
+ * ActionCallback for content directory browsing.
  * Connect an instance of this class to a MediaServer-Service.
- * After calling run you will browse the MediaServer-Directory asynchronously 
- * @author Tobias Schöne (openbit)  
+ * After calling run you will browse the MediaServer-Directory asynchronously
  *
+ * @author Tobias Schöne (openbit)
  */
-public class ContentDirectoryBrowseActionCallback extends Browse {	
-	private ContentDirectoryBrowseResult browsingResult;
-	
-
-	
-	public ContentDirectoryBrowseActionCallback(Service<?, ?> service, String objectID,
-			BrowseFlag flag, String filter, long firstResult, Long maxResults, ContentDirectoryBrowseResult browsingResult,
-			SortCriterion... orderBy) {
-		super(service, objectID, flag, filter, firstResult, maxResults, orderBy);
-		this.browsingResult = browsingResult;
-
-	}
-
-	
-	
-
-	/* (non-Javadoc)
-	 * @see org.fourthline.cling.support.contentdirectory.callback.Browse#receivedRaw(org.fourthline.cling.model.action.ActionInvocation, org.fourthline.cling.support.model.BrowseResult)
-	 */
-	@Override
-	public boolean receivedRaw(ActionInvocation actionInvocation,
-			BrowseResult browseResult) {
-		// TODO Auto-generated method stub
-		Log.d(this.getClass().getName(), "RAW-Result: " + browseResult.getResult());
-		return super.receivedRaw(actionInvocation, browseResult);
-	}
+public class ContentDirectoryBrowseActionCallback extends Browse {
+    private ContentDirectoryBrowseResult browsingResult;
 
 
+    public ContentDirectoryBrowseActionCallback(Service<?, ?> service, String objectID,
+                                                BrowseFlag flag, String filter, long firstResult, Long maxResults, ContentDirectoryBrowseResult browsingResult,
+                                                SortCriterion... orderBy) {
+        super(service, objectID, flag, filter, firstResult, maxResults, orderBy);
+        this.browsingResult = browsingResult;
+
+    }
 
 
-	@Override
-	public void received(ActionInvocation actionInvocation, DIDLContent didl) {		
-		this.browsingResult.setResult(didl);
-	}
-	
-
-	@Override
-	public void updateStatus(Status status) {		
-		this.browsingResult.setStatus(status);
-	}
-
-	@Override
-	public void failure(ActionInvocation invocation, UpnpResponse operation,
-			String defaultMsg) {
-		this.browsingResult.setUpnpFailure(new UpnpFailure(invocation, operation, defaultMsg));
-
-	}
-
-	public Status getStatus() {
-		return this.browsingResult.getStatus();
-	}
+    /* (non-Javadoc)
+     * @see org.fourthline.cling.support.contentdirectory.callback.Browse#receivedRaw(org.fourthline.cling.model.action.ActionInvocation, org.fourthline.cling.support.model.BrowseResult)
+     */
+    @Override
+    public boolean receivedRaw(ActionInvocation actionInvocation,
+                               BrowseResult browseResult) {
+        // TODO Auto-generated method stub
+        Log.d(this.getClass().getName(), "RAW-Result: " + browseResult.getResult());
+        return super.receivedRaw(actionInvocation, browseResult);
+    }
 
 
-	/**
-	 * @return the result
-	 */
-	public DIDLContent getResult() {
-		return this.browsingResult.getResult();
-	}
+    @Override
+    public void received(ActionInvocation actionInvocation, DIDLContent didl) {
+        this.browsingResult.setResult(didl);
+    }
 
 
-	/**
-	 * @return the upnpFailure
-	 */
-	public UpnpFailure getUpnpFailure() {
-		return this.browsingResult.getUpnpFailure();
-	}
+    @Override
+    public void updateStatus(Status status) {
+        this.browsingResult.setStatus(status);
+    }
+
+    @Override
+    public void failure(ActionInvocation invocation, UpnpResponse operation,
+                        String defaultMsg) {
+        this.browsingResult.setUpnpFailure(new UpnpFailure(invocation, operation, defaultMsg));
+
+    }
+
+    public Status getStatus() {
+        return this.browsingResult.getStatus();
+    }
+
+
+    /**
+     * @return the result
+     */
+    public DIDLContent getResult() {
+        return this.browsingResult.getResult();
+    }
+
+
+    /**
+     * @return the upnpFailure
+     */
+    public UpnpFailure getUpnpFailure() {
+        return this.browsingResult.getUpnpFailure();
+    }
 
 }

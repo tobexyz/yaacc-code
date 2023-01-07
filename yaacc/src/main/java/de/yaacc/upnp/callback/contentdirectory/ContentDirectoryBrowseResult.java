@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (C) 2013 www.yaacc.de 
+ * Copyright (C) 2013 Tobias Schoene www.yaacc.de
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -26,81 +26,74 @@ import de.yaacc.upnp.UpnpFailure;
 /**
  * Result of a content directory browsing.
  * This object is used either in synchronous or asynchronous requests.
- * In case of asynchronous requests you have to query the status 
- * in order to know if the request completes.   
- *  
- * @author Tobias Schöne (openbit)  
+ * In case of asynchronous requests you have to query the status
+ * in order to know if the request completes.
  *
+ * @author Tobias Schöne (openbit)
  */
 public class ContentDirectoryBrowseResult {
-	private Status status = Status.LOADING;
-	private DIDLContent result  = null;
-	private UpnpFailure upnpFailure;
-	
-
-	
-	
-
-	/**
-	 * default constructor. 
-	 *
-	 *   
-	 */
-	public ContentDirectoryBrowseResult() {
-		super();
-		
-	}
+    private Status status = Status.LOADING;
+    private DIDLContent result = null;
+    private UpnpFailure upnpFailure;
 
 
-	/**
-	 * Returns the status of browsing, i.e. LAODING, NO_CONTENT, OK.
-	 * @return the status
-	 */
-	public Status getStatus() {
-		return status;
-	}
+    /**
+     * default constructor.
+     */
+    public ContentDirectoryBrowseResult() {
+        super();
+
+    }
 
 
-	/**
-	 * Returns the browsing result.
-	 * @return the result
-	 */
-	public DIDLContent getResult() {
-		return result;
-	}
+    /**
+     * Returns the status of browsing, i.e. LAODING, NO_CONTENT, OK.
+     *
+     * @return the status
+     */
+    public Status getStatus() {
+        return status;
+    }
 
+    /**
+     * Set the status of browsing
+     *
+     * @param status the status to set
+     */
+    public void setStatus(Status status) {
+        this.status = status;
+    }
 
-	/**
-	 * a failure object if anything goes wrong.
-	 * @return the upnpFailure
-	 */
-	public UpnpFailure getUpnpFailure() {
-		return upnpFailure;
-	}
+    /**
+     * Returns the browsing result.
+     *
+     * @return the result
+     */
+    public DIDLContent getResult() {
+        return result;
+    }
 
+    /**
+     * @param result the result to set
+     */
+    public void setResult(DIDLContent result) {
+        this.result = result;
+    }
 
-	/**
-	 * Set the status of browsing
-	 * @param status the status to set
-	 */
-	public void setStatus(Status status) {
-		this.status = status;
-	}
+    /**
+     * a failure object if anything goes wrong.
+     *
+     * @return the upnpFailure
+     */
+    public UpnpFailure getUpnpFailure() {
+        return upnpFailure;
+    }
 
-
-	/**
-	 * @param result the result to set
-	 */
-	public void setResult(DIDLContent result) {
-		this.result = result;
-	}
-
-
-	/**
-	 * @param upnpFailure the upnpFailure to set
-	 */
-	public void setUpnpFailure(UpnpFailure upnpFailure) {
-		this.upnpFailure = upnpFailure;
-	}
+    /**
+     * @param upnpFailure the upnpFailure to set
+     */
+    public void setUpnpFailure(UpnpFailure upnpFailure) {
+        this.upnpFailure = upnpFailure;
+    }
 
 }

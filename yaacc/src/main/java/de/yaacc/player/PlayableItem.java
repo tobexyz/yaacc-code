@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013 www.yaacc.de 
+ * Copyright (C) 2013 Tobias Schoene www.yaacc.de
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -26,42 +26,42 @@ import org.fourthline.cling.support.model.item.Item;
 
 /**
  * representation of an item which is to be played
- * @author Tobias Schoene (openbit)  
- * 
+ *
+ * @author Tobias Schoene (openbit)
  */
 public class PlayableItem {
 
-	private String mimeType;
-	private String title;
-	private Uri uri;
-	private long duration;	
-	private Item item;
+    private String mimeType;
+    private String title;
+    private Uri uri;
+    private long duration;
+    private Item item;
 
 
-	public PlayableItem(Item item, int defaultDuration){
-		this.item =item;
-		setTitle(item.getTitle());		
-		Res resource = item.getFirstResource();
-		if (resource != null) {
-			setUri(Uri.parse(resource.getValue()));
-            String mimeType =resource.getProtocolInfo().getContentFormat();
-            if(mimeType == null || mimeType.equals("")){
+    public PlayableItem(Item item, int defaultDuration) {
+        this.item = item;
+        setTitle(item.getTitle());
+        Res resource = item.getFirstResource();
+        if (resource != null) {
+            setUri(Uri.parse(resource.getValue()));
+            String mimeType = resource.getProtocolInfo().getContentFormat();
+            if (mimeType == null || mimeType.equals("")) {
                 String fileExtension = MimeTypeMap.getFileExtensionFromUrl(getUri().toString());
                 mimeType = MimeTypeMap.getSingleton().getMimeTypeFromExtension(fileExtension);
             }
-			setMimeType(mimeType);
+            setMimeType(mimeType);
 
-			// calculate duration
+            // calculate duration
 
-			long millis = defaultDuration;
-			Log.d(getClass().getName(), "resource.getDuration(): " + resource.getDuration() );
-			if (resource.getDuration() != null) {
-			    try{
+            long millis = defaultDuration;
+            Log.d(getClass().getName(), "resource.getDuration(): " + resource.getDuration());
+            if (resource.getDuration() != null) {
+                try {
                     String[] tokens = resource.getDuration().split(":");
-                    if (tokens.length > 0){
+                    if (tokens.length > 0) {
                         millis = Long.valueOf(tokens[0]) * 3600;
                     }
-                    if (tokens.length > 1){
+                    if (tokens.length > 1) {
                         millis += Long.valueOf(tokens[1]) * 60;
                     }
                     if (tokens.length > 2) {
@@ -73,97 +73,98 @@ public class PlayableItem {
                         millis += Long.valueOf(seconds);
                     }
                     millis = millis * 1000;
-                    Log.d(getClass().getName(), "resource.getDuration(): " + resource.getDuration() +" millis: " + millis);
+                    Log.d(getClass().getName(), "resource.getDuration(): " + resource.getDuration() + " millis: " + millis);
 
-				} catch (Exception e) {
-					Log.d(getClass().getName(), "bad duration format", e);
-				}
-			}
-			setDuration(millis);			
-		}
-	}
-	
-	/**
-	 * 
-	 */
-	public PlayableItem() {
-		mimeType="";
-		title="";
-		uri=null;
-		duration=0;		
-		item = null;
-	}
+                } catch (Exception e) {
+                    Log.d(getClass().getName(), "bad duration format", e);
+                }
+            }
+            setDuration(millis);
+        }
+    }
 
-
-	/**
-	 * @return the mimeType
-	 */
-	public String getMimeType() {
-		return mimeType;
-	}
+    /**
+     *
+     */
+    public PlayableItem() {
+        mimeType = "";
+        title = "";
+        uri = null;
+        duration = 0;
+        item = null;
+    }
 
 
-	/**
-	 * @param mimeType the mimeType to set
-	 */
-	public void setMimeType(String mimeType) {
-		this.mimeType = mimeType;
-	}
+    /**
+     * @return the mimeType
+     */
+    public String getMimeType() {
+        return mimeType;
+    }
 
 
-	/**
-	 * @return the title
-	 */
-	public String getTitle() {
-		return title;
-	}
+    /**
+     * @param mimeType the mimeType to set
+     */
+    public void setMimeType(String mimeType) {
+        this.mimeType = mimeType;
+    }
 
 
-	/**
-	 * @param title the title to set
-	 */
-	public void setTitle(String title) {
-		this.title = title;
-	}
+    /**
+     * @return the title
+     */
+    public String getTitle() {
+        return title;
+    }
 
 
-	/**
-	 * @return the uri
-	 */
-	public Uri getUri() {
-		return uri;
-	}
+    /**
+     * @param title the title to set
+     */
+    public void setTitle(String title) {
+        this.title = title;
+    }
 
 
-	/**
-	 * @param uri the uri to set
-	 */
-	public void setUri(Uri uri) {
-		this.uri = uri;
-	}
+    /**
+     * @return the uri
+     */
+    public Uri getUri() {
+        return uri;
+    }
 
 
-	/**
-	 * Duration in milliseconds.
-	 * @return the duration
-	 */
-	public long getDuration() {
-		return duration;
-	}
+    /**
+     * @param uri the uri to set
+     */
+    public void setUri(Uri uri) {
+        this.uri = uri;
+    }
 
 
-	/**
-	 * Duration in milliseconds.
-	 * @param duration the duration to set
-	 */
-	public void setDuration(long duration) {
-		this.duration = duration;
-	}
+    /**
+     * Duration in milliseconds.
+     *
+     * @return the duration
+     */
+    public long getDuration() {
+        return duration;
+    }
 
 
-	
-	public Item getItem(){
-		return item;
-	      
-	}
+    /**
+     * Duration in milliseconds.
+     *
+     * @param duration the duration to set
+     */
+    public void setDuration(long duration) {
+        this.duration = duration;
+    }
+
+
+    public Item getItem() {
+        return item;
+
+    }
 }

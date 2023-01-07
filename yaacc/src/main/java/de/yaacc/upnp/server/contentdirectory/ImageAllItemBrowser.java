@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (C) 2014 www.yaacc.de
+ * Copyright (C) 2014 Tobias Schoene www.yaacc.de
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -75,13 +75,13 @@ public class ImageAllItemBrowser extends ContentBrowser {
                                 .getColumnIndex(MediaStore.Images.ImageColumns.DISPLAY_NAME));
                 @SuppressLint("Range") Long size = Long.valueOf(mImageCursor.getString(mImageCursor
                         .getColumnIndex(MediaStore.Images.ImageColumns.SIZE)));
+                @SuppressLint("Range") String mimeTypeSTring = mImageCursor.getString(mImageCursor
+                        .getColumnIndex(MediaStore.Images.ImageColumns.MIME_TYPE));
                 Log.d(getClass().getName(),
                         "Mimetype: "
-                                + mImageCursor.getString(mImageCursor
-                                .getColumnIndex(MediaStore.Images.ImageColumns.MIME_TYPE)));
-                @SuppressLint("Range") MimeType mimeType = MimeType
-                        .valueOf(mImageCursor.getString(mImageCursor
-                                .getColumnIndex(MediaStore.Images.ImageColumns.MIME_TYPE)));
+                                + mimeTypeSTring);
+                MimeType mimeType = MimeType
+                        .valueOf(mimeTypeSTring);
                 // file parameter only needed for media players which decide the
                 // ability of playing a file by the file extension
                 String uri = "http://" + contentDirectory.getIpAddress() + ":"

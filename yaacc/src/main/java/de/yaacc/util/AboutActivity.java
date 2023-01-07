@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (C) 2013 www.yaacc.de 
+ * Copyright (C) 2013 Tobias Schoene www.yaacc.de
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -24,36 +24,36 @@ import android.content.pm.PackageManager.NameNotFoundException;
 import android.os.Bundle;
 import android.util.Log;
 import android.widget.TextView;
+
 import de.yaacc.R;
 
 /**
  * An about dialog for yaacc
- * 
+ *
  * @author Tobias Schoene (openbit)
- * 
  */
 public class AboutActivity extends Activity {
-	public static void showAbout(Activity activity) {
-		activity.startActivity(new Intent(activity, AboutActivity.class));
-	}
+    public static void showAbout(Activity activity) {
+        activity.startActivity(new Intent(activity, AboutActivity.class));
+    }
 
-	@Override
-	public void onCreate(Bundle savedInstanceState) {
-		super.onCreate(savedInstanceState);
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
 
-		setContentView(R.layout.about);
-		try {
-			String app_ver = this.getPackageManager().getPackageInfo(
-					this.getPackageName(), 0).versionName;
-			TextView textView = (TextView) findViewById(R.id.about_descrip);
-			CharSequence aboutText = textView.getText();
-			StringBuilder aboutTextBuilder = new StringBuilder();
-			aboutTextBuilder.append("Yet Another Android Client Controller\nVersion: ").append(app_ver).append("\n\n")
-					.append(aboutText);
-			textView.setText(aboutTextBuilder.toString());
-		} catch (NameNotFoundException e) {
-			Log.d(getClass().getName(), "Can't find version", e);
-		}
+        setContentView(R.layout.about);
+        try {
+            String app_ver = this.getPackageManager().getPackageInfo(
+                    this.getPackageName(), 0).versionName;
+            TextView textView = (TextView) findViewById(R.id.about_descrip);
+            CharSequence aboutText = textView.getText();
+            StringBuilder aboutTextBuilder = new StringBuilder();
+            aboutTextBuilder.append("Yet Another Android Client Controller\nVersion: ").append(app_ver).append("\n\n")
+                    .append(aboutText);
+            textView.setText(aboutTextBuilder.toString());
+        } catch (NameNotFoundException e) {
+            Log.d(getClass().getName(), "Can't find version", e);
+        }
 
-	}
+    }
 }

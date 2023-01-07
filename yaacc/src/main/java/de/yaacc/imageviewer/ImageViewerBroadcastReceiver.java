@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013 www.yaacc.de 
+ * Copyright (C) 2013 Tobias Schoene www.yaacc.de
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -24,8 +24,7 @@ import android.content.IntentFilter;
 import android.util.Log;
 
 /**
- * @author Tobias Schoene (openbit)  
- * 
+ * @author Tobias Schoene (openbit)
  */
 public class ImageViewerBroadcastReceiver extends BroadcastReceiver {
 
@@ -35,21 +34,21 @@ public class ImageViewerBroadcastReceiver extends BroadcastReceiver {
 	public static String ACTION_NEXT = "de.yaacc.imageviewer.ActionNext";
 	public static String ACTION_PREVIOUS = "de.yaacc.imageviewer.ActionPrevious";
 	public static String ACTION_EXIT = "de.yaacc.imageviewer.ActionExit";
-	
-	
+
+
 	private ImageViewerActivity imageViewer;
 
-    public ImageViewerBroadcastReceiver() {
-    }
+	public ImageViewerBroadcastReceiver() {
+	}
 
-    /**
-	 * 
+	/**
+	 *
 	 */
 	public ImageViewerBroadcastReceiver(ImageViewerActivity imageViewer) {
-		Log.d(this.getClass().getName(), "Starting Broadcast Receiver..." );
-		assert(imageViewer != null);
+		Log.d(this.getClass().getName(), "Starting Broadcast Receiver...");
+		assert (imageViewer != null);
 		this.imageViewer = imageViewer;
-		
+
 	}
 
 	/* (non-Javadoc)
@@ -57,37 +56,37 @@ public class ImageViewerBroadcastReceiver extends BroadcastReceiver {
 	 */
 	@Override
 	public void onReceive(Context context, Intent intent) {
-		Log.d(this.getClass().getName(), "Received Action: " + intent.getAction());		
-		if(imageViewer == null) return;
+		Log.d(this.getClass().getName(), "Received Action: " + intent.getAction());
+		if (imageViewer == null) return;
 		Log.d(this.getClass().getName(), "Execute Action on imageViewer: " + imageViewer);
-		if(ACTION_PLAY.equals(intent.getAction())){
+		if (ACTION_PLAY.equals(intent.getAction())) {
 			imageViewer.play();
-		}else if(ACTION_PAUSE.equals(intent.getAction())){
+		} else if (ACTION_PAUSE.equals(intent.getAction())) {
 			imageViewer.pause();
-		}else if(ACTION_STOP.equals(intent.getAction())){
+		} else if (ACTION_STOP.equals(intent.getAction())) {
 			imageViewer.stop();
-		}else if(ACTION_PREVIOUS.equals(intent.getAction())){
+		} else if (ACTION_PREVIOUS.equals(intent.getAction())) {
 			imageViewer.previous();
-		}else if(ACTION_NEXT.equals(intent.getAction())){
+		} else if (ACTION_NEXT.equals(intent.getAction())) {
 			imageViewer.next();
-		}else if(ACTION_EXIT.equals(intent.getAction())){
+		} else if (ACTION_EXIT.equals(intent.getAction())) {
 			imageViewer.finish();
 		}
-		
-			
+
+
 	}
 
 	public void registerReceiver() {
-		Log.d(this.getClass().getName(), "Register Receiver" );		
+		Log.d(this.getClass().getName(), "Register Receiver");
 		IntentFilter intentFilter = new IntentFilter();
 		intentFilter.addAction(ACTION_PLAY);
 		intentFilter.addAction(ACTION_PAUSE);
 		intentFilter.addAction(ACTION_NEXT);
 		intentFilter.addAction(ACTION_PREVIOUS);
-		intentFilter.addAction(ACTION_STOP);		
+		intentFilter.addAction(ACTION_STOP);
 		imageViewer.registerReceiver(this, intentFilter);
 
-		
+
 	}
 
 }

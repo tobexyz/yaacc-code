@@ -1,20 +1,21 @@
-package de.yaacc.upnp.model.types;/*
-* Copyright (C) 2014 www.yaacc.de
-*
-* This program is free software; you can redistribute it and/or
-* modify it under the terms of the GNU General Public License
-* as published by the Free Software Foundation; either version 3
-* of the License, or (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program; if not, write to the Free Software
-* Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
-*/
+/*
+ * Copyright (C) 2014 Tobias Schoene www.yaacc.de
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 3
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ */
+package de.yaacc.upnp.model.types;
 
 import android.util.Log;
 
@@ -37,7 +38,7 @@ import java.util.Locale;
  *
  * @author Tobias Schoene (TheOpenBit)
  */
-public class SyncOffset implements Datatype{
+public class SyncOffset implements Datatype {
 
 
     private int hour = 0;
@@ -86,18 +87,18 @@ public class SyncOffset implements Datatype{
 
     }
 
-    public SyncOffset(){
+    public SyncOffset() {
 
     }
 
     public SyncOffset(long nanos) {
-        if(nanos < 0) {
+        if (nanos < 0) {
             positive = false;
         }
-        hour = (int) (nanos / (60L * 60L * 1000L * 1000L *1000L));
-        long rest = nanos % (60L * 60L * 1000L * 1000L *1000L);
-        minute = (int) (rest / (60L  * 1000L * 1000L * 1000L));
-        rest = rest % (60L  * 1000L * 1000L * 1000L);
+        hour = (int) (nanos / (60L * 60L * 1000L * 1000L * 1000L));
+        long rest = nanos % (60L * 60L * 1000L * 1000L * 1000L);
+        minute = (int) (rest / (60L * 1000L * 1000L * 1000L));
+        rest = rest % (60L * 1000L * 1000L * 1000L);
         second = (int) (rest / (1000L * 1000L * 1000L));
         rest = rest % (1000L * 1000L * 1000L);
         millis = (int) (rest / (1000L * 1000L));
@@ -203,17 +204,17 @@ public class SyncOffset implements Datatype{
         StringBuilder sb = new StringBuilder();
         sb.append(positive ? "" : "-");
         sb.append("P");
-        sb.append(String.format(Locale.ENGLISH,"%02d", hour));
+        sb.append(String.format(Locale.ENGLISH, "%02d", hour));
         sb.append(":");
-        sb.append(String.format(Locale.ENGLISH,"%02d", minute));
+        sb.append(String.format(Locale.ENGLISH, "%02d", minute));
         sb.append(":");
-        sb.append(String.format(Locale.ENGLISH,"%02d", second));
+        sb.append(String.format(Locale.ENGLISH, "%02d", second));
         sb.append(".");
-        sb.append(String.format(Locale.ENGLISH,"%03d", millis));
+        sb.append(String.format(Locale.ENGLISH, "%03d", millis));
         sb.append(" ");
-        sb.append(String.format(Locale.ENGLISH,"%03d", micros));
+        sb.append(String.format(Locale.ENGLISH, "%03d", micros));
         sb.append(" ");
-        sb.append(String.format(Locale.ENGLISH,"%03d", nanos));
+        sb.append(String.format(Locale.ENGLISH, "%03d", nanos));
         return sb.toString();
     }
 
@@ -278,16 +279,16 @@ public class SyncOffset implements Datatype{
 
 
     public SyncOffset add(SyncOffset syncOffset) {
-        return new SyncOffset((isPositive()?1:-1)*toNanos() + (syncOffset.isPositive()?1:-1)*syncOffset.toNanos());
+        return new SyncOffset((isPositive() ? 1 : -1) * toNanos() + (syncOffset.isPositive() ? 1 : -1) * syncOffset.toNanos());
     }
 
     public long toNanos() {
         return getNanos() +
                 getMicros() * 1000L +
-                getMillis() * 1000L *1000L +
-                getSecond() * 1000L *1000L *1000L +
-                getMinute() * 60L * 1000L * 1000L *1000L +
-                getHour() * 60L * 60L * 1000L *1000L *1000L;
+                getMillis() * 1000L * 1000L +
+                getSecond() * 1000L * 1000L * 1000L +
+                getMinute() * 60L * 1000L * 1000L * 1000L +
+                getHour() * 60L * 60L * 1000L * 1000L * 1000L;
     }
 
 
@@ -306,7 +307,7 @@ public class SyncOffset implements Datatype{
 
     @Override
     public boolean isValid(Object o) {
-        if(o == null || ! (o instanceof SyncOffset)) {
+        if (o == null || !(o instanceof SyncOffset)) {
             return false;
         }
         //TODO to be implemented
@@ -316,7 +317,7 @@ public class SyncOffset implements Datatype{
 
     @Override
     public String getString(Object o) throws InvalidValueException {
-        if(o == null || ! (o instanceof SyncOffset)) {
+        if (o == null || !(o instanceof SyncOffset)) {
             return "";
         }
         return o.toString();

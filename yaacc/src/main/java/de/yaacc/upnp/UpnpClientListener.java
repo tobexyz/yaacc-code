@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (C) 2013 www.yaacc.de 
+ * Copyright (C) 2013 Tobias Schoene www.yaacc.de
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -22,15 +22,17 @@ import org.fourthline.cling.model.meta.Device;
 
 
 /**
- * Listener on events from an instance of UpnpClient. 
- * @author Tobias Schöne (openbit) 
+ * Listener on events from an instance of UpnpClient.
  *
+ * @author Tobias Schöne (openbit)
  */
-public interface UpnpClientListener  {
+public interface UpnpClientListener {
 
-	void deviceAdded(Device<?, ?, ?> device);
-	void deviceRemoved(Device<?, ?, ?> device);
-	void deviceUpdated(Device<?, ?, ?> device);	
-	                	
+    void deviceAdded(Device<?, ?, ?> device);
+
+    void deviceRemoved(Device<?, ?, ?> device);
+
+    void deviceUpdated(Device<?, ?, ?> device);
+
 }
 

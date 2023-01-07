@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (C) 2013 www.yaacc.de 
+ * Copyright (C) 2013 Tobias Schoene www.yaacc.de
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -20,20 +20,22 @@ package de.yaacc.upnp.server.avtransport;
 
 import org.fourthline.cling.support.avtransport.impl.AVTransportStateMachine;
 import org.seamless.statemachine.States;
+
 /**
- * @author Tobias Schöne (openbit)  
- *
+ * @author Tobias Schöne (openbit)
  */
 
 @States({
-	AvTransportMediaRendererNoMediaPresent.class,
-	AvTransportMediaRendererStopped.class,
-	AvTransportMediaRendererPlaying.class,
-	AvTransportMediaRendererPaused.class
+        AvTransportMediaRendererNoMediaPresent.class,
+        AvTransportMediaRendererStopped.class,
+        AvTransportMediaRendererPlaying.class,
+        AvTransportMediaRendererPaused.class
 })
 public interface AvTransportStateMachine extends AVTransportStateMachine {
-    public abstract void syncPlay(String speed, String referencedPositionUnits, String referencedPosition,String referencedPresentationTime,String referencedClockId);
-    public abstract void syncPause(String referencedPresentationTime,String referencedClockId);
-    public abstract void syncStop(String referencedPresentationTime,String referencedClockId);
+    public abstract void syncPlay(String speed, String referencedPositionUnits, String referencedPosition, String referencedPresentationTime, String referencedClockId);
+
+    public abstract void syncPause(String referencedPresentationTime, String referencedClockId);
+
+    public abstract void syncStop(String referencedPresentationTime, String referencedClockId);
 
 }

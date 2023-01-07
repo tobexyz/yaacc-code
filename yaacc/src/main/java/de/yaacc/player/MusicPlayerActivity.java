@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013 www.yaacc.de 
+ * Copyright (C) 2013 Tobias Schoene www.yaacc.de
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -61,8 +61,9 @@ public class MusicPlayerActivity extends Activity implements ServiceConnection {
     protected boolean updateTime = false;
     protected SeekBar seekBar = null;
     private PlayerService playerService;
+
     public void onServiceConnected(ComponentName className, IBinder binder) {
-        if(binder instanceof PlayerService.PlayerServiceBinder) {
+        if (binder instanceof PlayerService.PlayerServiceBinder) {
             Log.d(getClass().getName(), "PlayerService connected");
             playerService = ((PlayerService.PlayerServiceBinder) binder).getService();
             initialize();
@@ -72,11 +73,11 @@ public class MusicPlayerActivity extends Activity implements ServiceConnection {
     //binder comes from server to communicate with method's of
 
     public void onServiceDisconnected(ComponentName className) {
-        Log.d(getClass().getName(),"PlayerService disconnected");
+        Log.d(getClass().getName(), "PlayerService disconnected");
         playerService = null;
     }
 
-    protected void initialize(){
+    protected void initialize() {
         // initialize buttons
         Player player = getPlayer();
         ImageButton btnPrev = (ImageButton) findViewById(R.id.musicActivityControlPrev);
@@ -180,7 +181,7 @@ public class MusicPlayerActivity extends Activity implements ServiceConnection {
             }
         });
 
-        seekBar = (SeekBar)findViewById(R.id.musicActivitySeekBar);
+        seekBar = (SeekBar) findViewById(R.id.musicActivitySeekBar);
         seekBar.setMax(100);
         seekBar.setProgress(0);
         seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
@@ -189,12 +190,12 @@ public class MusicPlayerActivity extends Activity implements ServiceConnection {
             }
 
             @Override
-            public  void onStartTrackingTouch(android.widget.SeekBar seekBar){
+            public void onStartTrackingTouch(android.widget.SeekBar seekBar) {
 
             }
 
             @Override
-            public  void onStopTrackingTouch(android.widget.SeekBar seekBar){
+            public void onStopTrackingTouch(android.widget.SeekBar seekBar) {
                 String durationString = getPlayer().getDuration();
                 SimpleDateFormat dateFormat = new SimpleDateFormat("HH:mm:ss");
                 dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
@@ -202,10 +203,10 @@ public class MusicPlayerActivity extends Activity implements ServiceConnection {
                     Long durationTimeMillis = dateFormat.parse(durationString).getTime();
 
                     int targetPosition = Double.valueOf(durationTimeMillis * (Double.valueOf(seekBar.getProgress()).doubleValue() / 100)).intValue();
-                    Log.d(getClass().getName(),"TargetPosition" + targetPosition);
+                    Log.d(getClass().getName(), "TargetPosition" + targetPosition);
                     getPlayer().seekTo(targetPosition);
-                }catch(ParseException pex){
-                    Log.d(getClass().getName(),"Error while parsing time string" , pex);
+                } catch (ParseException pex) {
+                    Log.d(getClass().getName(), "Error while parsing time string", pex);
                 }
 
             }
@@ -213,6 +214,7 @@ public class MusicPlayerActivity extends Activity implements ServiceConnection {
         });
 
     }
+
     @Override
     protected void onPause() {
         super.onPause();
@@ -241,7 +243,7 @@ public class MusicPlayerActivity extends Activity implements ServiceConnection {
         updateTime = false;
         try {
             unbindService(this);
-        }catch (IllegalArgumentException iae){
+        } catch (IllegalArgumentException iae) {
             Log.d(getClass().getName(), "Ignore exception on unbind service while activity destroy");
         }
     }
@@ -315,7 +317,7 @@ public class MusicPlayerActivity extends Activity implements ServiceConnection {
         URI albumArtUri = getPlayer().getAlbumArt();
         if (null != albumArtUri) {
             ImageDownloadTask imageDownloadTask = new ImageDownloadTask(albumArtView);
-            imageDownloadTask.executeOnExecutor(((Yaacc)getApplicationContext()).getContentLoadExecutor(),Uri.parse(albumArtUri.toString()));
+            imageDownloadTask.executeOnExecutor(((Yaacc) getApplicationContext()).getContentLoadExecutor(), Uri.parse(albumArtUri.toString()));
         }
         TextView duration = (TextView) findViewById(R.id.musicActivityDuration);
         duration.setText(getPlayer().getDuration());
@@ -329,12 +331,12 @@ public class MusicPlayerActivity extends Activity implements ServiceConnection {
             Long elapsedTimeMillis = dateFormat.parse(elapsedTimeString).getTime();
             Long durationTimeMillis = dateFormat.parse(durationString).getTime();
             int progress;
-            progress = Double.valueOf((elapsedTimeMillis.doubleValue()/  durationTimeMillis.doubleValue()) *100).intValue();
-            if(seekBar != null) {
+            progress = Double.valueOf((elapsedTimeMillis.doubleValue() / durationTimeMillis.doubleValue()) * 100).intValue();
+            if (seekBar != null) {
                 seekBar.setProgress(progress);
             }
-        }catch(ParseException pex){
-            Log.d(getClass().getName(),"Error while parsing time string" , pex);
+        } catch (ParseException pex) {
+            Log.d(getClass().getName(), "Error while parsing time string", pex);
         }
 
 

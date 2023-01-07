@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013 www.yaacc.de 
+ * Copyright (C) 2013 Tobias Schoene www.yaacc.de
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -32,6 +32,7 @@ import android.view.View;
 import android.view.View.OnClickListener;
 import android.widget.Button;
 import android.widget.CheckBox;
+
 import de.yaacc.R;
 import de.yaacc.settings.SettingsActivity;
 import de.yaacc.util.AboutActivity;
@@ -39,52 +40,51 @@ import de.yaacc.util.NotificationId;
 
 /**
  * Control activity for the yaacc upnp server
- * 
- * @author Tobias Schoene (openbit)  
  *
+ * @author Tobias Schoene (openbit)
  */
 public class YaaccUpnpServerControlActivity extends Activity {
 
-	@Override
-	protected void onCreate(Bundle savedInstanceState) {
-		super.onCreate(savedInstanceState);
-		setContentView(R.layout.activity_yaacc_upnp_server_control);
-		// initialize buttons
-		Button startButton = (Button) findViewById(R.id.startServer);
-		startButton.setOnClickListener(new OnClickListener() {
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_yaacc_upnp_server_control);
+        // initialize buttons
+        Button startButton = (Button) findViewById(R.id.startServer);
+        startButton.setOnClickListener(new OnClickListener() {
 
-			@Override
-			public void onClick(View v) {
+            @Override
+            public void onClick(View v) {
                 start();
-			}
-		});
-		Button stopButton = (Button) findViewById(R.id.stopServer);
-		stopButton.setOnClickListener(new OnClickListener() {
+            }
+        });
+        Button stopButton = (Button) findViewById(R.id.stopServer);
+        stopButton.setOnClickListener(new OnClickListener() {
 
-			@Override
-			public void onClick(View v) {
+            @Override
+            public void onClick(View v) {
                 stop();
-			}
-		});
-		SharedPreferences preferences = PreferenceManager
-		.getDefaultSharedPreferences(getApplicationContext());
-		boolean receiverActive = preferences.getBoolean(getString(R.string.settings_local_server_receiver_chkbx),false);
-		Log.d(getClass().getName(), "receiverActive: " + receiverActive);
-		CheckBox receiverCheckBox = (CheckBox)findViewById(R.id.receiverEnabled);		
-		receiverCheckBox.setChecked(receiverActive);
-		boolean providerActive = preferences.getBoolean(getString(R.string.settings_local_server_provider_chkbx),false);
-		Log.d(getClass().getName(), "providerActive: " + providerActive);
-		CheckBox providerCheckBox = (CheckBox)findViewById(R.id.providerEnabled);		
-		providerCheckBox.setChecked(providerActive);
-		
+            }
+        });
+        SharedPreferences preferences = PreferenceManager
+                .getDefaultSharedPreferences(getApplicationContext());
+        boolean receiverActive = preferences.getBoolean(getString(R.string.settings_local_server_receiver_chkbx), false);
+        Log.d(getClass().getName(), "receiverActive: " + receiverActive);
+        CheckBox receiverCheckBox = (CheckBox) findViewById(R.id.receiverEnabled);
+        receiverCheckBox.setChecked(receiverActive);
+        boolean providerActive = preferences.getBoolean(getString(R.string.settings_local_server_provider_chkbx), false);
+        Log.d(getClass().getName(), "providerActive: " + providerActive);
+        CheckBox providerCheckBox = (CheckBox) findViewById(R.id.providerEnabled);
+        providerCheckBox.setChecked(providerActive);
 
-	}
+
+    }
 
     private void start() {
         if (Build.VERSION.SDK_INT >= 26) {
             YaaccUpnpServerControlActivity.this.startForegroundService(new Intent(getApplicationContext(),
                     YaaccUpnpServerService.class));
-        }else{
+        } else {
             YaaccUpnpServerControlActivity.this.startService(new Intent(getApplicationContext(),
                     YaaccUpnpServerService.class));
         }
@@ -98,7 +98,7 @@ public class YaaccUpnpServerControlActivity extends Activity {
 
     private void stop() {
         YaaccUpnpServerControlActivity.this.stopService(new Intent(getApplicationContext(),
-            YaaccUpnpServerService.class));
+                YaaccUpnpServerService.class));
         SharedPreferences preferences = PreferenceManager
                 .getDefaultSharedPreferences(getApplicationContext());
         SharedPreferences.Editor editor = preferences.edit();
@@ -108,19 +108,19 @@ public class YaaccUpnpServerControlActivity extends Activity {
 
 
     @Override
-	public boolean onCreateOptionsMenu(Menu menu) {
-		// Inflate the menu; this adds items to the action bar if it is present.
-		getMenuInflater().inflate(R.menu.activity_yaacc_upnp_server_control,
-				menu);
-		return true;
-	}
+    public boolean onCreateOptionsMenu(Menu menu) {
+        // Inflate the menu; this adds items to the action bar if it is present.
+        getMenuInflater().inflate(R.menu.activity_yaacc_upnp_server_control,
+                menu);
+        return true;
+    }
 
-	@Override
-	public boolean onOptionsItemSelected(MenuItem item) {
-		switch (item.getItemId()) {
-			case R.id.menu_exit:
-				exit();
-				return true;
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        switch (item.getItemId()) {
+            case R.id.menu_exit:
+                exit();
+                return true;
             case R.id.menu_settings:
                 Intent i = new Intent(this, SettingsActivity.class);
                 startActivity(i);
@@ -130,16 +130,16 @@ public class YaaccUpnpServerControlActivity extends Activity {
                 return true;
             default:
                 return super.onOptionsItemSelected(item);
-            }
-	}
+        }
+    }
 
     private void exit() {
-	    stop();
-	    //FIXME work around to be fixed with new ui
-		NotificationManager mNotificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-		// mId allows you to update the notification later on.
-		mNotificationManager.cancel(NotificationId.UPNP_SERVER.getId());
-	    finish();
+        stop();
+        //FIXME work around to be fixed with new ui
+        NotificationManager mNotificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        // mId allows you to update the notification later on.
+        mNotificationManager.cancel(NotificationId.UPNP_SERVER.getId());
+        finish();
     }
 
 

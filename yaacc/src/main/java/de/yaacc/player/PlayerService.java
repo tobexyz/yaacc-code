@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 www.yaacc.de
+ * Copyright (C) 2018 Tobias Schoene www.yaacc.de
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License

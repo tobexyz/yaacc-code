@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (C) 2013 www.yaacc.de 
+ * Copyright (C) 2013 Tobias Schoene www.yaacc.de
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -18,12 +18,6 @@
  */
 package de.yaacc.imageviewer;
 
-import java.io.FileNotFoundException;
-import java.io.FilterInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.MalformedURLException;
-
 import android.app.Dialog;
 import android.content.ContentResolver;
 import android.graphics.Bitmap;
@@ -36,43 +30,24 @@ import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.Window;
 import android.widget.Toast;
+
+import java.io.FileNotFoundException;
+import java.io.FilterInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.MalformedURLException;
+
 import de.yaacc.R;
 
 /**
  * Background task for retrieving network images.
- * 
+ *
  * @author Tobias Schoene (openbit)
- * 
  */
 public class RetrieveImageTask extends AsyncTask<Uri, Void, Void> {
 
-	static class FlushedInputStream extends FilterInputStream {
-		public FlushedInputStream(InputStream inputStream) {
-			super(inputStream);
-		}
-
-		@Override
-		public long skip(long n) throws IOException {
-			long totalBytesSkipped = 0L;
-			while (totalBytesSkipped < n) {
-				long bytesSkipped = in.skip(n - totalBytesSkipped);
-				if (bytesSkipped == 0L) {
-					int byte_ = read();
-					if (byte_ < 0) {
-						break; // we reached EOF
-					} else {
-						bytesSkipped = 1; // we read one byte
-					}
-				}
-				totalBytesSkipped += bytesSkipped;
-			}
-			return totalBytesSkipped;
-		}
-	}
-
 	private ImageViewerActivity imageViewerActivity;
 	private Dialog pd;
-
 	public RetrieveImageTask(ImageViewerActivity imageViewerActivity) {
 		this.imageViewerActivity = imageViewerActivity;
 	}
@@ -92,7 +67,7 @@ public class RetrieveImageTask extends AsyncTask<Uri, Void, Void> {
 
 	/*
 	 * (non-Javadoc)
-	 * 
+	 *
 	 * @see android.os.AsyncTask#onPostExecute(java.lang.Object)
 	 */
 	@Override
@@ -109,7 +84,7 @@ public class RetrieveImageTask extends AsyncTask<Uri, Void, Void> {
 
 	/*
 	 * (non-Javadoc)
-	 * 
+	 *
 	 * @see android.os.AsyncTask#onPreExecute()
 	 */
 	@Override
@@ -130,7 +105,7 @@ public class RetrieveImageTask extends AsyncTask<Uri, Void, Void> {
 	/**
 	 * retrieves an image an stores them in the image cache of the
 	 * ImageViewerActivity.
-	 * 
+	 *
 	 * @param imageUri
 	 */
 	private void retrieveImage(Uri imageUri) {
@@ -209,18 +184,18 @@ public class RetrieveImageTask extends AsyncTask<Uri, Void, Void> {
 	}
 
 	private Bitmap decodeSampledBitmapFromStream(Uri imageUri, int reqWidth,
-			int reqHeight) throws IOException {
+												 int reqHeight) throws IOException {
 		InputStream is = getUriAsStream(imageUri);
 		int tmpWidth = reqWidth;
 		int tmpHeight = reqHeight;
-        if (reqHeight >2048){
-            tmpHeight = 2048;
-            tmpWidth = reqHeight * (2048 / reqWidth);
-        }
-        if (reqWidth > 2048){
-            tmpWidth = 2048;
-            tmpHeight = reqWidth * (2048 / reqHeight);
-        }
+		if (reqHeight > 2048) {
+			tmpHeight = 2048;
+			tmpWidth = reqHeight * (2048 / reqWidth);
+		}
+		if (reqWidth > 2048) {
+			tmpWidth = 2048;
+			tmpHeight = reqWidth * (2048 / reqHeight);
+		}
 
 		final BitmapFactory.Options options = new BitmapFactory.Options();
 		options.inJustDecodeBounds = false;
@@ -237,9 +212,33 @@ public class RetrieveImageTask extends AsyncTask<Uri, Void, Void> {
 				+ Runtime.getRuntime().freeMemory());
 		Bitmap bitmap = BitmapFactory.decodeStream(new FlushedInputStream(is),
 				null, options);
-        Log.d(this.getClass().getName(), "free meomory after image load: "
+		Log.d(this.getClass().getName(), "free meomory after image load: "
 				+ Runtime.getRuntime().freeMemory());
 		return bitmap;
+	}
+
+	static class FlushedInputStream extends FilterInputStream {
+		public FlushedInputStream(InputStream inputStream) {
+			super(inputStream);
+		}
+
+		@Override
+		public long skip(long n) throws IOException {
+			long totalBytesSkipped = 0L;
+			while (totalBytesSkipped < n) {
+				long bytesSkipped = in.skip(n - totalBytesSkipped);
+				if (bytesSkipped == 0L) {
+					int byte_ = read();
+					if (byte_ < 0) {
+						break; // we reached EOF
+					} else {
+						bytesSkipped = 1; // we read one byte
+					}
+				}
+				totalBytesSkipped += bytesSkipped;
+			}
+			return totalBytesSkipped;
+		}
 	}
 
 }

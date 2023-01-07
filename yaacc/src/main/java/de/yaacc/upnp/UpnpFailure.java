@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (C) 2013 www.yaacc.de 
+ * Copyright (C) 2013 Tobias Schoene www.yaacc.de
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -24,9 +24,8 @@ import org.fourthline.cling.model.message.UpnpResponse;
 
 /**
  * Value holder for upnp failure information
- * 
+ *
  * @author Tobias Schöne (openbit)
- * 
  */
 public class UpnpFailure {
 	private ActionInvocation invocation;
@@ -35,16 +34,13 @@ public class UpnpFailure {
 
 	/**
 	 * constructor.
-	 * 
-	 * @param invocation
-	 *            the ActionInvocation
-	 * @param response
-	 *            the Upnp response
-	 * @param defaultMsg
-	 *            a default message
+	 *
+	 * @param invocation the ActionInvocation
+	 * @param response   the Upnp response
+	 * @param defaultMsg a default message
 	 */
 	public UpnpFailure(ActionInvocation invocation, UpnpResponse response,
-			String defaultMsg) {
+					   String defaultMsg) {
 		super();
 		this.invocation = invocation;
 		this.response = response;
@@ -74,7 +70,7 @@ public class UpnpFailure {
 
 	/*
 	 * (non-Javadoc)
-	 * 
+	 *
 	 * @see java.lang.Object#toString()
 	 */
 	@Override

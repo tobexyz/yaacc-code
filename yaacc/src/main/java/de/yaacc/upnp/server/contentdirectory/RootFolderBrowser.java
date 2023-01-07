@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (C) 2014 www.yaacc.de 
+ * Copyright (C) 2014 Tobias Schoene www.yaacc.de
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -22,23 +22,21 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.preference.PreferenceManager;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import org.fourthline.cling.support.model.DIDLObject;
 import org.fourthline.cling.support.model.SortCriterion;
 import org.fourthline.cling.support.model.container.Container;
 import org.fourthline.cling.support.model.container.StorageFolder;
 import org.fourthline.cling.support.model.item.Item;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import de.yaacc.R;
 
 /**
  * Browser  for the root folder.
- * 
- * 
+ *
  * @author openbit (Tobias Schoene)
- * 
  */
 public class RootFolderBrowser extends ContentBrowser {
     public RootFolderBrowser(Context context) {
@@ -46,22 +44,22 @@ public class RootFolderBrowser extends ContentBrowser {
     }
 
     @Override
-	public DIDLObject browseMeta(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults,SortCriterion[] orderby) {
-		
-		StorageFolder folder = new StorageFolder(ContentDirectoryIDs.ROOT.getId(), ContentDirectoryIDs.PARENT_OF_ROOT.getId(), "Yaacc", "yaacc", getSize(),
-				907000L);
-		return folder;
-	}
+    public DIDLObject browseMeta(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
+
+        StorageFolder folder = new StorageFolder(ContentDirectoryIDs.ROOT.getId(), ContentDirectoryIDs.PARENT_OF_ROOT.getId(), "Yaacc", "yaacc", getSize(),
+                907000L);
+        return folder;
+    }
 
     private Integer getSize() {
         int result = 0;
-        if(isServingMusic()){
+        if (isServingMusic()) {
             result++;
         }
-        if(isServingImages()){
+        if (isServingImages()) {
             result++;
         }
-        if(isServingVideos()){
+        if (isServingVideos()) {
             result++;
         }
         return result;
@@ -69,29 +67,29 @@ public class RootFolderBrowser extends ContentBrowser {
 
 
     @Override
-	public List<Container> browseContainer(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults,SortCriterion[] orderby) {
-		List<Container> result = new ArrayList<Container>();
-        if(isServingMusic()){
-        result.add((Container)new MusicFolderBrowser(getContext()).browseMeta(contentDirectory, ContentDirectoryIDs.MUSIC_FOLDER.getId(),firstResult,maxResults,orderby
-                ));
+    public List<Container> browseContainer(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
+        List<Container> result = new ArrayList<Container>();
+        if (isServingMusic()) {
+            result.add((Container) new MusicFolderBrowser(getContext()).browseMeta(contentDirectory, ContentDirectoryIDs.MUSIC_FOLDER.getId(), firstResult, maxResults, orderby
+            ));
         }
-        if(isServingImages()){
-            result.add((Container)new ImagesFolderBrowser(getContext()).browseMeta(contentDirectory, ContentDirectoryIDs.IMAGES_FOLDER.getId(),firstResult,maxResults,orderby));
+        if (isServingImages()) {
+            result.add((Container) new ImagesFolderBrowser(getContext()).browseMeta(contentDirectory, ContentDirectoryIDs.IMAGES_FOLDER.getId(), firstResult, maxResults, orderby));
         }
-        if(isServingVideos()){
-            result.add((Container)new VideosFolderBrowser(getContext()).browseMeta(contentDirectory, ContentDirectoryIDs.VIDEOS_FOLDER.getId(),firstResult,maxResults,orderby));
+        if (isServingVideos()) {
+            result.add((Container) new VideosFolderBrowser(getContext()).browseMeta(contentDirectory, ContentDirectoryIDs.VIDEOS_FOLDER.getId(), firstResult, maxResults, orderby));
         }
 
         return result;
-	}
+    }
 
-	@Override
-	public List<Item> browseItem(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults,SortCriterion[] orderby) {
-		List<Item> result = new ArrayList<Item>();
-		
-		return result;
-		
-	}
+    @Override
+    public List<Item> browseItem(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
+        List<Item> result = new ArrayList<Item>();
+
+        return result;
+
+    }
 
     private boolean isServingImages() {
 

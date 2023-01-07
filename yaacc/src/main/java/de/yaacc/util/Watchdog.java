@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013 www.yaacc.de 
+ * Copyright (C) 2013 Tobias Schoene www.yaacc.de
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -22,9 +22,8 @@ import java.util.TimerTask;
 
 /**
  * A watchdog for implementing timeouts.
- * 
+ *
  * @author Tobias Schoene (openbit)
- * 
  */
 public class Watchdog {
 
@@ -38,12 +37,11 @@ public class Watchdog {
 
 	/**
 	 * Create an Watchdog with the given timeout
-	 * 
-	 * @param timeout
-	 *            the timeout
+	 *
+	 * @param timeout the timeout
 	 * @return the Watchdog
 	 */
-	public static  Watchdog createWatchdog(long timeout) {
+	public static Watchdog createWatchdog(long timeout) {
 		return new Watchdog(timeout);
 	}
 
@@ -56,17 +54,17 @@ public class Watchdog {
 		watchdogTimer.schedule(new TimerTask() {
 
 			@Override
-			public void run() {							
+			public void run() {
 				watchdogFlag = true;
 			}
-		}, timeout);	
+		}, timeout);
 	}
 
-	public boolean hasTimeout(){
+	public boolean hasTimeout() {
 		return watchdogFlag;
 	}
 
-    public  void cancel(){
-        watchdogTimer.cancel();
-    }
+	public void cancel() {
+		watchdogTimer.cancel();
+	}
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013 www.yaacc.de 
+ * Copyright (C) 2013 Tobias Schoene www.yaacc.de
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -44,8 +44,9 @@ import de.yaacc.util.YaaccLogActivity;
 public class MultiContentPlayerActivity extends Activity implements ServiceConnection {
 
     private PlayerService playerService;
+
     public void onServiceConnected(ComponentName className, IBinder binder) {
-        if(binder instanceof PlayerService.PlayerServiceBinder) {
+        if (binder instanceof PlayerService.PlayerServiceBinder) {
             Log.d(getClass().getName(), "PlayerService connected");
             playerService = ((PlayerService.PlayerServiceBinder) binder).getService();
             initialize();
@@ -54,11 +55,11 @@ public class MultiContentPlayerActivity extends Activity implements ServiceConne
     //binder comes from server to communicate with method's of
 
     public void onServiceDisconnected(ComponentName className) {
-        Log.d(getClass().getName(),"PlayerService disconnected");
+        Log.d(getClass().getName(), "PlayerService disconnected");
         playerService = null;
     }
 
-    protected void initialize(){
+    protected void initialize() {
         Player player = getPlayer();
 
         ImageButton btnPrev = findViewById(R.id.multiContentPlayerActivityControlPrev);
@@ -156,7 +157,7 @@ public class MultiContentPlayerActivity extends Activity implements ServiceConne
     }
 
     @Override
-    protected void onDestroy(){
+    protected void onDestroy() {
         super.onDestroy();
         unbindService(this);
     }

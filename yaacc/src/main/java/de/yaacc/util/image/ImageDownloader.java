@@ -1,3 +1,21 @@
+/*
+ *
+ * Copyright (C) 2014 Tobias Schoene www.yaacc.de
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 3
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ */
 package de.yaacc.util.image;
 
 import android.graphics.Bitmap;
@@ -5,7 +23,6 @@ import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.util.DisplayMetrics;
 import android.util.Log;
-import android.view.Display;
 
 import java.io.FileNotFoundException;
 import java.io.FilterInputStream;
@@ -20,27 +37,28 @@ import java.net.MalformedURLException;
  */
 public class ImageDownloader {
 
-    public ImageDownloader(){}
-
-
+    public ImageDownloader() {
+    }
 
 
     /**
      * Loads the handed image location with the given size
+     *
      * @param imageUri image location
      * @return
      */
-    public Bitmap retrieveImageWithCertainSize(Uri imageUri,int imageWidth, int imageHeight){
-        Log.d(getClass().getName(),"retrieveImage size:" + imageWidth + "x" + imageHeight);
-        Bitmap result =  decodeSampledBitmapFromStream(imageUri, imageWidth, imageHeight, true);
+    public Bitmap retrieveImageWithCertainSize(Uri imageUri, int imageWidth, int imageHeight) {
+        Log.d(getClass().getName(), "retrieveImage size:" + imageWidth + "x" + imageHeight);
+        Bitmap result = decodeSampledBitmapFromStream(imageUri, imageWidth, imageHeight, true);
         return result;
     }
 
 
     /**
      * Loads an image from the given URI and return a Bitmap that matches the requested size
-     * @param imageUri image location
-     * @param reqWidth width of result image
+     *
+     * @param imageUri  image location
+     * @param reqWidth  width of result image
      * @param reqHeight height of result image
      * @return requested image
      * @throws IOException problem while loading image from stream
@@ -74,29 +92,29 @@ public class ImageDownloader {
                     null, options);
 
             // if the image must be rescaled its ratio must be recalculated
-            if (rescaleImage){
+            if (rescaleImage) {
                 int outWidth;
                 int outHeight;
                 int inWidth = bitmap.getWidth();
                 int inHeight = bitmap.getHeight();
-                if(inWidth > inHeight){
+                if (inWidth > inHeight) {
                     outWidth = reqWidth;
                     outHeight = (inHeight * reqWidth) / inWidth;
                 } else {
                     outWidth = (inWidth * reqHeight) / inHeight;
                     outHeight = reqHeight;
                 }
-                bitmap = Bitmap.createScaledBitmap(bitmap,outWidth,outHeight,false);
+                bitmap = Bitmap.createScaledBitmap(bitmap, outWidth, outHeight, false);
             }
             Log.d(this.getClass().getName(), "free memory after image load: "
                     + Runtime.getRuntime().freeMemory());
 
-            if(bitmap.getHeight() != reqHeight){
-                Log.w(this.getClass().getName(), "Bitmap has wrong size !!! height: "+bitmap.getHeight()+" width: "+bitmap.getWidth());
+            if (bitmap.getHeight() != reqHeight) {
+                Log.w(this.getClass().getName(), "Bitmap has wrong size !!! height: " + bitmap.getHeight() + " width: " + bitmap.getWidth());
             }
 
-        } catch (Exception e){
-            Log.d(this.getClass().getName(),"while decoding image: "+e.getMessage());
+        } catch (Exception e) {
+            Log.d(this.getClass().getName(), "while decoding image: " + e.getMessage());
         }
 
         return bitmap;
@@ -104,6 +122,7 @@ public class ImageDownloader {
 
     /**
      * Converts URI to InputStream.
+     *
      * @param imageUri
      * @return
      * @throws FileNotFoundException

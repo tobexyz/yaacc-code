@@ -33,15 +33,6 @@ android {
 
 
     sourceSets {
-        main {
-            //  manifest.srcFile 'AndroidManifest.xml'
-            // java.srcDirs = ['src/main/java']
-            // resources.srcDirs = ['src/main/resources']
-            // aidl.srcDirs = ['src']
-            // renderscript.srcDirs = ['src']
-            //res.srcDirs = ['src/main/res']
-            //assets.srcDirs = ['src/main/assets']
-        }
 
         // Move the tests to tests/java, tests/res, etc...
         //instrumentTest.setRoot('tests')

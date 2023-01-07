@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013 www.yaacc.de 
+ * Copyright (C) 2013 Tobias Schoene www.yaacc.de
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -43,18 +43,17 @@ public class SettingsFragment extends PreferenceFragment implements UpnpClientLi
         addPreferencesFromResource(R.xml.preference);
 
         populateDeviceLists();
-        ((Yaacc)getActivity().getApplicationContext()).getUpnpClient().addUpnpClientListener(this);
+        ((Yaacc) getActivity().getApplicationContext()).getUpnpClient().addUpnpClientListener(this);
 
 
     }
-
 
 
     private void populateDeviceLists() {
         LinkedList<Device> devices = new LinkedList<Device>();
         // TODO: populate with found devices
 
-        UpnpClient upnpClient = ((Yaacc)getActivity().getApplicationContext()).getUpnpClient();
+        UpnpClient upnpClient = ((Yaacc) getActivity().getApplicationContext()).getUpnpClient();
 
         if (upnpClient != null) {
             if (upnpClient.isInitialized()) {

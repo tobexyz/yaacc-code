@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013 www.yaacc.de
+ * Copyright (C) 2013 Tobias Schoene www.yaacc.de
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -31,6 +31,7 @@ import android.widget.BaseAdapter;
 import android.widget.ImageView;
 import android.widget.ListView;
 import android.widget.TextView;
+
 import org.fourthline.cling.support.model.DIDLObject;
 import org.fourthline.cling.support.model.container.Container;
 import org.fourthline.cling.support.model.item.AudioItem;
@@ -56,17 +57,17 @@ import de.yaacc.util.image.IconDownloadTask;
  * @author Christoph Haehnel (eyeless)
  */
 public class BrowseItemAdapter extends BaseAdapter implements AbsListView.OnScrollListener {
+    public static final Item LOAD_MORE_FAKE_ITEM = new Item("LoadMoreFakeItem", (String) null, "...", "", (DIDLObject.Class) null);
     private static final long CHUNK_SIZE = 10;
-    public static final Item LOAD_MORE_FAKE_ITEM = new Item("LoadMoreFakeItem", (String) null,"...","",(DIDLObject.Class)null);
-    private static final Item LOADING_FAKE_ITEM = new Item("LoadingFakeItem", (String) null,"Loading...","",(DIDLObject.Class)null);
+    private static final Item LOADING_FAKE_ITEM = new Item("LoadingFakeItem", (String) null, "Loading...", "", (DIDLObject.Class) null);
     private boolean loading = false;
 
 
     private LayoutInflater inflator;
-    private List<DIDLObject> objects= new LinkedList<>();
+    private List<DIDLObject> objects = new LinkedList<>();
     private Context context;
     private Navigator navigator;
-    private List <AsyncTask> asyncTasks;
+    private List<AsyncTask> asyncTasks;
     private boolean allItemsFetched;
 
 
@@ -97,9 +98,9 @@ public class BrowseItemAdapter extends BaseAdapter implements AbsListView.OnScro
     }
 
     public void setLoading(boolean loading) {
-        if(loading){
+        if (loading) {
             addLoadingItem();
-        }else {
+        } else {
             removeLoadingItem();
         }
         notifyDataSetChanged();
@@ -121,14 +122,14 @@ public class BrowseItemAdapter extends BaseAdapter implements AbsListView.OnScro
         return result;
     }
 
-    public void addAll(Collection<? extends DIDLObject> objects ){
+    public void addAll(Collection<? extends DIDLObject> objects) {
         Log.d(getClass().getName(), "added objects; " + objects);
         this.objects.addAll(objects);
     }
 
-    public void clear(){
+    public void clear() {
         objects = new LinkedList<>();
-        allItemsFetched=true;
+        allItemsFetched = true;
     }
 
     @Override
@@ -161,7 +162,7 @@ public class BrowseItemAdapter extends BaseAdapter implements AbsListView.OnScro
         DIDLObject currentObject = (DIDLObject) getItem(position);
         holder.name.setText(currentObject.getTitle());
         IconDownloadTask iconDownloadTask = new IconDownloadTask(
-                this,(ListView) parent, position);
+                this, (ListView) parent, position);
         asyncTasks.add(iconDownloadTask);
         if (currentObject instanceof Container) {
             holder.icon.setImageResource(R.drawable.folder);
@@ -173,9 +174,9 @@ public class BrowseItemAdapter extends BaseAdapter implements AbsListView.OnScro
                 DIDLObject.Property<URI> albumArtProperties = ((AudioItem) currentObject)
                         .getFirstProperty(DIDLObject.Property.UPNP.ALBUM_ART_URI.class);
                 if (null != albumArtProperties) {
-                    iconDownloadTask.executeOnExecutor(((Yaacc)getContext().getApplicationContext()).getContentLoadExecutor(),
+                    iconDownloadTask.executeOnExecutor(((Yaacc) getContext().getApplicationContext()).getContentLoadExecutor(),
                             Uri.parse(albumArtProperties
-                            .getValue().toString()));
+                                    .getValue().toString()));
                 }
             }
         } else if (currentObject instanceof ImageItem) {
@@ -183,9 +184,9 @@ public class BrowseItemAdapter extends BaseAdapter implements AbsListView.OnScro
             if (preferences.getBoolean(
                     context.getString(R.string.settings_thumbnails_chkbx),
                     true))
-                iconDownloadTask.executeOnExecutor(((Yaacc)getContext().getApplicationContext()).getContentLoadExecutor(),
+                iconDownloadTask.executeOnExecutor(((Yaacc) getContext().getApplicationContext()).getContentLoadExecutor(),
                         Uri.parse(((ImageItem) currentObject)
-                        .getFirstResource().getValue()));
+                                .getFirstResource().getValue()));
         } else if (currentObject instanceof VideoItem) {
             holder.icon.setImageResource(R.drawable.video);
             if (preferences.getBoolean(
@@ -194,9 +195,9 @@ public class BrowseItemAdapter extends BaseAdapter implements AbsListView.OnScro
                 DIDLObject.Property<URI> albumArtProperties = ((VideoItem) currentObject)
                         .getFirstProperty(DIDLObject.Property.UPNP.ALBUM_ART_URI.class);
                 if (null != albumArtProperties) {
-                    iconDownloadTask.executeOnExecutor(((Yaacc)getContext().getApplicationContext()).getContentLoadExecutor(),
+                    iconDownloadTask.executeOnExecutor(((Yaacc) getContext().getApplicationContext()).getContentLoadExecutor(),
                             Uri.parse(albumArtProperties
-                            .getValue().toString()));
+                                    .getValue().toString()));
                 }
             }
         } else if (currentObject instanceof PlaylistItem) {
@@ -214,8 +215,8 @@ public class BrowseItemAdapter extends BaseAdapter implements AbsListView.OnScro
     }
 
     public void cancelRunningTasks() {
-        if(asyncTasks != null){
-            for(AsyncTask task : asyncTasks){
+        if (asyncTasks != null) {
+            for (AsyncTask task : asyncTasks) {
                 task.cancel(true);
             }
         }
@@ -223,20 +224,20 @@ public class BrowseItemAdapter extends BaseAdapter implements AbsListView.OnScro
     }
 
     public void removeTask(AsyncTask task) {
-        if(asyncTasks != null && task != null){
+        if (asyncTasks != null && task != null) {
             asyncTasks.remove(task);
         }
     }
 
     public void addLoadMoreItem() {
-        if (!objects.contains(LOAD_MORE_FAKE_ITEM)){
+        if (!objects.contains(LOAD_MORE_FAKE_ITEM)) {
             objects.add(LOAD_MORE_FAKE_ITEM);
         }
 
     }
 
     public void addLoadingItem() {
-        if (!objects.contains(LOADING_FAKE_ITEM)){
+        if (!objects.contains(LOADING_FAKE_ITEM)) {
             objects.add(LOADING_FAKE_ITEM);
         }
 
@@ -248,11 +249,6 @@ public class BrowseItemAdapter extends BaseAdapter implements AbsListView.OnScro
 
     public void removeLoadingItem() {
         objects.remove(LOADING_FAKE_ITEM);
-    }
-
-    static class ViewHolder {
-        ImageView icon;
-        TextView name;
     }
 
     public DIDLObject getFolder(int position) {
@@ -270,25 +266,30 @@ public class BrowseItemAdapter extends BaseAdapter implements AbsListView.OnScro
     public void onScroll(AbsListView view, int firstVisibleItem,
                          int visibleItemCount, int totalItemCount) {
         // check if the List needs more data
-        if((firstVisibleItem + visibleItemCount ) > (totalItemCount -10)) {
+        if ((firstVisibleItem + visibleItemCount) > (totalItemCount - 10)) {
             // List needs more data. Go fetch !!
             loadMore();
         }
     }
 
-
-    public void loadMore(){
-        if (navigator == null || navigator.getCurrentPosition() == null || navigator.getCurrentPosition().getDeviceId()==null) return;
-        if (loading || allItemsFetched ) return;
+    public void loadMore() {
+        if (navigator == null || navigator.getCurrentPosition() == null || navigator.getCurrentPosition().getDeviceId() == null)
+            return;
+        if (loading || allItemsFetched) return;
         setLoading(true);
         Long from = getCount() - 0L;
 
-        Log.d(getClass().getName(),"loadMore from: " + from);
+        Log.d(getClass().getName(), "loadMore from: " + from);
 
         BrowseItemLoadTask browseItemLoadTask = new BrowseItemLoadTask(this, CHUNK_SIZE);
         asyncTasks.add(browseItemLoadTask);
-        browseItemLoadTask.executeOnExecutor(((Yaacc)getContext().getApplicationContext()).getContentLoadExecutor(),from);
+        browseItemLoadTask.executeOnExecutor(((Yaacc) getContext().getApplicationContext()).getContentLoadExecutor(), from);
 
+    }
+
+    static class ViewHolder {
+        ImageView icon;
+        TextView name;
     }
 
 }

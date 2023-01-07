@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (C) 2014 www.yaacc.de
+ * Copyright (C) 2014 Tobias Schoene www.yaacc.de
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -64,8 +64,9 @@ public class VideoItemBrowser extends ContentBrowser {
                 @SuppressLint("Range") String duration = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Video.VideoColumns.DURATION));
                 duration = contentDirectory.formatDuration(duration);
                 @SuppressLint("Range") Long size = Long.valueOf(mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Video.VideoColumns.SIZE)));
-                Log.d(getClass().getName(), "Mimetype: " + mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Video.VideoColumns.MIME_TYPE)));
-                MimeType mimeType = MimeType.valueOf(mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Video.VideoColumns.MIME_TYPE)));
+                @SuppressLint("Range") String mimeTypeString = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Video.VideoColumns.MIME_TYPE));
+                Log.d(getClass().getName(), "Mimetype: " + mimeTypeString);
+                MimeType mimeType = MimeType.valueOf(mimeTypeString);
                 // file parameter only needed for media players which decide the
                 // ability of playing a file by the file extension
                 String uri = getUriString(contentDirectory, id, mimeType);

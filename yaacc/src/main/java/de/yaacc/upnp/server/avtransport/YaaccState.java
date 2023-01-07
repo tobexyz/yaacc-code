@@ -1,5 +1,5 @@
-package de.yaacc.upnp.server.avtransport;/*
- * Copyright (C) 2014 www.yaacc.de
+/*
+ * Copyright (C) 2014 Tobias Schoene www.yaacc.de
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -15,6 +15,7 @@ package de.yaacc.upnp.server.avtransport;/*
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  */
+package de.yaacc.upnp.server.avtransport;
 
 import org.fourthline.cling.support.avtransport.impl.state.AbstractState;
 

@@ -1,21 +1,21 @@
 /*
-*
-* Copyright (C) 2013 www.yaacc.de
-*
-* This program is free software; you can redistribute it and/or
-* modify it under the terms of the GNU General Public License
-* as published by the Free Software Foundation; either version 3
-* of the License, or (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program; if not, write to the Free Software
-* Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
-*/
+ *
+ * Copyright (C) 2013 Tobias Schoene www.yaacc.de
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 3
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ */
 package de.yaacc.upnp.server.avtransport;
 
 import android.util.Log;
@@ -32,52 +32,54 @@ import java.util.List;
 
 import de.yaacc.player.Player;
 import de.yaacc.upnp.UpnpClient;
+
 /**
  * State stopped
- * @author Tobias Schoene (openbit)
  *
+ * @author Tobias Schoene (openbit)
  */
-public class AvTransportMediaRendererStopped extends Stopped<AvTransport> implements YaaccState{
+public class AvTransportMediaRendererStopped extends Stopped<AvTransport> implements YaaccState {
     private UpnpClient upnpClient;
+
     /**
      * Constructor.
      *
-     * @param transport
-     * the state holder
-     * @param upnpClient
-     * the upnpclient to use
+     * @param transport  the state holder
+     * @param upnpClient the upnpclient to use
      */
     public AvTransportMediaRendererStopped(AvTransport transport,
                                            UpnpClient upnpClient) {
         super(transport);
         this.upnpClient = upnpClient;
     }
+
     /*
-    * (non-Javadoc)
-    *
-    * @see org.fourthline.cling.support.avtransport.impl.state.Stopped#onEntry()
-    */
+     * (non-Javadoc)
+     *
+     * @see org.fourthline.cling.support.avtransport.impl.state.Stopped#onEntry()
+     */
     @Override
     public void onEntry() {
         Log.d(this.getClass().getName(), "On Entry");
         super.onEntry();
-        List<Player> players = upnpClient.getCurrentPlayers((AvTransport)getTransport());
+        List<Player> players = upnpClient.getCurrentPlayers((AvTransport) getTransport());
         for (Player player : players) {
-            if(player != null ){
+            if (player != null) {
                 player.stop();
             }
         }
     }
+
     /*
-    * (non-Javadoc)
-    *
-    * @see
-    * org.fourthline.cling.support.avtransport.impl.state.Stopped#setTransportURI
-    * (java.net.URI, java.lang.String)
-    */
+     * (non-Javadoc)
+     *
+     * @see
+     * org.fourthline.cling.support.avtransport.impl.state.Stopped#setTransportURI
+     * (java.net.URI, java.lang.String)
+     */
     @Override
     public Class<? extends AbstractState<?>> setTransportURI(URI uri,
-                                                          String metaData) {
+                                                             String metaData) {
         Log.d(this.getClass().getName(), "setTransportURI");
         Log.d(this.getClass().getName(), "uri: " + uri);
         Log.d(this.getClass().getName(), "metaData: " + metaData);
@@ -99,11 +101,12 @@ public class AvTransportMediaRendererStopped extends Stopped<AvTransport> implem
 // prefer stopping first?
         return AvTransportMediaRendererStopped.class;
     }
+
     /*
-    * (non-Javadoc)
-    *
-    * @see org.fourthline.cling.support.avtransport.impl.state.Stopped#stop()
-    */
+     * (non-Javadoc)
+     *
+     * @see org.fourthline.cling.support.avtransport.impl.state.Stopped#stop()
+     */
     @Override
     public Class<? extends AbstractState<?>> stop() {
         Log.d(this.getClass().getName(), "stop");
@@ -111,46 +114,50 @@ public class AvTransportMediaRendererStopped extends Stopped<AvTransport> implem
 // well...
         return AvTransportMediaRendererStopped.class;
     }
+
     /*
-    * (non-Javadoc)
-    *
-    * @see
-    * org.fourthline.cling.support.avtransport.impl.state.Stopped#play(java.lang
-    * .String)
-    */
+     * (non-Javadoc)
+     *
+     * @see
+     * org.fourthline.cling.support.avtransport.impl.state.Stopped#play(java.lang
+     * .String)
+     */
     @Override
     public Class<? extends AbstractState<?>> play(String speed) {
         Log.d(this.getClass().getName(), "play");
 // It's easier to let this classes' onEntry() method do the work
         return AvTransportMediaRendererPlaying.class;
     }
+
     /*
-    * (non-Javadoc)
-    *
-    * @see org.fourthline.cling.support.avtransport.impl.state.Stopped#next()
-    */
+     * (non-Javadoc)
+     *
+     * @see org.fourthline.cling.support.avtransport.impl.state.Stopped#next()
+     */
     @Override
     public Class<? extends AbstractState<?>> next() {
         Log.d(this.getClass().getName(), "next");
         return AvTransportMediaRendererStopped.class;
     }
+
     /*
-    * (non-Javadoc)
-    *
-    * @see org.fourthline.cling.support.avtransport.impl.state.Stopped#previous()
-    */
+     * (non-Javadoc)
+     *
+     * @see org.fourthline.cling.support.avtransport.impl.state.Stopped#previous()
+     */
     @Override
     public Class<? extends AbstractState<?>> previous() {
         Log.d(this.getClass().getName(), "previous");
         return AvTransportMediaRendererStopped.class;
     }
+
     /*
-    * (non-Javadoc)
-    *
-    * @see
-    * org.fourthline.cling.support.avtransport.impl.state.Stopped#seek(org.fourthline
-    * .cling.support.model.SeekMode, java.lang.String)
-    */
+     * (non-Javadoc)
+     *
+     * @see
+     * org.fourthline.cling.support.avtransport.impl.state.Stopped#seek(org.fourthline
+     * .cling.support.model.SeekMode, java.lang.String)
+     */
     @Override
     public Class<? extends AbstractState<?>> seek(SeekMode unit, String target) {
         Log.d(this.getClass().getName(), "seek");
@@ -159,32 +166,32 @@ public class AvTransportMediaRendererStopped extends Stopped<AvTransport> implem
     }
 
     @Override
-    public Class<? extends AbstractState<?>>  syncPlay(String speed, String referencedPositionUnits, String referencedPosition, String referencedPresentationTime, String referencedClockId) {
-        ((AvTransport)getTransport()).getSynchronizationInfo().setSpeed(speed);
-        ((AvTransport)getTransport()).getSynchronizationInfo().setReferencedPositionUnits(referencedPositionUnits);
-        ((AvTransport)getTransport()).getSynchronizationInfo().setReferencedPosition(referencedPosition);
-        ((AvTransport)getTransport()).getSynchronizationInfo().setReferencedPresentationTime(referencedPresentationTime);
-        ((AvTransport)getTransport()).getSynchronizationInfo().setReferencedClockId(referencedClockId);
+    public Class<? extends AbstractState<?>> syncPlay(String speed, String referencedPositionUnits, String referencedPosition, String referencedPresentationTime, String referencedClockId) {
+        ((AvTransport) getTransport()).getSynchronizationInfo().setSpeed(speed);
+        ((AvTransport) getTransport()).getSynchronizationInfo().setReferencedPositionUnits(referencedPositionUnits);
+        ((AvTransport) getTransport()).getSynchronizationInfo().setReferencedPosition(referencedPosition);
+        ((AvTransport) getTransport()).getSynchronizationInfo().setReferencedPresentationTime(referencedPresentationTime);
+        ((AvTransport) getTransport()).getSynchronizationInfo().setReferencedClockId(referencedClockId);
         return AvTransportMediaRendererPlaying.class;
     }
 
     @Override
-    public Class<? extends AbstractState<?>>  syncPause(String referencedPresentationTime, String referencedClockId) {
-        ((AvTransport)getTransport()).getSynchronizationInfo().setReferencedPresentationTime(referencedPresentationTime);
-        ((AvTransport)getTransport()).getSynchronizationInfo().setReferencedClockId(referencedClockId);
+    public Class<? extends AbstractState<?>> syncPause(String referencedPresentationTime, String referencedClockId) {
+        ((AvTransport) getTransport()).getSynchronizationInfo().setReferencedPresentationTime(referencedPresentationTime);
+        ((AvTransport) getTransport()).getSynchronizationInfo().setReferencedClockId(referencedClockId);
         return AvTransportMediaRendererPaused.class;
     }
 
     @Override
-    public Class<? extends AbstractState<?>>  syncStop(String referencedPresentationTime, String referencedClockId) {
-        ((AvTransport)getTransport()).getSynchronizationInfo().setReferencedPresentationTime(referencedPresentationTime);
-        ((AvTransport)getTransport()).getSynchronizationInfo().setReferencedClockId(referencedClockId);
+    public Class<? extends AbstractState<?>> syncStop(String referencedPresentationTime, String referencedClockId) {
+        ((AvTransport) getTransport()).getSynchronizationInfo().setReferencedPresentationTime(referencedPresentationTime);
+        ((AvTransport) getTransport()).getSynchronizationInfo().setReferencedClockId(referencedClockId);
         return AvTransportMediaRendererStopped.class;
     }
 
     @Override
-    public TransportAction[] getPossibleTransportActions(){
-        return new TransportAction[] {
+    public TransportAction[] getPossibleTransportActions() {
+        return new TransportAction[]{
                 TransportAction.Stop,
                 TransportAction.Play,
                 TransportAction.Next,

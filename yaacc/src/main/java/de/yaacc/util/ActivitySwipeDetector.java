@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013 www.yaacc.de 
+ * Copyright (C) 2013  Tobias Schoene www.yaacc.de
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -24,112 +24,110 @@ import android.view.View.OnTouchListener;
 
 public class ActivitySwipeDetector implements OnTouchListener {
 
-	static final String logTag = "ActivitySwipeDetector";
-	private SwipeReceiver swipeReceiver;
-	static final int MIN_DISTANCE = 100;
-	private float downX, downY, upX, upY;
+    static final String logTag = "ActivitySwipeDetector";
+    static final int MIN_DISTANCE = 100;
+    private SwipeReceiver swipeReceiver;
+    private float downX, downY, upX, upY;
 
-	public ActivitySwipeDetector(SwipeReceiver swipeReceiver) {
-		this.swipeReceiver = swipeReceiver;
-	}
+    public ActivitySwipeDetector(SwipeReceiver swipeReceiver) {
+        this.swipeReceiver = swipeReceiver;
+    }
 
-	private void onRightToLeftSwipe() {
-		Log.i(logTag, "RightToLeftSwipe!");
-		swipeReceiver.onRightToLeftSwipe();
-	}
+    private void onRightToLeftSwipe() {
+        Log.i(logTag, "RightToLeftSwipe!");
+        swipeReceiver.onRightToLeftSwipe();
+    }
 
-	private void onLeftToRightSwipe() {
-		Log.i(logTag, "LeftToRightSwipe!");
-		swipeReceiver.onLeftToRightSwipe();
-	}
+    private void onLeftToRightSwipe() {
+        Log.i(logTag, "LeftToRightSwipe!");
+        swipeReceiver.onLeftToRightSwipe();
+    }
 
-	private void onTopToBottomSwipe() {
-		Log.i(logTag, "onTopToBottomSwipe!");
-		swipeReceiver.onTopToBottomSwipe();
-	}
+    private void onTopToBottomSwipe() {
+        Log.i(logTag, "onTopToBottomSwipe!");
+        swipeReceiver.onTopToBottomSwipe();
+    }
 
-	private void onBottomToTopSwipe() {
-		Log.i(logTag, "onBottomToTopSwipe!");
-		swipeReceiver.onBottomToTopSwipe();
-	}
+    private void onBottomToTopSwipe() {
+        Log.i(logTag, "onBottomToTopSwipe!");
+        swipeReceiver.onBottomToTopSwipe();
+    }
 
-	private void endOnTouchProcessing(View v, MotionEvent event) {
-		Log.i(logTag, "endOnTouchProcessing!");
-		swipeReceiver.endOnTouchProcessing(v, event);
+    private void endOnTouchProcessing(View v, MotionEvent event) {
+        Log.i(logTag, "endOnTouchProcessing!");
+        swipeReceiver.endOnTouchProcessing(v, event);
 
-	}
+    }
 
-	private void beginOnTouchProcessing(View v, MotionEvent event) {
-		Log.i(logTag, "beginOnTouchProcessing!");
-		swipeReceiver.beginOnTouchProcessing(v, event);
+    private void beginOnTouchProcessing(View v, MotionEvent event) {
+        Log.i(logTag, "beginOnTouchProcessing!");
+        swipeReceiver.beginOnTouchProcessing(v, event);
 
-	}
-
-
+    }
 
 
-	@Override
-	public boolean onTouch(View v, MotionEvent event) {
-		beginOnTouchProcessing(v, event);
-		try {
-			switch (event.getAction()) {
-			case MotionEvent.ACTION_DOWN: {
-				downX = event.getX();
-				downY = event.getY();
-				return true;
-			}
-			case MotionEvent.ACTION_UP: {
-				upX = event.getX();
-				upY = event.getY();
+    @Override
+    public boolean onTouch(View v, MotionEvent event) {
+        beginOnTouchProcessing(v, event);
+        try {
+            switch (event.getAction()) {
+                case MotionEvent.ACTION_DOWN: {
+                    downX = event.getX();
+                    downY = event.getY();
+                    return true;
+                }
+                case MotionEvent.ACTION_UP: {
+                    upX = event.getX();
+                    upY = event.getY();
 
-				float deltaX = downX - upX;
-				float deltaY = downY - upY;
+                    float deltaX = downX - upX;
+                    float deltaY = downY - upY;
 
-				// swipe horizontal?
-				if (Math.abs(deltaX) > MIN_DISTANCE) {
-					// left or right
-					if (deltaX < 0) {
-						this.onLeftToRightSwipe();
-						return true;
-					}
-					if (deltaX > 0) {
-						this.onRightToLeftSwipe();
-						return true;
-					}
-				} else {
-					Log.i(logTag, "Swipe was only " + Math.abs(deltaX)
-							+ " long, need at least " + MIN_DISTANCE);
-					return false; // We don't consume the event
-				}
+                    // swipe horizontal?
+                    if (Math.abs(deltaX) > MIN_DISTANCE) {
+                        // left or right
+                        if (deltaX < 0) {
+                            this.onLeftToRightSwipe();
+                            return true;
+                        }
+                        if (deltaX > 0) {
+                            this.onRightToLeftSwipe();
+                            return true;
+                        }
+                    } else {
+                        Log.i(logTag, "Swipe was only " + Math.abs(deltaX)
+                                + " long, need at least " + MIN_DISTANCE);
+                        return false; // We don't consume the event
+                    }
 
-				// swipe vertical?
-				if (Math.abs(deltaY) > MIN_DISTANCE) {
-					// top or down
-					if (deltaY < 0) {
-						this.onTopToBottomSwipe();
-						return true;
-					}
-					if (deltaY > 0) {
-						this.onBottomToTopSwipe();
-						return true;
-					}
-				} else {
-					Log.i(logTag, "Swipe was only " + Math.abs(deltaX)
-							+ " long, need at least " + MIN_DISTANCE);
-					return false; // We don't consume the event
-				}
+                    // swipe vertical?
+                    if (Math.abs(deltaY) > MIN_DISTANCE) {
+                        // top or down
+                        if (deltaY < 0) {
+                            this.onTopToBottomSwipe();
+                            return true;
+                        }
+                        if (deltaY > 0) {
+                            this.onBottomToTopSwipe();
+                            return true;
+                        }
+                    } else {
+                        Log.i(logTag, "Swipe was only " + Math.abs(deltaX)
+                                + " long, need at least " + MIN_DISTANCE);
+                        return false; // We don't consume the event
+                    }
 
-				return true;
-			}
+                    return true;
+                }
 
-			}
+            }
 
-			return false;
+            return false;
 
-		} finally {
-			endOnTouchProcessing(v, event);
-		}
-	}
+        } finally {
+            endOnTouchProcessing(v, event);
+        }
+    }
 
 
 }

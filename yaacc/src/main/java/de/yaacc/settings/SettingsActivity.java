@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013 www.yaacc.de 
+ * Copyright (C) 2013 Tobias Schoene www.yaacc.de
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -27,18 +27,18 @@ import de.yaacc.browser.TabBrowserActivity;
  */
 public class SettingsActivity extends Activity {
 
-	@Override
-	public void onCreate(Bundle savedInstanceState) {
-		super.onCreate(savedInstanceState);
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
 
-		getFragmentManager().beginTransaction()
-				.replace(android.R.id.content, new SettingsFragment()).commit();
+        getFragmentManager().beginTransaction()
+                .replace(android.R.id.content, new SettingsFragment()).commit();
 
-	}
+    }
 
     @Override
     protected void onPause() {
         super.onPause();
-        TabBrowserActivity.leftSettings=true;
+        TabBrowserActivity.leftSettings = true;
     }
 }
