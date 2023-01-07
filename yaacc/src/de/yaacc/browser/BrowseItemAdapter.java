@@ -111,7 +111,14 @@ public class BrowseItemAdapter extends BaseAdapter implements AbsListView.OnScro
         if (objects == null) {
             return 0;
         }
-        return objects.size();
+        int result = objects.size();
+        if (objects.contains(LOAD_MORE_FAKE_ITEM)) {
+            result--;
+        }
+        if (objects.contains(LOADING_FAKE_ITEM)) {
+            result--;
+        }
+        return result;
     }
 
     public void addAll(Collection<? extends DIDLObject> objects ){
@@ -274,10 +281,8 @@ public class BrowseItemAdapter extends BaseAdapter implements AbsListView.OnScro
         if (navigator == null || navigator.getCurrentPosition() == null || navigator.getCurrentPosition().getDeviceId()==null) return;
         if (loading || allItemsFetched ) return;
         setLoading(true);
-        Long from = getCount() -0L;
-        if (from > 0){
-            from--;
-        }
+        Long from = getCount() - 0L;
+
         Log.d(getClass().getName(),"loadMore from: " + from);
 
         BrowseItemLoadTask browseItemLoadTask = new BrowseItemLoadTask(this, CHUNK_SIZE);

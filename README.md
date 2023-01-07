@@ -1,8 +1,6 @@
 YAACC - UPNP Client and Server
 
-# YAACC is back!
-
-I resumed the work on the project and the App is now back on f-droid, too.
+# About YAACC 
 
 [<img src="https://f-droid.org/badge/get-it-on.png"
      alt="Get it on F-Droid"
@@ -10,12 +8,16 @@ I resumed the work on the project and the App is now back on f-droid, too.
 
 YAACC is a hobby project I am working on in my free time.
 So it's not perfect and I am only able to test the app with my own hardware setup.
+
 Please, help improving YAACC by reporting problems or sending pull requests.
 
 Have fun!
 
 tobexyz formerly known as @theopenbit
 
+[<img src="https://f-droid.org/badge/get-it-on.png"
+     alt="Get it on F-Droid"
+     height="80">](https://f-droid.org/packages/de.yaacc/)
 
 
 # Description:
@@ -34,7 +36,11 @@ UPNP renderer in your network.
 * Allow download files to the device
 * Implemented parts of UPnP Version 3 at once (sending synchronization information to the renderer)
 
-# build from source
+# Build dependencies
+Android SDK (set ANDROID_HOME or create a local.properties file to point to it)
+Maven (tested with 3.6.0)
+
+# Build from source
 Build the project by running following command in the project root:
 
 ```./gradlew build```
