@@ -1,1 +1,1 @@
-include 'clingbuild', 'yaacc'
+include 'yaacc'
