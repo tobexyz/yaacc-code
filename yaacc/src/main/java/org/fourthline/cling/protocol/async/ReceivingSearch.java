@@ -299,7 +299,7 @@ public class ReceivingSearch extends ReceivingAsync<IncomingSearchRequest> {
 
     protected void sendSearchResponseDeviceType(DeviceType deviceType, NetworkAddress activeStreamServer) throws RouterException {
         log.fine("Responding to device type search: " + deviceType);
-        Collection<Device> devices = getUpnpService().getRegistry().getDevices(deviceType);
+        Collection<Device<?, ?, ?>> devices = getUpnpService().getRegistry().getDevices(deviceType);
         for (Device device : devices) {
             if (device instanceof LocalDevice) {
 
@@ -321,7 +321,7 @@ public class ReceivingSearch extends ReceivingAsync<IncomingSearchRequest> {
 
     protected void sendSearchResponseServiceType(ServiceType serviceType, NetworkAddress activeStreamServer) throws RouterException {
         log.fine("Responding to service type search: " + serviceType);
-        Collection<Device> devices = getUpnpService().getRegistry().getDevices(serviceType);
+        Collection<Device<?, ?, ?>> devices = getUpnpService().getRegistry().getDevices(serviceType);
         for (Device device : devices) {
             if (device instanceof LocalDevice) {
 

@@ -223,15 +223,15 @@ public class RegistryImpl implements Registry {
         return Collections.unmodifiableCollection(remoteItems.get());
     }
 
-    synchronized public Collection<Device> getDevices() {
+    synchronized public Collection<Device<?, ?, ?>> getDevices() {
         Set all = new HashSet<>();
         all.addAll(localItems.get());
         all.addAll(remoteItems.get());
         return Collections.unmodifiableCollection(all);
     }
 
-    synchronized public Collection<Device> getDevices(DeviceType deviceType) {
-        Collection<Device> devices = new HashSet<>();
+    synchronized public Collection<Device<?, ?, ?>> getDevices(DeviceType deviceType) {
+        Collection<Device<?, ?, ?>> devices = new HashSet<>();
 
         devices.addAll(localItems.get(deviceType));
         devices.addAll(remoteItems.get(deviceType));
@@ -239,8 +239,8 @@ public class RegistryImpl implements Registry {
         return Collections.unmodifiableCollection(devices);
     }
 
-    synchronized public Collection<Device> getDevices(ServiceType serviceType) {
-        Collection<Device> devices = new HashSet<>();
+    synchronized public Collection<Device<?, ?, ?>> getDevices(ServiceType serviceType) {
+        Collection<Device<?, ?, ?>> devices = new HashSet<>();
 
         devices.addAll(localItems.get(serviceType));
         devices.addAll(remoteItems.get(serviceType));

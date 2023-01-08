@@ -43,7 +43,7 @@ public enum ContentDirectoryIDs {
     MUSIC_ARTIST_ITEM_PREFIX("920999");
 
 
-    String id;
+    final String id;
 
     ContentDirectoryIDs(String id) {
         this.id = id;

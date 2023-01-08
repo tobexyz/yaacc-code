@@ -71,7 +71,7 @@ import de.yaacc.upnp.model.types.SyncOffset;
  */
 @UpnpService(
         serviceId = @UpnpServiceId("AVTransport"),
-        serviceType = @UpnpServiceType(value = "AVTransport", version = 1), //needed for backward compatibility
+        serviceType = @UpnpServiceType(value = "AVTransport"), //needed for backward compatibility
         stringConvertibleTypes = LastChange.class
 )
 @UpnpStateVariables({
@@ -233,46 +233,24 @@ import de.yaacc.upnp.model.types.SyncOffset;
 })
 public class YaaccAVTransportService implements LastChangeDelegator {
 
-    protected PropertyChangeSupport propertyChangeSupport = null;
-    Class<? extends AVTransportStateMachine> stateMachineDefinition = null;
-    Class<? extends AbstractState> initialState = null;
-    Class<? extends AVTransport> transportClass = null;
+    private final Map<Long, AVTransportStateMachine> stateMachines = new ConcurrentHashMap<>();
+    protected PropertyChangeSupport propertyChangeSupport;
+    Class<? extends AVTransportStateMachine> stateMachineDefinition;
+    Class<? extends AbstractState<?>> initialState;
+    Class<? extends AVTransport> transportClass;
     private UpnpClient upnpClient = null;
-    private Map<Long, AVTransportStateMachine> stateMachines = new ConcurrentHashMap();
     @UpnpStateVariable(eventMaximumRateMilliseconds = 200)
     private LastChange lastChange = new LastChange(new AVTransportLastChangeParser());
 
-
-    protected YaaccAVTransportService() {
-        this.propertyChangeSupport = new PropertyChangeSupport(this);
-
-
-    }
-
-    protected YaaccAVTransportService(LastChange lastChange) {
-        this.propertyChangeSupport = new PropertyChangeSupport(this);
-        this.lastChange = lastChange;
-    }
-
-    protected YaaccAVTransportService(PropertyChangeSupport propertyChangeSupport) {
-        this.propertyChangeSupport = propertyChangeSupport;
-
-    }
-
-    protected YaaccAVTransportService(PropertyChangeSupport propertyChangeSupport, LastChange lastChange) {
-        this.propertyChangeSupport = propertyChangeSupport;
-        this.lastChange = lastChange;
-    }
-
-
     protected YaaccAVTransportService(Class<? extends AVTransportStateMachine> stateMachineDefinition,
-                                      Class<? extends AbstractState> initialState) {
-        this(stateMachineDefinition, initialState, (Class<? extends AVTransport>) AVTransport.class);
+                                      Class<? extends AbstractState<?>> initialState) {
+        this(stateMachineDefinition, initialState, AVTransport.class);
     }
 
     protected YaaccAVTransportService(Class<? extends AVTransportStateMachine> stateMachineDefinition,
-                                      Class<? extends AbstractState> initialState,
+                                      Class<? extends AbstractState<?>> initialState,
                                       Class<? extends AVTransport> transportClass) {
+        this.propertyChangeSupport = new PropertyChangeSupport(this);
         this.stateMachineDefinition = stateMachineDefinition;
         this.initialState = initialState;
         this.transportClass = transportClass;
@@ -409,8 +387,7 @@ public class YaaccAVTransportService implements LastChangeDelegator {
 
 
     @UpnpAction(name = "GetCurrentTransportActions", out = @UpnpOutputArgument(name = "Actions", stateVariable = "CurrentTransportActions"))
-    public String getCurrentTransportActionsString(@UpnpInputArgument(name = "InstanceID") UnsignedIntegerFourBytes instanceId)
-            throws AVTransportException {
+    public String getCurrentTransportActionsString(@UpnpInputArgument(name = "InstanceID") UnsignedIntegerFourBytes instanceId) {
         try {
             return ModelUtil.toCommaSeparatedList(getCurrentYaaccTransportActions(instanceId));
         } catch (Exception ex) {

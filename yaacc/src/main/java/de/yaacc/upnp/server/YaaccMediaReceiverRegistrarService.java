@@ -20,19 +20,16 @@ package de.yaacc.upnp.server;
 
 import org.fourthline.cling.support.xmicrosoft.AbstractMediaReceiverRegistrarService;
 
-import de.yaacc.upnp.UpnpClient;
-
 /**
  * @author Tobias Schöne (openbit)
  */
 public class YaaccMediaReceiverRegistrarService extends
-		AbstractMediaReceiverRegistrarService {
+        AbstractMediaReceiverRegistrarService {
 
-	private final UpnpClient upnpClient;
 
-	public YaaccMediaReceiverRegistrarService(UpnpClient upnpClient) {
-		this.upnpClient = upnpClient;
+    public YaaccMediaReceiverRegistrarService() {
 
-	}
+
+    }
 
 }

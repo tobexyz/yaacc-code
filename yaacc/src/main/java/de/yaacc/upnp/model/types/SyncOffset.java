@@ -38,7 +38,7 @@ import java.util.Locale;
  *
  * @author Tobias Schoene (TheOpenBit)
  */
-public class SyncOffset implements Datatype {
+public class SyncOffset implements Datatype<SyncOffset> {
 
 
     private int hour = 0;
@@ -195,12 +195,11 @@ public class SyncOffset implements Datatype {
             }
         } else {
             Log.w(this.getClass().getName(), "Can't parse offset sub second format: " + offset + " ignoring it");
-            return;
         }
 
     }
 
-    public java.lang.String toString() {
+    public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append(positive ? "" : "-");
         sb.append("P");
@@ -306,25 +305,20 @@ public class SyncOffset implements Datatype {
     }
 
     @Override
-    public boolean isValid(Object o) {
-        if (o == null || !(o instanceof SyncOffset)) {
-            return false;
-        }
+    public boolean isValid(SyncOffset o) {
+        return (o != null);
         //TODO to be implemented
 
-        return true;
     }
 
     @Override
-    public String getString(Object o) throws InvalidValueException {
-        if (o == null || !(o instanceof SyncOffset)) {
-            return "";
-        }
-        return o.toString();
+    public String getString(SyncOffset o) throws InvalidValueException {
+
+        return (o == null) ? "" : o.toString();
     }
 
     @Override
-    public Object valueOf(String s) throws InvalidValueException {
+    public SyncOffset valueOf(String s) throws InvalidValueException {
         return new SyncOffset(s);
     }
 

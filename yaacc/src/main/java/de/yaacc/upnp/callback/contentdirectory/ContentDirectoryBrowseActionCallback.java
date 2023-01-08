@@ -18,6 +18,8 @@
  */
 package de.yaacc.upnp.callback.contentdirectory;
 
+import android.util.Log;
+
 import org.fourthline.cling.model.action.ActionInvocation;
 import org.fourthline.cling.model.message.UpnpResponse;
 import org.fourthline.cling.model.meta.Service;
@@ -26,8 +28,6 @@ import org.fourthline.cling.support.model.BrowseFlag;
 import org.fourthline.cling.support.model.BrowseResult;
 import org.fourthline.cling.support.model.DIDLContent;
 import org.fourthline.cling.support.model.SortCriterion;
-
-import android.util.Log;
 
 import de.yaacc.upnp.UpnpFailure;
 
@@ -39,7 +39,7 @@ import de.yaacc.upnp.UpnpFailure;
  * @author Tobias Schöne (openbit)
  */
 public class ContentDirectoryBrowseActionCallback extends Browse {
-    private ContentDirectoryBrowseResult browsingResult;
+    private final ContentDirectoryBrowseResult browsingResult;
 
 
     public ContentDirectoryBrowseActionCallback(Service<?, ?> service, String objectID,

@@ -48,7 +48,7 @@ import de.yaacc.util.NotificationId;
  * @author Tobias Schoene (openbit)
  */
 public class LocalBackgoundMusicPlayer extends AbstractPlayer implements ServiceConnection {
-    private static final String CHANNEL_ID = "YaaccNotifications";
+
     private BackgroundMusicService backgroundMusicService;
     private Timer commandExecutionTimer;
     private URI albumArtUri;
@@ -62,9 +62,7 @@ public class LocalBackgoundMusicPlayer extends AbstractPlayer implements Service
         setShortName(shortName);
     }
 
-    /**
-     * @param upnpClient
-     */
+
     public LocalBackgoundMusicPlayer(UpnpClient upnpClient) {
         super(upnpClient);
         Log.d(getClass().getName(), "Starting background music service... ");
@@ -229,8 +227,8 @@ public class LocalBackgoundMusicPlayer extends AbstractPlayer implements Service
     public PendingIntent getNotificationIntent() {
         Intent notificationIntent = new Intent(getContext(), MusicPlayerActivity.class);
         notificationIntent.putExtra(PLAYER_ID, getId());
-        PendingIntent contentIntent = PendingIntent.getActivity(getContext(), 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE);
-        return contentIntent;
+        return PendingIntent.getActivity(getContext(), 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE);
+
     }
 
     /*
@@ -280,22 +278,12 @@ public class LocalBackgoundMusicPlayer extends AbstractPlayer implements Service
 
     private String formatMillis(long millis) {
 
-        StringBuffer buf = new StringBuffer();
 
         int hours = (int) (millis / (1000 * 60 * 60));
         int minutes = (int) ((millis % (1000 * 60 * 60)) / (1000 * 60));
         int seconds = (int) (((millis % (1000 * 60 * 60)) % (1000 * 60)) / 1000);
 
-        buf
-                .append(String.format(Locale.ENGLISH, "%02d", hours))
-                .append(":")
-                .append(String.format(Locale.ENGLISH, "%02d", minutes))
-                .append(":")
-                .append(String.format(Locale.ENGLISH, "%02d", seconds));
-
-        return buf.toString();
-
-
+        return String.format(Locale.ENGLISH, "%02d:%02d:%02d", hours, minutes, seconds);
     }
 
     @Override

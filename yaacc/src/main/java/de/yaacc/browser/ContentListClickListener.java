@@ -23,7 +23,6 @@ import android.view.MenuItem;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.AdapterView.OnItemClickListener;
-import android.widget.ListView;
 import android.widget.Toast;
 
 import org.fourthline.cling.support.model.DIDLObject;
@@ -48,7 +47,7 @@ public class ContentListClickListener implements OnItemClickListener {
     //FIXME: just for easter egg to play all items on prev button
     public static DIDLObject currentObject;
     private final ContentListFragment contentListFragment;
-    private UpnpClient upnpClient;
+    private final UpnpClient upnpClient;
     private Navigator navigator;
 
     public ContentListClickListener(UpnpClient upnpClient, ContentListFragment contentListFragment) {
@@ -61,7 +60,6 @@ public class ContentListClickListener implements OnItemClickListener {
     @Override
     public void onItemClick(AdapterView<?> listView, View arg1, int position,
                             long id) {
-        ListView a = (ListView) listView.findViewById(R.id.contentList);
         BrowseItemAdapter adapter = (BrowseItemAdapter) listView.getAdapter();
         currentObject = adapter.getFolder(position);
         if (currentObject instanceof Container) {
@@ -105,18 +103,18 @@ public class ContentListClickListener implements OnItemClickListener {
         ContentDirectoryBrowseResult result = upnpClient.browseSync(new Position(currentObject.getParentID(), upnpClient.getProviderDevice().getIdentity().getUdn().getIdentifierString()));
         if (result == null || (result.getResult() != null && result.getResult().getItems().size() == 0)) {
             Log.d(getClass().getName(), "Browse result of parent no direct items found...");
-            if (result.getResult() != null && result.getResult().getContainers().size() > 0) {
+            if (result != null && result.getResult() != null && result.getResult().getContainers().size() > 0) {
                 play(upnpClient.initializePlayers(upnpClient.toItemList(result.getResult())));
             } else {
                 play(upnpClient.initializePlayers(currentObject));
             }
         } else {
-            List<Item> items = result.getResult() == null ? new ArrayList<Item>() : result.getResult().getItems();
+            List<Item> items = result.getResult() == null ? new ArrayList<>() : result.getResult().getItems();
             Log.d(getClass().getName(), "Browse result items: " + items.size());
             int index = items.indexOf(currentObject);
             if (index > 0) {
                 //sort selected item to the beginning
-                List<Item> tempItems = new ArrayList<Item>(items.subList(index, items.size()));
+                List<Item> tempItems = new ArrayList<>(items.subList(index, items.size()));
                 tempItems.addAll(items.subList(0, index));
                 items = tempItems;
             }
@@ -131,8 +129,10 @@ public class ContentListClickListener implements OnItemClickListener {
      * <p/>
      * Since this is the onContextClickListener also the reaction on clicking something in the context menu resides in this class
      *
-     * @param item
-     * @return
+     * @param item               the menu item
+     * @param selectedDIDLObject the selected object
+     * @param applicationContext the application contex
+     * @return always true
      */
     public boolean onContextItemSelected(DIDLObject selectedDIDLObject, MenuItem item, Context applicationContext) {
         if (item.getTitle().equals(applicationContext.getString(R.string.browse_context_play))) {

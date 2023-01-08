@@ -27,44 +27,44 @@ import java.util.TimerTask;
  */
 public class Watchdog {
 
-	private boolean watchdogFlag = false;
-	private long timeout = 0;
-	private Timer watchdogTimer;
+    private boolean watchdogFlag = false;
+    private long timeout;
+    private Timer watchdogTimer;
 
-	private Watchdog(long timeout) {
-		this.timeout = timeout;
-	}
+    private Watchdog(long timeout) {
+        this.timeout = timeout;
+    }
 
-	/**
-	 * Create an Watchdog with the given timeout
-	 *
-	 * @param timeout the timeout
-	 * @return the Watchdog
-	 */
-	public static Watchdog createWatchdog(long timeout) {
-		return new Watchdog(timeout);
-	}
+    /**
+     * Create an Watchdog with the given timeout
+     *
+     * @param timeout the timeout
+     * @return the Watchdog
+     */
+    public static Watchdog createWatchdog(long timeout) {
+        return new Watchdog(timeout);
+    }
 
-	/**
-	 * starts the watchdog.
-	 */
-	public void start() {
-		watchdogFlag = false;
-		watchdogTimer = new Timer();
-		watchdogTimer.schedule(new TimerTask() {
+    /**
+     * starts the watchdog.
+     */
+    public void start() {
+        watchdogFlag = false;
+        watchdogTimer = new Timer();
+        watchdogTimer.schedule(new TimerTask() {
 
-			@Override
-			public void run() {
-				watchdogFlag = true;
-			}
-		}, timeout);
-	}
+            @Override
+            public void run() {
+                watchdogFlag = true;
+            }
+        }, timeout);
+    }
 
-	public boolean hasTimeout() {
-		return watchdogFlag;
-	}
+    public boolean hasTimeout() {
+        return watchdogFlag;
+    }
 
-	public void cancel() {
-		watchdogTimer.cancel();
-	}
+    public void cancel() {
+        watchdogTimer.cancel();
+    }
 }

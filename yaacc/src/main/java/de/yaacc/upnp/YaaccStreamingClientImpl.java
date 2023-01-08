@@ -27,8 +27,6 @@ import org.apache.hc.core5.http.ClassicHttpRequest;
 import org.apache.hc.core5.http.ClassicHttpResponse;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.Header;
-import org.apache.hc.core5.http.HttpException;
-import org.apache.hc.core5.http.io.HttpClientResponseHandler;
 import org.apache.hc.core5.http.io.entity.ByteArrayEntity;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.apache.hc.core5.util.TimeValue;
@@ -49,6 +47,7 @@ import java.io.UnsupportedEncodingException;
 import java.nio.charset.Charset;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
@@ -81,22 +80,14 @@ public class YaaccStreamingClientImpl extends AbstractStreamClient<YaaccStreamin
     @Override
     protected Callable<StreamResponseMessage> createCallable(final StreamRequestMessage requestMessage,
                                                              final ClassicHttpRequest request) {
-        return new Callable<StreamResponseMessage>() {
-            public StreamResponseMessage call() throws Exception {
+        return () -> {
 
-                log.info("Sending HTTP request: " + requestMessage);
-                log.info("Body: " + requestMessage.getBodyString());
-                applyRequestHeader(requestMessage, request);
-                applyRequestBody(requestMessage, request);
-                return httpClient.execute(request, new HttpClientResponseHandler<StreamResponseMessage>() {
+            log.info("Sending HTTP request: " + requestMessage);
+            log.info("Body: " + requestMessage.getBodyString());
+            applyRequestHeader(requestMessage, request);
+            applyRequestBody(requestMessage, request);
+            return httpClient.execute(request, this::createResponse);
 
-                    @Override
-                    public StreamResponseMessage handleResponse(ClassicHttpResponse response) throws HttpException, IOException {
-                        return createResponse(response);
-                    }
-                });
-
-            }
         };
     }
 
@@ -165,10 +156,14 @@ public class YaaccStreamingClientImpl extends AbstractStreamClient<YaaccStreamin
 
     protected StreamResponseMessage createResponse(ClassicHttpResponse response) throws IOException {
         // Status
+        if (UpnpResponse.Status.getByStatusCode(response.getCode()) == null) {
+            throw new IllegalStateException("can't create UpnpResponse.Status from http response status: " + response.getCode());
+        }
+
         UpnpResponse responseOperation =
                 new UpnpResponse(
                         response.getCode(),
-                        UpnpResponse.Status.getByStatusCode(response.getCode()).getStatusMsg()
+                        Objects.requireNonNull(UpnpResponse.Status.getByStatusCode(response.getCode())).getStatusMsg()
                 );
 
 

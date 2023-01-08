@@ -17,10 +17,7 @@
  */
 package de.yaacc.browser;
 
-import android.content.Context;
-import android.content.SharedPreferences;
 import android.graphics.Bitmap;
-import android.preference.PreferenceManager;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -41,9 +38,9 @@ import de.yaacc.upnp.UpnpClient;
  * @author Tobias Schoene (the openbit)
  */
 public class PlayerListItemAdapter extends BaseAdapter {
+    private final UpnpClient upnpClient;
     private LayoutInflater inflator;
     private List<Player> players;
-    private UpnpClient upnpClient;
 
 
     public PlayerListItemAdapter(UpnpClient upnpClient) {
@@ -78,9 +75,7 @@ public class PlayerListItemAdapter extends BaseAdapter {
     @Override
     public View getView(int position, View view, ViewGroup parent) {
         ViewHolder holder;
-        SharedPreferences preferences = PreferenceManager
-                .getDefaultSharedPreferences(parent.getContext());
-        Context context = parent.getContext();
+
         if (view == null) {
             view = inflator.inflate(R.layout.browse_item, parent, false);
             holder = new ViewHolder();
@@ -95,7 +90,7 @@ public class PlayerListItemAdapter extends BaseAdapter {
             player = players.get(position);
         }
         if (player != null) {
-            holder = holder == null ? holder = new ViewHolder() : holder;
+            holder = holder == null ? new ViewHolder() : holder;
             holder.name.setText(player.getName());
             if (player.getIcon() != null) {
                 holder.icon.setImageBitmap(Bitmap.createScaledBitmap(player.getIcon(), 48, 48, false));

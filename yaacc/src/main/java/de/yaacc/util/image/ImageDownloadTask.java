@@ -26,13 +26,13 @@ import android.widget.ImageView;
 /**
  * AsyncTask fpr retrieving icons while browsing.
  *
- * @author: Christoph Hähnel (eyeless)
+ * @author Christoph Hähnel (eyeless)
  */
 public class ImageDownloadTask extends AsyncTask<Uri, Integer, Bitmap> {
 
 
-    private ImageView imageView;
-    private IconDownloadCacheHandler cache;
+    private final ImageView imageView;
+    private final IconDownloadCacheHandler cache;
 
     /**
      * Initialize a new download by handing over the the list where the image should be shown

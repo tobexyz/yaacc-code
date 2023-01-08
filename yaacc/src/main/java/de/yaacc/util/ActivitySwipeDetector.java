@@ -26,7 +26,7 @@ public class ActivitySwipeDetector implements OnTouchListener {
 
     static final String logTag = "ActivitySwipeDetector";
     static final int MIN_DISTANCE = 100;
-    private SwipeReceiver swipeReceiver;
+    private final SwipeReceiver swipeReceiver;
     private float downX, downY, upX, upY;
 
     public ActivitySwipeDetector(SwipeReceiver swipeReceiver) {

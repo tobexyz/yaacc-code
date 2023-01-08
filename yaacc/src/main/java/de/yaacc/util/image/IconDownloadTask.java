@@ -31,14 +31,14 @@ import de.yaacc.browser.BrowseItemAdapter;
 /**
  * AsyncTask fpr retrieving icons while browsing.
  *
- * @author: Christoph Hähnel (eyeless)
+ * @author Christoph Hähnel (eyeless)
  */
 public class IconDownloadTask extends AsyncTask<Uri, Integer, Bitmap> {
 
+    private final ListView listView;
+    private final int position;
+    private final IconDownloadCacheHandler cache;
     private BrowseItemAdapter browseItemAdapter;
-    private ListView listView;
-    private int position;
-    private IconDownloadCacheHandler cache;
 
     /**
      * Initialize a new download by handing over the the list and the position
@@ -72,13 +72,13 @@ public class IconDownloadTask extends AsyncTask<Uri, Integer, Bitmap> {
         int defaultWidth = 48;
         Bitmap result = null;
         if (cache != null) {
-            result = cache.getBitmap(uri[0], defaultHeight, defaultWidth);
+            result = cache.getBitmap(uri[0], defaultWidth, defaultHeight);
         }
         if (result == null) {
-            result = new ImageDownloader().retrieveImageWithCertainSize(uri[0], defaultHeight, defaultWidth);
+            result = new ImageDownloader().retrieveImageWithCertainSize(uri[0], defaultWidth, defaultHeight);
             if (result != null) {
                 if (cache != null) {
-                    cache.addBitmap(uri[0], defaultHeight, defaultWidth, result);
+                    cache.addBitmap(uri[0], defaultWidth, defaultHeight, result);
                 }
             }
         }

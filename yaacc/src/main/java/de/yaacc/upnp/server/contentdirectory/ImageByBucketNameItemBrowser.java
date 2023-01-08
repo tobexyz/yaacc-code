@@ -76,13 +76,12 @@ public class ImageByBucketNameItemBrowser extends ContentBrowser {
                         .getColumnIndex(MediaStore.Images.Media.SIZE)));
                 @SuppressLint("Range") Long dateTaken = Long.valueOf(mImageCursor.getString(mImageCursor
                         .getColumnIndex(MediaStore.Images.Media.DATE_TAKEN)));
+                @SuppressLint("Range") String mimeTypeString = mImageCursor.getString(mImageCursor
+                        .getColumnIndex(MediaStore.Images.Media.MIME_TYPE));
                 Log.d(getClass().getName(),
                         "Mimetype: "
-                                + mImageCursor.getString(mImageCursor
-                                .getColumnIndex(MediaStore.Images.Media.MIME_TYPE)));
-                @SuppressLint("Range") MimeType mimeType = MimeType
-                        .valueOf(mImageCursor.getString(mImageCursor
-                                .getColumnIndex(MediaStore.Images.Media.MIME_TYPE)));
+                                + mimeTypeString);
+                @SuppressLint("Range") MimeType mimeType = MimeType.valueOf(mimeTypeString);
                 // file parameter only needed for media players which decide the
                 // ability of playing a file by the file extension
                 String uri = getUriString(contentDirectory, id, mimeType);
@@ -111,13 +110,13 @@ public class ImageByBucketNameItemBrowser extends ContentBrowser {
     public List<Container> browseContainer(
             YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
 
-        return new ArrayList<Container>();
+        return new ArrayList<>();
     }
 
     @Override
     public List<Item> browseItem(YaaccContentDirectory contentDirectory,
                                  String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
-        List<Item> result = new ArrayList<Item>();
+        List<Item> result = new ArrayList<>();
         result.add((Item) browseMeta(contentDirectory, myId, firstResult, maxResults, orderby));
         return result;
 

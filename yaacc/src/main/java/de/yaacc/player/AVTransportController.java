@@ -38,7 +38,7 @@ public class AVTransportController extends AVTransportPlayer {
 
     public static final String DEVICE_ID = "DEVICE_ID";
 
-    public AVTransportController(UpnpClient upnpClient, Device receiverDevice) {
+    public AVTransportController(UpnpClient upnpClient, Device<?, ?, ?> receiverDevice) {
 
         super(upnpClient, receiverDevice, "", "", null);
         String deviceName = receiverDevice.getDetails().getFriendlyName() + " - " + receiverDevice.getDisplayString();

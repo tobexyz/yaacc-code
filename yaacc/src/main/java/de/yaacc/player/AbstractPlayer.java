@@ -26,7 +26,6 @@ import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
-import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.preference.PreferenceManager;
@@ -61,14 +60,14 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
     public static final String PLAYER_ID = "PlayerId";
     public static final String PROPERTY_ITEM = "item";
     private final PropertyChangeSupport pcs = new PropertyChangeSupport(this);
-    private List<PlayableItem> items = new ArrayList<PlayableItem>();
+    private final List<PlayableItem> items = new ArrayList<>();
+    private final UpnpClient upnpClient;
     private int previousIndex = 0;
     private int currentIndex = 0;
     private Handler playerTimer;
     private Timer execTimer;
     private boolean isPlaying = false;
     private boolean isProcessingCommand = false;
-    private UpnpClient upnpClient;
     private PlayerService playerService;
     private String name;
     private String shortName;
@@ -79,7 +78,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
     private Bitmap icon = null;
 
     /**
-     * @param upnpClient
+     * @param upnpClient the upnpclient
      */
     public AbstractPlayer(UpnpClient upnpClient) {
         super();
@@ -99,8 +98,10 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
 
     public void onServiceDisconnected(ComponentName className) {
         Log.d("ServiceConnection", "disconnected");
+        if (playerService != null) {
+            playerService.removePlayer(this);
+        }
         playerService = null;
-        playerService.removePlayer(this);
     }
 
 
@@ -128,11 +129,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
 
     public void startService() {
         if (playerService == null) {
-            if (Build.VERSION.SDK_INT >= 26) {
-                upnpClient.getContext().startForegroundService(new Intent(upnpClient.getContext(), PlayerService.class));
-            } else {
-                upnpClient.getContext().startService(new Intent(upnpClient.getContext(), PlayerService.class));
-            }
+            upnpClient.getContext().startForegroundService(new Intent(upnpClient.getContext(), PlayerService.class));
             upnpClient.getContext().bindService(new Intent(upnpClient.getContext(), PlayerService.class),
                     this, Context.BIND_AUTO_CREATE);
         }
@@ -170,14 +167,12 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
         }
         Context context = getUpnpClient().getContext();
         if (context instanceof Activity) {
-            ((Activity) context).runOnUiThread(new Runnable() {
-                public void run() {
-                    Toast toast = Toast.makeText(getContext(), getContext()
-                            .getResources().getString(R.string.next)
-                            + getPositionString(), Toast.LENGTH_SHORT);
+            ((Activity) context).runOnUiThread(() -> {
+                Toast toast = Toast.makeText(getContext(), getContext()
+                        .getResources().getString(R.string.next)
+                        + getPositionString(), Toast.LENGTH_SHORT);
 
-                    toast.show();
-                }
+                toast.show();
             });
         }
         setProcessingCommand(false);
@@ -212,13 +207,11 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
         }
         Context context = getUpnpClient().getContext();
         if (context instanceof Activity) {
-            ((Activity) context).runOnUiThread(new Runnable() {
-                public void run() {
-                    Toast toast = Toast.makeText(getContext(), getContext()
-                            .getResources().getString(R.string.previous)
-                            + getPositionString(), Toast.LENGTH_SHORT);
-                    toast.show();
-                }
+            ((Activity) context).runOnUiThread(() -> {
+                Toast toast = Toast.makeText(getContext(), getContext()
+                        .getResources().getString(R.string.previous)
+                        + getPositionString(), Toast.LENGTH_SHORT);
+                toast.show();
             });
         }
         setProcessingCommand(false);
@@ -242,13 +235,11 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
                 cancelTimer();
                 Context context = getUpnpClient().getContext();
                 if (context instanceof Activity) {
-                    ((Activity) context).runOnUiThread(new Runnable() {
-                        public void run() {
-                            Toast toast = Toast.makeText(getContext(), getContext()
-                                    .getResources().getString(R.string.pause)
-                                    + getPositionString(), Toast.LENGTH_SHORT);
-                            toast.show();
-                        }
+                    ((Activity) context).runOnUiThread(() -> {
+                        Toast toast = Toast.makeText(getContext(), getContext()
+                                .getResources().getString(R.string.pause)
+                                + getPositionString(), Toast.LENGTH_SHORT);
+                        toast.show();
                     });
                 }
                 isPlaying = false;
@@ -279,20 +270,17 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
                 if (currentIndex < items.size()) {
                     Context context = getUpnpClient().getContext();
                     if (context instanceof Activity) {
-                        ((Activity) context).runOnUiThread(new Runnable() {
-                            public void run() {
-                                Toast toast = Toast.makeText(getContext(), getContext()
-                                        .getResources().getString(R.string.play)
-                                        + getPositionString(), Toast.LENGTH_SHORT);
-                                toast.show();
-                            }
+                        ((Activity) context).runOnUiThread(() -> {
+                            Toast toast = Toast.makeText(getContext(), getContext()
+                                    .getResources().getString(R.string.play)
+                                    + getPositionString(), Toast.LENGTH_SHORT);
+                            toast.show();
                         });
                     }
                     isPlaying = true;
                     if (paused) {
                         doResume();
                     } else {
-                        paused = false;
                         loadItem(previousIndex, currentIndex);
                     }
                     setProcessingCommand(false);
@@ -323,13 +311,11 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
                 currentIndex = 0;
                 Context context = getUpnpClient().getContext();
                 if (context instanceof Activity) {
-                    ((Activity) context).runOnUiThread(new Runnable() {
-                        public void run() {
-                            Toast toast = Toast.makeText(getContext(), getContext()
-                                    .getResources().getString(R.string.stop)
-                                    + getPositionString(), Toast.LENGTH_SHORT);
-                            toast.show();
-                        }
+                    ((Activity) context).runOnUiThread(() -> {
+                        Toast toast = Toast.makeText(getContext(), getContext()
+                                .getResources().getString(R.string.stop)
+                                + getPositionString(), Toast.LENGTH_SHORT);
+                        toast.show();
                     });
                 }
                 if (items.size() > 0) {
@@ -457,7 +443,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
     }
 
     protected void loadItem(int previousIndex, int nextIndex) {
-        if (items == null || items.size() == 0)
+        if (items.size() == 0)
             return;
         PlayableItem playableItem = items.get(nextIndex);
         Object loadedItem = loadItem(nextIndex);
@@ -592,12 +578,9 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
     /**
      * Returns the notification id of the player
      *
-     * @return
+     * @return the notification id
      */
-    protected int getNotificationId() {
-
-        return 0;
-    }
+    abstract protected int getNotificationId();
 
     /**
      * Returns the intent which is to be started by pushing the notification
@@ -624,7 +607,6 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
     @Override
     public void onDestroy() {
         stop();
-        int i = 0;
         cancleNotification();
         items.clear();
         if (playerService != null) {
@@ -701,7 +683,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
         execTime.add(Calendar.SECOND, getSyncInfo().getOffset().getSecond());
         execTime.add(Calendar.MILLISECOND, getSyncInfo().getOffset().getMillis());
         Log.d(getClass().getName(), "ReferencedRepresentationTimeOffset: " + getSyncInfo().getReferencedPresentationTimeOffset());
-        Log.d(getClass().getName(), "current time: " + new Date().toString() + " get execution time: " + execTime.getTime().toString());
+        Log.d(getClass().getName(), "current time: " + new Date() + " get execution time: " + execTime.getTime());
         if (execTime.getTime().getTime() <= System.currentTimeMillis()) {
             Log.d(getClass().getName(), "ExecutionTime is in past!! We will start immediately");
             return null;

@@ -37,7 +37,6 @@ import org.seamless.util.MimeType;
 
 import java.net.URI;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
@@ -57,11 +56,11 @@ public class MusicArtistFolderBrowser extends ContentBrowser {
     public DIDLObject browseMeta(YaaccContentDirectory contentDirectory,
                                  String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
 
-        MusicAlbum folder = new MusicAlbum(myId,
+        return new MusicAlbum(myId,
                 ContentDirectoryIDs.MUSIC_ARTISTS_FOLDER.getId(), getName(
                 contentDirectory, myId), "yaacc", getSize(
                 contentDirectory, myId));
-        return folder;
+
     }
 
     private String getName(YaaccContentDirectory contentDirectory, String myId) {
@@ -106,14 +105,14 @@ public class MusicArtistFolderBrowser extends ContentBrowser {
     public List<Container> browseContainer(
             YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
 
-        return new ArrayList<Container>();
+        return new ArrayList<>();
     }
 
     @SuppressLint("Range")
     @Override
     public List<Item> browseItem(YaaccContentDirectory contentDirectory,
                                  String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
-        List<Item> result = new ArrayList<Item>();
+        List<Item> result = new ArrayList<>();
         String[] projection = {MediaStore.Audio.Media._ID,
                 MediaStore.Audio.Media.DISPLAY_NAME,
                 MediaStore.Audio.Media.MIME_TYPE,
@@ -209,13 +208,7 @@ public class MusicArtistFolderBrowser extends ContentBrowser {
                 Log.d(getClass().getName(), "System media store is empty.");
             }
         }
-        Collections.sort(result, new Comparator<Item>() {
-
-            @Override
-            public int compare(Item lhs, Item rhs) {
-                return lhs.getTitle().compareTo(rhs.getTitle());
-            }
-        });
+        result.sort(Comparator.comparing(DIDLObject::getTitle));
         return result;
 
     }

@@ -80,7 +80,7 @@ public class SyncAVTransportPlayer extends AbstractPlayer {
      * @param upnpClient     the client
      * @param name           playerName
      */
-    public SyncAVTransportPlayer(UpnpClient upnpClient, Device receiverDevice, String name, String shortName, String contentType) {
+    public SyncAVTransportPlayer(UpnpClient upnpClient, Device<?, ?, ?> receiverDevice, String name, String shortName, String contentType) {
         this(upnpClient);
         deviceId = receiverDevice.getIdentity().getUdn().getIdentifierString();
         setName(name);
@@ -277,9 +277,9 @@ public class SyncAVTransportPlayer extends AbstractPlayer {
         Log.d(getClass().getName(), "Put id into intent: " + getId());
         notificationIntent.setData(Uri.parse("http://0.0.0.0/" + getId() + "")); //just for making the intents different http://stackoverflow.com/questions/10561419/scheduling-more-than-one-pendingintent-to-same-activity-using-alarmmanager
         notificationIntent.putExtra(PLAYER_ID, getId());
-        PendingIntent contentIntent = PendingIntent.getActivity(getContext(), 0,
+        return PendingIntent.getActivity(getContext(), 0,
                 notificationIntent, PendingIntent.FLAG_IMMUTABLE);
-        return contentIntent;
+
     }
 
     /*
@@ -374,7 +374,7 @@ public class SyncAVTransportPlayer extends AbstractPlayer {
                 actionState.actionFinished = true;
             }
         };
-        Future callbackFuture = getUpnpClient().getControlPoint().execute(actionCallback);
+        Future<?> callbackFuture = getUpnpClient().getControlPoint().execute(actionCallback);
         while (!callbackFuture.isDone() || !callbackFuture.isCancelled()) ;
         if (callbackFuture.isDone()) {
             getSyncInfo().setOffset(new SyncOffset(result));
@@ -477,13 +477,11 @@ public class SyncAVTransportPlayer extends AbstractPlayer {
                 cancelTimer();
                 Context context = getUpnpClient().getContext();
                 if (context instanceof Activity) {
-                    ((Activity) context).runOnUiThread(new Runnable() {
-                        public void run() {
-                            Toast toast = Toast.makeText(getContext(), getContext()
-                                    .getResources().getString(R.string.pause)
-                                    + getPositionString(), Toast.LENGTH_SHORT);
-                            toast.show();
-                        }
+                    ((Activity) context).runOnUiThread(() -> {
+                        Toast toast = Toast.makeText(getContext(), getContext()
+                                .getResources().getString(R.string.pause)
+                                + getPositionString(), Toast.LENGTH_SHORT);
+                        toast.show();
                     });
                 }
                 setPlaying(false);
@@ -511,13 +509,11 @@ public class SyncAVTransportPlayer extends AbstractPlayer {
                 if (getCurrentIndex() < getItems().size()) {
                     Context context = getUpnpClient().getContext();
                     if (context instanceof Activity) {
-                        ((Activity) context).runOnUiThread(new Runnable() {
-                            public void run() {
-                                Toast toast = Toast.makeText(getContext(), getContext()
-                                        .getResources().getString(R.string.play)
-                                        + getPositionString(), Toast.LENGTH_SHORT);
-                                toast.show();
-                            }
+                        ((Activity) context).runOnUiThread(() -> {
+                            Toast toast = Toast.makeText(getContext(), getContext()
+                                    .getResources().getString(R.string.play)
+                                    + getPositionString(), Toast.LENGTH_SHORT);
+                            toast.show();
                         });
                     }
                     // Start the pictureShow
@@ -548,13 +544,11 @@ public class SyncAVTransportPlayer extends AbstractPlayer {
                 setCurrentIndex(0);
                 Context context = getUpnpClient().getContext();
                 if (context instanceof Activity) {
-                    ((Activity) context).runOnUiThread(new Runnable() {
-                        public void run() {
-                            Toast toast = Toast.makeText(getContext(), getContext()
-                                    .getResources().getString(R.string.stop)
-                                    + getPositionString(), Toast.LENGTH_SHORT);
-                            toast.show();
-                        }
+                    ((Activity) context).runOnUiThread(() -> {
+                        Toast toast = Toast.makeText(getContext(), getContext()
+                                .getResources().getString(R.string.stop)
+                                + getPositionString(), Toast.LENGTH_SHORT);
+                        toast.show();
                     });
                 }
                 setPlaying(false);
@@ -606,7 +600,7 @@ public class SyncAVTransportPlayer extends AbstractPlayer {
 
             @Override
             public void received(ActionInvocation actionInvocation, boolean currentMute) {
-                actionState.result = Boolean.valueOf(currentMute);
+                actionState.result = currentMute;
 
             }
         };
@@ -622,7 +616,7 @@ public class SyncAVTransportPlayer extends AbstractPlayer {
         } else {
             watchdog.cancel();
         }
-        return actionState.result == null ? false : (Boolean) actionState.result;
+        return actionState.result != null && (Boolean) actionState.result;
 
 
     }
@@ -704,7 +698,7 @@ public class SyncAVTransportPlayer extends AbstractPlayer {
 
             @Override
             public void received(ActionInvocation actionInvocation, int currentVolume) {
-                actionState.result = Integer.valueOf(currentVolume);
+                actionState.result = currentVolume;
 
             }
         };
@@ -879,9 +873,9 @@ public class SyncAVTransportPlayer extends AbstractPlayer {
 
     private static class InternalSetAVTransportURI extends SetAVTransportURI {
         public boolean hasFailures = false;
-        ActionState actionState = null;
+        ActionState actionState;
 
-        private InternalSetAVTransportURI(UnsignedIntegerFourBytes instanceId, Service service, String uri,
+        private InternalSetAVTransportURI(UnsignedIntegerFourBytes instanceId, Service<?, ?> service, String uri,
                                           ActionState actionState, String metadata) {
             super(instanceId, service, uri, metadata);
             this.actionState = actionState;

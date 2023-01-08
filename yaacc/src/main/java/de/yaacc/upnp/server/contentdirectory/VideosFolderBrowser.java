@@ -52,9 +52,9 @@ public class VideosFolderBrowser extends ContentBrowser {
     @Override
     public DIDLObject browseMeta(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
 
-        StorageFolder videosFolder = new StorageFolder(ContentDirectoryIDs.VIDEOS_FOLDER.getId(), ContentDirectoryIDs.ROOT.getId(), getContext().getString(R.string.videos), "yaacc", getSize(contentDirectory, myId),
+        return new StorageFolder(ContentDirectoryIDs.VIDEOS_FOLDER.getId(), ContentDirectoryIDs.ROOT.getId(), getContext().getString(R.string.videos), "yaacc", getSize(contentDirectory, myId),
                 907000L);
-        return videosFolder;
+
     }
 
     private Integer getSize(YaaccContentDirectory contentDirectory, String myId) {
@@ -70,12 +70,12 @@ public class VideosFolderBrowser extends ContentBrowser {
     @Override
     public List<Container> browseContainer(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
 
-        return new ArrayList<Container>();
+        return new ArrayList<>();
     }
 
     @Override
     public List<Item> browseItem(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
-        List<Item> result = new ArrayList<Item>();
+        List<Item> result = new ArrayList<>();
         String[] projection = {MediaStore.Video.Media._ID, MediaStore.Video.Media.DISPLAY_NAME, MediaStore.Video.Media.MIME_TYPE,
                 MediaStore.Video.Media.SIZE, MediaStore.Video.Media.DURATION};
         String selection = "";

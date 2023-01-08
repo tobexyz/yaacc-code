@@ -32,8 +32,8 @@ import de.yaacc.upnp.UpnpClient;
  */
 public class ServerListClickListener implements OnItemClickListener {
 
-    private UpnpClient upnpClient;
-    private Fragment parent;
+    private final UpnpClient upnpClient;
+    private final Fragment parent;
 
     public ServerListClickListener(UpnpClient upnpClient, Fragment parent) {
         this.upnpClient = upnpClient;
@@ -43,7 +43,7 @@ public class ServerListClickListener implements OnItemClickListener {
     @Override
     public void onItemClick(AdapterView<?> listView, View arg1, int position, long id) {
         BrowseDeviceAdapter adapter = (BrowseDeviceAdapter) listView.getAdapter();
-        upnpClient.setProviderDevice((Device) adapter.getItem(position));
+        upnpClient.setProviderDevice((Device<?, ?, ?>) adapter.getItem(position));
         if (parent.getActivity() instanceof TabBrowserActivity) {
             ((TabBrowserActivity) parent.getActivity()).setCurrentTab(BrowserTabs.CONTENT);
         }

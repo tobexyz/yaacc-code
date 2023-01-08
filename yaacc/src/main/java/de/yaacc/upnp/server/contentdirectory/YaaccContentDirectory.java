@@ -18,6 +18,8 @@
  */
 package de.yaacc.upnp.server.contentdirectory;
 
+import static java.util.Arrays.stream;
+
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.preference.PreferenceManager;
@@ -68,6 +70,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import de.yaacc.R;
 import de.yaacc.upnp.server.YaaccUpnpServerService;
@@ -78,7 +81,7 @@ import de.yaacc.upnp.server.YaaccUpnpServerService;
  *
  * @author Tobias Schoene (tobexyz)
  */
-@UpnpService(serviceId = @UpnpServiceId("ContentDirectory"), serviceType = @UpnpServiceType(value = "ContentDirectory", version = 1))
+@UpnpService(serviceId = @UpnpServiceId("ContentDirectory"), serviceType = @UpnpServiceType(value = "ContentDirectory"))
 @UpnpStateVariables({
         @UpnpStateVariable(name = "A_ARG_TYPE_ObjectID", sendEvents = false, datatype = "string"),
         @UpnpStateVariable(name = "A_ARG_TYPE_Result", sendEvents = false, datatype = "string"),
@@ -90,7 +93,7 @@ import de.yaacc.upnp.server.YaaccUpnpServerService;
         @UpnpStateVariable(name = "A_ARG_TYPE_UpdateID", sendEvents = false, datatype = "ui4"),
         @UpnpStateVariable(name = "A_ARG_TYPE_URI", sendEvents = false, datatype = "uri")})
 public class YaaccContentDirectory {
-    public static final String CAPS_WILDCARD = "*";
+
     private static final Pattern IPV4_PATTERN =
             Pattern.compile(
                     "^(25[0-5]|2[0-4]\\d|[0-1]?\\d?\\d)(\\.(25[0-5]|2[0-4]\\d|[0-1]?\\d?\\d)){3}$");
@@ -101,11 +104,11 @@ public class YaaccContentDirectory {
     final private PropertyChangeSupport propertyChangeSupport = new PropertyChangeSupport(
             this);
     // test content only
-    private Map<String, DIDLObject> content = new HashMap<String, DIDLObject>();
-    private Context context;
-    private SharedPreferences preferences;
-    @UpnpStateVariable(sendEvents = true, defaultValue = "0", eventMaximumRateMilliseconds = 200)
-    private UnsignedIntegerFourBytes systemUpdateID = new UnsignedIntegerFourBytes(
+    private final Map<String, DIDLObject> content = new HashMap<>();
+    private final Context context;
+    private final SharedPreferences preferences;
+    @UpnpStateVariable(defaultValue = "0", eventMaximumRateMilliseconds = 200)
+    private final UnsignedIntegerFourBytes systemUpdateID = new UnsignedIntegerFourBytes(
             0);
 
     public YaaccContentDirectory(Context context) {
@@ -116,9 +119,7 @@ public class YaaccContentDirectory {
             createTestContentDirectory();
         }
         this.searchCapabilities = new CSVString();
-        this.searchCapabilities.addAll(searchCapabilities);
         this.sortCapabilities = new CSVString();
-        this.sortCapabilities.addAll(sortCapabilities);
     }
 
     private boolean isUsingTestContent() {
@@ -162,10 +163,10 @@ public class YaaccContentDirectory {
         String creator = "freetestdata.com";
         PersonWithRole artist = new PersonWithRole(creator, "");
         MimeType mimeType = new MimeType("audio", "mpeg");
-        List<MusicTrack> result = new ArrayList<MusicTrack>();
+        List<MusicTrack> result = new ArrayList<>();
         Res res = new Res(
                 new ProtocolInfo(Protocol.HTTP_GET, ProtocolInfo.WILDCARD, mimeType.toString(), ProtocolInfo.WILDCARD),
-                123456l,
+                123456L,
                 "00:01:27",
                 26752L,
                 "https://freetestdata.com/wp-content/uploads/2021/09/Free_Test_Data_2MB_MP3.mp3");
@@ -192,7 +193,7 @@ public class YaaccContentDirectory {
                 artist,
                 new Res(
                         new ProtocolInfo(Protocol.HTTP_GET, ProtocolInfo.WILDCARD, mimeType.toString(), ProtocolInfo.WILDCARD),
-                        123456l,
+                        123456L,
                         "00:01:49",
                         8192L,
                         "https://freetestdata.com/wp-content/uploads/2021/09/Free_Test_Data_2MB_OGG.ogg"));
@@ -205,14 +206,13 @@ public class YaaccContentDirectory {
 
     private List<Photo> createPhotos(String parentId) {
 
-        String album = null;
-        String creator = null;
+
         MimeType mimeType = new MimeType("image", "jpeg");
-        List<Photo> result = new ArrayList<Photo>();
+        List<Photo> result = new ArrayList<>();
 
         String url = "https://cdn.pixabay.com/photo/2015/04/23/22/00/tree-736881_960_720.jpg";
 
-        Photo photo = new Photo("201", parentId, url, creator, album, new Res(
+        Photo photo = new Photo("201", parentId, url, null, null, new Res(
                 new ProtocolInfo(Protocol.HTTP_GET, ProtocolInfo.WILDCARD, mimeType.toString(), ProtocolInfo.WILDCARD), 123456L, url));
         photo.setRestricted(true);
         photo.setClazz(new DIDLObject.Class("object.item.imageItem"));
@@ -221,7 +221,7 @@ public class YaaccContentDirectory {
 
         url = "https://cdn.pixabay.com/photo/2016/08/11/23/48/italy-1587287_960_720.jpg";
 
-        photo = new Photo("202", parentId, url, creator, album, new Res(
+        photo = new Photo("202", parentId, url, null, null, new Res(
                 new ProtocolInfo(Protocol.HTTP_GET, ProtocolInfo.WILDCARD, mimeType.toString(), ProtocolInfo.WILDCARD), 123456L, url));
         photo.setRestricted(true);
         photo.setClazz(new DIDLObject.Class("object.item.imageItem"));
@@ -231,7 +231,7 @@ public class YaaccContentDirectory {
         url = "https://cdn.pixabay.com/photo/2014/09/10/00/59/utah-440520_960_720.jpg";
 
         addContent(photo.getId(), photo);
-        photo = new Photo("203", parentId, url, creator, album, new Res(
+        photo = new Photo("203", parentId, url, null, null, new Res(
                 new ProtocolInfo(Protocol.HTTP_GET, ProtocolInfo.WILDCARD, mimeType.toString(), ProtocolInfo.WILDCARD), 123456L, url));
         photo.setRestricted(true);
         photo.setClazz(new DIDLObject.Class("object.item.imageItem"));
@@ -239,7 +239,7 @@ public class YaaccContentDirectory {
 
         url = "https://cdn.pixabay.com/photo/2017/01/04/21/00/fireworks-1953253_960_720.jpg";
 
-        photo = new Photo("204", parentId, url, creator, album, new Res(
+        photo = new Photo("204", parentId, url, null, null, new Res(
                 new ProtocolInfo(Protocol.HTTP_GET, ProtocolInfo.WILDCARD, mimeType.toString(), ProtocolInfo.WILDCARD), 123456L, url));
         photo.setRestricted(true);
         photo.setClazz(new DIDLObject.Class("object.item.imageItem"));
@@ -248,7 +248,7 @@ public class YaaccContentDirectory {
 
         url = "https://cdn.pixabay.com/photo/2013/07/27/05/13/lighthouse-168132_960_720.jpg";
 
-        photo = new Photo("205", parentId, url, creator, album, new Res(
+        photo = new Photo("205", parentId, url, null, null, new Res(
                 mimeType, 123456L, url));
         photo.setRestricted(true);
         photo.setClazz(new DIDLObject.Class("object.item.imageItem"));
@@ -346,9 +346,9 @@ public class YaaccContentDirectory {
         Log.d(getClass().getName(), "Browse: objectId: " + objectID
                 + " browseFlag: " + browseFlag + " filter: " + filter
                 + " firstResult: " + firstResult + " maxResults: " + maxResults
-                + " orderby: " + orderby);
-        int childCount = 0;
-        DIDLObject didlObject = null;
+                + " orderby: " + stream(orderby).map(SortCriterion::toString).collect(Collectors.joining(",")));
+        int childCount;
+        DIDLObject didlObject;
         DIDLContent didl = new DIDLContent();
         if (isUsingTestContent()) {
             didlObject = content.get(objectID);
@@ -383,11 +383,7 @@ public class YaaccContentDirectory {
                     didl.addObject(didlObject);
                     childCount = 1;
                 } else {
-                    childCount = 0;
-
-
                     List<DIDLObject> children = findBrowserFor(objectID).browseChildren(this, objectID, firstResult, maxResults, orderby);
-
                     for (DIDLObject child : children) {
                         didl.addObject(child);
                         childCount++;
@@ -397,10 +393,7 @@ public class YaaccContentDirectory {
                 }
             }
         }
-
-
-        BrowseResult result = null;
-
+        BrowseResult result;
         try {
             // Generate output with nested items
             String didlXml = new DIDLParser().generate(didl, false);
@@ -481,7 +474,8 @@ public class YaaccContentDirectory {
                     for (Enumeration<InetAddress> inetAddresses = networkInterface
                             .getInetAddresses(); inetAddresses.hasMoreElements(); ) {
                         InetAddress inetAddress = inetAddresses.nextElement();
-                        if (!inetAddress.isLoopbackAddress()
+                        if (!inetAddress.isLoopbackAddress() && inetAddress
+                                .getHostAddress() != null
                                 && IPV4_PATTERN.matcher(inetAddress
                                 .getHostAddress()).matches()) {
 
@@ -501,8 +495,8 @@ public class YaaccContentDirectory {
     }
 
     public String formatDuration(String millisStr) {
-        String res = "";
-        long duration = Long.valueOf(millisStr);
+        String res;
+        long duration = Long.parseLong(millisStr);
         long hours = TimeUnit.MILLISECONDS.toHours(duration)
                 - TimeUnit.DAYS.toHours(TimeUnit.MILLISECONDS.toDays(duration));
         long minutes = TimeUnit.MILLISECONDS.toMinutes(duration)
@@ -520,4 +514,6 @@ public class YaaccContentDirectory {
         // SimpleDateFormat df = new SimpleDateFormat("HH:mm:ss");
         // return df.format(d);
     }
+
+
 }

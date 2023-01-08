@@ -56,7 +56,7 @@ public class ServerListFragment extends Fragment implements
      */
     private SharedPreferences getPreferences() {
         return PreferenceManager
-                .getDefaultSharedPreferences(getActivity().getApplicationContext());
+                .getDefaultSharedPreferences(requireActivity().getApplicationContext());
 
     }
 
@@ -68,8 +68,8 @@ public class ServerListFragment extends Fragment implements
 
     public boolean onBackPressed() {
         Log.d(ServerListFragment.class.getName(), "onBackPressed()");
-        ((Yaacc) getActivity().getApplicationContext()).exit();
-        ServerListFragment.super.getActivity().finish();
+        ((Yaacc) requireActivity().getApplicationContext()).exit();
+        ServerListFragment.super.requireActivity().finish();
         return true;
     }
 
@@ -80,14 +80,12 @@ public class ServerListFragment extends Fragment implements
         //FIXME: Cache should be able to decide whether it is used for browsing or for devices lists
         IconDownloadCacheHandler.getInstance().resetCache();
         if (getActivity() != null) {
-            getActivity().runOnUiThread(new Runnable() {
-                public void run() {
-                    ListView deviceList = contentList;
-                    deviceList.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
-                    BrowseDeviceAdapter bDeviceAdapter = new BrowseDeviceAdapter(getActivity(), new LinkedList<Device>(upnpClient.getDevicesProvidingContentDirectoryService()));
-                    deviceList.setAdapter(bDeviceAdapter);
-                    deviceList.setOnItemClickListener(new ServerListClickListener(upnpClient, ServerListFragment.this));
-                }
+            getActivity().runOnUiThread(() -> {
+                ListView deviceList = contentList;
+                deviceList.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
+                BrowseDeviceAdapter bDeviceAdapter = new BrowseDeviceAdapter(getActivity(), new LinkedList<>(upnpClient.getDevicesProvidingContentDirectoryService()));
+                deviceList.setAdapter(bDeviceAdapter);
+                deviceList.setOnItemClickListener(new ServerListClickListener(upnpClient, ServerListFragment.this));
             });
         }
     }
@@ -101,8 +99,8 @@ public class ServerListFragment extends Fragment implements
         populateDeviceList();
 
         if (upnpClient.getProviderDevice() != null && upnpClient.getProviderDevice().equals(device)) {
-            if (getActivity().getParent() instanceof TabBrowserActivity) {
-                ((TabBrowserActivity) getActivity().getParent()).setCurrentTab(BrowserTabs.CONTENT);
+            if (requireActivity().getParent() instanceof TabBrowserActivity) {
+                ((TabBrowserActivity) requireActivity().getParent()).setCurrentTab(BrowserTabs.CONTENT);
             }
         }
     }
@@ -126,21 +124,15 @@ public class ServerListFragment extends Fragment implements
     @Override
     public void onResume() {
         super.onResume();
-        Thread thread = new Thread(new Runnable() {
-
-            @Override
-            public void run() {
-                //refresh device list
-                populateDeviceList();
-            }
-        });
+        //refresh device list
+        Thread thread = new Thread(this::populateDeviceList);
         thread.start();
     }
 
     private void init(Bundle savedInstanceState, View view) {
 
         // local server startup
-        upnpClient = ((Yaacc) getActivity().getApplicationContext()).getUpnpClient();
+        upnpClient = ((Yaacc) requireActivity().getApplicationContext()).getUpnpClient();
 
 
         // Define where to show the folder contents for media
@@ -150,13 +142,7 @@ public class ServerListFragment extends Fragment implements
         // add ourself as listener
         upnpClient.addUpnpClientListener(this);
 
-        Thread thread = new Thread(new Runnable() {
-
-            @Override
-            public void run() {
-                populateDeviceList();
-            }
-        });
+        Thread thread = new Thread(this::populateDeviceList);
         thread.start();
     }
 

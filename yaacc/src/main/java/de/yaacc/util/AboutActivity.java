@@ -45,12 +45,9 @@ public class AboutActivity extends Activity {
         try {
             String app_ver = this.getPackageManager().getPackageInfo(
                     this.getPackageName(), 0).versionName;
-            TextView textView = (TextView) findViewById(R.id.about_descrip);
+            TextView textView = findViewById(R.id.about_descrip);
             CharSequence aboutText = textView.getText();
-            StringBuilder aboutTextBuilder = new StringBuilder();
-            aboutTextBuilder.append("Yet Another Android Client Controller\nVersion: ").append(app_ver).append("\n\n")
-                    .append(aboutText);
-            textView.setText(aboutTextBuilder.toString());
+            textView.setText("Yet Another Android Client Controller\nVersion: " + app_ver + "\n\n" + aboutText);
         } catch (NameNotFoundException e) {
             Log.d(getClass().getName(), "Can't find version", e);
         }

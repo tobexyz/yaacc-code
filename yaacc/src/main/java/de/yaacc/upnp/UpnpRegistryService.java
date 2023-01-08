@@ -82,7 +82,7 @@ public class UpnpRegistryService extends Service {
 
     protected YaaccUpnpServiceConfiguration createConfiguration() {
 
-        return new YaaccUpnpServiceConfiguration(this);
+        return new YaaccUpnpServiceConfiguration();
     }
 
     public UpnpService getUpnpService() {

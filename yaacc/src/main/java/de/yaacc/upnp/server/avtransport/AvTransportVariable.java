@@ -39,11 +39,11 @@ public class AvTransportVariable {
         @Override
         protected TransportAction[] enumValueOf(String[] names) {
             if (names == null) return new TransportAction[0];
-            List<TransportAction> list = new ArrayList();
+            List<TransportAction> list = new ArrayList<>();
             for (String s : names) {
                 list.add(TransportAction.valueOf(s));
             }
-            return list.toArray(new TransportAction[list.size()]);
+            return list.toArray(new TransportAction[]{});
         }
     }
 

@@ -41,6 +41,8 @@ import android.widget.ImageView;
 import android.widget.RelativeLayout;
 import android.widget.Toast;
 
+import androidx.core.content.res.ResourcesCompat;
+
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
@@ -107,7 +109,7 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver, Serv
 
     }
 
-    @SuppressWarnings("unchecked")
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         Log.d(this.getClass().getName(), "OnCreate");
@@ -134,10 +136,10 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver, Serv
         getWindow().clearFlags(
                 WindowManager.LayoutParams.FLAG_ALLOW_LOCK_WHILE_SCREEN_ON);
         setContentView(R.layout.activity_image_viewer);
-        imageView = this.<ImageView>findViewById(R.id.imageView);
+        imageView = findViewById(R.id.imageView);
         ActivitySwipeDetector activitySwipeDetector = new ActivitySwipeDetector(
                 this);
-        RelativeLayout layout = this.findViewById(R.id.layout);
+        RelativeLayout layout = findViewById(R.id.layout);
         layout.setOnTouchListener(activitySwipeDetector);
         currentImageIndex = 0;
         imageUris = new ArrayList<>();
@@ -171,14 +173,12 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver, Serv
         if (imageUris.size() > 0) {
             loadImage();
         } else {
-            runOnUiThread(new Runnable() {
-                public void run() {
-                    Toast toast = Toast.makeText(ImageViewerActivity.this,
-                            R.string.no_valid_uri_data_found_to_display,
-                            Toast.LENGTH_LONG);
-                    toast.show();
-                    menuBarsHide();
-                }
+            runOnUiThread(() -> {
+                Toast toast = Toast.makeText(ImageViewerActivity.this,
+                        R.string.no_valid_uri_data_found_to_display,
+                        Toast.LENGTH_LONG);
+                toast.show();
+                menuBarsHide();
             });
         }
     }
@@ -236,38 +236,46 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver, Serv
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         Intent i;
-        switch (item.getItemId()) {
-            case R.id.menu_settings:
-                i = new Intent(this, SettingsActivity.class);
-                startActivity(i);
-                return true;
-            case R.id.menu_next:
-                next();
-                return true;
-            case R.id.menu_pause:
-                pause();
-                return true;
-            case R.id.menu_play:
-                play();
-                return true;
-            case R.id.menu_previous:
-                previous();
-                return true;
-            case R.id.menu_stop:
-                stop();
-                return true;
-            case R.id.yaacc_log:
-                YaaccLogActivity.showLog(this);
-                return true;
-            case R.id.yaacc_about:
-                AboutActivity.showAbout(this);
-                return true;
-            case R.id.menu_exit:
-                exit();
-                return true;
-            default:
-                return super.onOptionsItemSelected(item);
+        if (item.getItemId() == R.id.menu_settings) {
+
+            i = new Intent(this, SettingsActivity.class);
+            startActivity(i);
+            return true;
         }
+        if (item.getItemId() == R.id.menu_next) {
+            next();
+            return true;
+        }
+        if (item.getItemId() == R.id.menu_pause) {
+            pause();
+            return true;
+        }
+        if (item.getItemId() == R.id.menu_play) {
+            play();
+            return true;
+        }
+        if (item.getItemId() == R.id.menu_previous) {
+            previous();
+            return true;
+        }
+        if (item.getItemId() == R.id.menu_stop) {
+            stop();
+            return true;
+        }
+        if (item.getItemId() == R.id.yaacc_log) {
+            YaaccLogActivity.showLog(this);
+            return true;
+        }
+        if (item.getItemId() == R.id.yaacc_about) {
+            AboutActivity.showAbout(this);
+            return true;
+        }
+        if (item.getItemId() == R.id.menu_exit) {
+            exit();
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
+
     }
 
     private void exit() {
@@ -318,13 +326,11 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver, Serv
             return;
         isProcessingCommand = true;
         if (currentImageIndex < imageUris.size()) {
-            runOnUiThread(new Runnable() {
-                public void run() {
-                    Toast toast = Toast.makeText(ImageViewerActivity.this,
-                            getResources().getString(R.string.play)
-                                    + getPositionString(), Toast.LENGTH_SHORT);
-                    toast.show();
-                }
+            runOnUiThread(() -> {
+                Toast toast = Toast.makeText(ImageViewerActivity.this,
+                        getResources().getString(R.string.play)
+                                + getPositionString(), Toast.LENGTH_SHORT);
+                toast.show();
             });
 // Start the pictureShow
             pictureShowActive = true;
@@ -357,13 +363,11 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver, Serv
         isProcessingCommand = true;
         cancleTimer();
         currentImageIndex = 0;
-        runOnUiThread(new Runnable() {
-            public void run() {
-                Toast toast = Toast.makeText(ImageViewerActivity.this,
-                        getResources().getString(R.string.stop)
-                                + getPositionString(), Toast.LENGTH_SHORT);
-                toast.show();
-            }
+        runOnUiThread(() -> {
+            Toast toast = Toast.makeText(ImageViewerActivity.this,
+                    getResources().getString(R.string.stop)
+                            + getPositionString(), Toast.LENGTH_SHORT);
+            toast.show();
         });
         showDefaultImage();
         pictureShowActive = false;
@@ -383,8 +387,8 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver, Serv
      *
      */
     private void showDefaultImage() {
-        imageView.setImageDrawable(getResources().getDrawable(
-                R.drawable.yaacc192_32));
+        imageView.setImageDrawable(ResourcesCompat.getDrawable(getResources(),
+                R.drawable.yaacc192_32, getTheme()));
     }
 
     /**
@@ -395,13 +399,11 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver, Serv
             return;
         isProcessingCommand = true;
         cancleTimer();
-        runOnUiThread(new Runnable() {
-            public void run() {
-                Toast toast = Toast.makeText(ImageViewerActivity.this,
-                        getResources().getString(R.string.pause)
-                                + getPositionString(), Toast.LENGTH_SHORT);
-                toast.show();
-            }
+        runOnUiThread(() -> {
+            Toast toast = Toast.makeText(ImageViewerActivity.this,
+                    getResources().getString(R.string.pause)
+                            + getPositionString(), Toast.LENGTH_SHORT);
+            toast.show();
         });
         pictureShowActive = false;
         isProcessingCommand = false;
@@ -523,11 +525,7 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver, Serv
 
     @Override
     public void beginOnTouchProcessing(View v, MotionEvent event) {
-        runOnUiThread(new Runnable() {
-            public void run() {
-                menuBarsShow();
-            }
-        });
+        runOnUiThread(this::menuBarsShow);
     }
 
     @Override
@@ -543,11 +541,7 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver, Serv
         menuHideTimer.schedule(new TimerTask() {
             @Override
             public void run() {
-                runOnUiThread(new Runnable() {
-                    public void run() {
-                        menuBarsHide();
-                    }
-                });
+                runOnUiThread(() -> menuBarsHide());
             }
         }, 5000);
     }

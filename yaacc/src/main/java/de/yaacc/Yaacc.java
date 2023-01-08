@@ -27,7 +27,6 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.os.BatteryManager;
-import android.os.Build;
 import android.os.PowerManager;
 import android.preference.PreferenceManager;
 import android.util.Log;
@@ -55,8 +54,8 @@ import de.yaacc.util.NotificationId;
 public class Yaacc extends Application {
     public static final String NOTIFICATION_CHANNEL_ID = "YaaccNotifications";
     public static final String NOTIFICATION_GROUP_KEY = "Yaacc";
+    private final HashMap<String, PowerManager.WakeLock> wakeLocks = new HashMap<>();
     private UpnpClient upnpClient;
-    private HashMap<String, PowerManager.WakeLock> wakeLocks = new HashMap<>();
     private Executor contentLoadThreadPool;
 
 
@@ -66,7 +65,7 @@ public class Yaacc extends Application {
         createNotificationChannel();
         upnpClient = new UpnpClient(this);
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
-        Integer numThreads = Integer.valueOf(preferences.getString(getString(R.string.settings_browse_load_threads_key), "10"));
+        int numThreads = Integer.parseInt(preferences.getString(getString(R.string.settings_browse_load_threads_key), "10"));
         Log.d(getClass().getName(), "Number of Threads used for content loading: " + numThreads);
         if (numThreads <= 0) {
             Log.d(getClass().getName(), "Number of Threads invalid using 10 threads instead: " + numThreads);
@@ -88,17 +87,14 @@ public class Yaacc extends Application {
     public boolean isUnplugged() {
         Intent intent = registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
         int plugged = intent.getIntExtra(BatteryManager.EXTRA_PLUGGED, -1);
-        boolean unplugged = false;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
-            unplugged = plugged == BatteryManager.BATTERY_PLUGGED_WIRELESS;
-        }
+        boolean unplugged = plugged == BatteryManager.BATTERY_PLUGGED_WIRELESS;
         return !(plugged == BatteryManager.BATTERY_PLUGGED_AC ||
                 plugged == BatteryManager.BATTERY_PLUGGED_USB ||
                 unplugged);
 
     }
 
-    public void aquireWakeLock(long timeout, String tag) {
+    public void acquireWakeLock(long timeout, String tag) {
 
         if (!wakeLocks.containsKey(tag)) {
             PowerManager powerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);

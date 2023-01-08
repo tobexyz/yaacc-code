@@ -28,65 +28,64 @@ import android.util.Log;
  */
 public class ImageViewerBroadcastReceiver extends BroadcastReceiver {
 
-	public static String ACTION_PLAY = "de.yaacc.imageviewer.ActionPlay";
-	public static String ACTION_STOP = "de.yaacc.imageviewer.ActionStop";
-	public static String ACTION_PAUSE = "de.yaacc.imageviewer.ActionPause";
-	public static String ACTION_NEXT = "de.yaacc.imageviewer.ActionNext";
-	public static String ACTION_PREVIOUS = "de.yaacc.imageviewer.ActionPrevious";
-	public static String ACTION_EXIT = "de.yaacc.imageviewer.ActionExit";
+    public static String ACTION_PLAY = "de.yaacc.imageviewer.ActionPlay";
+    public static String ACTION_STOP = "de.yaacc.imageviewer.ActionStop";
+    public static String ACTION_PAUSE = "de.yaacc.imageviewer.ActionPause";
+    public static String ACTION_NEXT = "de.yaacc.imageviewer.ActionNext";
+    public static String ACTION_PREVIOUS = "de.yaacc.imageviewer.ActionPrevious";
+    public static String ACTION_EXIT = "de.yaacc.imageviewer.ActionExit";
 
 
-	private ImageViewerActivity imageViewer;
+    private final ImageViewerActivity imageViewer;
 
-	public ImageViewerBroadcastReceiver() {
-	}
+    @SuppressWarnings("unused")
+    public ImageViewerBroadcastReceiver() {
+        this.imageViewer = null;
+    }
 
-	/**
-	 *
-	 */
-	public ImageViewerBroadcastReceiver(ImageViewerActivity imageViewer) {
-		Log.d(this.getClass().getName(), "Starting Broadcast Receiver...");
-		assert (imageViewer != null);
-		this.imageViewer = imageViewer;
+    public ImageViewerBroadcastReceiver(ImageViewerActivity imageViewer) {
+        Log.d(this.getClass().getName(), "Starting Broadcast Receiver...");
+        assert (imageViewer != null);
+        this.imageViewer = imageViewer;
 
-	}
+    }
 
-	/* (non-Javadoc)
-	 * @see android.content.BroadcastReceiver#onReceive(android.content.Context, android.content.Intent)
-	 */
-	@Override
-	public void onReceive(Context context, Intent intent) {
-		Log.d(this.getClass().getName(), "Received Action: " + intent.getAction());
-		if (imageViewer == null) return;
-		Log.d(this.getClass().getName(), "Execute Action on imageViewer: " + imageViewer);
-		if (ACTION_PLAY.equals(intent.getAction())) {
-			imageViewer.play();
-		} else if (ACTION_PAUSE.equals(intent.getAction())) {
-			imageViewer.pause();
-		} else if (ACTION_STOP.equals(intent.getAction())) {
-			imageViewer.stop();
-		} else if (ACTION_PREVIOUS.equals(intent.getAction())) {
-			imageViewer.previous();
-		} else if (ACTION_NEXT.equals(intent.getAction())) {
-			imageViewer.next();
-		} else if (ACTION_EXIT.equals(intent.getAction())) {
-			imageViewer.finish();
-		}
-
-
-	}
-
-	public void registerReceiver() {
-		Log.d(this.getClass().getName(), "Register Receiver");
-		IntentFilter intentFilter = new IntentFilter();
-		intentFilter.addAction(ACTION_PLAY);
-		intentFilter.addAction(ACTION_PAUSE);
-		intentFilter.addAction(ACTION_NEXT);
-		intentFilter.addAction(ACTION_PREVIOUS);
-		intentFilter.addAction(ACTION_STOP);
-		imageViewer.registerReceiver(this, intentFilter);
+    /* (non-Javadoc)
+     * @see android.content.BroadcastReceiver#onReceive(android.content.Context, android.content.Intent)
+     */
+    @Override
+    public void onReceive(Context context, Intent intent) {
+        Log.d(this.getClass().getName(), "Received Action: " + intent.getAction());
+        if (imageViewer == null) return;
+        Log.d(this.getClass().getName(), "Execute Action on imageViewer: " + imageViewer);
+        if (ACTION_PLAY.equals(intent.getAction())) {
+            imageViewer.play();
+        } else if (ACTION_PAUSE.equals(intent.getAction())) {
+            imageViewer.pause();
+        } else if (ACTION_STOP.equals(intent.getAction())) {
+            imageViewer.stop();
+        } else if (ACTION_PREVIOUS.equals(intent.getAction())) {
+            imageViewer.previous();
+        } else if (ACTION_NEXT.equals(intent.getAction())) {
+            imageViewer.next();
+        } else if (ACTION_EXIT.equals(intent.getAction())) {
+            imageViewer.finish();
+        }
 
 
-	}
+    }
+
+    public void registerReceiver() {
+        Log.d(this.getClass().getName(), "Register Receiver");
+        IntentFilter intentFilter = new IntentFilter();
+        intentFilter.addAction(ACTION_PLAY);
+        intentFilter.addAction(ACTION_PAUSE);
+        intentFilter.addAction(ACTION_NEXT);
+        intentFilter.addAction(ACTION_PREVIOUS);
+        intentFilter.addAction(ACTION_STOP);
+        imageViewer.registerReceiver(this, intentFilter);
+
+
+    }
 
 }

@@ -32,7 +32,7 @@ public abstract class SyncStop extends ActionCallback {
     private static Logger log = Logger.getLogger(SyncStop.class.getName());
 
 
-    public SyncStop(UnsignedIntegerFourBytes instanceId, Service service, String stopTime, String referenceClockId) {
+    public SyncStop(UnsignedIntegerFourBytes instanceId, Service<?, ?> service, String stopTime, String referenceClockId) {
         super(new ActionInvocation(service.getAction("SyncStop")));
         getActionInvocation().setInput("InstanceID", instanceId);
         getActionInvocation().setInput("StopTime", stopTime);

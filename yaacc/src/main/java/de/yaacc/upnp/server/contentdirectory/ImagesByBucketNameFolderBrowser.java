@@ -54,9 +54,8 @@ public class ImagesByBucketNameFolderBrowser extends ContentBrowser {
     @Override
     public DIDLObject browseMeta(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
 
-        PhotoAlbum photoAlbum = new PhotoAlbum(myId, ContentDirectoryIDs.IMAGES_BY_BUCKET_NAMES_FOLDER.getId(), getName(
+        return new PhotoAlbum(myId, ContentDirectoryIDs.IMAGES_BY_BUCKET_NAMES_FOLDER.getId(), getName(
                 contentDirectory, myId), "yaacc", getSize(contentDirectory, myId));
-        return photoAlbum;
     }
 
     private Integer getSize(YaaccContentDirectory contentDirectory, String myId) {
@@ -94,13 +93,13 @@ public class ImagesByBucketNameFolderBrowser extends ContentBrowser {
     @Override
     public List<Container> browseContainer(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
 
-        return new ArrayList<Container>();
+        return new ArrayList<>();
     }
 
     @SuppressLint("Range")
     @Override
     public List<Item> browseItem(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
-        List<Item> result = new ArrayList<Item>();
+        List<Item> result = new ArrayList<>();
         // Query for all images on external storage
         String[] projection = {MediaStore.Images.Media._ID, MediaStore.Images.Media.DISPLAY_NAME, MediaStore.Images.Media.MIME_TYPE,
                 MediaStore.Images.Media.SIZE, MediaStore.Images.Media.DATE_TAKEN};

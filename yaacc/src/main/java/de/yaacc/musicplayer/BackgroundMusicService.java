@@ -22,7 +22,7 @@ import android.app.Notification;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Intent;
-import android.media.AudioManager;
+import android.media.AudioAttributes;
 import android.media.MediaPlayer;
 import android.net.Uri;
 import android.os.Binder;
@@ -44,8 +44,8 @@ import de.yaacc.util.NotificationId;
  */
 public class BackgroundMusicService extends Service {
     public static final String URIS = "URIS_PARAM"; // String Intent parameter
+    private final IBinder binder = new BackgroundMusicServiceBinder();
     private MediaPlayer player;
-    private IBinder binder = new BackgroundMusicServiceBinder();
     private BackgroundMusicBroadcastReceiver backgroundMusicBroadcastReceiver;
     private int duration = 0;
     //private boolean prepared  = false;
@@ -174,7 +174,7 @@ public class BackgroundMusicService extends Service {
     /**
      * Seeks to position
      *
-     * @param pos
+     * @param pos the position
      */
     public void seekTo(long pos) {
         if (player != null) {
@@ -190,7 +190,7 @@ public class BackgroundMusicService extends Service {
     /**
      * change music uri
      *
-     * @param uri
+     * @param uri the uri to play
      */
     public void setMusicUri(Uri uri) {
         Log.d(this.getClass().getName(), "changing datasource uri to:" + uri.toString());
@@ -209,16 +209,14 @@ public class BackgroundMusicService extends Service {
         player.setVolume(100, 100);
         //prepared= false;
         try {
-            player.setAudioStreamType(AudioManager.STREAM_MUSIC);
+            player.setAudioAttributes(
+                    new AudioAttributes.Builder()
+                            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                            .build());
             player.setDataSource(this, uri);
 
 
-            player.setOnPreparedListener(new MediaPlayer.OnPreparedListener() {
-                @Override
-                public void onPrepared(MediaPlayer mediaPlayer) {
-                    duration = player.getDuration();
-                }
-            });
+            player.setOnPreparedListener(mediaPlayer -> duration = player.getDuration());
             //player.prepareAsync();
 
             player.prepare();

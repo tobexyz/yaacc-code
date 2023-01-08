@@ -50,7 +50,7 @@ public class SettingsFragment extends PreferenceFragment implements UpnpClientLi
 
 
     private void populateDeviceLists() {
-        LinkedList<Device> devices = new LinkedList<Device>();
+        LinkedList<Device<?, ?, ?>> devices = new LinkedList<>();
         // TODO: populate with found devices
 
         UpnpClient upnpClient = ((Yaacc) getActivity().getApplicationContext()).getUpnpClient();
@@ -64,27 +64,26 @@ public class SettingsFragment extends PreferenceFragment implements UpnpClientLi
             ListPreference providerLp = (ListPreference) findPreference(getString(R.string.settings_selected_provider_title));
 
             // One entry per found device for providing media data
-            ArrayList<CharSequence> providerEntries = new ArrayList<CharSequence>();
-            ArrayList<CharSequence> providerEntryValues = new ArrayList<CharSequence>();
-            for (Device currentDevice : devices) {
+            ArrayList<CharSequence> providerEntries = new ArrayList<>();
+            ArrayList<CharSequence> providerEntryValues = new ArrayList<>();
+            for (Device<?, ?, ?> currentDevice : devices) {
                 providerEntries.add(currentDevice.getDisplayString());
                 providerEntryValues.add(currentDevice.getIdentity().getUdn()
                         .getIdentifierString());
             }
 
             providerLp.setEntries(providerEntries
-                    .toArray(new CharSequence[providerEntries.size()]));
+                    .toArray(new CharSequence[]{}));
             providerLp.setEntryValues(providerEntryValues
-                    .toArray(new CharSequence[providerEntries.size()]));
+                    .toArray(new CharSequence[]{}));
 
-            devices = new LinkedList<Device>();
-            devices.addAll(upnpClient.getDevicesProvidingAvTransportService());
+            devices = new LinkedList<>(upnpClient.getDevicesProvidingAvTransportService());
 
             // One entry per found device for receiving media data
             MultiSelectListPreference receiverMsLp = (MultiSelectListPreference) findPreference(getString(R.string.settings_selected_receivers_title));
-            ArrayList<CharSequence> receiverEntries = new ArrayList<CharSequence>();
-            ArrayList<CharSequence> receiverEntryValues = new ArrayList<CharSequence>();
-            for (Device currentDevice : devices) {
+            ArrayList<CharSequence> receiverEntries = new ArrayList<>();
+            ArrayList<CharSequence> receiverEntryValues = new ArrayList<>();
+            for (Device<?, ?, ?> currentDevice : devices) {
                 receiverEntries.add(currentDevice.getDisplayString());
                 receiverEntryValues.add(currentDevice.getIdentity().getUdn()
                         .getIdentifierString());
@@ -92,9 +91,9 @@ public class SettingsFragment extends PreferenceFragment implements UpnpClientLi
 
 
             receiverMsLp.setEntries(receiverEntries
-                    .toArray(new CharSequence[receiverEntries.size()]));
+                    .toArray(new CharSequence[]{}));
             receiverMsLp.setEntryValues(receiverEntryValues
-                    .toArray(new CharSequence[receiverEntries.size()]));
+                    .toArray(new CharSequence[]{}));
         }
     }
 

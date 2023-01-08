@@ -38,16 +38,16 @@ import org.fourthline.cling.transport.spi.StreamServer;
 
 public class YaaccUpnpServiceConfiguration extends DefaultUpnpServiceConfiguration {
 
-    private static int PORT = 49154;
-    private final UpnpRegistryService upnpService;
+    private static final int PORT = 49154;
 
-    public YaaccUpnpServiceConfiguration(UpnpRegistryService upnpService) {
-        this(upnpService, PORT); // Ephemeral port
+
+    public YaaccUpnpServiceConfiguration() {
+        this(PORT);
     }
 
-    public YaaccUpnpServiceConfiguration(UpnpRegistryService upnpService, int streamListenPort) {
+    public YaaccUpnpServiceConfiguration(int streamListenPort) {
         super(streamListenPort, false);
-        this.upnpService = upnpService;
+
         // This should be the default on Android 2.1 but it's not set by default
         //FIXME really needed? System.setProperty("org.xml.sax.driver", "org.xmlpull.v1.sax2.Driver");
     }
@@ -71,7 +71,7 @@ public class YaaccUpnpServiceConfiguration extends DefaultUpnpServiceConfigurati
     }
 
     @Override
-    public StreamClient createStreamClient() {
+    public StreamClient<YaaccStreamingClientConfigurationImpl> createStreamClient() {
         return new YaaccStreamingClientImpl(
                 new YaaccStreamingClientConfigurationImpl(
                         getSyncProtocolExecutorService()
@@ -80,7 +80,7 @@ public class YaaccUpnpServiceConfiguration extends DefaultUpnpServiceConfigurati
     }
 
     @Override
-    public StreamServer createStreamServer(ProtocolFactory protocolFactory, NetworkAddressFactory networkAddressFactory) {
+    public StreamServer<YaaccAsyncStreamServerConfigurationImpl> createStreamServer(ProtocolFactory protocolFactory, NetworkAddressFactory networkAddressFactory) {
 
         return new YaaccAsyncStreamServerImpl(protocolFactory,
                 new YaaccAsyncStreamServerConfigurationImpl(networkAddressFactory.getStreamListenPort())

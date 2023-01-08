@@ -46,14 +46,14 @@ import de.yaacc.util.image.IconDownloadTask;
  * @author Christoph Hähnel (eyeless)
  */
 public class BrowseReceiverDeviceAdapter extends BaseAdapter {
-    LinkedList<Device> devices;
-    private LayoutInflater inflator;
-    private LinkedList<Device> selectedDevices;
+    private final LayoutInflater inflator;
+    private final LinkedList<Device<?, ?, ?>> selectedDevices;
+    private LinkedList<Device<?, ?, ?>> devices;
 
-    public BrowseReceiverDeviceAdapter(Context ctx, Collection<Device> devices, Collection<Device> selectedDevices) {
+    public BrowseReceiverDeviceAdapter(Context ctx, Collection<Device<?, ?, ?>> devices, Collection<Device<?, ?, ?>> selectedDevices) {
         super();
-        this.devices = new LinkedList<Device>(devices);
-        this.selectedDevices = new LinkedList<Device>(selectedDevices);
+        this.devices = new LinkedList<>(devices);
+        this.selectedDevices = new LinkedList<>(selectedDevices);
         inflator = LayoutInflater.from(ctx);
     }
 
@@ -91,13 +91,13 @@ public class BrowseReceiverDeviceAdapter extends BaseAdapter {
             Log.d(getClass().getName(), "view already there");
             holder = (ViewHolder) convertView.getTag();
         }
-        Device device = (Device) getItem(position);
+        Device<?, ?, ?> device = (Device<?, ?, ?>) getItem(position);
         if (device instanceof RemoteDevice && device.hasIcons()) {
             if (device.hasIcons()) {
                 Icon[] icons = device.getIcons();
-                for (int i = 0; i < icons.length; i++) {
-                    if (48 == icons[i].getHeight() && 48 == icons[i].getWidth() && "image/png".equals(icons[i].getMimeType().toString())) {
-                        URL iconUri = ((RemoteDevice) device).normalizeURI(icons[i].getUri());
+                for (Icon icon : icons) {
+                    if (48 == icon.getHeight() && 48 == icon.getWidth() && "image/png".equals(icon.getMimeType().toString())) {
+                        URL iconUri = ((RemoteDevice) device).normalizeURI(icon.getUri());
                         if (iconUri != null) {
                             Log.d(getClass().getName(), "Device icon uri:" + iconUri);
                             new IconDownloadTask((ListView) parent, position).execute(Uri.parse(iconUri.toString()));
@@ -120,7 +120,7 @@ public class BrowseReceiverDeviceAdapter extends BaseAdapter {
     }
 
     public void setDevices(Collection<Device<?, ?, ?>> devices) {
-        this.devices = new LinkedList<Device>();
+        this.devices = new LinkedList<>();
         this.devices.addAll(devices);
     }
 

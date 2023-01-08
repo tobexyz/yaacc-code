@@ -79,7 +79,7 @@ public class BrowseItemAdapter extends BaseAdapter implements AbsListView.OnScro
         inflator = LayoutInflater.from(ctx);
         context = ctx;
         this.navigator = navigator;
-        asyncTasks = new ArrayList<AsyncTask>();
+        asyncTasks = new ArrayList<>();
         allItemsFetched = false;
         loadMore();
 
@@ -277,7 +277,7 @@ public class BrowseItemAdapter extends BaseAdapter implements AbsListView.OnScro
             return;
         if (loading || allItemsFetched) return;
         setLoading(true);
-        Long from = getCount() - 0L;
+        Long from = (long) getCount();
 
         Log.d(getClass().getName(), "loadMore from: " + from);
 

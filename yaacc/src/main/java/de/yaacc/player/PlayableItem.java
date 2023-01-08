@@ -31,11 +31,11 @@ import org.fourthline.cling.support.model.item.Item;
  */
 public class PlayableItem {
 
+    private final Item item;
     private String mimeType;
     private String title;
     private Uri uri;
     private long duration;
-    private Item item;
 
 
     public PlayableItem(Item item, int defaultDuration) {
@@ -59,18 +59,18 @@ public class PlayableItem {
                 try {
                     String[] tokens = resource.getDuration().split(":");
                     if (tokens.length > 0) {
-                        millis = Long.valueOf(tokens[0]) * 3600;
+                        millis = Long.parseLong(tokens[0]) * 3600;
                     }
                     if (tokens.length > 1) {
-                        millis += Long.valueOf(tokens[1]) * 60;
+                        millis += Long.parseLong(tokens[1]) * 60;
                     }
                     if (tokens.length > 2) {
                         String seconds = tokens[2];
                         if (tokens[2].contains(".")) {
-                            Log.d(getClass().getName(), "tokens[2]: " + tokens[2] + "spli: " + tokens[2].split(".").length);
+                            Log.d(getClass().getName(), "tokens[2]: " + tokens[2] + "spli: " + tokens[2].split("\\.").length);
                             seconds = tokens[2].split("\\.")[0];
                         }
-                        millis += Long.valueOf(seconds);
+                        millis += Long.parseLong(seconds);
                     }
                     millis = millis * 1000;
                     Log.d(getClass().getName(), "resource.getDuration(): " + resource.getDuration() + " millis: " + millis);

@@ -53,17 +53,17 @@ import de.yaacc.util.NotificationId;
 public class LocalImagePlayer implements Player, ServiceConnection {
 
 
+    private final UpnpClient upnpClient;
     private Timer commandExecutionTimer;
     private String name;
     private String shortName;
-    private UpnpClient upnpClient;
     private SynchronizationInfo syncInfo;
     private PendingIntent notificationIntent;
     private PlayerService playerService;
 
 
     /**
-     * @param upnpClient
+     * @param upnpClient upnpClient
      * @param name       playerName
      */
     public LocalImagePlayer(UpnpClient upnpClient, String name, String shortName) {
@@ -74,9 +74,7 @@ public class LocalImagePlayer implements Player, ServiceConnection {
 
     }
 
-    /**
-     * @param upnpClient
-     */
+
     public LocalImagePlayer(UpnpClient upnpClient) {
         this.upnpClient = upnpClient;
     }
@@ -101,8 +99,10 @@ public class LocalImagePlayer implements Player, ServiceConnection {
 
     public void onServiceDisconnected(ComponentName className) {
         Log.d("ServiceConnection", "disconnected");
+        if (playerService != null) {
+            playerService.removePlayer(this);
+        }
         playerService = null;
-        playerService.removePlayer(this);
     }
 
 
@@ -247,9 +247,9 @@ public class LocalImagePlayer implements Player, ServiceConnection {
         Intent intent = new Intent(upnpClient.getContext(), ImageViewerActivity.class);
         intent.setAction(Intent.ACTION_VIEW);
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        ArrayList<Uri> uris = new ArrayList<Uri>();
-        for (int i = 0; i < items.length; i++) {
-            uris.add(items[i].getUri());
+        ArrayList<Uri> uris = new ArrayList<>();
+        for (PlayableItem item : items) {
+            uris.add(item.getUri());
         }
         intent.putExtra(ImageViewerActivity.URIS, uris);
         upnpClient.getContext().startActivity(intent);
@@ -341,7 +341,7 @@ public class LocalImagePlayer implements Player, ServiceConnection {
     /**
      * Displays the notification.
      *
-     * @param uris
+     * @param uris uris
      */
     private void showNotification(ArrayList<Uri> uris) {
 

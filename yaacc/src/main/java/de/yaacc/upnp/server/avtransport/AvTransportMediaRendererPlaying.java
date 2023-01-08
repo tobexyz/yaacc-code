@@ -45,7 +45,7 @@ import de.yaacc.upnp.UpnpClient;
  * @author Tobias Schoene (openbit)
  */
 public class AvTransportMediaRendererPlaying extends Playing<AvTransport> implements YaaccState {
-    private UpnpClient upnpClient;
+    private final UpnpClient upnpClient;
     private boolean updateTime;
     private List<Player> players = null;
 
@@ -75,7 +75,7 @@ public class AvTransportMediaRendererPlaying extends Playing<AvTransport> implem
                 || getTransport().getPositionInfo().getTrackURI().equals("")) {
             return;
         }
-        players = upnpClient.initializePlayers((AvTransport) getTransport());
+        players = upnpClient.initializePlayers(getTransport());
         for (Player player : players) {
             player.play();
         }
@@ -178,7 +178,7 @@ public class AvTransportMediaRendererPlaying extends Playing<AvTransport> implem
             SimpleDateFormat dateFormat = new SimpleDateFormat("HH:mm:ss");
             dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
             try {
-                Long millisecondsFromStart = dateFormat.parse(target).getTime();
+                Long millisecondsFromStart = (target != null && dateFormat.parse(target) != null) ? dateFormat.parse(target).getTime() : 0L;
                 for (Player player : players) {
                     if (player != null) {
                         player.seekTo(millisecondsFromStart);
@@ -194,27 +194,27 @@ public class AvTransportMediaRendererPlaying extends Playing<AvTransport> implem
 
     @Override
     public Class<? extends AbstractState<?>> syncPlay(String speed, String referencedPositionUnits, String referencedPosition, String referencedPresentationTime, String referencedClockId) {
-        ((AvTransport) getTransport()).getSynchronizationInfo().setSpeed(speed);
-        ((AvTransport) getTransport()).getSynchronizationInfo().setReferencedPositionUnits(referencedPositionUnits);
-        ((AvTransport) getTransport()).getSynchronizationInfo().setReferencedPosition(referencedPosition);
-        ((AvTransport) getTransport()).getSynchronizationInfo().setReferencedPresentationTime(referencedPresentationTime);
-        ((AvTransport) getTransport()).getSynchronizationInfo().setReferencedClockId(referencedClockId);
+        getTransport().getSynchronizationInfo().setSpeed(speed);
+        getTransport().getSynchronizationInfo().setReferencedPositionUnits(referencedPositionUnits);
+        getTransport().getSynchronizationInfo().setReferencedPosition(referencedPosition);
+        getTransport().getSynchronizationInfo().setReferencedPresentationTime(referencedPresentationTime);
+        getTransport().getSynchronizationInfo().setReferencedClockId(referencedClockId);
         updateTime = true;
         return AvTransportMediaRendererPlaying.class;
     }
 
     @Override
     public Class<? extends AbstractState<?>> syncPause(String referencedPresentationTime, String referencedClockId) {
-        ((AvTransport) getTransport()).getSynchronizationInfo().setReferencedPresentationTime(referencedPresentationTime);
-        ((AvTransport) getTransport()).getSynchronizationInfo().setReferencedClockId(referencedClockId);
+        getTransport().getSynchronizationInfo().setReferencedPresentationTime(referencedPresentationTime);
+        getTransport().getSynchronizationInfo().setReferencedClockId(referencedClockId);
         updateTime = false;
         return AvTransportMediaRendererPaused.class;
     }
 
     @Override
     public Class<? extends AbstractState<?>> syncStop(String referencedPresentationTime, String referencedClockId) {
-        ((AvTransport) getTransport()).getSynchronizationInfo().setReferencedPresentationTime(referencedPresentationTime);
-        ((AvTransport) getTransport()).getSynchronizationInfo().setReferencedClockId(referencedClockId);
+        getTransport().getSynchronizationInfo().setReferencedPresentationTime(referencedPresentationTime);
+        getTransport().getSynchronizationInfo().setReferencedClockId(referencedClockId);
         updateTime = false;
         return AvTransportMediaRendererStopped.class;
     }

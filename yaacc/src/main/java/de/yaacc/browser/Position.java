@@ -17,6 +17,8 @@
  */
 package de.yaacc.browser;
 
+import androidx.annotation.NonNull;
+
 import java.io.Serializable;
 
 /**
@@ -24,8 +26,8 @@ import java.io.Serializable;
  */
 public class Position implements Serializable {
 
-    private String objectId;
-    private String deviceId;
+    private final String objectId;
+    private final String deviceId;
 
     public Position(String objectId, String deviceId) {
 
@@ -45,6 +47,7 @@ public class Position implements Serializable {
     /* (non-Javadoc)
      * @see java.lang.Object#toString()
      */
+    @NonNull
     @Override
     public String toString() {
         return "Position ["

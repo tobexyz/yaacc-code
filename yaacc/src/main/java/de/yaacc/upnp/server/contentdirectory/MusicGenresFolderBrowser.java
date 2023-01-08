@@ -32,7 +32,6 @@ import org.fourthline.cling.support.model.container.StorageFolder;
 import org.fourthline.cling.support.model.item.Item;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -53,9 +52,9 @@ public class MusicGenresFolderBrowser extends ContentBrowser {
     @Override
     public DIDLObject browseMeta(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
 
-        StorageFolder folder = new StorageFolder(ContentDirectoryIDs.MUSIC_GENRES_FOLDER.getId(), ContentDirectoryIDs.MUSIC_FOLDER.getId(), getContext().getString(R.string.genres), "yaacc", getSize(contentDirectory, myId),
+        return new StorageFolder(ContentDirectoryIDs.MUSIC_GENRES_FOLDER.getId(), ContentDirectoryIDs.MUSIC_FOLDER.getId(), getContext().getString(R.string.genres), "yaacc", getSize(contentDirectory, myId),
                 907000L);
-        return folder;
+
     }
 
     private Integer getSize(YaaccContentDirectory contentDirectory, String myId) {
@@ -85,11 +84,11 @@ public class MusicGenresFolderBrowser extends ContentBrowser {
 
     @Override
     public List<Container> browseContainer(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
-        List<Container> result = new ArrayList<Container>();
+        List<Container> result = new ArrayList<>();
         String[] projection = {MediaStore.Audio.Genres._ID, MediaStore.Audio.Genres.NAME};
         String selection = "";
         String[] selectionArgs = null;
-        Map<String, MusicAlbum> folderMap = new HashMap<String, MusicAlbum>();
+        Map<String, MusicAlbum> folderMap = new HashMap<>();
         try (Cursor mediaCursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Audio.Genres.EXTERNAL_CONTENT_URI, projection, selection,
                 selectionArgs, MediaStore.Audio.Genres.NAME + " ASC")) {
 
@@ -121,22 +120,15 @@ public class MusicGenresFolderBrowser extends ContentBrowser {
                 Log.d(getClass().getName(), "System media store is empty.");
             }
         }
-        Collections.sort(result, new Comparator<Container>() {
-
-            @Override
-            public int compare(Container lhs, Container rhs) {
-                return lhs.getTitle().compareTo(rhs.getTitle());
-            }
-        });
+        result.sort(Comparator.comparing(DIDLObject::getTitle));
 
         return result;
     }
 
     @Override
     public List<Item> browseItem(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
-        List<Item> result = new ArrayList<Item>();
+        return new ArrayList<>();
 
-        return result;
 
     }
 

@@ -32,10 +32,10 @@ import org.seamless.statemachine.States;
         AvTransportMediaRendererPaused.class
 })
 public interface AvTransportStateMachine extends AVTransportStateMachine {
-    public abstract void syncPlay(String speed, String referencedPositionUnits, String referencedPosition, String referencedPresentationTime, String referencedClockId);
+    void syncPlay(String speed, String referencedPositionUnits, String referencedPosition, String referencedPresentationTime, String referencedClockId);
 
-    public abstract void syncPause(String referencedPresentationTime, String referencedClockId);
+    void syncPause(String referencedPresentationTime, String referencedClockId);
 
-    public abstract void syncStop(String referencedPresentationTime, String referencedClockId);
+    void syncStop(String referencedPresentationTime, String referencedClockId);
 
 }

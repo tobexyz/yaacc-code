@@ -123,7 +123,7 @@ public class ReceiverListFragment extends Fragment implements
 // Define where to show the folder contents
                 ListView deviceList = contentList;
                 deviceList.setChoiceMode(ListView.CHOICE_MODE_MULTIPLE);
-                LinkedList<Device> receiverDevices = new LinkedList<Device>(upnpClient.getDevicesProvidingAvTransportService());
+                LinkedList<Device<?, ?, ?>> receiverDevices = new LinkedList<>(upnpClient.getDevicesProvidingAvTransportService());
                 BrowseReceiverDeviceAdapter bDeviceAdapter = new BrowseReceiverDeviceAdapter(getActivity().getApplicationContext(), receiverDevices, upnpClient.getReceiverDevices());
                 deviceList.setAdapter(bDeviceAdapter);
                 deviceList.setOnItemClickListener(bReceiverDeviceClickListener);

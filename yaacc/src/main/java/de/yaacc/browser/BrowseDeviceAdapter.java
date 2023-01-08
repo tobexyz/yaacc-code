@@ -46,10 +46,10 @@ import de.yaacc.util.image.IconDownloadTask;
  */
 public class BrowseDeviceAdapter extends BaseAdapter {
 
-    LinkedList<Device> devices;
-    private LayoutInflater inflator;
+    private final LayoutInflater inflator;
+    private LinkedList<Device<?, ?, ?>> devices;
 
-    public BrowseDeviceAdapter(Context ctx, LinkedList<Device> devices) {
+    public BrowseDeviceAdapter(Context ctx, LinkedList<Device<?, ?, ?>> devices) {
         super();
 
         this.devices = devices;
@@ -87,13 +87,13 @@ public class BrowseDeviceAdapter extends BaseAdapter {
             holder = (ViewHolder) convertView.getTag();
         }
 
-        Device device = (Device) getItem(position);
+        Device<?, ?, ?> device = (Device<?, ?, ?>) getItem(position);
         if (device instanceof RemoteDevice) {
             if (device.hasIcons()) {
                 Icon[] icons = device.getIcons();
-                for (int i = 0; i < icons.length; i++) {
-                    if (48 == icons[i].getHeight() && 48 == icons[i].getWidth() && "image/png".equals(icons[i].getMimeType().toString())) {
-                        URL iconUri = ((RemoteDevice) device).normalizeURI(icons[i].getUri());
+                for (Icon icon : icons) {
+                    if (48 == icon.getHeight() && 48 == icon.getWidth() && "image/png".equals(icon.getMimeType().toString())) {
+                        URL iconUri = ((RemoteDevice) device).normalizeURI(icon.getUri());
                         if (iconUri != null) {
                             Log.d(getClass().getName(), "Device icon uri:" + iconUri);
                             new IconDownloadTask((ListView) parent, position).execute(Uri.parse(iconUri.toString()));
@@ -115,8 +115,8 @@ public class BrowseDeviceAdapter extends BaseAdapter {
         return convertView;
     }
 
-    public void setDevices(Collection<Device> devices) {
-        this.devices = new LinkedList<Device>();
+    public void setDevices(Collection<Device<?, ?, ?>> devices) {
+        this.devices = new LinkedList<>();
         this.devices.addAll(devices);
     }
 

@@ -33,6 +33,9 @@ public class TabBrowserFragmentStateAdapter extends FragmentStateAdapter {
     @Override
     public Fragment createFragment(int position) {
         BrowserTabs content = BrowserTabs.valueOf(position);
+        if (content == null) {
+            return new ContentListFragment();
+        }
         switch (content) {
             case CONTENT: {
                 return new ContentListFragment();
@@ -47,11 +50,8 @@ public class TabBrowserFragmentStateAdapter extends FragmentStateAdapter {
             case RECEIVER: {
                 return new ReceiverListFragment();
             }
-            default: {
-                return new ContentListFragment();
-            }
         }
-
+        return new ContentListFragment();
 
     }
 

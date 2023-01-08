@@ -27,8 +27,6 @@ import android.os.IBinder;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
-import android.view.View;
-import android.view.View.OnClickListener;
 import android.widget.ImageButton;
 
 import de.yaacc.R;
@@ -83,69 +81,42 @@ public class MultiContentPlayerActivity extends Activity implements ServiceConne
             btnPause.setActivated(true);
             btnExit.setActivated(true);
         }
-        btnPrev.setOnClickListener(new OnClickListener() {
-
-            @Override
-            public void onClick(View v) {
-                Player player = getPlayer();
-                if (player != null) {
-                    player.previous();
-                }
-
+        btnPrev.setOnClickListener(v -> {
+            Player player1 = getPlayer();
+            if (player1 != null) {
+                player1.previous();
             }
+
         });
-        btnNext.setOnClickListener(new OnClickListener() {
-
-            @Override
-            public void onClick(View v) {
-                Player player = getPlayer();
-                if (player != null) {
-                    player.next();
-                }
-
+        btnNext.setOnClickListener(v -> {
+            Player player12 = getPlayer();
+            if (player12 != null) {
+                player12.next();
             }
+
         });
-        btnPlay.setOnClickListener(new OnClickListener() {
-
-            @Override
-            public void onClick(View v) {
-                Player player = getPlayer();
-                if (player != null) {
-                    player.play();
-                }
-
+        btnPlay.setOnClickListener(v -> {
+            Player player13 = getPlayer();
+            if (player13 != null) {
+                player13.play();
             }
+
         });
-        btnPause.setOnClickListener(new OnClickListener() {
-
-            @Override
-            public void onClick(View v) {
-                Player player = getPlayer();
-                if (player != null) {
-                    player.pause();
-                }
-
+        btnPause.setOnClickListener(v -> {
+            Player player14 = getPlayer();
+            if (player14 != null) {
+                player14.pause();
             }
+
         });
-        btnStop.setOnClickListener(new OnClickListener() {
-
-            @Override
-            public void onClick(View v) {
-                Player player = getPlayer();
-                if (player != null) {
-                    player.stop();
-                }
-
+        btnStop.setOnClickListener(v -> {
+            Player player15 = getPlayer();
+            if (player15 != null) {
+                player15.stop();
             }
-        });
-        btnExit.setOnClickListener(new OnClickListener() {
 
-            @Override
-            public void onClick(View v) {
-                exit();
-
-            }
         });
+        btnExit.setOnClickListener(v -> exit());
     }
 
     private void exit() {
@@ -184,23 +155,26 @@ public class MultiContentPlayerActivity extends Activity implements ServiceConne
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
-        switch (item.getItemId()) {
-            case R.id.menu_exit:
-                exit();
-                return true;
-            case R.id.menu_settings:
-                Intent i = new Intent(this, SettingsActivity.class);
-                startActivity(i);
-                return true;
-            case R.id.yaacc_about:
-                AboutActivity.showAbout(this);
-                return true;
-            case R.id.yaacc_log:
-                YaaccLogActivity.showLog(this);
-                return true;
-            default:
-                return super.onOptionsItemSelected(item);
+        if (item.getItemId() == R.id.menu_exit) {
+
+            exit();
+            return true;
         }
+        if (item.getItemId() == R.id.menu_settings) {
+            Intent i = new Intent(this, SettingsActivity.class);
+            startActivity(i);
+            return true;
+        }
+        if (item.getItemId() == R.id.yaacc_about) {
+            AboutActivity.showAbout(this);
+            return true;
+        }
+        if (item.getItemId() == R.id.yaacc_log) {
+            YaaccLogActivity.showLog(this);
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
+
     }
 
 }

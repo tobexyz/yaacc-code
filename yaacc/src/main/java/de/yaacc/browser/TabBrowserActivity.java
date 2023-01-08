@@ -31,6 +31,7 @@ import android.view.MenuItem;
 import android.view.View;
 import android.view.View.OnClickListener;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
@@ -41,6 +42,8 @@ import androidx.viewpager2.widget.ViewPager2;
 import com.google.android.material.tabs.TabLayout;
 
 import org.fourthline.cling.model.meta.Device;
+
+import java.util.Objects;
 
 import de.yaacc.R;
 import de.yaacc.Yaacc;
@@ -58,9 +61,7 @@ import de.yaacc.util.YaaccLogActivity;
  */
 public class TabBrowserActivity extends AppCompatActivity implements OnClickListener,
         UpnpClientListener {
-    //FIXME dirty
-    public static boolean leftSettings = false;
-    private static String[] permissions = new String[]{
+    private static final String[] permissions = new String[]{
             Manifest.permission.INTERNET,
             Manifest.permission.ACCESS_WIFI_STATE,
             Manifest.permission.ACCESS_NETWORK_STATE,
@@ -72,7 +73,9 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
             Manifest.permission.RECEIVE_BOOT_COMPLETED,
             Manifest.permission.WAKE_LOCK
     };
-    private static String CURRENT_TAB_KEY = "currentTab";
+    private static final String CURRENT_TAB_KEY = "currentTab";
+    //FIXME dirty
+    public static boolean leftSettings = false;
     private TabLayout tabLayout;
     private ViewPager2 viewPager;
     private FragmentStateAdapter pagerAdapter;
@@ -84,7 +87,7 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
     private Intent serverService = null;
 
     @Override
-    protected void onSaveInstanceState(Bundle outState) {
+    protected void onSaveInstanceState(@NonNull Bundle outState) {
         super.onSaveInstanceState(outState);
         outState.putInt(CURRENT_TAB_KEY, tabLayout.getSelectedTabPosition());
     }
@@ -136,7 +139,7 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
             @Override
             public void onPageSelected(int position) {
                 super.onPageSelected(position);
-                tabLayout.getTabAt(position).select();
+                Objects.requireNonNull(tabLayout.getTabAt(position)).select();
             }
         });
         if (!checkIfAlreadyhavePermission()) {
@@ -165,12 +168,7 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
     }
 
     public void setCurrentTab(final BrowserTabs content) {
-        runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                tabLayout.getTabAt(content.ordinal()).select();
-            }
-        });
+        runOnUiThread(() -> Objects.requireNonNull(tabLayout.getTabAt(content.ordinal())).select());
 
     }
 
@@ -211,7 +209,7 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
     /**
      * Singleton to avoid multiple instances when switch
      *
-     * @return
+     * @return the intent
      */
     private Intent getYaaccUpnpServerService() {
         if (serverService == null) {
@@ -249,24 +247,27 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
      */
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
-        switch (item.getItemId()) {
-            case R.id.menu_exit:
-                ((Yaacc) getApplicationContext()).exit();
-                return true;
-            case R.id.menu_settings:
-                Intent i = new Intent(this, SettingsActivity.class);
-                startActivity(i);
-                return true;
-            case R.id.yaacc_about:
-                AboutActivity.showAbout(this);
-                return true;
-            case R.id.yaacc_log:
-                YaaccLogActivity.showLog(this);
-                return true;
-            default:
-                return super.onOptionsItemSelected(item);
+        if (item.getItemId() == R.id.menu_exit) {
+
+            ((Yaacc) getApplicationContext()).exit();
+            return true;
         }
+        if (item.getItemId() == R.id.menu_settings) {
+            Intent i = new Intent(this, SettingsActivity.class);
+            startActivity(i);
+            return true;
+        }
+        if (item.getItemId() == R.id.yaacc_about) {
+            AboutActivity.showAbout(this);
+            return true;
+        }
+        if (item.getItemId() == R.id.yaacc_log) {
+            YaaccLogActivity.showLog(this);
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
     }
+
 
     @Override
     public void deviceAdded(Device<?, ?, ?> device) {

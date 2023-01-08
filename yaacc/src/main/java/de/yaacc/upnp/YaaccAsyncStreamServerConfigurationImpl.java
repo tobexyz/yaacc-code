@@ -22,7 +22,7 @@ import org.fourthline.cling.transport.spi.StreamServerConfiguration;
 
 public class YaaccAsyncStreamServerConfigurationImpl implements StreamServerConfiguration {
 
-    protected int listenPort = 0;
+    protected int listenPort;
     protected int asyncTimeoutSeconds = 60;
 
 
@@ -37,9 +37,6 @@ public class YaaccAsyncStreamServerConfigurationImpl implements StreamServerConf
         return listenPort;
     }
 
-    public void setListenPort(int listenPort) {
-        this.listenPort = listenPort;
-    }
 
     /**
      * The time in seconds this server wait for the {@link org.fourthline.cling.transport.Router}
@@ -50,10 +47,4 @@ public class YaaccAsyncStreamServerConfigurationImpl implements StreamServerConf
     public int getAsyncTimeoutSeconds() {
         return asyncTimeoutSeconds;
     }
-
-    public void setAsyncTimeoutSeconds(int asyncTimeoutSeconds) {
-        this.asyncTimeoutSeconds = asyncTimeoutSeconds;
-    }
-
-
 }

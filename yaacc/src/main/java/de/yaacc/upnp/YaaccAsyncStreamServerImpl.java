@@ -22,7 +22,6 @@ import org.apache.hc.core5.http.URIScheme;
 import org.apache.hc.core5.http.impl.bootstrap.HttpAsyncServer;
 import org.apache.hc.core5.http2.impl.nio.bootstrap.H2ServerBootstrap;
 import org.apache.hc.core5.reactor.IOReactorConfig;
-import org.apache.hc.core5.reactor.ListenerEndpoint;
 import org.apache.hc.core5.util.TimeValue;
 import org.fourthline.cling.protocol.ProtocolFactory;
 import org.fourthline.cling.transport.Router;
@@ -31,8 +30,6 @@ import org.fourthline.cling.transport.spi.StreamServer;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -42,11 +39,9 @@ public class YaaccAsyncStreamServerImpl implements StreamServer<YaaccAsyncStream
     final private static Logger log = Logger.getLogger(YaaccAsyncStreamServerImpl.class.getName());
 
     final protected YaaccAsyncStreamServerConfigurationImpl configuration;
+    private final ProtocolFactory protocolFactory;
     protected int localPort;
-    private ExecutorService executorService;
     private HttpAsyncServer server;
-    private Future<ListenerEndpoint> listenerEndpointFuture;
-    private ProtocolFactory protocolFactory;
 
     public YaaccAsyncStreamServerImpl(ProtocolFactory protocolFactory, YaaccAsyncStreamServerConfigurationImpl configuration) {
         this.configuration = configuration;
@@ -67,11 +62,6 @@ public class YaaccAsyncStreamServerImpl implements StreamServer<YaaccAsyncStream
                 try {
                     try {
 
-                        log.info("Setting executor service on stream server");
-
-                        executorService = router.getConfiguration().getStreamServerExecutorService();
-
-
                         log.info("Adding connector: " + bindAddress + ":" + getConfiguration().getListenPort());
 
                         IOReactorConfig config = IOReactorConfig.custom()
@@ -84,12 +74,12 @@ public class YaaccAsyncStreamServerImpl implements StreamServer<YaaccAsyncStream
                                 .register(router.getConfiguration().getNamespace().getBasePath().getPath() + "/*", new YaaccAsyncStreamServerRequestHandler(protocolFactory))
                                 .create();
                         server.start();
-                        listenerEndpointFuture = server.listen(new InetSocketAddress(getConfiguration().getListenPort()), URIScheme.HTTP);
+                        server.listen(new InetSocketAddress(getConfiguration().getListenPort()), URIScheme.HTTP);
                     } catch (Exception ex) {
-                        throw new InitializationException("Could not initialize " + getClass().getSimpleName() + ": " + ex.toString(), ex);
+                        throw new InitializationException("Could not initialize " + getClass().getSimpleName() + ": " + ex, ex);
                     }
                 } catch (Exception e) {
-                    throw new InitializationException("Could run init thread " + getClass().getSimpleName() + ": " + e.toString(), e);
+                    throw new InitializationException("Could run init thread " + getClass().getSimpleName() + ": " + e, e);
                 }
             }
         });

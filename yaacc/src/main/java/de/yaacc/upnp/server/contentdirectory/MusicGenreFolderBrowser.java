@@ -36,7 +36,6 @@ import org.seamless.util.MimeType;
 
 import java.net.URI;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
@@ -56,11 +55,10 @@ public class MusicGenreFolderBrowser extends ContentBrowser {
     public DIDLObject browseMeta(YaaccContentDirectory contentDirectory,
                                  String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
 
-        MusicAlbum folder = new MusicAlbum(myId,
+        return new MusicAlbum(myId,
                 ContentDirectoryIDs.MUSIC_GENRES_FOLDER.getId(), getName(
                 contentDirectory, myId), "yaacc", getSize(
                 contentDirectory, myId));
-        return folder;
     }
 
     private String getName(YaaccContentDirectory contentDirectory, String myId) {
@@ -86,8 +84,8 @@ public class MusicGenreFolderBrowser extends ContentBrowser {
     }
 
     private Integer getSize(YaaccContentDirectory contentDirectory, String myId) {
-        String[] projection = {MediaStore.Audio.Media.GENRE_ID};
-        String selection = MediaStore.Audio.Media.GENRE_ID + "=?";
+        String[] projection = {MediaStore.Audio.Media.GENRE_KEY};
+        String selection = MediaStore.Audio.Media.GENRE_KEY + "=?";
         String[] selectionArgs = new String[]{myId
                 .substring(ContentDirectoryIDs.MUSIC_GENRE_PREFIX.getId()
                 .length())};
@@ -105,15 +103,15 @@ public class MusicGenreFolderBrowser extends ContentBrowser {
     public List<Container> browseContainer(
             YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
 
-        return new ArrayList<Container>();
+        return new ArrayList<>();
     }
 
     @Override
     public List<Item> browseItem(YaaccContentDirectory contentDirectory,
                                  String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
-        List<Item> result = new ArrayList<Item>();
+        List<Item> result = new ArrayList<>();
         String[] projection = {MediaStore.Audio.Media._ID,
-                MediaStore.Audio.Media.GENRE_ID,
+                MediaStore.Audio.Media.GENRE_KEY,
                 MediaStore.Audio.Media.DISPLAY_NAME,
                 MediaStore.Audio.Media.MIME_TYPE,
                 MediaStore.Audio.Media.SIZE,
@@ -126,7 +124,7 @@ public class MusicGenreFolderBrowser extends ContentBrowser {
                 MediaStore.Audio.Media.BITRATE};
         // String selection = MediaStore.Audio.Genres.Members.GENRE_ID + "=?";
         // String[] selectionArgs = new String[]{genreID};
-        String selection = MediaStore.Audio.Media.GENRE_ID + "=?";
+        String selection = MediaStore.Audio.Media.GENRE_KEY + "=?";
         String[] selectionArgs = new String[]{myId
                 .substring(ContentDirectoryIDs.MUSIC_GENRE_PREFIX.getId()
                 .length())};
@@ -220,13 +218,7 @@ public class MusicGenreFolderBrowser extends ContentBrowser {
                 Log.d(getClass().getName(), "System media store is empty.");
             }
         }
-        Collections.sort(result, new Comparator<Item>() {
-
-            @Override
-            public int compare(Item lhs, Item rhs) {
-                return lhs.getTitle().compareTo(rhs.getTitle());
-            }
-        });
+        result.sort(Comparator.comparing(DIDLObject::getTitle));
         return result;
 
     }

@@ -25,10 +25,10 @@ import org.fourthline.cling.model.meta.Device;
 import de.yaacc.upnp.UpnpClient;
 
 public class ControlPlayerTask extends AsyncTask<Integer, Void, Void> {
-    private final Device device;
+    private final Device<?, ?, ?> device;
     private final UpnpClient upnpClient;
 
-    public ControlPlayerTask(UpnpClient upnpClient, Device device) {
+    public ControlPlayerTask(UpnpClient upnpClient, Device<?, ?, ?> device) {
 
         this.upnpClient = upnpClient;
         this.device = device;

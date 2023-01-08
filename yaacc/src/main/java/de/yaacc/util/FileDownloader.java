@@ -54,7 +54,7 @@ public class FileDownloader extends AsyncTask<DIDLObject, Void, Void> {
 
     @Override
     protected Void doInBackground(DIDLObject... didlObjects) {
-        if (didlObjects == null || didlObjects.length == 0 || didlObjects.length > 1) {
+        if (didlObjects == null || didlObjects.length != 1) {
             throw new IllegalStateException("to less or many didlObjects....");
         }
         if (!isExternalStorageWritable()) {
@@ -64,7 +64,9 @@ public class FileDownloader extends AsyncTask<DIDLObject, Void, Void> {
         try {
             File storageDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS) + "/yaacc");
             if (!storageDir.exists()) {
-                storageDir.mkdir();
+                if (!storageDir.mkdir()) {
+                    throw new IllegalStateException("Can't create download directory: " + storageDir);
+                }
             }
             createNotification(storageDir.getAbsolutePath());
             List<Item> items = upnpClient.toItemList(didlObjects[0]);
@@ -88,7 +90,7 @@ public class FileDownloader extends AsyncTask<DIDLObject, Void, Void> {
                     InputStream is = new URL(playableItem.getUri().toString()).openStream();
                     FileOutputStream outputStream = new FileOutputStream(file);
                     byte[] b = new byte[1024];
-                    int len = 0;
+                    int len;
                     while ((len = is.read(b)) != -1) {
                         outputStream.write(b, 0, len);
                     }
@@ -110,20 +112,7 @@ public class FileDownloader extends AsyncTask<DIDLObject, Void, Void> {
     /* Checks if external storage is available for read and write */
     private boolean isExternalStorageWritable() {
         String state = Environment.getExternalStorageState();
-        if (Environment.MEDIA_MOUNTED.equals(state)) {
-            return true;
-        }
-        return false;
-    }
-
-    /* Checks if external storage is available to at least read */
-    private boolean isExternalStorageReadable() {
-        String state = Environment.getExternalStorageState();
-        if (Environment.MEDIA_MOUNTED.equals(state) ||
-                Environment.MEDIA_MOUNTED_READ_ONLY.equals(state)) {
-            return true;
-        }
-        return false;
+        return Environment.MEDIA_MOUNTED.equals(state);
     }
 
     /**

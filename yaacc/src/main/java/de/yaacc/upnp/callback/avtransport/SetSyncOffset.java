@@ -29,9 +29,9 @@ import java.util.logging.Logger;
  */
 public abstract class SetSyncOffset extends ActionCallback {
 
-    private static Logger log = Logger.getLogger(SetSyncOffset.class.getName());
+    private final static Logger log = Logger.getLogger(SetSyncOffset.class.getName());
 
-    public SetSyncOffset(UnsignedIntegerFourBytes instanceId, Service service, String syncOffset) {
+    public SetSyncOffset(UnsignedIntegerFourBytes instanceId, Service<?, ?> service, String syncOffset) {
         super(new ActionInvocation(service.getAction("SetSyncOffset")));
         getActionInvocation().setInput("InstanceID", instanceId);
         getActionInvocation().setInput("NewSyncOffset", syncOffset);

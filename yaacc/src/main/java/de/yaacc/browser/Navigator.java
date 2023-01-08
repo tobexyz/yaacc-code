@@ -21,6 +21,7 @@ import android.util.Log;
 
 import java.io.Serializable;
 import java.util.LinkedList;
+import java.util.Objects;
 
 /**
  * Manages navigation path inside device and folder hierarchy.
@@ -30,10 +31,10 @@ import java.util.LinkedList;
 public class Navigator implements Serializable {
 
     public final static String ITEM_ROOT_OBJECT_ID = "0";
-    private LinkedList<Position> navigationPath;
+    private final LinkedList<Position> navigationPath;
 
     public Navigator() {
-        navigationPath = new LinkedList<Position>();
+        navigationPath = new LinkedList<>();
     }
 
     /**
@@ -63,7 +64,7 @@ public class Navigator implements Serializable {
         if (!navigationPath.isEmpty()) {
             result = navigationPath.removeLast();
         }
-        Log.d(getClass().getName(), "popNavigation: " + result.getObjectId());
+        Log.d(getClass().getName(), "popNavigation: " + Objects.requireNonNull(result).getObjectId());
         return result;
     }
 } 

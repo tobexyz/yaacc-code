@@ -22,14 +22,11 @@ import android.app.NotificationManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.os.Build;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
-import android.view.View;
-import android.view.View.OnClickListener;
 import android.widget.Button;
 import android.widget.CheckBox;
 
@@ -50,44 +47,29 @@ public class YaaccUpnpServerControlActivity extends Activity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_yaacc_upnp_server_control);
         // initialize buttons
-        Button startButton = (Button) findViewById(R.id.startServer);
-        startButton.setOnClickListener(new OnClickListener() {
-
-            @Override
-            public void onClick(View v) {
-                start();
-            }
-        });
-        Button stopButton = (Button) findViewById(R.id.stopServer);
-        stopButton.setOnClickListener(new OnClickListener() {
-
-            @Override
-            public void onClick(View v) {
-                stop();
-            }
-        });
+        Button startButton = findViewById(R.id.startServer);
+        startButton.setOnClickListener(v -> start());
+        Button stopButton = findViewById(R.id.stopServer);
+        stopButton.setOnClickListener(v -> stop());
         SharedPreferences preferences = PreferenceManager
                 .getDefaultSharedPreferences(getApplicationContext());
         boolean receiverActive = preferences.getBoolean(getString(R.string.settings_local_server_receiver_chkbx), false);
         Log.d(getClass().getName(), "receiverActive: " + receiverActive);
-        CheckBox receiverCheckBox = (CheckBox) findViewById(R.id.receiverEnabled);
+        CheckBox receiverCheckBox = findViewById(R.id.receiverEnabled);
         receiverCheckBox.setChecked(receiverActive);
         boolean providerActive = preferences.getBoolean(getString(R.string.settings_local_server_provider_chkbx), false);
         Log.d(getClass().getName(), "providerActive: " + providerActive);
-        CheckBox providerCheckBox = (CheckBox) findViewById(R.id.providerEnabled);
+        CheckBox providerCheckBox = findViewById(R.id.providerEnabled);
         providerCheckBox.setChecked(providerActive);
 
 
     }
 
     private void start() {
-        if (Build.VERSION.SDK_INT >= 26) {
-            YaaccUpnpServerControlActivity.this.startForegroundService(new Intent(getApplicationContext(),
-                    YaaccUpnpServerService.class));
-        } else {
-            YaaccUpnpServerControlActivity.this.startService(new Intent(getApplicationContext(),
-                    YaaccUpnpServerService.class));
-        }
+
+        YaaccUpnpServerControlActivity.this.startForegroundService(new Intent(getApplicationContext(),
+                YaaccUpnpServerService.class));
+
 
         SharedPreferences preferences = PreferenceManager
                 .getDefaultSharedPreferences(getApplicationContext());
@@ -117,20 +99,18 @@ public class YaaccUpnpServerControlActivity extends Activity {
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
-        switch (item.getItemId()) {
-            case R.id.menu_exit:
-                exit();
-                return true;
-            case R.id.menu_settings:
-                Intent i = new Intent(this, SettingsActivity.class);
-                startActivity(i);
-                return true;
-            case R.id.yaacc_about:
-                AboutActivity.showAbout(this);
-                return true;
-            default:
-                return super.onOptionsItemSelected(item);
+        if (item.getItemId() == R.id.menu_exit) {
+            exit();
+            return true;
+        } else if (item.getItemId() == R.id.menu_settings) {
+            Intent i = new Intent(this, SettingsActivity.class);
+            startActivity(i);
+            return true;
+        } else if (item.getItemId() == R.id.yaacc_about) {
+            AboutActivity.showAbout(this);
+            return true;
         }
+        return super.onOptionsItemSelected(item);
     }
 
     private void exit() {

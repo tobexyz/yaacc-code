@@ -148,13 +148,13 @@ public class MusicGenreItemBrowser extends ContentBrowser {
     public List<Container> browseContainer(
             YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
 
-        return new ArrayList<Container>();
+        return new ArrayList<>();
     }
 
     @Override
     public List<Item> browseItem(YaaccContentDirectory contentDirectory,
                                  String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
-        List<Item> result = new ArrayList<Item>();
+        List<Item> result = new ArrayList<>();
         result.add((Item) browseMeta(contentDirectory, myId, firstResult, maxResults, orderby));
 
         return result;

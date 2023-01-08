@@ -18,15 +18,15 @@ package org.fourthline.cling.registry;
 import org.fourthline.cling.UpnpService;
 import org.fourthline.cling.UpnpServiceConfiguration;
 import org.fourthline.cling.model.DiscoveryOptions;
-import org.fourthline.cling.model.resource.Resource;
 import org.fourthline.cling.model.ServiceReference;
+import org.fourthline.cling.model.gena.LocalGENASubscription;
+import org.fourthline.cling.model.gena.RemoteGENASubscription;
 import org.fourthline.cling.model.meta.Device;
 import org.fourthline.cling.model.meta.LocalDevice;
 import org.fourthline.cling.model.meta.RemoteDevice;
-import org.fourthline.cling.model.gena.LocalGENASubscription;
-import org.fourthline.cling.model.gena.RemoteGENASubscription;
 import org.fourthline.cling.model.meta.RemoteDeviceIdentity;
 import org.fourthline.cling.model.meta.Service;
+import org.fourthline.cling.model.resource.Resource;
 import org.fourthline.cling.model.types.DeviceType;
 import org.fourthline.cling.model.types.ServiceType;
 import org.fourthline.cling.model.types.UDN;
@@ -61,7 +61,9 @@ import java.util.Collection;
 public interface Registry {
 
     public UpnpService getUpnpService();
+
     public UpnpServiceConfiguration getConfiguration();
+
     public ProtocolFactory getProtocolFactory();
 
     // #################################################################################################
@@ -145,7 +147,7 @@ public interface Registry {
 
     /**
      * @return <code>true</code> if the registry has currently no running background
-     *         maintenance (thread).
+     * maintenance (thread).
      */
     public boolean isPaused();
 
@@ -176,7 +178,7 @@ public interface Registry {
      * </p>
      *
      * @param device The half-hydrated (without services) metadata of the discovered device.
-     * @param ex The cause for the interruption of the discovery protocol.
+     * @param ex     The cause for the interruption of the discovery protocol.
      */
     public void notifyDiscoveryFailure(RemoteDevice device, Exception ex);
 
@@ -194,7 +196,7 @@ public interface Registry {
      * Call this method to add your local device metadata.
      *
      * @param localDevice The device to add and maintain.
-     * @param options Immediately effective when this device is registered.
+     * @param options     Immediately effective when this device is registered.
      * @throws RegistrationException If a conflict with an already registered device was detected.
      */
     public void addDevice(LocalDevice localDevice, DiscoveryOptions options) throws RegistrationException;
@@ -255,21 +257,21 @@ public interface Registry {
     public void removeAllRemoteDevices();
 
     /**
-     * @param udn The device name to lookup.
+     * @param udn      The device name to lookup.
      * @param rootOnly If <code>true</code>, only matches of root devices are returned.
      * @return The registered root or embedded device metadata, or <code>null</code>.
      */
     public Device getDevice(UDN udn, boolean rootOnly);
 
     /**
-     * @param udn The device name to lookup.
+     * @param udn      The device name to lookup.
      * @param rootOnly If <code>true</code>, only matches of root devices are returned.
      * @return The registered root or embedded device metadata, or <code>null</code>.
      */
     public LocalDevice getLocalDevice(UDN udn, boolean rootOnly);
 
     /**
-     * @param udn The device name to lookup.
+     * @param udn      The device name to lookup.
      * @param rootOnly If <code>true</code>, only matches of root devices are returned.
      * @return The registered root or embedded device metadata, or <code>null</code>.
      */
@@ -288,25 +290,25 @@ public interface Registry {
     /**
      * @return All device metadata, in no particular order, or an empty collection.
      */
-    public Collection<Device> getDevices();
+    public Collection<Device<?, ?, ?>> getDevices();
 
     /**
      * @return All device metadata of devices which implement the given type, in no particular order,
-     *         or an empty collection.
+     * or an empty collection.
      */
-    public Collection<Device> getDevices(DeviceType deviceType);
+    public Collection<Device<?, ?, ?>> getDevices(DeviceType deviceType);
 
     /**
      * @return All device metadata of devices which have a service that implements the given type,
-     *         in no particular order, or an empty collection.
+     * in no particular order, or an empty collection.
      */
-    public Collection<Device> getDevices(ServiceType serviceType);
+    public Collection<Device<?, ?, ?>> getDevices(ServiceType serviceType);
 
     /**
      * @return Complete service metadata for a service reference or <code>null</code> if no service
-     *         for the given reference has been registered.
+     * for the given reference has been registered.
      */
-    public Service getService(ServiceReference serviceReference);
+    public Service<?, ?> getService(ServiceReference serviceReference);
 
     // #################################################################################################
 
@@ -323,7 +325,7 @@ public interface Registry {
      * Call this method repeatedly to refresh and prevent expiration of the resource.
      * </p>
      *
-     * @param resource The resource to maintain.
+     * @param resource      The resource to maintain.
      * @param maxAgeSeconds The time after which the registry will automatically remove the resource.
      */
     public void addResource(Resource resource, int maxAgeSeconds);
@@ -345,9 +347,9 @@ public interface Registry {
     public Resource getResource(URI pathQuery) throws IllegalArgumentException;
 
     /**
-     * @param <T> The required subtype of the {@link org.fourthline.cling.model.resource.Resource}.
-     * @param pathQuery The path and optional query string of the resource's
-     *                  registration URI (e.g. <code>/dev/somefile.xml?param=value</code>)
+     * @param <T>          The required subtype of the {@link org.fourthline.cling.model.resource.Resource}.
+     * @param pathQuery    The path and optional query string of the resource's
+     *                     registration URI (e.g. <code>/dev/somefile.xml?param=value</code>)
      * @param resourceType The required subtype of the {@link org.fourthline.cling.model.resource.Resource}.
      * @return Any registered resource that matches the given URI path and subtype.
      * @throws IllegalArgumentException If the given URI was absolute, only path and query are allowed.
@@ -360,7 +362,7 @@ public interface Registry {
     public Collection<Resource> getResources();
 
     /**
-     * @param <T> The required subtype of the {@link org.fourthline.cling.model.resource.Resource}.
+     * @param <T>          The required subtype of the {@link org.fourthline.cling.model.resource.Resource}.
      * @param resourceType The required subtype of the {@link org.fourthline.cling.model.resource.Resource}.
      * @return Any registered resource that matches the given subtype.
      */

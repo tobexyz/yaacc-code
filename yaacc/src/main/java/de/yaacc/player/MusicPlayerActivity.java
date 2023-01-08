@@ -28,18 +28,15 @@ import android.os.IBinder;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
-import android.view.View;
-import android.view.View.OnClickListener;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.SeekBar;
 import android.widget.TextView;
 
-import java.beans.PropertyChangeEvent;
-import java.beans.PropertyChangeListener;
 import java.net.URI;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.Objects;
 import java.util.TimeZone;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -95,20 +92,12 @@ public class MusicPlayerActivity extends Activity implements ServiceConnection {
             btnPause.setActivated(false);
             btnExit.setActivated(false);
         } else {
-            player.addPropertyChangeListener(new PropertyChangeListener() {
-
-                @Override
-                public void propertyChange(PropertyChangeEvent event) {
-                    if (LocalBackgoundMusicPlayer.PROPERTY_ITEM.equals(event.getPropertyName())) {
-                        runOnUiThread(new Runnable() {
-                            public void run() {
-                                setTrackInfo();
-                            }
-                        });
-
-                    }
+            player.addPropertyChangeListener(event -> {
+                if (LocalBackgoundMusicPlayer.PROPERTY_ITEM.equals(event.getPropertyName())) {
+                    runOnUiThread(this::setTrackInfo);
 
                 }
+
             });
             setTrackInfo();
             btnPrev.setActivated(true);
@@ -118,68 +107,42 @@ public class MusicPlayerActivity extends Activity implements ServiceConnection {
             btnPause.setActivated(true);
             btnExit.setActivated(true);
         }
-        btnPrev.setOnClickListener(new OnClickListener() {
-
-            @Override
-            public void onClick(View v) {
-                Player player = getPlayer();
-                if (player != null) {
-                    player.previous();
-                }
-
+        btnPrev.setOnClickListener(v -> {
+            Player player1 = getPlayer();
+            if (player1 != null) {
+                player1.previous();
             }
+
         });
-        btnNext.setOnClickListener(new OnClickListener() {
-
-            @Override
-            public void onClick(View v) {
-                Player player = getPlayer();
-                if (player != null) {
-                    player.next();
-                }
-
+        btnNext.setOnClickListener(v -> {
+            Player player12 = getPlayer();
+            if (player12 != null) {
+                player12.next();
             }
+
         });
-        btnPlay.setOnClickListener(new OnClickListener() {
-
-            @Override
-            public void onClick(View v) {
-                Player player = getPlayer();
-                if (player != null) {
-                    player.play();
-                }
-
+        btnPlay.setOnClickListener(v -> {
+            Player player13 = getPlayer();
+            if (player13 != null) {
+                player13.play();
             }
+
         });
-        btnPause.setOnClickListener(new OnClickListener() {
-
-            @Override
-            public void onClick(View v) {
-                Player player = getPlayer();
-                if (player != null) {
-                    player.pause();
-                }
-
+        btnPause.setOnClickListener(v -> {
+            Player player14 = getPlayer();
+            if (player14 != null) {
+                player14.pause();
             }
+
         });
-        btnStop.setOnClickListener(new OnClickListener() {
-
-            @Override
-            public void onClick(View v) {
-                Player player = getPlayer();
-                if (player != null) {
-                    player.stop();
-                }
-
+        btnStop.setOnClickListener(v -> {
+            Player player15 = getPlayer();
+            if (player15 != null) {
+                player15.stop();
             }
-        });
-        btnExit.setOnClickListener(new OnClickListener() {
 
-            @Override
-            public void onClick(View v) {
-                MusicPlayerActivity.this.exit();
-            }
         });
+        btnExit.setOnClickListener(v -> MusicPlayerActivity.this.exit());
 
         seekBar = (SeekBar) findViewById(R.id.musicActivitySeekBar);
         seekBar.setMax(100);
@@ -200,9 +163,9 @@ public class MusicPlayerActivity extends Activity implements ServiceConnection {
                 SimpleDateFormat dateFormat = new SimpleDateFormat("HH:mm:ss");
                 dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
                 try {
-                    Long durationTimeMillis = dateFormat.parse(durationString).getTime();
+                    long durationTimeMillis = Objects.requireNonNull(dateFormat.parse(durationString)).getTime();
 
-                    int targetPosition = Double.valueOf(durationTimeMillis * (Double.valueOf(seekBar.getProgress()).doubleValue() / 100)).intValue();
+                    int targetPosition = Double.valueOf(durationTimeMillis * ((double) seekBar.getProgress() / 100)).intValue();
                     Log.d(getClass().getName(), "TargetPosition" + targetPosition);
                     getPlayer().seekTo(targetPosition);
                 } catch (ParseException pex) {
@@ -271,23 +234,26 @@ public class MusicPlayerActivity extends Activity implements ServiceConnection {
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
-        switch (item.getItemId()) {
-            case R.id.menu_exit:
-                exit();
-                return true;
-            case R.id.menu_settings:
-                Intent i = new Intent(this, SettingsActivity.class);
-                startActivity(i);
-                return true;
-            case R.id.yaacc_about:
-                AboutActivity.showAbout(this);
-                return true;
-            case R.id.yaacc_log:
-                YaaccLogActivity.showLog(this);
-                return true;
-            default:
-                return super.onOptionsItemSelected(item);
+        if (item.getItemId() == R.id.menu_exit) {
+            exit();
+            return true;
         }
+        if (item.getItemId() == R.id.menu_settings) {
+
+            Intent i = new Intent(this, SettingsActivity.class);
+            startActivity(i);
+            return true;
+        }
+        if (item.getItemId() == R.id.yaacc_about) {
+            AboutActivity.showAbout(this);
+            return true;
+        }
+        if (item.getItemId() == R.id.yaacc_log) {
+            YaaccLogActivity.showLog(this);
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
+
     }
 
     private void exit() {
@@ -328,10 +294,10 @@ public class MusicPlayerActivity extends Activity implements ServiceConnection {
         SimpleDateFormat dateFormat = new SimpleDateFormat("HH:mm:ss");
         dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
         try {
-            Long elapsedTimeMillis = dateFormat.parse(elapsedTimeString).getTime();
-            Long durationTimeMillis = dateFormat.parse(durationString).getTime();
+            double elapsedTimeMillis = Double.longBitsToDouble(Objects.requireNonNull(dateFormat.parse(elapsedTimeString)).getTime());
+            double durationTimeMillis = Double.longBitsToDouble(Objects.requireNonNull(dateFormat.parse(durationString)).getTime());
             int progress;
-            progress = Double.valueOf((elapsedTimeMillis.doubleValue() / durationTimeMillis.doubleValue()) * 100).intValue();
+            progress = Double.valueOf((elapsedTimeMillis / durationTimeMillis) * 100).intValue();
             if (seekBar != null) {
                 seekBar.setProgress(progress);
             }
@@ -348,14 +314,10 @@ public class MusicPlayerActivity extends Activity implements ServiceConnection {
 
             @Override
             public void run() {
-                runOnUiThread(new Runnable() {
-
-                    @Override
-                    public void run() {
-                        doSetTrackInfo();
-                        if (updateTime) {
-                            updateTime();
-                        }
+                runOnUiThread(() -> {
+                    doSetTrackInfo();
+                    if (updateTime) {
+                        updateTime();
                     }
                 });
             }

@@ -22,7 +22,6 @@ import android.view.View;
 import android.widget.AdapterView;
 import android.widget.AdapterView.OnItemClickListener;
 import android.widget.CheckBox;
-import android.widget.ListView;
 
 import org.fourthline.cling.model.meta.Device;
 
@@ -38,13 +37,13 @@ public class BrowseReceiverDeviceClickListener implements OnItemClickListener {
     @Override
     public void onItemClick(AdapterView<?> listView, View itemView,
                             int position, long id) {
-        ListView a = (ListView) listView.findViewById(R.id.itemList);
+
         BrowseReceiverDeviceAdapter adapter = (BrowseReceiverDeviceAdapter) listView
                 .getAdapter();
         Log.d(getClass().getName(), "position: " + position);
         CheckBox checkBox = (CheckBox) itemView
                 .findViewById(R.id.browseItemCheckbox);
-        Device device = (Device) adapter.getItem(position);
+        Device<?, ?, ?> device = (Device<?, ?, ?>) adapter.getItem(position);
         if (checkBox.isChecked()) {
             Log.d(getClass().getName(), "isChecked:" + device.getDisplayString());
             adapter.removeSelectedDevice(device);

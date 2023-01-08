@@ -69,7 +69,7 @@ public class PlayerListItemClickListener implements OnItemClickListener {
     public void onCreateContextMenu(ContextMenu menu, View v,
                                     ContextMenuInfo menuInfo) {
         menu.setHeaderTitle(v.getContext().getString(R.string.browse_context_title));
-        ArrayList<String> menuItems = new ArrayList<String>();
+        ArrayList<String> menuItems = new ArrayList<>();
         menuItems.add(v.getContext().getString(R.string.open));
         menuItems.add(v.getContext().getString(R.string.exitActivity));
 

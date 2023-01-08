@@ -47,7 +47,7 @@ public class LocalThirdPartieMusicPlayer extends AbstractPlayer {
     private int musicAppPid = 0;
 
     /**
-     * @param upnpClient
+     * @param upnpClient the upnpClient
      * @param name       playerName
      */
     public LocalThirdPartieMusicPlayer(UpnpClient upnpClient, String name, String shortName) {
@@ -58,7 +58,7 @@ public class LocalThirdPartieMusicPlayer extends AbstractPlayer {
 
 
     /**
-     * @param upnpClient
+     * @param upnpClient the upnpclient
      */
     public LocalThirdPartieMusicPlayer(UpnpClient upnpClient) {
         super(upnpClient);
@@ -167,9 +167,9 @@ public class LocalThirdPartieMusicPlayer extends AbstractPlayer {
     public PendingIntent getNotificationIntent() {
         Intent notificationIntent = new Intent(getContext(),
                 ThirdPartieMusicPlayerActivity.class);
-        PendingIntent contentIntent = PendingIntent.getActivity(getContext(), 0,
+        return PendingIntent.getActivity(getContext(), 0,
                 notificationIntent, PendingIntent.FLAG_IMMUTABLE);
-        return contentIntent;
+
     }
 
     /*
@@ -185,8 +185,7 @@ public class LocalThirdPartieMusicPlayer extends AbstractPlayer {
     @Override
     public void seekTo(long millisecondsFromStart) {
         Resources res = getContext().getResources();
-        String text = String.format(
-                res.getString(R.string.not_yet_implemented));
+        String text = res.getString(R.string.not_yet_implemented);
         Toast toast = Toast.makeText(getContext(), text,
                 Toast.LENGTH_LONG);
         toast.show();

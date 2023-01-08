@@ -28,8 +28,8 @@ import de.yaacc.Yaacc;
 import de.yaacc.upnp.callback.contentdirectory.ContentDirectoryBrowseResult;
 
 public class BrowseItemLoadTask extends AsyncTask<Long, Integer, ContentDirectoryBrowseResult> {
-    private BrowseItemAdapter itemAdapter;
-    private Long chunkSize = 0L;
+    private final BrowseItemAdapter itemAdapter;
+    private final Long chunkSize;
 
 
     public BrowseItemLoadTask(BrowseItemAdapter itemAdapter, Long chunkSize) {
@@ -84,9 +84,7 @@ public class BrowseItemLoadTask extends AsyncTask<Long, Integer, ContentDirector
             }
 
         }
-        if (itemAdapter != null) {
-            itemAdapter.removeTask(this);
-        }
+        itemAdapter.removeTask(this);
         itemAdapter.setLoading(false);
 
     }

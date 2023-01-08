@@ -55,8 +55,7 @@ public class ImagesAllFolderBrowser extends ContentBrowser {
     @Override
     public DIDLObject browseMeta(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
 
-        PhotoAlbum photoAlbum = new PhotoAlbum(ContentDirectoryIDs.IMAGES_ALL_FOLDER.getId(), ContentDirectoryIDs.IMAGES_FOLDER.getId(), getContext().getString(R.string.all_images), "yaacc", getSize(contentDirectory, myId));
-        return photoAlbum;
+        return new PhotoAlbum(ContentDirectoryIDs.IMAGES_ALL_FOLDER.getId(), ContentDirectoryIDs.IMAGES_FOLDER.getId(), getContext().getString(R.string.all_images), "yaacc", getSize(contentDirectory, myId));
     }
 
     private Integer getSize(YaaccContentDirectory contentDirectory, String myId) {
@@ -74,13 +73,13 @@ public class ImagesAllFolderBrowser extends ContentBrowser {
     @Override
     public List<Container> browseContainer(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
 
-        return new ArrayList<Container>();
+        return new ArrayList<>();
     }
 
     @SuppressLint("Range")
     @Override
     public List<Item> browseItem(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
-        List<Item> result = new ArrayList<Item>();
+        List<Item> result = new ArrayList<>();
         // Query for all images on external storage
         String[] projection = {MediaStore.Images.Media._ID, MediaStore.Images.Media.DISPLAY_NAME, MediaStore.Images.Media.MIME_TYPE,
                 MediaStore.Images.Media.SIZE};

@@ -24,7 +24,6 @@ import android.net.Uri;
 import android.util.DisplayMetrics;
 import android.util.Log;
 
-import java.io.FileNotFoundException;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -45,12 +44,11 @@ public class ImageDownloader {
      * Loads the handed image location with the given size
      *
      * @param imageUri image location
-     * @return
+     * @return image
      */
     public Bitmap retrieveImageWithCertainSize(Uri imageUri, int imageWidth, int imageHeight) {
         Log.d(getClass().getName(), "retrieveImage size:" + imageWidth + "x" + imageHeight);
-        Bitmap result = decodeSampledBitmapFromStream(imageUri, imageWidth, imageHeight, true);
-        return result;
+        return decodeSampledBitmapFromStream(imageUri, imageWidth, imageHeight, true);
     }
 
 
@@ -61,7 +59,6 @@ public class ImageDownloader {
      * @param reqWidth  width of result image
      * @param reqHeight height of result image
      * @return requested image
-     * @throws IOException problem while loading image from stream
      */
     private Bitmap decodeSampledBitmapFromStream(Uri imageUri, int reqWidth,
                                                  int reqHeight, boolean rescaleImage) {
@@ -76,7 +73,6 @@ public class ImageDownloader {
             options.inJustDecodeBounds = false;
             options.outWidth = reqWidth;
             options.outHeight = reqHeight;
-            options.inPreferQualityOverSpeed = false;
             options.inDensity = DisplayMetrics.DENSITY_DEFAULT;
             options.inTempStorage = new byte[7680016];
 
@@ -123,15 +119,14 @@ public class ImageDownloader {
     /**
      * Converts URI to InputStream.
      *
-     * @param imageUri
-     * @return
-     * @throws FileNotFoundException
-     * @throws IOException
-     * @throws MalformedURLException
+     * @param imageUri the image uri
+     * @return the stream
+     * @throws IOException           an exception
+     * @throws MalformedURLException an exception
      */
     private InputStream getUriAsStream(Uri imageUri)
-            throws FileNotFoundException, IOException, MalformedURLException {
-        InputStream is = null;
+            throws IOException, MalformedURLException {
+        InputStream is;
         Log.d(getClass().getName(), "Start load: " + System.currentTimeMillis());
 
         is = (InputStream) new java.net.URL(imageUri.toString())

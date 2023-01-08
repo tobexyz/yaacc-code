@@ -29,9 +29,7 @@ import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
-import android.view.View.OnClickListener;
 import android.view.WindowManager;
-import android.widget.CompoundButton;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.SeekBar;
@@ -40,11 +38,10 @@ import android.widget.TextView;
 
 import org.fourthline.cling.model.meta.Device;
 
-import java.beans.PropertyChangeEvent;
-import java.beans.PropertyChangeListener;
 import java.net.URI;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.Objects;
 import java.util.TimeZone;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -68,7 +65,7 @@ public class AVTransportPlayerActivity extends Activity implements ServiceConnec
     protected SeekBar seekBar = null;
     private PlayerService playerService;
     private int playerId;
-    private String deviceId;
+
     private AVTransportController player;
 
     public void onServiceConnected(ComponentName className, IBinder binder) {
@@ -148,20 +145,12 @@ public class AVTransportPlayerActivity extends Activity implements ServiceConnec
             btnPause.setActivated(false);
             btnExit.setActivated(false);
         } else {
-            player.addPropertyChangeListener(new PropertyChangeListener() {
-
-                @Override
-                public void propertyChange(PropertyChangeEvent event) {
-                    if (AbstractPlayer.PROPERTY_ITEM.equals(event.getPropertyName())) {
-                        runOnUiThread(new Runnable() {
-                            public void run() {
-                                setTrackInfo();
-                            }
-                        });
-
-                    }
+            player.addPropertyChangeListener(event -> {
+                if (AbstractPlayer.PROPERTY_ITEM.equals(event.getPropertyName())) {
+                    runOnUiThread(this::setTrackInfo);
 
                 }
+
             });
             updateTime = true;
             setTrackInfo();
@@ -172,83 +161,53 @@ public class AVTransportPlayerActivity extends Activity implements ServiceConnec
             btnPause.setActivated(true);
             btnExit.setActivated(true);
         }
-        btnPrev.setOnClickListener(new OnClickListener() {
-
-            @Override
-            public void onClick(View v) {
-                Player player = getPlayer();
-                if (player != null) {
-                    player.previous();
-                }
-
+        btnPrev.setOnClickListener(v -> {
+            Player p = getPlayer();
+            if (p != null) {
+                p.previous();
             }
+
         });
-        btnNext.setOnClickListener(new OnClickListener() {
-
-            @Override
-            public void onClick(View v) {
-                Player player = getPlayer();
-                if (player != null) {
-                    player.next();
-                }
-
+        btnNext.setOnClickListener(v -> {
+            Player p = getPlayer();
+            if (p != null) {
+                p.next();
             }
+
         });
-        btnPlay.setOnClickListener(new OnClickListener() {
-
-            @Override
-            public void onClick(View v) {
-                Player player = getPlayer();
-                if (player != null) {
-                    player.play();
-                }
-
+        btnPlay.setOnClickListener(v -> {
+            Player p = getPlayer();
+            if (p != null) {
+                p.play();
             }
+
         });
-        btnPause.setOnClickListener(new OnClickListener() {
-
-            @Override
-            public void onClick(View v) {
-                Player player = getPlayer();
-                if (player != null) {
-                    player.pause();
-                }
-
+        btnPause.setOnClickListener(v -> {
+            Player p = getPlayer();
+            if (p != null) {
+                p.pause();
             }
+
         });
-        btnStop.setOnClickListener(new OnClickListener() {
-
-            @Override
-            public void onClick(View v) {
-                Player player = getPlayer();
-                if (player != null) {
-                    player.stop();
-                }
-
+        btnStop.setOnClickListener(v -> {
+            Player p = getPlayer();
+            if (p != null) {
+                p.stop();
             }
-        });
-        btnExit.setOnClickListener(new OnClickListener() {
 
-            @Override
-            public void onClick(View v) {
-                exit();
-
-            }
         });
+        btnExit.setOnClickListener(v -> exit());
 
         Switch muteSwitch = (Switch) findViewById(R.id.avtransportPlayerActivityControlMuteSwitch);
-        muteSwitch.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
-            @Override
-            public void onCheckedChanged(CompoundButton compoundButton, boolean isChecked) {
-                if (getPlayer() != null) {
-                    getPlayer().setMute(isChecked);
-                }
+        muteSwitch.setOnCheckedChangeListener((compoundButton, isChecked) -> {
+            if (getPlayer() != null) {
+                getPlayer().setMute(isChecked);
             }
         });
         SeekBar volumeSeekBar = (SeekBar) findViewById(R.id.avtransportPlayerActivityControlVolumeSeekBar);
         volumeSeekBar.setMax(100);
         if (getPlayer() != null) {
-            Log.d(getClass().getName(), "Volumne:" + getPlayer().getVolume());
+            Log.d(getClass().getName(), "Volume:" + getPlayer().getVolume());
             volumeSeekBar.setProgress(getPlayer().getVolume());
         } else {
             volumeSeekBar.setProgress(100);
@@ -277,7 +236,7 @@ public class AVTransportPlayerActivity extends Activity implements ServiceConnec
         seekBar.setProgress(0);
         seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
-            public void onProgressChanged(SeekBar seekBar, int progresValue, boolean fromUser) {
+            public void onProgressChanged(SeekBar seekBar, int progressValue, boolean fromUser) {
             }
 
             @Override
@@ -291,9 +250,9 @@ public class AVTransportPlayerActivity extends Activity implements ServiceConnec
                 SimpleDateFormat dateFormat = new SimpleDateFormat("HH:mm:ss");
                 dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
                 try {
-                    Long durationTimeMillis = dateFormat.parse(durationString).getTime();
+                    long durationTimeMillis = Objects.requireNonNull(dateFormat.parse(durationString)).getTime();
 
-                    int targetPosition = Double.valueOf(durationTimeMillis * (Double.valueOf(seekBar.getProgress()).doubleValue() / 100)).intValue();
+                    int targetPosition = Double.valueOf(durationTimeMillis * ((double) seekBar.getProgress() / 100)).intValue();
                     Log.d(getClass().getName(), "TargetPosition" + targetPosition);
                     getPlayer().seekTo(targetPosition);
                 } catch (ParseException pex) {
@@ -331,14 +290,13 @@ public class AVTransportPlayerActivity extends Activity implements ServiceConnec
         }
         // initialize buttons
         playerId = getIntent().getIntExtra(AVTransportPlayer.PLAYER_ID, -1);
-        deviceId = getIntent().getStringExtra(AVTransportController.DEVICE_ID);
+        String deviceId = getIntent().getStringExtra(AVTransportController.DEVICE_ID);
         if (deviceId != null) {
             UpnpClient upnpClient = ((Yaacc) getApplicationContext()).getUpnpClient();
-            Device device = upnpClient.getDevice(deviceId);
+            Device<?, ?, ?> device = upnpClient.getDevice(deviceId);
             if (device != null) {
                 player = new AVTransportController(upnpClient, device);
                 findViewById(R.id.avtransportPlayerActivityControlSeekBar).setVisibility(View.INVISIBLE);
-                ;
                 findViewById(R.id.avtransportPlayerActivityCurrentItem).setVisibility(View.INVISIBLE);
                 findViewById(R.id.avtransportPlayerActivityDuration).setVisibility(View.INVISIBLE);
                 findViewById(R.id.avtransportPlayerActivityElapsedTime).setVisibility(View.INVISIBLE);
@@ -373,23 +331,26 @@ public class AVTransportPlayerActivity extends Activity implements ServiceConnec
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
-        switch (item.getItemId()) {
-            case R.id.menu_exit:
-                exit();
-                return true;
-            case R.id.menu_settings:
-                Intent i = new Intent(this, SettingsActivity.class);
-                startActivity(i);
-                return true;
-            case R.id.yaacc_about:
-                AboutActivity.showAbout(this);
-                return true;
-            case R.id.yaacc_log:
-                YaaccLogActivity.showLog(this);
-                return true;
-            default:
-                return super.onOptionsItemSelected(item);
+        if (item.getItemId() == R.id.menu_exit) {
+
+            exit();
+            return true;
         }
+        if (item.getItemId() == R.id.menu_settings) {
+            Intent i = new Intent(this, SettingsActivity.class);
+            startActivity(i);
+            return true;
+        }
+        if (item.getItemId() == R.id.yaacc_about) {
+            AboutActivity.showAbout(this);
+            return true;
+        }
+        if (item.getItemId() == R.id.yaacc_log) {
+            YaaccLogActivity.showLog(this);
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
+
     }
 
     private void setTrackInfo() {
@@ -426,10 +387,10 @@ public class AVTransportPlayerActivity extends Activity implements ServiceConnec
         SimpleDateFormat dateFormat = new SimpleDateFormat("HH:mm:ss");
         dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
         try {
-            Long elapsedTimeMillis = dateFormat.parse(elapsedTimeString).getTime();
-            Long durationTimeMillis = dateFormat.parse(durationTimeString).getTime();
+            double elapsedTimeMillis = Double.longBitsToDouble(Objects.requireNonNull(dateFormat.parse(elapsedTimeString)).getTime());
+            double durationTimeMillis = Double.longBitsToDouble(Objects.requireNonNull(dateFormat.parse(durationTimeString)).getTime());
             int progress;
-            progress = Double.valueOf((elapsedTimeMillis.doubleValue() / durationTimeMillis.doubleValue()) * 100).intValue();
+            progress = Double.valueOf((elapsedTimeMillis / durationTimeMillis) * 100).intValue();
             if (seekBar != null) {
                 seekBar.setProgress(progress);
             }
@@ -444,14 +405,10 @@ public class AVTransportPlayerActivity extends Activity implements ServiceConnec
 
             @Override
             public void run() {
-                runOnUiThread(new Runnable() {
-
-                    @Override
-                    public void run() {
-                        doSetTrackInfo();
-                        if (updateTime) {
-                            updateTime();
-                        }
+                runOnUiThread(() -> {
+                    doSetTrackInfo();
+                    if (updateTime) {
+                        updateTime();
                     }
                 });
             }

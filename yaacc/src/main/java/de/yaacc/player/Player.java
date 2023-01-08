@@ -120,14 +120,14 @@ public interface Player {
     /**
      * add a property change listener
      *
-     * @param listener
+     * @param listener the listener
      */
     void addPropertyChangeListener(PropertyChangeListener listener);
 
     /**
      * remove a property change listener
      *
-     * @param listener
+     * @param listener the listener
      */
     void removePropertyChangeListener(PropertyChangeListener listener);
 
@@ -195,7 +195,7 @@ public interface Player {
 
     void setMute(boolean mute);
 
-    public int getVolume();
+    int getVolume();
 
     void setVolume(int volume);
 

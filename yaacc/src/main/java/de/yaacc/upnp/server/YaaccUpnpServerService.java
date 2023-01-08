@@ -35,6 +35,7 @@ import android.preference.PreferenceManager;
 import android.util.Log;
 
 import androidx.core.app.NotificationCompat;
+import androidx.core.content.res.ResourcesCompat;
 
 import org.apache.hc.core5.http.ConnectionClosedException;
 import org.apache.hc.core5.http.ExceptionListener;
@@ -94,7 +95,7 @@ public class YaaccUpnpServerService extends Service {
     public static final int LOCK_TIMEOUT = 5000;
     private static final String UDN_ID = "35"
             + // we make this look like a valid IMEI
-            Build.BOARD.length() % 10 + Build.BRAND.length() % 10 + Build.CPU_ABI.length() % 10 + Build.DEVICE.length() % 10 + Build.DISPLAY.length()
+            Build.BOARD.length() % 10 + Build.BRAND.length() % 10 + Build.HARDWARE.length() % 10 + Build.DEVICE.length() % 10 + Build.DISPLAY.length()
             % 10 + Build.HOST.length() % 10 + Build.ID.length() % 10 + Build.MANUFACTURER.length() % 10 + Build.MODEL.length() % 10
             + Build.PRODUCT.length() % 10 + Build.TAGS.length() % 10 + Build.TYPE.length() % 10 + Build.USER.length() % 10;
     public static final String MEDIA_SERVER_UDN_ID = UDN_ID;
@@ -145,13 +146,7 @@ public class YaaccUpnpServerService extends Service {
         // otherwise android will kill the service
         // in order of this circumstance we have to initialize the service
         // asynchronous
-        Thread initializationThread = new Thread(new Runnable() {
-
-            @Override
-            public void run() {
-                initialize();
-            }
-        });
+        Thread initializationThread = new Thread(this::initialize);
         initializationThread.start();
         showNotification();
         Log.d(this.getClass().getName(), "End On Start");
@@ -195,7 +190,6 @@ public class YaaccUpnpServerService extends Service {
                 .setGroup(Yaacc.NOTIFICATION_GROUP_KEY)
                 .setContentText(preferences.getString(getApplicationContext().getString(R.string.settings_local_server_name_key), ""));
         mBuilder.setContentIntent(contentIntent);
-        NotificationManager mNotificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         startForeground(NotificationId.UPNP_SERVER.getId(), mBuilder.build());
 
     }
@@ -320,7 +314,7 @@ public class YaaccUpnpServerService extends Service {
                 @Override
                 public void run() {
                     Log.d(YaaccUpnpServerService.this.getClass().getName(), "Sending upnp alive notivication");
-                    SendingNotificationAlive sendingNotificationAlive = null;
+                    SendingNotificationAlive sendingNotificationAlive;
                     if (localServer != null) {
                         sendingNotificationAlive = new SendingNotificationAlive(getUpnpClient().getRegistry().getUpnpService(), localServer);
                         sendingNotificationAlive.run();
@@ -424,14 +418,17 @@ public class YaaccUpnpServerService extends Service {
     }
 
     private Icon[] createDeviceIcons() {
-        Drawable drawable = getResources().getDrawable(R.drawable.yaacc120_jpg);
-        Bitmap bitmap = ((BitmapDrawable) drawable).getBitmap();
-        ByteArrayOutputStream stream = new ByteArrayOutputStream();
-        bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream);
+        Drawable drawable = ResourcesCompat.getDrawable(getResources(), R.drawable.yaacc120_jpg, getTheme());
+        Bitmap bitmap;
+        if (drawable != null) {
+            bitmap = ((BitmapDrawable) drawable).getBitmap();
+            ByteArrayOutputStream stream = new ByteArrayOutputStream();
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream);
+        }
         //
         // return new Icon("image/png", 48, 48, 24,
         // URI.create("/icon.png"),stream.toByteArray());
-        ArrayList<Icon> icons = new ArrayList<Icon>();
+        ArrayList<Icon> icons = new ArrayList<>();
 
         icons.add(new Icon("image/jpeg", 120, 120, 24, "yaacc120.jpg", getIconAsByteArray(R.drawable.yaacc120_jpg)));
         icons.add(new Icon("image/jpeg", 48, 48, 24, "yaacc48.jpg", getIconAsByteArray(R.drawable.yaacc48_jpg)));
@@ -448,7 +445,7 @@ public class YaaccUpnpServerService extends Service {
         icons.add(new Icon("image/png", 32, 32, 24, "yaacc32_24.png", getIconAsByteArray(R.drawable.yaacc32_24_png)));
         icons.add(new Icon("image/bmp", 32, 32, 8, "yaacc32_8.bmp", getIconAsByteArray(R.drawable.yaacc32_8_bmp)));
         icons.add(new Icon("image/png", 32, 32, 8, "yaacc32_8.png", getIconAsByteArray(R.drawable.yaacc32_8_png)));
-        return icons.toArray(new Icon[icons.size()]);
+        return icons.toArray(new Icon[]{});
     }
 
     private String getLocalServerName() {
@@ -461,7 +458,7 @@ public class YaaccUpnpServerService extends Service {
      * @return the services
      */
     private LocalService<?>[] createMediaServerServices() {
-        List<LocalService<?>> services = new ArrayList<LocalService<?>>();
+        List<LocalService<?>> services = new ArrayList<>();
         services.add(createContentDirectoryService());
         services.add(createServerConnectionManagerService());
         services.add(createMediaReceiverRegistrarService());
@@ -474,7 +471,7 @@ public class YaaccUpnpServerService extends Service {
      * @return the services
      */
     private LocalService<?>[] createMediaRendererServices() {
-        List<LocalService<?>> services = new ArrayList<LocalService<?>>();
+        List<LocalService<?>> services = new ArrayList<>();
         services.add(createAVTransportService());
         services.add(createRendererConnectionManagerService());
         services.add(createRenderingControl());
@@ -490,7 +487,7 @@ public class YaaccUpnpServerService extends Service {
     @SuppressWarnings("unchecked")
     private LocalService<YaaccContentDirectory> createContentDirectoryService() {
         contentDirectoryService = new AnnotationLocalServiceBinder().read(YaaccContentDirectory.class);
-        contentDirectoryService.setManager(new DefaultServiceManager<YaaccContentDirectory>(contentDirectoryService, null) {
+        contentDirectoryService.setManager(new DefaultServiceManager<>(contentDirectoryService, null) {
 
             @Override
             protected int getLockTimeoutMillis() {
@@ -498,7 +495,7 @@ public class YaaccUpnpServerService extends Service {
             }
 
             @Override
-            protected YaaccContentDirectory createServiceInstance() throws Exception {
+            protected YaaccContentDirectory createServiceInstance() {
                 return new YaaccContentDirectory(getApplicationContext());
             }
         });
@@ -513,14 +510,14 @@ public class YaaccUpnpServerService extends Service {
     @SuppressWarnings("unchecked")
     private LocalService<YaaccAVTransportService> createAVTransportService() {
         LocalService<YaaccAVTransportService> avTransportService = new AnnotationLocalServiceBinder().read(YaaccAVTransportService.class);
-        avTransportService.setManager(new DefaultServiceManager<YaaccAVTransportService>(avTransportService, null) {
+        avTransportService.setManager(new DefaultServiceManager<>(avTransportService, null) {
             @Override
             protected int getLockTimeoutMillis() {
                 return LOCK_TIMEOUT;
             }
 
             @Override
-            protected YaaccAVTransportService createServiceInstance() throws Exception {
+            protected YaaccAVTransportService createServiceInstance() {
                 return new YaaccAVTransportService(getUpnpClient());
             }
         });
@@ -530,14 +527,14 @@ public class YaaccUpnpServerService extends Service {
     private LocalService<AbstractAudioRenderingControl> createRenderingControl() {
         LocalService<AbstractAudioRenderingControl> renderingControlService = new AnnotationLocalServiceBinder()
                 .read(AbstractAudioRenderingControl.class);
-        renderingControlService.setManager(new DefaultServiceManager<AbstractAudioRenderingControl>(renderingControlService, null) {
+        renderingControlService.setManager(new DefaultServiceManager<>(renderingControlService, null) {
             @Override
             protected int getLockTimeoutMillis() {
                 return LOCK_TIMEOUT;
             }
 
             @Override
-            protected AbstractAudioRenderingControl createServiceInstance() throws Exception {
+            protected AbstractAudioRenderingControl createServiceInstance() {
                 return new YaaccAudioRenderingControlService(getUpnpClient());
             }
         });
@@ -547,7 +544,7 @@ public class YaaccUpnpServerService extends Service {
     private LocalService<AbstractMediaReceiverRegistrarService> createMediaReceiverRegistrarService() {
         LocalService<AbstractMediaReceiverRegistrarService> service = new AnnotationLocalServiceBinder()
                 .read(AbstractMediaReceiverRegistrarService.class);
-        service.setManager(new DefaultServiceManager<AbstractMediaReceiverRegistrarService>(service, null) {
+        service.setManager(new DefaultServiceManager<>(service, null) {
 
             @Override
             protected int getLockTimeoutMillis() {
@@ -555,8 +552,8 @@ public class YaaccUpnpServerService extends Service {
             }
 
             @Override
-            protected AbstractMediaReceiverRegistrarService createServiceInstance() throws Exception {
-                return new YaaccMediaReceiverRegistrarService(getUpnpClient());
+            protected AbstractMediaReceiverRegistrarService createServiceInstance() {
+                return new YaaccMediaReceiverRegistrarService();
             }
         });
         return service;
@@ -572,7 +569,7 @@ public class YaaccUpnpServerService extends Service {
         LocalService<ConnectionManagerService> service = new AnnotationLocalServiceBinder().read(ConnectionManagerService.class);
         final ProtocolInfos sourceProtocols = getSourceProtocolInfos();
 
-        service.setManager(new DefaultServiceManager<ConnectionManagerService>(service, ConnectionManagerService.class) {
+        service.setManager(new DefaultServiceManager<>(service, ConnectionManagerService.class) {
 
             @Override
             protected int getLockTimeoutMillis() {
@@ -580,7 +577,7 @@ public class YaaccUpnpServerService extends Service {
             }
 
             @Override
-            protected ConnectionManagerService createServiceInstance() throws Exception {
+            protected ConnectionManagerService createServiceInstance() {
                 return new ConnectionManagerService(sourceProtocols, null);
             }
         });
@@ -597,7 +594,7 @@ public class YaaccUpnpServerService extends Service {
     private LocalService<ConnectionManagerService> createRendererConnectionManagerService() {
         LocalService<ConnectionManagerService> service = new AnnotationLocalServiceBinder().read(ConnectionManagerService.class);
         final ProtocolInfos sinkProtocols = getSinkProtocolInfos();
-        service.setManager(new DefaultServiceManager<ConnectionManagerService>(service, ConnectionManagerService.class) {
+        service.setManager(new DefaultServiceManager<>(service, ConnectionManagerService.class) {
 
             @Override
             protected int getLockTimeoutMillis() {
@@ -605,7 +602,7 @@ public class YaaccUpnpServerService extends Service {
             }
 
             @Override
-            protected ConnectionManagerService createServiceInstance() throws Exception {
+            protected ConnectionManagerService createServiceInstance() {
                 return new ConnectionManagerService(null, sinkProtocols);
             }
         });
@@ -613,9 +610,7 @@ public class YaaccUpnpServerService extends Service {
         return service;
     }
 
-    /**
-     * @return
-     */
+
     private ProtocolInfos getSourceProtocolInfos() {
         return new ProtocolInfos(
                 new ProtocolInfo("http-get:*:audio:*"),
@@ -808,7 +803,7 @@ public class YaaccUpnpServerService extends Service {
 
     private byte[] getIconAsByteArray(int drawableId) {
 
-        Drawable drawable = getResources().getDrawable(drawableId);
+        Drawable drawable = ResourcesCompat.getDrawable(getResources(), drawableId, getTheme());
         byte[] result = null;
         if (drawable != null) {
             Bitmap bitmap = ((BitmapDrawable) drawable).getBitmap();

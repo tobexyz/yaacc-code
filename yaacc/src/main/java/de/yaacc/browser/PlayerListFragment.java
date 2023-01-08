@@ -29,6 +29,7 @@ import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.ListView;
 
+import androidx.annotation.NonNull;
 import androidx.fragment.app.Fragment;
 
 import org.fourthline.cling.model.meta.Device;
@@ -57,18 +58,12 @@ public class PlayerListFragment extends Fragment implements
     private void init(Bundle savedInstanceState, View view) {
 
 
-        upnpClient = ((Yaacc) getActivity().getApplicationContext()).getUpnpClient();
+        upnpClient = ((Yaacc) requireActivity().getApplicationContext()).getUpnpClient();
         itemClickListener = new PlayerListItemClickListener();
         contentList = (ListView) view.findViewById(R.id.playerList);
         registerForContextMenu(contentList);
         upnpClient.addUpnpClientListener(this);
-        Thread thread = new Thread(new Runnable() {
-
-            @Override
-            public void run() {
-                populatePlayerList();
-            }
-        });
+        Thread thread = new Thread(this::populatePlayerList);
         thread.start();
 
     }
@@ -76,18 +71,12 @@ public class PlayerListFragment extends Fragment implements
     @Override
     public void onResume() {
         super.onResume();
-        Thread thread = new Thread(new Runnable() {
-
-            @Override
-            public void run() {
-                populatePlayerList();
-            }
-        });
+        Thread thread = new Thread(this::populatePlayerList);
         thread.start();
     }
 
     @Override
-    public void onSaveInstanceState(Bundle outState) {
+    public void onSaveInstanceState(@NonNull Bundle outState) {
         super.onSaveInstanceState(outState);
 
     }
@@ -99,13 +88,11 @@ public class PlayerListFragment extends Fragment implements
     private void populatePlayerList() {
 
 
-        getActivity().runOnUiThread(new Runnable() {
-            public void run() {
-                itemAdapter = new PlayerListItemAdapter(upnpClient);
-                contentList.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
-                contentList.setAdapter(itemAdapter);
-                contentList.setOnItemClickListener(itemClickListener);
-            }
+        requireActivity().runOnUiThread(() -> {
+            itemAdapter = new PlayerListItemAdapter(upnpClient);
+            contentList.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
+            contentList.setAdapter(itemAdapter);
+            contentList.setOnItemClickListener(itemClickListener);
         });
     }
 
@@ -116,7 +103,7 @@ public class PlayerListFragment extends Fragment implements
      */
     private SharedPreferences getPreferences() {
         return PreferenceManager
-                .getDefaultSharedPreferences(getActivity().getApplicationContext());
+                .getDefaultSharedPreferences(requireActivity().getApplicationContext());
 
     }
 
@@ -127,15 +114,15 @@ public class PlayerListFragment extends Fragment implements
 
     public boolean onBackPressed() {
         Log.d(PlayerListFragment.class.getName(), "onBackPressed() CurrentPosition");
-        if (getActivity().getParent() instanceof TabBrowserActivity) {
-            ((TabBrowserActivity) getActivity().getParent()).setCurrentTab(BrowserTabs.RECEIVER);
+        if (requireActivity().getParent() instanceof TabBrowserActivity) {
+            ((TabBrowserActivity) requireActivity().getParent()).setCurrentTab(BrowserTabs.RECEIVER);
         }
         return true;
 
     }
 
     @Override
-    public void onCreateContextMenu(ContextMenu menu, View v, ContextMenu.ContextMenuInfo menuInfo) {
+    public void onCreateContextMenu(@NonNull ContextMenu menu, @NonNull View v, ContextMenu.ContextMenuInfo menuInfo) {
         super.onCreateContextMenu(menu, v, menuInfo);
         AdapterView.AdapterContextMenuInfo info = (AdapterView.AdapterContextMenuInfo) menuInfo;
         if (v instanceof ListView) {
@@ -150,9 +137,9 @@ public class PlayerListFragment extends Fragment implements
 
 
     @Override
-    public boolean onContextItemSelected(MenuItem item) {
+    public boolean onContextItemSelected(@NonNull MenuItem item) {
         boolean result = itemClickListener.onContextItemSelected(selectedPlayer,
-                item, getContext());
+                item, requireContext());
         populatePlayerList();
         return result;
     }

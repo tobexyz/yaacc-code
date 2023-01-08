@@ -18,6 +18,8 @@
  */
 package de.yaacc.upnp;
 
+import androidx.annotation.NonNull;
+
 import org.fourthline.cling.model.action.ActionInvocation;
 import org.fourthline.cling.model.message.UpnpResponse;
 
@@ -28,9 +30,9 @@ import org.fourthline.cling.model.message.UpnpResponse;
  * @author Tobias Schöne (openbit)
  */
 public class UpnpFailure {
-	private ActionInvocation invocation;
-	private UpnpResponse response;
-	private String defaultMsg;
+	private final ActionInvocation<?> invocation;
+	private final UpnpResponse response;
+	private final String defaultMsg;
 
 	/**
 	 * constructor.
@@ -39,7 +41,7 @@ public class UpnpFailure {
 	 * @param response   the Upnp response
 	 * @param defaultMsg a default message
 	 */
-	public UpnpFailure(ActionInvocation invocation, UpnpResponse response,
+	public UpnpFailure(ActionInvocation<?> invocation, UpnpResponse response,
 					   String defaultMsg) {
 		super();
 		this.invocation = invocation;
@@ -50,7 +52,7 @@ public class UpnpFailure {
 	/**
 	 * @return the invocation
 	 */
-	public ActionInvocation getInvocation() {
+	public ActionInvocation<?> getInvocation() {
 		return invocation;
 	}
 
@@ -68,11 +70,8 @@ public class UpnpFailure {
 		return defaultMsg;
 	}
 
-	/*
-	 * (non-Javadoc)
-	 *
-	 * @see java.lang.Object#toString()
-	 */
+
+	@NonNull
 	@Override
 	public String toString() {
 		return "UpnpFailure ["

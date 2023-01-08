@@ -31,16 +31,6 @@ public class YaaccStreamingClientConfigurationImpl extends AbstractStreamClientC
         super(timeoutExecutorService);
     }
 
-    public YaaccStreamingClientConfigurationImpl(ExecutorService timeoutExecutorService, int timeoutSeconds) {
-        super(timeoutExecutorService, timeoutSeconds);
-    }
-
-    /**
-     * @return By default <code>0</code>.
-     */
-    public int getRequestRetryCount() {
-        return 0;
-    }
 
     @Override
     public String getUserAgentValue(int majorVersion, int minorVersion) {

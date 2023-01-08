@@ -53,8 +53,8 @@ import de.yaacc.util.NotificationId;
  */
 public class PlayerService extends Service {
 
-    private IBinder binder = new PlayerServiceBinder();
-    private Map<Integer, Player> currentActivePlayer = new HashMap<>();
+    private final IBinder binder = new PlayerServiceBinder();
+    private final Map<Integer, Player> currentActivePlayer = new HashMap<>();
     private HandlerThread playerHandlerThread;
 
 
@@ -100,12 +100,12 @@ public class PlayerService extends Service {
                 .setContentIntent(pendingIntent)
                 .build();
         startForeground(NotificationId.PLAYER_SERVICE.getId(), notification);
-        initialize(intent);
+        initialize();
 
         return START_STICKY;
     }
 
-    private void initialize(Intent intent) {
+    private void initialize() {
         playerHandlerThread = new HandlerThread("de.yaacc.PlayerService.HandlerThread");
         playerHandlerThread.start();
     }
@@ -134,11 +134,11 @@ public class PlayerService extends Service {
     public List<Player> createPlayer(UpnpClient upnpClient,
                                      SynchronizationInfo syncInfo, List<PlayableItem> items) {
         Log.d(getClass().getName(), "create player...");
-        List<Player> resultList = new ArrayList<Player>();
+        List<Player> resultList = new ArrayList<>();
         if (items.isEmpty()) {
             return resultList;
         }
-        Player result = null;
+        Player result;
         boolean video = false;
         boolean image = false;
         boolean music = false;
@@ -156,11 +156,11 @@ public class PlayerService extends Service {
 
         }
         Log.d(getClass().getName(), "video:" + video + " image: " + image + "audio:" + music);
-        for (Device device : upnpClient.getReceiverDevices()) {
+        for (Device<?, ?, ?> device : upnpClient.getReceiverDevices()) {
             result = createPlayer(upnpClient, device, video, image, music, syncInfo);
             if (result != null) {
                 addPlayer(result);
-                result.setItems(items.toArray(new PlayableItem[items.size()]));
+                result.setItems(items.toArray(new PlayableItem[0]));
                 resultList.add(result);
             }
         }
@@ -317,7 +317,7 @@ public class PlayerService extends Service {
      * @return the currentPlayer
      */
     public List<Player> getCurrentPlayersOfType(Class typeClazz) {
-        List<Player> players = new ArrayList<Player>();
+        List<Player> players = new ArrayList<>();
         for (Player player : getCurrentPlayers()) {
             if (typeClazz.isInstance(player)) {
                 players.add(player);
@@ -371,7 +371,7 @@ public class PlayerService extends Service {
     /**
      * Kills the given Player
      *
-     * @param player
+     * @param player the player to shutdown
      */
     public void shutdown(Player player) {
         assert (player != null);
@@ -383,15 +383,14 @@ public class PlayerService extends Service {
      * Kill all Players
      */
     public void shutdown() {
-        HashSet<Player> players = new HashSet<Player>();
-        players.addAll(getCurrentPlayers());
+        HashSet<Player> players = new HashSet<>(getCurrentPlayers());
         for (Player player : players) {
             shutdown(player);
         }
 
     }
 
-    public void controlDevice(UpnpClient upnpClient, Device device) {
+    public void controlDevice(UpnpClient upnpClient, Device<?, ?, ?> device) {
         if (device == null || upnpClient == null) return;
         if (!device.getIdentity().getUdn().getIdentifierString().equals(UpnpClient.LOCAL_UID)) {
             Intent notificationIntent = new Intent(getApplicationContext(),
@@ -400,7 +399,7 @@ public class PlayerService extends Service {
             notificationIntent.setData(Uri.parse("http://0.0.0.0/" + device.getIdentity().getUdn().getIdentifierString() + "")); //just for making the intents different http://stackoverflow.com/questions/10561419/scheduling-more-than-one-pendingintent-to-same-activity-using-alarmmanager
             notificationIntent.putExtra(AVTransportController.DEVICE_ID, device.getIdentity().getUdn().getIdentifierString());
             PendingIntent contentIntent = PendingIntent.getActivity(getApplicationContext(), 0,
-                    notificationIntent, PendingIntent.FLAG_CANCEL_CURRENT);
+                    notificationIntent, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_CANCEL_CURRENT);
             try {
                 contentIntent.send(getApplicationContext(), 0, new Intent());
             } catch (PendingIntent.CanceledException e) {

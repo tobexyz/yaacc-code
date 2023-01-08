@@ -56,7 +56,7 @@ public class YaaccLogActivity extends Activity {
     }
 
     private void displayLog() {
-        TextView textView = (TextView) findViewById(R.id.yaaccLog_content);
+        TextView textView = findViewById(R.id.yaaccLog_content);
 
         try {
             Process process = Runtime.getRuntime().exec("logcat -d");
@@ -64,7 +64,7 @@ public class YaaccLogActivity extends Activity {
                     new InputStreamReader(process.getInputStream()));
 
             StringBuilder log = new StringBuilder();
-            String line = "";
+            String line;
             while ((line = bufferedReader.readLine()) != null) {
                 log.insert(0, "\n");
                 log.insert(0, line);

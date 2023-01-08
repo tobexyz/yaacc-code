@@ -163,7 +163,7 @@ public class YaaccAsyncStreamServerRequestHandler extends UpnpStream implements 
         return requestMessage;
     }
 
-    protected void writeResponseMessage(StreamResponseMessage responseMessage, AsyncResponseBuilder responseBuilder) throws IOException {
+    protected void writeResponseMessage(StreamResponseMessage responseMessage, AsyncResponseBuilder responseBuilder) {
         if (log.isLoggable(Level.FINER))
             log.finer("Sending HTTP response status: " + responseMessage.getOperation().getStatusCode());
 

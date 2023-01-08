@@ -35,13 +35,10 @@ public enum NotificationId {
     YAACC(10);
 
 
-    private int id = 0;
+    private final int id;
 
 
-    /**
-     * @param id
-     */
-    private NotificationId(int id) {
+    NotificationId(int id) {
         this.id = id;
     }
 

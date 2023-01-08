@@ -29,10 +29,10 @@ import java.util.logging.Logger;
  */
 public abstract class SyncPause extends ActionCallback {
 
-    private static Logger log = Logger.getLogger(SyncPause.class.getName());
+    private final static Logger log = Logger.getLogger(SyncPause.class.getName());
 
 
-    public SyncPause(UnsignedIntegerFourBytes instanceId, Service service, String pauseTime, String referenceClockId) {
+    public SyncPause(UnsignedIntegerFourBytes instanceId, Service<?, ?> service, String pauseTime, String referenceClockId) {
         super(new ActionInvocation(service.getAction("SyncPause")));
         getActionInvocation().setInput("InstanceID", instanceId);
         getActionInvocation().setInput("PauseTime", pauseTime);

@@ -60,7 +60,7 @@ public abstract class ContentBrowser {
     public abstract List<Item> browseItem(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby);
 
     public List<DIDLObject> browseChildren(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
-        List<DIDLObject> result = new ArrayList<DIDLObject>();
+        List<DIDLObject> result = new ArrayList<>();
         result.addAll(browseContainer(contentDirectory, myId, firstResult, maxResults, orderby));
         result.addAll(browseItem(contentDirectory, myId, firstResult, maxResults, orderby));
         return result;
@@ -77,4 +77,5 @@ public abstract class ContentBrowser {
         return "http://" + contentDirectory.getIpAddress() + ":"
                 + YaaccUpnpServerService.PORT + "?id=" + id + "&f=file." + fileExtension;
     }
+
 }

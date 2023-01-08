@@ -29,9 +29,9 @@ import java.util.logging.Logger;
  */
 public abstract class SyncPlay extends ActionCallback {
 
-    private static Logger log = Logger.getLogger(SyncPlay.class.getName());
+    private final static Logger log = Logger.getLogger(SyncPlay.class.getName());
 
-    public SyncPlay(UnsignedIntegerFourBytes instanceId, Service service, String referencePositionUnits, String referencePosition, String referencePresentationTime, String referenceClockId) {
+    public SyncPlay(UnsignedIntegerFourBytes instanceId, Service<?, ?> service, String referencePositionUnits, String referencePosition, String referencePresentationTime, String referenceClockId) {
         super(new ActionInvocation(service.getAction("SyncPlay")));
         getActionInvocation().setInput("InstanceID", instanceId);
         getActionInvocation().setInput("ReferencePositionUnits", referencePositionUnits);

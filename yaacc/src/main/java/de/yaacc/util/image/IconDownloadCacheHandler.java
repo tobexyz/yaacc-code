@@ -84,6 +84,6 @@ public class IconDownloadCacheHandler {
     private void initializeCache() {
         Long maxCacheSize = Runtime.getRuntime().maxMemory();
         int cacheSize = maxCacheSize.intValue() / 1024 / 8;
-        cache = new LruCache<String, Bitmap>(cacheSize);
+        cache = new LruCache<>(cacheSize);
     }
 } 
