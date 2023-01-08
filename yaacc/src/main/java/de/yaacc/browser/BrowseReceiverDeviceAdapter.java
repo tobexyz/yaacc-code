@@ -55,6 +55,7 @@ public class BrowseReceiverDeviceAdapter extends BaseAdapter {
         this.devices = new LinkedList<>(devices);
         this.selectedDevices = new LinkedList<>(selectedDevices);
         inflator = LayoutInflater.from(ctx);
+        notifyDataSetChanged();
     }
 
     @Override
@@ -122,15 +123,18 @@ public class BrowseReceiverDeviceAdapter extends BaseAdapter {
     public void setDevices(Collection<Device<?, ?, ?>> devices) {
         this.devices = new LinkedList<>();
         this.devices.addAll(devices);
+        notifyDataSetChanged();
     }
 
 
     public void addSelectedDevice(Device<?, ?, ?> device) {
         this.selectedDevices.add(device);
+        notifyDataSetChanged();
     }
 
     public void removeSelectedDevice(Device<?, ?, ?> device) {
         this.selectedDevices.remove(device);
+        notifyDataSetChanged();
     }
 
     static class ViewHolder {

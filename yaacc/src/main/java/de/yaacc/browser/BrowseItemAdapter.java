@@ -125,11 +125,13 @@ public class BrowseItemAdapter extends BaseAdapter implements AbsListView.OnScro
     public void addAll(Collection<? extends DIDLObject> objects) {
         Log.d(getClass().getName(), "added objects; " + objects);
         this.objects.addAll(objects);
+        notifyDataSetChanged();
     }
 
     public void clear() {
         objects = new LinkedList<>();
         allItemsFetched = true;
+        notifyDataSetChanged();
     }
 
     @Override
@@ -232,6 +234,7 @@ public class BrowseItemAdapter extends BaseAdapter implements AbsListView.OnScro
     public void addLoadMoreItem() {
         if (!objects.contains(LOAD_MORE_FAKE_ITEM)) {
             objects.add(LOAD_MORE_FAKE_ITEM);
+            notifyDataSetChanged();
         }
 
     }
@@ -239,16 +242,19 @@ public class BrowseItemAdapter extends BaseAdapter implements AbsListView.OnScro
     public void addLoadingItem() {
         if (!objects.contains(LOADING_FAKE_ITEM)) {
             objects.add(LOADING_FAKE_ITEM);
+            notifyDataSetChanged();
         }
 
     }
 
     public void removeLoadMoreItem() {
         objects.remove(LOAD_MORE_FAKE_ITEM);
+        notifyDataSetChanged();
     }
 
     public void removeLoadingItem() {
         objects.remove(LOADING_FAKE_ITEM);
+        notifyDataSetChanged();
     }
 
     public DIDLObject getFolder(int position) {
