@@ -1,0 +1,33 @@
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <title>This is a test</title>
+
+    <link id="foo" href="http://some/uri/path" type="some/type"/>
+
+    <!-- If you remove the 'title' attribute, Xerces will not read the 'type' attribute! Oh yeah! -->
+    <style type="text/css" title="foobar">
+        body {
+            color: black;
+        }
+    </style>
+
+    <meta name="foo" content="bar" http-equiv="baz" scheme="foobarbaz"/>
+
+    <script type="text/javascript"/>
+
+</head>
+<body>
+
+<div id="one" class="aaa abc">
+
+    <h1>Test</h1>
+
+    <div id="two" class="abc def">
+        <a href="/foo/bar.html" style="one: 1; two: 2; three: 3"/>
+        <a href="/baz/abc.html" class="foobar"/>
+    </div>
+
+</div>
+
+</body>
+</html>
