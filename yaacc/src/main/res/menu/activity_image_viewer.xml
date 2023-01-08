@@ -17,58 +17,59 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  -->
-<menu xmlns:android="http://schemas.android.com/apk/res/android" >
+<menu xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:android="http://schemas.android.com/apk/res/android" >
 
     <item
         android:id="@+id/menu_previous"
         android:icon="@drawable/player_start"
         android:orderInCategory="110"
-        android:showAsAction="always"
-        android:title="@string/previous" />
+        android:title="@string/previous"
+        app:showAsAction="always" />
     <item
         android:id="@+id/menu_play"
         android:icon="@drawable/player_play"
         android:orderInCategory="110"
-        android:showAsAction="always"
-        android:title="@string/play"/>
+        android:title="@string/play"
+        app:showAsAction="always" />
     <item
         android:id="@+id/menu_pause"
         android:icon="@drawable/player_pause"
         android:orderInCategory="110"
-        android:showAsAction="always"
-        android:title="@string/pause"/>
+        android:title="@string/pause"
+        app:showAsAction="always" />
     <item
         android:id="@+id/menu_stop"
         android:icon="@drawable/player_stop"
         android:orderInCategory="110"
-        android:showAsAction="always"
-        android:title="@string/stop"/>
+        android:title="@string/stop"
+        app:showAsAction="always" />
     <item
         android:id="@+id/menu_next"
         android:icon="@drawable/player_end"
         android:orderInCategory="110"
-        android:showAsAction="always"
-        android:title="@string/next"/>
+        android:title="@string/next"
+        app:showAsAction="always" />
     <item
         android:id="@+id/menu_exit"
         android:icon="@drawable/button_cancel"
         android:orderInCategory="110"
-        android:showAsAction="always"
-        android:title="@string/exit"/>
+        android:title="@string/exit"
+        app:showAsAction="always" />
     <item
         android:id="@+id/menu_settings"
         android:orderInCategory="100"
-        android:showAsAction="never"
-        android:title="@string/menu_settings"/>
+        android:title="@string/menu_settings"
+        app:showAsAction="never" />
     <item
         android:id="@+id/yaacc_log"
         android:orderInCategory="120"
-        android:showAsAction="never"
-        android:title="@string/title_activity_yaacc_log"/>
+        android:title="@string/title_activity_yaacc_log"
+        app:showAsAction="never" />
      <item
         android:id="@+id/yaacc_about"
         android:orderInCategory="120"
-        android:showAsAction="never"
-        android:title="@string/yaacc_about"/>
+         android:title="@string/yaacc_about"
+         app:showAsAction="never" />
 
 </menu>

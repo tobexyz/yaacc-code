@@ -134,7 +134,7 @@
     <ListPreference
         android:title="@string/image_viewer_settings_duration"
         android:key="@string/image_viewer_settings_duration_key"
-        android:defaultValue="2000"
+        android:defaultValue="5000"
         android:entries="@array/duration_entries_with_never"
         android:entryValues="@array/duration_values_with_never" />
 </PreferenceScreen>

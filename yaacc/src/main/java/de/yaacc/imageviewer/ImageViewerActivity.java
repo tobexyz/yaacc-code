@@ -18,8 +18,6 @@
  */
 package de.yaacc.imageviewer;
 
-import android.app.ActionBar;
-import android.app.Activity;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -41,6 +39,8 @@ import android.widget.ImageView;
 import android.widget.RelativeLayout;
 import android.widget.Toast;
 
+import androidx.appcompat.app.ActionBar;
+import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.res.ResourcesCompat;
 
 import java.io.Serializable;
@@ -74,7 +74,7 @@ import de.yaacc.util.YaaccLogActivity;
  *
  * @author Tobias Schoene (openbit)
  */
-public class ImageViewerActivity extends Activity implements SwipeReceiver, ServiceConnection {
+public class ImageViewerActivity extends AppCompatActivity implements SwipeReceiver, ServiceConnection {
     public static final String URIS = "URIS_PARAM"; // String Intent parameter
     public static final String AUTO_START_SHOW = "AUTO_START_SHOW"; // Boolean
     // Intent
@@ -495,7 +495,7 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver, Serv
         return Integer
                 .parseInt(preferences.getString(
                         getString(R.string.image_viewer_settings_duration_key),
-                        "2000"));
+                        "5000"));
     }
 
     // interface SwipeReceiver
@@ -557,7 +557,7 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver, Serv
     //FIXME https://stackoverflow.com/questions/26580117/android-how-to-create-overlay-drop-down-menu-similar-to-google-app
     private void menuBarsHide() {
         Log.d(getClass().getName(), "menuBarsHide");
-        ActionBar actionBar = getActionBar();
+        ActionBar actionBar = getSupportActionBar();
         if (actionBar == null) {
             Log.d(getClass().getName(), "menuBarsHide ActionBar is null");
             return;
@@ -575,7 +575,7 @@ public class ImageViewerActivity extends Activity implements SwipeReceiver, Serv
 
     private void menuBarsShow() {
         Log.d(getClass().getName(), "menuBarsShow");
-        ActionBar actionBar = getActionBar();
+        ActionBar actionBar = getSupportActionBar();
         if (actionBar == null) {
             Log.d(getClass().getName(), "menuBarsShow ActionBar is null");
             return;
