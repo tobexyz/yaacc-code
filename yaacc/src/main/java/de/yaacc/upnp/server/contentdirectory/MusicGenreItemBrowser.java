@@ -51,23 +51,55 @@ public class MusicGenreItemBrowser extends ContentBrowser {
         super(context);
     }
 
+
     @Override
     public DIDLObject browseMeta(YaaccContentDirectory contentDirectory,
                                  String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
         Item result = null;
-        String[] projection = {MediaStore.Audio.Media._ID,
-                MediaStore.Audio.Media.GENRE_ID,
-                MediaStore.Audio.Media.DISPLAY_NAME,
-                MediaStore.Audio.Media.MIME_TYPE,
-                MediaStore.Audio.Media.SIZE,
-                MediaStore.Audio.Media.ALBUM,
-                MediaStore.Audio.Media.ALBUM_ID,
-                MediaStore.Audio.Media.TITLE,
-                MediaStore.Audio.Media.ARTIST,
-                MediaStore.Audio.Media.DURATION,
-                MediaStore.Audio.Media.BITRATE,
-                MediaStore.Audio.Media.GENRE
-        };
+        String[] projection;
+        String genreId = "";
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            projection = new String[]{MediaStore.Audio.Media._ID,
+                    MediaStore.Audio.Media.DISPLAY_NAME,
+                    MediaStore.Audio.Media.MIME_TYPE,
+                    MediaStore.Audio.Media.SIZE,
+                    MediaStore.Audio.Media.ALBUM,
+                    MediaStore.Audio.Media.ALBUM_ID,
+                    MediaStore.Audio.Media.TITLE,
+                    MediaStore.Audio.Media.ARTIST,
+                    MediaStore.Audio.Media.DURATION,
+                    MediaStore.Audio.Media.BITRATE,
+                    MediaStore.Audio.Media.GENRE_ID,
+                    MediaStore.Audio.Media.GENRE};
+        } else {
+            projection = new String[]{MediaStore.Audio.Media._ID,
+                    MediaStore.Audio.Media.DISPLAY_NAME,
+                    MediaStore.Audio.Media.MIME_TYPE,
+                    MediaStore.Audio.Media.SIZE,
+                    MediaStore.Audio.Media.ALBUM,
+                    MediaStore.Audio.Media.ALBUM_ID,
+                    MediaStore.Audio.Media.TITLE,
+                    MediaStore.Audio.Media.ARTIST,
+                    MediaStore.Audio.Media.DURATION};
+            String[] genreProjection = new String[]{MediaStore.Audio.Genres.Members.GENRE_ID};
+            String genreSelection = MediaStore.Audio.Genres.Members.AUDIO_ID + "=?";
+            String[] genreSelectionArgs = new String[]{myId
+                    .substring(ContentDirectoryIDs.MUSIC_GENRE_PREFIX.getId()
+                    .length())};
+            List<String> audioIds = new ArrayList<>();
+            try (Cursor genreCursor = contentDirectory
+                    .getContext()
+                    .getContentResolver()
+                    .query(null, genreProjection,
+                            genreSelection, genreSelectionArgs, "")) {
+                if (genreCursor != null && genreCursor.getCount() == 1) {
+                    genreCursor.moveToFirst();
+                    @SuppressLint("Range") int idx = genreCursor
+                            .getColumnIndex(MediaStore.Audio.Genres.Members.AUDIO_ID);
+                    genreId = genreCursor.getString(idx);
+                }
+            }
+        }
         String selection = MediaStore.Audio.Media._ID + "=?";
         String[] selectionArgs = new String[]{myId
                 .substring(ContentDirectoryIDs.MUSIC_GENRE_ITEM_PREFIX.getId()
@@ -100,13 +132,10 @@ public class MusicGenreItemBrowser extends ContentBrowser {
                         .getColumnIndex(MediaStore.Audio.Media.ARTIST));
                 @SuppressLint("Range") String duration = mediaCursor.getString(mediaCursor
                         .getColumnIndex(MediaStore.Audio.Media.DURATION));
-                @SuppressLint("Range") String genreId = mediaCursor.getString(mediaCursor
-                        .getColumnIndex(MediaStore.Audio.Media.GENRE_ID));
-                @SuppressLint("Range") String genre = mediaCursor.getString(mediaCursor
-                        .getColumnIndex(MediaStore.Audio.Media.GENRE));
-                duration = contentDirectory.formatDuration(duration);
-                @SuppressLint("Range") String bitrate = mediaCursor.getString(mediaCursor
-                        .getColumnIndex(MediaStore.Audio.Media.BITRATE));
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                    @SuppressLint("Range") int genreIdIdx = mediaCursor.getColumnIndex(MediaStore.Audio.Media.GENRE_ID);
+                    genreId = mediaCursor.getString(genreIdIdx);
+                }
                 @SuppressLint("Range") String mimeTypeString = mediaCursor.getString(mediaCursor
                         .getColumnIndex(MediaStore.Audio.Genres.Members.MIME_TYPE));
                 Log.d(getClass().getName(), "Mimetype: " + mimeTypeString);
@@ -120,16 +149,20 @@ public class MusicGenreItemBrowser extends ContentBrowser {
                         + YaaccUpnpServerService.PORT + "?album=" + albumId);
                 Res resource = new Res(mimeType, size, uri);
                 resource.setDuration(duration);
-                resource.setBitrate(Long.valueOf(bitrate));
                 MusicTrack musicTrack = new MusicTrack(
                         ContentDirectoryIDs.MUSIC_GENRE_ITEM_PREFIX.getId() + id,
                         ContentDirectoryIDs.MUSIC_GENRE_PREFIX.getId() + genreId,
                         title + "-(" + name + ")", "", album, artist, resource);
-                musicTrack.setGenres(new String[]{genre});
-                musicTrack
-                        .replaceFirstProperty(new UPNP.ALBUM_ART_URI(albumArtUri));
-
+                musicTrack.replaceFirstProperty(new UPNP.ALBUM_ART_URI(albumArtUri));
                 musicTrack.setArtists(new PersonWithRole[]{new PersonWithRole(artist, "AlbumArtist")});
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                    @SuppressLint("Range") String genre = mediaCursor.getString(mediaCursor
+                            .getColumnIndex(MediaStore.Audio.Media.GENRE));
+                    @SuppressLint("Range") String bitrate = mediaCursor.getString(mediaCursor
+                            .getColumnIndex(MediaStore.Audio.Media.BITRATE));
+                    resource.setBitrate(Long.valueOf(bitrate));
+                    musicTrack.setGenres(new String[]{genre});
+                }
                 result = musicTrack;
 
                 Log.d(getClass().getName(), "MusicTrack: " + id + " Name: " + name
