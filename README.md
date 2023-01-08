@@ -2,10 +2,6 @@ YAACC - UPNP Client and Server
 
 # About YAACC 
 
-[<img src="https://f-droid.org/badge/get-it-on.png"
-     alt="Get it on F-Droid"
-     height="80">](https://f-droid.org/packages/de.yaacc/)
-
 YAACC (Yet Another Android Client Controller) is a hobby project I am working on in my free time.
 So it's not perfect and I am only able to test the app with my own hardware setup.
 
@@ -13,7 +9,7 @@ Please, help improving YAACC by reporting problems or sending pull requests.
 
 Have fun!
 
-tobexyz formerly known as @theopenbit
+tobexyz
 
 [<img src="https://f-droid.org/badge/get-it-on.png"
      alt="Get it on F-Droid"
@@ -46,7 +42,6 @@ Therfore a copy of the parts of cling needed by YAACC are now included in this r
  
 # Build dependencies
 Android SDK (set ANDROID_HOME or create a local.properties file to point to it)
-Maven (tested with 3.6.0)
 
 # Build from source
 Build the project by running following command in the project root:
