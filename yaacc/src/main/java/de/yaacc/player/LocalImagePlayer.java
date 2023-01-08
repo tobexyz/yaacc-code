@@ -349,6 +349,7 @@ public class LocalImagePlayer implements Player, ServiceConnection {
                 upnpClient.getContext(), Yaacc.NOTIFICATION_CHANNEL_ID)
                 .setGroup(Yaacc.NOTIFICATION_GROUP_KEY)
                 .setOngoing(false)
+                .setSilent(true)
                 .setSmallIcon(R.drawable.ic_notification_default)
                 .setLargeIcon(getIcon())
                 .setContentTitle(

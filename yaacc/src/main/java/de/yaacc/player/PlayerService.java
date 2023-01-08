@@ -95,6 +95,7 @@ public class PlayerService extends Service {
         Notification notification = new NotificationCompat.Builder(this, Yaacc.NOTIFICATION_CHANNEL_ID)
                 .setGroup(Yaacc.NOTIFICATION_GROUP_KEY)
                 .setContentTitle("Player Service")
+                .setSilent(true)
                 .setContentText("running")
                 .setSmallIcon(R.drawable.ic_notification_default)
                 .setContentIntent(pendingIntent)

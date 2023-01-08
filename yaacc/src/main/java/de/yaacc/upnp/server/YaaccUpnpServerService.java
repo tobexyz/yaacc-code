@@ -186,6 +186,7 @@ public class YaaccUpnpServerService extends Service {
         NotificationCompat.Builder mBuilder = new NotificationCompat.Builder(this, Yaacc.NOTIFICATION_CHANNEL_ID)
                 .setOngoing(true)
                 .setSmallIcon(R.drawable.ic_notification_default)
+                .setSilent(true)
                 .setContentTitle("Yaacc Upnp Server")
                 .setGroup(Yaacc.NOTIFICATION_GROUP_KEY)
                 .setContentText(preferences.getString(getApplicationContext().getString(R.string.settings_local_server_name_key), ""));

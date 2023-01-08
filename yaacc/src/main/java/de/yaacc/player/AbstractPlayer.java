@@ -549,6 +549,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
         NotificationCompat.Builder mBuilder = new NotificationCompat.Builder(
                 getContext(), Yaacc.NOTIFICATION_CHANNEL_ID).setOngoing(false)
                 .setGroup(Yaacc.NOTIFICATION_GROUP_KEY)
+                .setSilent(true)
                 .setSmallIcon(R.drawable.ic_notification_default)
                 .setLargeIcon(getIcon())
                 .setContentTitle("Yaacc player")

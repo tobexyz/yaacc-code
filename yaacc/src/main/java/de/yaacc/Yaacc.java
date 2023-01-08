@@ -152,6 +152,7 @@ public class Yaacc extends Application {
         int importance = NotificationManager.IMPORTANCE_DEFAULT;
         NotificationChannel channel = new NotificationChannel(NOTIFICATION_CHANNEL_ID, name, importance);
         channel.setDescription(description);
+
         // Register the channel with the system; you can't change the importance
         // or other notification behaviors after this
         NotificationManager notificationManager = getSystemService(NotificationManager.class);
@@ -161,6 +162,7 @@ public class Yaacc extends Application {
                 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE);
         NotificationCompat.Builder mBuilder = new NotificationCompat.Builder(
                 getApplicationContext(), Yaacc.NOTIFICATION_CHANNEL_ID)
+                .setSilent(true)
                 .setGroup(Yaacc.NOTIFICATION_GROUP_KEY)
                 .setGroupSummary(true)
                 .setSmallIcon(R.drawable.ic_notification_default)

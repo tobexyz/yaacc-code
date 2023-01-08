@@ -68,6 +68,7 @@ public class BackgroundMusicService extends Service {
                 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE);
         Notification notification = new NotificationCompat.Builder(this, Yaacc.NOTIFICATION_CHANNEL_ID)
                 .setContentTitle("Background Music Service")
+                .setSilent(true)
                 .setContentText("running")
                 .setSmallIcon(R.drawable.ic_notification_default)
                 .setContentIntent(pendingIntent)
