@@ -1144,6 +1144,21 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         playerService.controlDevice(this, device);
     }
 
+    public List<Player> initializePlayersWithPlayableItems(List<PlayableItem> items) {
+        if (playerService == null) {
+            return Collections.emptyList();
+        }
+        SynchronizationInfo synchronizationInfo = new SynchronizationInfo();
+        synchronizationInfo.setOffset(getDeviceSyncOffset()); //device specific offset
+
+        Calendar now = Calendar.getInstance(Locale.getDefault());
+        now.add(Calendar.MILLISECOND, Integer.valueOf(preferences.getString(getContext().getString(R.string.settings_default_playback_delay_key), "0")));
+        String referencedPresentationTime = new SyncOffset(true, now.get(Calendar.HOUR_OF_DAY), now.get(Calendar.MINUTE), now.get(Calendar.SECOND), now.get(Calendar.MILLISECOND), 0, 0).toString();
+        Log.d(getClass().getName(), "CurrentTime: " + new Date().toString() + " representationTime: " + referencedPresentationTime);
+        synchronizationInfo.setReferencedPresentationTime(referencedPresentationTime);
+
+        return playerService.createPlayer(this, synchronizationInfo, items);
+    }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
     public static class LocalDummyDevice extends Device {

@@ -183,7 +183,7 @@ public class AVTransportPlayer extends AbstractPlayer {
         Item item = playableItem.getItem();
         String metadata;
         try {
-            metadata = (item == null) ? "" : new DIDLParser().generate(new DIDLContent().addItem(item), false);
+            metadata = new DIDLParser().generate((item == null) ? new DIDLContent() : new DIDLContent().addItem(item), false);
         } catch (Exception e) {
             Log.d(getClass().getName(), "Error while generating Didl-Item xml: " + e);
             metadata = "";
