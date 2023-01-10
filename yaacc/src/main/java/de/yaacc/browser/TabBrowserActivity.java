@@ -21,6 +21,8 @@ import android.Manifest;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.media.MediaMetadataRetriever;
+import android.net.Uri;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
 import android.util.Log;
@@ -42,11 +44,20 @@ import androidx.viewpager2.widget.ViewPager2;
 import com.google.android.material.tabs.TabLayout;
 
 import org.fourthline.cling.model.meta.Device;
+import org.fourthline.cling.support.model.Res;
+import org.fourthline.cling.support.model.item.ImageItem;
+import org.fourthline.cling.support.model.item.MusicTrack;
+import org.fourthline.cling.support.model.item.VideoItem;
+import org.seamless.util.MimeType;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 import de.yaacc.R;
 import de.yaacc.Yaacc;
+import de.yaacc.player.PlayableItem;
+import de.yaacc.player.Player;
 import de.yaacc.settings.SettingsActivity;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.UpnpClientListener;
@@ -164,7 +175,60 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
             setCurrentTab(BrowserTabs.CONTENT);
 
         }
+
+        // Get intent, action and MIME type
+        Intent intent = getIntent();
+        String action = intent.getAction();
+        if (Intent.ACTION_SEND.equals(action) && intent.getClipData() != null) {
+            ArrayList<PlayableItem> items = new ArrayList<>();
+            for (int i = 0; i < intent.getClipData().getItemCount(); i++) {
+                if (intent.getClipData().getItemAt(i) != null) {
+                    Uri contentUri = Uri.parse(intent.getClipData().getItemAt(i).getText().toString());
+                    items.add(creatPlayableItem(contentUri));
+                }
+            }
+            List<Player> players = upnpClient.initializePlayersWithPlayableItems(items);
+            for (Player player : players) {
+                player.play();
+            }
+            intent.setClipData(null);
+        }
         Log.d(this.getClass().getName(), "on create took: " + (System.currentTimeMillis() - start));
+    }
+
+    private PlayableItem creatPlayableItem(Uri uri) {
+        PlayableItem item = new PlayableItem();
+        if (uri == null) {
+            return item;
+        }
+        String uriString = uri.toString();
+        try (MediaMetadataRetriever metaRetriever = new MediaMetadataRetriever()) {
+
+            try {
+                metaRetriever.setDataSource(uriString);
+                String duration = metaRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION);
+                item.setDuration(Long.parseLong(duration));
+                item.setMimeType(metaRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_MIMETYPE));
+                Res res = new Res(MimeType.valueOf(item.getMimeType()), 1L, duration);
+                res.setValue(uriString);
+                if (item.getMimeType().startsWith("audio/")) {
+                    item.setItem(new MusicTrack("1", "2", "shared with ♥ by yaacc", "", "", "", res));
+                } else if (item.getMimeType().startsWith("video/")) {
+                    item.setItem(new VideoItem("1", "2", "shared with ♥ by yaacc", "", res));
+                } else if (item.getMimeType().startsWith("image/")) {
+                    item.setItem(new ImageItem("1", "2", "shared with ♥ by yaacc", "", res));
+                }
+            } catch (RuntimeException e) {
+                //no media file with duration
+                Log.d(getClass().getName(), "Can't retrieve duration of media url assume shared image", e);
+                Res res = new Res(MimeType.valueOf("image/*"), 1L, "");
+                res.setValue(uriString);
+                item.setItem(new ImageItem("1", "2", "shared with ♥ by yaacc", "", res));
+            }
+            item.setUri(uri);
+            item.setTitle("foo");
+        }
+        return item;
     }
 
     public void setCurrentTab(final BrowserTabs content) {

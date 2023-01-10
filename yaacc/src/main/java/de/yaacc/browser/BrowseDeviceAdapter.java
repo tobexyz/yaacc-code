@@ -53,11 +53,14 @@ public class BrowseDeviceAdapter extends BaseAdapter {
         super();
 
         this.devices = devices;
-
-        inflator = LayoutInflater.from(ctx);
+        if (ctx != null) {
+            inflator = LayoutInflater.from(ctx);
+        } else {
+            inflator = null;
+        }
         notifyDataSetChanged();
     }
-    
+
     @Override
     public int getCount() {
         return devices.size();
@@ -77,7 +80,7 @@ public class BrowseDeviceAdapter extends BaseAdapter {
     public View getView(int position, View convertView, ViewGroup parent) {
         ViewHolder holder;
 
-        if (convertView == null) {
+        if (convertView == null && inflator != null) {
             convertView = inflator.inflate(R.layout.browse_item, parent, false);
 
             holder = new ViewHolder();

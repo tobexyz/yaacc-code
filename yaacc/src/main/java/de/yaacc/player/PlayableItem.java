@@ -31,7 +31,7 @@ import org.fourthline.cling.support.model.item.Item;
  */
 public class PlayableItem {
 
-    private final Item item;
+    private Item item;
     private String mimeType;
     private String title;
     private Uri uri;
@@ -166,5 +166,9 @@ public class PlayableItem {
     public Item getItem() {
         return item;
 
+    }
+
+    public void setItem(Item item) {
+        this.item = item;
     }
 }
