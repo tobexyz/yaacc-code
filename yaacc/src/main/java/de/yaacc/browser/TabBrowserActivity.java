@@ -202,6 +202,7 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
             return item;
         }
         String uriString = uri.toString();
+        final String title = "shared with yaacc with ♥";
         try (MediaMetadataRetriever metaRetriever = new MediaMetadataRetriever()) {
 
             try {
@@ -212,21 +213,21 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
                 Res res = new Res(MimeType.valueOf(item.getMimeType()), 1L, duration);
                 res.setValue(uriString);
                 if (item.getMimeType().startsWith("audio/")) {
-                    item.setItem(new MusicTrack("1", "2", "shared with ♥ by yaacc", "", "", "", res));
+                    item.setItem(new MusicTrack("1", "2", title, "", "", "", res));
                 } else if (item.getMimeType().startsWith("video/")) {
-                    item.setItem(new VideoItem("1", "2", "shared with ♥ by yaacc", "", res));
+                    item.setItem(new VideoItem("1", "2", title, "", res));
                 } else if (item.getMimeType().startsWith("image/")) {
-                    item.setItem(new ImageItem("1", "2", "shared with ♥ by yaacc", "", res));
+                    item.setItem(new ImageItem("1", "2", title, "", res));
                 }
             } catch (RuntimeException e) {
                 //no media file with duration
                 Log.d(getClass().getName(), "Can't retrieve duration of media url assume shared image", e);
                 Res res = new Res(MimeType.valueOf("image/*"), 1L, "");
                 res.setValue(uriString);
-                item.setItem(new ImageItem("1", "2", "shared with ♥ by yaacc", "", res));
+                item.setItem(new ImageItem("1", "2", title, "", res));
             }
             item.setUri(uri);
-            item.setTitle("foo");
+            item.setTitle(title);
         }
         return item;
     }
