@@ -1,5 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- 
+<?xml version="1.0" encoding="utf-8"?><!--
  *
  * Copyright (C) 2013 www.yaacc.de 
  *
@@ -18,92 +17,94 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  -->
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".player.MultiContentPlayerActivity" >
+    tools:context=".player.MultiContentPlayerActivity">
 
-     <RelativeLayout
-         android:id="@+id/multiContentPlayerActivityControls"
-         android:layout_width="fill_parent"
-         android:layout_height="wrap_content"
-         android:layout_alignParentBottom="true"
-         android:layout_alignParentLeft="true"
-         android:layout_alignParentStart="true"
-         android:orientation="horizontal" >
+    <RelativeLayout
+        android:id="@+id/multiContentPlayerActivityControls"
+        android:layout_width="fill_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentStart="true"
+        android:layout_alignParentLeft="true"
+        android:layout_alignParentBottom="true"
+        android:orientation="horizontal">
 
-         <ImageButton
-             android:id="@+id/multiContentPlayerActivityControlPrev"
-             android:layout_width="wrap_content"
-             android:layout_height="wrap_content"
-             android:layout_alignParentLeft="true"
-             android:layout_alignParentStart="true"
-             android:layout_alignParentTop="true"
-             android:contentDescription="@string/previous"
-             android:src="@drawable/player_start" />
+        <ImageButton
+            android:id="@+id/multiContentPlayerActivityControlPrev"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentStart="true"
+            android:layout_alignParentLeft="true"
+            android:layout_alignParentTop="true"
+            android:contentDescription="@string/previous"
+            app:srcCompat="@drawable/player_start" />
 
-         <ImageButton
-             android:id="@+id/multiContentPlayerActivityControlPlay"
-             android:layout_width="wrap_content"
-             android:layout_height="wrap_content"
-             android:layout_alignParentTop="true"
-             android:layout_toEndOf="@+id/multiContentPlayerActivityControlPrev"
-             android:layout_toRightOf="@+id/multiContentPlayerActivityControlPrev"
-             android:contentDescription="@string/play"
-             android:src="@drawable/player_play" />
+        <ImageButton
+            android:id="@+id/multiContentPlayerActivityControlPlay"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentTop="true"
+            android:layout_toEndOf="@+id/multiContentPlayerActivityControlPrev"
+            android:layout_toRightOf="@+id/multiContentPlayerActivityControlPrev"
+            android:contentDescription="@string/play"
+            app:srcCompat="@drawable/player_play" />
 
-         <ImageButton
-             android:id="@+id/multiContentPlayerActivityControlPause"
-             android:layout_width="wrap_content"
-             android:layout_height="wrap_content"
-             android:layout_alignParentTop="true"
-             android:layout_toEndOf="@+id/multiContentPlayerActivityControlPlay"
-             android:layout_toRightOf="@+id/multiContentPlayerActivityControlPlay"
-             android:contentDescription="@string/pause"
-             android:src="@drawable/player_pause" />
+        <ImageButton
+            android:id="@+id/multiContentPlayerActivityControlPause"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentTop="true"
+            android:layout_toEndOf="@+id/multiContentPlayerActivityControlPlay"
+            android:layout_toRightOf="@+id/multiContentPlayerActivityControlPlay"
+            android:contentDescription="@string/pause"
+            app:srcCompat="@drawable/player_pause" />
 
-         <ImageButton
-             android:id="@+id/multiContentPlayerActivityControlStop"
-             android:layout_width="wrap_content"
-             android:layout_height="wrap_content"
-             android:layout_alignParentTop="true"
-             android:layout_centerHorizontal="true"
-             android:layout_toEndOf="@+id/multiContentPlayerActivityControlPause"
-             android:layout_toRightOf="@+id/multiContentPlayerActivityControlPause"
-             android:contentDescription="@string/stop"
-             android:src="@drawable/player_stop" />
+        <ImageButton
+            android:id="@+id/multiContentPlayerActivityControlStop"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentTop="true"
+            android:layout_centerHorizontal="true"
+            android:layout_toEndOf="@+id/multiContentPlayerActivityControlPause"
+            android:layout_toRightOf="@+id/multiContentPlayerActivityControlPause"
+            android:contentDescription="@string/stop"
+            app:srcCompat="@drawable/player_stop" />
 
-         <ImageButton
-             android:id="@+id/multiContentPlayerActivityControlNext"
-             android:layout_width="wrap_content"
-             android:layout_height="wrap_content"
-             android:layout_alignParentTop="true"
-             android:layout_toEndOf="@+id/multiContentPlayerActivityControlStop"
-             android:layout_toRightOf="@+id/multiContentPlayerActivityControlStop"
-             android:contentDescription="@string/next"
-             android:src="@drawable/player_end" />
-          <ImageButton
-             android:id="@+id/multiContentPlayerActivityControlExit"
-             android:layout_width="wrap_content"
-             android:layout_height="wrap_content"
-             android:layout_alignParentTop="true"
-             android:layout_toEndOf="@+id/multiContentPlayerActivityControlNext"
-             android:layout_toRightOf="@+id/multiContentPlayerActivityControlNext"
-             android:contentDescription="@string/exit"
-             android:src="@drawable/button_cancel" />
-     </RelativeLayout>
+        <ImageButton
+            android:id="@+id/multiContentPlayerActivityControlNext"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentTop="true"
+            android:layout_toEndOf="@+id/multiContentPlayerActivityControlStop"
+            android:layout_toRightOf="@+id/multiContentPlayerActivityControlStop"
+            android:contentDescription="@string/next"
+            app:srcCompat="@drawable/player_end" />
 
-     <ImageView
-         android:id="@+id/multiContentPlayerActivityImageView"
-         android:contentDescription="@string/multiContentPlayerActivityImageView"
-         android:layout_width="wrap_content"
-         android:layout_height="wrap_content"
-         android:layout_above="@+id/multiContentPlayerActivityControls"
-         android:layout_alignParentStart="true"
-         android:layout_alignParentLeft="true"
-         android:layout_alignParentRight="true"
-         android:layout_alignParentEnd="true"
-         android:layout_alignParentTop="true"
-         android:src="@drawable/yaacc192_32" />
+        <ImageButton
+            android:id="@+id/multiContentPlayerActivityControlExit"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentTop="true"
+            android:layout_toEndOf="@+id/multiContentPlayerActivityControlNext"
+            android:layout_toRightOf="@+id/multiContentPlayerActivityControlNext"
+            android:contentDescription="@string/exit"
+            app:srcCompat="@drawable/button_cancel" />
+    </RelativeLayout>
+
+    <ImageView
+        android:id="@+id/multiContentPlayerActivityImageView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_above="@+id/multiContentPlayerActivityControls"
+        android:layout_alignParentStart="true"
+        android:layout_alignParentLeft="true"
+        android:layout_alignParentTop="true"
+        android:layout_alignParentEnd="true"
+        android:layout_alignParentRight="true"
+        android:contentDescription="@string/multiContentPlayerActivityImageView"
+        app:srcCompat="@drawable/yaacc192_32" />
 
 </RelativeLayout>

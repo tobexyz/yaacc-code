@@ -17,7 +17,6 @@
  */
 package de.yaacc.player;
 
-import android.app.Activity;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -35,6 +34,8 @@ import android.widget.ImageView;
 import android.widget.SeekBar;
 import android.widget.Switch;
 import android.widget.TextView;
+
+import androidx.appcompat.app.AppCompatActivity;
 
 import org.fourthline.cling.model.meta.Device;
 
@@ -59,7 +60,7 @@ import de.yaacc.util.image.ImageDownloadTask;
  *
  * @author Tobias Schoene (openbit)
  */
-public class AVTransportPlayerActivity extends Activity implements ServiceConnection {
+public class AVTransportPlayerActivity extends AppCompatActivity implements ServiceConnection {
 
     protected boolean updateTime = false;
     protected SeekBar seekBar = null;

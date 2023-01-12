@@ -1,5 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- 
+<?xml version="1.0" encoding="utf-8"?><!--
  *
  * Copyright (C) 2013 www.yaacc.de 
  *
@@ -18,10 +17,11 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  -->
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".player.MusicPlayerActivity" >
+    tools:context=".player.MusicPlayerActivity">
 
 
     <ImageView
@@ -41,40 +41,36 @@
         android:layout_marginRight="0dp"
         android:layout_marginBottom="0dp"
         android:contentDescription="@string/musicActivityImageView"
-        android:src="@drawable/cdtrack" />
-
-
-
+        app:srcCompat="@drawable/cdtrack" />
 
 
     <TextView
         android:id="@+id/musicActivityCurrentItem"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="@string/playerCurrentItem"
         android:layout_above="@+id/musicActivityElapsedTime"
+        android:layout_alignParentStart="true"
         android:layout_alignParentLeft="true"
-        android:layout_alignParentStart="true" />
+        android:text="@string/playerCurrentItem" />
 
     <Space
         android:id="@+id/musicActivitySeparator3"
-        android:layout_toRightOf="@+id/musicActivityCurrentItem"
-        android:layout_toEndOf="@+id/musicActivityCurrentItem"
-        android:layout_alignBaseline="@+id/musicActivityCurrentItem"
         android:layout_width="wrap_content"
-        android:layout_height="wrap_content"/>
+        android:layout_height="wrap_content"
+        android:layout_alignBaseline="@+id/musicActivityCurrentItem"
+        android:layout_toEndOf="@+id/musicActivityCurrentItem"
+        android:layout_toRightOf="@+id/musicActivityCurrentItem" />
 
     <TextView
         android:id="@+id/musicActivityNextLabel"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginLeft="50dp"
-        android:layout_marginStart="50dp"
         android:layout_alignBaseline="@+id/musicActivityCurrentItem"
+        android:layout_marginStart="50dp"
+        android:layout_marginLeft="50dp"
         android:layout_toEndOf="@+id/musicActivitySeparator3"
         android:layout_toRightOf="@+id/musicActivitySeparator3"
-        android:text="@string/musicActivityNextLabel"
-        />
+        android:text="@string/musicActivityNextLabel" />
 
 
     <TextView
@@ -82,95 +78,92 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_alignBaseline="@+id/musicActivityCurrentItem"
-        android:text="@string/playerNextItem"
         android:layout_alignTop="@+id/musicActivityNextLabel"
-        android:layout_toRightOf="@+id/musicActivityNextLabel"
-        android:layout_toEndOf="@+id/musicActivityNextLabel"
-        android:gravity="end"
+        android:layout_alignParentEnd="true"
         android:layout_alignParentRight="true"
-        android:layout_alignParentEnd="true"/>
-
-
+        android:layout_toEndOf="@+id/musicActivityNextLabel"
+        android:layout_toRightOf="@+id/musicActivityNextLabel"
+        android:gravity="end"
+        android:text="@string/playerNextItem" />
 
 
     <TextView
         android:id="@+id/musicActivityElapsedTime"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="@string/playerTimeElapsed"
         android:layout_above="@+id/musicActivitySeekBarLayout"
+        android:layout_alignParentStart="true"
         android:layout_alignParentLeft="true"
-        android:layout_alignParentStart="true" />
+        android:text="@string/playerTimeElapsed" />
 
     <TextView
         android:id="@+id/musicActivitySeparator"
-        android:layout_alignBaseline="@+id/musicActivityElapsedTime"
-        android:layout_toRightOf="@id/musicActivityElapsedTime"
-        android:layout_toEndOf="@id/musicActivityElapsedTime"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="@string/playerTimeSeparator"/>
+        android:layout_alignBaseline="@+id/musicActivityElapsedTime"
+        android:layout_toEndOf="@id/musicActivityElapsedTime"
+        android:layout_toRightOf="@id/musicActivityElapsedTime"
+        android:text="@string/playerTimeSeparator" />
 
     <TextView
         android:id="@+id/musicActivityDuration"
-        android:layout_alignBaseline="@+id/musicActivityElapsedTime"
-        android:layout_toRightOf="@id/musicActivitySeparator"
-        android:layout_toEndOf="@id/musicActivitySeparator"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="@string/playerTimeDuration"/>
+        android:layout_alignBaseline="@+id/musicActivityElapsedTime"
+        android:layout_toEndOf="@id/musicActivitySeparator"
+        android:layout_toRightOf="@id/musicActivitySeparator"
+        android:text="@string/playerTimeDuration" />
+
     <Space
         android:id="@+id/musicActivitySeparator2"
-        android:layout_alignBaseline="@+id/musicActivityElapsedTime"
-        android:layout_toRightOf="@id/musicActivityDuration"
-        android:layout_toEndOf="@id/musicActivityDuration"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        />
+        android:layout_alignBaseline="@+id/musicActivityElapsedTime"
+        android:layout_toEndOf="@id/musicActivityDuration"
+        android:layout_toRightOf="@id/musicActivityDuration" />
 
     <TextView
         android:id="@+id/musicActivityPosition"
-        android:layout_alignParentRight="true"
-        android:layout_alignParentEnd="true"
-        android:layout_above="@+id/musicActivitySeekBarLayout"
-        android:gravity="end"
-        android:layout_toRightOf="@+id/musicActivitySeparator2"
-        android:layout_toEndOf="@+id/musicActivitySeparator2"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="@string/playerPosition"
+        android:layout_above="@+id/musicActivitySeekBarLayout"
         android:layout_alignBaseline="@+id/musicActivityDuration"
-        android:textAlignment="textEnd"
-        />
-
+        android:layout_alignParentEnd="true"
+        android:layout_alignParentRight="true"
+        android:layout_toEndOf="@+id/musicActivitySeparator2"
+        android:layout_toRightOf="@+id/musicActivitySeparator2"
+        android:gravity="end"
+        android:text="@string/playerPosition"
+        android:textAlignment="textEnd" />
 
 
     <RelativeLayout
         android:id="@+id/musicActivitySeekBarLayout"
         android:layout_width="fill_parent"
         android:layout_height="wrap_content"
-        android:layout_alignParentStart="true"
-        android:layout_alignParentLeft="true"
         android:layout_above="@+id/musicActivityControls"
-        android:orientation="horizontal" >
-    <SeekBar
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:id="@+id/musicActivitySeekBar"
-        android:layout_alignParentLeft="true"
         android:layout_alignParentStart="true"
-        android:layout_alignParentRight="true"
-        android:layout_alignParentEnd="true" />
+        android:layout_alignParentLeft="true"
+        android:orientation="horizontal">
+
+        <SeekBar
+            android:id="@+id/musicActivitySeekBar"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentStart="true"
+            android:layout_alignParentLeft="true"
+            android:layout_alignParentEnd="true"
+            android:layout_alignParentRight="true" />
     </RelativeLayout>
 
     <RelativeLayout
         android:id="@+id/musicActivityControls"
         android:layout_width="fill_parent"
         android:layout_height="wrap_content"
-        android:layout_alignParentBottom="true"
         android:layout_alignParentStart="true"
         android:layout_alignParentLeft="true"
-        android:orientation="horizontal" >
+        android:layout_alignParentBottom="true"
+        android:orientation="horizontal">
 
         <ImageButton
             android:id="@+id/musicActivityControlPrev"
@@ -180,7 +173,7 @@
             android:layout_alignParentLeft="true"
             android:layout_alignParentTop="true"
             android:contentDescription="@string/previous"
-            android:src="@drawable/player_start" />
+            app:srcCompat="@drawable/player_start" />
 
         <ImageButton
             android:id="@+id/musicActivityControlPlay"
@@ -190,7 +183,7 @@
             android:layout_toEndOf="@+id/musicActivityControlPrev"
             android:layout_toRightOf="@+id/musicActivityControlPrev"
             android:contentDescription="@string/play"
-            android:src="@drawable/player_play" />
+            app:srcCompat="@drawable/player_play" />
 
         <ImageButton
             android:id="@+id/musicActivityControlPause"
@@ -200,7 +193,7 @@
             android:layout_toEndOf="@+id/musicActivityControlPlay"
             android:layout_toRightOf="@+id/musicActivityControlPlay"
             android:contentDescription="@string/pause"
-            android:src="@drawable/player_pause" />
+            app:srcCompat="@drawable/player_pause" />
 
         <ImageButton
             android:id="@+id/musicActivityControlStop"
@@ -211,7 +204,7 @@
             android:layout_toEndOf="@+id/musicActivityControlPause"
             android:layout_toRightOf="@+id/musicActivityControlPause"
             android:contentDescription="@string/stop"
-            android:src="@drawable/player_stop" />
+            app:srcCompat="@drawable/player_stop" />
 
         <ImageButton
             android:id="@+id/musicActivityControlNext"
@@ -221,7 +214,8 @@
             android:layout_toEndOf="@+id/musicActivityControlStop"
             android:layout_toRightOf="@+id/musicActivityControlStop"
             android:contentDescription="@string/next"
-            android:src="@drawable/player_end" />
+            app:srcCompat="@drawable/player_end" />
+
         <ImageButton
             android:id="@+id/musicActivityControlExit"
             android:layout_width="wrap_content"
@@ -230,7 +224,7 @@
             android:layout_toEndOf="@+id/musicActivityControlNext"
             android:layout_toRightOf="@+id/musicActivityControlNext"
             android:contentDescription="@string/exit"
-            android:src="@drawable/button_cancel" />
+            app:srcCompat="@drawable/button_cancel" />
     </RelativeLayout>
 
 

@@ -15,18 +15,18 @@
 
 package org.fourthline.cling.model.meta;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.logging.Logger;
-
 import org.fourthline.cling.model.ServiceReference;
 import org.fourthline.cling.model.ValidationError;
 import org.fourthline.cling.model.ValidationException;
 import org.fourthline.cling.model.types.Datatype;
 import org.fourthline.cling.model.types.ServiceId;
 import org.fourthline.cling.model.types.ServiceType;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.logging.Logger;
 
 /**
  * The metadata of a service, with actions and state variables.
@@ -35,7 +35,7 @@ import org.fourthline.cling.model.types.ServiceType;
  */
 public abstract class Service<D extends Device, S extends Service> {
 
-	final private static Logger log = Logger.getLogger(Service.class.getName());
+    final private static Logger log = Logger.getLogger(Service.class.getName());
 
     final private ServiceType serviceType;
     final private ServiceId serviceId;
@@ -103,7 +103,7 @@ public abstract class Service<D extends Device, S extends Service> {
     }
 
     void setDevice(D device) {
-        if (this.device != null)
+        if (this.device != null && !this.device.equals(device))
             throw new IllegalStateException("Final value has been set already, model is immutable");
         this.device = device;
     }
@@ -186,13 +186,13 @@ public abstract class Service<D extends Device, S extends Service> {
                 // errors.addAll(action.validate());
 
                 List<ValidationError> actionErrors = action.validate();
-            	if(actionErrors.size() > 0) {
+                if (actionErrors.size() > 0) {
                     actions.remove(action.getName()); // Remove it
                     log.warning("Discarding invalid action of service '" + getServiceId() + "': " + action.getName());
                     for (ValidationError actionError : actionErrors) {
                         log.warning("Invalid action '" + action.getName() + "': " + actionError);
                     }
-            	}
+                }
             }
         }
 

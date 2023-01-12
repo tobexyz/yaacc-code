@@ -18,12 +18,13 @@
  */
 package de.yaacc.util;
 
-import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager.NameNotFoundException;
 import android.os.Bundle;
 import android.util.Log;
 import android.widget.TextView;
+
+import androidx.appcompat.app.AppCompatActivity;
 
 import de.yaacc.R;
 
@@ -32,8 +33,8 @@ import de.yaacc.R;
  *
  * @author Tobias Schoene (openbit)
  */
-public class AboutActivity extends Activity {
-    public static void showAbout(Activity activity) {
+public class AboutActivity extends AppCompatActivity {
+    public static void showAbout(AppCompatActivity activity) {
         activity.startActivity(new Intent(activity, AboutActivity.class));
     }
 

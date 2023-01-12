@@ -1,5 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- 
+<?xml version="1.0" encoding="utf-8"?><!--
  *
  * Copyright (C) 2013 www.yaacc.de 
  *
@@ -18,92 +17,94 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  -->
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".player.ThirdPartieMusicPlayerActivity" >
+    tools:context=".player.ThirdPartieMusicPlayerActivity">
 
-     <RelativeLayout
-         android:id="@+id/thirdPartieMusicActivityControls"
-         android:layout_width="fill_parent"
-         android:layout_height="wrap_content"
-         android:layout_alignParentBottom="true"
-         android:layout_alignParentStart="true"
-         android:layout_alignParentLeft="true"
-         android:orientation="horizontal" >
+    <RelativeLayout
+        android:id="@+id/thirdPartieMusicActivityControls"
+        android:layout_width="fill_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentStart="true"
+        android:layout_alignParentLeft="true"
+        android:layout_alignParentBottom="true"
+        android:orientation="horizontal">
 
-         <ImageButton
-             android:id="@+id/thirdPratieMusicActivityControlPrev"
-             android:layout_width="wrap_content"
-             android:layout_height="wrap_content"
-             android:layout_alignParentStart="true"
-             android:layout_alignParentLeft="true"
-             android:layout_alignParentTop="true"
-             android:contentDescription="@string/previous"
-             android:src="@drawable/player_start" />
+        <ImageButton
+            android:id="@+id/thirdPratieMusicActivityControlPrev"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentStart="true"
+            android:layout_alignParentLeft="true"
+            android:layout_alignParentTop="true"
+            android:contentDescription="@string/previous"
+            app:srcCompat="@drawable/player_start" />
 
-         <ImageButton
-             android:id="@+id/thirdPratieMusicActivityControlPlay"
-             android:layout_width="wrap_content"
-             android:layout_height="wrap_content"
-             android:layout_alignParentTop="true"
-             android:layout_toEndOf="@+id/thirdPratieMusicActivityControlPrev"
-             android:layout_toRightOf="@+id/thirdPratieMusicActivityControlPrev"
-             android:contentDescription="@string/play"
-             android:src="@drawable/player_play" />
+        <ImageButton
+            android:id="@+id/thirdPratieMusicActivityControlPlay"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentTop="true"
+            android:layout_toEndOf="@+id/thirdPratieMusicActivityControlPrev"
+            android:layout_toRightOf="@+id/thirdPratieMusicActivityControlPrev"
+            android:contentDescription="@string/play"
+            app:srcCompat="@drawable/player_play" />
 
-         <ImageButton
-             android:id="@+id/thirdPratieMusicActivityControlPause"
-             android:layout_width="wrap_content"
-             android:layout_height="wrap_content"
-             android:layout_alignParentTop="true"
-             android:layout_toEndOf="@+id/thirdPratieMusicActivityControlPlay"
-             android:layout_toRightOf="@+id/thirdPratieMusicActivityControlPlay"
-             android:contentDescription="@string/pause"
-             android:src="@drawable/player_pause" />
+        <ImageButton
+            android:id="@+id/thirdPratieMusicActivityControlPause"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentTop="true"
+            android:layout_toEndOf="@+id/thirdPratieMusicActivityControlPlay"
+            android:layout_toRightOf="@+id/thirdPratieMusicActivityControlPlay"
+            android:contentDescription="@string/pause"
+            app:srcCompat="@drawable/player_pause" />
 
-         <ImageButton
-             android:id="@+id/thirdPratieMusicActivityControlStop"
-             android:layout_width="wrap_content"
-             android:layout_height="wrap_content"
-             android:layout_alignParentTop="true"
-             android:layout_centerHorizontal="true"
-             android:layout_toEndOf="@+id/thirdPratieMusicActivityControlPause"
-             android:layout_toRightOf="@+id/thirdPratieMusicActivityControlPause"
-             android:contentDescription="@string/stop"
-             android:src="@drawable/player_stop" />
+        <ImageButton
+            android:id="@+id/thirdPratieMusicActivityControlStop"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentTop="true"
+            android:layout_centerHorizontal="true"
+            android:layout_toEndOf="@+id/thirdPratieMusicActivityControlPause"
+            android:layout_toRightOf="@+id/thirdPratieMusicActivityControlPause"
+            android:contentDescription="@string/stop"
+            app:srcCompat="@drawable/player_stop" />
 
-         <ImageButton
-             android:id="@+id/thirdPratieMusicActivityControlNext"
-             android:layout_width="wrap_content"
-             android:layout_height="wrap_content"
-             android:layout_alignParentTop="true"
-             android:layout_toEndOf="@+id/thirdPratieMusicActivityControlStop"
-             android:layout_toRightOf="@+id/thirdPratieMusicActivityControlStop"
-             android:contentDescription="@string/next"
-             android:src="@drawable/player_end" />
-          <ImageButton
-             android:id="@+id/thirdPratieMusicActivityControlExit"
-             android:layout_width="wrap_content"
-             android:layout_height="wrap_content"
-             android:layout_alignParentTop="true"
-             android:layout_toEndOf="@+id/thirdPratieMusicActivityControlNext"
-             android:layout_toRightOf="@+id/thirdPratieMusicActivityControlNext"
-             android:contentDescription="@string/exit"
-             android:src="@drawable/button_cancel" />
-     </RelativeLayout>
+        <ImageButton
+            android:id="@+id/thirdPratieMusicActivityControlNext"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentTop="true"
+            android:layout_toEndOf="@+id/thirdPratieMusicActivityControlStop"
+            android:layout_toRightOf="@+id/thirdPratieMusicActivityControlStop"
+            android:contentDescription="@string/next"
+            app:srcCompat="@drawable/player_end" />
 
-     <ImageView
-         android:id="@+id/thirdPratieMusicActivityImageView"
-         android:layout_width="wrap_content"
-         android:layout_height="wrap_content"
-         android:layout_above="@+id/thirdPartieMusicActivityControls"
-         android:layout_alignParentStart="true"
-         android:layout_alignParentEnd="true"
-         android:layout_alignParentLeft="true"
-         android:layout_alignParentRight="true"
-         android:layout_alignParentTop="true"
-         android:contentDescription="@string/musicActivityImageView"
-         android:src="@drawable/cdtrack" />
+        <ImageButton
+            android:id="@+id/thirdPratieMusicActivityControlExit"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentTop="true"
+            android:layout_toEndOf="@+id/thirdPratieMusicActivityControlNext"
+            android:layout_toRightOf="@+id/thirdPratieMusicActivityControlNext"
+            android:contentDescription="@string/exit"
+            app:srcCompat="@drawable/button_cancel" />
+    </RelativeLayout>
+
+    <ImageView
+        android:id="@+id/thirdPratieMusicActivityImageView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_above="@+id/thirdPartieMusicActivityControls"
+        android:layout_alignParentStart="true"
+        android:layout_alignParentLeft="true"
+        android:layout_alignParentTop="true"
+        android:layout_alignParentEnd="true"
+        android:layout_alignParentRight="true"
+        android:contentDescription="@string/musicActivityImageView"
+        app:srcCompat="@drawable/cdtrack" />
 
 </RelativeLayout>

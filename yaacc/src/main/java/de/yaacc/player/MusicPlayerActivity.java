@@ -17,7 +17,6 @@
  */
 package de.yaacc.player;
 
-import android.app.Activity;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -32,6 +31,8 @@ import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.SeekBar;
 import android.widget.TextView;
+
+import androidx.appcompat.app.AppCompatActivity;
 
 import java.net.URI;
 import java.text.ParseException;
@@ -53,7 +54,7 @@ import de.yaacc.util.image.ImageDownloadTask;
  *
  * @author Tobias Schoene (openbit)
  */
-public class MusicPlayerActivity extends Activity implements ServiceConnection {
+public class MusicPlayerActivity extends AppCompatActivity implements ServiceConnection {
 
     protected boolean updateTime = false;
     protected SeekBar seekBar = null;
