@@ -23,6 +23,7 @@ import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Intent;
 import android.media.AudioAttributes;
+import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.net.Uri;
 import android.os.Binder;
@@ -213,11 +214,12 @@ public class BackgroundMusicService extends Service {
             player.setAudioAttributes(
                     new AudioAttributes.Builder()
                             .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                            .setUsage(AudioAttributes.USAGE_MEDIA)
+                            .setLegacyStreamType(AudioManager.STREAM_MUSIC)
                             .build());
+            player.setOnPreparedListener(mediaPlayer ->
+                    duration = player.getDuration());
             player.setDataSource(this, uri);
-
-
-            player.setOnPreparedListener(mediaPlayer -> duration = player.getDuration());
             //player.prepareAsync();
 
             player.prepare();
