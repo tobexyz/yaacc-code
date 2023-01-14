@@ -92,17 +92,6 @@
             </intent-filter>
         </activity>
         <activity
-            android:name=".player.ThirdPartieMusicPlayerActivity"
-            android:exported="true"
-            android:label="@string/title_activity_music_player">
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
-        <activity
             android:name=".player.AVTransportPlayerActivity"
             android:exported="true"
             android:label="@string/title_activity_avtransport_player">
