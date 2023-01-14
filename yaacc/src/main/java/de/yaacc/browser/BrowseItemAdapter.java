@@ -287,7 +287,7 @@ public class BrowseItemAdapter extends BaseAdapter implements AbsListView.OnScro
 
         Log.d(getClass().getName(), "loadMore from: " + from);
 
-        BrowseItemLoadTask browseItemLoadTask = new BrowseItemLoadTask(this, Long.parseLong(PreferenceManager.getDefaultSharedPreferences(getContext()).getString(getContext().getString(R.string.settings_browse_chunk_size_key), "10")));
+        BrowseItemLoadTask browseItemLoadTask = new BrowseItemLoadTask(this, Long.parseLong(PreferenceManager.getDefaultSharedPreferences(getContext()).getString(getContext().getString(R.string.settings_browse_chunk_size_key), "50")));
         asyncTasks.add(browseItemLoadTask);
         browseItemLoadTask.executeOnExecutor(((Yaacc) getContext().getApplicationContext()).getContentLoadExecutor(), from);
 

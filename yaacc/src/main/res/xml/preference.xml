@@ -46,7 +46,7 @@
             android:summary="@string/settings_browse_load_threads_summ"
             android:title="@string/settings_browse_load_threads" />
         <EditTextPreference
-            android:defaultValue="20"
+            android:defaultValue="50"
             android:dialogTitle="@string/settings_browse_chunk_size"
             android:inputType="number"
             android:key="@string/settings_browse_chunk_size_key"
