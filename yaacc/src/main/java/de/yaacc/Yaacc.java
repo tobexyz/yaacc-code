@@ -18,6 +18,7 @@
 package de.yaacc;
 
 
+import android.app.ActivityManager;
 import android.app.Application;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -129,7 +130,7 @@ public class Yaacc extends Application {
     }
 
     public void exit() {
-        int p = android.os.Process.myPid();
+        Log.d(getClass().getName(), "Start shutdown and close");
         upnpClient.shutdown();
         stopService(new Intent(this, PlayerService.class));
         stopService(new Intent(this, BackgroundMusicService.class));
@@ -142,7 +143,9 @@ public class Yaacc extends Application {
         mNotificationManager.cancel(NotificationId.UPNP_SERVER.getId());
         mNotificationManager.cancel(NotificationId.PLAYER_SERVICE.getId());
         mNotificationManager.cancel(NotificationId.YAACC.getId());
-        android.os.Process.killProcess(p);
+        ActivityManager am = (ActivityManager) getApplicationContext().getSystemService(Context.ACTIVITY_SERVICE);
+        am.getAppTasks().stream().forEach(t -> t.finishAndRemoveTask());
+        Runtime.getRuntime().exit(0);
     }
 
     private void createNotificationChannel() {
