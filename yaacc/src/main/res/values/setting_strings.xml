@@ -1,5 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!--
+<?xml version="1.0" encoding="utf-8"?><!--
 *
 * Copyright (C) 2013 www.yaacc.de
 *
@@ -31,8 +30,6 @@
     <string name="settings_default_duration_key">default item duration</string>
     <string name="settings_silence_duration">silence duration</string>
     <string name="settings_silence_duration_key">silence duration</string>
-    <string name="settings_audio_app_on">Local audio playback directly in YAACC is enabled</string>
-    <string name="settings_audio_app_off">Local audio playback opens a third party application</string>
     <string name="settings_image_app_on">Local image playback directly in YAACC is enabled</string>
     <string name="settings_image_app_off">Local image playback opens a third party application</string>
     <string name="settings_video_app_on">Local video playback directly in YAACC is enabled</string>
@@ -96,7 +93,7 @@
     <string name="settings_default_playback_delay">Playback delay</string>
     <string name="settings_default_playback_delay_key">settings_default_playback_delay_key</string>
     <string name="settings_device_playback_offset">Device offset</string>
-    <string name ="settings_device_playback_offset_summ">offset in ms</string>
+    <string name="settings_device_playback_offset_summ">offset in ms</string>
     <string name="settings_device_playback_offset_key">settings_device_playback_offset_key</string>
 
 

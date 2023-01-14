@@ -1,5 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!--
+<?xml version="1.0" encoding="utf-8"?><!--
  *
  * Copyright (C) 2013 www.yaacc.de
  *
@@ -28,8 +27,6 @@
     <string name="settings_audio_app">Audio Wiedergabe</string>
     <string name="settings_video_app">Video Wiedergabe</string>
     <string name="settings_image_app">Bilder Wiedergabe</string>
-    <string name="settings_audio_app_on">Audio Wiedergabe durch YAACC ist aktiviert</string>
-    <string name="settings_audio_app_off">Audio Wiedergabe durch Drittsoftware ist aktiviert</string>
     <string name="settings_image_app_on">Bilder Wiedergabe durch YAACC ist aktiviert</string>
     <string name="settings_image_app_off">Bilder Wiedergabe durch Drittsoftware ist aktiviert</string>
     <string name="settings_video_app_on">Video Wiedergabe durch YAACC ist aktiviert</string>
@@ -92,7 +89,7 @@
     <string name="settings_default_playback_delay">Wartezeit vor dem Abspielen</string>
     <string name="settings_default_playback_delay_key">settings_default_playback_delay_key</string>
     <string name="settings_device_playback_offset">Gerätespezifischer Abspielversatz</string>
-    <string name ="settings_device_playback_offset_summ">Versatz in ms</string>
+    <string name="settings_device_playback_offset_summ">Versatz in ms</string>
     <string name="settings_device_playback_offset_key">settings_device_playback_offset_key</string>
     <string name="settings_thumbnails_chkbx">thumbnails_chkbx</string>
 </resources>

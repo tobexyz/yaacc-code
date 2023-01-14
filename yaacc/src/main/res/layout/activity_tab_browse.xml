@@ -17,6 +17,7 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 -->
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -25,7 +26,11 @@
     <com.google.android.material.tabs.TabLayout
         android:id="@+id/browserTabLayout"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content">
+        android:layout_height="wrap_content"
+
+        app:tabIndicatorColor="?android:attr/colorControlNormal"
+        app:tabSelectedTextColor="?android:attr/colorControlNormal">
+
 
         <com.google.android.material.tabs.TabItem
             android:layout_width="match_parent"
