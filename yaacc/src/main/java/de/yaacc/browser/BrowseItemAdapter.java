@@ -58,7 +58,7 @@ import de.yaacc.util.image.IconDownloadTask;
  */
 public class BrowseItemAdapter extends BaseAdapter implements AbsListView.OnScrollListener {
     public static final Item LOAD_MORE_FAKE_ITEM = new Item("LoadMoreFakeItem", (String) null, "...", "", (DIDLObject.Class) null);
-    private static final long CHUNK_SIZE = 10;
+
     private static final Item LOADING_FAKE_ITEM = new Item("LoadingFakeItem", (String) null, "Loading...", "", (DIDLObject.Class) null);
     private boolean loading = false;
 
@@ -287,7 +287,7 @@ public class BrowseItemAdapter extends BaseAdapter implements AbsListView.OnScro
 
         Log.d(getClass().getName(), "loadMore from: " + from);
 
-        BrowseItemLoadTask browseItemLoadTask = new BrowseItemLoadTask(this, CHUNK_SIZE);
+        BrowseItemLoadTask browseItemLoadTask = new BrowseItemLoadTask(this, Long.parseLong(PreferenceManager.getDefaultSharedPreferences(getContext()).getString(getContext().getString(R.string.settings_browse_chunk_size_key), "50")));
         asyncTasks.add(browseItemLoadTask);
         browseItemLoadTask.executeOnExecutor(((Yaacc) getContext().getApplicationContext()).getContentLoadExecutor(), from);
 

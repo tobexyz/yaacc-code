@@ -1,5 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- 
+<?xml version="1.0" encoding="utf-8"?><!--
  *
  * Copyright (C) 2013 www.yaacc.de 
  *
@@ -17,27 +16,28 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  -->
-<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android" >
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <PreferenceScreen android:title="@string/settings_category_send_rec">
-      <ListPreference android:title="@string/settings_selected_provider_title" android:key="@string/settings_selected_provider_title"/>  
-      <MultiSelectListPreference android:title="@string/settings_selected_receivers_title" android:key="@string/settings_selected_receivers_title"/>      
-      <!--CheckBoxPreference android:defaultValue="true" android:summaryOff="@string/settings_image_app_off" android:disableDependentsState="true" android:summaryOn="@string/settings_image_app_on" android:key="@string/settings_image_app"/-->
-      <!--CheckBoxPreference android:defaultValue="true" android:summaryOff="@string/settings_video_app_off" android:disableDependentsState="true" android:summaryOn="@string/settings_video_app_on" android:key="@string/settings_video_app"/-->
-      <!--CheckBoxPreference android:defaultValue="true" android:summaryOff="@string/settings_audio_app_off" android:disableDependentsState="true" android:summaryOn="@string/settings_audio_app_on" android:key="@string/settings_audio_app"/-->
-    </PreferenceScreen>
-    <PreferenceScreen android:title="@string/settings_category_browsing">
+    <PreferenceCategory android:title="@string/settings_category_send_rec">
+        <ListPreference
+            android:key="@string/settings_selected_provider_title"
+            android:title="@string/settings_selected_provider_title" />
+        <MultiSelectListPreference
+            android:key="@string/settings_selected_receivers_title"
+            android:title="@string/settings_selected_receivers_title" />
+    </PreferenceCategory>
+    <PreferenceCategory android:title="@string/settings_category_browsing">
         <CheckBoxPreference
-            android:summaryOn="@string/settings_browse_thumbnails_on"
+            android:defaultValue="true"
+            android:key="@string/settings_thumbnails_chkbx"
             android:summaryOff="@string/settings_browse_thumbnails_off"
-            android:defaultValue="true"
-            android:key="@string/settings_thumbnails_chkbx"/>
+            android:summaryOn="@string/settings_browse_thumbnails_on" />
         <CheckBoxPreference
-            android:summaryOn="@string/settings_browse_thumbnails_coverlookup_on"
-            android:summaryOff="@string/settings_browse_thumbnails_coverlookup_off"
-            android:key="@string/settings_browse_thumbnails_coverlookup_chkbx"
             android:defaultValue="true"
-            android:dependency="@string/settings_thumbnails_chkbx"/>
+            android:dependency="@string/settings_thumbnails_chkbx"
+            android:key="@string/settings_browse_thumbnails_coverlookup_chkbx"
+            android:summaryOff="@string/settings_browse_thumbnails_coverlookup_off"
+            android:summaryOn="@string/settings_browse_thumbnails_coverlookup_on" />
         <EditTextPreference
             android:defaultValue="10"
             android:dialogTitle="@string/settings_browse_load_threads"
@@ -45,96 +45,107 @@
             android:key="@string/settings_browse_load_threads_key"
             android:summary="@string/settings_browse_load_threads_summ"
             android:title="@string/settings_browse_load_threads" />
-    </PreferenceScreen>
-    <PreferenceScreen android:title="@string/settings_category_playing">
+        <EditTextPreference
+            android:defaultValue="50"
+            android:dialogTitle="@string/settings_browse_chunk_size"
+            android:inputType="number"
+            android:key="@string/settings_browse_chunk_size_key"
+            android:summary="@string/settings_browse_chunk_size_summ"
+            android:title="@string/settings_browse_chunk_size" />
+    </PreferenceCategory>
+    <PreferenceCategory android:title="@string/settings_category_playing">
         <ListPreference
-            android:title="@string/settings_default_duration"
-            android:key="@string/settings_default_duration_key"
             android:defaultValue="2000"
             android:entries="@array/duration_entries_with_never"
-            android:entryValues="@array/duration_values_with_never" />
+            android:entryValues="@array/duration_values_with_never"
+            android:key="@string/settings_default_duration_key"
+            android:title="@string/settings_default_duration" />
         <ListPreference
-            android:title="@string/settings_silence_duration"
-            android:key="@string/settings_silence_duration_key"
             android:defaultValue="2000"
             android:entries="@array/duration_entries"
-            android:entryValues="@array/duration_values" />
+            android:entryValues="@array/duration_values"
+            android:key="@string/settings_silence_duration_key"
+            android:title="@string/settings_silence_duration" />
         <CheckBoxPreference
             android:defaultValue="true"
-            android:summaryOn="@string/settings_replay_playlist_on"
             android:disableDependentsState="true"
+            android:key="@string/settings_replay_playlist_chkbx"
             android:summaryOff="@string/settings_replay_playlist_off"
-            android:key="@string/settings_replay_playlist_chkbx"/>
+            android:summaryOn="@string/settings_replay_playlist_on" />
         <CheckBoxPreference
             android:defaultValue="false"
-            android:summaryOn="@string/settings_music_player_shuffle_on"
             android:disableDependentsState="true"
+            android:key="@string/settings_music_player_shuffle_chkbx"
             android:summaryOff="@string/settings_music_player_shuffle_off"
-            android:key="@string/settings_music_player_shuffle_chkbx"/>
-    </PreferenceScreen>
-    <PreferenceScreen android:title="@string/settings_local_server_title">
+            android:summaryOn="@string/settings_music_player_shuffle_on" />
+    </PreferenceCategory>
+    <PreferenceCategory android:title="@string/settings_local_server_title">
         <CheckBoxPreference
+            android:key="@string/settings_local_server_chkbx"
             android:summaryOff="@string/settings_local_server_stopped"
-            android:summaryOn="@string/settings_local_server_started"
-            android:key="@string/settings_local_server_chkbx"/>
+            android:summaryOn="@string/settings_local_server_started" />
         <CheckBoxPreference
-            android:summaryOff="@string/settings_local_server_autostart_deactivated"
-            android:summaryOn="@string/settings_local_server_autostart_activated"
+            android:dependency="@string/settings_local_server_chkbx"
             android:key="@string/settings_local_server_autostart_chkbx"
-            android:dependency="@string/settings_local_server_chkbx"/>
+            android:summaryOff="@string/settings_local_server_autostart_deactivated"
+            android:summaryOn="@string/settings_local_server_autostart_activated" />
         <CheckBoxPreference
+            android:key="@string/settings_local_server_receiver_chkbx"
             android:summaryOff="@string/settings_local_server_receiver_off"
-            android:summaryOn="@string/settings_local_server_receiver_on"
-            android:key="@string/settings_local_server_receiver_chkbx"/>
+            android:summaryOn="@string/settings_local_server_receiver_on" />
         <CheckBoxPreference
+            android:key="@string/settings_local_server_provider_chkbx"
             android:summaryOff="@string/settings_local_server_provider_off"
-            android:summaryOn="@string/settings_local_server_provider_on"
-            android:key="@string/settings_local_server_provider_chkbx"/>
-		<CheckBoxPreference
+            android:summaryOn="@string/settings_local_server_provider_on" />
+        <CheckBoxPreference
+            android:key="@string/settings_local_server_testcontent_chkbx"
             android:summaryOff="@string/settings_local_server_mediastore"
-            android:summaryOn="@string/settings_local_server_testcontent"
-            android:key="@string/settings_local_server_testcontent_chkbx"/>
+            android:summaryOn="@string/settings_local_server_testcontent" />
         <CheckBoxPreference
             android:defaultValue="true"
+            android:key="@string/settings_local_server_serve_images_chkbx"
             android:summaryOff="@string/settings_local_server_serve_images_on"
-            android:summaryOn="@string/settings_local_server_serve_images_on"
-            android:key="@string/settings_local_server_serve_images_chkbx"/>
+            android:summaryOn="@string/settings_local_server_serve_images_on" />
         <CheckBoxPreference
             android:defaultValue="true"
+            android:key="@string/settings_local_server_serve_video_chkbx"
             android:summaryOff="@string/settings_local_server_serve_video_on"
-            android:summaryOn="@string/settings_local_server_serve_video_on"
-            android:key="@string/settings_local_server_serve_video_chkbx"/>
+            android:summaryOn="@string/settings_local_server_serve_video_on" />
         <CheckBoxPreference
             android:defaultValue="true"
+            android:key="@string/settings_local_server_serve_music_chkbx"
             android:summaryOff="@string/settings_local_server_serve_music_on"
-            android:summaryOn="@string/settings_local_server_serve_music_on"
-            android:key="@string/settings_local_server_serve_music_chkbx"/>
-		<ListPreference
-            android:title="@string/settings_sending_upnp_alive_interval"
-            android:key="@string/settings_sending_upnp_alive_interval_key"
+            android:summaryOn="@string/settings_local_server_serve_music_on" />
+        <ListPreference
             android:defaultValue="30000"
             android:entries="@array/duration_entries_with_never"
-            android:entryValues="@array/duration_values_with_never" />
-        <EditTextPreference android:title="@string/settings_local_server_name" android:key="@string/settings_local_server_name_key"/>
-    </PreferenceScreen>
-    <PreferenceScreen android:title="@string/settings_category_synchronization">
-        <ListPreference
-            android:title="@string/settings_default_playback_delay"
-            android:key="@string/settings_default_playback_delay_key"
-            android:entries="@array/duration_entries"
-            android:entryValues="@array/duration_values" />
+            android:entryValues="@array/duration_values_with_never"
+            android:key="@string/settings_sending_upnp_alive_interval_key"
+            android:title="@string/settings_sending_upnp_alive_interval" />
         <EditTextPreference
-        android:defaultValue="0"
-        android:dialogTitle="@string/settings_device_playback_offset"
-        android:inputType="number"
-        android:key="@string/settings_device_playback_offset_key"
-        android:summary="@string/settings_device_playback_offset_summ"
-        android:title="@string/settings_device_playback_offset" />
-    </PreferenceScreen>
+            android:key="@string/settings_local_server_name_key"
+            android:title="@string/settings_local_server_name" />
+    </PreferenceCategory>
+    <PreferenceCategory android:title="@string/settings_category_synchronization">
+        <ListPreference
+            android:entries="@array/duration_entries"
+            android:entryValues="@array/duration_values"
+            android:key="@string/settings_default_playback_delay_key"
+            android:title="@string/settings_default_playback_delay" />
+        <EditTextPreference
+            android:defaultValue="0"
+            android:dialogTitle="@string/settings_device_playback_offset"
+            android:inputType="number"
+            android:key="@string/settings_device_playback_offset_key"
+            android:summary="@string/settings_device_playback_offset_summ"
+            android:title="@string/settings_device_playback_offset" />
+    </PreferenceCategory>
+    <PreferenceCategory android:title="@string/settings_image_app">
     <ListPreference
-        android:title="@string/image_viewer_settings_duration"
-        android:key="@string/image_viewer_settings_duration_key"
         android:defaultValue="5000"
         android:entries="@array/duration_entries_with_never"
-        android:entryValues="@array/duration_values_with_never" />
+        android:entryValues="@array/duration_values_with_never"
+        android:key="@string/image_viewer_settings_duration_key"
+        android:title="@string/image_viewer_settings_duration" />
+    </PreferenceCategory>
 </PreferenceScreen>

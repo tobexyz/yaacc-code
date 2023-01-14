@@ -17,7 +17,6 @@
  */
 package de.yaacc.player;
 
-import android.app.Activity;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -29,6 +28,8 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.ImageButton;
 
+import androidx.appcompat.app.AppCompatActivity;
+
 import de.yaacc.R;
 import de.yaacc.settings.SettingsActivity;
 import de.yaacc.util.AboutActivity;
@@ -39,7 +40,7 @@ import de.yaacc.util.YaaccLogActivity;
  *
  * @author Tobias Schoene (openbit)
  */
-public class MultiContentPlayerActivity extends Activity implements ServiceConnection {
+public class MultiContentPlayerActivity extends AppCompatActivity implements ServiceConnection {
 
     private PlayerService playerService;
 

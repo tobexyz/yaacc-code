@@ -17,7 +17,6 @@
  */
 package de.yaacc.upnp.server;
 
-import android.app.Activity;
 import android.app.NotificationManager;
 import android.content.Context;
 import android.content.Intent;
@@ -30,6 +29,8 @@ import android.view.MenuItem;
 import android.widget.Button;
 import android.widget.CheckBox;
 
+import androidx.appcompat.app.AppCompatActivity;
+
 import de.yaacc.R;
 import de.yaacc.settings.SettingsActivity;
 import de.yaacc.util.AboutActivity;
@@ -40,7 +41,7 @@ import de.yaacc.util.NotificationId;
  *
  * @author Tobias Schoene (openbit)
  */
-public class YaaccUpnpServerControlActivity extends Activity {
+public class YaaccUpnpServerControlActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {

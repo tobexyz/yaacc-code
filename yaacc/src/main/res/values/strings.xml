@@ -102,6 +102,9 @@
     <string name="playerNameImageShort">Images</string>
     <string name="playerShortNameMusic">Music</string>
     <string name="playerShortNameMultiContent">multi</string>
+    <string name="settings_browse_chunk_size">chunk size when browsing</string>
+    <string name="settings_browse_chunk_size_key">browse_chunk_size_key</string>
+    <string name="settings_browse_chunk_size_summ">amount of items fetched from server in one request</string>
 
 
 </resources>

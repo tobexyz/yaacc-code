@@ -96,10 +96,14 @@
     <string name="icon">Icon</string>
     <string name="not_yet_implemented">not yet implemented</string>
     <string name="avtransportPlayerActivityNextLabel">Nächstes:</string>
-    <string name="browse_context_control_device">Control device</string>
+    <string name="browse_context_control_device">Gerät steuern</string>
     <string name="channel_name">Yaacc</string>
     <string name="channel_description">Yaacc notifications</string>
     <string name="playerNameImageShort">Images</string>
     <string name="playerShortNameMusic">Music</string>
     <string name="playerShortNameMultiContent">multi</string>
+    <string name="settings_browse_chunk_size">Abfragegröße</string>
+    <string name="settings_browse_chunk_size_key">browse_chunk_size_key</string>
+    <string name="settings_browse_chunk_size_summ">Anzahl der abzufragenden Einträge je Anfrage</string>
+
 </resources>
