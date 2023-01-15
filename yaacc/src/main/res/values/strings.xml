@@ -61,7 +61,7 @@
     <string name="title_activity_avtransport_player">Yaacc Remote player</string>
     <string name="title_activity_multi_content_player">Yaacc Default player</string>
     <string name="can_not_start_activity">"Can not start app! Reason: "</string>
-    <string name="app_descrip">Bring your UPnP devices in your local network together with android!\n <a href="http://www.yaacc.de">www.yaacc.de</a>\n\nYAACC is developed under GPLv3. Feel free to use and share it without any warranty. Licence details are documented at (www.gnu.org/licenses/gpl-3.0)\n\nFurther licences are:\nThe UPNP implementation is based on Cling (https://github.com/4thline/cling)\nMaterial design icons and symbols are used (https://github.com/google/material-design-icons)\nIcons are used came from black + white icons 2.0 (www.carpicon.com) and Android itself. Android is a trademark of Google Inc (developer.android.com/about/index.html )</string>
+    <string name="app_descrip">Bring your UPnP devices in your local network together with android!\n <a href="http://www.yaacc.de">www.yaacc.de</a>\n\nYAACC is developed under GPLv3. Feel free to use and share it without any warranty. Licence details are documented at (www.gnu.org/licenses/gpl-3.0)\n\nFurther licences are:\nThe UPNP implementation is based on Cling (https://github.com/4thline/cling)\nMaterial design icons and symbols are used (https://github.com/google/material-design-icons)\n. Android is a trademark of Google Inc (developer.android.com/about/index.html )</string>
     <string name="title_activity_yaacc_upnp_server_control">Yaacc Upnp server control</string>
     <string name="yaacc_upnp_server_stop_server">stop server</string>
     <string name="yaacc_upnp_server_start_server">start server</string>
