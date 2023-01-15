@@ -17,7 +17,10 @@
  */
 package de.yaacc.browser;
 
+import android.content.Context;
+import android.content.res.Configuration;
 import android.graphics.Bitmap;
+import android.util.TypedValue;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -39,12 +42,14 @@ import de.yaacc.upnp.UpnpClient;
  */
 public class PlayerListItemAdapter extends BaseAdapter {
     private final UpnpClient upnpClient;
+    private final Context context;
     private LayoutInflater inflator;
     private List<Player> players;
 
 
-    public PlayerListItemAdapter(UpnpClient upnpClient) {
+    public PlayerListItemAdapter(Context context, UpnpClient upnpClient) {
         this.upnpClient = upnpClient;
+        this.context = context;
         initialize();
     }
 
@@ -77,10 +82,10 @@ public class PlayerListItemAdapter extends BaseAdapter {
         ViewHolder holder;
 
         if (view == null) {
-            view = inflator.inflate(R.layout.browse_item, parent, false);
+            view = inflator.inflate(R.layout.browse_player_item, parent, false);
             holder = new ViewHolder();
-            holder.icon = (ImageView) view.findViewById(R.id.browseItemIcon);
-            holder.name = (TextView) view.findViewById(R.id.browseItemName);
+            holder.icon = (ImageView) view.findViewById(R.id.browsePlayerItemIcon);
+            holder.name = (TextView) view.findViewById(R.id.browsePlayerItemName);
             view.setTag(holder);
         } else {
             holder = (ViewHolder) view.getTag();
@@ -92,6 +97,14 @@ public class PlayerListItemAdapter extends BaseAdapter {
         if (player != null) {
             holder = holder == null ? new ViewHolder() : holder;
             holder.name.setText(player.getName());
+            int resId = android.R.attr.colorForeground;
+            if (Configuration.UI_MODE_NIGHT_YES == (context.getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK)) {
+                resId = android.R.attr.colorForegroundInverse;
+            }
+            TypedValue typedValue = new TypedValue();
+            context.getApplicationContext().getTheme().resolveAttribute(resId, typedValue, true);
+            int color = typedValue.data;
+            holder.name.setTextColor(color);
             if (player.getIcon() != null) {
                 holder.icon.setImageBitmap(Bitmap.createScaledBitmap(player.getIcon(), 48, 48, false));
             } else {

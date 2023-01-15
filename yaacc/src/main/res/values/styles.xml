@@ -18,8 +18,13 @@
  -->
 <resources>
 
-    <style name="AppTheme" parent="Theme.MaterialComponents.DayNight.DarkActionBar">
-        <!--item name="android:textColor">@android:attr/textColorPrimary</item>
+    <style name="AppTheme" parent="Theme.MaterialComponents.DayNight.Bridge">
+        <!--item name="android:textColor">#00FF00</item>
+        <item name="color:primaryColor">#434344</item>
+        <color name="primaryLightColor">#6e6e6f</color>
+        <color name="primaryDarkColor">#1c1c1d</color>
+        <color name="primaryTextColor">#ffffff</color>
+        <item name="android:textColor">?android:attr/textColorPrimary</item>
         <item name="colorPrimary">@color/design_default_color_primary</item>
         <item name="colorPrimaryDark">@color/design_default_color_primary_dark</item-->
     </style>

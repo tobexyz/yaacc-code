@@ -56,7 +56,7 @@ import de.yaacc.util.image.IconDownloadTask;
  *
  * @author Christoph Haehnel (eyeless)
  */
-public class BrowseItemAdapter extends BaseAdapter implements AbsListView.OnScrollListener {
+public class BrowseContentItemAdapter extends BaseAdapter implements AbsListView.OnScrollListener {
     public static final Item LOAD_MORE_FAKE_ITEM = new Item("LoadMoreFakeItem", (String) null, "...", "", (DIDLObject.Class) null);
 
     private static final Item LOADING_FAKE_ITEM = new Item("LoadingFakeItem", (String) null, "Loading...", "", (DIDLObject.Class) null);
@@ -71,7 +71,7 @@ public class BrowseItemAdapter extends BaseAdapter implements AbsListView.OnScro
     private boolean allItemsFetched;
 
 
-    public BrowseItemAdapter(Context ctx, Navigator navigator) {
+    public BrowseContentItemAdapter(Context ctx, Navigator navigator) {
         initialize(ctx, navigator);
     }
 
@@ -151,10 +151,10 @@ public class BrowseItemAdapter extends BaseAdapter implements AbsListView.OnScro
                 .getDefaultSharedPreferences(parent.getContext());
         context = parent.getContext();
         if (arg1 == null) {
-            arg1 = inflator.inflate(R.layout.browse_item, parent, false);
+            arg1 = inflator.inflate(R.layout.browse_content_item, parent, false);
             holder = new ViewHolder();
-            holder.icon = arg1.findViewById(R.id.browseItemIcon);
-            holder.name = arg1.findViewById(R.id.browseItemName);
+            holder.icon = arg1.findViewById(R.id.browseContentItemIcon);
+            holder.name = arg1.findViewById(R.id.browseContentItemName);
             arg1.setTag(holder);
         } else {
             holder = (ViewHolder) arg1.getTag();
@@ -164,7 +164,7 @@ public class BrowseItemAdapter extends BaseAdapter implements AbsListView.OnScro
         DIDLObject currentObject = (DIDLObject) getItem(position);
         holder.name.setText(currentObject.getTitle());
         IconDownloadTask iconDownloadTask = new IconDownloadTask(
-                this, (ListView) parent, position);
+                this, (ListView) parent, R.id.browseContentItemIcon, position);
         asyncTasks.add(iconDownloadTask);
         if (currentObject instanceof Container) {
             holder.icon.setImageResource(R.drawable.folder);

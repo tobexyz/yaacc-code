@@ -103,6 +103,12 @@ public class ServerListFragment extends Fragment implements
         populateDeviceList();
 
         if (upnpClient.getProviderDevice() != null && upnpClient.getProviderDevice().equals(device)) {
+            try {
+                requireActivity();
+            } catch (IllegalStateException iex) {
+                Log.d(getClass().getName(), "ignoring illegal state exception on device added", iex);
+                return;
+            }
             if (requireActivity().getParent() instanceof TabBrowserActivity) {
                 ((TabBrowserActivity) requireActivity().getParent()).setCurrentTab(BrowserTabs.CONTENT);
             }

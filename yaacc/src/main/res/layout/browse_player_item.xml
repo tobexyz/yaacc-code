@@ -21,7 +21,7 @@
     android:layout_height="wrap_content">
 
     <ImageView
-        android:id="@+id/browseItemIcon"
+        android:id="@+id/browsePlayerItemIcon"
         android:layout_width="70dp"
         android:layout_height="wrap_content"
         android:layout_alignParentStart="true"
@@ -30,15 +30,15 @@
         android:contentDescription="@string/icon" />
 
     <TextView
-        android:id="@+id/browseItemName"
-        style="@android:style/TextAppearance.DeviceDefault.Large"
+        android:id="@+id/browsePlayerItemName"
         android:layout_width="fill_parent"
         android:layout_height="wrap_content"
-        android:layout_toEndOf="@id/browseItemIcon"
-        android:layout_toRightOf="@id/browseItemIcon"
+        android:layout_toEndOf="@id/browsePlayerItemIcon"
+        android:layout_toRightOf="@id/browsePlayerItemIcon"
         android:gravity="center_vertical"
         android:text="@string/all"
-        android:theme="@style/AppTheme" />
+        android:textAppearance="@android:style/TextAppearance.DeviceDefault.Large"
+        android:textColor="?android:attr/colorForeground" />
 
 
 </RelativeLayout>

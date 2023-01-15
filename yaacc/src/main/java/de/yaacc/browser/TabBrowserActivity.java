@@ -123,6 +123,7 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
     public void onCreate(Bundle savedInstanceState) {
         long start = System.currentTimeMillis();
         super.onCreate(savedInstanceState);
+
         setContentView(R.layout.activity_tab_browse);
 
 

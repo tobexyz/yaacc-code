@@ -32,6 +32,7 @@ import android.os.PowerManager;
 import android.preference.PreferenceManager;
 import android.util.Log;
 
+import androidx.appcompat.app.AppCompatDelegate;
 import androidx.core.app.NotificationCompat;
 
 import java.util.HashMap;
@@ -66,6 +67,13 @@ public class Yaacc extends Application {
         createNotificationChannel();
         upnpClient = new UpnpClient(this);
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
+        boolean darkMode = preferences.getBoolean(getString(R.string.settings_dark_mode_key), true);
+        if (darkMode) {
+            AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES);
+        } else {
+            AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM);
+        }
+
         int numThreads = Integer.parseInt(preferences.getString(getString(R.string.settings_browse_load_threads_key), "10"));
         Log.d(getClass().getName(), "Number of Threads used for content loading: " + numThreads);
         if (numThreads <= 0) {

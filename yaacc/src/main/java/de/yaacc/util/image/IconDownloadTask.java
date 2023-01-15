@@ -26,8 +26,7 @@ import android.view.View;
 import android.widget.ImageView;
 import android.widget.ListView;
 
-import de.yaacc.R;
-import de.yaacc.browser.BrowseItemAdapter;
+import de.yaacc.browser.BrowseContentItemAdapter;
 
 /**
  * AsyncTask fpr retrieving icons while browsing.
@@ -39,8 +38,9 @@ public class IconDownloadTask extends AsyncTask<Uri, Integer, Bitmap> {
     private final ListView listView;
     private final int position;
     private final IconDownloadCacheHandler cache;
-    private BrowseItemAdapter browseItemAdapter;
-   
+    private final int iconKey;
+    private BrowseContentItemAdapter browseContentItemAdapter;
+
 
     /**
      * Initialize a new download by handing over the the list and the position
@@ -49,16 +49,18 @@ public class IconDownloadTask extends AsyncTask<Uri, Integer, Bitmap> {
      * @param list     contains all item
      * @param position position in list
      */
-    public IconDownloadTask(ListView list, int position) {
+    public IconDownloadTask(ListView list, int iconKey, int position) {
         this.listView = list;
         this.position = position;
+        this.iconKey = iconKey;
         this.cache = IconDownloadCacheHandler.getInstance();
     }
 
-    public IconDownloadTask(BrowseItemAdapter adapter, ListView list, int position) {
+    public IconDownloadTask(BrowseContentItemAdapter browseContentItemAdapter, ListView list, int iconKey, int position) {
         this.listView = list;
         this.position = position;
-        this.browseItemAdapter = adapter;
+        this.iconKey = iconKey;
+        this.browseContentItemAdapter = browseContentItemAdapter;
         this.cache = IconDownloadCacheHandler.getInstance();
     }
 
@@ -102,12 +104,12 @@ public class IconDownloadTask extends AsyncTask<Uri, Integer, Bitmap> {
         int visiblePosition = listView.getFirstVisiblePosition();
         View v = listView.getChildAt(position - visiblePosition);
         if (v != null && result != null) {
-            ImageView c = v.findViewById(R.id.browseItemIcon);
+            ImageView c = v.findViewById(iconKey);
             Log.d(getClass().getName(), "Set image on position:" + visiblePosition);
             c.setImageBitmap(result);
         }
-        if (browseItemAdapter != null) {
-            browseItemAdapter.removeTask(this);
+        if (browseContentItemAdapter != null) {
+            browseContentItemAdapter.removeTask(this);
         }
     }
 

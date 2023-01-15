@@ -89,7 +89,7 @@ public class PlayerListFragment extends Fragment implements
 
 
         requireActivity().runOnUiThread(() -> {
-            itemAdapter = new PlayerListItemAdapter(upnpClient);
+            itemAdapter = new PlayerListItemAdapter(getActivity(), upnpClient);
             contentList.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
             contentList.setAdapter(itemAdapter);
             contentList.setOnItemClickListener(itemClickListener);

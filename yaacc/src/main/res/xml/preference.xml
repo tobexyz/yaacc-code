@@ -18,6 +18,14 @@
  -->
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <PreferenceCategory android:title="@string/settings_category_appearance">
+        <CheckBoxPreference
+            android:defaultValue="true"
+            android:key="@string/settings_dark_mode_key"
+            android:summaryOff="@string/settings_dark_mode_off"
+            android:summaryOn="@string/settings_dark_mode_on"
+            android:title="@string/settings_dark_mode_title" />
+    </PreferenceCategory>
     <PreferenceCategory android:title="@string/settings_category_send_rec">
         <ListPreference
             android:key="@string/settings_selected_provider_title"
@@ -141,11 +149,11 @@
             android:title="@string/settings_device_playback_offset" />
     </PreferenceCategory>
     <PreferenceCategory android:title="@string/settings_image_app">
-    <ListPreference
-        android:defaultValue="5000"
-        android:entries="@array/duration_entries_with_never"
-        android:entryValues="@array/duration_values_with_never"
-        android:key="@string/image_viewer_settings_duration_key"
-        android:title="@string/image_viewer_settings_duration" />
+        <ListPreference
+            android:defaultValue="5000"
+            android:entries="@array/duration_entries_with_never"
+            android:entryValues="@array/duration_values_with_never"
+            android:key="@string/image_viewer_settings_duration_key"
+            android:title="@string/image_viewer_settings_duration" />
     </PreferenceCategory>
 </PreferenceScreen>

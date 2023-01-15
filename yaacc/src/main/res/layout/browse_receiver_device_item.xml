@@ -21,31 +21,31 @@
     android:layout_height="wrap_content">
 
     <ImageView
-        android:id="@+id/browseItemIcon"
+        android:id="@+id/browseReceiverDeviceItemIcon"
         android:layout_width="70dp"
         android:layout_height="wrap_content"
         android:layout_alignParentStart="true"
-        android:layout_alignParentLeft="true"
         android:layout_alignParentTop="true"
         android:contentDescription="@string/icon" />
 
     <TextView
-        android:id="@+id/browseItemName"
-        style="@android:style/TextAppearance.DeviceDefault.Large"
+        android:id="@+id/browseReceiverDeviceItemName"
         android:layout_width="fill_parent"
         android:layout_height="wrap_content"
-        android:layout_toEndOf="@id/browseItemIcon"
-        android:layout_toRightOf="@id/browseItemIcon"
+        android:layout_toEndOf="@id/browseReceiverDeviceItemIcon"
         android:gravity="center_vertical"
-        android:theme="@style/AppTheme" />
+        android:text="@string/all"
+        android:textAppearance="@style/TextAppearance.AppCompat.Large"
+        android:textColor="?android:attr/colorForeground" />
 
     <CheckBox
-        android:id="@+id/browseItemCheckbox"
+        android:id="@+id/browseReceiverDeviceItemCheckbox"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_alignParentEnd="true"
-        android:layout_alignParentRight="true"
+        android:checkMark="?android:attr/listChoiceIndicatorMultiple"
         android:clickable="false"
         android:duplicateParentState="true"
-        android:focusable="false" />
+        android:focusable="false"
+        android:textAppearance="@style/TextAppearance.AppCompat.Large" />
 </RelativeLayout>
