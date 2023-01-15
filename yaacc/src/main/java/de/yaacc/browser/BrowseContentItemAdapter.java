@@ -167,9 +167,9 @@ public class BrowseContentItemAdapter extends BaseAdapter implements AbsListView
                 this, (ListView) parent, R.id.browseContentItemIcon, position);
         asyncTasks.add(iconDownloadTask);
         if (currentObject instanceof Container) {
-            holder.icon.setImageResource(R.drawable.folder);
+            holder.icon.setImageResource(R.drawable.ic_baseline_folder_open_48);
         } else if (currentObject instanceof AudioItem) {
-            holder.icon.setImageResource(R.drawable.cdtrack);
+            holder.icon.setImageResource(R.drawable.ic_baseline_audiotrack_48);
             if (preferences.getBoolean(
                     context.getString(R.string.settings_thumbnails_chkbx),
                     true)) {
@@ -182,7 +182,7 @@ public class BrowseContentItemAdapter extends BaseAdapter implements AbsListView
                 }
             }
         } else if (currentObject instanceof ImageItem) {
-            holder.icon.setImageResource(R.drawable.image);
+            holder.icon.setImageResource(R.drawable.ic_baseline_image_48);
             if (preferences.getBoolean(
                     context.getString(R.string.settings_thumbnails_chkbx),
                     true))
@@ -190,7 +190,7 @@ public class BrowseContentItemAdapter extends BaseAdapter implements AbsListView
                         Uri.parse(((ImageItem) currentObject)
                                 .getFirstResource().getValue()));
         } else if (currentObject instanceof VideoItem) {
-            holder.icon.setImageResource(R.drawable.video);
+            holder.icon.setImageResource(R.drawable.ic_baseline_movie_48);
             if (preferences.getBoolean(
                     context.getString(R.string.settings_thumbnails_chkbx),
                     true)) {
@@ -203,15 +203,15 @@ public class BrowseContentItemAdapter extends BaseAdapter implements AbsListView
                 }
             }
         } else if (currentObject instanceof PlaylistItem) {
-            holder.icon.setImageResource(R.drawable.playlist);
+            holder.icon.setImageResource(R.drawable.ic_baseline_library_music_48);
         } else if (currentObject instanceof TextItem) {
-            holder.icon.setImageResource(R.drawable.txt);
+            holder.icon.setImageResource(R.drawable.ic_baseline_text_snippet_48);
         } else if (currentObject == LOAD_MORE_FAKE_ITEM) {
-            holder.icon.setImageResource(R.drawable.refresh);
+            holder.icon.setImageResource(R.drawable.ic_baseline_refresh_48);
         } else if (currentObject == LOADING_FAKE_ITEM) {
-            holder.icon.setImageResource(R.drawable.download);
+            holder.icon.setImageResource(R.drawable.ic_baseline_download_48);
         } else {
-            holder.icon.setImageResource(R.drawable.unknown);
+            holder.icon.setImageResource(R.drawable.ic_baseline_question_mark_48);
         }
         return arg1;
     }

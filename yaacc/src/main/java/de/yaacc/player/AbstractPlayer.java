@@ -724,7 +724,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
 
     public int getIconResourceId() {
 
-        return R.drawable.yaacc192_32;
+        return R.drawable.yaacc48_24_png;
     }
 
     public String getDeviceId() {

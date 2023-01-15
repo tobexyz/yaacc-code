@@ -109,7 +109,7 @@ public class BrowseReceiverDeviceAdapter extends BaseAdapter {
                     }
                 }
             } else {
-                holder.icon.setImageResource(R.drawable.device);
+                holder.icon.setImageResource(R.drawable.ic_baseline_devices_48);
             }
         } else if (device instanceof LocalDevice || device instanceof UpnpClient.LocalDummyDevice) {
             //We know our icon
