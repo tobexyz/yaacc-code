@@ -32,10 +32,11 @@ import android.view.WindowManager;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.SeekBar;
-import android.widget.Switch;
 import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
+
+import com.google.android.material.switchmaterial.SwitchMaterial;
 
 import org.fourthline.cling.model.meta.Device;
 
@@ -76,7 +77,7 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
             initialize();
         }
     }
-    //binder comes from server to communicate with method's of
+
 
     public void onServiceDisconnected(ComponentName className) {
         Log.d(getClass().getName(), "PlayerService disconnected");
@@ -87,6 +88,7 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
     private PlayerService getPlayerService() {
         return playerService;
     }
+
 
     @Override
     protected void onPause() {
@@ -199,7 +201,7 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
         });
         btnExit.setOnClickListener(v -> exit());
 
-        Switch muteSwitch = (Switch) findViewById(R.id.avtransportPlayerActivityControlMuteSwitch);
+        SwitchMaterial muteSwitch = (SwitchMaterial) findViewById(R.id.avtransportPlayerActivityControlMuteSwitch);
         muteSwitch.setOnCheckedChangeListener((compoundButton, isChecked) -> {
             if (getPlayer() != null) {
                 getPlayer().setMute(isChecked);

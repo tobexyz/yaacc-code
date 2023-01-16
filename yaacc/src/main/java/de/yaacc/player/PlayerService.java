@@ -61,6 +61,9 @@ public class PlayerService extends Service {
     }
 
     public void addPlayer(Player player) {
+        if (player.getId() == 0) {
+            return;
+        }
         currentActivePlayer.put(player.getId(), player);
     }
 
