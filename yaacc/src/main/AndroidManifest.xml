@@ -46,6 +46,10 @@
             android:name=".upnp.UpnpRegistryService"
             android:enabled="true" />
         <service
+            android:name=".player.PlayerService"
+            android:enabled="true"
+            android:exported="false" />
+        <service
             android:name=".musicplayer.BackgroundMusicService"
             android:enabled="true" />
         <service
@@ -143,10 +147,6 @@
             </intent-filter>
         </activity>
 
-        <service
-            android:name=".player.PlayerService"
-            android:enabled="true"
-            android:exported="false" />
     </application>
 
 </manifest>
