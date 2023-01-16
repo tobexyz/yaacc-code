@@ -109,7 +109,11 @@ public class PlayerListItemAdapter extends BaseAdapter {
             if (player.getIcon() != null) {
                 holder.icon.setImageBitmap(Bitmap.createScaledBitmap(player.getIcon(), 48, 48, false));
             } else {
-                holder.icon.setImageDrawable(ThemeHelper.tintDrawable(context.getResources().getDrawable(player.getIconResourceId(), context.getTheme()), context.getTheme()));
+                if (R.drawable.yaacc48_24_png != player.getIconResourceId()) {
+                    holder.icon.setImageDrawable(ThemeHelper.tintDrawable(context.getResources().getDrawable(player.getIconResourceId(), context.getTheme()), context.getTheme()));
+                } else {
+                    holder.icon.setImageDrawable(context.getResources().getDrawable(R.drawable.yaacc48_24_png, context.getTheme()));
+                }
 
             }
         }
