@@ -61,7 +61,7 @@
     <string name="title_activity_avtransport_player">Yaacc Remote player</string>
     <string name="title_activity_multi_content_player">Yaacc Default player</string>
     <string name="can_not_start_activity">"Can not start app! Reason: "</string>
-    <string name="app_descrip">Bring your UPnP devices in your local network together with android!\n <a href="http://www.yaacc.de">www.yaacc.de</a>\n\nYAACC is developed under GPLv3. Feel free to use and share it without any warranty. Licence details are documented at <a href="http://www.gnu.org/licenses/gpl-3.0">GPLv3</a> (www.gnu.org/licenses/gpl-3.0)\n\nFurther licences are:\nThe UPNP implementation is based on <a href="http://4thline.org/projects/cling">Cling</a> (4thline.org/projects/cling)\nIcons are used came from <a href="http://www.carpicon.com">black + white icons 2.0</a> (www.carpicon.com) and <a href="http://developer.android.com/about/index.html">Android</a> itself. Android is a trademark of Google Inc (developer.android.com/about/index.html )</string>
+    <string name="app_descrip">Bring your UPnP devices in your local network together with android!\n <a href="http://www.yaacc.de">www.yaacc.de</a>\n\nYAACC is developed under GPLv3. Feel free to use and share it without any warranty. Licence details are documented at (www.gnu.org/licenses/gpl-3.0)\n\nFurther licences are:\nThe UPNP implementation is based on Cling (https://github.com/4thline/cling)\nMaterial design icons and symbols are used (https://github.com/google/material-design-icons)\n. Android is a trademark of Google Inc (developer.android.com/about/index.html )</string>
     <string name="title_activity_yaacc_upnp_server_control">Yaacc Upnp server control</string>
     <string name="yaacc_upnp_server_stop_server">stop server</string>
     <string name="yaacc_upnp_server_start_server">start server</string>
@@ -105,6 +105,11 @@
     <string name="settings_browse_chunk_size">chunk size when browsing</string>
     <string name="settings_browse_chunk_size_key">browse_chunk_size_key</string>
     <string name="settings_browse_chunk_size_summ">amount of items fetched from server in one request</string>
+    <string name="settings_category_appearance">Appearance</string>
+    <string name="settings_dark_mode_key">settings_dark_mode_key</string>
+    <string name="settings_dark_mode_title">Dark mode</string>
+    <string name="settings_dark_mode_off">Using system settings</string>
+    <string name="settings_dark_mode_on">Dark mode aktive</string>
 
 
 </resources>

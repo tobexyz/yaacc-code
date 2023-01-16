@@ -46,6 +46,7 @@ import de.yaacc.R;
 import de.yaacc.Yaacc;
 import de.yaacc.settings.SettingsActivity;
 import de.yaacc.util.AboutActivity;
+import de.yaacc.util.ThemeHelper;
 import de.yaacc.util.YaaccLogActivity;
 import de.yaacc.util.image.ImageDownloadTask;
 
@@ -285,6 +286,8 @@ public class MusicPlayerActivity extends AppCompatActivity implements ServiceCon
         if (null != albumArtUri) {
             ImageDownloadTask imageDownloadTask = new ImageDownloadTask(albumArtView);
             imageDownloadTask.executeOnExecutor(((Yaacc) getApplicationContext()).getContentLoadExecutor(), Uri.parse(albumArtUri.toString()));
+        } else {
+            albumArtView.setImageDrawable(ThemeHelper.tintDrawable(albumArtView.getDrawable(), getTheme()));
         }
         TextView duration = (TextView) findViewById(R.id.musicActivityDuration);
         duration.setText(getPlayer().getDuration());

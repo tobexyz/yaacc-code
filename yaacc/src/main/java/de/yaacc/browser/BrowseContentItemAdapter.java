@@ -49,6 +49,7 @@ import java.util.List;
 
 import de.yaacc.R;
 import de.yaacc.Yaacc;
+import de.yaacc.util.ThemeHelper;
 import de.yaacc.util.image.IconDownloadTask;
 
 /**
@@ -56,7 +57,7 @@ import de.yaacc.util.image.IconDownloadTask;
  *
  * @author Christoph Haehnel (eyeless)
  */
-public class BrowseItemAdapter extends BaseAdapter implements AbsListView.OnScrollListener {
+public class BrowseContentItemAdapter extends BaseAdapter implements AbsListView.OnScrollListener {
     public static final Item LOAD_MORE_FAKE_ITEM = new Item("LoadMoreFakeItem", (String) null, "...", "", (DIDLObject.Class) null);
 
     private static final Item LOADING_FAKE_ITEM = new Item("LoadingFakeItem", (String) null, "Loading...", "", (DIDLObject.Class) null);
@@ -71,7 +72,7 @@ public class BrowseItemAdapter extends BaseAdapter implements AbsListView.OnScro
     private boolean allItemsFetched;
 
 
-    public BrowseItemAdapter(Context ctx, Navigator navigator) {
+    public BrowseContentItemAdapter(Context ctx, Navigator navigator) {
         initialize(ctx, navigator);
     }
 
@@ -151,10 +152,10 @@ public class BrowseItemAdapter extends BaseAdapter implements AbsListView.OnScro
                 .getDefaultSharedPreferences(parent.getContext());
         context = parent.getContext();
         if (arg1 == null) {
-            arg1 = inflator.inflate(R.layout.browse_item, parent, false);
+            arg1 = inflator.inflate(R.layout.browse_content_item, parent, false);
             holder = new ViewHolder();
-            holder.icon = arg1.findViewById(R.id.browseItemIcon);
-            holder.name = arg1.findViewById(R.id.browseItemName);
+            holder.icon = arg1.findViewById(R.id.browseContentItemIcon);
+            holder.name = arg1.findViewById(R.id.browseContentItemName);
             arg1.setTag(holder);
         } else {
             holder = (ViewHolder) arg1.getTag();
@@ -164,12 +165,12 @@ public class BrowseItemAdapter extends BaseAdapter implements AbsListView.OnScro
         DIDLObject currentObject = (DIDLObject) getItem(position);
         holder.name.setText(currentObject.getTitle());
         IconDownloadTask iconDownloadTask = new IconDownloadTask(
-                this, (ListView) parent, position);
+                this, (ListView) parent, R.id.browseContentItemIcon, position);
         asyncTasks.add(iconDownloadTask);
         if (currentObject instanceof Container) {
-            holder.icon.setImageResource(R.drawable.folder);
+            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_folder_open_48, context.getTheme()), getContext().getTheme()));
         } else if (currentObject instanceof AudioItem) {
-            holder.icon.setImageResource(R.drawable.cdtrack);
+            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_audiotrack_48, context.getTheme()), getContext().getTheme()));
             if (preferences.getBoolean(
                     context.getString(R.string.settings_thumbnails_chkbx),
                     true)) {
@@ -182,7 +183,7 @@ public class BrowseItemAdapter extends BaseAdapter implements AbsListView.OnScro
                 }
             }
         } else if (currentObject instanceof ImageItem) {
-            holder.icon.setImageResource(R.drawable.image);
+            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_image_48, getContext().getTheme()), getContext().getTheme()));
             if (preferences.getBoolean(
                     context.getString(R.string.settings_thumbnails_chkbx),
                     true))
@@ -190,7 +191,7 @@ public class BrowseItemAdapter extends BaseAdapter implements AbsListView.OnScro
                         Uri.parse(((ImageItem) currentObject)
                                 .getFirstResource().getValue()));
         } else if (currentObject instanceof VideoItem) {
-            holder.icon.setImageResource(R.drawable.video);
+            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_movie_48, getContext().getTheme()), getContext().getTheme()));
             if (preferences.getBoolean(
                     context.getString(R.string.settings_thumbnails_chkbx),
                     true)) {
@@ -203,15 +204,15 @@ public class BrowseItemAdapter extends BaseAdapter implements AbsListView.OnScro
                 }
             }
         } else if (currentObject instanceof PlaylistItem) {
-            holder.icon.setImageResource(R.drawable.playlist);
+            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_library_music_48, getContext().getTheme()), getContext().getTheme()));
         } else if (currentObject instanceof TextItem) {
-            holder.icon.setImageResource(R.drawable.txt);
+            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_text_snippet_48, getContext().getTheme()), getContext().getTheme()));
         } else if (currentObject == LOAD_MORE_FAKE_ITEM) {
-            holder.icon.setImageResource(R.drawable.refresh);
+            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_refresh_48, getContext().getTheme()), getContext().getTheme()));
         } else if (currentObject == LOADING_FAKE_ITEM) {
-            holder.icon.setImageResource(R.drawable.download);
+            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_download_48, getContext().getTheme()), getContext().getTheme()));
         } else {
-            holder.icon.setImageResource(R.drawable.unknown);
+            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_question_mark_48, getContext().getTheme()), getContext().getTheme()));
         }
         return arg1;
     }

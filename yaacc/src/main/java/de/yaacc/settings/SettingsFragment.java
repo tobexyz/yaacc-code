@@ -20,6 +20,8 @@ package de.yaacc.settings;
 import android.os.Bundle;
 import android.text.InputType;
 
+import androidx.appcompat.app.AppCompatDelegate;
+import androidx.preference.CheckBoxPreference;
 import androidx.preference.EditTextPreference;
 import androidx.preference.ListPreference;
 import androidx.preference.MultiSelectListPreference;
@@ -60,6 +62,17 @@ public class SettingsFragment extends PreferenceFragmentCompat implements UpnpCl
         populateDeviceLists();
         ((Yaacc) getActivity().getApplicationContext()).getUpnpClient().addUpnpClientListener(this);
 
+        CheckBoxPreference checkBoxPreference = findPreference(getString(R.string.settings_dark_mode_key));
+        if (checkBoxPreference != null) {
+            checkBoxPreference.setOnPreferenceChangeListener((preference, newValue) -> {
+                if (newValue instanceof Boolean && (Boolean) newValue) {
+                    AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES);
+                } else {
+                    AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM);
+                }
+                return true;
+            });
+        }
 
     }
 

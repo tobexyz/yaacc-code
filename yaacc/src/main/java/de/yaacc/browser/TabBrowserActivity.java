@@ -123,6 +123,7 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
     public void onCreate(Bundle savedInstanceState) {
         long start = System.currentTimeMillis();
         super.onCreate(savedInstanceState);
+
         setContentView(R.layout.activity_tab_browse);
 
 
@@ -224,6 +225,7 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
                 Log.d(getClass().getName(), "Can't retrieve duration of media url assume shared image", e);
                 Res res = new Res(MimeType.valueOf("image/*"), 1L, "");
                 res.setValue(uriString);
+                item.setMimeType("image/*");
                 item.setItem(new ImageItem("1", "2", title, "", res));
             }
             item.setUri(uri);

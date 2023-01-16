@@ -60,7 +60,7 @@ public class ContentListClickListener implements OnItemClickListener {
     @Override
     public void onItemClick(AdapterView<?> listView, View arg1, int position,
                             long id) {
-        BrowseItemAdapter adapter = (BrowseItemAdapter) listView.getAdapter();
+        BrowseContentItemAdapter adapter = (BrowseContentItemAdapter) listView.getAdapter();
         currentObject = adapter.getFolder(position);
         if (currentObject instanceof Container) {
             //Fixme: Cache should store information for different folders....
@@ -76,7 +76,7 @@ public class ContentListClickListener implements OnItemClickListener {
             navigator.pushPosition(new Position(newObjectId, upnpClient.getProviderDeviceId()));
             contentListFragment.populateItemList();
         } else if (currentObject instanceof Item) {
-            if (currentObject == BrowseItemAdapter.LOAD_MORE_FAKE_ITEM) {
+            if (currentObject == BrowseContentItemAdapter.LOAD_MORE_FAKE_ITEM) {
                 adapter.loadMore();
             } else {
                 PlayableItem playableItem = new PlayableItem((Item) currentObject, 0);

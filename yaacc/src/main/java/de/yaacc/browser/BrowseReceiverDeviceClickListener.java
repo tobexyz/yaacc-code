@@ -42,7 +42,7 @@ public class BrowseReceiverDeviceClickListener implements OnItemClickListener {
                 .getAdapter();
         Log.d(getClass().getName(), "position: " + position);
         CheckBox checkBox = (CheckBox) itemView
-                .findViewById(R.id.browseItemCheckbox);
+                .findViewById(R.id.browseReceiverDeviceItemCheckbox);
         Device<?, ?, ?> device = (Device<?, ?, ?>) adapter.getItem(position);
         if (checkBox.isChecked()) {
             Log.d(getClass().getName(), "isChecked:" + device.getDisplayString());

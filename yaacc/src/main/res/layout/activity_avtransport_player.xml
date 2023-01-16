@@ -24,7 +24,7 @@
     tools:context=".player.AVTransportPlayerActivity">
 
 
-    <Switch
+    <com.google.android.material.switchmaterial.SwitchMaterial
         android:id="@+id/avtransportPlayerActivityControlMuteSwitch"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -61,7 +61,7 @@
         android:layout_above="@id/avtransportPlayerActivityCurrentItem"
         android:layout_below="@id/avtransportPlayerActivityControlVolumeTextView"
         android:contentDescription="@string/avtransportPlayerActivityImageView"
-        app:srcCompat="@drawable/device" />
+        app:srcCompat="@drawable/ic_baseline_devices_128" />
 
 
     <TextView
@@ -71,6 +71,7 @@
         android:layout_above="@+id/avtransportPlayerActivityElapsedTime"
         android:layout_alignParentStart="true"
         android:layout_alignParentLeft="true"
+        android:layout_marginBottom="15dp"
         android:text="@string/playerCurrentItem" />
 
     <Space
@@ -191,28 +192,34 @@
             android:layout_alignParentStart="true"
             android:layout_alignParentLeft="true"
             android:layout_alignParentTop="true"
+            android:layout_centerVertical="true"
+            android:layout_marginStart="2dp"
             android:contentDescription="@string/previous"
-            app:srcCompat="@drawable/player_start" />
+            app:srcCompat="@drawable/ic_baseline_skip_previous_32" />
 
         <ImageButton
             android:id="@+id/avtransportPlayerActivityControlPlay"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_alignParentTop="true"
+            android:layout_centerVertical="true"
+            android:layout_marginStart="2dp"
             android:layout_toEndOf="@+id/avtransportPlayerActivityControlPrev"
             android:layout_toRightOf="@+id/avtransportPlayerActivityControlPrev"
             android:contentDescription="@string/play"
-            app:srcCompat="@drawable/player_play" />
+            app:srcCompat="@drawable/ic_baseline_play_arrow_32" />
 
         <ImageButton
             android:id="@+id/avtransportPlayerActivityControlPause"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_alignParentTop="true"
+            android:layout_centerVertical="true"
+            android:layout_marginStart="2dp"
             android:layout_toEndOf="@+id/avtransportPlayerActivityControlPlay"
             android:layout_toRightOf="@+id/avtransportPlayerActivityControlPlay"
             android:contentDescription="@string/pause"
-            app:srcCompat="@drawable/player_pause" />
+            app:srcCompat="@drawable/ic_baseline_pause_32" />
 
         <ImageButton
             android:id="@+id/avtransportPlayerActivityControlStop"
@@ -220,30 +227,36 @@
             android:layout_height="wrap_content"
             android:layout_alignParentTop="true"
             android:layout_centerHorizontal="true"
+            android:layout_centerVertical="true"
+            android:layout_marginStart="2dp"
             android:layout_toEndOf="@+id/avtransportPlayerActivityControlPause"
             android:layout_toRightOf="@+id/avtransportPlayerActivityControlPause"
             android:contentDescription="@string/stop"
-            app:srcCompat="@drawable/player_stop" />
+            app:srcCompat="@drawable/ic_baseline_stop_32" />
 
         <ImageButton
             android:id="@+id/avtransportPlayerActivityControlNext"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_alignParentTop="true"
+            android:layout_centerVertical="true"
+            android:layout_marginStart="2dp"
             android:layout_toEndOf="@+id/avtransportPlayerActivityControlStop"
             android:layout_toRightOf="@+id/avtransportPlayerActivityControlStop"
             android:contentDescription="@string/next"
-            app:srcCompat="@drawable/player_end" />
+            app:srcCompat="@drawable/ic_baseline_skip_next_32" />
 
         <ImageButton
             android:id="@+id/avtransportPlayerActivityControlExit"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_alignParentTop="true"
+            android:layout_centerVertical="true"
+            android:layout_marginStart="2dp"
             android:layout_toEndOf="@+id/avtransportPlayerActivityControlNext"
             android:layout_toRightOf="@+id/avtransportPlayerActivityControlNext"
             android:contentDescription="@string/exit"
-            app:srcCompat="@drawable/button_cancel" />
+            app:srcCompat="@drawable/ic_baseline_cancel_32" />
     </RelativeLayout>
 
 </RelativeLayout>

@@ -61,8 +61,8 @@
     <string name="title_activity_music_player">Yaacc Musikspieler </string>
     <string name="yaacc_menu_settings">YAACC Eigenschaften</string>
     <string name="yaacc_about">Über</string>
-    <string name="app_descrip">Verbindet ihre UPnP-Geräte im lokalen Netzwerk mit ihrem Android Gerät!\n<a href="http://www.yaacc.de">www.yaacc.de</a>\n\nYAACC steht unter der Lizenz GPLv3. Die dürfen die Software frei nutzen und weitergeben. Für die Software wird keinerlei Grantie gewährleistet. Lizenzdetails sind hier nachzulesen  <a href="http://www.gnu.org/licenses/gpl-3.0">GPLv3</a> (www.gnu.org/licenses/gpl-3.0)\n\nWeitere Lizenen:\nDie UPNP Implementierung basiert auf <a href="http://4thline.org/projects/cling">Cling</a> (4thline.org/projects/cling )\nIn der Anwendung verwendete Bilder stammen von  <a href="http://www.carpicon.com">black + white icons 2.0</a> (www.carpicon.com ) und <a href="http://developer.android.com/about/index.html">Android</a> . Android is a trademark of Google Inc (developer.android.com/about/index.html )</string>
     <string name="title_activity_yaacc_upnp_server_control">Yaacc Upnp Server Einstellung</string>
+    <string name="app_descrip">Verbindet ihre UPnP-Geräte im lokalen Netzwerk mit ihrem Android Gerät!\n<a href="http://www.yaacc.de">www.yaacc.de</a>\n\nYAACC steht unter der Lizenz GPLv3. Sie dürfen die Software frei nutzen und weitergeben. Für die Software wird keinerlei Grantie gewährleistet. Lizenzdetails sind hier nachzulesen (www.gnu.org/licenses/gpl-3.0)\n\nWeitere Lizenen:\nDie UPNP Implementierung basiert auf Cling (https://github.com/4thline/cling)\nEs werden Material Design Icons und Symbole verwendet (https://github.com/google/material-design-icons)\n. Android is a trademark of Google Inc (developer.android.com/about/index.html )</string>
     <string name="yaacc_upnp_server_stop_server">stop server</string>
     <string name="yaacc_upnp_server_start_server">start server</string>
     <string name="playerCurrentItem">currentItem</string>
@@ -105,5 +105,10 @@
     <string name="settings_browse_chunk_size">Abfragegröße</string>
     <string name="settings_browse_chunk_size_key">browse_chunk_size_key</string>
     <string name="settings_browse_chunk_size_summ">Anzahl der abzufragenden Einträge je Anfrage</string>
+    <string name="settings_category_appearance">Erscheinungsbild</string>
+    <string name="settings_dark_mode_key">settings_dark_mode_key</string>
+    <string name="settings_dark_mode_title">Dunkles Design</string>
+    <string name="settings_dark_mode_off">Verwende Systemeinstellungen</string>
+    <string name="settings_dark_mode_on">Dunkles Design aktiv</string>
 
 </resources>

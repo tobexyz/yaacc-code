@@ -22,37 +22,37 @@
 
     <item
         android:id="@+id/menu_previous"
-        android:icon="@drawable/player_start"
+        android:icon="@drawable/ic_baseline_skip_previous_48"
         android:orderInCategory="110"
         android:title="@string/previous"
         app:showAsAction="always" />
     <item
         android:id="@+id/menu_play"
-        android:icon="@drawable/player_play"
+        android:icon="@drawable/ic_baseline_play_arrow_48"
         android:orderInCategory="110"
         android:title="@string/play"
         app:showAsAction="always" />
     <item
         android:id="@+id/menu_pause"
-        android:icon="@drawable/player_pause"
+        android:icon="@drawable/ic_baseline_pause_48"
         android:orderInCategory="110"
         android:title="@string/pause"
         app:showAsAction="always" />
     <item
         android:id="@+id/menu_stop"
-        android:icon="@drawable/player_stop"
+        android:icon="@drawable/ic_baseline_stop_48"
         android:orderInCategory="110"
         android:title="@string/stop"
         app:showAsAction="always" />
     <item
         android:id="@+id/menu_next"
-        android:icon="@drawable/player_end"
+        android:icon="@drawable/ic_baseline_skip_next_48"
         android:orderInCategory="110"
         android:title="@string/next"
         app:showAsAction="always" />
     <item
         android:id="@+id/menu_exit"
-        android:icon="@drawable/button_cancel"
+        android:icon="@drawable/ic_baseline_cancel_48"
         android:orderInCategory="110"
         android:title="@string/exit"
         app:showAsAction="always" />

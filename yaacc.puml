@@ -8301,7 +8301,7 @@ class org.fourthline.cling.support.model.ProtocolInfo {
 + int hashCode()
 + String toString()
 }
-class de.yaacc.browser.BrowseItemAdapter {
+class de.yaacc.browser.BrowseContentItemAdapter {
 - {static} long CHUNK_SIZE
 + {static} Item LOAD_MORE_FAKE_ITEM
 - {static} Item LOADING_FAKE_ITEM
@@ -8335,7 +8335,7 @@ class de.yaacc.browser.BrowseItemAdapter {
 + void onScroll(AbsListView,int,int,int)
 + void loadMore()
 }
-class de.yaacc.browser.BrowseItemAdapter.ViewHolder {
+class de.yaacc.browser.BrowseContentItemAdapter.ViewHolder {
 ~ ImageView icon
 ~ TextView name
 }
@@ -14508,9 +14508,9 @@ de.yaacc.R +.. de.yaacc.R.xml
 java.util.logging.Handler <|-- org.fourthline.cling.android.FixedAndroidLogHandler
 org.fourthline.cling.model.types.AbstractDatatype <|-- org.fourthline.cling.model.types.BooleanDatatype
 org.fourthline.cling.controlpoint.ActionCallback <|-- org.fourthline.cling.support.renderingcontrol.callback.GetMute
-de.yaacc.browser.OnScrollListener <|.. de.yaacc.browser.BrowseItemAdapter
-android.widget.BaseAdapter <|-- de.yaacc.browser.BrowseItemAdapter
-de.yaacc.browser.BrowseItemAdapter +.. de.yaacc.browser.BrowseItemAdapter.ViewHolder
+de.yaacc.browser.OnScrollListener <|.. de.yaacc.browser.BrowseContentItemAdapter
+android.widget.BaseAdapter <|-- de.yaacc.browser.BrowseContentItemAdapter
+de.yaacc.browser.BrowseContentItemAdapter +.. de.yaacc.browser.BrowseContentItemAdapter.ViewHolder
 org.fourthline.cling.transport.spi.Runnable <|-- org.fourthline.cling.transport.spi.DatagramIO
 org.fourthline.cling.model.message.discovery.OutgoingSearchResponse <|-- org.fourthline.cling.model.message.discovery.OutgoingSearchResponseUDN
 org.fourthline.cling.transport.spi.StreamClientConfiguration <|.. org.fourthline.cling.transport.spi.AbstractStreamClientConfiguration

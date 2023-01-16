@@ -38,7 +38,8 @@ import java.util.Collection;
 import java.util.LinkedList;
 
 import de.yaacc.R;
-import de.yaacc.browser.BrowseItemAdapter.ViewHolder;
+import de.yaacc.browser.BrowseContentItemAdapter.ViewHolder;
+import de.yaacc.util.ThemeHelper;
 import de.yaacc.util.image.IconDownloadTask;
 
 /**
@@ -47,12 +48,14 @@ import de.yaacc.util.image.IconDownloadTask;
 public class BrowseDeviceAdapter extends BaseAdapter {
 
     private final LayoutInflater inflator;
+    private final Context context;
     private LinkedList<Device<?, ?, ?>> devices;
 
     public BrowseDeviceAdapter(Context ctx, LinkedList<Device<?, ?, ?>> devices) {
         super();
 
         this.devices = devices;
+        context = ctx;
         if (ctx != null) {
             inflator = LayoutInflater.from(ctx);
         } else {
@@ -81,11 +84,11 @@ public class BrowseDeviceAdapter extends BaseAdapter {
         ViewHolder holder;
 
         if (convertView == null && inflator != null) {
-            convertView = inflator.inflate(R.layout.browse_item, parent, false);
+            convertView = inflator.inflate(R.layout.browse_device_item, parent, false);
 
             holder = new ViewHolder();
-            holder.icon = (ImageView) convertView.findViewById(R.id.browseItemIcon);
-            holder.name = (TextView) convertView.findViewById(R.id.browseItemName);
+            holder.icon = (ImageView) convertView.findViewById(R.id.browseDeviceItemIcon);
+            holder.name = (TextView) convertView.findViewById(R.id.browseDeviceItemName);
             convertView.setTag(holder);
         } else {
             holder = (ViewHolder) convertView.getTag();
@@ -100,14 +103,14 @@ public class BrowseDeviceAdapter extends BaseAdapter {
                         URL iconUri = ((RemoteDevice) device).normalizeURI(icon.getUri());
                         if (iconUri != null) {
                             Log.d(getClass().getName(), "Device icon uri:" + iconUri);
-                            new IconDownloadTask((ListView) parent, position).execute(Uri.parse(iconUri.toString()));
+                            new IconDownloadTask((ListView) parent, R.id.browseDeviceItemIcon, position).execute(Uri.parse(iconUri.toString()));
                             break;
 
                         }
                     }
                 }
             } else {
-                holder.icon.setImageResource(R.drawable.device);
+                holder.icon.setImageDrawable(ThemeHelper.tintDrawable(context.getResources().getDrawable(R.drawable.ic_baseline_sensors_48, context.getTheme()), context.getTheme()));
             }
         } else if (device instanceof LocalDevice) {
             //We know our icon
@@ -115,6 +118,7 @@ public class BrowseDeviceAdapter extends BaseAdapter {
         }
 
         holder.name.setText(device.getDetails().getFriendlyName());
+
 
         return convertView;
     }

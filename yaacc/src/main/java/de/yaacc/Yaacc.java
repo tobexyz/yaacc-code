@@ -18,6 +18,7 @@
 package de.yaacc;
 
 
+import android.app.ActivityManager;
 import android.app.Application;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -31,6 +32,7 @@ import android.os.PowerManager;
 import android.preference.PreferenceManager;
 import android.util.Log;
 
+import androidx.appcompat.app.AppCompatDelegate;
 import androidx.core.app.NotificationCompat;
 
 import java.util.HashMap;
@@ -65,6 +67,13 @@ public class Yaacc extends Application {
         createNotificationChannel();
         upnpClient = new UpnpClient(this);
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
+        boolean darkMode = preferences.getBoolean(getString(R.string.settings_dark_mode_key), true);
+        if (darkMode) {
+            AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES);
+        } else {
+            AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM);
+        }
+
         int numThreads = Integer.parseInt(preferences.getString(getString(R.string.settings_browse_load_threads_key), "10"));
         Log.d(getClass().getName(), "Number of Threads used for content loading: " + numThreads);
         if (numThreads <= 0) {
@@ -129,7 +138,7 @@ public class Yaacc extends Application {
     }
 
     public void exit() {
-        int p = android.os.Process.myPid();
+        Log.d(getClass().getName(), "Start shutdown and close");
         upnpClient.shutdown();
         stopService(new Intent(this, PlayerService.class));
         stopService(new Intent(this, BackgroundMusicService.class));
@@ -142,7 +151,9 @@ public class Yaacc extends Application {
         mNotificationManager.cancel(NotificationId.UPNP_SERVER.getId());
         mNotificationManager.cancel(NotificationId.PLAYER_SERVICE.getId());
         mNotificationManager.cancel(NotificationId.YAACC.getId());
-        android.os.Process.killProcess(p);
+        ActivityManager am = (ActivityManager) getApplicationContext().getSystemService(Context.ACTIVITY_SERVICE);
+        am.getAppTasks().stream().forEach(t -> t.finishAndRemoveTask());
+        Runtime.getRuntime().exit(0);
     }
 
     private void createNotificationChannel() {

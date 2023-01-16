@@ -32,10 +32,11 @@ import android.view.WindowManager;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.SeekBar;
-import android.widget.Switch;
 import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
+
+import com.google.android.material.switchmaterial.SwitchMaterial;
 
 import org.fourthline.cling.model.meta.Device;
 
@@ -52,6 +53,7 @@ import de.yaacc.Yaacc;
 import de.yaacc.settings.SettingsActivity;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.util.AboutActivity;
+import de.yaacc.util.ThemeHelper;
 import de.yaacc.util.YaaccLogActivity;
 import de.yaacc.util.image.ImageDownloadTask;
 
@@ -76,7 +78,7 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
             initialize();
         }
     }
-    //binder comes from server to communicate with method's of
+
 
     public void onServiceDisconnected(ComponentName className) {
         Log.d(getClass().getName(), "PlayerService disconnected");
@@ -87,6 +89,7 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
     private PlayerService getPlayerService() {
         return playerService;
     }
+
 
     @Override
     protected void onPause() {
@@ -199,7 +202,7 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
         });
         btnExit.setOnClickListener(v -> exit());
 
-        Switch muteSwitch = (Switch) findViewById(R.id.avtransportPlayerActivityControlMuteSwitch);
+        SwitchMaterial muteSwitch = (SwitchMaterial) findViewById(R.id.avtransportPlayerActivityControlMuteSwitch);
         muteSwitch.setOnCheckedChangeListener((compoundButton, isChecked) -> {
             if (getPlayer() != null) {
                 getPlayer().setMute(isChecked);
@@ -378,6 +381,8 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
         } else if (getPlayer().getIcon() != null) {
 
             albumArtView.setImageBitmap(getPlayer().getIcon());
+        } else {
+            albumArtView.setImageDrawable(ThemeHelper.tintDrawable(albumArtView.getDrawable(), getTheme()));
         }
         TextView duration = (TextView) findViewById(R.id.avtransportPlayerActivityDuration);
         String durationTimeString = getPlayer().getDuration();

@@ -25,7 +25,6 @@ import android.net.Uri;
 import android.os.Binder;
 import android.os.HandlerThread;
 import android.os.IBinder;
-import android.preference.PreferenceManager;
 import android.util.Log;
 import android.widget.Toast;
 
@@ -62,6 +61,9 @@ public class PlayerService extends Service {
     }
 
     public void addPlayer(Player player) {
+        if (player.getId() == 0) {
+            return;
+        }
         currentActivePlayer.put(player.getId(), player);
     }
 
@@ -263,27 +265,15 @@ public class PlayerService extends Service {
     }
 
     private Player createMusicPlayer(UpnpClient upnpClient) {
-        boolean background = PreferenceManager.getDefaultSharedPreferences(
-                upnpClient.getContext()).getBoolean(
-                upnpClient.getContext().getString(R.string.settings_audio_app),
-                true);
         Player result = getFirstCurrentPlayerOfType(LocalBackgoundMusicPlayer.class);
         if (result != null) {
             shutdown(result);
-        } else {
-            result = getFirstCurrentPlayerOfType(LocalThirdPartieMusicPlayer.class);
-            if (result != null) {
-                shutdown(result);
-            }
         }
-        if (background) {
-            return new LocalBackgoundMusicPlayer(upnpClient, upnpClient
-                    .getContext().getString(R.string.playerNameMusic), upnpClient
-                    .getContext().getString(R.string.playerShortNameMusic));
-        }
-        return new LocalThirdPartieMusicPlayer(upnpClient, upnpClient
+        return new LocalBackgoundMusicPlayer(upnpClient, upnpClient
                 .getContext().getString(R.string.playerNameMusic), upnpClient
                 .getContext().getString(R.string.playerShortNameMusic));
+
+
     }
 
     /**
