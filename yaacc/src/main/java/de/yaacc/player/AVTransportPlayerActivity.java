@@ -53,6 +53,7 @@ import de.yaacc.Yaacc;
 import de.yaacc.settings.SettingsActivity;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.util.AboutActivity;
+import de.yaacc.util.ThemeHelper;
 import de.yaacc.util.YaaccLogActivity;
 import de.yaacc.util.image.ImageDownloadTask;
 
@@ -380,6 +381,8 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
         } else if (getPlayer().getIcon() != null) {
 
             albumArtView.setImageBitmap(getPlayer().getIcon());
+        } else {
+            albumArtView.setImageDrawable(ThemeHelper.tintDrawable(albumArtView.getDrawable(), getTheme()));
         }
         TextView duration = (TextView) findViewById(R.id.avtransportPlayerActivityDuration);
         String durationTimeString = getPlayer().getDuration();

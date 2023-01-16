@@ -40,6 +40,7 @@ import java.util.LinkedList;
 
 import de.yaacc.R;
 import de.yaacc.upnp.UpnpClient;
+import de.yaacc.util.ThemeHelper;
 import de.yaacc.util.image.IconDownloadTask;
 
 /**
@@ -109,7 +110,7 @@ public class BrowseReceiverDeviceAdapter extends BaseAdapter {
                     }
                 }
             } else {
-                holder.icon.setImageResource(R.drawable.ic_baseline_devices_48);
+                holder.icon.setImageDrawable(ThemeHelper.tintDrawable(context.getResources().getDrawable(R.drawable.ic_baseline_devices_48, context.getTheme()), context.getTheme()));
             }
         } else if (device instanceof LocalDevice || device instanceof UpnpClient.LocalDummyDevice) {
             //We know our icon

@@ -302,9 +302,7 @@ public class AVTransportPlayer extends AbstractPlayer {
         return id;
     }
 
-    /* (non-Javadoc)
-     * @see de.yaacc.player.AbstractPlayer#pause()
-     */
+
     @Override
     public void pause() {
         super.pause();
@@ -733,7 +731,6 @@ public class AVTransportPlayer extends AbstractPlayer {
                             Log.d(getClass().getName(), "Device icon uri:" + iconUri);
                             setIcon(new ImageDownloader().retrieveImageWithCertainSize(Uri.parse(iconUri.toString()), icon.getWidth(), icon.getHeight()));
                             break;
-
                         }
                     }
                 }

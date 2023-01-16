@@ -39,6 +39,7 @@ import java.util.LinkedList;
 
 import de.yaacc.R;
 import de.yaacc.browser.BrowseContentItemAdapter.ViewHolder;
+import de.yaacc.util.ThemeHelper;
 import de.yaacc.util.image.IconDownloadTask;
 
 /**
@@ -109,7 +110,7 @@ public class BrowseDeviceAdapter extends BaseAdapter {
                     }
                 }
             } else {
-                holder.icon.setImageResource(R.drawable.ic_baseline_sensors_48);
+                holder.icon.setImageDrawable(ThemeHelper.tintDrawable(context.getResources().getDrawable(R.drawable.ic_baseline_sensors_48, context.getTheme()), context.getTheme()));
             }
         } else if (device instanceof LocalDevice) {
             //We know our icon

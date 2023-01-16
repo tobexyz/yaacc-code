@@ -49,6 +49,7 @@ import java.util.List;
 
 import de.yaacc.R;
 import de.yaacc.Yaacc;
+import de.yaacc.util.ThemeHelper;
 import de.yaacc.util.image.IconDownloadTask;
 
 /**
@@ -167,9 +168,9 @@ public class BrowseContentItemAdapter extends BaseAdapter implements AbsListView
                 this, (ListView) parent, R.id.browseContentItemIcon, position);
         asyncTasks.add(iconDownloadTask);
         if (currentObject instanceof Container) {
-            holder.icon.setImageResource(R.drawable.ic_baseline_folder_open_48);
+            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_folder_open_48, context.getTheme()), getContext().getTheme()));
         } else if (currentObject instanceof AudioItem) {
-            holder.icon.setImageResource(R.drawable.ic_baseline_audiotrack_48);
+            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_audiotrack_48, context.getTheme()), getContext().getTheme()));
             if (preferences.getBoolean(
                     context.getString(R.string.settings_thumbnails_chkbx),
                     true)) {
@@ -182,7 +183,7 @@ public class BrowseContentItemAdapter extends BaseAdapter implements AbsListView
                 }
             }
         } else if (currentObject instanceof ImageItem) {
-            holder.icon.setImageResource(R.drawable.ic_baseline_image_48);
+            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_image_48, getContext().getTheme()), getContext().getTheme()));
             if (preferences.getBoolean(
                     context.getString(R.string.settings_thumbnails_chkbx),
                     true))
@@ -190,7 +191,7 @@ public class BrowseContentItemAdapter extends BaseAdapter implements AbsListView
                         Uri.parse(((ImageItem) currentObject)
                                 .getFirstResource().getValue()));
         } else if (currentObject instanceof VideoItem) {
-            holder.icon.setImageResource(R.drawable.ic_baseline_movie_48);
+            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_movie_48, getContext().getTheme()), getContext().getTheme()));
             if (preferences.getBoolean(
                     context.getString(R.string.settings_thumbnails_chkbx),
                     true)) {
@@ -203,15 +204,15 @@ public class BrowseContentItemAdapter extends BaseAdapter implements AbsListView
                 }
             }
         } else if (currentObject instanceof PlaylistItem) {
-            holder.icon.setImageResource(R.drawable.ic_baseline_library_music_48);
+            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_library_music_48, getContext().getTheme()), getContext().getTheme()));
         } else if (currentObject instanceof TextItem) {
-            holder.icon.setImageResource(R.drawable.ic_baseline_text_snippet_48);
+            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_text_snippet_48, getContext().getTheme()), getContext().getTheme()));
         } else if (currentObject == LOAD_MORE_FAKE_ITEM) {
-            holder.icon.setImageResource(R.drawable.ic_baseline_refresh_48);
+            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_refresh_48, getContext().getTheme()), getContext().getTheme()));
         } else if (currentObject == LOADING_FAKE_ITEM) {
-            holder.icon.setImageResource(R.drawable.ic_baseline_download_48);
+            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_download_48, getContext().getTheme()), getContext().getTheme()));
         } else {
-            holder.icon.setImageResource(R.drawable.ic_baseline_question_mark_48);
+            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_question_mark_48, getContext().getTheme()), getContext().getTheme()));
         }
         return arg1;
     }

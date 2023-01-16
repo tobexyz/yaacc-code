@@ -34,6 +34,7 @@ import java.util.List;
 import de.yaacc.R;
 import de.yaacc.player.Player;
 import de.yaacc.upnp.UpnpClient;
+import de.yaacc.util.ThemeHelper;
 
 /**
  * Adapter for browsing player.
@@ -108,7 +109,7 @@ public class PlayerListItemAdapter extends BaseAdapter {
             if (player.getIcon() != null) {
                 holder.icon.setImageBitmap(Bitmap.createScaledBitmap(player.getIcon(), 48, 48, false));
             } else {
-                holder.icon.setImageResource(player.getIconResourceId());
+                holder.icon.setImageDrawable(ThemeHelper.tintDrawable(context.getResources().getDrawable(player.getIconResourceId(), context.getTheme()), context.getTheme()));
 
             }
         }
