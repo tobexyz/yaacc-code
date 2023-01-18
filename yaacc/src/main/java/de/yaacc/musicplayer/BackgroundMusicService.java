@@ -49,7 +49,7 @@ public class BackgroundMusicService extends Service {
     private MediaPlayer player;
     private BackgroundMusicBroadcastReceiver backgroundMusicBroadcastReceiver;
     private int duration = 0;
-    
+
     public BackgroundMusicService() {
         super();
     }
@@ -89,6 +89,8 @@ public class BackgroundMusicService extends Service {
         if (player != null) {
             player.stop();
             player.release();
+            //remove player after releasing
+            player = null;
         }
         unregisterReceiver(backgroundMusicBroadcastReceiver);
     }
@@ -117,13 +119,15 @@ public class BackgroundMusicService extends Service {
         if (player != null) {
             player.stop();
             player.release();
+            //remove player after releasing
+            player = null;
         }
         try {
             if (intent != null && intent.getData() != null) {
                 setMusicUri(intent.getData());
             }
         } catch (Exception e) {
-            Log.e(this.getClass().getName(), "Exception while changing datasource uri", e);
+            Log.e(this.getClass().getName(), "Ignoring exception while changing datasource uri", e);
 
 
         }
@@ -196,15 +200,17 @@ public class BackgroundMusicService extends Service {
     public void setMusicUri(Uri uri) {
         Log.d(this.getClass().getName(), "changing datasource uri to:" + uri.toString());
         if (player != null) {
-            player.release();
+            player.stop();
+            player.reset();
+        } else {
+            player = new MediaPlayer();
         }
-        player = new MediaPlayer();
         player.setWakeMode(getApplicationContext(), PowerManager.PARTIAL_WAKE_LOCK);
         player.setOnErrorListener(new MediaPlayer.OnErrorListener() {
             @Override
             public boolean onError(MediaPlayer mediaPlayer, int what, int extra) {
                 Log.e(getClass().getName(), "Error in State  " + what + " extra: " + extra);
-                return true;
+                return false;
             }
         });
         player.setVolume(100, 100);
@@ -218,17 +224,19 @@ public class BackgroundMusicService extends Service {
                         .build());
         player.setOnPreparedListener(mediaPlayer ->
                 duration = player.getDuration());
+
+
         try {
             player.setDataSource(uri.toString());
         } catch (Exception e) {
-            Log.e(this.getClass().getName(), "Exception while changing datasource uri", e);
+            Log.e(this.getClass().getName(), "Ignoring exception while changing datasource uri", e);
         }
 
 
         try {
             player.prepare();
         } catch (Exception e) {
-            Log.e(this.getClass().getName(), "Exception while preparing media player", e);
+            Log.e(this.getClass().getName(), "Ignoring exception while preparing media player", e);
         }
 
     }
