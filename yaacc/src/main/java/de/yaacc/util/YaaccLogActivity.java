@@ -20,6 +20,8 @@ package de.yaacc.util;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.view.View;
+import android.widget.ScrollView;
 import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
@@ -67,13 +69,16 @@ public class YaaccLogActivity extends AppCompatActivity {
             StringBuilder log = new StringBuilder();
             String line;
             while ((line = bufferedReader.readLine()) != null) {
-                log.insert(0, "\n");
-                log.insert(0, line);
+                log.append(line);
+                log.append("\n");
             }
 
             textView.setText(log.toString());
             textView.setTextIsSelectable(true);
-
+            ScrollView scrollView = findViewById(R.id.yaaccLog_scrollView);
+            scrollView.post(() -> {
+                scrollView.fullScroll(View.FOCUS_DOWN);
+            });
 
         } catch (IOException e) {
             textView.setText("Error while reading log: " + e.getMessage());
