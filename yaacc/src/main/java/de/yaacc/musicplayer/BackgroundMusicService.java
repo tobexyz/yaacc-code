@@ -49,8 +49,7 @@ public class BackgroundMusicService extends Service {
     private MediaPlayer player;
     private BackgroundMusicBroadcastReceiver backgroundMusicBroadcastReceiver;
     private int duration = 0;
-    //private boolean prepared  = false;
-
+    
     public BackgroundMusicService() {
         super();
     }
@@ -209,24 +208,27 @@ public class BackgroundMusicService extends Service {
             }
         });
         player.setVolume(100, 100);
-        //prepared= false;
-        try {
-            player.setAudioAttributes(
-                    new AudioAttributes.Builder()
-                            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                            .setUsage(AudioAttributes.USAGE_MEDIA)
-                            .setLegacyStreamType(AudioManager.STREAM_MUSIC)
-                            .build());
-            player.setOnPreparedListener(mediaPlayer ->
-                    duration = player.getDuration());
-            player.setDataSource(this, uri);
-            //player.prepareAsync();
 
-            player.prepare();
+
+        player.setAudioAttributes(
+                new AudioAttributes.Builder()
+                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                        .setUsage(AudioAttributes.USAGE_MEDIA)
+                        .setLegacyStreamType(AudioManager.STREAM_MUSIC)
+                        .build());
+        player.setOnPreparedListener(mediaPlayer ->
+                duration = player.getDuration());
+        try {
+            player.setDataSource(uri.toString());
         } catch (Exception e) {
             Log.e(this.getClass().getName(), "Exception while changing datasource uri", e);
+        }
 
 
+        try {
+            player.prepare();
+        } catch (Exception e) {
+            Log.e(this.getClass().getName(), "Exception while preparing media player", e);
         }
 
     }
