@@ -16,159 +16,150 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  -->
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".player.MusicPlayerActivity">
 
+    android:layout_alignParentBottom="true"
+    android:layout_centerHorizontal="true"
+    android:gravity="bottom"
+    android:orientation="vertical"
+    android:paddingLeft="16dp"
+    android:paddingRight="16dp">
 
     <ImageView
         android:id="@+id/musicActivityImageView"
-        android:layout_width="fill_parent"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_above="@+id/musicActivityCurrentItem"
-        android:layout_alignParentStart="true"
-        android:layout_alignParentTop="true"
-        android:layout_alignParentEnd="true"
-        android:layout_marginStart="0dp"
-        android:layout_marginLeft="0dp"
-        android:layout_marginTop="0dp"
-        android:layout_marginEnd="0dp"
-        android:layout_marginRight="0dp"
-        android:layout_marginBottom="0dp"
+        android:layout_weight="2"
+        android:adjustViewBounds="false"
         android:contentDescription="@string/musicActivityImageView"
+        android:scaleType="fitCenter"
         app:srcCompat="@drawable/ic_baseline_library_music_128" />
 
 
-    <TextView
-        android:id="@+id/musicActivityCurrentItem"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_above="@+id/musicActivityElapsedTime"
-        android:layout_alignParentStart="true"
-        android:layout_marginBottom="15dp"
-        android:text="@string/playerCurrentItem" />
-
-    <Space
-        android:id="@+id/musicActivitySeparator3"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_alignBaseline="@+id/musicActivityCurrentItem"
-        android:layout_toEndOf="@+id/musicActivityCurrentItem" />
-
-
-    <TextView
-        android:id="@+id/musicActivityNextLabel"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_alignBaseline="@+id/musicActivityCurrentItem"
-        android:layout_marginStart="13dp"
-        android:layout_toEndOf="@+id/musicActivitySeparator3"
-        android:text="@string/musicActivityNextLabel" />
-
-    <TextView
-        android:id="@+id/musicActivityNextItem"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_alignBaseline="@+id/musicActivityCurrentItem"
-        android:layout_alignTop="@+id/musicActivityNextLabel"
-        android:layout_alignParentEnd="true"
-        android:layout_toEndOf="@+id/musicActivityNextLabel"
-        android:gravity="end"
-        android:text="@string/playerNextItem" />
-
-
-    <TextView
-        android:id="@+id/musicActivityElapsedTime"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_above="@+id/musicActivitySeekBarLayout"
-        android:layout_alignParentStart="true"
-        android:text="@string/playerTimeElapsed" />
-
-    <TextView
-        android:id="@+id/musicActivitySeparator"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_alignBaseline="@+id/musicActivityElapsedTime"
-        android:layout_toEndOf="@id/musicActivityElapsedTime"
-        android:text="@string/playerTimeSeparator" />
-
-    <TextView
-        android:id="@+id/musicActivityDuration"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_alignBaseline="@+id/musicActivityElapsedTime"
-        android:layout_toEndOf="@id/musicActivitySeparator"
-        android:text="@string/playerTimeDuration" />
-
-    <Space
-        android:id="@+id/musicActivitySeparator2"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_alignBaseline="@+id/musicActivityElapsedTime"
-        android:layout_toEndOf="@id/musicActivityDuration" />
-
-    <TextView
-        android:id="@+id/musicActivityPosition"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_above="@+id/musicActivitySeekBarLayout"
-        android:layout_alignBaseline="@+id/musicActivityDuration"
-        android:layout_alignParentEnd="true"
-        android:layout_toEndOf="@+id/musicActivitySeparator2"
-        android:gravity="end"
-        android:text="@string/playerPosition"
-        android:textAlignment="textEnd" />
-
-
     <RelativeLayout
-        android:id="@+id/musicActivitySeekBarLayout"
-        android:layout_width="fill_parent"
+
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_above="@+id/musicActivityControls"
-        android:layout_alignParentStart="true"
-        android:orientation="horizontal">
+        tools:context=".player.MusicPlayerActivity">
+
+
+        <TextView
+            android:id="@+id/musicActivityCurrentItem"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentStart="true"
+            android:layout_alignParentTop="true"
+            android:layout_alignParentEnd="true"
+            android:text="@string/playerCurrentItem"
+            android:textAlignment="center"
+            android:textAppearance="@android:style/TextAppearance.DeviceDefault.Large" />
+
+
+        <TextView
+            android:id="@+id/musicActivityNextLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/musicActivityCurrentItem"
+            android:layout_alignStart="@id/musicActivityCurrentItem"
+            android:layout_marginStart="10dp"
+            android:text="@string/musicActivityNextLabel"
+            android:textAppearance="@android:style/TextAppearance.DeviceDefault.Medium" />
+
+        <TextView
+            android:id="@+id/musicActivityNextItem"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignTop="@+id/musicActivityNextLabel"
+            android:layout_alignParentEnd="true"
+            android:layout_marginStart="5dp"
+            android:layout_toEndOf="@+id/musicActivityNextLabel"
+            android:text="@string/playerNextItem"
+            android:textAppearance="@android:style/TextAppearance.DeviceDefault.Medium" />
+
+
+        <TextView
+            android:id="@+id/musicActivityElapsedTime"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/musicActivityNextLabel"
+            android:layout_alignParentStart="true"
+            android:layout_marginStart="10dp"
+            android:text="@string/playerTimeElapsed"
+            android:textAppearance="@android:style/TextAppearance.DeviceDefault.Medium" />
+
+        <TextView
+            android:id="@+id/musicActivitySeparator"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignBaseline="@+id/musicActivityElapsedTime"
+            android:layout_marginStart="5dp"
+            android:layout_marginEnd="5dp"
+            android:layout_toEndOf="@id/musicActivityElapsedTime"
+            android:text="@string/playerTimeSeparator"
+            android:textAppearance="@android:style/TextAppearance.DeviceDefault.Medium" />
+
+        <TextView
+            android:id="@+id/musicActivityDuration"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/musicActivityNextItem"
+            android:layout_alignBaseline="@+id/musicActivityElapsedTime"
+            android:layout_toEndOf="@id/musicActivitySeparator"
+            android:text="@string/playerTimeDuration"
+            android:textAppearance="@android:style/TextAppearance.DeviceDefault.Medium" />
+
+
+        <TextView
+            android:id="@+id/musicActivityPosition"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/musicActivityNextItem"
+            android:layout_alignBaseline="@+id/musicActivityDuration"
+            android:layout_alignParentEnd="true"
+            android:layout_marginEnd="10dp"
+            android:gravity="end"
+            android:text="@string/playerPosition"
+            android:textAlignment="textEnd"
+            android:textAppearance="@android:style/TextAppearance.DeviceDefault.Medium" />
 
         <SeekBar
             android:id="@+id/musicActivitySeekBar"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_below="@id/musicActivityPosition"
             android:layout_alignParentStart="true"
-            android:layout_alignParentEnd="true" />
+            android:layout_alignParentEnd="true"
+            android:layout_marginTop="5dp"
+            android:layout_marginBottom="5dp" />
     </RelativeLayout>
 
-    <RelativeLayout
-        android:id="@+id/musicActivityControls"
-        android:layout_width="fill_parent"
+    <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_alignParentStart="true"
-        android:layout_alignParentBottom="true"
-        android:layout_centerInParent="true"
-        android:orientation="horizontal">
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:paddingLeft="16dp"
+        android:paddingRight="16dp">
 
 
         <ImageButton
             android:id="@+id/musicActivityControlPrev"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_alignParentStart="true"
-            android:layout_alignParentTop="true"
-            android:layout_centerVertical="true"
             android:layout_marginStart="2dp"
             android:contentDescription="@string/previous"
+            android:scaleType="center"
             app:srcCompat="@drawable/ic_baseline_skip_previous_32" />
 
         <ImageButton
             android:id="@+id/musicActivityControlPlay"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_alignParentTop="true"
-            android:layout_centerVertical="true"
             android:layout_marginStart="2dp"
-            android:layout_toEndOf="@+id/musicActivityControlPrev"
             android:contentDescription="@string/play"
             app:srcCompat="@drawable/ic_baseline_play_arrow_32" />
 
@@ -176,21 +167,16 @@
             android:id="@+id/musicActivityControlPause"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_alignParentTop="true"
-            android:layout_centerVertical="true"
             android:layout_marginStart="2dp"
-            android:layout_toEndOf="@+id/musicActivityControlPlay"
             android:contentDescription="@string/pause"
+            android:gravity="bottom"
             app:srcCompat="@drawable/ic_baseline_pause_32" />
 
         <ImageButton
             android:id="@+id/musicActivityControlStop"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_alignParentTop="true"
-            android:layout_centerInParent="true"
             android:layout_marginStart="2dp"
-            android:layout_toEndOf="@+id/musicActivityControlPause"
             android:contentDescription="@string/stop"
             app:srcCompat="@drawable/ic_baseline_stop_32" />
 
@@ -198,10 +184,7 @@
             android:id="@+id/musicActivityControlNext"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_alignParentTop="true"
-            android:layout_centerVertical="true"
             android:layout_marginStart="2dp"
-            android:layout_toEndOf="@+id/musicActivityControlStop"
             android:contentDescription="@string/next"
             app:srcCompat="@drawable/ic_baseline_skip_next_32" />
 
@@ -209,15 +192,9 @@
             android:id="@+id/musicActivityControlExit"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_alignParentTop="true"
-            android:layout_centerVertical="true"
             android:layout_marginStart="2dp"
-            android:layout_toEndOf="@+id/musicActivityControlNext"
             android:contentDescription="@string/exit"
             app:srcCompat="@drawable/ic_baseline_cancel_32" />
+    </LinearLayout>
 
-
-    </RelativeLayout>
-
-
-</RelativeLayout>
+</LinearLayout>
