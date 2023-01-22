@@ -21,13 +21,13 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-
     android:layout_alignParentBottom="true"
     android:layout_centerHorizontal="true"
     android:gravity="bottom"
     android:orientation="vertical"
     android:paddingLeft="16dp"
-    android:paddingRight="16dp">
+    android:paddingRight="16dp"
+    tools:context=".player.MusicPlayerActivity">
 
     <ImageView
         android:id="@+id/musicActivityImageView"
@@ -43,8 +43,7 @@
     <RelativeLayout
 
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        tools:context=".player.MusicPlayerActivity">
+        android:layout_height="wrap_content">
 
 
         <TextView
@@ -56,7 +55,7 @@
             android:layout_alignParentEnd="true"
             android:text="@string/playerCurrentItem"
             android:textAlignment="center"
-            android:textAppearance="@android:style/TextAppearance.DeviceDefault.Large" />
+            android:textAppearance="?android:attr/textAppearanceLarge" />
 
 
         <TextView
@@ -67,7 +66,7 @@
             android:layout_alignStart="@id/musicActivityCurrentItem"
             android:layout_marginStart="10dp"
             android:text="@string/musicActivityNextLabel"
-            android:textAppearance="@android:style/TextAppearance.DeviceDefault.Medium" />
+            android:textAppearance="?android:attr/textAppearanceMedium" />
 
         <TextView
             android:id="@+id/musicActivityNextItem"
@@ -78,7 +77,7 @@
             android:layout_marginStart="5dp"
             android:layout_toEndOf="@+id/musicActivityNextLabel"
             android:text="@string/playerNextItem"
-            android:textAppearance="@android:style/TextAppearance.DeviceDefault.Medium" />
+            android:textAppearance="?android:attr/textAppearanceMedium" />
 
 
         <TextView
@@ -89,7 +88,7 @@
             android:layout_alignParentStart="true"
             android:layout_marginStart="10dp"
             android:text="@string/playerTimeElapsed"
-            android:textAppearance="@android:style/TextAppearance.DeviceDefault.Medium" />
+            android:textAppearance="?android:attr/textAppearanceMedium" />
 
         <TextView
             android:id="@+id/musicActivitySeparator"
@@ -100,7 +99,7 @@
             android:layout_marginEnd="5dp"
             android:layout_toEndOf="@id/musicActivityElapsedTime"
             android:text="@string/playerTimeSeparator"
-            android:textAppearance="@android:style/TextAppearance.DeviceDefault.Medium" />
+            android:textAppearance="?android:attr/textAppearanceMedium" />
 
         <TextView
             android:id="@+id/musicActivityDuration"
@@ -110,7 +109,7 @@
             android:layout_alignBaseline="@+id/musicActivityElapsedTime"
             android:layout_toEndOf="@id/musicActivitySeparator"
             android:text="@string/playerTimeDuration"
-            android:textAppearance="@android:style/TextAppearance.DeviceDefault.Medium" />
+            android:textAppearance="?android:attr/textAppearanceMedium" />
 
 
         <TextView
@@ -124,7 +123,7 @@
             android:gravity="end"
             android:text="@string/playerPosition"
             android:textAlignment="textEnd"
-            android:textAppearance="@android:style/TextAppearance.DeviceDefault.Medium" />
+            android:textAppearance="?android:attr/textAppearanceMedium" />
 
         <SeekBar
             android:id="@+id/musicActivitySeekBar"
@@ -152,7 +151,6 @@
             android:layout_height="wrap_content"
             android:layout_marginStart="2dp"
             android:contentDescription="@string/previous"
-            android:scaleType="center"
             app:srcCompat="@drawable/ic_baseline_skip_previous_32" />
 
         <ImageButton
