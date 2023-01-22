@@ -16,51 +16,51 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  -->
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".player.MultiContentPlayerActivity">
+
+    android:layout_alignParentBottom="true"
+    android:layout_centerHorizontal="true"
+    android:gravity="bottom"
+    android:orientation="vertical"
+    android:paddingLeft="16dp"
+    android:paddingRight="16dp">
 
     <ImageView
         android:id="@+id/multiContentPlayerActivityImageView"
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_above="@+id/multiContentPlayerActivityControls"
-        android:layout_alignParentStart="true"
-        android:layout_alignParentTop="true"
-        android:layout_alignParentEnd="true"
+        android:layout_weight="2"
+        android:adjustViewBounds="false"
         android:contentDescription="@string/multiContentPlayerActivityImageView"
+        android:scaleType="fitCenter"
         app:srcCompat="@drawable/yaacc192_32" />
 
-    <RelativeLayout
-        android:id="@+id/multiContentPlayerActivityControls"
-        android:layout_width="fill_parent"
+    <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_alignParentStart="true"
-        android:layout_alignParentBottom="true"
-        android:orientation="horizontal">
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:paddingLeft="16dp"
+        android:paddingRight="16dp">
+
 
         <ImageButton
             android:id="@+id/multiContentPlayerActivityControlPrev"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_alignParentStart="true"
-            android:layout_alignParentTop="true"
-            android:layout_centerVertical="true"
             android:layout_marginStart="2dp"
             android:contentDescription="@string/previous"
+            android:scaleType="center"
             app:srcCompat="@drawable/ic_baseline_skip_previous_32" />
 
         <ImageButton
             android:id="@+id/multiContentPlayerActivityControlPlay"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_alignParentTop="true"
-            android:layout_centerVertical="true"
             android:layout_marginStart="2dp"
-            android:layout_toEndOf="@+id/multiContentPlayerActivityControlPrev"
             android:contentDescription="@string/play"
             app:srcCompat="@drawable/ic_baseline_play_arrow_32" />
 
@@ -68,10 +68,7 @@
             android:id="@+id/multiContentPlayerActivityControlPause"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_alignParentTop="true"
-            android:layout_centerVertical="true"
             android:layout_marginStart="2dp"
-            android:layout_toEndOf="@+id/multiContentPlayerActivityControlPlay"
             android:contentDescription="@string/pause"
             app:srcCompat="@drawable/ic_baseline_pause_32" />
 
@@ -79,11 +76,7 @@
             android:id="@+id/multiContentPlayerActivityControlStop"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_alignParentTop="true"
-            android:layout_centerHorizontal="true"
-            android:layout_centerVertical="true"
             android:layout_marginStart="2dp"
-            android:layout_toEndOf="@+id/multiContentPlayerActivityControlPause"
             android:contentDescription="@string/stop"
             app:srcCompat="@drawable/ic_baseline_stop_32" />
 
@@ -91,10 +84,7 @@
             android:id="@+id/multiContentPlayerActivityControlNext"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_alignParentTop="true"
-            android:layout_centerVertical="true"
             android:layout_marginStart="2dp"
-            android:layout_toEndOf="@+id/multiContentPlayerActivityControlStop"
             android:contentDescription="@string/next"
             app:srcCompat="@drawable/ic_baseline_skip_next_32" />
 
@@ -102,13 +92,10 @@
             android:id="@+id/multiContentPlayerActivityControlExit"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_alignParentTop="true"
-            android:layout_centerVertical="true"
             android:layout_marginStart="2dp"
-            android:layout_toEndOf="@+id/multiContentPlayerActivityControlNext"
             android:contentDescription="@string/exit"
             app:srcCompat="@drawable/ic_baseline_cancel_32" />
-    </RelativeLayout>
+    </LinearLayout>
 
 
-</RelativeLayout>
+</LinearLayout>
