@@ -289,9 +289,11 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
     @Override
     public void onBackPressed() {
         Log.d(TabBrowserActivity.class.getName(), "onBackPressed() ");
-        Fragment fragment = getSupportFragmentManager().getFragments().get(tabLayout.getSelectedTabPosition());
-        if (!(fragment instanceof OnBackPressedListener) || !((OnBackPressedListener) fragment).onBackPressed()) {
-            super.onBackPressed();
+        if (getSupportFragmentManager().getFragments().size() > tabLayout.getSelectedTabPosition()) {
+            Fragment fragment = getSupportFragmentManager().getFragments().get(tabLayout.getSelectedTabPosition());
+            if (!(fragment instanceof OnBackPressedListener) || !((OnBackPressedListener) fragment).onBackPressed()) {
+                super.onBackPressed();
+            }
         }
 
     }
