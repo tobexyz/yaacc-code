@@ -25,6 +25,12 @@
             android:summaryOff="@string/settings_dark_mode_off"
             android:summaryOn="@string/settings_dark_mode_on"
             android:title="@string/settings_dark_mode_title" />
+        <ListPreference
+            android:defaultValue="E"
+            android:entries="@array/log_level_entries"
+            android:entryValues="@array/log_level_values"
+            android:key="@string/settings_log_level_key"
+            android:title="@string/settings_log_level" />
     </PreferenceCategory>
     <PreferenceCategory android:title="@string/settings_category_send_rec">
         <ListPreference

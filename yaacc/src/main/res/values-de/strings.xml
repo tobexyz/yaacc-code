@@ -110,5 +110,7 @@
     <string name="settings_dark_mode_title">Dunkles Design</string>
     <string name="settings_dark_mode_off">Verwende Systemeinstellungen</string>
     <string name="settings_dark_mode_on">Dunkles Design aktiv</string>
+    <string name="settings_log_level_key">settings_log_level_key</string>
+    <string name="settings_log_level">Log level</string>
 
 </resources>
