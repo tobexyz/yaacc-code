@@ -19,7 +19,9 @@
 package de.yaacc.util;
 
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Bundle;
+import android.preference.PreferenceManager;
 import android.view.View;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -62,7 +64,12 @@ public class YaaccLogActivity extends AppCompatActivity {
         TextView textView = findViewById(R.id.yaaccLog_content);
 
         try {
-            Process process = Runtime.getRuntime().exec("logcat -d");
+            SharedPreferences preferences = PreferenceManager
+                    .getDefaultSharedPreferences(this);
+            String logLevel = preferences.getString(
+                    getString(R.string.settings_log_level_key),
+                    "E");
+            Process process = Runtime.getRuntime().exec("logcat -d *:" + logLevel);
             BufferedReader bufferedReader = new BufferedReader(
                     new InputStreamReader(process.getInputStream()));
 
