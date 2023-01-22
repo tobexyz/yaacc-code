@@ -319,7 +319,7 @@ public class LocalBackgoundMusicPlayer extends AbstractPlayer implements Service
 
     @Override
     public int getIconResourceId() {
-        return R.drawable.cdtrack;
+        return R.drawable.ic_baseline_library_music_48;
     }
 
     public void seekTo(long millisecondsFromStart) {

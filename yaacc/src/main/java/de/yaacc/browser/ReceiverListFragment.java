@@ -124,7 +124,7 @@ public class ReceiverListFragment extends Fragment implements
                 ListView deviceList = contentList;
                 deviceList.setChoiceMode(ListView.CHOICE_MODE_MULTIPLE);
                 LinkedList<Device<?, ?, ?>> receiverDevices = new LinkedList<>(upnpClient.getDevicesProvidingAvTransportService());
-                BrowseReceiverDeviceAdapter bDeviceAdapter = new BrowseReceiverDeviceAdapter(getActivity().getApplicationContext(), receiverDevices, upnpClient.getReceiverDevices());
+                BrowseReceiverDeviceAdapter bDeviceAdapter = new BrowseReceiverDeviceAdapter(getActivity(), receiverDevices, upnpClient.getReceiverDevices());
                 deviceList.setAdapter(bDeviceAdapter);
                 deviceList.setOnItemClickListener(bReceiverDeviceClickListener);
             }

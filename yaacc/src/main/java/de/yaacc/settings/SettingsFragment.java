@@ -18,9 +18,14 @@
 package de.yaacc.settings;
 
 import android.os.Bundle;
-import android.preference.ListPreference;
-import android.preference.MultiSelectListPreference;
-import android.preference.PreferenceFragment;
+import android.text.InputType;
+
+import androidx.appcompat.app.AppCompatDelegate;
+import androidx.preference.CheckBoxPreference;
+import androidx.preference.EditTextPreference;
+import androidx.preference.ListPreference;
+import androidx.preference.MultiSelectListPreference;
+import androidx.preference.PreferenceFragmentCompat;
 
 import org.fourthline.cling.model.meta.Device;
 
@@ -35,16 +40,39 @@ import de.yaacc.upnp.UpnpClientListener;
 /**
  * @author Christoph Hähnel (eyeless)
  */
-public class SettingsFragment extends PreferenceFragment implements UpnpClientListener {
+public class SettingsFragment extends PreferenceFragmentCompat implements UpnpClientListener {
     @Override
-    public void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-
-        addPreferencesFromResource(R.xml.preference);
-
+    public void onCreatePreferences(Bundle savedInstanceState, String rootKey) {
+        setPreferencesFromResource(R.xml.preference, rootKey);
+        EditTextPreference numberPreference = findPreference(getString(R.string.settings_device_playback_offset_key));
+        if (numberPreference != null) {
+            numberPreference.setOnBindEditTextListener(
+                    editText -> editText.setInputType(InputType.TYPE_CLASS_NUMBER));
+        }
+        numberPreference = findPreference(getString(R.string.settings_browse_load_threads_key));
+        if (numberPreference != null) {
+            numberPreference.setOnBindEditTextListener(
+                    editText -> editText.setInputType(InputType.TYPE_CLASS_NUMBER));
+        }
+        numberPreference = findPreference(getString(R.string.settings_browse_chunk_size_key));
+        if (numberPreference != null) {
+            numberPreference.setOnBindEditTextListener(
+                    editText -> editText.setInputType(InputType.TYPE_CLASS_NUMBER));
+        }
         populateDeviceLists();
         ((Yaacc) getActivity().getApplicationContext()).getUpnpClient().addUpnpClientListener(this);
 
+        CheckBoxPreference checkBoxPreference = findPreference(getString(R.string.settings_dark_mode_key));
+        if (checkBoxPreference != null) {
+            checkBoxPreference.setOnPreferenceChangeListener((preference, newValue) -> {
+                if (newValue instanceof Boolean && (Boolean) newValue) {
+                    AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES);
+                } else {
+                    AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM);
+                }
+                return true;
+            });
+        }
 
     }
 

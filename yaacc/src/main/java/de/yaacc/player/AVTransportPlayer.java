@@ -183,7 +183,7 @@ public class AVTransportPlayer extends AbstractPlayer {
         Item item = playableItem.getItem();
         String metadata;
         try {
-            metadata = (item == null) ? "" : new DIDLParser().generate(new DIDLContent().addItem(item), false);
+            metadata = new DIDLParser().generate((item == null) ? new DIDLContent() : new DIDLContent().addItem(item), false);
         } catch (Exception e) {
             Log.d(getClass().getName(), "Error while generating Didl-Item xml: " + e);
             metadata = "";
@@ -302,9 +302,7 @@ public class AVTransportPlayer extends AbstractPlayer {
         return id;
     }
 
-    /* (non-Javadoc)
-     * @see de.yaacc.player.AbstractPlayer#pause()
-     */
+
     @Override
     public void pause() {
         super.pause();
@@ -613,7 +611,7 @@ public class AVTransportPlayer extends AbstractPlayer {
 
     @Override
     public int getIconResourceId() {
-        return R.drawable.device_48_48;
+        return R.drawable.ic_baseline_devices_48;
     }
 
     @Override
@@ -733,7 +731,6 @@ public class AVTransportPlayer extends AbstractPlayer {
                             Log.d(getClass().getName(), "Device icon uri:" + iconUri);
                             setIcon(new ImageDownloader().retrieveImageWithCertainSize(Uri.parse(iconUri.toString()), icon.getWidth(), icon.getHeight()));
                             break;
-
                         }
                     }
                 }

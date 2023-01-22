@@ -54,7 +54,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
     protected ListView contentList;
     ContentListClickListener bItemClickListener = null;
     private UpnpClient upnpClient = null;
-    private BrowseItemAdapter bItemAdapter;
+    private BrowseContentItemAdapter bItemAdapter;
     private DIDLObject selectedDIDLObject;
     private Navigator navigator = null;
 
@@ -183,7 +183,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
 
 
     private void initBrowsItemAdapter(ListView itemList) {
-        bItemAdapter = new BrowseItemAdapter(getActivity(), navigator);
+        bItemAdapter = new BrowseContentItemAdapter(getActivity(), navigator);
         itemList.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
         itemList.setAdapter(bItemAdapter);
         itemList.setOnScrollListener(bItemAdapter);
@@ -239,7 +239,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
             navigator = new Navigator();
             Position pos = new Position(Navigator.ITEM_ROOT_OBJECT_ID, null);
             navigator.pushPosition(pos);
-            bItemAdapter = new BrowseItemAdapter(requireActivity().getApplicationContext(), navigator);
+            bItemAdapter = new BrowseContentItemAdapter(requireActivity().getApplicationContext(), navigator);
             contentList.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
             contentList.setAdapter(bItemAdapter);
             contentList.setOnItemClickListener(bItemClickListener);

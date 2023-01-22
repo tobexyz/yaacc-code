@@ -18,10 +18,11 @@
  */
 package de.yaacc.util;
 
-import android.app.Activity;
 import android.content.Intent;
 import android.os.Bundle;
 import android.widget.TextView;
+
+import androidx.appcompat.app.AppCompatActivity;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -29,8 +30,8 @@ import java.io.InputStreamReader;
 
 import de.yaacc.R;
 
-public class YaaccLogActivity extends Activity {
-    public static void showLog(Activity activity) {
+public class YaaccLogActivity extends AppCompatActivity {
+    public static void showLog(AppCompatActivity activity) {
         activity.startActivity(new Intent(activity, YaaccLogActivity.class));
     }
 

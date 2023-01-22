@@ -1,5 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- 
+<?xml version="1.0" encoding="utf-8"?><!--
  *
  * Copyright (C) 2013 www.yaacc.de 
  *
@@ -18,41 +17,41 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  -->
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".player.AVTransportPlayerActivity" >
+    tools:context=".player.AVTransportPlayerActivity">
 
 
-
-    <Switch
+    <com.google.android.material.switchmaterial.SwitchMaterial
+        android:id="@+id/avtransportPlayerActivityControlMuteSwitch"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:id="@+id/avtransportPlayerActivityControlMuteSwitch"
         android:layout_alignParentTop="true"
         android:text="@string/activity_remote_player_mute" />
+
     <TextView
+        android:id="@+id/avtransportPlayerActivityControlVolumeTextView"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:textAppearance="?android:attr/textAppearanceMedium"
-        android:text="@string/activity_remote_player_volume"
         android:layout_below="@+id/avtransportPlayerActivityControlMuteSwitch"
-        android:layout_alignParentLeft="true"
         android:layout_alignParentStart="true"
-        android:id="@+id/avtransportPlayerActivityControlVolumeTextView"
+        android:layout_alignParentLeft="true"
         android:labelFor="@+id/avtransportPlayerActivityControlVolumeSeekBar"
-        />
+        android:text="@string/activity_remote_player_volume"
+        android:textAppearance="?android:attr/textAppearanceMedium" />
 
     <SeekBar
+        android:id="@+id/avtransportPlayerActivityControlVolumeSeekBar"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_below="@+id/avtransportPlayerActivityControlMuteSwitch"
         android:layout_above="@+id/avtransportPlayerActivityImageView"
-        android:id="@+id/avtransportPlayerActivityControlVolumeSeekBar"
-        android:layout_toEndOf="@+id/avtransportPlayerActivityControlVolumeTextView"
-        android:layout_toRightOf="@+id/avtransportPlayerActivityControlVolumeTextView"
+        android:layout_below="@+id/avtransportPlayerActivityControlMuteSwitch"
+        android:layout_alignParentEnd="true"
         android:layout_alignParentRight="true"
-        android:layout_alignParentEnd="true" />
+        android:layout_toEndOf="@+id/avtransportPlayerActivityControlVolumeTextView"
+        android:layout_toRightOf="@+id/avtransportPlayerActivityControlVolumeTextView" />
 
 
     <ImageView
@@ -62,7 +61,7 @@
         android:layout_above="@id/avtransportPlayerActivityCurrentItem"
         android:layout_below="@id/avtransportPlayerActivityControlVolumeTextView"
         android:contentDescription="@string/avtransportPlayerActivityImageView"
-        android:src="@drawable/device" />
+        app:srcCompat="@drawable/ic_baseline_devices_128" />
 
 
     <TextView
@@ -72,27 +71,27 @@
         android:layout_above="@+id/avtransportPlayerActivityElapsedTime"
         android:layout_alignParentStart="true"
         android:layout_alignParentLeft="true"
+        android:layout_marginBottom="15dp"
         android:text="@string/playerCurrentItem" />
 
     <Space
         android:id="@+id/avtransportPlayerActivitySeparator3"
-        android:layout_toRightOf="@+id/avtransportPlayerActivityCurrentItem"
-        android:layout_toEndOf="@+id/avtransportPlayerActivityCurrentItem"
-        android:layout_alignBaseline="@+id/avtransportPlayerActivityCurrentItem"
         android:layout_width="wrap_content"
-        android:layout_height="wrap_content"/>
+        android:layout_height="wrap_content"
+        android:layout_alignBaseline="@+id/avtransportPlayerActivityCurrentItem"
+        android:layout_toEndOf="@+id/avtransportPlayerActivityCurrentItem"
+        android:layout_toRightOf="@+id/avtransportPlayerActivityCurrentItem" />
 
     <TextView
         android:id="@+id/avtransportPlayerActivityNextLabel"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginLeft="50dp"
-        android:layout_marginStart="50dp"
         android:layout_alignBaseline="@+id/avtransportPlayerActivityCurrentItem"
+        android:layout_marginStart="50dp"
+        android:layout_marginLeft="50dp"
         android:layout_toEndOf="@+id/avtransportPlayerActivitySeparator3"
         android:layout_toRightOf="@+id/avtransportPlayerActivitySeparator3"
-        android:text="@string/avtransportPlayerActivityNextLabel"
-        />
+        android:text="@string/avtransportPlayerActivityNextLabel" />
 
 
     <TextView
@@ -100,13 +99,13 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_alignBaseline="@+id/avtransportPlayerActivityCurrentItem"
-        android:text="@string/playerNextItem"
         android:layout_alignTop="@+id/avtransportPlayerActivityNextLabel"
-        android:layout_toRightOf="@+id/avtransportPlayerActivityNextLabel"
-        android:layout_toEndOf="@+id/avtransportPlayerActivityNextLabel"
-        android:gravity="end"
+        android:layout_alignParentEnd="true"
         android:layout_alignParentRight="true"
-        android:layout_alignParentEnd="true"/>
+        android:layout_toEndOf="@+id/avtransportPlayerActivityNextLabel"
+        android:layout_toRightOf="@+id/avtransportPlayerActivityNextLabel"
+        android:gravity="end"
+        android:text="@string/playerNextItem" />
 
 
     <TextView
@@ -114,78 +113,77 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_above="@+id/avtransportPlayerActivitySeekBarLayout"
-        android:layout_alignParentLeft="true"
         android:layout_alignParentStart="true"
-        android:text="@string/playerTimeElapsed"/>
+        android:layout_alignParentLeft="true"
+        android:text="@string/playerTimeElapsed" />
 
     <TextView
         android:id="@+id/avtransportPlayerActivitySeparator"
-        android:layout_alignBaseline="@+id/avtransportPlayerActivityElapsedTime"
-        android:layout_toRightOf="@id/avtransportPlayerActivityElapsedTime"
-        android:layout_toEndOf="@id/avtransportPlayerActivityElapsedTime"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="@string/playerTimeSeparator"/>
+        android:layout_alignBaseline="@+id/avtransportPlayerActivityElapsedTime"
+        android:layout_toEndOf="@id/avtransportPlayerActivityElapsedTime"
+        android:layout_toRightOf="@id/avtransportPlayerActivityElapsedTime"
+        android:text="@string/playerTimeSeparator" />
 
     <TextView
         android:id="@+id/avtransportPlayerActivityDuration"
-        android:layout_alignBaseline="@+id/avtransportPlayerActivityElapsedTime"
-        android:layout_toRightOf="@id/avtransportPlayerActivitySeparator"
-        android:layout_toEndOf="@id/avtransportPlayerActivitySeparator"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="@string/playerTimeDuration"/>
+        android:layout_alignBaseline="@+id/avtransportPlayerActivityElapsedTime"
+        android:layout_toEndOf="@id/avtransportPlayerActivitySeparator"
+        android:layout_toRightOf="@id/avtransportPlayerActivitySeparator"
+        android:text="@string/playerTimeDuration" />
 
     <Space
         android:id="@+id/avtransportPlayerActivitySeparator2"
-        android:layout_alignBaseline="@+id/avtransportPlayerActivityElapsedTime"
-        android:layout_toRightOf="@id/avtransportPlayerActivityDuration"
-        android:layout_toEndOf="@id/avtransportPlayerActivityDuration"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        />
+        android:layout_alignBaseline="@+id/avtransportPlayerActivityElapsedTime"
+        android:layout_toEndOf="@id/avtransportPlayerActivityDuration"
+        android:layout_toRightOf="@id/avtransportPlayerActivityDuration" />
 
     <TextView
         android:id="@+id/avtransportPlayerActivityPosition"
-        android:layout_alignParentRight="true"
-        android:layout_alignParentEnd="true"
-        android:layout_above="@+id/avtransportPlayerActivitySeekBarLayout"
-        android:gravity="end"
-        android:layout_toRightOf="@+id/avtransportPlayerActivitySeparator2"
-        android:layout_toEndOf="@+id/avtransportPlayerActivitySeparator2"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="@string/playerPosition"
+        android:layout_above="@+id/avtransportPlayerActivitySeekBarLayout"
         android:layout_alignBaseline="@+id/avtransportPlayerActivityDuration"
-        android:textAlignment="textEnd"
-        />
+        android:layout_alignParentEnd="true"
+        android:layout_alignParentRight="true"
+        android:layout_toEndOf="@+id/avtransportPlayerActivitySeparator2"
+        android:layout_toRightOf="@+id/avtransportPlayerActivitySeparator2"
+        android:gravity="end"
+        android:text="@string/playerPosition"
+        android:textAlignment="textEnd" />
 
     <RelativeLayout
         android:id="@+id/avtransportPlayerActivitySeekBarLayout"
         android:layout_width="fill_parent"
         android:layout_height="wrap_content"
-        android:layout_alignParentStart="true"
-        android:layout_alignParentLeft="true"
         android:layout_above="@+id/avtransportPlayerActivityControls"
-        android:orientation="horizontal" >
-    <SeekBar
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:id="@+id/avtransportPlayerActivityControlSeekBar"
-        android:layout_alignParentLeft="true"
         android:layout_alignParentStart="true"
-        android:layout_alignParentRight="true"
-        android:layout_alignParentEnd="true"
-        />
+        android:layout_alignParentLeft="true"
+        android:orientation="horizontal">
+
+        <SeekBar
+            android:id="@+id/avtransportPlayerActivityControlSeekBar"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentStart="true"
+            android:layout_alignParentLeft="true"
+            android:layout_alignParentEnd="true"
+            android:layout_alignParentRight="true" />
     </RelativeLayout>
+
     <RelativeLayout
         android:id="@+id/avtransportPlayerActivityControls"
         android:layout_width="fill_parent"
         android:layout_height="wrap_content"
-        android:layout_alignParentBottom="true"
         android:layout_alignParentStart="true"
         android:layout_alignParentLeft="true"
-        android:orientation="horizontal" >
+        android:layout_alignParentBottom="true"
+        android:orientation="horizontal">
 
         <ImageButton
             android:id="@+id/avtransportPlayerActivityControlPrev"
@@ -194,28 +192,34 @@
             android:layout_alignParentStart="true"
             android:layout_alignParentLeft="true"
             android:layout_alignParentTop="true"
+            android:layout_centerVertical="true"
+            android:layout_marginStart="2dp"
             android:contentDescription="@string/previous"
-            android:src="@drawable/player_start" />
+            app:srcCompat="@drawable/ic_baseline_skip_previous_32" />
 
         <ImageButton
             android:id="@+id/avtransportPlayerActivityControlPlay"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_alignParentTop="true"
+            android:layout_centerVertical="true"
+            android:layout_marginStart="2dp"
             android:layout_toEndOf="@+id/avtransportPlayerActivityControlPrev"
             android:layout_toRightOf="@+id/avtransportPlayerActivityControlPrev"
             android:contentDescription="@string/play"
-            android:src="@drawable/player_play" />
+            app:srcCompat="@drawable/ic_baseline_play_arrow_32" />
 
         <ImageButton
             android:id="@+id/avtransportPlayerActivityControlPause"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_alignParentTop="true"
+            android:layout_centerVertical="true"
+            android:layout_marginStart="2dp"
             android:layout_toEndOf="@+id/avtransportPlayerActivityControlPlay"
             android:layout_toRightOf="@+id/avtransportPlayerActivityControlPlay"
             android:contentDescription="@string/pause"
-            android:src="@drawable/player_pause" />
+            app:srcCompat="@drawable/ic_baseline_pause_32" />
 
         <ImageButton
             android:id="@+id/avtransportPlayerActivityControlStop"
@@ -223,29 +227,36 @@
             android:layout_height="wrap_content"
             android:layout_alignParentTop="true"
             android:layout_centerHorizontal="true"
+            android:layout_centerVertical="true"
+            android:layout_marginStart="2dp"
             android:layout_toEndOf="@+id/avtransportPlayerActivityControlPause"
             android:layout_toRightOf="@+id/avtransportPlayerActivityControlPause"
             android:contentDescription="@string/stop"
-            android:src="@drawable/player_stop" />
+            app:srcCompat="@drawable/ic_baseline_stop_32" />
 
         <ImageButton
             android:id="@+id/avtransportPlayerActivityControlNext"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_alignParentTop="true"
+            android:layout_centerVertical="true"
+            android:layout_marginStart="2dp"
             android:layout_toEndOf="@+id/avtransportPlayerActivityControlStop"
             android:layout_toRightOf="@+id/avtransportPlayerActivityControlStop"
             android:contentDescription="@string/next"
-            android:src="@drawable/player_end" />
+            app:srcCompat="@drawable/ic_baseline_skip_next_32" />
+
         <ImageButton
             android:id="@+id/avtransportPlayerActivityControlExit"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_alignParentTop="true"
+            android:layout_centerVertical="true"
+            android:layout_marginStart="2dp"
             android:layout_toEndOf="@+id/avtransportPlayerActivityControlNext"
             android:layout_toRightOf="@+id/avtransportPlayerActivityControlNext"
             android:contentDescription="@string/exit"
-            android:src="@drawable/button_cancel" />
+            app:srcCompat="@drawable/ic_baseline_cancel_32" />
     </RelativeLayout>
 
 </RelativeLayout>

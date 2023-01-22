@@ -1,5 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!--
+<?xml version="1.0" encoding="utf-8"?><!--
 *
 * Copyright (C) 2013 www.yaacc.de
 *
@@ -19,33 +18,34 @@
 -->
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="fill_parent"
-    android:layout_height="wrap_content" >
-    <ImageView android:id="@+id/browseItemIcon"
-        android:contentDescription="@string/icon"
-        android:layout_alignParentStart="true"
-        android:layout_alignParentLeft="true"
-        android:layout_alignParentTop="true"
+    android:layout_height="wrap_content">
+
+    <ImageView
+        android:id="@+id/browseReceiverDeviceItemIcon"
         android:layout_width="70dp"
         android:layout_height="wrap_content"
-        android:theme="@style/AppTheme"
-        />
-    <TextView android:id="@+id/browseItemName"
-        android:layout_toEndOf="@id/browseItemIcon"
-        android:layout_toRightOf="@id/browseItemIcon"
-        style="@android:style/TextAppearance.DeviceDefault.Large"
-        android:checkMark="?android:attr/listChoiceIndicatorMultiple"
+        android:layout_alignParentStart="true"
+        android:layout_alignParentTop="true"
+        android:contentDescription="@string/icon" />
+
+    <TextView
+        android:id="@+id/browseReceiverDeviceItemName"
         android:layout_width="fill_parent"
         android:layout_height="wrap_content"
-        android:theme="@style/AppTheme"
-        android:gravity="center_vertical"/>
+        android:layout_toEndOf="@id/browseReceiverDeviceItemIcon"
+        android:gravity="center_vertical"
+        android:text="@string/all"
+        android:textAppearance="@style/TextAppearance.AppCompat.Large"
+        android:textColor="?android:attr/colorForeground" />
+
     <CheckBox
-        android:id="@+id/browseItemCheckbox"
-        android:theme="@style/AppTheme"
-        android:clickable="false"
-        android:duplicateParentState="true"
-        android:focusable="false"
+        android:id="@+id/browseReceiverDeviceItemCheckbox"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_alignParentEnd="true"
-        android:layout_alignParentRight="true" />
+        android:checkMark="?android:attr/listChoiceIndicatorMultiple"
+        android:clickable="false"
+        android:duplicateParentState="true"
+        android:focusable="false"
+        android:textAppearance="@style/TextAppearance.AppCompat.Large" />
 </RelativeLayout>

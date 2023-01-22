@@ -40,6 +40,7 @@ import java.util.LinkedList;
 
 import de.yaacc.R;
 import de.yaacc.upnp.UpnpClient;
+import de.yaacc.util.ThemeHelper;
 import de.yaacc.util.image.IconDownloadTask;
 
 /**
@@ -48,12 +49,14 @@ import de.yaacc.util.image.IconDownloadTask;
 public class BrowseReceiverDeviceAdapter extends BaseAdapter {
     private final LayoutInflater inflator;
     private final LinkedList<Device<?, ?, ?>> selectedDevices;
+    private final Context context;
     private LinkedList<Device<?, ?, ?>> devices;
 
     public BrowseReceiverDeviceAdapter(Context ctx, Collection<Device<?, ?, ?>> devices, Collection<Device<?, ?, ?>> selectedDevices) {
         super();
         this.devices = new LinkedList<>(devices);
         this.selectedDevices = new LinkedList<>(selectedDevices);
+        context = ctx;
         inflator = LayoutInflater.from(ctx);
         notifyDataSetChanged();
     }
@@ -70,23 +73,22 @@ public class BrowseReceiverDeviceAdapter extends BaseAdapter {
 
     @Override
     public long getItemId(int position) {
-// TODO Auto-generated method stub
-        return 0;
+        return position;
     }
 
     @Override
     public View getView(int position, View convertView, ViewGroup parent) {
         ViewHolder holder;
         if (convertView == null) {
-            convertView = inflator.inflate(R.layout.browse_item_checkable, parent, false);
+            convertView = inflator.inflate(R.layout.browse_receiver_device_item, parent, false);
             Log.d(getClass().getName(), "New view created");
             holder = new ViewHolder();
             holder.icon = (ImageView) convertView
-                    .findViewById(R.id.browseItemIcon);
+                    .findViewById(R.id.browseReceiverDeviceItemIcon);
             holder.name = (TextView) convertView
-                    .findViewById(R.id.browseItemName);
+                    .findViewById(R.id.browseReceiverDeviceItemName);
             holder.checkBox = (CheckBox) convertView
-                    .findViewById(R.id.browseItemCheckbox);
+                    .findViewById(R.id.browseReceiverDeviceItemCheckbox);
             convertView.setTag(holder);
         } else {
             Log.d(getClass().getName(), "view already there");
@@ -101,14 +103,14 @@ public class BrowseReceiverDeviceAdapter extends BaseAdapter {
                         URL iconUri = ((RemoteDevice) device).normalizeURI(icon.getUri());
                         if (iconUri != null) {
                             Log.d(getClass().getName(), "Device icon uri:" + iconUri);
-                            new IconDownloadTask((ListView) parent, position).execute(Uri.parse(iconUri.toString()));
+                            new IconDownloadTask((ListView) parent, R.id.browseReceiverDeviceItemIcon, position).execute(Uri.parse(iconUri.toString()));
                             break;
 
                         }
                     }
                 }
             } else {
-                holder.icon.setImageResource(R.drawable.device);
+                holder.icon.setImageDrawable(ThemeHelper.tintDrawable(context.getResources().getDrawable(R.drawable.ic_baseline_devices_48, context.getTheme()), context.getTheme()));
             }
         } else if (device instanceof LocalDevice || device instanceof UpnpClient.LocalDummyDevice) {
             //We know our icon
