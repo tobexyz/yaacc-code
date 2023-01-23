@@ -108,7 +108,7 @@ public class ImagesAllFolderBrowser extends ContentBrowser {
                         Photo photo = new Photo(ContentDirectoryIDs.IMAGE_ALL_PREFIX.getId() + id, ContentDirectoryIDs.IMAGES_ALL_FOLDER.getId(), name, "", "", resource);
                         URI albumArtUri = URI.create("http://"
                                 + contentDirectory.getIpAddress() + ":"
-                                + YaaccUpnpServerService.PORT + "/?thumb=" + id);
+                                + YaaccUpnpServerService.PORT + "/thumb/" + id);
                         photo.replaceFirstProperty(new UPNP.ALBUM_ART_URI(
                                 albumArtUri));
 

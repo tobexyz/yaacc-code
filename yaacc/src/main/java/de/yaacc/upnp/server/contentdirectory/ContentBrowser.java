@@ -75,7 +75,7 @@ public abstract class ContentBrowser {
 
         }
         return "http://" + contentDirectory.getIpAddress() + ":"
-                + YaaccUpnpServerService.PORT + "?id=" + id + "&f=file." + fileExtension;
+                + YaaccUpnpServerService.PORT + "/res/" + id + "/file." + fileExtension;
     }
 
 }

@@ -123,7 +123,7 @@ public class MusicArtistItemBrowser extends ContentBrowser {
                 String uri = getUriString(contentDirectory, id, mimeType);
                 URI albumArtUri = URI.create("http://"
                         + contentDirectory.getIpAddress() + ":"
-                        + YaaccUpnpServerService.PORT + "?album=" + albumId);
+                        + YaaccUpnpServerService.PORT + "/album/" + albumId);
                 Res resource = new Res(mimeType, size, uri);
                 resource.setDuration(duration);
                 MusicTrack musicTrack = new MusicTrack(

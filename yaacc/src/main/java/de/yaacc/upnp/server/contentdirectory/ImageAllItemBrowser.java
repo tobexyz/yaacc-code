@@ -92,7 +92,7 @@ public class ImageAllItemBrowser extends ContentBrowser {
                         resource);
                 URI albumArtUri = URI.create("http://"
                         + contentDirectory.getIpAddress() + ":"
-                        + YaaccUpnpServerService.PORT + "/?thumb=" + id);
+                        + YaaccUpnpServerService.PORT + "/thumb/" + id);
                 result.replaceFirstProperty(new UPNP.ALBUM_ART_URI(
                         albumArtUri));
                 Log.d(getClass().getName(), "Image: " + id + " Name: " + name

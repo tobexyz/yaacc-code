@@ -59,21 +59,15 @@ import org.fourthline.cling.support.model.item.Photo;
 import org.seamless.util.MimeType;
 
 import java.beans.PropertyChangeSupport;
-import java.net.InetAddress;
-import java.net.NetworkInterface;
-import java.net.SocketException;
 import java.util.ArrayList;
-import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import de.yaacc.R;
-import de.yaacc.upnp.server.YaaccUpnpServerService;
 
 /**
  * a content directory which uses the content of the MediaStore in order to
@@ -94,9 +88,7 @@ import de.yaacc.upnp.server.YaaccUpnpServerService;
         @UpnpStateVariable(name = "A_ARG_TYPE_URI", sendEvents = false, datatype = "uri")})
 public class YaaccContentDirectory {
 
-    private static final Pattern IPV4_PATTERN =
-            Pattern.compile(
-                    "^(25[0-5]|2[0-4]\\d|[0-1]?\\d?\\d)(\\.(25[0-5]|2[0-4]\\d|[0-1]?\\d?\\d)){3}$");
+
     @UpnpStateVariable(sendEvents = false)
     final private CSV<String> searchCapabilities;
     @UpnpStateVariable(sendEvents = false)
@@ -110,8 +102,9 @@ public class YaaccContentDirectory {
     @UpnpStateVariable(defaultValue = "0", eventMaximumRateMilliseconds = 200)
     private final UnsignedIntegerFourBytes systemUpdateID = new UnsignedIntegerFourBytes(
             0);
+    private final String ipAddress;
 
-    public YaaccContentDirectory(Context context) {
+    public YaaccContentDirectory(Context context, String ipAddress) {
         this.context = context;
         preferences = PreferenceManager.getDefaultSharedPreferences(context);
 
@@ -120,6 +113,7 @@ public class YaaccContentDirectory {
         }
         this.searchCapabilities = new CSVString();
         this.sortCapabilities = new CSVString();
+        this.ipAddress = ipAddress;
     }
 
     private boolean isUsingTestContent() {
@@ -457,42 +451,6 @@ public class YaaccContentDirectory {
         return result;
     }
 
-    /**
-     * get the ip address of the device
-     *
-     * @return the address or null if anything went wrong
-     */
-    public String getIpAddress() {
-        String hostAddress = null;
-        try {
-            for (Enumeration<NetworkInterface> networkInterfaces = NetworkInterface
-                    .getNetworkInterfaces(); networkInterfaces
-                         .hasMoreElements(); ) {
-                NetworkInterface networkInterface = networkInterfaces
-                        .nextElement();
-                if (!networkInterface.getName().startsWith("rmnet")) {
-                    for (Enumeration<InetAddress> inetAddresses = networkInterface
-                            .getInetAddresses(); inetAddresses.hasMoreElements(); ) {
-                        InetAddress inetAddress = inetAddresses.nextElement();
-                        if (!inetAddress.isLoopbackAddress() && inetAddress
-                                .getHostAddress() != null
-                                && IPV4_PATTERN.matcher(inetAddress
-                                .getHostAddress()).matches()) {
-
-                            hostAddress = inetAddress.getHostAddress();
-                        }
-
-                    }
-                }
-            }
-        } catch (SocketException se) {
-            Log.d(YaaccUpnpServerService.class.getName(),
-                    "Error while retrieving network interfaces", se);
-        }
-        // maybe wifi is off we have to use the loopback device
-        hostAddress = hostAddress == null ? "0.0.0.0" : hostAddress;
-        return hostAddress;
-    }
 
     public String formatDuration(String millisStr) {
         String res;
@@ -510,10 +468,10 @@ public class YaaccContentDirectory {
                 seconds);
 
         return res;
-        // Date d = new Date(Long.parseLong(millis));
-        // SimpleDateFormat df = new SimpleDateFormat("HH:mm:ss");
-        // return df.format(d);
     }
 
+    public String getIpAddress() {
+        return ipAddress;
+    }
 
 }

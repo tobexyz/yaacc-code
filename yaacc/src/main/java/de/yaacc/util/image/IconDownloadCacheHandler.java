@@ -66,7 +66,7 @@ public class IconDownloadCacheHandler {
      * @param img image to save
      */
     public void addBitmap(Uri uri, int width, int height, Bitmap img) {
-
+        if (img == null) return;
         cache.put(uri.toString() + width + "x" + height, img);
     }
 
