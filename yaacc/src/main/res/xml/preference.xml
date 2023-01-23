@@ -16,7 +16,8 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  -->
-<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <PreferenceCategory android:title="@string/settings_category_appearance">
         <CheckBoxPreference
@@ -139,6 +140,18 @@
         <EditTextPreference
             android:key="@string/settings_local_server_name_key"
             android:title="@string/settings_local_server_name" />
+        <EditTextPreference
+            android:enabled="false"
+            app:isPreferenceVisible="false"
+            android:inputType="text"
+            android:key="@string/settings_local_server_provider_uuid_key"
+            />
+        <EditTextPreference
+            android:enabled="false"
+            app:isPreferenceVisible="false"
+            android:inputType="text"
+            android:key="@string/settings_local_server_receiver_uuid_key"
+            />
     </PreferenceCategory>
     <PreferenceCategory android:title="@string/settings_category_synchronization">
         <ListPreference
