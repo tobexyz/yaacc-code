@@ -65,7 +65,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         bItemClickListener = new ContentListClickListener(upnpClient, this);
         Thread thread = new Thread(() -> {
             if (upnpClient.getProviderDevice() != null) {
-                if (navigator != null) {
+                if (navigator != null && navigator.getCurrentPosition().getDeviceId() != null) {
                     populateItemList();
                 } else {
                     showMainFolder();
