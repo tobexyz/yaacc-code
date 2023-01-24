@@ -33,6 +33,9 @@ import android.util.Log;
 
 import androidx.core.app.NotificationCompat;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import de.yaacc.R;
 import de.yaacc.Yaacc;
 import de.yaacc.browser.TabBrowserActivity;
@@ -45,10 +48,11 @@ import de.yaacc.util.NotificationId;
  */
 public class BackgroundMusicService extends Service {
     public static final String URIS = "URIS_PARAM"; // String Intent parameter
-    private final IBinder binder = new BackgroundMusicServiceBinder();
+    private final BackgroundMusicServiceBinder binder = new BackgroundMusicServiceBinder();
     private MediaPlayer player;
     private BackgroundMusicBroadcastReceiver backgroundMusicBroadcastReceiver;
     private int duration = 0;
+    private List<BackgoundMusicServiceListener> serviceListener = new ArrayList<>();
 
     public BackgroundMusicService() {
         super();
@@ -213,6 +217,12 @@ public class BackgroundMusicService extends Service {
                 return false;
             }
         });
+        player.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
+            @Override
+            public void onCompletion(MediaPlayer mp) {
+                serviceListener.stream().forEach(it -> it.onCompletion());
+            }
+        });
         player.setVolume(100, 100);
 
 
@@ -223,7 +233,7 @@ public class BackgroundMusicService extends Service {
                         .setLegacyStreamType(AudioManager.STREAM_MUSIC)
                         .build());
         player.setOnPreparedListener(mediaPlayer ->
-                duration = player.getDuration());
+                duration = mediaPlayer.getDuration());
 
 
         try {
@@ -267,6 +277,14 @@ public class BackgroundMusicService extends Service {
         }
 
         return currentPosition;
+    }
+
+    public void removeServiceListener(BackgoundMusicServiceListener listener) {
+        serviceListener.remove(listener);
+    }
+
+    public void addServiceListener(BackgoundMusicServiceListener listener) {
+        serviceListener.add(listener);
     }
 
     public class BackgroundMusicServiceBinder extends Binder {
