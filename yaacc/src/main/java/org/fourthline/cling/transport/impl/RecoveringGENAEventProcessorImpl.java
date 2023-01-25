@@ -15,16 +15,17 @@
 
 package org.fourthline.cling.transport.impl;
 
+import android.util.Log;
+
 import org.fourthline.cling.model.UnsupportedDataException;
 import org.fourthline.cling.model.XMLUtil;
 import org.fourthline.cling.model.message.gena.IncomingEventRequestMessage;
-import org.fourthline.cling.transport.spi.GENAEventProcessor;
 import org.seamless.xml.XmlPullParserUtils;
 
-import jakarta.enterprise.inject.Alternative;
-import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import jakarta.enterprise.inject.Alternative;
 
 
 /**
@@ -50,7 +51,6 @@ import java.util.regex.Pattern;
 @Alternative
 public class RecoveringGENAEventProcessorImpl extends PullGENAEventProcessorImpl {
 
-    private static Logger log = Logger.getLogger(GENAEventProcessor.class.getName());
 
     public void readBody(IncomingEventRequestMessage requestMessage) throws UnsupportedDataException {
         try {
@@ -61,7 +61,7 @@ public class RecoveringGENAEventProcessorImpl extends PullGENAEventProcessorImpl
             if (!requestMessage.isBodyNonEmptyString())
                 throw ex;
 
-            log.warning("Trying to recover from invalid GENA XML event: " + ex);
+            Log.w(getClass().getName(), "Trying to recover from invalid GENA XML event: " + ex);
 
             // Some properties may have been read at this point, so reset the list
             requestMessage.getStateVariableValues().clear();
@@ -69,7 +69,7 @@ public class RecoveringGENAEventProcessorImpl extends PullGENAEventProcessorImpl
             String body = getMessageBody(requestMessage);
 
             String fixedBody = fixXMLEncodedLastChange(
-                XmlPullParserUtils.fixXMLEntities(body)
+                    XmlPullParserUtils.fixXMLEntities(body)
             );
 
             try {
@@ -82,7 +82,7 @@ public class RecoveringGENAEventProcessorImpl extends PullGENAEventProcessorImpl
                     // Throw the initial exception containing unmodified XML
                     throw ex;
                 }
-                log.warning("Partial read of GENA event properties (probably due to truncated XML)");
+                Log.w(getClass().getName(), "Partial read of GENA event properties (probably due to truncated XML)");
             }
         }
     }
@@ -103,7 +103,7 @@ public class RecoveringGENAEventProcessorImpl extends PullGENAEventProcessorImpl
             String fixedLastChange = lastChange;
 
             if (lastChange.charAt(0) == '<') {
-            // TODO: UPNP VIOLATION: Orange Liveradio does not encode LastChange XML properly
+                // TODO: UPNP VIOLATION: Orange Liveradio does not encode LastChange XML properly
                 fixedLastChange = XMLUtil.encodeText(fixedLastChange);
             } else {
                 /* Doesn't work for Philips NP2900, there is complete garbage after the HTML
@@ -118,13 +118,13 @@ public class RecoveringGENAEventProcessorImpl extends PullGENAEventProcessorImpl
             }
 
             return "<?xml version=\"1.0\" encoding=\"utf-8\"?>" +
-                "<e:propertyset xmlns:e=\"urn:schemas-upnp-org:event-1-0\">" +
-                "<e:property>" +
-                "<LastChange>" +
-                fixedLastChange +
-                "</LastChange>" +
-                "</e:property>" +
-                "</e:propertyset>";
+                    "<e:propertyset xmlns:e=\"urn:schemas-upnp-org:event-1-0\">" +
+                    "<e:property>" +
+                    "<LastChange>" +
+                    fixedLastChange +
+                    "</LastChange>" +
+                    "</e:property>" +
+                    "</e:propertyset>";
         }
         return xml;
     }

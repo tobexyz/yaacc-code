@@ -15,13 +15,12 @@
 
 package org.fourthline.cling.transport.impl;
 
-import java.util.logging.Logger;
+import android.util.Log;
 
+import org.fourthline.cling.model.UnsupportedDataException;
 import org.fourthline.cling.model.action.ActionInvocation;
 import org.fourthline.cling.model.message.control.ActionRequestMessage;
 import org.fourthline.cling.model.message.control.ActionResponseMessage;
-import org.fourthline.cling.transport.spi.SOAPActionProcessor;
-import org.fourthline.cling.model.UnsupportedDataException;
 import org.seamless.xml.XmlPullParserUtils;
 
 import jakarta.enterprise.inject.Alternative;
@@ -52,7 +51,6 @@ import jakarta.enterprise.inject.Alternative;
 @Alternative
 public class RecoveringSOAPActionProcessorImpl extends PullSOAPActionProcessorImpl {
 
-    private static Logger log = Logger.getLogger(SOAPActionProcessor.class.getName());
 
     public void readBody(ActionRequestMessage requestMessage, ActionInvocation actionInvocation) throws UnsupportedDataException {
         try {
@@ -63,7 +61,7 @@ public class RecoveringSOAPActionProcessorImpl extends PullSOAPActionProcessorIm
             if (!requestMessage.isBodyNonEmptyString())
                 throw ex;
 
-            log.warning("Trying to recover from invalid SOAP XML request: " + ex);
+            Log.w(getClass().getName(), "Trying to recover from invalid SOAP XML request: " + ex);
             String body = getMessageBody(requestMessage);
 
             // TODO: UPNP VIOLATION: TwonkyMobile sends unencoded '&' in SetAVTransportURI action calls:
@@ -89,7 +87,7 @@ public class RecoveringSOAPActionProcessorImpl extends PullSOAPActionProcessorIm
             if (!responseMsg.isBodyNonEmptyString())
                 throw ex;
 
-            log.warning("Trying to recover from invalid SOAP XML response: " + ex);
+            Log.w(getClass().getName(), "Trying to recover from invalid SOAP XML response: " + ex);
             String body = getMessageBody(responseMsg);
 
             // TODO: UPNP VIOLATION: TwonkyMobile doesn't properly encode '&'

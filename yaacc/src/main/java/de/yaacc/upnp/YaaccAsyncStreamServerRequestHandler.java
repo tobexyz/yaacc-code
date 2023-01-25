@@ -18,6 +18,8 @@
  */
 package de.yaacc.upnp;
 
+import android.util.Log;
+
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.EntityDetails;
 import org.apache.hc.core5.http.Header;
@@ -45,11 +47,8 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.List;
 import java.util.Map;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 public class YaaccAsyncStreamServerRequestHandler extends UpnpStream implements AsyncServerRequestHandler<Message<HttpRequest, byte[]>> {
-    final private static Logger log = Logger.getLogger(YaaccAsyncStreamServerImpl.class.getName());
 
     protected YaaccAsyncStreamServerRequestHandler(ProtocolFactory protocolFactory) {
         super(protocolFactory);
@@ -72,28 +71,25 @@ public class YaaccAsyncStreamServerRequestHandler extends UpnpStream implements 
 
         try {
             StreamRequestMessage requestMessage = readRequestMessage(message);
-            log.info("Processing new request message: " + requestMessage);
+            Log.v(getClass().getName(), "Processing new request message: " + requestMessage);
 
             StreamResponseMessage responseMessage = process(requestMessage);
 
             if (responseMessage != null) {
-                if (log.isLoggable(Level.FINER))
-                    log.finer("Preparing HTTP response message: " + responseMessage);
+
+                Log.v(getClass().getName(), "Preparing HTTP response message: " + responseMessage);
                 writeResponseMessage(responseMessage, responseBuilder);
             } else {
                 // If it's null, it's 404
-                if (log.isLoggable(Level.FINER))
-                    log.finer("Sending HTTP response status: " + HttpStatus.SC_NOT_FOUND);
+                Log.v(getClass().getName(), "Sending HTTP response status: " + HttpStatus.SC_NOT_FOUND);
                 responseBuilder.setStatus(HttpStatus.SC_NOT_FOUND);
             }
             responseTrigger.submitResponse(responseBuilder.build(), context);
 
         } catch (Throwable t) {
-            log.info("Exception occurred during UPnP stream processing: " + t);
-            if (log.isLoggable(Level.FINER)) {
-                log.log(Level.FINER, "Cause: " + Exceptions.unwrap(t), Exceptions.unwrap(t));
-            }
-            log.finer("returning INTERNAL SERVER ERROR to client");
+            Log.i(getClass().getName(), "Exception occurred during UPnP stream processing: " + t);
+            Log.d(getClass().getName(), "Cause: " + Exceptions.unwrap(t), Exceptions.unwrap(t));
+            Log.v(getClass().getName(), "returning INTERNAL SERVER ERROR to client");
             responseBuilder.setStatus(HttpStatus.SC_INTERNAL_SERVER_ERROR);
             responseTrigger.submitResponse(responseBuilder.build(), context);
 
@@ -107,8 +103,7 @@ public class YaaccAsyncStreamServerRequestHandler extends UpnpStream implements 
         String requestMethod = request.getMethod();
         String requestURI = request.getRequestUri();
 
-        if (log.isLoggable(Level.FINER))
-            log.finer("Processing HTTP request: " + requestMethod + " " + requestURI);
+        Log.v(getClass().getName(), "Processing HTTP request: " + requestMethod + " " + requestURI);
 
         StreamRequestMessage requestMessage;
         try {
@@ -140,32 +135,27 @@ public class YaaccAsyncStreamServerRequestHandler extends UpnpStream implements 
         if (bodyBytes == null) {
             bodyBytes = new byte[]{};
         }
-        if (log.isLoggable(Level.FINER))
-            log.finer("Reading request body bytes: " + bodyBytes.length);
+        Log.v(getClass().getName(), "Reading request body bytes: " + bodyBytes.length);
 
         if (bodyBytes.length > 0 && requestMessage.isContentTypeMissingOrText()) {
 
-            if (log.isLoggable(Level.FINER))
-                log.finer("Request contains textual entity body, converting then setting string on message");
+            Log.v(getClass().getName(), "Request contains textual entity body, converting then setting string on message");
             requestMessage.setBodyCharacters(bodyBytes);
 
         } else if (bodyBytes.length > 0) {
 
-            if (log.isLoggable(Level.FINER))
-                log.finer("Request contains binary entity body, setting bytes on message");
+            Log.v(getClass().getName(), "Request contains binary entity body, setting bytes on message");
             requestMessage.setBody(UpnpMessage.BodyType.BYTES, bodyBytes);
 
         } else {
-            if (log.isLoggable(Level.FINER))
-                log.finer("Request did not contain entity body");
+            Log.v(getClass().getName(), "Request did not contain entity body");
         }
 
         return requestMessage;
     }
 
     protected void writeResponseMessage(StreamResponseMessage responseMessage, AsyncResponseBuilder responseBuilder) {
-        if (log.isLoggable(Level.FINER))
-            log.finer("Sending HTTP response status: " + responseMessage.getOperation().getStatusCode());
+        Log.v(getClass().getName(), "Sending HTTP response status: " + responseMessage.getOperation().getStatusCode());
 
         responseBuilder.setStatus(responseMessage.getOperation().getStatusCode());
 
@@ -183,7 +173,7 @@ public class YaaccAsyncStreamServerRequestHandler extends UpnpStream implements 
         int contentLength = responseBodyBytes != null ? responseBodyBytes.length : -1;
 
         if (contentLength > 0) {
-            log.finer("Response message has body, writing bytes to stream...");
+            Log.v(getClass().getName(), "Response message has body, writing bytes to stream...");
             ContentType ct = ContentType.APPLICATION_XML;
             if (responseMessage.getContentTypeHeader() != null) {
                 ct = ContentType.parse(responseMessage.getContentTypeHeader().getValue().toString());

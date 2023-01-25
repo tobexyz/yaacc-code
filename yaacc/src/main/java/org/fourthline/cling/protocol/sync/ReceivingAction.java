@@ -15,6 +15,8 @@
 
 package org.fourthline.cling.protocol.sync;
 
+import android.util.Log;
+
 import org.fourthline.cling.UpnpService;
 import org.fourthline.cling.model.UnsupportedDataException;
 import org.fourthline.cling.model.action.ActionCancelledException;
@@ -33,9 +35,6 @@ import org.fourthline.cling.protocol.ReceivingSync;
 import org.fourthline.cling.transport.RouterException;
 import org.seamless.util.Exceptions;
 
-import java.util.logging.Level;
-import java.util.logging.Logger;
-
 /**
  * Handles reception of control messages, invoking actions on local services.
  * <p>
@@ -47,8 +46,6 @@ import java.util.logging.Logger;
  * @author Christian Bauer
  */
 public class ReceivingAction extends ReceivingSync<StreamRequestMessage, StreamResponseMessage> {
-
-    final private static Logger log = Logger.getLogger(ReceivingAction.class.getName());
 
     public ReceivingAction(UpnpService upnpService, StreamRequestMessage inputMessage) {
         super(upnpService, inputMessage);
@@ -63,12 +60,12 @@ public class ReceivingAction extends ReceivingSync<StreamRequestMessage, StreamR
         // 'If the CONTENT-TYPE header specifies an unsupported value (other then "text/xml") the
         // device must return an HTTP status code "415 Unsupported Media Type".'
         if (contentTypeHeader != null && !contentTypeHeader.isUDACompliantXML()) {
-            log.warning("Received invalid Content-Type '" + contentTypeHeader + "': " + getInputMessage());
+            Log.w(getClass().getName(), "Received invalid Content-Type '" + contentTypeHeader + "': " + getInputMessage());
             return new StreamResponseMessage(new UpnpResponse(UpnpResponse.Status.UNSUPPORTED_MEDIA_TYPE));
         }
 
         if (contentTypeHeader == null) {
-            log.warning("Received without Content-Type: " + getInputMessage());
+            Log.w(getClass().getName(), "Received without Content-Type: " + getInputMessage());
         }
 
         ServiceControlResource resource =
@@ -78,11 +75,11 @@ public class ReceivingAction extends ReceivingSync<StreamRequestMessage, StreamR
                 );
 
         if (resource == null) {
-            log.fine("No local resource found: " + getInputMessage());
+            Log.d(getClass().getName(), "No local resource found: " + getInputMessage());
             return null;
         }
 
-        log.fine("Found local action resource matching relative request URI: " + getInputMessage().getUri());
+        Log.d(getClass().getName(), "Found local action resource matching relative request URI: " + getInputMessage().getUri());
 
         RemoteActionInvocation invocation;
         OutgoingActionResponseMessage responseMessage = null;
@@ -93,14 +90,14 @@ public class ReceivingAction extends ReceivingSync<StreamRequestMessage, StreamR
             IncomingActionRequestMessage requestMessage =
                     new IncomingActionRequestMessage(getInputMessage(), resource.getModel());
 
-            log.info("Created incoming action request message: " + requestMessage);
+            Log.i(getClass().getName(), "Created incoming action request message: " + requestMessage);
             invocation = new RemoteActionInvocation(requestMessage.getAction(), getRemoteClientInfo());
 
             // Throws UnsupportedDataException if the body can't be read
-            log.info("Reading body of request message:" + requestMessage.getBodyString());
+            Log.i(getClass().getName(), "Reading body of request message:" + requestMessage.getBodyString());
             getUpnpService().getConfiguration().getSoapActionProcessor().readBody(requestMessage, invocation);
 
-            log.info("Executing on local service: " + invocation);
+            Log.i(getClass().getName(), "Executing on local service: " + invocation);
             resource.getModel().getExecutor(invocation.getAction()).execute(invocation);
 
             if (invocation.getFailure() == null) {
@@ -109,7 +106,7 @@ public class ReceivingAction extends ReceivingSync<StreamRequestMessage, StreamR
             } else {
 
                 if (invocation.getFailure() instanceof ActionCancelledException) {
-                    log.info("Action execution was cancelled, returning 404 to client");
+                    Log.i(getClass().getName(), "Action execution was cancelled, returning 404 to client");
                     // A 404 status is appropriate for this situation: The resource is gone/not available and it's
                     // a temporary condition. Most likely the cancellation happened because the client connection
                     // has been dropped, so it doesn't really matter what we return here anyway.
@@ -124,13 +121,13 @@ public class ReceivingAction extends ReceivingSync<StreamRequestMessage, StreamR
             }
 
         } catch (ActionException ex) {
-            log.finer("Error executing local action: " + ex);
+            Log.v(getClass().getName(), "Error executing local action: ", ex);
 
             invocation = new RemoteActionInvocation(ex, getRemoteClientInfo());
             responseMessage = new OutgoingActionResponseMessage(UpnpResponse.Status.INTERNAL_SERVER_ERROR);
 
         } catch (UnsupportedDataException ex) {
-            log.log(Level.WARNING, "Error reading action request XML body: " + ex.toString(), Exceptions.unwrap(ex));
+            Log.w(getClass().getName(), "Error reading action request XML body: " + ex.toString(), Exceptions.unwrap(ex));
 
             invocation =
                     new RemoteActionInvocation(
@@ -145,15 +142,15 @@ public class ReceivingAction extends ReceivingSync<StreamRequestMessage, StreamR
 
         try {
 
-            log.fine("Writing body of response message");
+            Log.d(getClass().getName(), "Writing body of response message");
             getUpnpService().getConfiguration().getSoapActionProcessor().writeBody(responseMessage, invocation);
 
-            log.fine("Returning finished response message: " + responseMessage);
+            Log.d(getClass().getName(), "Returning finished response message: " + responseMessage);
             return responseMessage;
 
         } catch (UnsupportedDataException ex) {
-            log.warning("Failure writing body of response message, sending '500 Internal Server Error' without body");
-            log.log(Level.WARNING, "Exception root cause: ", Exceptions.unwrap(ex));
+            Log.w(getClass().getName(), "Failure writing body of response message, sending '500 Internal Server Error' without body");
+            Log.w(getClass().getName(), "Exception root cause: ", Exceptions.unwrap(ex));
             return new StreamResponseMessage(UpnpResponse.Status.INTERNAL_SERVER_ERROR);
         }
     }
