@@ -36,6 +36,7 @@ import java.util.Timer;
 import java.util.TimerTask;
 
 import de.yaacc.R;
+import de.yaacc.musicplayer.BackgoundMusicServiceListener;
 import de.yaacc.musicplayer.BackgroundMusicBroadcastReceiver;
 import de.yaacc.musicplayer.BackgroundMusicService;
 import de.yaacc.musicplayer.BackgroundMusicService.BackgroundMusicServiceBinder;
@@ -47,7 +48,7 @@ import de.yaacc.util.NotificationId;
  *
  * @author Tobias Schoene (openbit)
  */
-public class LocalBackgoundMusicPlayer extends AbstractPlayer implements ServiceConnection {
+public class LocalBackgoundMusicPlayer extends AbstractPlayer implements ServiceConnection, BackgoundMusicServiceListener {
 
     private BackgroundMusicService backgroundMusicService;
     private Timer commandExecutionTimer;
@@ -86,6 +87,7 @@ public class LocalBackgoundMusicPlayer extends AbstractPlayer implements Service
         if (backgroundMusicService != null) {
             backgroundMusicService.stop();
             try {
+                backgroundMusicService.removeServiceListener(this);
                 backgroundMusicService.unbindService(this);
             } catch (IllegalArgumentException iex) {
                 Log.d(getClass().getName(), "ignoring exception while unbind service");
@@ -291,6 +293,7 @@ public class LocalBackgoundMusicPlayer extends AbstractPlayer implements Service
         Log.d(getClass().getName(), "onServiceConnected..." + className);
         if (binder instanceof BackgroundMusicServiceBinder) {
             backgroundMusicService = ((BackgroundMusicServiceBinder) binder).getService();
+            backgroundMusicService.addServiceListener(this);
         } else {
             super.onServiceConnected(className, binder);
         }
@@ -325,5 +328,15 @@ public class LocalBackgoundMusicPlayer extends AbstractPlayer implements Service
     public void seekTo(long millisecondsFromStart) {
         backgroundMusicService.seekTo(millisecondsFromStart);
 
+    }
+
+    @Override
+    public void onCompletion() {
+        startTimer(getSilenceDuration());
+    }
+
+    @Override
+    protected void doPostLoadItem(PlayableItem playableItem) {
+        //do nothing
     }
 }

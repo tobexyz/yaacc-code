@@ -23,6 +23,7 @@ import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Intent;
 import android.media.AudioAttributes;
+import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.net.Uri;
 import android.os.Binder;
@@ -31,6 +32,9 @@ import android.os.PowerManager;
 import android.util.Log;
 
 import androidx.core.app.NotificationCompat;
+
+import java.util.ArrayList;
+import java.util.List;
 
 import de.yaacc.R;
 import de.yaacc.Yaacc;
@@ -44,11 +48,11 @@ import de.yaacc.util.NotificationId;
  */
 public class BackgroundMusicService extends Service {
     public static final String URIS = "URIS_PARAM"; // String Intent parameter
-    private final IBinder binder = new BackgroundMusicServiceBinder();
+    private final BackgroundMusicServiceBinder binder = new BackgroundMusicServiceBinder();
     private MediaPlayer player;
     private BackgroundMusicBroadcastReceiver backgroundMusicBroadcastReceiver;
     private int duration = 0;
-    //private boolean prepared  = false;
+    private List<BackgoundMusicServiceListener> serviceListener = new ArrayList<>();
 
     public BackgroundMusicService() {
         super();
@@ -89,6 +93,8 @@ public class BackgroundMusicService extends Service {
         if (player != null) {
             player.stop();
             player.release();
+            //remove player after releasing
+            player = null;
         }
         unregisterReceiver(backgroundMusicBroadcastReceiver);
     }
@@ -117,13 +123,15 @@ public class BackgroundMusicService extends Service {
         if (player != null) {
             player.stop();
             player.release();
+            //remove player after releasing
+            player = null;
         }
         try {
             if (intent != null && intent.getData() != null) {
                 setMusicUri(intent.getData());
             }
         } catch (Exception e) {
-            Log.e(this.getClass().getName(), "Exception while changing datasource uri", e);
+            Log.e(this.getClass().getName(), "Ignoring exception while changing datasource uri", e);
 
 
         }
@@ -196,35 +204,49 @@ public class BackgroundMusicService extends Service {
     public void setMusicUri(Uri uri) {
         Log.d(this.getClass().getName(), "changing datasource uri to:" + uri.toString());
         if (player != null) {
-            player.release();
+            player.stop();
+            player.reset();
+        } else {
+            player = new MediaPlayer();
         }
-        player = new MediaPlayer();
         player.setWakeMode(getApplicationContext(), PowerManager.PARTIAL_WAKE_LOCK);
         player.setOnErrorListener(new MediaPlayer.OnErrorListener() {
             @Override
             public boolean onError(MediaPlayer mediaPlayer, int what, int extra) {
                 Log.e(getClass().getName(), "Error in State  " + what + " extra: " + extra);
-                return true;
+                return false;
+            }
+        });
+        player.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
+            @Override
+            public void onCompletion(MediaPlayer mp) {
+                serviceListener.stream().forEach(it -> it.onCompletion());
             }
         });
         player.setVolume(100, 100);
-        //prepared= false;
+
+
+        player.setAudioAttributes(
+                new AudioAttributes.Builder()
+                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                        .setUsage(AudioAttributes.USAGE_MEDIA)
+                        .setLegacyStreamType(AudioManager.STREAM_MUSIC)
+                        .build());
+        player.setOnPreparedListener(mediaPlayer ->
+                duration = mediaPlayer.getDuration());
+
+
         try {
-            player.setAudioAttributes(
-                    new AudioAttributes.Builder()
-                            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                            .build());
-            player.setDataSource(this, uri);
+            player.setDataSource(uri.toString());
+        } catch (Exception e) {
+            Log.e(this.getClass().getName(), "Ignoring exception while changing datasource uri", e);
+        }
 
 
-            player.setOnPreparedListener(mediaPlayer -> duration = player.getDuration());
-            //player.prepareAsync();
-
+        try {
             player.prepare();
         } catch (Exception e) {
-            Log.e(this.getClass().getName(), "Exception while changing datasource uri", e);
-
-
+            Log.e(this.getClass().getName(), "Ignoring exception while preparing media player", e);
         }
 
     }
@@ -255,6 +277,14 @@ public class BackgroundMusicService extends Service {
         }
 
         return currentPosition;
+    }
+
+    public void removeServiceListener(BackgoundMusicServiceListener listener) {
+        serviceListener.remove(listener);
+    }
+
+    public void addServiceListener(BackgoundMusicServiceListener listener) {
+        serviceListener.add(listener);
     }
 
     public class BackgroundMusicServiceBinder extends Binder {
