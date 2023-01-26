@@ -30,7 +30,7 @@ import org.fourthline.cling.support.model.PersonWithRole;
 import org.fourthline.cling.support.model.Res;
 import org.fourthline.cling.support.model.SortCriterion;
 import org.fourthline.cling.support.model.container.Container;
-import org.fourthline.cling.support.model.container.MusicAlbum;
+import org.fourthline.cling.support.model.container.StorageFolder;
 import org.fourthline.cling.support.model.item.MusicTrack;
 import org.seamless.util.MimeType;
 
@@ -55,11 +55,16 @@ public class MusicAlbumFolderBrowser extends ContentBrowser {
     @Override
     public DIDLObject browseMeta(YaaccContentDirectory contentDirectory,
                                  String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
-        List<MusicTrack> items = browseItem(contentDirectory, myId, firstResult, maxResults, orderby);
+        /*List<MusicTrack> items = browseItem(contentDirectory, myId, firstResult, maxResults, orderby);
         return new MusicAlbum(myId,
                 ContentDirectoryIDs.MUSIC_ALBUMS_FOLDER.getId(), getName(
                 contentDirectory, myId), "yaacc", getSize(
                 contentDirectory, myId), items);
+
+         */
+        return new StorageFolder(myId, ContentDirectoryIDs.MUSIC_ALBUMS_FOLDER.getId(), getName(
+                contentDirectory, myId), "yaacc", getSize(
+                contentDirectory, myId), null);
 
     }
 
