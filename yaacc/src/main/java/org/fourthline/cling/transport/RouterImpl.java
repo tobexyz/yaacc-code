@@ -485,9 +485,9 @@ public class RouterImpl implements Router {
 
     protected void lock(Lock lock, int timeoutMilliseconds) throws RouterException {
         try {
-            Log.i(getClass().getName(), "Trying to obtain lock with timeout milliseconds '" + timeoutMilliseconds + "': " + lock.getClass().getSimpleName());
+            Log.v(getClass().getName(), "Trying to obtain lock with timeout milliseconds '" + timeoutMilliseconds + "': " + lock.getClass().getSimpleName());
             if (lock.tryLock(timeoutMilliseconds, TimeUnit.MILLISECONDS)) {
-                Log.i(getClass().getName(), "Acquired router lock: " + lock.getClass().getSimpleName());
+                Log.v(getClass().getName(), "Acquired router lock: " + lock.getClass().getSimpleName());
             } else {
                 throw new RouterException(
                         "Router wasn't available exclusively after waiting " + timeoutMilliseconds + "ms, lock failed: "
@@ -506,7 +506,7 @@ public class RouterImpl implements Router {
     }
 
     protected void unlock(Lock lock) {
-        Log.i(getClass().getName(), "Releasing router lock: " + lock.getClass().getSimpleName());
+        Log.v(getClass().getName(), "Releasing router lock: " + lock.getClass().getSimpleName());
         lock.unlock();
     }
 

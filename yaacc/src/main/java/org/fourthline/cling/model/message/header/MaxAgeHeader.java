@@ -17,9 +17,9 @@ package org.fourthline.cling.model.message.header;
 
 import org.fourthline.cling.model.Constants;
 
+import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.Locale;
 
 /**
  * @author Christian Bauer
@@ -37,18 +37,24 @@ public class MaxAgeHeader extends UpnpHeader<Integer> {
         setValue(Constants.MIN_ADVERTISEMENT_AGE_SECONDS);
     }
 
+    public String getString() {
+        if (getValue() == null) {
+            return "max-age=no-cache";
+        }
+        return "max-age=" + getValue().toString();
+    }
+
     public void setString(String s) throws InvalidHeaderException {
 
+        if ("no-cache".equals(s)) {
+            return;
+        }
         Matcher matcher = MAX_AGE_REGEX.matcher(s.toLowerCase(Locale.ROOT));
-        if (!matcher.matches()){
+        if (!matcher.matches()) {
             throw new InvalidHeaderException("Invalid cache-control value, can't parse max-age seconds: " + s);
         }
 
         Integer maxAge = Integer.parseInt(matcher.group(1));
         setValue(maxAge);
-    }
-
-    public String getString() {
-        return "max-age="+getValue().toString();
     }
 }

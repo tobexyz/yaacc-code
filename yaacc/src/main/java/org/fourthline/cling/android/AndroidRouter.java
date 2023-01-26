@@ -22,18 +22,15 @@ import android.content.IntentFilter;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.wifi.WifiManager;
+import android.util.Log;
 
 import org.fourthline.cling.UpnpServiceConfiguration;
 import org.fourthline.cling.model.ModelUtil;
 import org.fourthline.cling.protocol.ProtocolFactory;
-import org.fourthline.cling.transport.Router;
 import org.fourthline.cling.transport.RouterException;
 import org.fourthline.cling.transport.RouterImpl;
 import org.fourthline.cling.transport.spi.InitializationException;
 import org.seamless.util.Exceptions;
-
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
  * Monitors all network connectivity changes, switching the router accordingly.
@@ -43,7 +40,6 @@ import java.util.logging.Logger;
  */
 public class AndroidRouter extends RouterImpl {
 
-    final private static Logger log = Logger.getLogger(Router.class.getName());
 
     final private Context context;
 
@@ -86,7 +82,7 @@ public class AndroidRouter extends RouterImpl {
 
     @Override
     public boolean enable() throws RouterException {
-        log.info("in android router enable");
+        Log.v(getClass().getName(), "in android router enable");
         lock(writeLock);
         try {
             boolean enabled;
@@ -101,13 +97,13 @@ public class AndroidRouter extends RouterImpl {
             return enabled;
         } finally {
             unlock(writeLock);
-            log.info("leave android router enable");
+            Log.v(getClass().getName(), "leave android router enable");
         }
     }
 
     @Override
     public boolean disable() throws RouterException {
-        log.info("in android router disable");
+        Log.v(getClass().getName(), "in android router disable");
         lock(writeLock);
         try {
             // Disable multicast on WiFi network interface,
@@ -119,7 +115,7 @@ public class AndroidRouter extends RouterImpl {
             return super.disable();
         } finally {
             unlock(writeLock);
-            log.info("leave android router disable");
+            Log.v(getClass().getName(), "leave android router disable");
         }
     }
 
@@ -140,7 +136,7 @@ public class AndroidRouter extends RouterImpl {
     }
 
     public boolean enableWiFi() {
-        log.info("Enabling WiFi...");
+        Log.v(getClass().getName(), "Enabling WiFi...");
         try {
             return wifiManager.setWifiEnabled(true);
         } catch (Throwable t) {
@@ -151,7 +147,7 @@ public class AndroidRouter extends RouterImpl {
             //	at android.os.Parcel.readException(Parcel.java:1286)
             //	at android.net.wifi.IWifiManager$Stub$Proxy.setWifiEnabled(IWifiManager.java:1115)
             //	at android.net.wifi.WifiManager.setWifiEnabled(WifiManager.java:946)
-            log.log(Level.WARNING, "SetWifiEnabled failed", t);
+            Log.w(getClass().getName(), "SetWifiEnabled failed", t);
             return false;
         }
     }
@@ -170,17 +166,17 @@ public class AndroidRouter extends RouterImpl {
 
         if (enable) {
             if (multicastLock.isHeld()) {
-                log.warning("WiFi multicast lock already acquired");
+                Log.w(getClass().getName(), "WiFi multicast lock already acquired");
             } else {
-                log.info("WiFi multicast lock acquired");
+                Log.d(getClass().getName(), "WiFi multicast lock acquired");
                 multicastLock.acquire();
             }
         } else {
             if (multicastLock.isHeld()) {
-                log.info("WiFi multicast lock released");
+                Log.d(getClass().getName(), "WiFi multicast lock released");
                 multicastLock.release();
             } else {
-                log.warning("WiFi multicast lock already released");
+                Log.w(getClass().getName(), "WiFi multicast lock already released");
             }
         }
     }
@@ -192,17 +188,17 @@ public class AndroidRouter extends RouterImpl {
 
         if (enable) {
             if (wifiLock.isHeld()) {
-                log.warning("WiFi lock already acquired");
+                Log.w(getClass().getName(), "WiFi lock already acquired");
             } else {
-                log.info("WiFi lock acquired");
+                Log.d(getClass().getName(), "WiFi lock acquired");
                 wifiLock.acquire();
             }
         } else {
             if (wifiLock.isHeld()) {
-                log.info("WiFi lock released");
+                Log.d(getClass().getName(), "WiFi lock released");
                 wifiLock.release();
             } else {
-                log.warning("WiFi lock already released");
+                Log.w(getClass().getName(), "WiFi lock already released");
             }
         }
     }
@@ -213,12 +209,12 @@ public class AndroidRouter extends RouterImpl {
      * @param oldNetwork <code>null</code> when first called by constructor.
      */
     protected void onNetworkTypeChange(NetworkInfo oldNetwork, NetworkInfo newNetwork) throws RouterException {
-        log.info(String.format("Network type changed %s => %s",
+        Log.d(getClass().getName(), String.format("Network type changed %s => %s",
                 oldNetwork == null ? "" : oldNetwork.getTypeName(),
                 newNetwork == null ? "NONE" : newNetwork.getTypeName()));
 
         if (disable()) {
-            log.info(String.format(
+            Log.d(getClass().getName(), String.format(
                     "Disabled router on network type change (old network: %s)",
                     oldNetwork == null ? "NONE" : oldNetwork.getTypeName()
             ));
@@ -228,7 +224,7 @@ public class AndroidRouter extends RouterImpl {
         if (enable()) {
             // Can return false (via earlier InitializationException thrown by NetworkAddressFactory) if
             // no bindable network address found!
-            log.info(String.format(
+            Log.d(getClass().getName(), String.format(
                     "Enabled router on network type change (new network: %s)",
                     newNetwork == null ? "NONE" : newNetwork.getTypeName()
             ));
@@ -243,9 +239,9 @@ public class AndroidRouter extends RouterImpl {
     protected void handleRouterExceptionOnNetworkTypeChange(RouterException ex) {
         Throwable cause = Exceptions.unwrap(ex);
         if (cause instanceof InterruptedException) {
-            log.log(Level.INFO, "Router was interrupted: " + ex, cause);
+            Log.d(getClass().getName(), "Router was interrupted: " + ex, cause);
         } else {
-            log.log(Level.WARNING, "Router error on network change: " + ex, ex);
+            Log.w(getClass().getName(), "Router error on network change: " + ex, ex);
         }
     }
 
@@ -269,7 +265,7 @@ public class AndroidRouter extends RouterImpl {
         }
 
         private void handleNewNetworkInfo(Intent intent) {
-            log.info("in handle networkinfo");
+            Log.v(getClass().getName(), "in handle networkinfo");
             displayIntentInfo(intent);
             NetworkInfo newNetworkInfo = NetworkUtils.getConnectedNetworkInfo(context);
 
@@ -282,12 +278,12 @@ public class AndroidRouter extends RouterImpl {
             if (networkInfo != null && newNetworkInfo == null) {
                 for (int i = 1; i <= 3; i++) {
                     try {
-                        log.info("wait for new network info");
+                        Log.d(getClass().getName(), "wait for new network info");
                         Thread.sleep(1000);
                     } catch (InterruptedException e) {
                         return;
                     }
-                    log.warning(String.format(
+                    Log.w(getClass().getName(), String.format(
                             "%s => NONE network transition, waiting for new network... retry #%d",
                             networkInfo.getTypeName(), i
                     ));
@@ -298,7 +294,7 @@ public class AndroidRouter extends RouterImpl {
             }
 
             if (isSameNetworkType(networkInfo, newNetworkInfo)) {
-                log.info("No actual network change... ignoring event!");
+                Log.d(getClass().getName(), "No actual network change... ignoring event!");
             } else {
                 try {
                     onNetworkTypeChange(networkInfo, newNetworkInfo);
@@ -317,7 +313,7 @@ public class AndroidRouter extends RouterImpl {
         }
 
         protected void displayIntentInfo(Intent intent) {
-            log.info("in display IntentInfo:" + intent.getAction());
+            Log.v(getClass().getName(), "in display IntentInfo:" + intent.getAction());
             boolean noConnectivity = intent.getBooleanExtra(ConnectivityManager.EXTRA_NO_CONNECTIVITY, false);
             String reason = intent.getStringExtra(ConnectivityManager.EXTRA_REASON);
             boolean isFailover = intent.getBooleanExtra(ConnectivityManager.EXTRA_IS_FAILOVER, false);
@@ -325,13 +321,13 @@ public class AndroidRouter extends RouterImpl {
             NetworkInfo currentNetworkInfo = (NetworkInfo) intent.getParcelableExtra(ConnectivityManager.EXTRA_NETWORK_INFO);
             NetworkInfo otherNetworkInfo = (NetworkInfo) intent.getParcelableExtra(ConnectivityManager.EXTRA_OTHER_NETWORK_INFO);
 
-            log.info("Connectivity change detected...");
-            log.info("EXTRA_NO_CONNECTIVITY: " + noConnectivity);
-            log.info("EXTRA_REASON: " + reason);
-            log.info("EXTRA_IS_FAILOVER: " + isFailover);
-            log.info("EXTRA_NETWORK_INFO: " + (currentNetworkInfo == null ? "none" : currentNetworkInfo));
-            log.info("EXTRA_OTHER_NETWORK_INFO: " + (otherNetworkInfo == null ? "none" : otherNetworkInfo));
-            log.info("EXTRA_EXTRA_INFO: " + intent.getStringExtra(ConnectivityManager.EXTRA_EXTRA_INFO));
+            Log.d(getClass().getName(), "Connectivity change detected...");
+            Log.d(getClass().getName(), "EXTRA_NO_CONNECTIVITY: " + noConnectivity);
+            Log.d(getClass().getName(), "EXTRA_REASON: " + reason);
+            Log.d(getClass().getName(), "EXTRA_IS_FAILOVER: " + isFailover);
+            Log.d(getClass().getName(), "EXTRA_NETWORK_INFO: " + (currentNetworkInfo == null ? "none" : currentNetworkInfo));
+            Log.d(getClass().getName(), "EXTRA_OTHER_NETWORK_INFO: " + (otherNetworkInfo == null ? "none" : otherNetworkInfo));
+            Log.d(getClass().getName(), "EXTRA_EXTRA_INFO: " + intent.getStringExtra(ConnectivityManager.EXTRA_EXTRA_INFO));
         }
 
     }
