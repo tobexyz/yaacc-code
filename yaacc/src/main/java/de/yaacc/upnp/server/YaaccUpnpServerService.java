@@ -29,7 +29,6 @@ import android.graphics.Bitmap;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.os.Binder;
-import android.os.Build;
 import android.os.IBinder;
 import android.preference.PreferenceManager;
 import android.util.Log;
@@ -69,12 +68,19 @@ import org.fourthline.cling.support.xmicrosoft.AbstractMediaReceiverRegistrarSer
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.BindException;
+import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.net.SocketException;
 import java.net.SocketTimeoutException;
+import java.net.URI;
 import java.util.ArrayList;
+import java.util.Enumeration;
 import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
 
 import de.yaacc.R;
 import de.yaacc.Yaacc;
@@ -91,16 +97,13 @@ import de.yaacc.util.NotificationId;
  * @author Tobias Schoene (openbit)
  */
 public class YaaccUpnpServerService extends Service {
-
     public static final int LOCK_TIMEOUT = 5000;
-    private static final String UDN_ID = "35"
-            + // we make this look like a valid IMEI
-            Build.BOARD.length() % 10 + Build.BRAND.length() % 10 + Build.HARDWARE.length() % 10 + Build.DEVICE.length() % 10 + Build.DISPLAY.length()
-            % 10 + Build.HOST.length() % 10 + Build.ID.length() % 10 + Build.MANUFACTURER.length() % 10 + Build.MODEL.length() % 10
-            + Build.PRODUCT.length() % 10 + Build.TAGS.length() % 10 + Build.TYPE.length() % 10 + Build.USER.length() % 10;
-    public static final String MEDIA_SERVER_UDN_ID = UDN_ID;
-    public static final String MEDIA_RENDERER_UDN_ID = UDN_ID + "-1";
+    private static final Pattern IPV4_PATTERN =
+            Pattern.compile(
+                    "^(25[0-5]|2[0-4]\\d|[0-1]?\\d?\\d)(\\.(25[0-5]|2[0-4]\\d|[0-1]?\\d?\\d)){3}$");
     public static int PORT = 49157;
+    public String mediaServerUuid;
+    public String mediaRendererUuid;
     protected IBinder binder = new YaaccUpnpServerServiceBinder();
     // make preferences available for the whole service, since there might be
     // more things to configure in the future
@@ -138,7 +141,16 @@ public class YaaccUpnpServerService extends Service {
 
         // when the service starts, the preferences are initialized
         preferences = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
-
+        mediaServerUuid = preferences.getString(getApplicationContext().getString(R.string.settings_local_server_provider_uuid_key), null);
+        if (mediaServerUuid == null) {
+            mediaServerUuid = UUID.randomUUID().toString();
+            preferences.edit().putString(getApplicationContext().getString(R.string.settings_local_server_provider_uuid_key), mediaServerUuid).commit();
+        }
+        mediaRendererUuid = preferences.getString(getApplicationContext().getString(R.string.settings_local_server_receiver_uuid_key), null);
+        if (mediaRendererUuid == null) {
+            mediaRendererUuid = UUID.randomUUID().toString();
+            preferences.edit().putString(getApplicationContext().getString(R.string.settings_local_server_receiver_uuid_key), mediaRendererUuid).commit();
+        }
         if (getUpnpClient() == null) {
             setUpnpClient(new UpnpClient());
         }
@@ -286,7 +298,7 @@ public class YaaccUpnpServerService extends Service {
                             }
 
                         })
-                        .setCanonicalHostName(contentDirectoryService.getManager().getImplementation().getIpAddress())
+                        .setCanonicalHostName(getIpAddress())
                         .register("*", new YaaccHttpHandler(getApplicationContext()))
                         .create();
 
@@ -349,7 +361,7 @@ public class YaaccUpnpServerService extends Service {
     private LocalDevice createMediaRendererDevice() {
         LocalDevice device;
         String versionName;
-        Log.d(this.getClass().getName(), "Create MediaRenderer with ID: " + MEDIA_SERVER_UDN_ID);
+        Log.d(this.getClass().getName(), "Create MediaRenderer with ID: " + mediaServerUuid);
         try {
             versionName = getApplicationContext().getPackageManager().getPackageInfo(getApplicationContext().getPackageName(), 0).versionName;
         } catch (NameNotFoundException ex) {
@@ -357,7 +369,7 @@ public class YaaccUpnpServerService extends Service {
             versionName = "??";
         }
         try {
-            device = new LocalDevice(new DeviceIdentity(new UDN(MEDIA_RENDERER_UDN_ID)), new UDADeviceType("MediaRenderer", 3),
+            device = new LocalDevice(new DeviceIdentity(new UDN(mediaRendererUuid)), new UDADeviceType("MediaRenderer", 3),
                     // Used for shown name: first part of ManufactDet, first
                     // part of ModelDet and version number
                     new DeviceDetails("YAACC - MediaRenderer (" + getLocalServerName() + ")",
@@ -385,10 +397,9 @@ public class YaaccUpnpServerService extends Service {
      * @return the device
      */
     private LocalDevice createMediaServerDevice() {
-        // https://bitbucket.org/longkerdandy/chii2/src/
         LocalDevice device;
         String versionName;
-        Log.d(this.getClass().getName(), "Create MediaServer whith ID: " + MEDIA_SERVER_UDN_ID);
+        Log.d(this.getClass().getName(), "Create MediaServer whith ID: " + mediaServerUuid);
         try {
             versionName = getApplicationContext().getPackageManager().getPackageInfo(getApplicationContext().getPackageName(), 0).versionName;
         } catch (NameNotFoundException ex) {
@@ -403,9 +414,10 @@ public class YaaccUpnpServerService extends Service {
             DeviceDetails yaaccDetails = new DeviceDetails(
                     "YAACC - MediaServer(" + getLocalServerName() + ")", new ManufacturerDetails("yaacc.de",
                     "http://www.yaacc.de"), new ModelDetails(getLocalServerName() + "-MediaServer", "Free Android UPnP AV MediaServer, GNU GPL",
-                    versionName));
+                    versionName), URI.create("http://" + getIpAddress() + ":" + PORT));
 
-            DeviceIdentity identity = new DeviceIdentity(new UDN(MEDIA_SERVER_UDN_ID));
+
+            DeviceIdentity identity = new DeviceIdentity(new UDN(mediaServerUuid));
 
             device = new LocalDevice(identity, new UDADeviceType("MediaServer"), yaaccDetails, createDeviceIcons(), createMediaServerServices());
 
@@ -497,7 +509,7 @@ public class YaaccUpnpServerService extends Service {
 
             @Override
             protected YaaccContentDirectory createServiceInstance() {
-                return new YaaccContentDirectory(getApplicationContext());
+                return new YaaccContentDirectory(getApplicationContext(), getIpAddress());
             }
         });
         return contentDirectoryService;
@@ -846,6 +858,43 @@ public class YaaccUpnpServerService extends Service {
      */
     public boolean isInitialized() {
         return initialized;
+    }
+
+    /**
+     * get the ip address of the device
+     *
+     * @return the address or null if anything went wrong
+     */
+    public String getIpAddress() {
+        String hostAddress = null;
+        try {
+            for (Enumeration<NetworkInterface> networkInterfaces = NetworkInterface
+                    .getNetworkInterfaces(); networkInterfaces
+                         .hasMoreElements(); ) {
+                NetworkInterface networkInterface = networkInterfaces
+                        .nextElement();
+                if (!networkInterface.getName().startsWith("rmnet")) {
+                    for (Enumeration<InetAddress> inetAddresses = networkInterface
+                            .getInetAddresses(); inetAddresses.hasMoreElements(); ) {
+                        InetAddress inetAddress = inetAddresses.nextElement();
+                        if (!inetAddress.isLoopbackAddress() && inetAddress
+                                .getHostAddress() != null
+                                && IPV4_PATTERN.matcher(inetAddress
+                                .getHostAddress()).matches()) {
+
+                            hostAddress = inetAddress.getHostAddress();
+                        }
+
+                    }
+                }
+            }
+        } catch (SocketException se) {
+            Log.d(YaaccUpnpServerService.class.getName(),
+                    "Error while retrieving network interfaces", se);
+        }
+        // maybe wifi is off we have to use the loopback device
+        hostAddress = hostAddress == null ? "0.0.0.0" : hostAddress;
+        return hostAddress;
     }
 
     public class YaaccUpnpServerServiceBinder extends Binder {

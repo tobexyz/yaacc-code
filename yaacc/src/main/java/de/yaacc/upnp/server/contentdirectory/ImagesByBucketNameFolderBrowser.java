@@ -127,7 +127,7 @@ public class ImagesByBucketNameFolderBrowser extends ContentBrowser {
                         Photo photo = new Photo(ContentDirectoryIDs.IMAGE_BY_BUCKET_PREFIX.getId() + id, myId, name, "", "", resource);
                         URI albumArtUri = URI.create("http://"
                                 + contentDirectory.getIpAddress() + ":"
-                                + YaaccUpnpServerService.PORT + "/?thumb=" + id);
+                                + YaaccUpnpServerService.PORT + "/thumb/" + id);
                         photo.replaceFirstProperty(new UPNP.ALBUM_ART_URI(
                                 albumArtUri));
 

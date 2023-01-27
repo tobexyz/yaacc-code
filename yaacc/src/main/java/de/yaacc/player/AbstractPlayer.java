@@ -450,6 +450,10 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
         firePropertyChange(PROPERTY_ITEM, items.get(previousIndex),
                 items.get(nextIndex));
         startItem(playableItem, loadedItem);
+        doPostLoadItem(playableItem);
+    }
+
+    protected void doPostLoadItem(PlayableItem playableItem) {
         if (isPlaying() && items.size() > 1) {
             if (playableItem.getDuration() > -1) {
                 //Only start timer if automatic track change is active

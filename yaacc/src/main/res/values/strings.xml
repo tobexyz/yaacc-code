@@ -110,6 +110,10 @@
     <string name="settings_dark_mode_title">Dark mode</string>
     <string name="settings_dark_mode_off">Using system settings</string>
     <string name="settings_dark_mode_on">Dark mode aktive</string>
+    <string name="settings_log_level_key">settings_log_level_key</string>
+    <string name="settings_log_level">Log level</string>
+    <string name="settings_local_server_provider_uuid_key">settings_local_server_provider_uuid_key</string>
+    <string name="settings_local_server_receiver_uuid_key">settings_local_server_receiver_uuid_key</string>
 
 
 </resources>

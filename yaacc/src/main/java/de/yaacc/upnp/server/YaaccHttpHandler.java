@@ -48,6 +48,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Locale;
 
 import de.yaacc.R;
@@ -86,13 +87,8 @@ public class YaaccHttpHandler implements HttpRequestHandler {
         }
 
         Uri requestUri = Uri.parse(request.getRequestUri());
-        String contentId = requestUri.getQueryParameter("id");
-        contentId = contentId == null ? "" : contentId;
-        String albumId = requestUri.getQueryParameter("album");
-        albumId = albumId == null ? "" : albumId;
-        String thumbId = requestUri.getQueryParameter("thumb");
-        thumbId = thumbId == null ? "" : thumbId;
-        if (contentId.equals("") && albumId.equals("") && thumbId.equals("")) {
+        List<String> pathSegments = requestUri.getPathSegments();
+        if (pathSegments.size() < 2 || pathSegments.size() > 3) {
             response.setCode(HttpStatus.SC_FORBIDDEN);
             StringEntity entity = new StringEntity(
                     "<html><body><h1>Access denied</h1></body></html>", StandardCharsets.UTF_8);
@@ -100,10 +96,51 @@ public class YaaccHttpHandler implements HttpRequestHandler {
             Log.d(getClass().getName(), "end doService: Access denied");
             return;
         }
+        String type = pathSegments.get(0);
+        String albumId = "";
+        String thumbId = "";
+        String contentId = "";
+        if ("album".equals(type)) {
+            albumId = pathSegments.get(1);
+            try {
+                Long.parseLong(albumId);
+            } catch (NumberFormatException nex) {
+                response.setCode(HttpStatus.SC_FORBIDDEN);
+                StringEntity entity = new StringEntity(
+                        "<html><body><h1>Access denied</h1></body></html>", StandardCharsets.UTF_8);
+                response.setEntity(entity);
+                Log.d(getClass().getName(), "end doService: Access denied");
+                return;
+            }
+        } else if ("thumb".equals(type)) {
+            thumbId = pathSegments.get(1);
+            try {
+                Long.parseLong(thumbId);
+            } catch (NumberFormatException nex) {
+                response.setCode(HttpStatus.SC_FORBIDDEN);
+                StringEntity entity = new StringEntity(
+                        "<html><body><h1>Access denied</h1></body></html>", StandardCharsets.UTF_8);
+                response.setEntity(entity);
+                Log.d(getClass().getName(), "end doService: Access denied");
+                return;
+            }
+        } else if ("res".equals(type)) {
+            contentId = pathSegments.get(1);
+            try {
+                Long.parseLong(contentId);
+            } catch (NumberFormatException nex) {
+                response.setCode(HttpStatus.SC_FORBIDDEN);
+                StringEntity entity = new StringEntity(
+                        "<html><body><h1>Access denied</h1></body></html>", StandardCharsets.UTF_8);
+                response.setEntity(entity);
+                Log.d(getClass().getName(), "end doService: Access denied");
+                return;
+            }
+        }
+
         ContentHolder contentHolder = null;
         if (!contentId.equals("")) {
             contentHolder = lookupContent(contentId);
-
         } else if (!albumId.equals("")) {
             contentHolder = lookupAlbumArt(albumId);
         } else if (!thumbId.equals("")) {

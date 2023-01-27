@@ -19,7 +19,11 @@
 package de.yaacc.util;
 
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Bundle;
+import android.preference.PreferenceManager;
+import android.view.View;
+import android.widget.ScrollView;
 import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
@@ -60,20 +64,28 @@ public class YaaccLogActivity extends AppCompatActivity {
         TextView textView = findViewById(R.id.yaaccLog_content);
 
         try {
-            Process process = Runtime.getRuntime().exec("logcat -d");
+            SharedPreferences preferences = PreferenceManager
+                    .getDefaultSharedPreferences(this);
+            String logLevel = preferences.getString(
+                    getString(R.string.settings_log_level_key),
+                    "E");
+            Process process = Runtime.getRuntime().exec("logcat -d *:" + logLevel);
             BufferedReader bufferedReader = new BufferedReader(
                     new InputStreamReader(process.getInputStream()));
 
             StringBuilder log = new StringBuilder();
             String line;
             while ((line = bufferedReader.readLine()) != null) {
-                log.insert(0, "\n");
-                log.insert(0, line);
+                log.append(line);
+                log.append("\n");
             }
 
             textView.setText(log.toString());
             textView.setTextIsSelectable(true);
-
+            ScrollView scrollView = findViewById(R.id.yaaccLog_scrollView);
+            scrollView.post(() -> {
+                scrollView.fullScroll(View.FOCUS_DOWN);
+            });
 
         } catch (IOException e) {
             textView.setText("Error while reading log: " + e.getMessage());
