@@ -60,8 +60,9 @@ public class MusicAllTitlesFolderBrowser extends ContentBrowser {
                 ContentDirectoryIDs.MUSIC_ALL_TITLES_FOLDER.getId(),
                 ContentDirectoryIDs.MUSIC_FOLDER.getId(), getContext().getString(R.string.all), "yaacc",
                 getSize(contentDirectory, myId), items);
+*/
 
-         */
+
         return new StorageFolder(myId, ContentDirectoryIDs.MUSIC_ALL_TITLES_FOLDER.getId(), getContext().getString(R.string.all), "yaacc", getSize(
                 contentDirectory, myId), null);
 

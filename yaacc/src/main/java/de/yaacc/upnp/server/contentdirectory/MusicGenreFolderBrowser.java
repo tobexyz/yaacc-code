@@ -63,6 +63,8 @@ public class MusicGenreFolderBrowser extends ContentBrowser {
         return new StorageFolder(myId, ContentDirectoryIDs.MUSIC_GENRES_FOLDER.getId(), getName(
                 contentDirectory, myId), "yaacc", getSize(
                 contentDirectory, myId), null);
+
+
     }
 
     private String getName(YaaccContentDirectory contentDirectory, String myId) {

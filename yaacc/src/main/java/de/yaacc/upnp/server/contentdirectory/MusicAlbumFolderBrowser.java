@@ -55,17 +55,11 @@ public class MusicAlbumFolderBrowser extends ContentBrowser {
     @Override
     public DIDLObject browseMeta(YaaccContentDirectory contentDirectory,
                                  String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
-        /*List<MusicTrack> items = browseItem(contentDirectory, myId, firstResult, maxResults, orderby);
-        return new MusicAlbum(myId,
+        return new StorageFolder(myId,
                 ContentDirectoryIDs.MUSIC_ALBUMS_FOLDER.getId(), getName(
                 contentDirectory, myId), "yaacc", getSize(
-                contentDirectory, myId), items);
-
-         */
-        return new StorageFolder(myId, ContentDirectoryIDs.MUSIC_ALBUMS_FOLDER.getId(), getName(
-                contentDirectory, myId), "yaacc", getSize(
-                contentDirectory, myId), null);
-
+                contentDirectory, myId),
+                null);
     }
 
     private String getName(YaaccContentDirectory contentDirectory, String myId) {

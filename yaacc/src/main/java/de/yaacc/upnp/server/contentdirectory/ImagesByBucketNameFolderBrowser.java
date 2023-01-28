@@ -29,7 +29,7 @@ import org.fourthline.cling.support.model.DIDLObject.Property.UPNP;
 import org.fourthline.cling.support.model.Res;
 import org.fourthline.cling.support.model.SortCriterion;
 import org.fourthline.cling.support.model.container.Container;
-import org.fourthline.cling.support.model.container.PhotoAlbum;
+import org.fourthline.cling.support.model.container.StorageFolder;
 import org.fourthline.cling.support.model.item.Item;
 import org.fourthline.cling.support.model.item.Photo;
 import org.seamless.util.MimeType;
@@ -54,8 +54,8 @@ public class ImagesByBucketNameFolderBrowser extends ContentBrowser {
     @Override
     public DIDLObject browseMeta(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
 
-        return new PhotoAlbum(myId, ContentDirectoryIDs.IMAGES_BY_BUCKET_NAMES_FOLDER.getId(), getName(
-                contentDirectory, myId), "yaacc", getSize(contentDirectory, myId));
+        return new StorageFolder(myId, ContentDirectoryIDs.IMAGES_BY_BUCKET_NAMES_FOLDER.getId(), getName(
+                contentDirectory, myId), "yaacc", getSize(contentDirectory, myId), null);
     }
 
     private Integer getSize(YaaccContentDirectory contentDirectory, String myId) {

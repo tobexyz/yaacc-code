@@ -64,6 +64,7 @@ public class MusicArtistItemBrowser extends ContentBrowser {
                     MediaStore.Audio.Media.ALBUM,
                     MediaStore.Audio.Media.ALBUM_ID,
                     MediaStore.Audio.Media.TITLE,
+                    MediaStore.Audio.Media.ARTIST_ID,
                     MediaStore.Audio.Media.ARTIST,
                     MediaStore.Audio.Media.DURATION,
                     MediaStore.Audio.Media.BITRATE,
@@ -76,6 +77,7 @@ public class MusicArtistItemBrowser extends ContentBrowser {
                     MediaStore.Audio.Media.ALBUM,
                     MediaStore.Audio.Media.ALBUM_ID,
                     MediaStore.Audio.Media.TITLE,
+                    MediaStore.Audio.Media.ARTIST_ID,
                     MediaStore.Audio.Media.ARTIST,
                     MediaStore.Audio.Media.DURATION};
         }
@@ -101,7 +103,7 @@ public class MusicArtistItemBrowser extends ContentBrowser {
                 @SuppressLint("Range") String album = mediaCursor.getString(mediaCursor
                         .getColumnIndex(MediaStore.Audio.Media.ALBUM));
                 @SuppressLint("Range") String albumId = mediaCursor.getString(mediaCursor
-                        .getColumnIndex(MediaStore.Audio.Media.ALBUM));
+                        .getColumnIndex(MediaStore.Audio.Media.ALBUM_ID));
                 @SuppressLint("Range") String artistId = mediaCursor.getString(mediaCursor
                         .getColumnIndex(MediaStore.Audio.Media.ARTIST_ID));
                 @SuppressLint("Range") String title = mediaCursor.getString(mediaCursor

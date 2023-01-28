@@ -21,6 +21,7 @@ package de.yaacc.upnp;
 import android.util.Log;
 
 import org.apache.hc.client5.http.classic.methods.HttpUriRequestBase;
+import org.apache.hc.client5.http.config.ConnectionConfig;
 import org.apache.hc.client5.http.impl.DefaultConnectionKeepAliveStrategy;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
@@ -31,7 +32,6 @@ import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.io.entity.ByteArrayEntity;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
-import org.apache.hc.core5.util.TimeValue;
 import org.fourthline.cling.model.message.StreamRequestMessage;
 import org.fourthline.cling.model.message.StreamResponseMessage;
 import org.fourthline.cling.model.message.UpnpHeaders;
@@ -60,8 +60,13 @@ public class YaaccStreamingClientImpl extends AbstractStreamClient<YaaccStreamin
 
     public YaaccStreamingClientImpl(YaaccStreamingClientConfigurationImpl configuration) throws InitializationException {
         this.configuration = configuration;
+        ConnectionConfig connConfig = ConnectionConfig.custom()
+                .setConnectTimeout(30, TimeUnit.SECONDS)
+                .setSocketTimeout(30, TimeUnit.SECONDS)
+                .build();
         PoolingHttpClientConnectionManager connectionManager = new PoolingHttpClientConnectionManager();
-        connectionManager.setValidateAfterInactivity(TimeValue.of(10, TimeUnit.MILLISECONDS));
+        connectionManager.setDefaultConnectionConfig(connConfig);
+        connectionManager.setMaxTotal(10);
         httpClient = HttpClientBuilder.create().setKeepAliveStrategy(DefaultConnectionKeepAliveStrategy.INSTANCE).setConnectionManager(connectionManager).build();
     }
 
