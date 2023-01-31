@@ -679,15 +679,17 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
 
     protected Date getExecutionTime() {
         Calendar execTime = Calendar.getInstance(Locale.getDefault());
-        execTime.set(Calendar.HOUR_OF_DAY, getSyncInfo().getReferencedPresentationTimeOffset().getHour());
-        execTime.set(Calendar.MINUTE, getSyncInfo().getReferencedPresentationTimeOffset().getMinute());
-        execTime.set(Calendar.SECOND, getSyncInfo().getReferencedPresentationTimeOffset().getSecond());
-        execTime.set(Calendar.MILLISECOND, getSyncInfo().getReferencedPresentationTimeOffset().getMillis());
-        execTime.add(Calendar.HOUR, getSyncInfo().getOffset().getHour());
-        execTime.add(Calendar.MINUTE, getSyncInfo().getOffset().getMinute());
-        execTime.add(Calendar.SECOND, getSyncInfo().getOffset().getSecond());
-        execTime.add(Calendar.MILLISECOND, getSyncInfo().getOffset().getMillis());
-        Log.d(getClass().getName(), "ReferencedRepresentationTimeOffset: " + getSyncInfo().getReferencedPresentationTimeOffset());
+        if (getSyncInfo() != null) {
+            execTime.set(Calendar.HOUR_OF_DAY, getSyncInfo().getReferencedPresentationTimeOffset().getHour());
+            execTime.set(Calendar.MINUTE, getSyncInfo().getReferencedPresentationTimeOffset().getMinute());
+            execTime.set(Calendar.SECOND, getSyncInfo().getReferencedPresentationTimeOffset().getSecond());
+            execTime.set(Calendar.MILLISECOND, getSyncInfo().getReferencedPresentationTimeOffset().getMillis());
+            execTime.add(Calendar.HOUR, getSyncInfo().getOffset().getHour());
+            execTime.add(Calendar.MINUTE, getSyncInfo().getOffset().getMinute());
+            execTime.add(Calendar.SECOND, getSyncInfo().getOffset().getSecond());
+            execTime.add(Calendar.MILLISECOND, getSyncInfo().getOffset().getMillis());
+            Log.d(getClass().getName(), "ReferencedRepresentationTimeOffset: " + getSyncInfo().getReferencedPresentationTimeOffset());
+        }
         Log.d(getClass().getName(), "current time: " + new Date() + " get execution time: " + execTime.getTime());
         if (execTime.getTime().getTime() <= System.currentTimeMillis()) {
             Log.d(getClass().getName(), "ExecutionTime is in past!! We will start immediately");
