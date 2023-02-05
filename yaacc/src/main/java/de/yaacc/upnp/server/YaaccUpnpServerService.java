@@ -79,7 +79,6 @@ import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
 import de.yaacc.R;
@@ -270,7 +269,7 @@ public class YaaccUpnpServerService extends Service {
 
             //FIXME set correct timeout
             SocketConfig socketConfig = SocketConfig.custom()
-                    .setSoTimeout(30, TimeUnit.SECONDS)
+                    .setSoKeepAlive(true)
                     .setTcpNoDelay(false)
                     .build();
 

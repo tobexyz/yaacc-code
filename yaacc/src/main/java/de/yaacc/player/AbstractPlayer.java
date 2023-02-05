@@ -62,9 +62,9 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
     private final PropertyChangeSupport pcs = new PropertyChangeSupport(this);
     private final List<PlayableItem> items = new ArrayList<>();
     private final UpnpClient upnpClient;
+    private Handler playerTimer;
     private int previousIndex = 0;
     private int currentIndex = 0;
-    private Handler playerTimer;
     private Timer execTimer;
     private boolean isPlaying = false;
     private boolean isProcessingCommand = false;
@@ -481,6 +481,46 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
         return upnpClient.getSilenceDuration();
     }
 
+    protected void updateTimer() {
+        long remainingTime = getRemainingTime();
+        remainingTime += getSilenceDuration();
+        if (remainingTime > -1) {
+            startTimer(remainingTime);
+        }
+    }
+
+    protected long parseTimeStringToMillis(String timeString) {
+        //HH:MM:SS
+        long millis = -1;
+        if (timeString != null) {
+            try {
+                String[] tokens = timeString.split(":");
+                if (tokens.length > 0) {
+                    millis = Long.parseLong(tokens[0]) * 3600;
+                }
+                if (tokens.length > 1) {
+                    millis += Long.parseLong(tokens[1]) * 60;
+                }
+                if (tokens.length > 2) {
+                    String seconds = tokens[2];
+                    if (tokens[2].contains(".")) {
+                        seconds = tokens[2].split("\\.")[0];
+                    }
+                    millis += Long.parseLong(seconds);
+                }
+                millis = millis * 1000;
+            } catch (Exception e) {
+                Log.d(getClass().getName(), "ignoring error on parsing to millis of:" + timeString, e);
+            }
+        }
+        Log.v(getClass().getName(), "parsing time string" + timeString + " result millis:" + millis);
+        return millis;
+    }
+
+    public long getRemainingTime() {
+        return parseTimeStringToMillis(getDuration()) - parseTimeStringToMillis(getElapsedTime());
+    }
+
     /**
      * Start a timer for the next item change
      *
@@ -498,7 +538,6 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
                 AbstractPlayer.this.next();
             }
         }, duration);
-
     }
 
     /*
