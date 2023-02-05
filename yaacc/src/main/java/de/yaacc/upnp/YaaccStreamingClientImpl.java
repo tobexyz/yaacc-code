@@ -33,6 +33,7 @@ import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.io.entity.ByteArrayEntity;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.apache.hc.core5.util.TimeValue;
+import org.apache.hc.core5.util.Timeout;
 import org.fourthline.cling.model.message.StreamRequestMessage;
 import org.fourthline.cling.model.message.StreamResponseMessage;
 import org.fourthline.cling.model.message.UpnpHeaders;
@@ -63,6 +64,7 @@ public class YaaccStreamingClientImpl extends AbstractStreamClient<YaaccStreamin
         this.configuration = configuration;
         PoolingHttpClientConnectionManager connectionManager = new PoolingHttpClientConnectionManager();
         connectionManager.setDefaultConnectionConfig(ConnectionConfig.custom()
+                .setSocketTimeout(Timeout.of(60, TimeUnit.SECONDS))
                 .setValidateAfterInactivity(TimeValue.of(10, TimeUnit.MILLISECONDS))
                 .build());
         connectionManager.setMaxTotal(10);
