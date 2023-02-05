@@ -15,13 +15,15 @@
 
 package org.fourthline.cling.model.message.header;
 
+import android.util.Log;
+
 import org.seamless.util.Exceptions;
 
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+
+import de.yaacc.upnp.model.message.header.ContentLengthHeader;
 
 /**
  * Transforms known and standardized UPnP/HTTP headers from/to string representation.
@@ -34,7 +36,7 @@ import java.util.logging.Logger;
  */
 public abstract class UpnpHeader<T> {
 
-    final private static Logger log = Logger.getLogger(UpnpHeader.class.getName());
+
     private T value;
 
     /**
@@ -57,17 +59,17 @@ public abstract class UpnpHeader<T> {
         for (int i = 0; i < type.getHeaderTypes().length && upnpHeader == null; i++) {
             Class<? extends UpnpHeader> headerClass = type.getHeaderTypes()[i];
             try {
-                log.log(Level.INFO, "Trying to parse '" + type + "' with class: " + headerClass.getSimpleName());
+                Log.d(UpnpHeader.class.getName(), "Trying to parse '" + type + "' with class: " + headerClass.getSimpleName());
                 upnpHeader = headerClass.newInstance();
                 if (headerValue != null) {
                     upnpHeader.setString(headerValue);
                 }
             } catch (InvalidHeaderException ex) {
-                log.log(Level.INFO, "Invalid header value for tested type: " + headerClass.getSimpleName() + " - " + ex.getMessage());
+                Log.v(UpnpHeader.class.getName(), "Invalid header value for tested type: " + headerClass.getSimpleName() + " - " + ex.getMessage());
                 upnpHeader = null;
             } catch (Exception ex) {
-                log.severe("Error instantiating header of type '" + type + "' with value: " + headerValue);
-                log.log(Level.SEVERE, "Exception root cause: ", Exceptions.unwrap(ex));
+                Log.w(UpnpHeader.class.getName(), "Error instantiating header of type '" + type + "' with value: " + headerValue);
+                Log.w(UpnpHeader.class.getName(), "Exception root cause: ", Exceptions.unwrap(ex));
             }
 
         }
@@ -144,6 +146,7 @@ public abstract class UpnpHeader<T> {
         SEQ("SEQ", EventSequenceHeader.class),
         RANGE("RANGE", RangeHeader.class),
         CONTENT_RANGE("CONTENT-RANGE", ContentRangeHeader.class),
+        CONTENT_LENGTH("CONTENT-LENGTH", ContentLengthHeader.class),
         PRAGMA("PRAGMA", PragmaHeader.class),
 
         EXT_IFACE_MAC("X-CLING-IFACE-MAC", InterfaceMacHeader.class),

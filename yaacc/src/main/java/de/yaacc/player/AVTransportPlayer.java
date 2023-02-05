@@ -47,6 +47,7 @@ import org.fourthline.cling.support.renderingcontrol.callback.SetVolume;
 import java.net.URI;
 import java.net.URL;
 import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.TimeZone;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -554,6 +555,7 @@ public class AVTransportPlayer extends AbstractPlayer {
         getUpnpClient().getControlPoint().execute(actionCallback);
     }
 
+
     protected void getPositionInfo() {
         if (positionActionState != null && !positionActionState.actionFinished) {
             return;
@@ -599,7 +601,7 @@ public class AVTransportPlayer extends AbstractPlayer {
             public void received(ActionInvocation actionInvocation, PositionInfo positionInfo) {
                 positionActionState.result = positionInfo;
                 currentPositionInfo = positionInfo;
-                Log.d(getClass().getName(), "received Positioninfo= RelTime: " + positionInfo.getRelTime());
+                Log.d(getClass().getName(), "received Positioninfo= RelTime: " + positionInfo.getRelTime() + " remaining time: " + positionInfo.getTrackRemainingSeconds());
 
             }
         };
@@ -639,7 +641,14 @@ public class AVTransportPlayer extends AbstractPlayer {
             @Override
             public void success(ActionInvocation invocation) {
                 //super.success(invocation);
-                Log.d(getClass().getName(), "success seek");
+                Log.d(getClass().getName(), "success seek" + invocation);
+                executeCommand(new TimerTask() {
+                    @Override
+                    public void run() {
+                        updateTimer();
+                    }
+                }, new Date(System.currentTimeMillis() + 2000)); //wait two seconds before reading time from renderer
+
             }
 
             @Override
@@ -649,6 +658,19 @@ public class AVTransportPlayer extends AbstractPlayer {
         };
         getUpnpClient().getControlPoint().execute(seekAction);
 
+    }
+
+
+    @Override
+    public long getRemainingTime() {
+        if (currentPositionInfo == null) {
+            getPositionInfo();
+        }
+        if (currentPositionInfo != null) {
+            Log.v(getClass().getName(), "Remaining time: " + currentPositionInfo.getTrackRemainingSeconds() + " in millis: " + currentPositionInfo.getTrackRemainingSeconds() * 1000);
+            return currentPositionInfo.getTrackRemainingSeconds() * 1000;
+        }
+        return -1;
     }
 
     @Override
@@ -707,6 +729,7 @@ public class AVTransportPlayer extends AbstractPlayer {
             }
         };
         waitForActionComplete(actionState, fn);
+
     }
 
     @Override

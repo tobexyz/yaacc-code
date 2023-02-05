@@ -15,6 +15,8 @@
 
 package org.fourthline.cling.android;
 
+import android.util.Log;
+
 import org.fourthline.cling.transport.impl.NetworkAddressFactoryImpl;
 import org.fourthline.cling.transport.spi.InitializationException;
 
@@ -23,8 +25,6 @@ import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
  * This factory tries to work around and patch some Android bugs.
@@ -34,7 +34,6 @@ import java.util.logging.Logger;
  */
 public class AndroidNetworkAddressFactory extends NetworkAddressFactoryImpl {
 
-    final private static Logger log = Logger.getLogger(AndroidNetworkAddressFactory.class.getName());
 
     public AndroidNetworkAddressFactory(int streamListenPort) {
         super(streamListenPort);
@@ -77,7 +76,7 @@ public class AndroidNetworkAddressFactory extends NetworkAddressFactoryImpl {
                 }
 
             } catch (Exception ex) {
-                log.log(Level.SEVERE,
+                Log.w(getClass().getName(),
                         "Failed injecting hostName to work around Android InetAddress DNS bug: " + address,
                         ex
                 );
@@ -106,7 +105,7 @@ public class AndroidNetworkAddressFactory extends NetworkAddressFactoryImpl {
         } catch (Exception ex) {
             // TODO: ICS bug on some models with network interface disappearing while enumerated
             // http://code.google.com/p/android/issues/detail?id=33661
-            log.warning("Exception while enumerating network interfaces, trying once more: " + ex);
+            Log.w(getClass().getName(), "Exception while enumerating network interfaces, trying once more: " + ex);
             super.discoverNetworkInterfaces();
         }
     }

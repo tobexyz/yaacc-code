@@ -15,7 +15,10 @@
 
 package org.fourthline.cling.protocol.sync;
 
+import android.util.Log;
+
 import org.fourthline.cling.UpnpService;
+import org.fourthline.cling.model.UnsupportedDataException;
 import org.fourthline.cling.model.gena.RemoteGENASubscription;
 import org.fourthline.cling.model.message.StreamRequestMessage;
 import org.fourthline.cling.model.message.UpnpResponse;
@@ -23,10 +26,7 @@ import org.fourthline.cling.model.message.gena.IncomingEventRequestMessage;
 import org.fourthline.cling.model.message.gena.OutgoingEventResponseMessage;
 import org.fourthline.cling.model.resource.ServiceEventCallbackResource;
 import org.fourthline.cling.protocol.ReceivingSync;
-import org.fourthline.cling.model.UnsupportedDataException;
 import org.fourthline.cling.transport.RouterException;
-
-import java.util.logging.Logger;
 
 /**
  * Handles incoming GENA event messages.
@@ -42,16 +42,14 @@ import java.util.logging.Logger;
  */
 public class ReceivingEvent extends ReceivingSync<StreamRequestMessage, OutgoingEventResponseMessage> {
 
-    final private static Logger log = Logger.getLogger(ReceivingEvent.class.getName());
-
     public ReceivingEvent(UpnpService upnpService, StreamRequestMessage inputMessage) {
         super(upnpService, inputMessage);
     }
 
-    protected OutgoingEventResponseMessage executeSync() throws RouterException{
+    protected OutgoingEventResponseMessage executeSync() throws RouterException {
 
         if (!getInputMessage().isContentTypeTextUDA()) {
-            log.warning("Received without or with invalid Content-Type: " + getInputMessage());
+            Log.w(getClass().getName(), "Received without or with invalid Content-Type: " + getInputMessage());
             // We continue despite the invalid UPnP message because we can still hope to convert the content
             // return new StreamResponseMessage(new UpnpResponse(UpnpResponse.Status.UNSUPPORTED_MEDIA_TYPE));
         }
@@ -63,7 +61,7 @@ public class ReceivingEvent extends ReceivingSync<StreamRequestMessage, Outgoing
                 );
 
         if (resource == null) {
-            log.fine("No local resource found: " + getInputMessage());
+            Log.d(getClass().getName(), "No local resource found: " + getInputMessage());
             return new OutgoingEventResponseMessage(new UpnpResponse(UpnpResponse.Status.NOT_FOUND));
         }
 
@@ -72,22 +70,22 @@ public class ReceivingEvent extends ReceivingSync<StreamRequestMessage, Outgoing
 
         // Error conditions UDA 1.0 section 4.2.1
         if (requestMessage.getSubscrptionId() == null) {
-            log.fine("Subscription ID missing in event request: " + getInputMessage());
+            Log.d(getClass().getName(), "Subscription ID missing in event request: " + getInputMessage());
             return new OutgoingEventResponseMessage(new UpnpResponse(UpnpResponse.Status.PRECONDITION_FAILED));
         }
 
         if (!requestMessage.hasValidNotificationHeaders()) {
-            log.fine("Missing NT and/or NTS headers in event request: " + getInputMessage());
+            Log.d(getClass().getName(), "Missing NT and/or NTS headers in event request: " + getInputMessage());
             return new OutgoingEventResponseMessage(new UpnpResponse(UpnpResponse.Status.BAD_REQUEST));
         }
 
         if (!requestMessage.hasValidNotificationHeaders()) {
-            log.fine("Invalid NT and/or NTS headers in event request: " + getInputMessage());
+            Log.d(getClass().getName(), "Invalid NT and/or NTS headers in event request: " + getInputMessage());
             return new OutgoingEventResponseMessage(new UpnpResponse(UpnpResponse.Status.PRECONDITION_FAILED));
         }
 
         if (requestMessage.getSequence() == null) {
-            log.fine("Sequence missing in event request: " + getInputMessage());
+            Log.d(getClass().getName(), "Sequence missing in event request: " + getInputMessage());
             return new OutgoingEventResponseMessage(new UpnpResponse(UpnpResponse.Status.PRECONDITION_FAILED));
         }
 
@@ -95,19 +93,19 @@ public class ReceivingEvent extends ReceivingSync<StreamRequestMessage, Outgoing
 
             getUpnpService().getConfiguration().getGenaEventProcessor().readBody(requestMessage);
 
-		} catch (final UnsupportedDataException ex) {
-            log.fine("Can't read event message request body, " + ex);
+        } catch (final UnsupportedDataException ex) {
+            Log.d(getClass().getName(), "Can't read event message request body, " + ex);
 
             // Pass the parsing failure on to any listeners, so they can take action if necessary
             final RemoteGENASubscription subscription =
-                getUpnpService().getRegistry().getRemoteSubscription(requestMessage.getSubscrptionId());
+                    getUpnpService().getRegistry().getRemoteSubscription(requestMessage.getSubscrptionId());
             if (subscription != null) {
                 getUpnpService().getConfiguration().getRegistryListenerExecutor().execute(
-                    new Runnable() {
-                        public void run() {
-                            subscription.invalidMessage(ex);
+                        new Runnable() {
+                            public void run() {
+                                subscription.invalidMessage(ex);
+                            }
                         }
-                    }
                 );
             }
 
@@ -120,14 +118,14 @@ public class ReceivingEvent extends ReceivingSync<StreamRequestMessage, Outgoing
                 getUpnpService().getRegistry().getWaitRemoteSubscription(requestMessage.getSubscrptionId());
 
         if (subscription == null) {
-            log.severe("Invalid subscription ID, no active subscription: " + requestMessage);
+            Log.i(getClass().getName(), "Invalid subscription ID, no active subscription: " + requestMessage);
             return new OutgoingEventResponseMessage(new UpnpResponse(UpnpResponse.Status.PRECONDITION_FAILED));
         }
 
         getUpnpService().getConfiguration().getRegistryListenerExecutor().execute(
                 new Runnable() {
                     public void run() {
-                        log.fine("Calling active subscription with event state variable values");
+                        Log.d(getClass().getName(), "Calling active subscription with event state variable values");
                         subscription.receive(
                                 requestMessage.getSequence(),
                                 requestMessage.getStateVariableValues()

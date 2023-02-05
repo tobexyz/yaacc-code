@@ -19,7 +19,6 @@ package de.yaacc.browser;
 
 import android.os.AsyncTask;
 import android.util.Log;
-import android.widget.Toast;
 
 import org.fourthline.cling.support.model.DIDLContent;
 
@@ -73,15 +72,12 @@ public class BrowseItemLoadTask extends AsyncTask<Long, Integer, ContentDirector
             // failure
 
             if (result.getUpnpFailure() != null) {
-                int duration = Toast.LENGTH_SHORT;
                 String text = itemAdapter.getContext().getString(R.string.error_upnp_specific) + " "
                         + result.getUpnpFailure();
                 Log.e("ResolveError", text + "(" + itemAdapter.getNavigator().getCurrentPosition().getObjectId() + ")");
-                Toast toast = Toast.makeText(itemAdapter.getContext(), text, duration);
-                toast.show();
             } else {
-                itemAdapter.clear();
             }
+            itemAdapter.clear();
 
         }
         itemAdapter.removeTask(this);

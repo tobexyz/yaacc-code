@@ -15,9 +15,9 @@
 
 package org.fourthline.cling.transport.impl;
 
-import java.util.*;
-import java.util.logging.Logger;
+import android.util.Log;
 
+import org.fourthline.cling.model.UnsupportedDataException;
 import org.fourthline.cling.model.action.ActionArgumentValue;
 import org.fourthline.cling.model.action.ActionException;
 import org.fourthline.cling.model.action.ActionInvocation;
@@ -25,10 +25,15 @@ import org.fourthline.cling.model.message.control.ActionRequestMessage;
 import org.fourthline.cling.model.message.control.ActionResponseMessage;
 import org.fourthline.cling.model.meta.ActionArgument;
 import org.fourthline.cling.model.types.ErrorCode;
-import org.fourthline.cling.transport.spi.SOAPActionProcessor;
-import org.fourthline.cling.model.UnsupportedDataException;
 import org.seamless.xml.XmlPullParserUtils;
 import org.xmlpull.v1.XmlPullParser;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 import jakarta.enterprise.inject.Alternative;
 
@@ -47,7 +52,6 @@ import jakarta.enterprise.inject.Alternative;
 @Alternative
 public class PullSOAPActionProcessorImpl extends SOAPActionProcessorImpl {
 
-    protected static Logger log = Logger.getLogger(SOAPActionProcessor.class.getName());
 
     public void readBody(ActionRequestMessage requestMessage, ActionInvocation actionInvocation) throws UnsupportedDataException {
         String body = getMessageBody(requestMessage);
@@ -99,10 +103,10 @@ public class PullSOAPActionProcessorImpl extends SOAPActionProcessorImpl {
         while (event != XmlPullParser.END_DOCUMENT && (event != XmlPullParser.END_TAG || !xpp.getName().equals("Body")));
 
         throw new ActionException(
-            ErrorCode.ACTION_FAILED,
-            String.format("Action SOAP response do not contain %s element",
-                actionInvocation.getAction().getName() + "Response"
-            )
+                ErrorCode.ACTION_FAILED,
+                String.format("Action SOAP response do not contain %s element",
+                        actionInvocation.getAction().getName() + "Response"
+                )
         );
     }
 
@@ -132,7 +136,7 @@ public class PullSOAPActionProcessorImpl extends SOAPActionProcessorImpl {
         int event;
         do {
             event = xpp.next();
-            if(event == XmlPullParser.START_TAG && names.contains(xpp.getName().toUpperCase(Locale.ROOT))) {
+            if (event == XmlPullParser.START_TAG && names.contains(xpp.getName().toUpperCase(Locale.ROOT))) {
                 matches.put(xpp.getName(), xpp.nextText());
             }
 
@@ -141,9 +145,9 @@ public class PullSOAPActionProcessorImpl extends SOAPActionProcessorImpl {
 
         if (matches.size() < args.length) {
             throw new ActionException(
-                ErrorCode.ARGUMENT_VALUE_INVALID,
-                "Invalid number of input or output arguments in XML message, expected "
-                    + args.length + " but found " + matches.size()
+                    ErrorCode.ARGUMENT_VALUE_INVALID,
+                    "Invalid number of input or output arguments in XML message, expected "
+                            + args.length + " but found " + matches.size()
             );
         }
         return matches;
@@ -161,11 +165,11 @@ public class PullSOAPActionProcessorImpl extends SOAPActionProcessorImpl {
             String value = findActionArgumentValue(matches, arg);
             if (value == null) {
                 throw new ActionException(
-                    ErrorCode.ARGUMENT_VALUE_INVALID,
-                    "Could not find argument '" + arg.getName() + "' node");
+                        ErrorCode.ARGUMENT_VALUE_INVALID,
+                        "Could not find argument '" + arg.getName() + "' node");
             }
 
-            log.fine("Reading action argument: " + arg.getName());
+            Log.d(getClass().getName(), "Reading action argument: " + arg.getName());
             values[i] = createValue(arg, value);
         }
         return values;
@@ -205,10 +209,10 @@ public class PullSOAPActionProcessorImpl extends SOAPActionProcessorImpl {
                 int numericCode = Integer.valueOf(errorCode);
                 ErrorCode standardErrorCode = ErrorCode.getByCode(numericCode);
                 if (standardErrorCode != null) {
-                    log.fine("Reading fault element: " + standardErrorCode.getCode() + " - " + errorDescription);
+                    Log.d(getClass().getName(), "Reading fault element: " + standardErrorCode.getCode() + " - " + errorDescription);
                     return new ActionException(standardErrorCode, errorDescription, false);
                 } else {
-                    log.fine("Reading fault element: " + numericCode + " - " + errorDescription);
+                    Log.d(getClass().getName(), "Reading fault element: " + numericCode + " - " + errorDescription);
                     return new ActionException(numericCode, errorDescription);
                 }
             } catch (NumberFormatException ex) {

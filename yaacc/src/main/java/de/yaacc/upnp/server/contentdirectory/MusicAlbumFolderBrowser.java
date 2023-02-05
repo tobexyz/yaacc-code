@@ -30,8 +30,7 @@ import org.fourthline.cling.support.model.PersonWithRole;
 import org.fourthline.cling.support.model.Res;
 import org.fourthline.cling.support.model.SortCriterion;
 import org.fourthline.cling.support.model.container.Container;
-import org.fourthline.cling.support.model.container.MusicAlbum;
-import org.fourthline.cling.support.model.item.Item;
+import org.fourthline.cling.support.model.container.StorageFolder;
 import org.fourthline.cling.support.model.item.MusicTrack;
 import org.seamless.util.MimeType;
 
@@ -56,12 +55,11 @@ public class MusicAlbumFolderBrowser extends ContentBrowser {
     @Override
     public DIDLObject browseMeta(YaaccContentDirectory contentDirectory,
                                  String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
-
-        return new MusicAlbum(myId,
+        return new StorageFolder(myId,
                 ContentDirectoryIDs.MUSIC_ALBUMS_FOLDER.getId(), getName(
                 contentDirectory, myId), "yaacc", getSize(
-                contentDirectory, myId));
-
+                contentDirectory, myId),
+                null);
     }
 
     private String getName(YaaccContentDirectory contentDirectory, String myId) {
@@ -111,10 +109,10 @@ public class MusicAlbumFolderBrowser extends ContentBrowser {
 
     @SuppressLint("Range")
     @Override
-    public List<Item> browseItem(YaaccContentDirectory contentDirectory,
-                                 String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
+    public List<MusicTrack> browseItem(YaaccContentDirectory contentDirectory,
+                                       String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
 
-        List<Item> result = new ArrayList<>();
+        List<MusicTrack> result = new ArrayList<>();
         String[] projection;
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
             projection = new String[]{MediaStore.Audio.Media._ID,

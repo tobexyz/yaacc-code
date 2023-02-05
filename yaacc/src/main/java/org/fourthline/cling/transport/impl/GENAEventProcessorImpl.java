@@ -15,7 +15,10 @@
 
 package org.fourthline.cling.transport.impl;
 
+import android.util.Log;
+
 import org.fourthline.cling.model.Constants;
+import org.fourthline.cling.model.UnsupportedDataException;
 import org.fourthline.cling.model.XMLUtil;
 import org.fourthline.cling.model.message.UpnpMessage;
 import org.fourthline.cling.model.message.gena.IncomingEventRequestMessage;
@@ -23,7 +26,6 @@ import org.fourthline.cling.model.message.gena.OutgoingEventRequestMessage;
 import org.fourthline.cling.model.meta.StateVariable;
 import org.fourthline.cling.model.state.StateVariableValue;
 import org.fourthline.cling.transport.spi.GENAEventProcessor;
-import org.fourthline.cling.model.UnsupportedDataException;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
@@ -33,13 +35,11 @@ import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
 import org.xml.sax.SAXParseException;
 
+import java.io.StringReader;
+
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.FactoryConfigurationError;
-
-import java.io.StringReader;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
  * Default implementation based on the <em>W3C DOM</em> XML processing API.
@@ -48,14 +48,13 @@ import java.util.logging.Logger;
  */
 public class GENAEventProcessorImpl implements GENAEventProcessor, ErrorHandler {
 
-    private static Logger log = Logger.getLogger(GENAEventProcessor.class.getName());
 
     protected DocumentBuilderFactory createDocumentBuilderFactory() throws FactoryConfigurationError {
-    	return DocumentBuilderFactory.newInstance();
+        return DocumentBuilderFactory.newInstance();
     }
 
     public void writeBody(OutgoingEventRequestMessage requestMessage) throws UnsupportedDataException {
-        log.fine("Writing body of: " + requestMessage);
+        Log.d(getClass().getName(), "Writing body of: " + requestMessage);
 
         try {
 
@@ -68,12 +67,9 @@ public class GENAEventProcessorImpl implements GENAEventProcessor, ErrorHandler 
 
             requestMessage.setBody(UpnpMessage.BodyType.STRING, toString(d));
 
-            if (log.isLoggable(Level.FINER)) {
-                log.finer("===================================== GENA BODY BEGIN ============================================");
-                log.finer(requestMessage.getBody().toString());
-                log.finer("====================================== GENA BODY END =============================================");
-            }
-
+            Log.v(getClass().getName(), "===================================== GENA BODY BEGIN ============================================");
+            Log.v(getClass().getName(), requestMessage.getBody().toString());
+            Log.v(getClass().getName(), "====================================== GENA BODY END =============================================");
         } catch (Exception ex) {
             throw new UnsupportedDataException("Can't transform message payload: " + ex.getMessage(), ex);
         }
@@ -81,12 +77,11 @@ public class GENAEventProcessorImpl implements GENAEventProcessor, ErrorHandler 
 
     public void readBody(IncomingEventRequestMessage requestMessage) throws UnsupportedDataException {
 
-        log.fine("Reading body of: " + requestMessage);
-        if (log.isLoggable(Level.FINER)) {
-            log.finer("===================================== GENA BODY BEGIN ============================================");
-            log.finer(requestMessage.getBody() != null ? requestMessage.getBody().toString() : "null");
-            log.finer("-===================================== GENA BODY END ============================================");
-        }
+        Log.d(getClass().getName(), "Reading body of: " + requestMessage);
+        Log.v(getClass().getName(), "===================================== GENA BODY BEGIN ============================================");
+        Log.v(getClass().getName(), requestMessage.getBody() != null ? requestMessage.getBody().toString() : "null");
+        Log.v(getClass().getName(), "-===================================== GENA BODY END ============================================");
+
 
         String body = getMessageBody(requestMessage);
         try {
@@ -97,7 +92,7 @@ public class GENAEventProcessorImpl implements GENAEventProcessor, ErrorHandler 
             documentBuilder.setErrorHandler(this);
 
             Document d = documentBuilder.parse(
-                new InputSource(new StringReader(body))
+                    new InputSource(new StringReader(body))
             );
 
             Element propertysetElement = readPropertysetElement(d);
@@ -165,7 +160,7 @@ public class GENAEventProcessorImpl implements GENAEventProcessor, ErrorHandler 
                     String stateVariableName = getUnprefixedNodeName(propertyChild);
                     for (StateVariable stateVariable : stateVariables) {
                         if (stateVariable.getName().equals(stateVariableName)) {
-                            log.fine("Reading state variable value: " + stateVariableName);
+                            Log.d(getClass().getName(), "Reading state variable value: " + stateVariableName);
                             String value = XMLUtil.getTextContent(propertyChild);
                             message.getStateVariableValues().add(
                                     new StateVariableValue(stateVariable, value)
@@ -184,7 +179,7 @@ public class GENAEventProcessorImpl implements GENAEventProcessor, ErrorHandler 
     protected String getMessageBody(UpnpMessage message) throws UnsupportedDataException {
         if (!message.isBodyNonEmptyString())
             throw new UnsupportedDataException(
-                "Can't transform null or non-string/zero-length body of: " + message
+                    "Can't transform null or non-string/zero-length body of: " + message
             );
         return message.getBodyString().trim();
     }
@@ -206,7 +201,7 @@ public class GENAEventProcessorImpl implements GENAEventProcessor, ErrorHandler 
     }
 
     public void warning(SAXParseException e) throws SAXException {
-        log.warning(e.toString());
+        Log.w(getClass().getName(), e.toString());
     }
 
     public void error(SAXParseException e) throws SAXException {

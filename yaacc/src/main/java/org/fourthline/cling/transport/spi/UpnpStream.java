@@ -15,6 +15,8 @@
 
 package org.fourthline.cling.transport.spi;
 
+import android.util.Log;
+
 import org.fourthline.cling.model.message.StreamRequestMessage;
 import org.fourthline.cling.model.message.StreamResponseMessage;
 import org.fourthline.cling.model.message.UpnpResponse;
@@ -22,8 +24,6 @@ import org.fourthline.cling.protocol.ProtocolCreationException;
 import org.fourthline.cling.protocol.ProtocolFactory;
 import org.fourthline.cling.protocol.ReceivingSync;
 import org.seamless.util.Exceptions;
-
-import java.util.logging.Logger;
 
 /**
  * A runnable representation of a single HTTP request/response procedure.
@@ -38,11 +38,11 @@ import java.util.logging.Logger;
  * <p>
  * An implementation does not have to be thread-safe.
  * </p>
+ *
  * @author Christian Bauer
  */
 public abstract class UpnpStream implements Runnable {
 
-    private static Logger log = Logger.getLogger(UpnpStream.class.getName());
 
     protected final ProtocolFactory protocolFactory;
     protected ReceivingSync syncProtocol;
@@ -63,22 +63,23 @@ public abstract class UpnpStream implements Runnable {
      * condition will be encapsulated in the returned response message and has to be
      * passed to the HTTP client as it is.
      * </p>
+     *
      * @param requestMsg The TCP (HTTP) stream request message.
      * @return The TCP (HTTP) stream response message, or <code>null</code> if a 404 should be send to the client.
      */
     public StreamResponseMessage process(StreamRequestMessage requestMsg) {
-        log.fine("Processing stream request message: " + requestMsg);
+        Log.d(getClass().getName(), "Processing stream request message: " + requestMsg);
 
         try {
             // Try to get a protocol implementation that matches the request message
             syncProtocol = getProtocolFactory().createReceivingSync(requestMsg);
         } catch (ProtocolCreationException ex) {
-            log.warning("Processing stream request failed - " + Exceptions.unwrap(ex).toString());
+            Log.w(getClass().getName(), "Processing stream request failed - " + Exceptions.unwrap(ex).toString());
             return new StreamResponseMessage(UpnpResponse.Status.NOT_IMPLEMENTED);
         }
 
         // Run it
-        log.fine("Running protocol for synchronous message processing: " + syncProtocol);
+        Log.d(getClass().getName(), "Running protocol for synchronous message processing: " + syncProtocol);
         syncProtocol.run();
 
         // ... then grab the response
@@ -86,10 +87,10 @@ public abstract class UpnpStream implements Runnable {
 
         if (responseMsg == null) {
             // That's ok, the caller is supposed to handle this properly (e.g. convert it to HTTP 404)
-            log.finer("Protocol did not return any response message");
+            Log.v(getClass().getName(), "Protocol did not return any response message");
             return null;
         }
-        log.finer("Protocol returned response: " + responseMsg);
+        Log.v(getClass().getName(), "Protocol returned response: " + responseMsg);
         return responseMsg;
     }
 

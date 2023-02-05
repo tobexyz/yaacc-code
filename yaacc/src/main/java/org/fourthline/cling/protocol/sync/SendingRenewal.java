@@ -15,6 +15,8 @@
 
 package org.fourthline.cling.protocol.sync;
 
+import android.util.Log;
+
 import org.fourthline.cling.UpnpService;
 import org.fourthline.cling.model.gena.CancelReason;
 import org.fourthline.cling.model.gena.RemoteGENASubscription;
@@ -23,8 +25,6 @@ import org.fourthline.cling.model.message.gena.IncomingSubscribeResponseMessage;
 import org.fourthline.cling.model.message.gena.OutgoingRenewalRequestMessage;
 import org.fourthline.cling.protocol.SendingSync;
 import org.fourthline.cling.transport.RouterException;
-
-import java.util.logging.Logger;
 
 /**
  * Renewing a GENA event subscription with a remote host.
@@ -36,27 +36,27 @@ import java.util.logging.Logger;
  * method will be called. The <code>RENEWAL_FAILED</code> reason will be used, however,
  * the response might be <code>null</code> if no response was received from the remote host.
  * </p>
+ *
  * @author Christian Bauer
  */
 public class SendingRenewal extends SendingSync<OutgoingRenewalRequestMessage, IncomingSubscribeResponseMessage> {
 
-    final private static Logger log = Logger.getLogger(SendingRenewal.class.getName());
 
     final protected RemoteGENASubscription subscription;
 
     public SendingRenewal(UpnpService upnpService, RemoteGENASubscription subscription) {
         super(
-            upnpService,
-            new OutgoingRenewalRequestMessage(
-                subscription,
-                upnpService.getConfiguration().getEventSubscriptionHeaders(subscription.getService())
-            )
+                upnpService,
+                new OutgoingRenewalRequestMessage(
+                        subscription,
+                        upnpService.getConfiguration().getEventSubscriptionHeaders(subscription.getService())
+                )
         );
         this.subscription = subscription;
     }
 
     protected IncomingSubscribeResponseMessage executeSync() throws RouterException {
-        log.fine("Sending subscription renewal request: " + getInputMessage());
+        Log.d(getClass().getName(), "Sending subscription renewal request: " + getInputMessage());
 
         StreamResponseMessage response;
         try {
@@ -74,17 +74,17 @@ public class SendingRenewal extends SendingSync<OutgoingRenewalRequestMessage, I
         final IncomingSubscribeResponseMessage responseMessage = new IncomingSubscribeResponseMessage(response);
 
         if (response.getOperation().isFailed()) {
-            log.fine("Subscription renewal failed, response was: " + response);
+            Log.d(getClass().getName(), "Subscription renewal failed, response was: " + response);
             getUpnpService().getRegistry().removeRemoteSubscription(subscription);
             getUpnpService().getConfiguration().getRegistryListenerExecutor().execute(
                     new Runnable() {
                         public void run() {
-                            subscription.end(CancelReason.RENEWAL_FAILED,responseMessage.getOperation());
+                            subscription.end(CancelReason.RENEWAL_FAILED, responseMessage.getOperation());
                         }
                     }
             );
         } else if (!responseMessage.isValidHeaders()) {
-            log.severe("Subscription renewal failed, invalid or missing (SID, Timeout) response headers");
+            Log.i(getClass().getName(), "Subscription renewal failed, invalid or missing (SID, Timeout) response headers");
             getUpnpService().getConfiguration().getRegistryListenerExecutor().execute(
                     new Runnable() {
                         public void run() {
@@ -93,7 +93,7 @@ public class SendingRenewal extends SendingSync<OutgoingRenewalRequestMessage, I
                     }
             );
         } else {
-            log.fine("Subscription renewed, updating in registry, response was: " + response);
+            Log.d(getClass().getName(), "Subscription renewed, updating in registry, response was: " + response);
             subscription.setActualSubscriptionDurationSeconds(responseMessage.getSubscriptionDurationSeconds());
             getUpnpService().getRegistry().updateRemoteSubscription(subscription);
         }
@@ -102,7 +102,7 @@ public class SendingRenewal extends SendingSync<OutgoingRenewalRequestMessage, I
     }
 
     protected void onRenewalFailure() {
-        log.fine("Subscription renewal failed, removing subscription from registry");
+        Log.d(getClass().getName(), "Subscription renewal failed, removing subscription from registry");
         getUpnpService().getRegistry().removeRemoteSubscription(subscription);
         getUpnpService().getConfiguration().getRegistryListenerExecutor().execute(
                 new Runnable() {

@@ -57,7 +57,7 @@ public abstract class ContentBrowser {
     public abstract List<Container> browseContainer(
             YaaccContentDirectory content, String myId, long firstResult, long maxResults, SortCriterion[] orderby);
 
-    public abstract List<Item> browseItem(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby);
+    public abstract List<? extends Item> browseItem(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby);
 
     public List<DIDLObject> browseChildren(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
         List<DIDLObject> result = new ArrayList<>();

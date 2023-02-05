@@ -44,6 +44,7 @@ import org.fourthline.cling.support.renderingcontrol.callback.SetVolume;
 
 import java.net.URI;
 import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.TimeZone;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -784,6 +785,13 @@ public class SyncAVTransportPlayer extends AbstractPlayer {
             public void success(ActionInvocation invocation) {
                 //super.success(invocation);
                 Log.d(getClass().getName(), "success seek");
+                executeCommand(new TimerTask() {
+                    @Override
+                    public void run() {
+                        updateTimer();
+                    }
+                }, new Date(System.currentTimeMillis() + 2000)); //wait two seconds before reading time from renderer
+
             }
 
             @Override
@@ -869,6 +877,17 @@ public class SyncAVTransportPlayer extends AbstractPlayer {
             return currentPositionInfo.getRelTime();
         }
         return "00:00:00";
+    }
+
+    @Override
+    public long getRemainingTime() {
+        if (currentPositionInfo == null) {
+            getPositionInfo();
+        }
+        if (currentPositionInfo != null) {
+            return currentPositionInfo.getTrackRemainingSeconds() * 1000;
+        }
+        return -1;
     }
 
     private static class InternalSetAVTransportURI extends SetAVTransportURI {

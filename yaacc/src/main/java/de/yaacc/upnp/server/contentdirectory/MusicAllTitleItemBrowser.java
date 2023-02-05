@@ -97,7 +97,6 @@ public class MusicAllTitleItemBrowser extends ContentBrowser {
                         .getColumnIndex(MediaStore.Audio.Media.DISPLAY_NAME));
                 @SuppressLint("Range") Long size = Long.valueOf(mediaCursor.getString(mediaCursor
                         .getColumnIndex(MediaStore.Audio.Media.SIZE)));
-
                 @SuppressLint("Range") String album = mediaCursor.getString(mediaCursor
                         .getColumnIndex(MediaStore.Audio.Media.ALBUM));
                 @SuppressLint("Range") String albumId = mediaCursor.getString(mediaCursor
