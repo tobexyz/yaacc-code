@@ -23,10 +23,10 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.BaseAdapter;
 import android.widget.ImageView;
-import android.widget.ListView;
 import android.widget.TextView;
+
+import androidx.recyclerview.widget.RecyclerView;
 
 import org.fourthline.cling.model.meta.Device;
 import org.fourthline.cling.model.meta.Icon;
@@ -38,63 +38,55 @@ import java.util.Collection;
 import java.util.LinkedList;
 
 import de.yaacc.R;
-import de.yaacc.browser.BrowseContentItemAdapter.ViewHolder;
+import de.yaacc.upnp.UpnpClient;
 import de.yaacc.util.ThemeHelper;
 import de.yaacc.util.image.IconDownloadTask;
 
 /**
  * @author Christoph Hähnel (eyeless)
  */
-public class BrowseDeviceAdapter extends BaseAdapter {
+public class BrowseDeviceAdapter extends RecyclerView.Adapter<BrowseDeviceAdapter.ViewHolder> {
 
-    private final LayoutInflater inflator;
     private final Context context;
     private LinkedList<Device<?, ?, ?>> devices;
+    private UpnpClient upnpClient;
+    private RecyclerView deviceList;
 
-    public BrowseDeviceAdapter(Context ctx, LinkedList<Device<?, ?, ?>> devices) {
+
+    public BrowseDeviceAdapter(Context ctx, RecyclerView deviceList, UpnpClient upnpClient, LinkedList<Device<?, ?, ?>> devices) {
         super();
 
         this.devices = devices;
-        context = ctx;
-        if (ctx != null) {
-            inflator = LayoutInflater.from(ctx);
-        } else {
-            inflator = null;
+        if (this.devices == null) {
+            this.devices = new LinkedList<>();
         }
+        this.upnpClient = upnpClient;
+        this.deviceList = deviceList;
+        context = ctx;
         notifyDataSetChanged();
     }
 
     @Override
-    public int getCount() {
+    public int getItemCount() {
         return devices.size();
     }
 
-    @Override
-    public Object getItem(int position) {
+    public Device<?, ?, ?> getItem(int position) {
         return devices.get(position);
     }
 
     @Override
-    public long getItemId(int position) {
-        return 0;
+    public ViewHolder onCreateViewHolder(ViewGroup parent,
+                                         int viewType) {
+        View view = LayoutInflater.from(parent.getContext())
+                .inflate(R.layout.browse_device_item, parent, false);
+        view.setOnClickListener(new ServerListClickListener(deviceList, this, upnpClient, context));
+        return new ViewHolder(view);
     }
 
     @Override
-    public View getView(int position, View convertView, ViewGroup parent) {
-        ViewHolder holder;
-
-        if (convertView == null && inflator != null) {
-            convertView = inflator.inflate(R.layout.browse_device_item, parent, false);
-
-            holder = new ViewHolder();
-            holder.icon = (ImageView) convertView.findViewById(R.id.browseDeviceItemIcon);
-            holder.name = (TextView) convertView.findViewById(R.id.browseDeviceItemName);
-            convertView.setTag(holder);
-        } else {
-            holder = (ViewHolder) convertView.getTag();
-        }
-
-        Device<?, ?, ?> device = (Device<?, ?, ?>) getItem(position);
+    public void onBindViewHolder(final ViewHolder holder, final int listPosition) {
+        Device<?, ?, ?> device = getItem(listPosition);
         if (device instanceof RemoteDevice) {
             if (device.hasIcons()) {
                 Icon[] icons = device.getIcons();
@@ -103,9 +95,8 @@ public class BrowseDeviceAdapter extends BaseAdapter {
                         URL iconUri = ((RemoteDevice) device).normalizeURI(icon.getUri());
                         if (iconUri != null) {
                             Log.d(getClass().getName(), "Device icon uri:" + iconUri);
-                            new IconDownloadTask((ListView) parent, R.id.browseDeviceItemIcon, position).execute(Uri.parse(iconUri.toString()));
+                            new IconDownloadTask(holder.icon).execute(Uri.parse(iconUri.toString()));
                             break;
-
                         }
                     }
                 }
@@ -119,14 +110,26 @@ public class BrowseDeviceAdapter extends BaseAdapter {
 
         holder.name.setText(device.getDetails().getFriendlyName());
 
-
-        return convertView;
     }
 
+
     public void setDevices(Collection<Device<?, ?, ?>> devices) {
-        this.devices = new LinkedList<>();
+        this.devices.clear();
         this.devices.addAll(devices);
         notifyDataSetChanged();
+
+    }
+
+    static class ViewHolder extends RecyclerView.ViewHolder {
+        ImageView icon;
+        TextView name;
+
+
+        public ViewHolder(View itemView) {
+            super(itemView);
+            this.icon = (ImageView) itemView.findViewById(R.id.browseDeviceItemIcon);
+            this.name = (TextView) itemView.findViewById(R.id.browseDeviceItemName);
+        }
     }
 
 }

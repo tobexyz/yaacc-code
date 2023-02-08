@@ -29,7 +29,6 @@ import android.view.ViewGroup;
 import android.widget.AbsListView;
 import android.widget.BaseAdapter;
 import android.widget.ImageView;
-import android.widget.ListView;
 import android.widget.TextView;
 
 import org.fourthline.cling.support.model.DIDLObject;
@@ -164,8 +163,8 @@ public class BrowseContentItemAdapter extends BaseAdapter implements AbsListView
 
         DIDLObject currentObject = (DIDLObject) getItem(position);
         holder.name.setText(currentObject.getTitle());
-        IconDownloadTask iconDownloadTask = new IconDownloadTask(
-                this, (ListView) parent, R.id.browseContentItemIcon, position);
+        IconDownloadTask iconDownloadTask = new IconDownloadTask(holder.icon,
+                this);
         asyncTasks.add(iconDownloadTask);
         if (currentObject instanceof Container) {
             holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_folder_open_48, context.getTheme()), getContext().getTheme()));

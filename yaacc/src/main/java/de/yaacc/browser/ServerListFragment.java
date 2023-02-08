@@ -24,9 +24,10 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.ListView;
 
 import androidx.fragment.app.Fragment;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
 import org.fourthline.cling.model.meta.Device;
 
@@ -45,7 +46,7 @@ import de.yaacc.upnp.UpnpClientListener;
 public class ServerListFragment extends Fragment implements
         UpnpClientListener, OnBackPressedListener {
     private UpnpClient upnpClient = null;
-    private ListView contentList;
+    private RecyclerView contentList;
     private BrowseDeviceAdapter bDeviceAdapter;
 
     /**
@@ -77,14 +78,13 @@ public class ServerListFragment extends Fragment implements
     private void populateDeviceList() {
         //FIXME: Cache should be able to decide whether it is used for browsing or for devices lists
         //IconDownloadCacheHandler.getInstance().resetCache();
+        //https://www.digitalocean.com/community/tutorials/android-recyclerview-android-cardview-example-tutorial
         if (getActivity() != null) {
             getActivity().runOnUiThread(() -> {
-                ListView deviceList = contentList;
-                deviceList.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
+                RecyclerView deviceList = contentList;
                 if (deviceList.getAdapter() == null) {
-                    bDeviceAdapter = new BrowseDeviceAdapter(getActivity(), new LinkedList<>(upnpClient.getDevicesProvidingContentDirectoryService()));
+                    bDeviceAdapter = new BrowseDeviceAdapter(getActivity(), deviceList, upnpClient, new LinkedList<>(upnpClient.getDevicesProvidingContentDirectoryService()));
                     deviceList.setAdapter(bDeviceAdapter);
-                    deviceList.setOnItemClickListener(new ServerListClickListener(upnpClient, ServerListFragment.this));
                 } else {
                     bDeviceAdapter.setDevices(new LinkedList<>(upnpClient.getDevicesProvidingContentDirectoryService()));
                 }
@@ -144,14 +144,13 @@ public class ServerListFragment extends Fragment implements
         // local server startup
         upnpClient = ((Yaacc) requireActivity().getApplicationContext()).getUpnpClient();
 
-
         // Define where to show the folder contents for media
-        contentList = (ListView) view.findViewById(R.id.serverList);
+        contentList = (RecyclerView) view.findViewById(R.id.serverList);
+        contentList.setLayoutManager(new LinearLayoutManager(getActivity()));
         registerForContextMenu(contentList);
 
         // add ourself as listener
         upnpClient.addUpnpClientListener(this);
-
         Thread thread = new Thread(this::populateDeviceList);
         thread.start();
     }

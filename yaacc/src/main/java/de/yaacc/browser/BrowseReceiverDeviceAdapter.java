@@ -26,7 +26,6 @@ import android.view.ViewGroup;
 import android.widget.BaseAdapter;
 import android.widget.CheckBox;
 import android.widget.ImageView;
-import android.widget.ListView;
 import android.widget.TextView;
 
 import org.fourthline.cling.model.meta.Device;
@@ -103,7 +102,7 @@ public class BrowseReceiverDeviceAdapter extends BaseAdapter {
                         URL iconUri = ((RemoteDevice) device).normalizeURI(icon.getUri());
                         if (iconUri != null) {
                             Log.d(getClass().getName(), "Device icon uri:" + iconUri);
-                            new IconDownloadTask((ListView) parent, R.id.browseReceiverDeviceItemIcon, position).execute(Uri.parse(iconUri.toString()));
+                            new IconDownloadTask(holder.icon).execute(Uri.parse(iconUri.toString()));
                             break;
 
                         }
