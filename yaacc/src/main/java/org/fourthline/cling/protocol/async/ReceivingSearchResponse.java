@@ -15,6 +15,8 @@
 
 package org.fourthline.cling.protocol.async;
 
+import android.util.Log;
+
 import org.fourthline.cling.UpnpService;
 import org.fourthline.cling.model.ValidationError;
 import org.fourthline.cling.model.ValidationException;
@@ -28,8 +30,6 @@ import org.fourthline.cling.protocol.ReceivingAsync;
 import org.fourthline.cling.protocol.RetrieveRemoteDescriptors;
 import org.fourthline.cling.transport.RouterException;
 
-import java.util.logging.Logger;
-
 /**
  * Handles reception of search response messages.
  * <p>
@@ -42,7 +42,6 @@ import java.util.logging.Logger;
  */
 public class ReceivingSearchResponse extends ReceivingAsync<IncomingSearchResponse> {
 
-    final private static Logger log = Logger.getLogger(ReceivingSearchResponse.class.getName());
 
     public ReceivingSearchResponse(UpnpService upnpService, IncomingDatagramMessage<UpnpResponse> inputMessage) {
         super(upnpService, new IncomingSearchResponse(inputMessage));
@@ -51,21 +50,21 @@ public class ReceivingSearchResponse extends ReceivingAsync<IncomingSearchRespon
     protected void execute() throws RouterException {
 
         if (!getInputMessage().isSearchResponseMessage()) {
-            log.fine("Ignoring invalid search response message: " + getInputMessage());
+            Log.d(getClass().getName(), "Ignoring invalid search response message: " + getInputMessage());
             return;
         }
 
         UDN udn = getInputMessage().getRootDeviceUDN();
         if (udn == null) {
-            log.fine("Ignoring search response message without UDN: " + getInputMessage());
+            Log.d(getClass().getName(), "Ignoring search response message without UDN: " + getInputMessage());
             return;
         }
 
         RemoteDeviceIdentity rdIdentity = new RemoteDeviceIdentity(getInputMessage());
-        log.fine("Received device search response: " + rdIdentity);
+        Log.d(getClass().getName(), "Received device search response: " + rdIdentity);
 
         if (getUpnpService().getRegistry().update(rdIdentity)) {
-            log.fine("Remote device was already known: " + udn);
+            Log.d(getClass().getName(), "Remote device was already known: " + udn);
             return;
         }
 
@@ -73,20 +72,20 @@ public class ReceivingSearchResponse extends ReceivingAsync<IncomingSearchRespon
         try {
             rd = new RemoteDevice(rdIdentity);
         } catch (ValidationException ex) {
-            log.warning("Validation errors of device during discovery: " + rdIdentity);
+            Log.w(getClass().getName(), "Validation errors of device during discovery: " + rdIdentity);
             for (ValidationError validationError : ex.getErrors()) {
-                log.warning(validationError.toString());
+                Log.w(getClass().getName(), validationError.toString());
             }
             return;
         }
 
         if (rdIdentity.getDescriptorURL() == null) {
-            log.finer("Ignoring message without location URL header: " + getInputMessage());
+            Log.v(getClass().getName(), "Ignoring message without location URL header: " + getInputMessage());
             return;
         }
 
         if (rdIdentity.getMaxAgeSeconds() == null) {
-            log.finer("Ignoring message without max-age header: " + getInputMessage());
+            Log.v(getClass().getName(), "Ignoring message without max-age header: " + getInputMessage());
             return;
         }
 

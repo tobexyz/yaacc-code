@@ -15,6 +15,8 @@
 
 package org.fourthline.cling.protocol.sync;
 
+import android.util.Log;
+
 import org.fourthline.cling.UpnpService;
 import org.fourthline.cling.model.gena.CancelReason;
 import org.fourthline.cling.model.gena.RemoteGENASubscription;
@@ -22,8 +24,6 @@ import org.fourthline.cling.model.message.StreamResponseMessage;
 import org.fourthline.cling.model.message.gena.OutgoingUnsubscribeRequestMessage;
 import org.fourthline.cling.protocol.SendingSync;
 import org.fourthline.cling.transport.RouterException;
-
-import java.util.logging.Logger;
 
 /**
  * Disconnecting a GENA event subscription with a remote host.
@@ -38,24 +38,22 @@ import java.util.logging.Logger;
  */
 public class SendingUnsubscribe extends SendingSync<OutgoingUnsubscribeRequestMessage, StreamResponseMessage> {
 
-    final private static Logger log = Logger.getLogger(SendingUnsubscribe.class.getName());
-
     final protected RemoteGENASubscription subscription;
 
     public SendingUnsubscribe(UpnpService upnpService, RemoteGENASubscription subscription) {
         super(
-            upnpService,
-            new OutgoingUnsubscribeRequestMessage(
-                subscription,
-                upnpService.getConfiguration().getEventSubscriptionHeaders(subscription.getService())
-            )
+                upnpService,
+                new OutgoingUnsubscribeRequestMessage(
+                        subscription,
+                        upnpService.getConfiguration().getEventSubscriptionHeaders(subscription.getService())
+                )
         );
         this.subscription = subscription;
     }
 
     protected StreamResponseMessage executeSync() throws RouterException {
 
-        log.fine("Sending unsubscribe request: " + getInputMessage());
+        Log.d(getClass().getName(), "Sending unsubscribe request: " + getInputMessage());
 
         StreamResponseMessage response = null;
         try {
@@ -71,20 +69,20 @@ public class SendingUnsubscribe extends SendingSync<OutgoingUnsubscribeRequestMe
         getUpnpService().getRegistry().removeRemoteSubscription(subscription);
 
         getUpnpService().getConfiguration().getRegistryListenerExecutor().execute(
-            new Runnable() {
-                public void run() {
-                    if (response == null) {
-                        log.fine("Unsubscribe failed, no response received");
-                        subscription.end(CancelReason.UNSUBSCRIBE_FAILED, null);
-                    } else if (response.getOperation().isFailed()) {
-                        log.fine("Unsubscribe failed, response was: " + response);
-                        subscription.end(CancelReason.UNSUBSCRIBE_FAILED, response.getOperation());
-                    } else {
-                        log.fine("Unsubscribe successful, response was: " + response);
-                        subscription.end(null, response.getOperation());
+                new Runnable() {
+                    public void run() {
+                        if (response == null) {
+                            Log.d(getClass().getName(), "Unsubscribe failed, no response received");
+                            subscription.end(CancelReason.UNSUBSCRIBE_FAILED, null);
+                        } else if (response.getOperation().isFailed()) {
+                            Log.d(getClass().getName(), "Unsubscribe failed, response was: " + response);
+                            subscription.end(CancelReason.UNSUBSCRIBE_FAILED, response.getOperation());
+                        } else {
+                            Log.d(getClass().getName(), "Unsubscribe successful, response was: " + response);
+                            subscription.end(null, response.getOperation());
+                        }
                     }
                 }
-            }
         );
     }
 }

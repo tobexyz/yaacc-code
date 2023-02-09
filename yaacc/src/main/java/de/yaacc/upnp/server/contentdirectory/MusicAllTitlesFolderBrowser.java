@@ -30,8 +30,7 @@ import org.fourthline.cling.support.model.PersonWithRole;
 import org.fourthline.cling.support.model.Res;
 import org.fourthline.cling.support.model.SortCriterion;
 import org.fourthline.cling.support.model.container.Container;
-import org.fourthline.cling.support.model.container.MusicAlbum;
-import org.fourthline.cling.support.model.item.Item;
+import org.fourthline.cling.support.model.container.StorageFolder;
 import org.fourthline.cling.support.model.item.MusicTrack;
 import org.seamless.util.MimeType;
 
@@ -56,11 +55,16 @@ public class MusicAllTitlesFolderBrowser extends ContentBrowser {
     @Override
     public DIDLObject browseMeta(YaaccContentDirectory contentDirectory,
                                  String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
-
+        /*List<MusicTrack> items = browseItem(contentDirectory, myId, firstResult, maxResults, orderby);
         return new MusicAlbum(
                 ContentDirectoryIDs.MUSIC_ALL_TITLES_FOLDER.getId(),
                 ContentDirectoryIDs.MUSIC_FOLDER.getId(), getContext().getString(R.string.all), "yaacc",
-                getSize(contentDirectory, myId));
+                getSize(contentDirectory, myId), items);
+*/
+
+
+        return new StorageFolder(myId, ContentDirectoryIDs.MUSIC_ALL_TITLES_FOLDER.getId(), getContext().getString(R.string.all), "yaacc", getSize(
+                contentDirectory, myId), null);
 
     }
 
@@ -88,9 +92,9 @@ public class MusicAllTitlesFolderBrowser extends ContentBrowser {
 
     @SuppressLint("Range")
     @Override
-    public List<Item> browseItem(YaaccContentDirectory contentDirectory,
-                                 String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
-        List<Item> result = new ArrayList<>();
+    public List<MusicTrack> browseItem(YaaccContentDirectory contentDirectory,
+                                       String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
+        List<MusicTrack> result = new ArrayList<>();
         String[] projection;
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
             projection = new String[]{MediaStore.Audio.Media._ID,

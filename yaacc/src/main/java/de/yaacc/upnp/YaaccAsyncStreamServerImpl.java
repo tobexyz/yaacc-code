@@ -18,6 +18,8 @@
  */
 package de.yaacc.upnp;
 
+import android.util.Log;
+
 import org.apache.hc.core5.http.URIScheme;
 import org.apache.hc.core5.http.impl.bootstrap.HttpAsyncServer;
 import org.apache.hc.core5.http2.impl.nio.bootstrap.H2ServerBootstrap;
@@ -31,12 +33,9 @@ import org.fourthline.cling.transport.spi.StreamServer;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.concurrent.TimeUnit;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 public class YaaccAsyncStreamServerImpl implements StreamServer<YaaccAsyncStreamServerConfigurationImpl> {
 
-    final private static Logger log = Logger.getLogger(YaaccAsyncStreamServerImpl.class.getName());
 
     final protected YaaccAsyncStreamServerConfigurationImpl configuration;
     private final ProtocolFactory protocolFactory;
@@ -62,7 +61,7 @@ public class YaaccAsyncStreamServerImpl implements StreamServer<YaaccAsyncStream
                 try {
                     try {
 
-                        log.info("Adding connector: " + bindAddress + ":" + getConfiguration().getListenPort());
+                        Log.d(getClass().getName(), "Adding connector: " + bindAddress + ":" + getConfiguration().getListenPort());
 
                         IOReactorConfig config = IOReactorConfig.custom()
                                 .setSoTimeout(getConfiguration().getAsyncTimeoutSeconds(), TimeUnit.SECONDS)
@@ -97,7 +96,7 @@ public class YaaccAsyncStreamServerImpl implements StreamServer<YaaccAsyncStream
         try {
             server.awaitShutdown(TimeValue.ofSeconds(1));
         } catch (InterruptedException e) {
-            log.log(Level.INFO, "got exception on stream server stop ", e);
+            Log.w(getClass().getName(), "got exception on stream server stop ", e);
         }
     }
 

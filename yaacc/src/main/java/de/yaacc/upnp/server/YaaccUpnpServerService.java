@@ -79,7 +79,6 @@ import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
 import de.yaacc.R;
@@ -270,8 +269,8 @@ public class YaaccUpnpServerService extends Service {
 
             //FIXME set correct timeout
             SocketConfig socketConfig = SocketConfig.custom()
-                    .setSoTimeout(15, TimeUnit.SECONDS)
-                    .setTcpNoDelay(true)
+                    .setSoKeepAlive(true)
+                    .setTcpNoDelay(false)
                     .build();
 
             // Set up the HTTP service
@@ -431,33 +430,22 @@ public class YaaccUpnpServerService extends Service {
     }
 
     private Icon[] createDeviceIcons() {
-        Drawable drawable = ResourcesCompat.getDrawable(getResources(), R.drawable.yaacc120_jpg, getTheme());
-        Bitmap bitmap;
-        if (drawable != null) {
-            bitmap = ((BitmapDrawable) drawable).getBitmap();
-            ByteArrayOutputStream stream = new ByteArrayOutputStream();
-            bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream);
-        }
-        //
-        // return new Icon("image/png", 48, 48, 24,
-        // URI.create("/icon.png"),stream.toByteArray());
-        ArrayList<Icon> icons = new ArrayList<>();
 
-        icons.add(new Icon("image/jpeg", 120, 120, 24, "yaacc120.jpg", getIconAsByteArray(R.drawable.yaacc120_jpg)));
-        icons.add(new Icon("image/jpeg", 48, 48, 24, "yaacc48.jpg", getIconAsByteArray(R.drawable.yaacc48_jpg)));
-        icons.add(new Icon("image/jpeg", 32, 32, 24, "yaacc32.jpg", getIconAsByteArray(R.drawable.yaacc32_jpg)));
-        icons.add(new Icon("image/bmp", 120, 120, 24, "yaacc120_24.bmp", getIconAsByteArray(R.drawable.yaacc120_24_bmp)));
-        icons.add(new Icon("image/png", 120, 120, 24, "yaacc120_24.png", getIconAsByteArray(R.drawable.yaacc120_24_png)));
-        icons.add(new Icon("image/bmp", 120, 120, 8, "yaacc120_8.bmp", getIconAsByteArray(R.drawable.yaacc120_8_bmp)));
-        icons.add(new Icon("image/png", 120, 120, 8, "yaacc120_8.png", getIconAsByteArray(R.drawable.yaacc120_8_png)));
-        icons.add(new Icon("image/png", 48, 48, 24, "yaacc48_24.bmp", getIconAsByteArray(R.drawable.yaacc48_24_bmp)));
-        icons.add(new Icon("image/png", 48, 48, 24, "yaacc48_24.png", getIconAsByteArray(R.drawable.yaacc48_24_png)));
-        icons.add(new Icon("image/bmp", 48, 48, 8, "yaacc48_8.bmp", getIconAsByteArray(R.drawable.yaacc48_8_bmp)));
-        icons.add(new Icon("image/png", 48, 48, 8, "yaacc48_8.png", getIconAsByteArray(R.drawable.yaacc48_8_png)));
-        icons.add(new Icon("image/bmp", 32, 32, 24, "yaacc32_24.bmp", getIconAsByteArray(R.drawable.yaacc32_24_bmp)));
-        icons.add(new Icon("image/png", 32, 32, 24, "yaacc32_24.png", getIconAsByteArray(R.drawable.yaacc32_24_png)));
-        icons.add(new Icon("image/bmp", 32, 32, 8, "yaacc32_8.bmp", getIconAsByteArray(R.drawable.yaacc32_8_bmp)));
-        icons.add(new Icon("image/png", 32, 32, 8, "yaacc32_8.png", getIconAsByteArray(R.drawable.yaacc32_8_png)));
+        ArrayList<Icon> icons = new ArrayList<>();
+        icons.add(new Icon("image/jpeg", 192, 192, 24, "yaacc192.jpg", getIconAsByteArray(R.drawable.yaacc192jpg, Bitmap.CompressFormat.JPEG)));
+        icons.add(new Icon("image/jpeg", 120, 120, 24, "yaacc120.jpg", getIconAsByteArray(R.drawable.yaacc120jpg, Bitmap.CompressFormat.JPEG)));
+        icons.add(new Icon("image/jpeg", 64, 48, 24, "yaacc64.jpg", getIconAsByteArray(R.drawable.yaacc64jpg, Bitmap.CompressFormat.JPEG)));
+        icons.add(new Icon("image/jpeg", 48, 48, 24, "yaacc48.jpg", getIconAsByteArray(R.drawable.yaacc48jpg, Bitmap.CompressFormat.JPEG)));
+        icons.add(new Icon("image/jpeg", 32, 32, 24, "yaacc32.jpg", getIconAsByteArray(R.drawable.yaacc32jpg, Bitmap.CompressFormat.JPEG)));
+
+
+        icons.add(new Icon("image/png", 192, 192, 24, "yaacc192.png", getIconAsByteArray(R.drawable.yaacc192png, Bitmap.CompressFormat.PNG)));
+        icons.add(new Icon("image/png", 120, 120, 24, "yaacc120.png", getIconAsByteArray(R.drawable.yaacc120png, Bitmap.CompressFormat.PNG)));
+        icons.add(new Icon("image/png", 64, 48, 24, "yaacc64.png", getIconAsByteArray(R.drawable.yaacc64png, Bitmap.CompressFormat.PNG)));
+        icons.add(new Icon("image/png", 48, 48, 24, "yaacc48.png", getIconAsByteArray(R.drawable.yaacc48png, Bitmap.CompressFormat.PNG)));
+        icons.add(new Icon("image/png", 32, 32, 24, "yaacc32.png", getIconAsByteArray(R.drawable.yaacc32png, Bitmap.CompressFormat.PNG)));
+
+
         return icons.toArray(new Icon[]{});
     }
 
@@ -814,14 +802,14 @@ public class YaaccUpnpServerService extends Service {
                 new ProtocolInfo("http-get:*:application/octet-stream:*"));
     }
 
-    private byte[] getIconAsByteArray(int drawableId) {
+    private byte[] getIconAsByteArray(int drawableId, Bitmap.CompressFormat format) {
 
         Drawable drawable = ResourcesCompat.getDrawable(getResources(), drawableId, getTheme());
         byte[] result = null;
         if (drawable != null) {
             Bitmap bitmap = ((BitmapDrawable) drawable).getBitmap();
             ByteArrayOutputStream stream = new ByteArrayOutputStream();
-            bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream);
+            bitmap.compress(format, 100, stream);
             result = stream.toByteArray();
         }
         return result;

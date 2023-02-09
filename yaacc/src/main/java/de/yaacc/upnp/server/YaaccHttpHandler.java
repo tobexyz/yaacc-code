@@ -39,13 +39,15 @@ import org.apache.hc.core5.http.HttpStatus;
 import org.apache.hc.core5.http.MethodNotSupportedException;
 import org.apache.hc.core5.http.io.HttpRequestHandler;
 import org.apache.hc.core5.http.io.entity.ByteArrayEntity;
-import org.apache.hc.core5.http.io.entity.FileEntity;
+import org.apache.hc.core5.http.io.entity.InputStreamEntity;
 import org.apache.hc.core5.http.io.entity.StringEntity;
 import org.apache.hc.core5.http.protocol.HttpContext;
 import org.seamless.util.MimeType;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -359,12 +361,11 @@ public class YaaccHttpHandler implements HttpRequestHandler {
             return mimeType;
         }
 
-        public HttpEntity getHttpEntity() {
+        public HttpEntity getHttpEntity() throws FileNotFoundException {
             HttpEntity result = null;
             if (getUri() != null && !getUri().equals("")) {
                 File file = new File(getUri());
-
-                result = new FileEntity(file, ContentType.parse(getMimeType().toString()));
+                result = new InputStreamEntity(new FileInputStream(file), ContentType.parse(getMimeType().toString()));
                 Log.d(getClass().getName(), "Return file-Uri: " + getUri()
                         + "Mimetype: " + getMimeType());
             } else if (content != null) {

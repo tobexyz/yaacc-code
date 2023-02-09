@@ -15,9 +15,9 @@
 
 package org.fourthline.cling.transport.impl;
 
-import java.util.logging.Logger;
-import java.util.logging.Level;
+import android.util.Log;
 
+import org.fourthline.cling.model.UnsupportedDataException;
 import org.fourthline.cling.model.message.IncomingDatagramMessage;
 import org.fourthline.cling.model.message.OutgoingDatagramMessage;
 import org.fourthline.cling.model.message.UpnpHeaders;
@@ -25,7 +25,6 @@ import org.fourthline.cling.model.message.UpnpOperation;
 import org.fourthline.cling.model.message.UpnpRequest;
 import org.fourthline.cling.model.message.UpnpResponse;
 import org.fourthline.cling.transport.spi.DatagramProcessor;
-import org.fourthline.cling.model.UnsupportedDataException;
 import org.seamless.http.Headers;
 
 import java.io.ByteArrayInputStream;
@@ -36,22 +35,19 @@ import java.util.Locale;
 
 /**
  * Default implementation.
- * 
+ *
  * @author Christian Bauer
  */
 public class DatagramProcessorImpl implements DatagramProcessor {
-
-    private static Logger log = Logger.getLogger(DatagramProcessor.class.getName());
 
     public IncomingDatagramMessage read(InetAddress receivedOnAddress, DatagramPacket datagram) throws UnsupportedDataException {
 
         try {
 
-            if (log.isLoggable(Level.FINER)) {
-                log.finer("===================================== DATAGRAM BEGIN ============================================");
-                log.finer(new String(datagram.getData(), "UTF-8"));
-                log.finer("-===================================== DATAGRAM END =============================================");
-            }
+            Log.v(getClass().getName(), "===================================== DATAGRAM BEGIN ============================================");
+            Log.v(getClass().getName(), new String(datagram.getData(), "UTF-8"));
+            Log.v(getClass().getName(), "-===================================== DATAGRAM END =============================================");
+
 
             ByteArrayInputStream is = new ByteArrayInputStream(datagram.getData());
 
@@ -96,24 +92,23 @@ public class DatagramProcessorImpl implements DatagramProcessor {
 
         messageData.append(message.getHeaders().toString()).append("\r\n");
 
-        if (log.isLoggable(Level.FINER)) {
-            log.finer("Writing message data for: " + message);
-            log.finer("---------------------------------------------------------------------------------");
-            log.finer(messageData.toString().substring(0, messageData.length() - 2)); // Don't print the blank lines
-            log.finer("---------------------------------------------------------------------------------");
-        }
+        Log.v(getClass().getName(), "Writing message data for: " + message);
+        Log.v(getClass().getName(), "---------------------------------------------------------------------------------");
+        Log.v(getClass().getName(), messageData.toString().substring(0, messageData.length() - 2)); // Don't print the blank lines
+        Log.v(getClass().getName(), "---------------------------------------------------------------------------------");
+
 
         try {
             // According to HTTP 1.0 RFC, headers and their values are US-ASCII
             // TODO: Probably should look into escaping rules, too
             byte[] data = messageData.toString().getBytes("US-ASCII");
 
-            log.fine("Writing new datagram packet with " + data.length + " bytes for: " + message);
+            Log.d(getClass().getName(), "Writing new datagram packet with " + data.length + " bytes for: " + message);
             return new DatagramPacket(data, data.length, message.getDestinationAddress(), message.getDestinationPort());
 
         } catch (UnsupportedEncodingException ex) {
             throw new UnsupportedDataException(
-                "Can't convert message content to US-ASCII: " + ex.getMessage(), ex, messageData
+                    "Can't convert message content to US-ASCII: " + ex.getMessage(), ex, messageData
             );
         }
     }
