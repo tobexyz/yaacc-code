@@ -17,12 +17,15 @@
  */
 package de.yaacc.browser;
 
+import android.app.Activity;
 import android.content.Context;
+import android.content.ContextWrapper;
 import android.net.Uri;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.TextView;
 
@@ -39,6 +42,7 @@ import java.util.LinkedList;
 
 import de.yaacc.R;
 import de.yaacc.upnp.UpnpClient;
+import de.yaacc.util.MediaStoreScanner;
 import de.yaacc.util.ThemeHelper;
 import de.yaacc.util.image.IconDownloadTask;
 
@@ -88,6 +92,8 @@ public class BrowseDeviceAdapter extends RecyclerView.Adapter<BrowseDeviceAdapte
     public void onBindViewHolder(final ViewHolder holder, final int listPosition) {
         Device<?, ?, ?> device = getItem(listPosition);
         if (device instanceof RemoteDevice) {
+            holder.scanButton.setVisibility(View.GONE);
+            holder.scanButtonLabel.setVisibility(View.GONE);
             if (device.hasIcons()) {
                 Icon[] icons = device.getIcons();
                 for (Icon icon : icons) {
@@ -105,6 +111,8 @@ public class BrowseDeviceAdapter extends RecyclerView.Adapter<BrowseDeviceAdapte
             }
         } else if (device instanceof LocalDevice) {
             //We know our icon
+            holder.scanButton.setVisibility(View.VISIBLE);
+            holder.scanButtonLabel.setVisibility(View.VISIBLE);
             holder.icon.setImageResource(R.drawable.yaacc48_24_png);
         }
 
@@ -123,13 +131,32 @@ public class BrowseDeviceAdapter extends RecyclerView.Adapter<BrowseDeviceAdapte
     static class ViewHolder extends RecyclerView.ViewHolder {
         ImageView icon;
         TextView name;
+        ImageButton scanButton;
+        TextView scanButtonLabel;
 
 
         public ViewHolder(View itemView) {
             super(itemView);
             this.icon = (ImageView) itemView.findViewById(R.id.browseDeviceItemIcon);
             this.name = (TextView) itemView.findViewById(R.id.browseDeviceItemName);
+            this.scanButtonLabel = (TextView) itemView.findViewById(R.id.browseDeviceItemMediaStoreScanLabel);
+            this.scanButton = (ImageButton) itemView.findViewById(R.id.browseDeviceItemRescan);
+            scanButton.setOnClickListener((v) -> {
+                new MediaStoreScanner().scanMediaFiles(getActivity(v.getContext()));
+            });
+        }
+
+        private Activity getActivity(Context ctx) {
+            Context context = ctx;
+            while (context instanceof ContextWrapper) {
+                if (context instanceof Activity) {
+                    return (Activity) context;
+                }
+                context = ((ContextWrapper) context).getBaseContext();
+            }
+            return null;
         }
     }
+
 
 }

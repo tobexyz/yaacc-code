@@ -114,6 +114,10 @@
     <string name="settings_log_level">Log level</string>
     <string name="settings_local_server_provider_uuid_key">settings_local_server_provider_uuid_key</string>
     <string name="settings_local_server_receiver_uuid_key">settings_local_server_receiver_uuid_key</string>
+    <string name="media_store_scanner_scan_triggered">media store scan triggered</string>
+    <string name="media_store_scanner_scan_finished">media store scan finished</string>
+    <string name="media_store_scan">scan</string>
+    <string name="media_store_label">media store</string>
 
 
 </resources>

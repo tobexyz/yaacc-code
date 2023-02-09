@@ -49,6 +49,7 @@ public class ServerListFragment extends Fragment implements
     private RecyclerView contentList;
     private BrowseDeviceAdapter bDeviceAdapter;
 
+
     /**
      * load app preferences
      *
@@ -93,7 +94,6 @@ public class ServerListFragment extends Fragment implements
 
         }
     }
-
 
     /**
      * Refreshes the shown devices when device is added.

@@ -26,7 +26,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         app:cardCornerRadius="6dp"
-       
+
         app:cardUseCompatPadding="true"
         app:contentPadding="5dp">
 
@@ -56,6 +56,33 @@
                     android:text="@string/all"
                     android:textAppearance="@android:style/TextAppearance.DeviceDefault.Large"
                     android:textColor="?android:attr/colorForeground" />
+            </LinearLayout>
+
+
+            <TextView
+                android:id="@+id/browseDeviceItemMediaStoreScanLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="end"
+                android:text="@string/media_store_label"
+                android:textAppearance="?android:attr/textAppearanceMedium"
+                android:textColor="?android:attr/colorForeground"
+                android:visibility="gone" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="end"
+                android:orientation="horizontal">
+
+                <ImageButton
+                    android:id="@+id/browseDeviceItemRescan"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="2dp"
+                    android:contentDescription="@string/media_store_scan"
+                    android:visibility="gone"
+                    app:srcCompat="@drawable/ic_baseline_refresh_32" />
             </LinearLayout>
         </LinearLayout>
     </androidx.cardview.widget.CardView>
