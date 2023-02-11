@@ -210,18 +210,12 @@ public class BackgroundMusicService extends Service {
             player = new MediaPlayer();
         }
         player.setWakeMode(getApplicationContext(), PowerManager.PARTIAL_WAKE_LOCK);
-        player.setOnErrorListener(new MediaPlayer.OnErrorListener() {
-            @Override
-            public boolean onError(MediaPlayer mediaPlayer, int what, int extra) {
-                Log.e(getClass().getName(), "Error in State  " + what + " extra: " + extra);
-                return false;
-            }
+        player.setOnErrorListener((MediaPlayer mediaPlayer, int what, int extra) -> {
+            Log.e(getClass().getName(), "Error in State  " + what + " extra: " + extra);
+            return false;
         });
-        player.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
-            @Override
-            public void onCompletion(MediaPlayer mp) {
-                serviceListener.stream().forEach(it -> it.onCompletion());
-            }
+        player.setOnCompletionListener((mp) -> {
+            serviceListener.stream().forEach(it -> it.onCompletion());
         });
         player.setVolume(100, 100);
 

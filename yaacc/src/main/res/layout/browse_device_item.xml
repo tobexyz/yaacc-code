@@ -52,7 +52,8 @@
                     android:id="@+id/browseDeviceItemName"
                     android:layout_width="fill_parent"
                     android:layout_height="match_parent"
-                    android:gravity="center_vertical"
+                    android:layout_marginLeft="5dp"
+                    android:gravity="left"
                     android:text="@string/all"
                     android:textAppearance="@android:style/TextAppearance.DeviceDefault.Large"
                     android:textColor="?android:attr/colorForeground" />

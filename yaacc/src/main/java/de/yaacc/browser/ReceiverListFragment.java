@@ -31,6 +31,8 @@ import android.widget.AdapterView;
 import android.widget.ListView;
 
 import androidx.fragment.app.Fragment;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
 import org.fourthline.cling.model.meta.Device;
 
@@ -51,8 +53,7 @@ import de.yaacc.util.image.IconDownloadCacheHandler;
 public class ReceiverListFragment extends Fragment implements
         UpnpClientListener, OnBackPressedListener {
     private static final String RECEIVER_LIST_NAVIGATOR = "RECEIVER_LIST_NAVIGATOR";
-    protected ListView contentList;
-    BrowseReceiverDeviceClickListener bReceiverDeviceClickListener = null;
+    protected RecyclerView contentList;
     private UpnpClient upnpClient = null;
     private Device selectedDevice = null;
 
@@ -73,8 +74,8 @@ public class ReceiverListFragment extends Fragment implements
     private void init(Bundle savedInstanceState, View view) {
 
         upnpClient = ((Yaacc) getActivity().getApplicationContext()).getUpnpClient();
-        bReceiverDeviceClickListener = new BrowseReceiverDeviceClickListener();
-        contentList = (ListView) view.findViewById(R.id.receiverList);
+        contentList = (RecyclerView) view.findViewById(R.id.receiverList);
+        contentList.setLayoutManager(new LinearLayoutManager(getActivity()));
         registerForContextMenu(contentList);
         upnpClient.addUpnpClientListener(this);
         Thread thread = new Thread(new Runnable() {
@@ -121,12 +122,10 @@ public class ReceiverListFragment extends Fragment implements
         getActivity().runOnUiThread(new Runnable() {
             public void run() {
 // Define where to show the folder contents
-                ListView deviceList = contentList;
-                deviceList.setChoiceMode(ListView.CHOICE_MODE_MULTIPLE);
+                RecyclerView deviceList = contentList;
                 LinkedList<Device<?, ?, ?>> receiverDevices = new LinkedList<>(upnpClient.getDevicesProvidingAvTransportService());
-                BrowseReceiverDeviceAdapter bDeviceAdapter = new BrowseReceiverDeviceAdapter(getActivity(), receiverDevices, upnpClient.getReceiverDevices());
+                BrowseReceiverDeviceAdapter bDeviceAdapter = new BrowseReceiverDeviceAdapter(getActivity(), deviceList, upnpClient, receiverDevices, upnpClient.getReceiverDevices());
                 deviceList.setAdapter(bDeviceAdapter);
-                deviceList.setOnItemClickListener(bReceiverDeviceClickListener);
             }
         });
     }

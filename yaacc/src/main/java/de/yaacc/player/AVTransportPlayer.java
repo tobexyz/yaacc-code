@@ -39,10 +39,6 @@ import org.fourthline.cling.support.model.DIDLContent;
 import org.fourthline.cling.support.model.DIDLObject;
 import org.fourthline.cling.support.model.PositionInfo;
 import org.fourthline.cling.support.model.item.Item;
-import org.fourthline.cling.support.renderingcontrol.callback.GetMute;
-import org.fourthline.cling.support.renderingcontrol.callback.GetVolume;
-import org.fourthline.cling.support.renderingcontrol.callback.SetMute;
-import org.fourthline.cling.support.renderingcontrol.callback.SetVolume;
 
 import java.net.URI;
 import java.net.URL;
@@ -55,8 +51,8 @@ import java.util.UUID;
 
 import de.yaacc.R;
 import de.yaacc.Yaacc;
+import de.yaacc.upnp.ActionState;
 import de.yaacc.upnp.UpnpClient;
-import de.yaacc.util.Watchdog;
 import de.yaacc.util.image.ImageDownloader;
 
 /**
@@ -357,60 +353,7 @@ public class AVTransportPlayer extends AbstractPlayer {
                             + deviceId);
             return false;
         }
-        Service<?, ?> service = getUpnpClient().getRenderingControlService(getDevice());
-        if (service == null) {
-            Log.d(getClass().getName(),
-                    "No AVTransport-Service found on Device: "
-                            + getDevice().getDisplayString());
-            return false;
-        }
-        Log.d(getClass().getName(), "Action get Mute ");
-        final ActionState actionState = new ActionState();
-        actionState.actionFinished = false;
-        GetMute actionCallback = new GetMute(service) {
-            @Override
-            public void failure(ActionInvocation actioninvocation,
-                                UpnpResponse upnpresponse, String s) {
-                Log.d(getClass().getName(), "Failure UpnpResponse: "
-                        + upnpresponse);
-                Log.d(getClass().getName(),
-                        upnpresponse != null ? "UpnpResponse: "
-                                + upnpresponse.getResponseDetails() : "");
-                Log.d(getClass().getName(), "s: " + s);
-                actionState.actionFinished = true;
-            }
-
-            @Override
-            public void success(ActionInvocation actioninvocation) {
-                super.success(actioninvocation);
-                actionState.actionFinished = true;
-            }
-
-            @Override
-            public void received(ActionInvocation actionInvocation, boolean currentMute) {
-                actionState.result = currentMute;
-
-            }
-        };
-        getUpnpClient().getControlPoint().execute(actionCallback);
-        Watchdog watchdog = Watchdog.createWatchdog(10000L);
-        watchdog.start();
-
-        int i = 0;
-        while (!actionState.actionFinished && !watchdog.hasTimeout()) {
-            //active wait
-            i++;
-            if (i == 100000) {
-                Log.d(getClass().getName(), "wait for action finished ");
-                i = 0;
-            }
-        }
-        if (watchdog.hasTimeout()) {
-            Log.d(getClass().getName(), "Timeout occurred");
-        } else {
-            watchdog.cancel();
-        }
-        return actionState.result != null && (Boolean) actionState.result;
+        return getUpnpClient().getMute(getDevice());
     }
 
     public void setMute(boolean mute) {
@@ -420,36 +363,7 @@ public class AVTransportPlayer extends AbstractPlayer {
                             + deviceId);
             return;
         }
-        Service<?, ?> service = getUpnpClient().getRenderingControlService(getDevice());
-        if (service == null) {
-            Log.d(getClass().getName(),
-                    "No AVTransport-Service found on Device: "
-                            + getDevice().getDisplayString());
-            return;
-        }
-        Log.d(getClass().getName(), "Action set Mute ");
-        final ActionState actionState = new ActionState();
-        actionState.actionFinished = false;
-        SetMute actionCallback = new SetMute(service, mute) {
-            @Override
-            public void failure(ActionInvocation actioninvocation,
-                                UpnpResponse upnpresponse, String s) {
-                Log.d(getClass().getName(), "Failure UpnpResponse: "
-                        + upnpresponse);
-                Log.d(getClass().getName(),
-                        upnpresponse != null ? "UpnpResponse: "
-                                + upnpresponse.getResponseDetails() : "");
-                Log.d(getClass().getName(), "s: " + s);
-                actionState.actionFinished = true;
-            }
-
-            @Override
-            public void success(ActionInvocation actioninvocation) {
-                super.success(actioninvocation);
-                actionState.actionFinished = true;
-            }
-        };
-        getUpnpClient().getControlPoint().execute(actionCallback);
+        getUpnpClient().setMute(getDevice(), mute);
     }
 
     public int getVolume() {
@@ -459,61 +373,7 @@ public class AVTransportPlayer extends AbstractPlayer {
                             + deviceId);
             return 0;
         }
-        Service<?, ?> service = getUpnpClient().getRenderingControlService(getDevice());
-        if (service == null) {
-            Log.d(getClass().getName(),
-                    "No RenderingControl-Service found on Device: "
-                            + getDevice().getDisplayString());
-            return 0;
-        }
-        Log.d(getClass().getName(), "Action get Volume ");
-        final ActionState actionState = new ActionState();
-        actionState.actionFinished = false;
-        GetVolume actionCallback = new GetVolume(service) {
-            @Override
-            public void failure(ActionInvocation actioninvocation,
-                                UpnpResponse upnpresponse, String s) {
-                Log.d(getClass().getName(), "Failure UpnpResponse: "
-                        + upnpresponse);
-                Log.d(getClass().getName(),
-                        upnpresponse != null ? "UpnpResponse: "
-                                + upnpresponse.getResponseDetails() : "");
-                Log.d(getClass().getName(), "s: " + s);
-                actionState.actionFinished = true;
-            }
-
-            @Override
-            public void success(ActionInvocation actioninvocation) {
-                super.success(actioninvocation);
-                actionState.actionFinished = true;
-            }
-
-            @Override
-            public void received(ActionInvocation actionInvocation, int currentVolume) {
-                actionState.result = currentVolume;
-
-            }
-        };
-
-        getUpnpClient().getControlPoint().execute(actionCallback);
-        Watchdog watchdog = Watchdog.createWatchdog(10000L);
-        watchdog.start();
-        int i = 0;
-        while (!actionState.actionFinished && !watchdog.hasTimeout()) {
-            //active wait
-            i++;
-            if (i == 100000) {
-                Log.d(getClass().getName(), "wait for action finished ");
-                i = 0;
-            }
-        }
-        if (watchdog.hasTimeout()) {
-            Log.d(getClass().getName(), "Timeout occurred");
-        } else {
-            watchdog.cancel();
-        }
-        return actionState.result == null ? 0 : (Integer) actionState.result;
-
+        return getUpnpClient().getVolume(getDevice());
     }
 
     public void setVolume(int volume) {
@@ -523,36 +383,7 @@ public class AVTransportPlayer extends AbstractPlayer {
                             + deviceId);
             return;
         }
-        Service<?, ?> service = getUpnpClient().getRenderingControlService(getDevice());
-        if (service == null) {
-            Log.d(getClass().getName(),
-                    "No RenderingControl-Service found on Device: "
-                            + getDevice().getDisplayString());
-            return;
-        }
-        Log.d(getClass().getName(), "Action set Volume ");
-        final ActionState actionState = new ActionState();
-        actionState.actionFinished = false;
-        SetVolume actionCallback = new SetVolume(service, volume) {
-            @Override
-            public void failure(ActionInvocation actioninvocation,
-                                UpnpResponse upnpresponse, String s) {
-                Log.d(getClass().getName(), "Failure UpnpResponse: "
-                        + upnpresponse);
-                Log.d(getClass().getName(),
-                        upnpresponse != null ? "UpnpResponse: "
-                                + upnpresponse.getResponseDetails() : "");
-                Log.d(getClass().getName(), "s: " + s);
-                actionState.actionFinished = true;
-            }
-
-            @Override
-            public void success(ActionInvocation actioninvocation) {
-                super.success(actioninvocation);
-                actionState.actionFinished = true;
-            }
-        };
-        getUpnpClient().getControlPoint().execute(actionCallback);
+        getUpnpClient().setVolume(getDevice(), volume);
     }
 
 
@@ -797,9 +628,4 @@ public class AVTransportPlayer extends AbstractPlayer {
         }
     }
 
-    protected static class ActionState {
-        public boolean actionFinished = false;
-        public boolean watchdogFlag = false;
-        public Object result = null;
-    }
 }
