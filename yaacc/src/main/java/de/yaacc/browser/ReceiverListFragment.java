@@ -21,14 +21,9 @@ import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
 import android.util.Log;
-import android.view.ContextMenu;
 import android.view.LayoutInflater;
-import android.view.Menu;
-import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.AdapterView;
-import android.widget.ListView;
 
 import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -36,7 +31,6 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import org.fourthline.cling.model.meta.Device;
 
-import java.util.ArrayList;
 import java.util.LinkedList;
 
 import de.yaacc.R;
@@ -56,6 +50,7 @@ public class ReceiverListFragment extends Fragment implements
     protected RecyclerView contentList;
     private UpnpClient upnpClient = null;
     private Device selectedDevice = null;
+    private BrowseReceiverDeviceAdapter bDeviceAdapter;
 
     @Override
     public void onResume() {
@@ -76,7 +71,6 @@ public class ReceiverListFragment extends Fragment implements
         upnpClient = ((Yaacc) getActivity().getApplicationContext()).getUpnpClient();
         contentList = (RecyclerView) view.findViewById(R.id.receiverList);
         contentList.setLayoutManager(new LinearLayoutManager(getActivity()));
-        registerForContextMenu(contentList);
         upnpClient.addUpnpClientListener(this);
         Thread thread = new Thread(new Runnable() {
 
@@ -121,11 +115,15 @@ public class ReceiverListFragment extends Fragment implements
         IconDownloadCacheHandler.getInstance().resetCache();
         getActivity().runOnUiThread(new Runnable() {
             public void run() {
-// Define where to show the folder contents
-                RecyclerView deviceList = contentList;
                 LinkedList<Device<?, ?, ?>> receiverDevices = new LinkedList<>(upnpClient.getDevicesProvidingAvTransportService());
-                BrowseReceiverDeviceAdapter bDeviceAdapter = new BrowseReceiverDeviceAdapter(getActivity(), deviceList, upnpClient, receiverDevices, upnpClient.getReceiverDevices());
-                deviceList.setAdapter(bDeviceAdapter);
+                if (bDeviceAdapter == null) {
+                    bDeviceAdapter = new BrowseReceiverDeviceAdapter(getActivity(), contentList, upnpClient, receiverDevices, upnpClient.getReceiverDevices());
+                    contentList.setAdapter(bDeviceAdapter);
+                } else {
+                    bDeviceAdapter.setDevices(receiverDevices);
+                }
+
+
             }
         });
     }
@@ -157,38 +155,6 @@ public class ReceiverListFragment extends Fragment implements
     @Override
     public void deviceUpdated(Device<?, ?, ?> device) {
 
-    }
-
-    /**
-     * Creates context menu for certain actions on a specific item.
-     */
-    @Override
-    public void onCreateContextMenu(ContextMenu menu, View v,
-                                    ContextMenu.ContextMenuInfo menuInfo) {
-        AdapterView.AdapterContextMenuInfo info = (AdapterView.AdapterContextMenuInfo) menuInfo;
-        if (v instanceof ListView) {
-            ListView listView = (ListView) v;
-            Object item = listView.getAdapter().getItem(info.position);
-            if (item instanceof Device) {
-                selectedDevice = (Device) item;
-            }
-        }
-        menu.setHeaderTitle(v.getContext().getString(
-                R.string.browse_context_title));
-        ArrayList<String> menuItems = new ArrayList<String>();
-        menuItems.add(v.getContext().getString(R.string.browse_context_control_device));
-        for (int i = 0; i < menuItems.size(); i++) {
-            menu.add(Menu.NONE, i, i, menuItems.get(i));
-        }
-    }
-
-    @Override
-    public boolean onContextItemSelected(MenuItem item) {
-        if (item.getTitle().equals(getActivity().getApplication().getString(R.string.browse_context_control_device))) {
-            upnpClient.controlDevice(selectedDevice);
-        }
-
-        return true;
     }
 
     @Override
