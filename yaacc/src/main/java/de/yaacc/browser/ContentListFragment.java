@@ -29,19 +29,26 @@ import android.view.View.OnClickListener;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.ListView;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.fragment.app.Fragment;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
 import org.fourthline.cling.model.meta.Device;
 import org.fourthline.cling.support.model.DIDLObject;
+import org.fourthline.cling.support.model.item.Item;
 
 import java.util.ArrayList;
+import java.util.List;
 
 import de.yaacc.R;
 import de.yaacc.Yaacc;
+import de.yaacc.player.Player;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.UpnpClientListener;
+import de.yaacc.upnp.callback.contentdirectory.ContentDirectoryBrowseResult;
 
 /**
  * Activity for browsing devices and folders. Represents the entrypoint for the whole application.
@@ -51,8 +58,7 @@ import de.yaacc.upnp.UpnpClientListener;
 public class ContentListFragment extends Fragment implements OnClickListener,
         UpnpClientListener, OnBackPressedListener {
     public static final String CONTENT_LIST_NAVIGATOR = "CONTENT_LIST_NAVIGATOR";
-    protected ListView contentList;
-    ContentListClickListener bItemClickListener = null;
+    protected RecyclerView contentList;
     private UpnpClient upnpClient = null;
     private BrowseContentItemAdapter bItemAdapter;
     private DIDLObject selectedDIDLObject;
@@ -62,11 +68,10 @@ public class ContentListFragment extends Fragment implements OnClickListener,
     @Override
     public void onResume() {
         super.onResume();
-        bItemClickListener = new ContentListClickListener(upnpClient, this);
         Thread thread = new Thread(() -> {
             if (upnpClient.getProviderDevice() != null) {
                 if (navigator != null && navigator.getCurrentPosition().getDeviceId() != null) {
-                    populateItemList();
+                    populateItemList(false);
                 } else {
                     showMainFolder();
                 }
@@ -77,31 +82,13 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         });
         thread.start();
     }
-
-    /*FIXME
-    @Override
-    protected void onRestart() {
-        super.onRestart();
-        bItemClickListener = new ContentListClickListener(upnpClient, this);
-        if (upnpClient.getProviderDevice() != null) {
-            if(navigator != null){
-                populateItemList();
-            }else {
-                showMainFolder();
-            }
-        } else {
-
-            clearItemList();
-        }
-    }
-*/
+    
     private void init(Bundle savedInstanceState, View contentlistView) {
         upnpClient = ((Yaacc) requireActivity().getApplicationContext()).getUpnpClient();
-        contentList = (ListView) contentlistView.findViewById(R.id.contentList);
-        contentList.setFastScrollEnabled(true);
+        contentList = (RecyclerView) contentlistView.findViewById(R.id.contentList);
+        contentList.setLayoutManager(new LinearLayoutManager(getActivity()));
         registerForContextMenu(contentList);
         upnpClient.addUpnpClientListener(this);
-        bItemClickListener = new ContentListClickListener(upnpClient, this);
         Thread thread = new Thread(() -> {
             if (upnpClient.getProviderDevice() != null) {
                 if (savedInstanceState == null || savedInstanceState.getSerializable(CONTENT_LIST_NAVIGATOR) == null) {
@@ -109,7 +96,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
                     showMainFolder();
                 } else {
                     navigator = (Navigator) savedInstanceState.getSerializable(CONTENT_LIST_NAVIGATOR);
-                    populateItemList();
+                    populateItemList(true);
                 }
             } else {
 
@@ -134,18 +121,32 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         navigator = new Navigator();
         Position pos = new Position(Navigator.ITEM_ROOT_OBJECT_ID, upnpClient.getProviderDevice().getIdentity().getUdn().getIdentifierString());
         navigator.pushPosition(pos);
-        populateItemList();
+        populateItemList(true);
     }
 
     @Override
     public void onClick(View v) {
-        populateItemList();
+        populateItemList(false);
     }
 
     @Override
     public boolean onContextItemSelected(@NonNull MenuItem item) {
-        return bItemClickListener.onContextItemSelected(selectedDIDLObject,
-                item, requireActivity().getApplicationContext());
+        if (item.getTitle().equals(getString(R.string.browse_context_play))) {
+            new ContentItemPlayTask(this, selectedDIDLObject).execute(ContentItemPlayTask.PLAY_CURRENT);
+        } else if (item.getTitle().equals(getString(R.string.browse_context_play_all))) {
+            new ContentItemPlayTask(this, selectedDIDLObject).execute(ContentItemPlayTask.PLAY_ALL);
+        } else if (item.getTitle().equals(getString(R.string.browse_context_download))) {
+            try {
+                upnpClient.downloadItem(selectedDIDLObject);
+            } catch (Exception ex) {
+                Toast toast = Toast.makeText(getActivity(), "Can't download item: " + ex.getMessage(), Toast.LENGTH_SHORT);
+                toast.show();
+            }
+        } else {
+            Toast toast = Toast.makeText(getActivity(), "Magic key pressed (Neither implemented nor defined ;))", Toast.LENGTH_SHORT);
+            toast.show();
+        }
+        return true;
     }
 
     @Override
@@ -171,24 +172,30 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         } else {
             //Fixme: Cache should store information for different folders....
             //IconDownloadCacheHandler.getInstance().resetCache();
-            final ListView itemList = contentList;
+            final RecyclerView itemList = contentList;
             navigator.popPosition(); // First pop is our
             // currentPosition
             initBrowsItemAdapter(itemList);
-            ContentListClickListener bItemClickListener = new ContentListClickListener(upnpClient, ContentListFragment.this);
-            itemList.setOnItemClickListener(bItemClickListener);
+            bItemAdapter.clear();
+            bItemAdapter.loadMore();
+
         }
         return true;
     }
 
 
-    private void initBrowsItemAdapter(ListView itemList) {
-        bItemAdapter = new BrowseContentItemAdapter(getActivity(), navigator);
-        itemList.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
-        itemList.setAdapter(bItemAdapter);
-        itemList.setOnScrollListener(bItemAdapter);
-        itemList.deferNotifyDataSetChanged();
-
+    private void initBrowsItemAdapter(RecyclerView itemList) {
+        if (bItemAdapter == null) {
+            bItemAdapter = new BrowseContentItemAdapter(this, itemList, upnpClient, navigator);
+            itemList.setAdapter(bItemAdapter);
+            itemList.addOnScrollListener(new RecyclerView.OnScrollListener() {
+                @Override
+                public void onScrolled(@NonNull RecyclerView recyclerView, int dx, int dy) {
+                    super.onScrolled(recyclerView, dx, dy);
+                    bItemAdapter.loadMore();
+                }
+            });
+        }
     }
 
     /**
@@ -222,15 +229,16 @@ public class ContentListFragment extends Fragment implements OnClickListener,
      * Selects the place in the UI where the items are shown and renders the
      * content directory
      */
-    public void populateItemList() {
+    public void populateItemList(boolean clear) {
 
-        //IconDownloadCacheHandler.getInstance().resetCache();
+
         requireActivity().runOnUiThread(() -> {
             if (bItemAdapter != null) {
                 bItemAdapter.cancelRunningTasks();
             }
             initBrowsItemAdapter(contentList);
-            contentList.setOnItemClickListener(bItemClickListener);
+            if (clear) bItemAdapter.clear();
+            bItemAdapter.loadMore();
         });
     }
 
@@ -239,10 +247,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
             navigator = new Navigator();
             Position pos = new Position(Navigator.ITEM_ROOT_OBJECT_ID, null);
             navigator.pushPosition(pos);
-            bItemAdapter = new BrowseContentItemAdapter(requireActivity().getApplicationContext(), navigator);
-            contentList.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
-            contentList.setAdapter(bItemAdapter);
-            contentList.setOnItemClickListener(bItemClickListener);
+            bItemAdapter.clear();
         });
     }
 
@@ -293,5 +298,44 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         return v;
     }
 
+    public void playItem(DIDLObject item) {
+        play(upnpClient.initializePlayers(item));
+    }
+
+    public void playAllChildsOfParentFrom(DIDLObject item) {
+        if (item == null) {
+            return;
+        }
+        ContentDirectoryBrowseResult result = upnpClient.browseSync(new Position(item.getParentID(), upnpClient.getProviderDevice().getIdentity().getUdn().getIdentifierString()));
+        if (result == null || (result.getResult() != null && result.getResult().getItems().size() == 0)) {
+            Log.d(getClass().getName(), "Browse result of parent no direct items found...");
+            if (result != null && result.getResult() != null && result.getResult().getContainers().size() > 0) {
+                play(upnpClient.initializePlayers(upnpClient.toItemList(result.getResult())));
+            } else {
+                play(upnpClient.initializePlayers(item));
+            }
+        } else {
+            List<Item> items = result.getResult() == null ? new ArrayList<>() : result.getResult().getItems();
+            Log.d(getClass().getName(), "Browse result items: " + items.size());
+            int index = items.indexOf(item);
+            if (index > 0) {
+                //sort selected item to the beginning
+                List<Item> tempItems = new ArrayList<>(items.subList(index, items.size()));
+                tempItems.addAll(items.subList(0, index));
+                items = tempItems;
+            }
+
+            play(upnpClient.initializePlayers(items));
+        }
+    }
+
+
+    private void play(List<Player> players) {
+        for (Player player : players) {
+            if (player != null) {
+                player.play();
+            }
+        }
+    }
 }
 

@@ -54,13 +54,13 @@ public class BrowseItemLoadTask extends AsyncTask<Long, Integer, ContentDirector
         if (result == null)
             return;
         itemAdapter.removeLoadMoreItem();
-        int previousItemCount = itemAdapter.getCount();
+        int previousItemCount = itemAdapter.getItemCount();
         DIDLContent content = result.getResult();
         if (content != null) {
             // Add all children in two steps to get containers first
             itemAdapter.addAll(content.getContainers());
             itemAdapter.addAll(content.getItems());
-            boolean allItemsFetched = chunkSize != (itemAdapter.getCount() - previousItemCount);
+            boolean allItemsFetched = chunkSize != (itemAdapter.getItemCount() - previousItemCount);
             itemAdapter.setAllItemsFetched(allItemsFetched);
             if (!allItemsFetched) {
                 itemAdapter.addLoadMoreItem();

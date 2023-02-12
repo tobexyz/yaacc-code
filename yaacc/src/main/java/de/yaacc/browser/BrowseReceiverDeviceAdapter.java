@@ -103,7 +103,6 @@ public class BrowseReceiverDeviceAdapter extends RecyclerView.Adapter<BrowseRece
                             Log.d(getClass().getName(), "Device icon uri:" + iconUri);
                             new IconDownloadTask(holder.icon).execute(Uri.parse(iconUri.toString()));
                             break;
-
                         }
                     }
                 }

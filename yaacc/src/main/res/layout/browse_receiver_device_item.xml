@@ -18,7 +18,6 @@
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical">
@@ -39,9 +38,7 @@
                 android:id="@+id/browseReceiverDeviceItemIcon"
                 android:layout_width="48dp"
                 android:layout_height="48dp"
-                android:contentDescription="@string/icon"
-                app:srcCompat="@drawable/ic_baseline_devices_48"
-                tools:srcCompat="@drawable/ic_baseline_devices_48" />
+                android:contentDescription="@string/icon" />
 
 
             <TextView
