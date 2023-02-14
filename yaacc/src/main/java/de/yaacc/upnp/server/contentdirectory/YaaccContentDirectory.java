@@ -357,12 +357,19 @@ public class YaaccContentDirectory {
                 if (didlObject instanceof Container) {
                     Container container = (Container) didlObject;
                     childCount = container.getChildCount();
-                    for (Item item : container.getItems()) {
-                        didl.addItem(item);
+                    List<DIDLObject> allChilds = new ArrayList<>();
+                    allChilds.addAll(container.getItems());
+                    allChilds.addAll(container.getContainers());
+                    for (int i = 0; i < allChilds.size(); i++) {
+                        if (i >= firstResult) {
+                            if (allChilds.get(i) instanceof Item) {
+                                didl.addItem((Item) allChilds.get(i));
+                            } else {
+                                didl.addContainer((Container) allChilds.get(i));
+                            }
+                        }
                     }
-                    for (Container cont : container.getContainers()) {
-                        didl.addContainer(cont);
-                    }
+
                 } else {
                     didl.addObject(didlObject);
                     childCount = 1;

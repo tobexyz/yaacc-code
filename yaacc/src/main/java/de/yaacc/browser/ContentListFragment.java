@@ -19,17 +19,12 @@ package de.yaacc.browser;
 
 import android.os.Bundle;
 import android.util.Log;
-import android.view.ContextMenu;
-import android.view.ContextMenu.ContextMenuInfo;
 import android.view.LayoutInflater;
-import android.view.Menu;
-import android.view.MenuItem;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.view.ViewGroup;
-import android.widget.AdapterView;
-import android.widget.ListView;
-import android.widget.Toast;
+import android.widget.ImageButton;
+import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.fragment.app.Fragment;
@@ -61,8 +56,9 @@ public class ContentListFragment extends Fragment implements OnClickListener,
     protected RecyclerView contentList;
     private UpnpClient upnpClient = null;
     private BrowseContentItemAdapter bItemAdapter;
-    private DIDLObject selectedDIDLObject;
     private Navigator navigator = null;
+    private ImageButton backButton;
+    private TextView currentFolderNameView;
 
 
     @Override
@@ -70,7 +66,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         super.onResume();
         Thread thread = new Thread(() -> {
             if (upnpClient.getProviderDevice() != null) {
-                if (navigator != null && navigator.getCurrentPosition().getDeviceId() != null) {
+                if (navigator != null && navigator.getCurrentPosition().getDeviceId() != null && upnpClient.getProviderDevice().getIdentity().getUdn().getIdentifierString().equals(navigator.getCurrentPosition().getDeviceId())) {
                     populateItemList(false);
                 } else {
                     showMainFolder();
@@ -82,12 +78,16 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         });
         thread.start();
     }
-    
+
     private void init(Bundle savedInstanceState, View contentlistView) {
         upnpClient = ((Yaacc) requireActivity().getApplicationContext()).getUpnpClient();
+        backButton = (ImageButton) contentlistView.findViewById(R.id.contentListBackButton);
+        backButton.setOnClickListener((v) -> {
+            onBackPressed();
+        });
+        currentFolderNameView = (TextView) contentlistView.findViewById(R.id.contentListCurrentFolderName);
         contentList = (RecyclerView) contentlistView.findViewById(R.id.contentList);
         contentList.setLayoutManager(new LinearLayoutManager(getActivity()));
-        registerForContextMenu(contentList);
         upnpClient.addUpnpClientListener(this);
         Thread thread = new Thread(() -> {
             if (upnpClient.getProviderDevice() != null) {
@@ -118,8 +118,11 @@ public class ContentListFragment extends Fragment implements OnClickListener,
      * Tries to populate the browsing area if a providing device is configured
      */
     private void showMainFolder() {
+        backButton.setVisibility(View.GONE);
+        currentFolderNameView.setVisibility(View.GONE);
+        currentFolderNameView.setText("");
         navigator = new Navigator();
-        Position pos = new Position(Navigator.ITEM_ROOT_OBJECT_ID, upnpClient.getProviderDevice().getIdentity().getUdn().getIdentifierString());
+        Position pos = new Position(Navigator.ITEM_ROOT_OBJECT_ID, upnpClient.getProviderDevice().getIdentity().getUdn().getIdentifierString(), "");
         navigator.pushPosition(pos);
         populateItemList(true);
     }
@@ -129,25 +132,6 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         populateItemList(false);
     }
 
-    @Override
-    public boolean onContextItemSelected(@NonNull MenuItem item) {
-        if (item.getTitle().equals(getString(R.string.browse_context_play))) {
-            new ContentItemPlayTask(this, selectedDIDLObject).execute(ContentItemPlayTask.PLAY_CURRENT);
-        } else if (item.getTitle().equals(getString(R.string.browse_context_play_all))) {
-            new ContentItemPlayTask(this, selectedDIDLObject).execute(ContentItemPlayTask.PLAY_ALL);
-        } else if (item.getTitle().equals(getString(R.string.browse_context_download))) {
-            try {
-                upnpClient.downloadItem(selectedDIDLObject);
-            } catch (Exception ex) {
-                Toast toast = Toast.makeText(getActivity(), "Can't download item: " + ex.getMessage(), Toast.LENGTH_SHORT);
-                toast.show();
-            }
-        } else {
-            Toast toast = Toast.makeText(getActivity(), "Magic key pressed (Neither implemented nor defined ;))", Toast.LENGTH_SHORT);
-            toast.show();
-        }
-        return true;
-    }
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -160,11 +144,19 @@ public class ContentListFragment extends Fragment implements OnClickListener,
     public boolean onBackPressed() {
 
         Log.d(ContentListFragment.class.getName(), "onBackPressed() CurrentPosition: " + navigator.getCurrentPosition());
+
         if (bItemAdapter != null) {
             bItemAdapter.cancelRunningTasks();
         }
         String currentObjectId = navigator.getCurrentPosition() == null ? Navigator.ITEM_ROOT_OBJECT_ID : navigator.getCurrentPosition().getObjectId();
         if (Navigator.ITEM_ROOT_OBJECT_ID.equals(currentObjectId)) {
+            getActivity().runOnUiThread(() -> {
+                        backButton.setVisibility(View.GONE);
+                        currentFolderNameView.setVisibility(View.GONE);
+                        currentFolderNameView.setText("");
+                    }
+
+            );
             if (requireActivity().getParent() instanceof TabBrowserActivity) {
                 ((TabBrowserActivity) requireActivity().getParent()).setCurrentTab(BrowserTabs.SERVER);
             }
@@ -174,6 +166,11 @@ public class ContentListFragment extends Fragment implements OnClickListener,
             //IconDownloadCacheHandler.getInstance().resetCache();
             final RecyclerView itemList = contentList;
             navigator.popPosition(); // First pop is our
+            getActivity().runOnUiThread(() -> {
+                backButton.setVisibility(View.VISIBLE);
+                currentFolderNameView.setVisibility(View.VISIBLE);
+                currentFolderNameView.setText("");
+            });
             // currentPosition
             initBrowsItemAdapter(itemList);
             bItemAdapter.clear();
@@ -192,47 +189,23 @@ public class ContentListFragment extends Fragment implements OnClickListener,
                 @Override
                 public void onScrolled(@NonNull RecyclerView recyclerView, int dx, int dy) {
                     super.onScrolled(recyclerView, dx, dy);
+                    Log.d(getClass().getName(), "scroll int dx, int dy" + dx + ", " + dy);
                     bItemAdapter.loadMore();
                 }
             });
         }
     }
 
-    /**
-     * Creates context menu for certain actions on a specific item.
-     */
-    @Override
-    public void onCreateContextMenu(@NonNull ContextMenu menu, @NonNull View v,
-                                    ContextMenuInfo menuInfo) {
-        AdapterView.AdapterContextMenuInfo info = (AdapterView.AdapterContextMenuInfo) menuInfo;
-        if (v instanceof ListView) {
-            ListView listView = (ListView) v;
-            Object item = listView.getAdapter().getItem(info.position);
-            if (item instanceof DIDLObject) {
-                selectedDIDLObject = (DIDLObject) item;
-            }
-        }
-        menu.setHeaderTitle(v.getContext().getString(
-                R.string.browse_context_title));
-        ArrayList<String> menuItems = new ArrayList<>();
-        menuItems.add(v.getContext().getString(R.string.browse_context_play_all));
-        menuItems.add(v.getContext().getString(R.string.browse_context_play));
-        //menuItems.add(v.getContext().getString( R.string.browse_context_add_to_playplist));
-        menuItems.add(v.getContext()
-                .getString(R.string.browse_context_download));
-        for (int i = 0; i < menuItems.size(); i++) {
-            menu.add(Menu.NONE, i, i, menuItems.get(i));
-        }
-    }
 
     /**
      * Selects the place in the UI where the items are shown and renders the
      * content directory
      */
     public void populateItemList(boolean clear) {
-
-
         requireActivity().runOnUiThread(() -> {
+            backButton.setVisibility(View.VISIBLE);
+            currentFolderNameView.setVisibility(View.VISIBLE);
+            currentFolderNameView.setText(navigator.getCurrentPosition().getObjectName());
             if (bItemAdapter != null) {
                 bItemAdapter.cancelRunningTasks();
             }
@@ -245,7 +218,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
     private void clearItemList() {
         requireActivity().runOnUiThread(() -> {
             navigator = new Navigator();
-            Position pos = new Position(Navigator.ITEM_ROOT_OBJECT_ID, null);
+            Position pos = new Position(Navigator.ITEM_ROOT_OBJECT_ID, null, "");
             navigator.pushPosition(pos);
             bItemAdapter.clear();
         });
@@ -306,7 +279,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         if (item == null) {
             return;
         }
-        ContentDirectoryBrowseResult result = upnpClient.browseSync(new Position(item.getParentID(), upnpClient.getProviderDevice().getIdentity().getUdn().getIdentifierString()));
+        ContentDirectoryBrowseResult result = upnpClient.browseSync(new Position(item.getParentID(), upnpClient.getProviderDevice().getIdentity().getUdn().getIdentifierString(), item.getTitle()));
         if (result == null || (result.getResult() != null && result.getResult().getItems().size() == 0)) {
             Log.d(getClass().getName(), "Browse result of parent no direct items found...");
             if (result != null && result.getResult() != null && result.getResult().getContainers().size() > 0) {

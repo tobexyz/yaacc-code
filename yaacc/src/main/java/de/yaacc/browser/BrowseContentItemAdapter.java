@@ -26,8 +26,10 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -169,10 +171,32 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
         IconDownloadTask iconDownloadTask = new IconDownloadTask(holder.icon,
                 this);
         asyncTasks.add(iconDownloadTask);
+
+        holder.playAll.setOnClickListener((v) -> {
+            new ContentItemPlayTask(contentListFragment, currentObject).execute(ContentItemPlayTask.PLAY_ALL);
+        });
+        holder.play.setOnClickListener((v) -> {
+            new ContentItemPlayTask(contentListFragment, currentObject).execute(ContentItemPlayTask.PLAY_CURRENT);
+        });
+        holder.download.setOnClickListener((v) -> {
+            try {
+                upnpClient.downloadItem(currentObject);
+            } catch (Exception ex) {
+                Toast toast = Toast.makeText(contentListFragment.getActivity(), "Can't download item: " + ex.getMessage(), Toast.LENGTH_SHORT);
+                toast.show();
+            }
+        });
         if (currentObject instanceof Container) {
             holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_folder_open_48, context.getTheme()), getContext().getTheme()));
+            holder.playAll.setVisibility(View.VISIBLE);
+            holder.play.setVisibility(View.VISIBLE);
+            holder.download.setVisibility(View.GONE);
+
         } else if (currentObject instanceof AudioItem) {
             holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_audiotrack_48, context.getTheme()), getContext().getTheme()));
+            holder.playAll.setVisibility(View.VISIBLE);
+            holder.play.setVisibility(View.VISIBLE);
+            holder.download.setVisibility(View.VISIBLE);
             if (preferences.getBoolean(
                     context.getString(R.string.settings_thumbnails_chkbx),
                     true)) {
@@ -186,6 +210,9 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
             }
         } else if (currentObject instanceof ImageItem) {
             holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_image_48, getContext().getTheme()), getContext().getTheme()));
+            holder.playAll.setVisibility(View.VISIBLE);
+            holder.play.setVisibility(View.VISIBLE);
+            holder.download.setVisibility(View.VISIBLE);
             if (preferences.getBoolean(
                     context.getString(R.string.settings_thumbnails_chkbx),
                     true))
@@ -194,6 +221,9 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
                                 .getFirstResource().getValue()));
         } else if (currentObject instanceof VideoItem) {
             holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_movie_48, getContext().getTheme()), getContext().getTheme()));
+            holder.playAll.setVisibility(View.VISIBLE);
+            holder.play.setVisibility(View.VISIBLE);
+            holder.download.setVisibility(View.VISIBLE);
             if (preferences.getBoolean(
                     context.getString(R.string.settings_thumbnails_chkbx),
                     true)) {
@@ -207,14 +237,26 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
             }
         } else if (currentObject instanceof PlaylistItem) {
             holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_library_music_48, getContext().getTheme()), getContext().getTheme()));
+            holder.playAll.setVisibility(View.GONE);
+            holder.play.setVisibility(View.GONE);
+            holder.download.setVisibility(View.GONE);
         } else if (currentObject instanceof TextItem) {
             holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_text_snippet_48, getContext().getTheme()), getContext().getTheme()));
+            holder.playAll.setVisibility(View.GONE);
+            holder.play.setVisibility(View.GONE);
+            holder.download.setVisibility(View.GONE);
         } else if (currentObject == LOAD_MORE_FAKE_ITEM) {
             holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_refresh_48, getContext().getTheme()), getContext().getTheme()));
         } else if (currentObject == LOADING_FAKE_ITEM) {
             holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_download_48, getContext().getTheme()), getContext().getTheme()));
+            holder.playAll.setVisibility(View.GONE);
+            holder.play.setVisibility(View.GONE);
+            holder.download.setVisibility(View.GONE);
         } else {
             holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_question_mark_48, getContext().getTheme()), getContext().getTheme()));
+            holder.playAll.setVisibility(View.GONE);
+            holder.play.setVisibility(View.GONE);
+            holder.download.setVisibility(View.GONE);
         }
     }
 
@@ -291,11 +333,17 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
     static class ViewHolder extends RecyclerView.ViewHolder {
         ImageView icon;
         TextView name;
+        ImageButton play;
+        ImageButton playAll;
+        ImageButton download;
 
         public ViewHolder(View itemView) {
             super(itemView);
             icon = itemView.findViewById(R.id.browseContentItemIcon);
             name = itemView.findViewById(R.id.browseContentItemName);
+            play = itemView.findViewById(R.id.browseContentItemPlay);
+            playAll = itemView.findViewById(R.id.browseContentItemPlayAll);
+            download = itemView.findViewById(R.id.browseContentItemDownload);
         }
     }
 }
