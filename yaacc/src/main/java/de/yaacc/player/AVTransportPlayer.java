@@ -444,7 +444,7 @@ public class AVTransportPlayer extends AbstractPlayer {
 
     @Override
     public int getIconResourceId() {
-        return R.drawable.ic_baseline_devices_48;
+        return R.drawable.ic_baseline_devices_32;
     }
 
     @Override

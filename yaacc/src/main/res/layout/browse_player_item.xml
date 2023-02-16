@@ -37,7 +37,7 @@
         android:layout_toRightOf="@id/browsePlayerItemIcon"
         android:gravity="center_vertical"
         android:text="@string/all"
-        android:textAppearance="@android:style/TextAppearance.DeviceDefault.Large"
+        android:textAppearance="@android:style/TextAppearance.Material.Subhead"
         android:textColor="?android:attr/colorForeground" />
 
 

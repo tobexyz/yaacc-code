@@ -512,7 +512,7 @@ public class LocalImagePlayer implements Player, ServiceConnection {
 
     @Override
     public int getIconResourceId() {
-        return R.drawable.ic_baseline_image_48;
+        return R.drawable.ic_baseline_image_32;
     }
 
     @Override

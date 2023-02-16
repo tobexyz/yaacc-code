@@ -25,9 +25,11 @@
     <androidx.cardview.widget.CardView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        app:cardBackgroundColor="@android:color/transparent"
         app:cardCornerRadius="6dp"
-        app:cardUseCompatPadding="true"
-        app:contentPadding="5dp">
+        app:cardElevation="0dp"
+        app:cardUseCompatPadding="false"
+        app:contentPadding="2dp">
 
         <RelativeLayout
             android:layout_width="match_parent"
@@ -36,8 +38,8 @@
 
             <ImageView
                 android:id="@+id/browseContentItemIcon"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
                 android:layout_alignParentStart="true"
                 android:contentDescription="@string/icon" />
 
@@ -48,13 +50,15 @@
                 android:layout_marginStart="5dp"
                 android:layout_toStartOf="@id/browseContentItemDownload"
                 android:layout_toEndOf="@id/browseContentItemIcon"
-
+                android:ellipsize="end"
+                android:maxLines="2"
                 android:text="@string/all"
-                android:textAppearance="@android:style/TextAppearance.DeviceDefault.Large"
+                android:textAppearance="@android:style/TextAppearance.Material.Subhead"
                 android:textColor="?android:attr/colorForeground" />
 
             <ImageButton
                 android:id="@+id/browseContentItemDownload"
+                style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
                 android:layout_width="32dp"
                 android:layout_height="32dp"
                 android:layout_marginStart="2dp"
@@ -66,6 +70,7 @@
 
             <ImageButton
                 android:id="@+id/browseContentItemPlay"
+                style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
                 android:layout_width="32dp"
                 android:layout_height="32dp"
                 android:layout_marginStart="2dp"
@@ -75,6 +80,7 @@
 
             <ImageButton
                 android:id="@+id/browseContentItemPlayAll"
+                style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
                 android:layout_width="32dp"
                 android:layout_height="32dp"
                 android:layout_alignParentEnd="true"

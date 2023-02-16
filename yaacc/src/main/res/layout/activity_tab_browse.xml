@@ -27,6 +27,7 @@
         android:id="@+id/browserTabLayout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:textAppearance="@android:style/TextAppearance.Material.Widget.TabWidget"
         app:tabSelectedTextColor="?android:attr/colorForeground">
 
         <com.google.android.material.tabs.TabItem
