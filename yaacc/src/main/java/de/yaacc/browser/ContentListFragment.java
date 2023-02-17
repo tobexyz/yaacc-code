@@ -37,6 +37,7 @@ import org.fourthline.cling.support.model.item.Item;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import de.yaacc.R;
 import de.yaacc.Yaacc;
@@ -96,7 +97,12 @@ public class ContentListFragment extends Fragment implements OnClickListener,
                     showMainFolder();
                 } else {
                     navigator = (Navigator) savedInstanceState.getSerializable(CONTENT_LIST_NAVIGATOR);
-                    populateItemList(true);
+                    if (navigator.getCurrentPosition() != null && upnpClient.getProviderDevice() != null && upnpClient.getProviderDevice().getIdentity().getUdn().getIdentifierString().equals(navigator.getCurrentPosition().getDeviceId())) {
+                        populateItemList(true);
+                    } else {
+                        showMainFolder();
+                    }
+
                 }
             } else {
 
@@ -118,9 +124,11 @@ public class ContentListFragment extends Fragment implements OnClickListener,
      * Tries to populate the browsing area if a providing device is configured
      */
     private void showMainFolder() {
-        backButton.setVisibility(View.GONE);
-        currentFolderNameView.setVisibility(View.GONE);
-        currentFolderNameView.setText("");
+        getActivity().runOnUiThread(() -> {
+            backButton.setVisibility(View.GONE);
+            currentFolderNameView.setVisibility(View.GONE);
+            currentFolderNameView.setText("");
+        });
         navigator = new Navigator();
         Position pos = new Position(Navigator.ITEM_ROOT_OBJECT_ID, upnpClient.getProviderDevice().getIdentity().getUdn().getIdentifierString(), "");
         navigator.pushPosition(pos);
@@ -167,9 +175,15 @@ public class ContentListFragment extends Fragment implements OnClickListener,
             final RecyclerView itemList = contentList;
             navigator.popPosition(); // First pop is our
             getActivity().runOnUiThread(() -> {
-                backButton.setVisibility(View.VISIBLE);
-                currentFolderNameView.setVisibility(View.VISIBLE);
-                currentFolderNameView.setText("");
+                if (Navigator.ITEM_ROOT_OBJECT_ID.equals(navigator.getCurrentPosition().getObjectId())) {
+                    backButton.setVisibility(View.GONE);
+                    currentFolderNameView.setVisibility(View.GONE);
+                    currentFolderNameView.setText("");
+                } else {
+                    backButton.setVisibility(View.VISIBLE);
+                    currentFolderNameView.setVisibility(View.VISIBLE);
+                    currentFolderNameView.setText(navigator.getPathNames().stream().collect(Collectors.joining(" > ")));
+                }
             });
             // currentPosition
             initBrowsItemAdapter(itemList);
@@ -183,14 +197,26 @@ public class ContentListFragment extends Fragment implements OnClickListener,
 
     private void initBrowsItemAdapter(RecyclerView itemList) {
         if (bItemAdapter == null) {
-            bItemAdapter = new BrowseContentItemAdapter(this, itemList, upnpClient, navigator);
+            if (getContext() == null) {
+                return;
+            }
+            bItemAdapter = new BrowseContentItemAdapter(this, itemList, upnpClient);
             itemList.setAdapter(bItemAdapter);
             itemList.addOnScrollListener(new RecyclerView.OnScrollListener() {
                 @Override
                 public void onScrolled(@NonNull RecyclerView recyclerView, int dx, int dy) {
                     super.onScrolled(recyclerView, dx, dy);
-                    Log.d(getClass().getName(), "scroll int dx, int dy" + dx + ", " + dy);
-                    bItemAdapter.loadMore();
+                    LinearLayoutManager linearLayoutManager = (LinearLayoutManager) recyclerView.getLayoutManager();
+
+
+                    if (linearLayoutManager != null && linearLayoutManager.findLastCompletelyVisibleItemPosition() == bItemAdapter.getItemCount() - 1) {
+                        getActivity().runOnUiThread(() -> {
+                            Log.d(getClass().getName(), "scroll int dx, int dy" + dx + ", " + dy);
+                            bItemAdapter.loadMore();
+                        });
+                    }
+                    
+
                 }
             });
         }
@@ -203,9 +229,15 @@ public class ContentListFragment extends Fragment implements OnClickListener,
      */
     public void populateItemList(boolean clear) {
         requireActivity().runOnUiThread(() -> {
-            backButton.setVisibility(View.VISIBLE);
-            currentFolderNameView.setVisibility(View.VISIBLE);
-            currentFolderNameView.setText(navigator.getCurrentPosition().getObjectName());
+            if (Navigator.ITEM_ROOT_OBJECT_ID.equals(navigator.getCurrentPosition().getObjectId())) {
+                backButton.setVisibility(View.GONE);
+                currentFolderNameView.setVisibility(View.GONE);
+                currentFolderNameView.setText("");
+            } else {
+                backButton.setVisibility(View.VISIBLE);
+                currentFolderNameView.setVisibility(View.VISIBLE);
+                currentFolderNameView.setText(navigator.getPathNames().stream().collect(Collectors.joining(" > ")));
+            }
             if (bItemAdapter != null) {
                 bItemAdapter.cancelRunningTasks();
             }

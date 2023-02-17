@@ -24,8 +24,8 @@
     <ImageButton
         android:id="@+id/contentListBackButton"
         style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
-        android:layout_width="32dp"
-        android:layout_height="32dp"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
         android:layout_alignParentStart="true"
         android:layout_marginBottom="5dp"
         android:contentDescription="@string/icon"
@@ -36,13 +36,16 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_alignTop="@id/contentListBackButton"
-        android:layout_alignBottom="@id/contentListBackButton"
         android:layout_alignParentEnd="true"
         android:layout_marginStart="5dp"
+        android:layout_marginBottom="10dp"
         android:layout_toEndOf="@id/contentListBackButton"
         android:gravity="center_vertical"
+        android:maxLines="4"
+        android:minLines="2"
+        android:singleLine="false"
         android:text="@string/all"
-        android:textAppearance="@android:style/TextAppearance.Material.Subhead"
+        android:textAppearance="@android:style/TextAppearance.Material.Medium"
         android:textColor="?android:attr/colorForeground" />
 
 
@@ -50,7 +53,7 @@
         android:id="@+id/contentList"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_below="@+id/contentListBackButton"
+        android:layout_below="@+id/contentListCurrentFolderName"
         android:layout_alignParentBottom="true" />
 
 

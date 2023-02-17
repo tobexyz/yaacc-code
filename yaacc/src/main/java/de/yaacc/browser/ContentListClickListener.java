@@ -38,13 +38,11 @@ public class ContentListClickListener implements View.OnClickListener {
     public static DIDLObject currentObject;
     private final ContentListFragment contentListFragment;
     private final UpnpClient upnpClient;
-    private Navigator navigator;
     private RecyclerView recyclerView;
     private BrowseContentItemAdapter adapter;
 
     public ContentListClickListener(UpnpClient upnpClient, ContentListFragment contentListFragment, RecyclerView recyclerView, BrowseContentItemAdapter adapter) {
         this.upnpClient = upnpClient;
-        this.navigator = contentListFragment.getNavigator();
         this.contentListFragment = contentListFragment;
         this.adapter = adapter;
         this.recyclerView = recyclerView;
@@ -54,12 +52,16 @@ public class ContentListClickListener implements View.OnClickListener {
     @Override
     public void onClick(View itemView) {
         int position = recyclerView.getChildAdapterPosition(itemView);
+        if (position == -1) {
+            return;
+        }
         currentObject = adapter.getFolder(position);
         if (currentObject instanceof Container) {
             //Fixme: Cache should store information for different folders....
             //IconDownloadCacheHandler.getInstance().resetCache();
             // if the current id is null, go back to the top level
             String newObjectId = Navigator.ITEM_ROOT_OBJECT_ID;
+            Navigator navigator = contentListFragment.getNavigator();
             if (navigator == null || currentObject.getId() == null) {
                 navigator = new Navigator();
                 contentListFragment.setNavigator(navigator);

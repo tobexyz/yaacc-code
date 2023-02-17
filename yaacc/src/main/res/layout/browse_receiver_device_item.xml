@@ -36,8 +36,8 @@
 
             <ImageView
                 android:id="@+id/browseReceiverDeviceItemIcon"
-                android:layout_width="32dp"
-                android:layout_height="32dp"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
                 android:contentDescription="@string/icon" />
 
 
@@ -50,7 +50,7 @@
                 android:layout_toEndOf="@id/browseReceiverDeviceItemIcon"
                 android:gravity="left"
                 android:text="@string/all"
-                android:textAppearance="@android:style/TextAppearance.Material.Subhead"
+                android:textAppearance="@android:style/TextAppearance.Material.Medium"
                 android:textColor="?android:attr/colorForeground" />
 
             <CheckBox
@@ -65,7 +65,7 @@
                 android:duplicateParentState="true"
                 android:focusable="false"
                 android:gravity="center_vertical"
-                android:textAppearance="@android:style/TextAppearance.Material.Subhead" />
+                android:textAppearance="@android:style/TextAppearance.Material.Medium" />
 
             <CheckBox
                 android:id="@+id/browseReceiverDeviceItemMute"

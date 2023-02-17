@@ -41,11 +41,11 @@
 
                 <ImageView
                     android:id="@+id/browseDeviceItemIcon"
-                    android:layout_width="32dp"
-                    android:layout_height="32dp"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
                     android:contentDescription="@string/icon"
-                    app:srcCompat="@drawable/ic_baseline_sensors_32"
-                    tools:srcCompat="@drawable/ic_baseline_sensors_32" />
+                    app:srcCompat="@drawable/ic_baseline_sensors_48"
+                    tools:srcCompat="@drawable/ic_baseline_sensors_48" />
 
                 <TextView
                     android:id="@+id/browseDeviceItemName"
@@ -54,7 +54,7 @@
                     android:layout_marginLeft="5dp"
                     android:gravity="left"
                     android:text="@string/all"
-                    android:textAppearance="@android:style/TextAppearance.Material.Subhead"
+                    android:textAppearance="@android:style/TextAppearance.Material.Medium"
                     android:textColor="?android:attr/colorForeground" />
             </LinearLayout>
 

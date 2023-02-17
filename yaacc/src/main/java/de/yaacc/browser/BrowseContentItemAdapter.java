@@ -68,7 +68,6 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
 
     private List<DIDLObject> objects = new LinkedList<>();
     private Context context;
-    private Navigator navigator;
     private List<AsyncTask> asyncTasks;
     private boolean allItemsFetched;
     private UpnpClient upnpClient;
@@ -76,11 +75,10 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
     private RecyclerView contentList;
 
 
-    public BrowseContentItemAdapter(ContentListFragment contentListFragment, RecyclerView contentList, UpnpClient upnpClient, Navigator navigator) {
+    public BrowseContentItemAdapter(ContentListFragment contentListFragment, RecyclerView contentList, UpnpClient upnpClient) {
         context = contentListFragment.getContext();
         this.contentListFragment = contentListFragment;
         this.contentList = contentList;
-        this.navigator = navigator;
         asyncTasks = new ArrayList<>();
         allItemsFetched = false;
         this.upnpClient = upnpClient;
@@ -97,7 +95,7 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
     }
 
     public Navigator getNavigator() {
-        return navigator;
+        return contentListFragment.getNavigator();
     }
 
 
@@ -187,13 +185,13 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
             }
         });
         if (currentObject instanceof Container) {
-            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_folder_open_32, context.getTheme()), getContext().getTheme()));
+            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_folder_open_48, context.getTheme()), getContext().getTheme()));
             holder.playAll.setVisibility(View.VISIBLE);
             holder.play.setVisibility(View.VISIBLE);
             holder.download.setVisibility(View.GONE);
 
         } else if (currentObject instanceof AudioItem) {
-            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_audiotrack_32, context.getTheme()), getContext().getTheme()));
+            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_audiotrack_48, context.getTheme()), getContext().getTheme()));
             holder.playAll.setVisibility(View.VISIBLE);
             holder.play.setVisibility(View.VISIBLE);
             holder.download.setVisibility(View.VISIBLE);
@@ -209,7 +207,7 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
                 }
             }
         } else if (currentObject instanceof ImageItem) {
-            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_image_32, getContext().getTheme()), getContext().getTheme()));
+            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_image_48, getContext().getTheme()), getContext().getTheme()));
             holder.playAll.setVisibility(View.VISIBLE);
             holder.play.setVisibility(View.VISIBLE);
             holder.download.setVisibility(View.VISIBLE);
@@ -220,7 +218,7 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
                         Uri.parse(((ImageItem) currentObject)
                                 .getFirstResource().getValue()));
         } else if (currentObject instanceof VideoItem) {
-            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_movie_32, getContext().getTheme()), getContext().getTheme()));
+            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_movie_48, getContext().getTheme()), getContext().getTheme()));
             holder.playAll.setVisibility(View.VISIBLE);
             holder.play.setVisibility(View.VISIBLE);
             holder.download.setVisibility(View.VISIBLE);
@@ -236,24 +234,24 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
                 }
             }
         } else if (currentObject instanceof PlaylistItem) {
-            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_library_music_32, getContext().getTheme()), getContext().getTheme()));
+            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_library_music_48, getContext().getTheme()), getContext().getTheme()));
             holder.playAll.setVisibility(View.GONE);
             holder.play.setVisibility(View.GONE);
             holder.download.setVisibility(View.GONE);
         } else if (currentObject instanceof TextItem) {
-            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_text_snippet_32, getContext().getTheme()), getContext().getTheme()));
+            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_text_snippet_48, getContext().getTheme()), getContext().getTheme()));
             holder.playAll.setVisibility(View.GONE);
             holder.play.setVisibility(View.GONE);
             holder.download.setVisibility(View.GONE);
         } else if (currentObject == LOAD_MORE_FAKE_ITEM) {
-            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_refresh_32, getContext().getTheme()), getContext().getTheme()));
+            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_refresh_48, getContext().getTheme()), getContext().getTheme()));
         } else if (currentObject == LOADING_FAKE_ITEM) {
-            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_download_32, getContext().getTheme()), getContext().getTheme()));
+            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_download_48, getContext().getTheme()), getContext().getTheme()));
             holder.playAll.setVisibility(View.GONE);
             holder.play.setVisibility(View.GONE);
             holder.download.setVisibility(View.GONE);
         } else {
-            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_question_mark_32, getContext().getTheme()), getContext().getTheme()));
+            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_question_mark_48, getContext().getTheme()), getContext().getTheme()));
             holder.playAll.setVisibility(View.GONE);
             holder.play.setVisibility(View.GONE);
             holder.download.setVisibility(View.GONE);
@@ -316,7 +314,7 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
     }
 
     public void loadMore() {
-        if (navigator == null || navigator.getCurrentPosition() == null || navigator.getCurrentPosition().getDeviceId() == null)
+        if (contentListFragment.getNavigator() == null || contentListFragment.getNavigator().getCurrentPosition() == null || contentListFragment.getNavigator().getCurrentPosition().getDeviceId() == null)
             return;
         if (loading || allItemsFetched) return;
         setLoading(true);
