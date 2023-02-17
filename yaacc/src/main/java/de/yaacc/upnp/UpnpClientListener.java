@@ -34,5 +34,8 @@ public interface UpnpClientListener {
 
     void deviceUpdated(Device<?, ?, ?> device);
 
+    void receiverDeviceRemoved(Device<?, ?, ?> device);
+
+    void receiverDeviceAdded(Device<?, ?, ?> device);
 }
 

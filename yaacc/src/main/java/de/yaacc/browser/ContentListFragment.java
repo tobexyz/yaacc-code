@@ -24,6 +24,7 @@ import android.view.View;
 import android.view.View.OnClickListener;
 import android.view.ViewGroup;
 import android.widget.ImageButton;
+import android.widget.RelativeLayout;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -55,6 +56,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         UpnpClientListener, OnBackPressedListener {
     public static final String CONTENT_LIST_NAVIGATOR = "CONTENT_LIST_NAVIGATOR";
     protected RecyclerView contentList;
+    private TextView currentReceivers;
     private UpnpClient upnpClient = null;
     private BrowseContentItemAdapter bItemAdapter;
     private Navigator navigator = null;
@@ -86,11 +88,15 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         backButton.setOnClickListener((v) -> {
             onBackPressed();
         });
-        currentFolderNameView = (TextView) contentlistView.findViewById(R.id.contentListCurrentFolderName);
-        contentList = (RecyclerView) contentlistView.findViewById(R.id.contentList);
+        currentFolderNameView = contentlistView.findViewById(R.id.contentListCurrentFolderName);
+        currentReceivers = contentlistView.findViewById(R.id.contentListCurrentReceiver);
+        contentList = contentlistView.findViewById(R.id.contentList);
         contentList.setLayoutManager(new LinearLayoutManager(getActivity()));
         upnpClient.addUpnpClientListener(this);
         Thread thread = new Thread(() -> {
+            if (upnpClient.getReceiverDevices() != null) {
+                currentReceivers.setText(upnpClient.getReceiverDevices().stream().map(it -> it.getDetails().getFriendlyName()).collect(Collectors.joining("\n")));
+            }
             if (upnpClient.getProviderDevice() != null) {
                 if (savedInstanceState == null || savedInstanceState.getSerializable(CONTENT_LIST_NAVIGATOR) == null) {
 
@@ -127,6 +133,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         getActivity().runOnUiThread(() -> {
             backButton.setVisibility(View.GONE);
             currentFolderNameView.setVisibility(View.GONE);
+            ((RelativeLayout.LayoutParams) contentList.getLayoutParams()).addRule(RelativeLayout.ALIGN_PARENT_TOP, RelativeLayout.TRUE);
             currentFolderNameView.setText("");
         });
         navigator = new Navigator();
@@ -161,6 +168,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
             getActivity().runOnUiThread(() -> {
                         backButton.setVisibility(View.GONE);
                         currentFolderNameView.setVisibility(View.GONE);
+                        ((RelativeLayout.LayoutParams) contentList.getLayoutParams()).addRule(RelativeLayout.ALIGN_PARENT_TOP, RelativeLayout.TRUE);
                         currentFolderNameView.setText("");
                     }
 
@@ -178,10 +186,12 @@ public class ContentListFragment extends Fragment implements OnClickListener,
                 if (Navigator.ITEM_ROOT_OBJECT_ID.equals(navigator.getCurrentPosition().getObjectId())) {
                     backButton.setVisibility(View.GONE);
                     currentFolderNameView.setVisibility(View.GONE);
+                    ((RelativeLayout.LayoutParams) contentList.getLayoutParams()).addRule(RelativeLayout.ALIGN_PARENT_TOP, RelativeLayout.TRUE);
                     currentFolderNameView.setText("");
                 } else {
                     backButton.setVisibility(View.VISIBLE);
                     currentFolderNameView.setVisibility(View.VISIBLE);
+                    ((RelativeLayout.LayoutParams) contentList.getLayoutParams()).removeRule(RelativeLayout.ALIGN_PARENT_TOP);
                     currentFolderNameView.setText(navigator.getPathNames().stream().collect(Collectors.joining(" > ")));
                 }
             });
@@ -215,7 +225,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
                             bItemAdapter.loadMore();
                         });
                     }
-                    
+
 
                 }
             });
@@ -232,10 +242,12 @@ public class ContentListFragment extends Fragment implements OnClickListener,
             if (Navigator.ITEM_ROOT_OBJECT_ID.equals(navigator.getCurrentPosition().getObjectId())) {
                 backButton.setVisibility(View.GONE);
                 currentFolderNameView.setVisibility(View.GONE);
+                ((RelativeLayout.LayoutParams) contentList.getLayoutParams()).addRule(RelativeLayout.ALIGN_PARENT_TOP, RelativeLayout.TRUE);
                 currentFolderNameView.setText("");
             } else {
                 backButton.setVisibility(View.VISIBLE);
                 currentFolderNameView.setVisibility(View.VISIBLE);
+                ((RelativeLayout.LayoutParams) contentList.getLayoutParams()).removeRule(RelativeLayout.ALIGN_PARENT_TOP);
                 currentFolderNameView.setText(navigator.getPathNames().stream().collect(Collectors.joining(" > ")));
             }
             if (bItemAdapter != null) {
@@ -262,7 +274,6 @@ public class ContentListFragment extends Fragment implements OnClickListener,
      */
     @Override
     public void deviceAdded(Device<?, ?, ?> device) {
-
     }
 
     /**
@@ -279,6 +290,24 @@ public class ContentListFragment extends Fragment implements OnClickListener,
     @Override
     public void deviceUpdated(Device<?, ?, ?> device) {
 
+    }
+
+    @Override
+    public void receiverDeviceRemoved(Device<?, ?, ?> device) {
+        getActivity().runOnUiThread(() -> {
+            if (upnpClient.getReceiverDevices() != null) {
+                currentReceivers.setText(upnpClient.getReceiverDevices().stream().map(it -> it.getDetails().getFriendlyName()).collect(Collectors.joining("\n")));
+            }
+        });
+    }
+
+    @Override
+    public void receiverDeviceAdded(Device<?, ?, ?> device) {
+        getActivity().runOnUiThread(() -> {
+            if (upnpClient.getReceiverDevices() != null) {
+                currentReceivers.setText(upnpClient.getReceiverDevices().stream().map(it -> it.getDetails().getFriendlyName()).collect(Collectors.joining("\n")));
+            }
+        });
     }
 
     /**

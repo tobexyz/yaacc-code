@@ -52,9 +52,22 @@
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/contentList"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:layout_below="@+id/contentListCurrentFolderName"
-        android:layout_alignParentBottom="true" />
+        android:layout_height="wrap_content"
+        android:layout_above="@id/contentListCurrentReceiver"
+        android:layout_below="@+id/contentListCurrentFolderName" />
 
+    <TextView
+        android:id="@+id/contentListCurrentReceiver"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_marginStart="5dp"
+        android:gravity="center_vertical"
+        android:maxLines="4"
+        android:minLines="2"
+        android:singleLine="false"
+        android:text="@string/all"
+        android:textAppearance="@android:style/TextAppearance.Material.Medium"
+        android:textColor="?android:attr/colorForeground" />
 
 </RelativeLayout>

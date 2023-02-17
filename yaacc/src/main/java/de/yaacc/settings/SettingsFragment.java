@@ -145,4 +145,14 @@ public class SettingsFragment extends PreferenceFragmentCompat implements UpnpCl
 
     }
 
+    @Override
+    public void receiverDeviceRemoved(Device<?, ?, ?> device) {
+
+    }
+
+    @Override
+    public void receiverDeviceAdded(Device<?, ?, ?> device) {
+
+    }
+
 }

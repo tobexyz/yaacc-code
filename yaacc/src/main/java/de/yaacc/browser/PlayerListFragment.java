@@ -160,6 +160,16 @@ public class PlayerListFragment extends Fragment implements
     }
 
     @Override
+    public void receiverDeviceRemoved(Device<?, ?, ?> device) {
+
+    }
+
+    @Override
+    public void receiverDeviceAdded(Device<?, ?, ?> device) {
+
+    }
+
+    @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
 

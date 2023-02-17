@@ -161,6 +161,18 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         return new SyncOffset(true, 0, 0, 0, offsetValue, 0, 0);
     }
 
+    private void fireReceiverDeviceAdded(Device<?, ?, ?> device) {
+        for (UpnpClientListener listener : new ArrayList<>(listeners)) {
+            listener.receiverDeviceAdded(device);
+        }
+    }
+
+    private void fireReceiverDeviceRemoved(Device<?, ?, ?> device) {
+        for (UpnpClientListener listener : listeners) {
+            listener.receiverDeviceRemoved(device);
+        }
+    }
+
     private void deviceAdded(@SuppressWarnings("rawtypes") final Device device) {
         fireDeviceAdded(device);
     }
@@ -994,6 +1006,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         Collection<Device<?, ?, ?>> receiverDevices = getReceiverDevices();
         receiverDevices.add(receiverDevice);
         setReceiverDevices(receiverDevices);
+        fireReceiverDeviceAdded(receiverDevice);
     }
 
     /**
@@ -1006,6 +1019,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         Collection<Device<?, ?, ?>> receiverDevices = getReceiverDevices();
         receiverDevices.remove(receiverDevice);
         setReceiverDevices(receiverDevices);
+        fireReceiverDeviceRemoved(receiverDevice);
     }
 
     /**
@@ -1030,6 +1044,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         Editor prefEdit = preferences.edit();
         prefEdit.putString(getContext().getString(R.string.settings_selected_provider_title), provider.getIdentity().getUdn().getIdentifierString());
         prefEdit.apply();
+
     }
 
     /**
@@ -1149,7 +1164,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         new FileDownloader(this).execute(selectedDIDLObject);
     }
 
-    
+
     public List<Player> initializePlayersWithPlayableItems(List<PlayableItem> items) {
         if (playerService == null) {
             return Collections.emptyList();

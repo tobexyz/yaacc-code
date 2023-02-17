@@ -132,6 +132,16 @@ public class ServerListFragment extends Fragment implements
     }
 
     @Override
+    public void receiverDeviceRemoved(Device<?, ?, ?> device) {
+
+    }
+
+    @Override
+    public void receiverDeviceAdded(Device<?, ?, ?> device) {
+
+    }
+
+    @Override
     public void onResume() {
         super.onResume();
         //refresh device list
