@@ -47,6 +47,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import de.yaacc.R;
 import de.yaacc.Yaacc;
@@ -134,7 +135,7 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
     public void addAll(Collection<? extends DIDLObject> newObjects) {
         Log.d(getClass().getName(), "added objects; " + newObjects);
         int start = objects.size() - 1;
-        objects.addAll(newObjects);
+        objects.addAll(newObjects.stream().filter(it -> !objects.contains(it)).collect(Collectors.toList()));
         notifyItemRangeInserted(start, objects.size());
     }
 
