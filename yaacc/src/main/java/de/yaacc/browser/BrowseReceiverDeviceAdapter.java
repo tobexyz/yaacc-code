@@ -129,8 +129,9 @@ public class BrowseReceiverDeviceAdapter extends RecyclerView.Adapter<BrowseRece
         holder.mute.setOnClickListener((it) -> {
             upnpClient.setMute(device, holder.mute.isChecked());
         });
-        holder.mute.setChecked(upnpClient.getMute(device));
-        holder.volume.setProgress(upnpClient.getVolume(device));
+
+        new DeviceVolumeStateLoadTask(holder.volume, upnpClient).execute(device);
+        new DeviceMuteStateLoadTask(holder.mute, upnpClient).execute(device);
         holder.volume.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {

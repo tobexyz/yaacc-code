@@ -140,7 +140,9 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
     }
 
     public void clear() {
-        objects.clear();
+        if (objects != null) {
+            objects.clear();
+        }
         loading = false;
         allItemsFetched = false;
         notifyDataSetChanged();
