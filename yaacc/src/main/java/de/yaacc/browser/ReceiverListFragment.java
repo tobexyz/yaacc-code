@@ -24,6 +24,7 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageButton;
 
 import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -69,15 +70,15 @@ public class ReceiverListFragment extends Fragment implements
     private void init(Bundle savedInstanceState, View view) {
 
         upnpClient = ((Yaacc) getActivity().getApplicationContext()).getUpnpClient();
-        contentList = (RecyclerView) view.findViewById(R.id.receiverList);
+        contentList = view.findViewById(R.id.receiverList);
         contentList.setLayoutManager(new LinearLayoutManager(getActivity()));
         upnpClient.addUpnpClientListener(this);
-        Thread thread = new Thread(new Runnable() {
-
-            @Override
-            public void run() {
-                populateReceiverDeviceList();
-            }
+        ImageButton refresh = view.findViewById(R.id.receiverListRefreshButton);
+        refresh.setOnClickListener((v) -> {
+            upnpClient.searchDevices();
+        });
+        Thread thread = new Thread(() -> {
+            populateReceiverDeviceList();
         });
         thread.start();
     }
@@ -113,19 +114,19 @@ public class ReceiverListFragment extends Fragment implements
      */
     private void populateReceiverDeviceList() {
         IconDownloadCacheHandler.getInstance().resetCache();
-        getActivity().runOnUiThread(new Runnable() {
-            public void run() {
-                LinkedList<Device<?, ?, ?>> receiverDevices = new LinkedList<>(upnpClient.getDevicesProvidingAvTransportService());
-                if (bDeviceAdapter == null) {
-                    bDeviceAdapter = new BrowseReceiverDeviceAdapter(getActivity(), contentList, upnpClient, receiverDevices, upnpClient.getReceiverDevices());
-                    contentList.setAdapter(bDeviceAdapter);
-                } else {
-                    bDeviceAdapter.setDevices(receiverDevices);
+        if (getActivity() != null) {
+            getActivity().runOnUiThread(new Runnable() {
+                public void run() {
+                    LinkedList<Device<?, ?, ?>> receiverDevices = new LinkedList<>(upnpClient.getDevicesProvidingAvTransportService());
+                    if (bDeviceAdapter == null) {
+                        bDeviceAdapter = new BrowseReceiverDeviceAdapter(getActivity(), contentList, upnpClient, receiverDevices, upnpClient.getReceiverDevices());
+                        contentList.setAdapter(bDeviceAdapter);
+                    } else {
+                        bDeviceAdapter.setDevices(receiverDevices);
+                    }
                 }
-
-
-            }
-        });
+            });
+        }
     }
 
 
@@ -134,10 +135,7 @@ public class ReceiverListFragment extends Fragment implements
      */
     @Override
     public void deviceAdded(Device<?, ?, ?> device) {
-
-        if (upnpClient.getReceiverDevices().contains(device)) {
-            populateReceiverDeviceList();
-        }
+        populateReceiverDeviceList();
     }
 
 
@@ -146,15 +144,12 @@ public class ReceiverListFragment extends Fragment implements
      */
     @Override
     public void deviceRemoved(Device<?, ?, ?> device) {
-        Log.d(this.getClass().toString(), "device removal called");
-        if (upnpClient.getReceiverDevices().contains(device)) {
-            populateReceiverDeviceList();
-        }
+        populateReceiverDeviceList();
     }
 
     @Override
     public void deviceUpdated(Device<?, ?, ?> device) {
-
+        
     }
 
     @Override

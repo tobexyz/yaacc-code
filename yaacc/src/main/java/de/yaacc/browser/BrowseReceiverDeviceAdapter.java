@@ -152,8 +152,8 @@ public class BrowseReceiverDeviceAdapter extends RecyclerView.Adapter<BrowseRece
     }
 
     public void setDevices(Collection<Device<?, ?, ?>> devices) {
-        devices.clear();
-        devices.addAll(devices);
+        this.devices.clear();
+        this.devices.addAll(devices);
         notifyDataSetChanged();
     }
 

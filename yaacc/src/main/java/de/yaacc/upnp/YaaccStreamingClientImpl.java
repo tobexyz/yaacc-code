@@ -102,7 +102,7 @@ public class YaaccStreamingClientImpl extends AbstractStreamClient<YaaccStreamin
 
     @Override
     protected boolean logExecutionException(Throwable t) {
-        return false;
+        return true;
     }
 
     @Override

@@ -694,7 +694,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     /**
      * Search asynchronously for all devices.
      */
-    private void searchDevices() {
+    public void searchDevices() {
         if (isInitialized()) {
             getAndroidUpnpService().getControlPoint().search();
         }
@@ -970,7 +970,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         for (String id : receiverDeviceIds) {
             Device<?, ?, ?> receiver = this.getDevice(id);
             if (receiver != null) {
-                result.add(this.getDevice(id));
+                result.add(receiver);
             } else {
                 unknowsIds.add(id);
             }
