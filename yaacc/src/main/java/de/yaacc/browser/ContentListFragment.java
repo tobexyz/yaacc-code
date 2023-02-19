@@ -264,7 +264,9 @@ public class ContentListFragment extends Fragment implements OnClickListener,
             navigator = new Navigator();
             Position pos = new Position(Navigator.ITEM_ROOT_OBJECT_ID, null, "");
             navigator.pushPosition(pos);
-            bItemAdapter.clear();
+            if (bItemAdapter != null) {
+                bItemAdapter.clear();
+            }
         });
     }
 
@@ -326,10 +328,14 @@ public class ContentListFragment extends Fragment implements OnClickListener,
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
+        return inflater.inflate(R.layout.fragment_content_list, container, false);
 
-        View v = inflater.inflate(R.layout.fragment_content_list, container, false);
-        init(savedInstanceState, v);
-        return v;
+    }
+
+    @Override
+    public void onViewCreated(View view, Bundle savedInstanceState) {
+        super.onViewCreated(view, savedInstanceState);
+        init(savedInstanceState, view);
     }
 
     public void playItem(DIDLObject item) {

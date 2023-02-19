@@ -149,7 +149,7 @@ public class ReceiverListFragment extends Fragment implements
 
     @Override
     public void deviceUpdated(Device<?, ?, ?> device) {
-        
+
     }
 
     @Override
@@ -166,8 +166,13 @@ public class ReceiverListFragment extends Fragment implements
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
 
-        View v = inflater.inflate(R.layout.fragment_receiver_list, container, false);
-        init(savedInstanceState, v);
-        return v;
+        return inflater.inflate(R.layout.fragment_receiver_list, container, false);
+
+    }
+
+    @Override
+    public void onViewCreated(View view, Bundle savedInstanceState) {
+        super.onViewCreated(view, savedInstanceState);
+        init(savedInstanceState, view);
     }
 }
