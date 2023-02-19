@@ -64,8 +64,8 @@ public class Yaacc extends Application {
     @Override
     public void onCreate() {
         super.onCreate();
-        createNotificationChannel();
         upnpClient = new UpnpClient(this);
+        createNotificationChannel();
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
         boolean darkMode = preferences.getBoolean(getString(R.string.settings_dark_mode_key), true);
         if (darkMode) {
@@ -156,7 +156,7 @@ public class Yaacc extends Application {
         Runtime.getRuntime().exit(0);
     }
 
-    private void createNotificationChannel() {
+    public void createNotificationChannel() {
 
         CharSequence name = getString(R.string.channel_name);
         String description = getString(R.string.channel_description);
@@ -164,10 +164,15 @@ public class Yaacc extends Application {
         NotificationChannel channel = new NotificationChannel(NOTIFICATION_CHANNEL_ID, name, importance);
         channel.setDescription(description);
 
+
         // Register the channel with the system; you can't change the importance
         // or other notification behaviors after this
         NotificationManager notificationManager = getSystemService(NotificationManager.class);
         notificationManager.createNotificationChannel(channel);
+    }
+
+    public void createYaaccGroupNotification() {
+        NotificationManager notificationManager = getSystemService(NotificationManager.class);
         Intent notificationIntent = new Intent(this, TabBrowserActivity.class);
         PendingIntent pendingIntent = PendingIntent.getActivity(this,
                 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE);
@@ -184,4 +189,12 @@ public class Yaacc extends Application {
 
     }
 
+    public void cancelYaaccGroupNotification() {
+        NotificationManager mNotificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        if (mNotificationManager.getActiveNotifications().length == 1) {
+            mNotificationManager.cancel(NotificationId.YAACC.getId());
+        }
+
+
+    }
 }

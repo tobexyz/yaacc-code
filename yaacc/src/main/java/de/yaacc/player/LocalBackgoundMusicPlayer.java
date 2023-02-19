@@ -92,6 +92,7 @@ public class LocalBackgoundMusicPlayer extends AbstractPlayer implements Service
             } catch (IllegalArgumentException iex) {
                 Log.d(getClass().getName(), "ignoring exception while unbind service");
             }
+            backgroundMusicService.stopForeground(true);
         }
 
     }

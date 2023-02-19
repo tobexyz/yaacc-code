@@ -67,6 +67,7 @@ public class BackgroundMusicService extends Service {
     public void onCreate() {
         super.onCreate();
         Log.d(this.getClass().getName(), "On Create");
+        ((Yaacc) getApplicationContext()).createYaaccGroupNotification();
         Intent notificationIntent = new Intent(this, TabBrowserActivity.class);
         PendingIntent pendingIntent = PendingIntent.getActivity(this,
                 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE);
@@ -96,7 +97,9 @@ public class BackgroundMusicService extends Service {
             //remove player after releasing
             player = null;
         }
-        unregisterReceiver(backgroundMusicBroadcastReceiver);
+        if (backgroundMusicBroadcastReceiver != null) {
+            unregisterReceiver(backgroundMusicBroadcastReceiver);
+        }
     }
 
     /*
@@ -148,7 +151,6 @@ public class BackgroundMusicService extends Service {
             } catch (Exception ex) {
                 Log.d(getClass().getName(), "Ignoring exception on stop action: ", ex);
             }
-
         }
     }
 
@@ -281,11 +283,11 @@ public class BackgroundMusicService extends Service {
         serviceListener.add(listener);
     }
 
+
     public class BackgroundMusicServiceBinder extends Binder {
         public BackgroundMusicService getService() {
             return BackgroundMusicService.this;
         }
     }
-
 
 }

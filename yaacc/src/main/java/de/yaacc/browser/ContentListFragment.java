@@ -130,12 +130,14 @@ public class ContentListFragment extends Fragment implements OnClickListener,
      * Tries to populate the browsing area if a providing device is configured
      */
     private void showMainFolder() {
-        getActivity().runOnUiThread(() -> {
-            backButton.setVisibility(View.GONE);
-            currentFolderNameView.setVisibility(View.GONE);
-            ((RelativeLayout.LayoutParams) contentList.getLayoutParams()).addRule(RelativeLayout.ALIGN_PARENT_TOP, RelativeLayout.TRUE);
-            currentFolderNameView.setText("");
-        });
+        if (getActivity() != null) {
+            getActivity().runOnUiThread(() -> {
+                backButton.setVisibility(View.GONE);
+                currentFolderNameView.setVisibility(View.GONE);
+                ((RelativeLayout.LayoutParams) contentList.getLayoutParams()).addRule(RelativeLayout.ALIGN_PARENT_TOP, RelativeLayout.TRUE);
+                currentFolderNameView.setText("");
+            });
+        }
         navigator = new Navigator();
         Position pos = new Position(Navigator.ITEM_ROOT_OBJECT_ID, upnpClient.getProviderDevice().getIdentity().getUdn().getIdentifierString(), "");
         navigator.pushPosition(pos);
@@ -165,14 +167,16 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         }
         String currentObjectId = navigator.getCurrentPosition() == null ? Navigator.ITEM_ROOT_OBJECT_ID : navigator.getCurrentPosition().getObjectId();
         if (Navigator.ITEM_ROOT_OBJECT_ID.equals(currentObjectId)) {
-            getActivity().runOnUiThread(() -> {
-                        backButton.setVisibility(View.GONE);
-                        currentFolderNameView.setVisibility(View.GONE);
-                        ((RelativeLayout.LayoutParams) contentList.getLayoutParams()).addRule(RelativeLayout.ALIGN_PARENT_TOP, RelativeLayout.TRUE);
-                        currentFolderNameView.setText("");
-                    }
+            if (getActivity() != null) {
+                getActivity().runOnUiThread(() -> {
+                            backButton.setVisibility(View.GONE);
+                            currentFolderNameView.setVisibility(View.GONE);
+                            ((RelativeLayout.LayoutParams) contentList.getLayoutParams()).addRule(RelativeLayout.ALIGN_PARENT_TOP, RelativeLayout.TRUE);
+                            currentFolderNameView.setText("");
+                        }
 
-            );
+                );
+            }
             if (requireActivity().getParent() instanceof TabBrowserActivity) {
                 ((TabBrowserActivity) requireActivity().getParent()).setCurrentTab(BrowserTabs.SERVER);
             }
@@ -182,19 +186,21 @@ public class ContentListFragment extends Fragment implements OnClickListener,
             //IconDownloadCacheHandler.getInstance().resetCache();
             final RecyclerView itemList = contentList;
             navigator.popPosition(); // First pop is our
-            getActivity().runOnUiThread(() -> {
-                if (Navigator.ITEM_ROOT_OBJECT_ID.equals(navigator.getCurrentPosition().getObjectId())) {
-                    backButton.setVisibility(View.GONE);
-                    currentFolderNameView.setVisibility(View.GONE);
-                    ((RelativeLayout.LayoutParams) contentList.getLayoutParams()).addRule(RelativeLayout.ALIGN_PARENT_TOP, RelativeLayout.TRUE);
-                    currentFolderNameView.setText("");
-                } else {
-                    backButton.setVisibility(View.VISIBLE);
-                    currentFolderNameView.setVisibility(View.VISIBLE);
-                    ((RelativeLayout.LayoutParams) contentList.getLayoutParams()).removeRule(RelativeLayout.ALIGN_PARENT_TOP);
-                    currentFolderNameView.setText(navigator.getPathNames().stream().collect(Collectors.joining(" > ")));
-                }
-            });
+            if (getActivity() != null) {
+                getActivity().runOnUiThread(() -> {
+                    if (Navigator.ITEM_ROOT_OBJECT_ID.equals(navigator.getCurrentPosition().getObjectId())) {
+                        backButton.setVisibility(View.GONE);
+                        currentFolderNameView.setVisibility(View.GONE);
+                        ((RelativeLayout.LayoutParams) contentList.getLayoutParams()).addRule(RelativeLayout.ALIGN_PARENT_TOP, RelativeLayout.TRUE);
+                        currentFolderNameView.setText("");
+                    } else {
+                        backButton.setVisibility(View.VISIBLE);
+                        currentFolderNameView.setVisibility(View.VISIBLE);
+                        ((RelativeLayout.LayoutParams) contentList.getLayoutParams()).removeRule(RelativeLayout.ALIGN_PARENT_TOP);
+                        currentFolderNameView.setText(navigator.getPathNames().stream().collect(Collectors.joining(" > ")));
+                    }
+                });
+            }
             // currentPosition
             initBrowsItemAdapter(itemList);
             bItemAdapter.clear();
@@ -220,10 +226,12 @@ public class ContentListFragment extends Fragment implements OnClickListener,
 
 
                     if (linearLayoutManager != null && linearLayoutManager.findLastCompletelyVisibleItemPosition() == bItemAdapter.getItemCount() - 1) {
-                        getActivity().runOnUiThread(() -> {
-                            Log.d(getClass().getName(), "scroll int dx, int dy" + dx + ", " + dy);
-                            bItemAdapter.loadMore();
-                        });
+                        if (getActivity() != null) {
+                            getActivity().runOnUiThread(() -> {
+                                Log.d(getClass().getName(), "scroll int dx, int dy" + dx + ", " + dy);
+                                bItemAdapter.loadMore();
+                            });
+                        }
                     }
 
 
@@ -296,20 +304,24 @@ public class ContentListFragment extends Fragment implements OnClickListener,
 
     @Override
     public void receiverDeviceRemoved(Device<?, ?, ?> device) {
-        getActivity().runOnUiThread(() -> {
-            if (upnpClient.getReceiverDevices() != null) {
-                currentReceivers.setText(upnpClient.getReceiverDevices().stream().map(it -> it.getDetails().getFriendlyName()).collect(Collectors.joining("\n")));
-            }
-        });
+        if (getActivity() != null) {
+            getActivity().runOnUiThread(() -> {
+                if (upnpClient.getReceiverDevices() != null) {
+                    currentReceivers.setText(upnpClient.getReceiverDevices().stream().map(it -> it.getDetails().getFriendlyName()).collect(Collectors.joining("\n")));
+                }
+            });
+        }
     }
 
     @Override
     public void receiverDeviceAdded(Device<?, ?, ?> device) {
-        getActivity().runOnUiThread(() -> {
-            if (upnpClient.getReceiverDevices() != null) {
-                currentReceivers.setText(upnpClient.getReceiverDevices().stream().map(it -> it.getDetails().getFriendlyName()).collect(Collectors.joining("\n")));
-            }
-        });
+        if (getActivity() != null) {
+            getActivity().runOnUiThread(() -> {
+                if (upnpClient.getReceiverDevices() != null) {
+                    currentReceivers.setText(upnpClient.getReceiverDevices().stream().map(it -> it.getDetails().getFriendlyName()).collect(Collectors.joining("\n")));
+                }
+            });
+        }
     }
 
     /**

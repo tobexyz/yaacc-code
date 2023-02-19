@@ -86,7 +86,9 @@ import java.util.Locale;
 import java.util.Set;
 
 import de.yaacc.R;
+import de.yaacc.Yaacc;
 import de.yaacc.browser.Position;
+import de.yaacc.musicplayer.BackgroundMusicService;
 import de.yaacc.player.PlayableItem;
 import de.yaacc.player.Player;
 import de.yaacc.player.PlayerService;
@@ -135,14 +137,14 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
             // FIXME check if this is right: Context.BIND_AUTO_CREATE kills the
             // service after closing the activity
             boolean result = context.bindService(new Intent(context, UpnpRegistryService.class), this, Context.BIND_AUTO_CREATE);
-            return result && startService();
+            return result;
         }
         return false;
     }
 
     public boolean startService() {
         if (playerService == null) {
-
+            ((Yaacc) getContext().getApplicationContext()).createYaaccGroupNotification();
             getContext().startForegroundService(new Intent(getContext(), PlayerService.class));
             return getContext().bindService(new Intent(getContext(), PlayerService.class),
                     this, Context.BIND_AUTO_CREATE);
@@ -717,7 +719,10 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      * @return the player
      */
     public List<Player> initializePlayers(List<Item> items) {
-        if (playerService == null) {
+        if (playerService == null && !startService()) {
+            return Collections.emptyList();
+        }
+        if (!waitForPlayerServiceComeUp()) {
             return Collections.emptyList();
         }
         LinkedList<PlayableItem> playableItems = new LinkedList<>();
@@ -738,6 +743,27 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         return playerService.createPlayer(this, synchronizationInfo, playableItems);
     }
 
+    private boolean waitForPlayerServiceComeUp() {
+        Watchdog watchdog = Watchdog.createWatchdog(10000L);
+        watchdog.start();
+        int i = 0;
+        while (playerService == null && !watchdog.hasTimeout()) {
+            //active wait
+            i++;
+            if (i == 100000) {
+                Log.d(getClass().getName(), "wait for player service start");
+                i = 0;
+            }
+        }
+        if (watchdog.hasTimeout()) {
+            Log.d(getClass().getName(), "Timeout occurred");
+            return false;
+        } else {
+            watchdog.cancel();
+        }
+        return true;
+    }
+
     /**
      * Returns all player instances initialized with the given transport object
      *
@@ -745,7 +771,10 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      * @return the player
      */
     public List<Player> initializePlayers(AvTransport transport) {
-        if (playerService == null) {
+        if (playerService == null && !startService()) {
+            return Collections.emptyList();
+        }
+        if (!waitForPlayerServiceComeUp()) {
             return Collections.emptyList();
         }
         PlayableItem playableItem = new PlayableItem();
@@ -826,7 +855,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         }
         List<PlayableItem> items = new ArrayList<>();
         if (transport == null) {
-            return playerService.createPlayer(this, null, items);
+            return Collections.emptyList();
         }
         SynchronizationInfo synchronizationInfo = transport.getSynchronizationInfo();
         synchronizationInfo.setOffset(getDeviceSyncOffset());
@@ -834,7 +863,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         Log.d(getClass().getName(), "TransportId: " + transport.getInstanceId());
         PositionInfo positionInfo = transport.getPositionInfo();
         if (positionInfo == null) {
-            return playerService.createPlayer(this, synchronizationInfo, items);
+            return Collections.emptyList();
         }
         DIDLContent metadata = null;
         try {
@@ -1061,8 +1090,9 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         if (playerService != null) {
             playerService.shutdown();
         }
-        result = getContext().stopService(new Intent(getContext(), PlayerService.class));
-        Log.d(getClass().getName(), "Stopping PlayerService succsessful= " + result);
+
+        result = getContext().stopService(new Intent(getContext(), BackgroundMusicService.class));
+        Log.d(getClass().getName(), "Stopping BackgroundMusicService succsessful= " + result);
 
     }
 
@@ -1166,7 +1196,10 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
 
 
     public List<Player> initializePlayersWithPlayableItems(List<PlayableItem> items) {
-        if (playerService == null) {
+        if (playerService == null && !startService()) {
+            return Collections.emptyList();
+        }
+        if (!waitForPlayerServiceComeUp()) {
             return Collections.emptyList();
         }
         SynchronizationInfo synchronizationInfo = new SynchronizationInfo();

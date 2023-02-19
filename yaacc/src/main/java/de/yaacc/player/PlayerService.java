@@ -90,6 +90,7 @@ public class PlayerService extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         super.onStartCommand(intent, flags, startId);
         Log.d(this.getClass().getName(), "Received start id " + startId + ": " + intent);
+        ((Yaacc) getApplicationContext()).createYaaccGroupNotification();
         Intent notificationIntent = new Intent(this, TabBrowserActivity.class);
         PendingIntent pendingIntent = PendingIntent.getActivity(this,
                 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE);
@@ -367,6 +368,10 @@ public class PlayerService extends Service {
         assert (player != null);
         currentActivePlayer.remove(player.getId());
         player.onDestroy();
+        if (currentActivePlayer.isEmpty()) {
+            stopForeground(true);
+            ((Yaacc) getApplicationContext()).cancelYaaccGroupNotification();
+        }
     }
 
     /**
