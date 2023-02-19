@@ -62,6 +62,8 @@ public class ContentListFragment extends Fragment implements OnClickListener,
     private Navigator navigator = null;
     private ImageButton backButton;
     private TextView currentFolderNameView;
+    private View topSeperator;
+    private TextView currentProvider;
 
 
     @Override
@@ -69,6 +71,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         super.onResume();
         Thread thread = new Thread(() -> {
             if (upnpClient.getProviderDevice() != null) {
+                currentProvider.setText(upnpClient.getProviderDevice().getDetails().getFriendlyName());
                 if (navigator != null && navigator.getCurrentPosition().getDeviceId() != null && upnpClient.getProviderDevice().getIdentity().getUdn().getIdentifierString().equals(navigator.getCurrentPosition().getDeviceId())) {
                     populateItemList(false);
                 } else {
@@ -84,22 +87,24 @@ public class ContentListFragment extends Fragment implements OnClickListener,
 
     private void init(Bundle savedInstanceState, View contentlistView) {
         upnpClient = ((Yaacc) requireActivity().getApplicationContext()).getUpnpClient();
-        backButton = (ImageButton) contentlistView.findViewById(R.id.contentListBackButton);
+        backButton = contentlistView.findViewById(R.id.contentListBackButton);
         backButton.setOnClickListener((v) -> {
             onBackPressed();
         });
         currentFolderNameView = contentlistView.findViewById(R.id.contentListCurrentFolderName);
-        currentReceivers = contentlistView.findViewById(R.id.contentListCurrentReceiver);
+        currentReceivers = contentlistView.findViewById(R.id.contentListCurrentReceivers);
+        currentProvider = contentlistView.findViewById(R.id.contentListCurrentProvider);
+        topSeperator = contentlistView.findViewById(R.id.contentListTopSeperator);
         contentList = contentlistView.findViewById(R.id.contentList);
         contentList.setLayoutManager(new LinearLayoutManager(getActivity()));
         upnpClient.addUpnpClientListener(this);
         Thread thread = new Thread(() -> {
             if (upnpClient.getReceiverDevices() != null) {
-                currentReceivers.setText(upnpClient.getReceiverDevices().stream().map(it -> it.getDetails().getFriendlyName()).collect(Collectors.joining("\n")));
+                currentReceivers.setText(upnpClient.getReceiverDevices().stream().map(it -> it.getDetails().getFriendlyName()).collect(Collectors.joining("; ")));
             }
             if (upnpClient.getProviderDevice() != null) {
+                currentProvider.setText(upnpClient.getProviderDevice().getDetails().getFriendlyName());
                 if (savedInstanceState == null || savedInstanceState.getSerializable(CONTENT_LIST_NAVIGATOR) == null) {
-
                     showMainFolder();
                 } else {
                     navigator = (Navigator) savedInstanceState.getSerializable(CONTENT_LIST_NAVIGATOR);
@@ -132,16 +137,21 @@ public class ContentListFragment extends Fragment implements OnClickListener,
     private void showMainFolder() {
         if (getActivity() != null) {
             getActivity().runOnUiThread(() -> {
-                backButton.setVisibility(View.GONE);
-                currentFolderNameView.setVisibility(View.GONE);
-                ((RelativeLayout.LayoutParams) contentList.getLayoutParams()).addRule(RelativeLayout.ALIGN_PARENT_TOP, RelativeLayout.TRUE);
-                currentFolderNameView.setText("");
+                removeFolderNavigation();
             });
         }
         navigator = new Navigator();
         Position pos = new Position(Navigator.ITEM_ROOT_OBJECT_ID, upnpClient.getProviderDevice().getIdentity().getUdn().getIdentifierString(), "");
         navigator.pushPosition(pos);
         populateItemList(true);
+    }
+
+    private void removeFolderNavigation() {
+        backButton.setVisibility(View.GONE);
+        currentFolderNameView.setVisibility(View.GONE);
+        topSeperator.setVisibility(View.GONE);
+        ((RelativeLayout.LayoutParams) contentList.getLayoutParams()).addRule(RelativeLayout.ALIGN_PARENT_TOP, RelativeLayout.TRUE);
+        currentFolderNameView.setText("");
     }
 
     @Override
@@ -169,10 +179,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         if (Navigator.ITEM_ROOT_OBJECT_ID.equals(currentObjectId)) {
             if (getActivity() != null) {
                 getActivity().runOnUiThread(() -> {
-                            backButton.setVisibility(View.GONE);
-                            currentFolderNameView.setVisibility(View.GONE);
-                            ((RelativeLayout.LayoutParams) contentList.getLayoutParams()).addRule(RelativeLayout.ALIGN_PARENT_TOP, RelativeLayout.TRUE);
-                            currentFolderNameView.setText("");
+                            removeFolderNavigation();
                         }
 
                 );
@@ -189,14 +196,9 @@ public class ContentListFragment extends Fragment implements OnClickListener,
             if (getActivity() != null) {
                 getActivity().runOnUiThread(() -> {
                     if (Navigator.ITEM_ROOT_OBJECT_ID.equals(navigator.getCurrentPosition().getObjectId())) {
-                        backButton.setVisibility(View.GONE);
-                        currentFolderNameView.setVisibility(View.GONE);
-                        ((RelativeLayout.LayoutParams) contentList.getLayoutParams()).addRule(RelativeLayout.ALIGN_PARENT_TOP, RelativeLayout.TRUE);
-                        currentFolderNameView.setText("");
+                        removeFolderNavigation();
                     } else {
-                        backButton.setVisibility(View.VISIBLE);
-                        currentFolderNameView.setVisibility(View.VISIBLE);
-                        ((RelativeLayout.LayoutParams) contentList.getLayoutParams()).removeRule(RelativeLayout.ALIGN_PARENT_TOP);
+                        showFolderNavigation();
                         currentFolderNameView.setText(navigator.getPathNames().stream().collect(Collectors.joining(" > ")));
                     }
                 });
@@ -208,6 +210,13 @@ public class ContentListFragment extends Fragment implements OnClickListener,
 
         }
         return true;
+    }
+
+    private void showFolderNavigation() {
+        backButton.setVisibility(View.VISIBLE);
+        currentFolderNameView.setVisibility(View.VISIBLE);
+        topSeperator.setVisibility(View.VISIBLE);
+        ((RelativeLayout.LayoutParams) contentList.getLayoutParams()).removeRule(RelativeLayout.ALIGN_PARENT_TOP);
     }
 
 
@@ -248,14 +257,9 @@ public class ContentListFragment extends Fragment implements OnClickListener,
     public void populateItemList(boolean clear) {
         requireActivity().runOnUiThread(() -> {
             if (Navigator.ITEM_ROOT_OBJECT_ID.equals(navigator.getCurrentPosition().getObjectId())) {
-                backButton.setVisibility(View.GONE);
-                currentFolderNameView.setVisibility(View.GONE);
-                ((RelativeLayout.LayoutParams) contentList.getLayoutParams()).addRule(RelativeLayout.ALIGN_PARENT_TOP, RelativeLayout.TRUE);
-                currentFolderNameView.setText("");
+                removeFolderNavigation();
             } else {
-                backButton.setVisibility(View.VISIBLE);
-                currentFolderNameView.setVisibility(View.VISIBLE);
-                ((RelativeLayout.LayoutParams) contentList.getLayoutParams()).removeRule(RelativeLayout.ALIGN_PARENT_TOP);
+                showFolderNavigation();
                 currentFolderNameView.setText(navigator.getPathNames().stream().collect(Collectors.joining(" > ")));
             }
             if (bItemAdapter != null) {
@@ -292,8 +296,8 @@ public class ContentListFragment extends Fragment implements OnClickListener,
     @Override
     public void deviceRemoved(Device<?, ?, ?> device) {
         Log.d(this.getClass().toString(), "device removal called");
-        if (!device.equals(upnpClient.getProviderDevice())) {
-            //    clearItemList();
+        if (device.equals(upnpClient.getProviderDevice())) {
+            clearItemList();
         }
     }
 
@@ -307,7 +311,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         if (getActivity() != null) {
             getActivity().runOnUiThread(() -> {
                 if (upnpClient.getReceiverDevices() != null) {
-                    currentReceivers.setText(upnpClient.getReceiverDevices().stream().map(it -> it.getDetails().getFriendlyName()).collect(Collectors.joining("\n")));
+                    currentReceivers.setText(upnpClient.getReceiverDevices().stream().map(it -> it.getDetails().getFriendlyName()).collect(Collectors.joining("; ")));
                 }
             });
         }
@@ -318,7 +322,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         if (getActivity() != null) {
             getActivity().runOnUiThread(() -> {
                 if (upnpClient.getReceiverDevices() != null) {
-                    currentReceivers.setText(upnpClient.getReceiverDevices().stream().map(it -> it.getDetails().getFriendlyName()).collect(Collectors.joining("\n")));
+                    currentReceivers.setText(upnpClient.getReceiverDevices().stream().map(it -> it.getDetails().getFriendlyName()).collect(Collectors.joining("; ")));
                 }
             });
         }
