@@ -34,7 +34,7 @@
         android:layout_height="32dp"
         android:layout_alignParentEnd="true"
         android:layout_alignParentBottom="true"
-        android:layout_marginRight="10dp"
+        android:layout_marginEnd="10dp"
         android:layout_marginBottom="10dp"
         android:contentDescription="@string/icon"
         app:srcCompat="@drawable/ic_baseline_refresh_32" />

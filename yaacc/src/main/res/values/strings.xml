@@ -118,6 +118,7 @@
     <string name="media_store_scanner_scan_finished">media store scan finished</string>
     <string name="media_store_scan">scan</string>
     <string name="media_store_label">media store</string>
+    <string name="search_devices">searching for UPNP devices</string>
 
 
 </resources>

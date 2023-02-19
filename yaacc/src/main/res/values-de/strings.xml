@@ -118,5 +118,6 @@
     <string name="media_store_scanner_scan_finished">Aktualisierung der Mediendatenbank beendet</string>
     <string name="media_store_scan">Scan</string>
     <string name="media_store_label">Mediendatenbank</string>
+    <string name="search_devices">Suche nach UPNP Geräten gestartet</string>
 
 </resources>

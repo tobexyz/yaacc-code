@@ -25,6 +25,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageButton;
+import android.widget.Toast;
 
 import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -75,6 +76,11 @@ public class ReceiverListFragment extends Fragment implements
         upnpClient.addUpnpClientListener(this);
         ImageButton refresh = view.findViewById(R.id.receiverListRefreshButton);
         refresh.setOnClickListener((v) -> {
+            if (getActivity() != null) {
+                getActivity().runOnUiThread(() -> {
+                    Toast.makeText(getActivity(), R.string.search_devices, Toast.LENGTH_LONG).show();
+                });
+            }
             upnpClient.searchDevices();
         });
         Thread thread = new Thread(() -> {

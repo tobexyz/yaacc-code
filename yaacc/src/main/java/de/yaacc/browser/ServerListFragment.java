@@ -24,6 +24,8 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageButton;
+import android.widget.Toast;
 
 import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -155,10 +157,17 @@ public class ServerListFragment extends Fragment implements
         upnpClient = ((Yaacc) requireActivity().getApplicationContext()).getUpnpClient();
 
         // Define where to show the folder contents for media
-        contentList = (RecyclerView) view.findViewById(R.id.serverList);
+        contentList = view.findViewById(R.id.serverList);
         contentList.setLayoutManager(new LinearLayoutManager(getActivity()));
-        registerForContextMenu(contentList);
-
+        ImageButton refresh = view.findViewById(R.id.serverListRefreshButton);
+        refresh.setOnClickListener((v) -> {
+            if (getActivity() != null) {
+                getActivity().runOnUiThread(() -> {
+                    Toast.makeText(getActivity(), R.string.search_devices, Toast.LENGTH_LONG).show();
+                });
+            }
+            upnpClient.searchDevices();
+        });
         // add ourself as listener
         upnpClient.addUpnpClientListener(this);
         Thread thread = new Thread(this::populateDeviceList);
