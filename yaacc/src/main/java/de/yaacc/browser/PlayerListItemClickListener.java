@@ -21,18 +21,10 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.util.Log;
-import android.view.ContextMenu;
-import android.view.ContextMenu.ContextMenuInfo;
-import android.view.Menu;
-import android.view.MenuItem;
 import android.view.View;
-import android.widget.AdapterView;
-import android.widget.AdapterView.OnItemClickListener;
-import android.widget.ListView;
 
-import java.util.ArrayList;
+import androidx.recyclerview.widget.RecyclerView;
 
-import de.yaacc.R;
 import de.yaacc.player.Player;
 
 /**
@@ -40,15 +32,19 @@ import de.yaacc.player.Player;
  *
  * @author Tobias Schöne (the openbit)
  */
-public class PlayerListItemClickListener implements OnItemClickListener {
+public class PlayerListItemClickListener implements View.OnClickListener {
+    private RecyclerView recyclerView;
+    private PlayerListItemAdapter adapter;
+
+    public PlayerListItemClickListener(RecyclerView recyclerView, PlayerListItemAdapter adapter) {
+        this.adapter = adapter;
+        this.recyclerView = recyclerView;
+    }
 
     @Override
-    public void onItemClick(AdapterView<?> listView, View arg1, int position,
-                            long id) {
-        ListView a = (ListView) listView.findViewById(R.id.playerList);
-        PlayerListItemAdapter adapter = (PlayerListItemAdapter) listView.getAdapter();
-        Player player = (Player) adapter.getItem(position);
-        openIntent(a.getContext(), player);
+    public void onClick(View itemView) {
+        Player player = adapter.getItem(recyclerView.getChildAdapterPosition(itemView));
+        openIntent(itemView.getContext(), player);
 
     }
 
@@ -66,26 +62,4 @@ public class PlayerListItemClickListener implements OnItemClickListener {
         }
     }
 
-    public void onCreateContextMenu(ContextMenu menu, View v,
-                                    ContextMenuInfo menuInfo) {
-        menu.setHeaderTitle(v.getContext().getString(R.string.browse_context_title));
-        ArrayList<String> menuItems = new ArrayList<>();
-        menuItems.add(v.getContext().getString(R.string.open));
-        menuItems.add(v.getContext().getString(R.string.exitActivity));
-
-        for (int i = 0; i < menuItems.size(); i++) {
-            menu.add(Menu.NONE, i, i, menuItems.get(i));
-        }
-    }
-
-
-    public boolean onContextItemSelected(Player selectedPlayer, MenuItem item, Context applicationContext) {
-        if (item.getTitle().equals(applicationContext.getString(R.string.open))) {
-            openIntent(applicationContext, selectedPlayer);
-        } else if (item.getTitle().equals(applicationContext.getString(R.string.exitActivity))) {
-            selectedPlayer.exit();
-
-        }
-        return true;
-    }
 } 

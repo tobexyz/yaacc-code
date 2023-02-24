@@ -17,26 +17,21 @@
  */
 package de.yaacc.browser;
 
-import android.content.SharedPreferences;
 import android.os.Bundle;
-import android.preference.PreferenceManager;
 import android.util.Log;
-import android.view.ContextMenu;
 import android.view.LayoutInflater;
-import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.AdapterView;
-import android.widget.ListView;
 
 import androidx.annotation.NonNull;
 import androidx.fragment.app.Fragment;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
 import org.fourthline.cling.model.meta.Device;
 
 import de.yaacc.R;
 import de.yaacc.Yaacc;
-import de.yaacc.player.Player;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.UpnpClientListener;
 
@@ -48,20 +43,14 @@ import de.yaacc.upnp.UpnpClientListener;
 public class PlayerListFragment extends Fragment implements
         UpnpClientListener, OnBackPressedListener {
 
-    protected ListView contentList;
-    PlayerListItemClickListener itemClickListener = null;
+    protected RecyclerView contentList;
     private UpnpClient upnpClient = null;
     private PlayerListItemAdapter itemAdapter;
-    private Player selectedPlayer;
-
 
     private void init(Bundle savedInstanceState, View view) {
-
-
         upnpClient = ((Yaacc) requireActivity().getApplicationContext()).getUpnpClient();
-        itemClickListener = new PlayerListItemClickListener();
-        contentList = (ListView) view.findViewById(R.id.playerList);
-        registerForContextMenu(contentList);
+        contentList = view.findViewById(R.id.playerList);
+        contentList.setLayoutManager(new LinearLayoutManager(getActivity()));
         upnpClient.addUpnpClientListener(this);
         Thread thread = new Thread(this::populatePlayerList);
         thread.start();
@@ -87,25 +76,21 @@ public class PlayerListFragment extends Fragment implements
      */
     private void populatePlayerList() {
 
+        if (getActivity() != null) {
+            getActivity().runOnUiThread(() -> {
+                if (contentList.getAdapter() == null) {
+                    itemAdapter = new PlayerListItemAdapter(contentList, upnpClient.getCurrentPlayers());
+                    contentList.setAdapter(itemAdapter);
 
-        requireActivity().runOnUiThread(() -> {
-            itemAdapter = new PlayerListItemAdapter(getActivity(), upnpClient);
-            contentList.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
-            contentList.setAdapter(itemAdapter);
-            contentList.setOnItemClickListener(itemClickListener);
-        });
+                } else {
+                    itemAdapter.setItems(upnpClient.getCurrentPlayers());
+                }
+
+
+            });
+        }
     }
 
-    /**
-     * load app preferences
-     *
-     * @return app preferences
-     */
-    private SharedPreferences getPreferences() {
-        return PreferenceManager
-                .getDefaultSharedPreferences(requireActivity().getApplicationContext());
-
-    }
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -121,28 +106,6 @@ public class PlayerListFragment extends Fragment implements
 
     }
 
-    @Override
-    public void onCreateContextMenu(@NonNull ContextMenu menu, @NonNull View v, ContextMenu.ContextMenuInfo menuInfo) {
-        super.onCreateContextMenu(menu, v, menuInfo);
-        AdapterView.AdapterContextMenuInfo info = (AdapterView.AdapterContextMenuInfo) menuInfo;
-        if (v instanceof ListView) {
-            ListView listView = (ListView) v;
-            Object item = listView.getAdapter().getItem(info.position);
-            if (item instanceof Player) {
-                selectedPlayer = (Player) item;
-            }
-        }
-        itemClickListener.onCreateContextMenu(menu, v, menuInfo);
-    }
-
-
-    @Override
-    public boolean onContextItemSelected(@NonNull MenuItem item) {
-        boolean result = itemClickListener.onContextItemSelected(selectedPlayer,
-                item, requireContext());
-        populatePlayerList();
-        return result;
-    }
 
     @Override
     public void deviceAdded(Device<?, ?, ?> device) {
@@ -173,8 +136,12 @@ public class PlayerListFragment extends Fragment implements
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
 
-        View v = inflater.inflate(R.layout.fragment_player_list, container, false);
-        init(savedInstanceState, v);
-        return v;
+        return inflater.inflate(R.layout.fragment_player_list, container, false);
+    }
+
+    @Override
+    public void onViewCreated(View view, Bundle savedInstanceState) {
+        super.onViewCreated(view, savedInstanceState);
+        init(savedInstanceState, view);
     }
 } 

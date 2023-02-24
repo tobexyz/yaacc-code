@@ -17,23 +17,25 @@
  */
 package de.yaacc.browser;
 
-import android.content.Context;
 import android.content.res.Configuration;
 import android.graphics.Bitmap;
+import android.util.Log;
 import android.util.TypedValue;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.BaseAdapter;
 import android.widget.ImageView;
 import android.widget.TextView;
 
+import androidx.annotation.NonNull;
+import androidx.recyclerview.widget.RecyclerView;
+
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 import de.yaacc.R;
 import de.yaacc.player.Player;
-import de.yaacc.upnp.UpnpClient;
 import de.yaacc.util.ThemeHelper;
 
 /**
@@ -41,88 +43,90 @@ import de.yaacc.util.ThemeHelper;
  *
  * @author Tobias Schoene (the openbit)
  */
-public class PlayerListItemAdapter extends BaseAdapter {
-    private final UpnpClient upnpClient;
-    private final Context context;
-    private LayoutInflater inflator;
-    private List<Player> players;
+public class PlayerListItemAdapter extends RecyclerView.Adapter<PlayerListItemAdapter.ViewHolder> {
+    private final RecyclerView playerListView;
+    private final List<Player> players;
 
 
-    public PlayerListItemAdapter(Context context, UpnpClient upnpClient) {
-        this.upnpClient = upnpClient;
-        this.context = context;
-        initialize();
+    public PlayerListItemAdapter(RecyclerView playerList, Collection<Player> players) {
+        this.playerListView = playerList;
+        this.players = new ArrayList<>(players);
+        notifyDataSetChanged();
     }
 
-    private void initialize() {
-        inflator = LayoutInflater.from(upnpClient.getContext());
-        players = new ArrayList<>(upnpClient.getCurrentPlayers());
-
-    }
 
     @Override
-    public int getCount() {
+    public long getItemId(int position) {
+        return position;
+    }
+
+
+    @Override
+    public int getItemCount() {
         if (players == null) {
             return 0;
         }
         return players.size();
     }
 
+    public Player getItem(int position) {
+        return players.get(position);
+    }
+
+    public void setItems(Collection<Player> newObjects) {
+        Log.d(getClass().getName(), "set objects; " + newObjects);
+        players.clear();
+        players.addAll(newObjects);
+        notifyDataSetChanged();
+
+    }
+
+
     @Override
-    public Object getItem(int arg0) {
-        return players.get(arg0);
+    public PlayerListItemAdapter.ViewHolder onCreateViewHolder(ViewGroup parent,
+                                                               int viewType) {
+        View view = LayoutInflater.from(parent.getContext())
+                .inflate(R.layout.browse_player_item, parent, false);
+        view.setOnClickListener(new PlayerListItemClickListener(playerListView, this));
+        return new PlayerListItemAdapter.ViewHolder(view);
     }
 
     @Override
-    public long getItemId(int arg0) {
-        return arg0;
-    }
+    public void onBindViewHolder(final PlayerListItemAdapter.ViewHolder holder, final int listPosition) {
 
-    @Override
-    public View getView(int position, View view, ViewGroup parent) {
-        ViewHolder holder;
-
-        if (view == null) {
-            view = inflator.inflate(R.layout.browse_player_item, parent, false);
-            holder = new ViewHolder();
-            holder.icon = (ImageView) view.findViewById(R.id.browsePlayerItemIcon);
-            holder.name = (TextView) view.findViewById(R.id.browsePlayerItemName);
-            view.setTag(holder);
-        } else {
-            holder = (ViewHolder) view.getTag();
-        }
-        Player player = null;
-        if (position < players.size()) {
-            player = players.get(position);
-        }
+        Player player = getItem(listPosition);
         if (player != null) {
-            holder = holder == null ? new ViewHolder() : holder;
             holder.name.setText(player.getName());
             int resId = android.R.attr.colorForeground;
-            if (Configuration.UI_MODE_NIGHT_YES == (context.getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK)) {
+            if (Configuration.UI_MODE_NIGHT_YES == (playerListView.getContext().getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK)) {
                 resId = android.R.attr.colorForegroundInverse;
             }
             TypedValue typedValue = new TypedValue();
-            context.getApplicationContext().getTheme().resolveAttribute(resId, typedValue, true);
+            playerListView.getContext().getApplicationContext().getTheme().resolveAttribute(resId, typedValue, true);
             int color = typedValue.data;
             holder.name.setTextColor(color);
             if (player.getIcon() != null) {
                 holder.icon.setImageBitmap(Bitmap.createScaledBitmap(player.getIcon(), 48, 48, false));
             } else {
                 if (R.drawable.yaacc48_24_png != player.getIconResourceId()) {
-                    holder.icon.setImageDrawable(ThemeHelper.tintDrawable(context.getResources().getDrawable(player.getIconResourceId(), context.getTheme()), context.getTheme()));
+                    holder.icon.setImageDrawable(ThemeHelper.tintDrawable(playerListView.getContext().getResources().getDrawable(player.getIconResourceId(), playerListView.getContext().getTheme()), playerListView.getContext().getTheme()));
                 } else {
-                    holder.icon.setImageDrawable(context.getResources().getDrawable(R.drawable.yaacc48_24_png, context.getTheme()));
+                    holder.icon.setImageDrawable(playerListView.getContext().getResources().getDrawable(R.drawable.yaacc48_24_png, playerListView.getContext().getTheme()));
                 }
 
             }
         }
-        return view;
     }
 
-    static class ViewHolder {
+    static class ViewHolder extends RecyclerView.ViewHolder {
         ImageView icon;
         TextView name;
+
+        public ViewHolder(@NonNull View itemView) {
+            super(itemView);
+            icon = itemView.findViewById(R.id.browsePlayerItemIcon);
+            name = itemView.findViewById(R.id.browsePlayerItemName);
+        }
     }
 
 
