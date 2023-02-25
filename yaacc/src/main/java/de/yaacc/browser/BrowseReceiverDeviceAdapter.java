@@ -29,6 +29,7 @@ import android.widget.SeekBar;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
+import androidx.recyclerview.widget.DiffUtil;
 import androidx.recyclerview.widget.RecyclerView;
 
 import org.fourthline.cling.model.meta.Device;
@@ -37,8 +38,10 @@ import org.fourthline.cling.model.meta.LocalDevice;
 import org.fourthline.cling.model.meta.RemoteDevice;
 
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedList;
+import java.util.List;
 
 import de.yaacc.R;
 import de.yaacc.upnp.UpnpClient;
@@ -49,21 +52,18 @@ import de.yaacc.util.image.IconDownloadTask;
  * @author Christoph Hähnel (eyeless)
  */
 public class BrowseReceiverDeviceAdapter extends RecyclerView.Adapter<BrowseReceiverDeviceAdapter.ViewHolder> {
-    private final LinkedList<Device<?, ?, ?>> selectedDevices;
+    private final List<Device<?, ?, ?>> selectedDevices;
     private final Context context;
-    private LinkedList<Device<?, ?, ?>> devices;
+    private List<Device<?, ?, ?>> devices;
     private UpnpClient upnpClient;
-    private RecyclerView recyclerView;
 
 
-    public BrowseReceiverDeviceAdapter(Context ctx, RecyclerView recyclerView, UpnpClient upnpClient, Collection<Device<?, ?, ?>> devices, Collection<Device<?, ?, ?>> selectedDevices) {
+    public BrowseReceiverDeviceAdapter(Context ctx, UpnpClient upnpClient, Collection<Device<?, ?, ?>> devices, Collection<Device<?, ?, ?>> selectedDevices) {
         super();
-        this.devices = new LinkedList<>(devices);
+        this.devices = new ArrayList<>(devices);
         this.selectedDevices = new LinkedList<>(selectedDevices);
         context = ctx;
-        this.recyclerView = recyclerView;
         this.upnpClient = upnpClient;
-        notifyDataSetChanged();
     }
 
     @Override
@@ -132,21 +132,22 @@ public class BrowseReceiverDeviceAdapter extends RecyclerView.Adapter<BrowseRece
 
     }
 
-    public void setDevices(Collection<Device<?, ?, ?>> devices) {
+    public void setDevices(List<Device<?, ?, ?>> devices) {
+        final DiffUtil.DiffResult diffResult = DiffUtil.calculateDiff(new DeviceDiffCallback(this.devices, devices));
         this.devices.clear();
         this.devices.addAll(devices);
-        notifyDataSetChanged();
+        diffResult.dispatchUpdatesTo(this);
     }
 
 
     public void addSelectedDevice(Device<?, ?, ?> device) {
         selectedDevices.add(device);
-        notifyDataSetChanged();
+
     }
 
     public void removeSelectedDevice(Device<?, ?, ?> device) {
         this.selectedDevices.remove(device);
-        notifyDataSetChanged();
+
     }
 
     static class ViewHolder extends RecyclerView.ViewHolder {

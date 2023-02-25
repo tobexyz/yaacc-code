@@ -125,7 +125,7 @@ public class ReceiverListFragment extends Fragment implements
                 public void run() {
                     LinkedList<Device<?, ?, ?>> receiverDevices = new LinkedList<>(upnpClient.getDevicesProvidingAvTransportService());
                     if (bDeviceAdapter == null) {
-                        bDeviceAdapter = new BrowseReceiverDeviceAdapter(getActivity(), contentList, upnpClient, receiverDevices, upnpClient.getReceiverDevices());
+                        bDeviceAdapter = new BrowseReceiverDeviceAdapter(getActivity(), upnpClient, receiverDevices, upnpClient.getReceiverDevices());
                         contentList.setAdapter(bDeviceAdapter);
                     } else {
                         bDeviceAdapter.setDevices(receiverDevices);

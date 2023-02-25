@@ -33,6 +33,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import org.fourthline.cling.model.meta.Device;
 
+import java.util.ArrayList;
 import java.util.LinkedList;
 
 import de.yaacc.R;
@@ -86,7 +87,7 @@ public class ServerListFragment extends Fragment implements
             getActivity().runOnUiThread(() -> {
                 RecyclerView deviceList = contentList;
                 if (deviceList.getAdapter() == null) {
-                    bDeviceAdapter = new BrowseDeviceAdapter(getActivity(), deviceList, upnpClient, new LinkedList<>(upnpClient.getDevicesProvidingContentDirectoryService()));
+                    bDeviceAdapter = new BrowseDeviceAdapter(getActivity(), deviceList, upnpClient, new ArrayList<>(upnpClient.getDevicesProvidingContentDirectoryService()));
                     deviceList.setAdapter(bDeviceAdapter);
                 } else {
                     bDeviceAdapter.setDevices(new LinkedList<>(upnpClient.getDevicesProvidingContentDirectoryService()));

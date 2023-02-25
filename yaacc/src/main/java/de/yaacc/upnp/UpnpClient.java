@@ -114,6 +114,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     private Context context;
     private boolean mute = false;
     private PlayerService playerService;
+    private Device<?, ?, ?> localDummyDevice;
 
     public UpnpClient() {
     }
@@ -1117,14 +1118,15 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     }
 
     private Device<?, ?, ?> getLocalDummyDevice() {
-        Device<?, ?, ?> result = null;
-        try {
-            result = new LocalDummyDevice();
-        } catch (ValidationException e) {
-            // Ignore
-            Log.d(this.getClass().getName(), "Something wrong with the LocalDummyDevice...", e);
+        if (localDummyDevice == null) {
+            try {
+                localDummyDevice = new LocalDummyDevice(context);
+            } catch (ValidationException e) {
+                // Ignore
+                Log.d(this.getClass().getName(), "Something wrong with the LocalDummyDevice...", e);
+            }
         }
-        return result;
+        return localDummyDevice;
     }
 
     /**
@@ -1417,8 +1419,11 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
 
     @SuppressWarnings({"unchecked", "rawtypes"})
     public static class LocalDummyDevice extends Device {
-        LocalDummyDevice() throws ValidationException {
+        Context context;
+
+        LocalDummyDevice(Context context) throws ValidationException {
             super(new DeviceIdentity(new UDN(LOCAL_UID)));
+            this.context = context;
         }
 
         @Override
@@ -1480,14 +1485,13 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
          */
         @Override
         public String getDisplayString() {
-            return android.os.Build.MODEL;
+            return context.getString(R.string.this_device);
         }
 
         @Override
         public DeviceDetails getDetails() {
-            return new DeviceDetails(android.os.Build.MODEL);
+            return new DeviceDetails(context.getString(R.string.this_device));
         }
-
 
     }
 }

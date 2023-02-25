@@ -23,6 +23,7 @@ public class DeviceVolumeStateLoadTask extends AsyncTask<Device<?, ?, ?>, Intege
             return 0;
         }
         device = devices[0];
+
         return upnpClient.getVolume(device);
     }
 
@@ -45,5 +46,6 @@ public class DeviceVolumeStateLoadTask extends AsyncTask<Device<?, ?, ?>, Intege
 
             }
         });
+
     }
 }

@@ -119,5 +119,6 @@
     <string name="media_store_scan">Scan</string>
     <string name="media_store_label">Mediendatenbank</string>
     <string name="search_devices">Suche nach UPNP Geräten gestartet</string>
+    <string name="this_device">dieses Gerät</string>
 
 </resources>

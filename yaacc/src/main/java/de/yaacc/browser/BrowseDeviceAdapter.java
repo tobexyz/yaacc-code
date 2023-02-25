@@ -29,6 +29,7 @@ import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.TextView;
 
+import androidx.recyclerview.widget.DiffUtil;
 import androidx.recyclerview.widget.RecyclerView;
 
 import org.fourthline.cling.model.meta.Device;
@@ -37,8 +38,8 @@ import org.fourthline.cling.model.meta.LocalDevice;
 import org.fourthline.cling.model.meta.RemoteDevice;
 
 import java.net.URL;
-import java.util.Collection;
 import java.util.LinkedList;
+import java.util.List;
 
 import de.yaacc.R;
 import de.yaacc.upnp.UpnpClient;
@@ -57,10 +58,10 @@ public class BrowseDeviceAdapter extends RecyclerView.Adapter<BrowseDeviceAdapte
     private RecyclerView deviceList;
 
 
-    public BrowseDeviceAdapter(Context ctx, RecyclerView deviceList, UpnpClient upnpClient, LinkedList<Device<?, ?, ?>> devices) {
+    public BrowseDeviceAdapter(Context ctx, RecyclerView deviceList, UpnpClient upnpClient, List<Device<?, ?, ?>> devices) {
         super();
 
-        this.devices = devices;
+        this.devices = new LinkedList<>(devices);
         if (this.devices == null) {
             this.devices = new LinkedList<>();
         }
@@ -121,10 +122,11 @@ public class BrowseDeviceAdapter extends RecyclerView.Adapter<BrowseDeviceAdapte
     }
 
 
-    public void setDevices(Collection<Device<?, ?, ?>> devices) {
+    public void setDevices(List<Device<?, ?, ?>> devices) {
+        final DiffUtil.DiffResult diffResult = DiffUtil.calculateDiff(new DeviceDiffCallback(this.devices, devices));
         this.devices.clear();
         this.devices.addAll(devices);
-        notifyDataSetChanged();
+        diffResult.dispatchUpdatesTo(this);
 
     }
 
