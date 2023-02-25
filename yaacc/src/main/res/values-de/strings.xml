@@ -55,10 +55,10 @@
     <string name="playerNameMultiContent">Multi</string>
     <string name="playerNameAvTransport">Entfernd</string>
     <string name="multiContentPlayerActivityImageView">variabler Inhalt</string>
-    <string name="title_activity_avtransport_player">Yaacc Netzwerkspieler</string>
-    <string name="title_activity_multi_content_player">Yaacc Standardspieler</string>
+    <string name="title_activity_avtransport_player">YAACC Netzwerkspieler</string>
+    <string name="title_activity_multi_content_player">YAACC Standardspieler</string>
     <string name="can_not_start_activity">"Die App kann nicht gestartet werden! Grund: "</string>
-    <string name="title_activity_music_player">Yaacc Musikspieler </string>
+    <string name="title_activity_music_player">YAACC Musikspieler </string>
     <string name="yaacc_menu_settings">YAACC Eigenschaften</string>
     <string name="yaacc_about">Über</string>
     <string name="title_activity_yaacc_upnp_server_control">Yaacc Upnp Server Einstellung</string>
@@ -97,8 +97,8 @@
     <string name="not_yet_implemented">not yet implemented</string>
     <string name="avtransportPlayerActivityNextLabel">Nächstes:</string>
     <string name="browse_context_control_device">Gerät steuern</string>
-    <string name="channel_name">Yaacc</string>
-    <string name="channel_description">Yaacc notifications</string>
+    <string name="channel_name">YAACC</string>
+    <string name="channel_description">YAACC notifications</string>
     <string name="playerNameImageShort">Bilder</string>
     <string name="playerShortNameMusic">Musik</string>
     <string name="playerShortNameMultiContent">Multi</string>
