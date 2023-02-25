@@ -30,6 +30,13 @@
     android:paddingRight="16dp"
     tools:context=".player.AVTransportPlayerActivity">
 
+    <TextView
+        android:id="@+id/avtransportPlayerActivityDeviceName"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_horizontal"
+        android:textAppearance="?android:attr/textAppearanceLarge" />
+
     <RelativeLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content">

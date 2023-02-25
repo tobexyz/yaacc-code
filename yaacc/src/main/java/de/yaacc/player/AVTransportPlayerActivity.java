@@ -366,11 +366,14 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
     private void doSetTrackInfo() {
         if (getPlayer() == null)
             return;
-        TextView current = (TextView) findViewById(R.id.avtransportPlayerActivityCurrentItem);
+        if (getPlayer() instanceof AVTransportPlayer) {
+            ((TextView) findViewById(R.id.avtransportPlayerActivityDeviceName)).setText(((AVTransportPlayer) getPlayer()).getDevice().getDetails().getFriendlyName());
+        }
+        TextView current = findViewById(R.id.avtransportPlayerActivityCurrentItem);
         current.setText(getPlayer().getCurrentItemTitle());
-        TextView position = (TextView) findViewById(R.id.avtransportPlayerActivityPosition);
+        TextView position = findViewById(R.id.avtransportPlayerActivityPosition);
         position.setText(getPlayer().getPositionString());
-        TextView next = (TextView) findViewById(R.id.avtransportPlayerActivityNextItem);
+        TextView next = findViewById(R.id.avtransportPlayerActivityNextItem);
         next.setText(getPlayer().getNextItemTitle());
         ImageView albumArtView = (ImageView) findViewById(R.id.avtransportPlayerActivityImageView);
         URI albumArtUri = getPlayer().getAlbumArt();
@@ -384,10 +387,10 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
         } else {
             albumArtView.setImageDrawable(ThemeHelper.tintDrawable(albumArtView.getDrawable(), getTheme()));
         }
-        TextView duration = (TextView) findViewById(R.id.avtransportPlayerActivityDuration);
+        TextView duration = findViewById(R.id.avtransportPlayerActivityDuration);
         String durationTimeString = getPlayer().getDuration();
         duration.setText(durationTimeString);
-        TextView elapsedTime = (TextView) findViewById(R.id.avtransportPlayerActivityElapsedTime);
+        TextView elapsedTime = findViewById(R.id.avtransportPlayerActivityElapsedTime);
         String elapsedTimeString = getPlayer().getElapsedTime();
         elapsedTime.setText(elapsedTimeString);
         SimpleDateFormat dateFormat = new SimpleDateFormat("HH:mm:ss");
