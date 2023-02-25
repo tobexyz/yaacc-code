@@ -10,6 +10,7 @@ import de.yaacc.upnp.UpnpClient;
 public class DeviceMuteStateLoadTask extends AsyncTask<Device<?, ?, ?>, Integer, Boolean> {
     CheckBox targetWidget;
     UpnpClient upnpClient;
+    Device<?, ?, ?> device;
 
     public DeviceMuteStateLoadTask(CheckBox targetWidget, UpnpClient upnpClient) {
         this.targetWidget = targetWidget;
@@ -21,11 +22,15 @@ public class DeviceMuteStateLoadTask extends AsyncTask<Device<?, ?, ?>, Integer,
         if (devices == null || devices.length < 1) {
             return false;
         }
-        return upnpClient.getMute(devices[0]);
+        device = devices[0];
+        return upnpClient.getMute(device);
     }
 
     @Override
     protected void onPostExecute(Boolean result) {
         targetWidget.setChecked(result);
+        targetWidget.setOnClickListener((it) -> {
+            upnpClient.setMute(device, targetWidget.isChecked());
+        });
     }
 }
