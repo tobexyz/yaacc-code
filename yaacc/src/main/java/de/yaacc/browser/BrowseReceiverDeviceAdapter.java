@@ -137,6 +137,7 @@ public class BrowseReceiverDeviceAdapter extends RecyclerView.Adapter<BrowseRece
         this.devices.clear();
         this.devices.addAll(devices);
         diffResult.dispatchUpdatesTo(this);
+        //FIXME update mute and volume on all devices on each event
     }
 
 

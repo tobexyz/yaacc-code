@@ -120,6 +120,7 @@
     <string name="media_store_label">media store</string>
     <string name="search_devices">searching for UPNP devices</string>
     <string name="this_device">this device</string>
+    <string name="stop_not_supported">"stop not supported for third parties apps "</string>
 
 
 </resources>
