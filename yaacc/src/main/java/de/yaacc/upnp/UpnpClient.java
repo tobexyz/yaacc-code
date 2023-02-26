@@ -475,7 +475,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     }
 
     private List<Device<?, ?, ?>> sortDevices(Collection<Device<?, ?, ?>> devices) {
-        return devices.stream().sorted(Comparator.comparing(it -> it.getDetails().getFriendlyName())).collect(Collectors.toList());
+        return devices.stream().sorted(Comparator.comparing(it -> it.getDetails().getFriendlyName(), String.CASE_INSENSITIVE_ORDER)).collect(Collectors.toList());
     }
 
     /**
