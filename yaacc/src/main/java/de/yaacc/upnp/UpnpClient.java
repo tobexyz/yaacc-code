@@ -78,12 +78,14 @@ import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import de.yaacc.R;
 import de.yaacc.Yaacc;
@@ -438,7 +440,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      */
     public Collection<Device<?, ?, ?>> getDevices() {
         if (isInitialized()) {
-            return getRegistry().getDevices();
+            return sortDevices(getRegistry().getDevices());
         }
         return new ArrayList<>();
     }
@@ -450,7 +452,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      */
     public Collection<Device<?, ?, ?>> getDevicesProvidingContentDirectoryService() {
         if (isInitialized()) {
-            return getRegistry().getDevices(new UDAServiceType("ContentDirectory"));
+            return sortDevices(getRegistry().getDevices(new UDAServiceType("ContentDirectory")));
         }
         return new ArrayList<>();
     }
@@ -461,12 +463,19 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      * @return the upnpDevices
      */
     public Collection<Device<?, ?, ?>> getDevicesProvidingAvTransportService() {
-        ArrayList<Device<?, ?, ?>> result = new ArrayList<>();
-        result.add(getLocalDummyDevice());
+        List<Device<?, ?, ?>> result = new ArrayList<>();
         if (isInitialized()) {
             result.addAll(getRegistry().getDevices(new UDAServiceType("AVTransport")));
         }
+        result = sortDevices(result);
+        Collections.reverse(result);
+        result.add(getLocalDummyDevice());
+        Collections.reverse(result);
         return result;
+    }
+
+    private List<Device<?, ?, ?>> sortDevices(Collection<Device<?, ?, ?>> devices) {
+        return devices.stream().sorted(Comparator.comparing(it -> it.getDetails().getFriendlyName())).collect(Collectors.toList());
     }
 
     /**

@@ -56,14 +56,16 @@ public class BrowseReceiverDeviceAdapter extends RecyclerView.Adapter<BrowseRece
     private final Context context;
     private List<Device<?, ?, ?>> devices;
     private UpnpClient upnpClient;
+    private RecyclerView devicesListView;
 
 
-    public BrowseReceiverDeviceAdapter(Context ctx, UpnpClient upnpClient, Collection<Device<?, ?, ?>> devices, Collection<Device<?, ?, ?>> selectedDevices) {
+    public BrowseReceiverDeviceAdapter(Context ctx, UpnpClient upnpClient, RecyclerView devicesListView, Collection<Device<?, ?, ?>> devices, Collection<Device<?, ?, ?>> selectedDevices) {
         super();
         this.devices = new ArrayList<>(devices);
         this.selectedDevices = new LinkedList<>(selectedDevices);
         context = ctx;
         this.upnpClient = upnpClient;
+        this.devicesListView = devicesListView;
     }
 
     @Override
@@ -137,7 +139,20 @@ public class BrowseReceiverDeviceAdapter extends RecyclerView.Adapter<BrowseRece
         this.devices.clear();
         this.devices.addAll(devices);
         diffResult.dispatchUpdatesTo(this);
-        //FIXME update mute and volume on all devices on each event
+        updateDeviceStates();
+    }
+
+    private void updateDeviceStates() {
+        for (int i = 0; i < devices.size(); i++
+        ) {
+            View view = devicesListView.getChildAt(i);
+            if (view != null) {
+                new DeviceVolumeStateLoadTask(view.findViewById(R.id.browseReceiverDeviceItemMuteVolumeSeekBar), upnpClient).execute(devices.get(i));
+                new DeviceMuteStateLoadTask(view.findViewById(R.id.browseReceiverDeviceItemMute), upnpClient).execute(devices.get(i));
+            }
+        }
+
+
     }
 
 
@@ -160,11 +175,11 @@ public class BrowseReceiverDeviceAdapter extends RecyclerView.Adapter<BrowseRece
 
         public ViewHolder(@NonNull View itemView) {
             super(itemView);
-            icon = (ImageView) itemView.findViewById(R.id.browseReceiverDeviceItemIcon);
-            name = (TextView) itemView.findViewById(R.id.browseReceiverDeviceItemName);
-            checkBox = (CheckBox) itemView.findViewById(R.id.browseReceiverDeviceItemCheckbox);
-            mute = (CheckBox) itemView.findViewById(R.id.browseReceiverDeviceItemMute);
-            volume = (SeekBar) itemView.findViewById(R.id.browseReceiverDeviceItemMuteVolumeSeekBar);
+            icon = itemView.findViewById(R.id.browseReceiverDeviceItemIcon);
+            name = itemView.findViewById(R.id.browseReceiverDeviceItemName);
+            checkBox = itemView.findViewById(R.id.browseReceiverDeviceItemCheckbox);
+            mute = itemView.findViewById(R.id.browseReceiverDeviceItemMute);
+            volume = itemView.findViewById(R.id.browseReceiverDeviceItemMuteVolumeSeekBar);
             volume.setMax(100);
         }
     }
