@@ -35,6 +35,8 @@ import org.fourthline.cling.android.AndroidUpnpService;
 import org.fourthline.cling.controlpoint.ControlPoint;
 import org.fourthline.cling.model.Namespace;
 import org.fourthline.cling.model.ValidationException;
+import org.fourthline.cling.model.action.ActionInvocation;
+import org.fourthline.cling.model.message.UpnpResponse;
 import org.fourthline.cling.model.meta.Action;
 import org.fourthline.cling.model.meta.Device;
 import org.fourthline.cling.model.meta.DeviceDetails;
@@ -66,21 +68,29 @@ import org.fourthline.cling.support.model.container.Container;
 import org.fourthline.cling.support.model.item.AudioItem;
 import org.fourthline.cling.support.model.item.ImageItem;
 import org.fourthline.cling.support.model.item.Item;
+import org.fourthline.cling.support.renderingcontrol.callback.GetMute;
+import org.fourthline.cling.support.renderingcontrol.callback.GetVolume;
+import org.fourthline.cling.support.renderingcontrol.callback.SetMute;
+import org.fourthline.cling.support.renderingcontrol.callback.SetVolume;
 
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import de.yaacc.R;
+import de.yaacc.Yaacc;
 import de.yaacc.browser.Position;
+import de.yaacc.musicplayer.BackgroundMusicService;
 import de.yaacc.player.PlayableItem;
 import de.yaacc.player.Player;
 import de.yaacc.player.PlayerService;
@@ -90,6 +100,7 @@ import de.yaacc.upnp.model.types.SyncOffset;
 import de.yaacc.upnp.server.YaaccUpnpServerService;
 import de.yaacc.upnp.server.avtransport.AvTransport;
 import de.yaacc.util.FileDownloader;
+import de.yaacc.util.Watchdog;
 
 /**
  * A client facade to the upnp lookup and access framework. This class provides
@@ -105,6 +116,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     private Context context;
     private boolean mute = false;
     private PlayerService playerService;
+    private Device<?, ?, ?> localDummyDevice;
 
     public UpnpClient() {
     }
@@ -128,14 +140,14 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
             // FIXME check if this is right: Context.BIND_AUTO_CREATE kills the
             // service after closing the activity
             boolean result = context.bindService(new Intent(context, UpnpRegistryService.class), this, Context.BIND_AUTO_CREATE);
-            return result && startService();
+            return result;
         }
         return false;
     }
 
     public boolean startService() {
         if (playerService == null) {
-
+            ((Yaacc) getContext().getApplicationContext()).createYaaccGroupNotification();
             getContext().startForegroundService(new Intent(getContext(), PlayerService.class));
             return getContext().bindService(new Intent(getContext(), PlayerService.class),
                     this, Context.BIND_AUTO_CREATE);
@@ -152,6 +164,18 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
             offsetValue = 999;
         }
         return new SyncOffset(true, 0, 0, 0, offsetValue, 0, 0);
+    }
+
+    private void fireReceiverDeviceAdded(Device<?, ?, ?> device) {
+        for (UpnpClientListener listener : new ArrayList<>(listeners)) {
+            listener.receiverDeviceAdded(device);
+        }
+    }
+
+    private void fireReceiverDeviceRemoved(Device<?, ?, ?> device) {
+        for (UpnpClientListener listener : listeners) {
+            listener.receiverDeviceRemoved(device);
+        }
     }
 
     private void deviceAdded(@SuppressWarnings("rawtypes") final Device device) {
@@ -416,7 +440,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      */
     public Collection<Device<?, ?, ?>> getDevices() {
         if (isInitialized()) {
-            return getRegistry().getDevices();
+            return sortDevices(getRegistry().getDevices());
         }
         return new ArrayList<>();
     }
@@ -428,7 +452,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      */
     public Collection<Device<?, ?, ?>> getDevicesProvidingContentDirectoryService() {
         if (isInitialized()) {
-            return getRegistry().getDevices(new UDAServiceType("ContentDirectory"));
+            return sortDevices(getRegistry().getDevices(new UDAServiceType("ContentDirectory")));
         }
         return new ArrayList<>();
     }
@@ -439,12 +463,19 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      * @return the upnpDevices
      */
     public Collection<Device<?, ?, ?>> getDevicesProvidingAvTransportService() {
-        ArrayList<Device<?, ?, ?>> result = new ArrayList<>();
-        result.add(getLocalDummyDevice());
+        List<Device<?, ?, ?>> result = new ArrayList<>();
         if (isInitialized()) {
             result.addAll(getRegistry().getDevices(new UDAServiceType("AVTransport")));
         }
+        result = sortDevices(result);
+        Collections.reverse(result);
+        result.add(getLocalDummyDevice());
+        Collections.reverse(result);
         return result;
+    }
+
+    private List<Device<?, ?, ?>> sortDevices(Collection<Device<?, ?, ?>> devices) {
+        return devices.stream().sorted(Comparator.comparing(it -> it.getDetails().getFriendlyName(), String.CASE_INSENSITIVE_ORDER)).collect(Collectors.toList());
     }
 
     /**
@@ -675,7 +706,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     /**
      * Search asynchronously for all devices.
      */
-    private void searchDevices() {
+    public void searchDevices() {
         if (isInitialized()) {
             getAndroidUpnpService().getControlPoint().search();
         }
@@ -698,7 +729,10 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      * @return the player
      */
     public List<Player> initializePlayers(List<Item> items) {
-        if (playerService == null) {
+        if (playerService == null && !startService()) {
+            return Collections.emptyList();
+        }
+        if (!waitForPlayerServiceComeUp()) {
             return Collections.emptyList();
         }
         LinkedList<PlayableItem> playableItems = new LinkedList<>();
@@ -719,6 +753,27 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         return playerService.createPlayer(this, synchronizationInfo, playableItems);
     }
 
+    private boolean waitForPlayerServiceComeUp() {
+        Watchdog watchdog = Watchdog.createWatchdog(10000L);
+        watchdog.start();
+        int i = 0;
+        while (playerService == null && !watchdog.hasTimeout()) {
+            //active wait
+            i++;
+            if (i == 100000) {
+                Log.d(getClass().getName(), "wait for player service start");
+                i = 0;
+            }
+        }
+        if (watchdog.hasTimeout()) {
+            Log.d(getClass().getName(), "Timeout occurred");
+            return false;
+        } else {
+            watchdog.cancel();
+        }
+        return true;
+    }
+
     /**
      * Returns all player instances initialized with the given transport object
      *
@@ -726,7 +781,10 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      * @return the player
      */
     public List<Player> initializePlayers(AvTransport transport) {
-        if (playerService == null) {
+        if (playerService == null && !startService()) {
+            return Collections.emptyList();
+        }
+        if (!waitForPlayerServiceComeUp()) {
             return Collections.emptyList();
         }
         PlayableItem playableItem = new PlayableItem();
@@ -807,7 +865,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         }
         List<PlayableItem> items = new ArrayList<>();
         if (transport == null) {
-            return playerService.createPlayer(this, null, items);
+            return Collections.emptyList();
         }
         SynchronizationInfo synchronizationInfo = transport.getSynchronizationInfo();
         synchronizationInfo.setOffset(getDeviceSyncOffset());
@@ -815,7 +873,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         Log.d(getClass().getName(), "TransportId: " + transport.getInstanceId());
         PositionInfo positionInfo = transport.getPositionInfo();
         if (positionInfo == null) {
-            return playerService.createPlayer(this, synchronizationInfo, items);
+            return Collections.emptyList();
         }
         DIDLContent metadata = null;
         try {
@@ -951,7 +1009,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         for (String id : receiverDeviceIds) {
             Device<?, ?, ?> receiver = this.getDevice(id);
             if (receiver != null) {
-                result.add(this.getDevice(id));
+                result.add(receiver);
             } else {
                 unknowsIds.add(id);
             }
@@ -987,6 +1045,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         Collection<Device<?, ?, ?>> receiverDevices = getReceiverDevices();
         receiverDevices.add(receiverDevice);
         setReceiverDevices(receiverDevices);
+        fireReceiverDeviceAdded(receiverDevice);
     }
 
     /**
@@ -999,6 +1058,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         Collection<Device<?, ?, ?>> receiverDevices = getReceiverDevices();
         receiverDevices.remove(receiverDevice);
         setReceiverDevices(receiverDevices);
+        fireReceiverDeviceRemoved(receiverDevice);
     }
 
     /**
@@ -1023,6 +1083,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         Editor prefEdit = preferences.edit();
         prefEdit.putString(getContext().getString(R.string.settings_selected_provider_title), provider.getIdentity().getUdn().getIdentifierString());
         prefEdit.apply();
+
     }
 
     /**
@@ -1039,8 +1100,9 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         if (playerService != null) {
             playerService.shutdown();
         }
-        result = getContext().stopService(new Intent(getContext(), PlayerService.class));
-        Log.d(getClass().getName(), "Stopping PlayerService succsessful= " + result);
+
+        result = getContext().stopService(new Intent(getContext(), BackgroundMusicService.class));
+        Log.d(getClass().getName(), "Stopping BackgroundMusicService succsessful= " + result);
 
     }
 
@@ -1065,14 +1127,15 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     }
 
     private Device<?, ?, ?> getLocalDummyDevice() {
-        Device<?, ?, ?> result = null;
-        try {
-            result = new LocalDummyDevice();
-        } catch (ValidationException e) {
-            // Ignore
-            Log.d(this.getClass().getName(), "Something wrong with the LocalDummyDevice...", e);
+        if (localDummyDevice == null) {
+            try {
+                localDummyDevice = new LocalDummyDevice(context);
+            } catch (ValidationException e) {
+                // Ignore
+                Log.d(this.getClass().getName(), "Something wrong with the LocalDummyDevice...", e);
+            }
         }
-        return result;
+        return localDummyDevice;
     }
 
     /**
@@ -1081,7 +1144,11 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      * @return the state
      */
     public boolean isMute() {
-        return mute;
+        AudioManager audioManager = (AudioManager) getContext().getSystemService(Context.AUDIO_SERVICE);
+        if (audioManager != null) {
+            return audioManager.isStreamMute(AudioManager.STREAM_MUSIC);
+        }
+        return false;
     }
 
     /**
@@ -1090,7 +1157,6 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      * @param mute the state
      */
     public void setMute(boolean mute) {
-        this.mute = mute;
         AudioManager audioManager = (AudioManager) getContext().getSystemService(Context.AUDIO_SERVICE);
         if (audioManager != null) {
             audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, mute ? AudioManager.ADJUST_MUTE : AudioManager.ADJUST_UNMUTE, 0);
@@ -1139,13 +1205,12 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         new FileDownloader(this).execute(selectedDIDLObject);
     }
 
-    public void controlDevice(Device<?, ?, ?> device) {
-        if (playerService == null) return;
-        playerService.controlDevice(this, device);
-    }
 
     public List<Player> initializePlayersWithPlayableItems(List<PlayableItem> items) {
-        if (playerService == null) {
+        if (playerService == null && !startService()) {
+            return Collections.emptyList();
+        }
+        if (!waitForPlayerServiceComeUp()) {
             return Collections.emptyList();
         }
         SynchronizationInfo synchronizationInfo = new SynchronizationInfo();
@@ -1160,10 +1225,214 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         return playerService.createPlayer(this, synchronizationInfo, items);
     }
 
+    public boolean getMute(Device<?, ?, ?> device) {
+        if (device == null) {
+            return false;
+        }
+        if (device instanceof LocalDevice || device instanceof UpnpClient.LocalDummyDevice) {
+            return isMute();
+        }
+        Service<?, ?> service = getRenderingControlService(device);
+        if (service == null) {
+            Log.d(getClass().getName(),
+                    "No AVTransport-Service found on Device: "
+                            + device.getDisplayString());
+            return false;
+        }
+        Log.d(getClass().getName(), "Action get Mute ");
+        final ActionState actionState = new ActionState();
+        actionState.actionFinished = false;
+        GetMute actionCallback = new GetMute(service) {
+            @Override
+            public void failure(ActionInvocation actioninvocation,
+                                UpnpResponse upnpresponse, String s) {
+                Log.d(getClass().getName(), "Failure UpnpResponse: "
+                        + upnpresponse);
+                Log.d(getClass().getName(),
+                        upnpresponse != null ? "UpnpResponse: "
+                                + upnpresponse.getResponseDetails() : "");
+                Log.d(getClass().getName(), "s: " + s);
+                actionState.actionFinished = true;
+            }
+
+            @Override
+            public void success(ActionInvocation actioninvocation) {
+                super.success(actioninvocation);
+                actionState.actionFinished = true;
+            }
+
+            @Override
+            public void received(ActionInvocation actionInvocation, boolean currentMute) {
+                actionState.result = currentMute;
+
+            }
+        };
+        getControlPoint().execute(actionCallback);
+        Watchdog watchdog = Watchdog.createWatchdog(10000L);
+        watchdog.start();
+        //FIXME really best way to solve it?
+        int i = 0;
+        while (!actionState.actionFinished && !watchdog.hasTimeout()) {
+            //active wait
+            i++;
+            if (i == 100000) {
+                Log.d(getClass().getName(), "wait for action finished ");
+                i = 0;
+            }
+        }
+        if (watchdog.hasTimeout()) {
+            Log.d(getClass().getName(), "Timeout occurred");
+        } else {
+            watchdog.cancel();
+        }
+        return actionState.result != null && (Boolean) actionState.result;
+    }
+
+    public void setMute(Device<?, ?, ?> device, boolean mute) {
+        if (device == null) {
+            return;
+        }
+        if (device instanceof LocalDevice || device instanceof UpnpClient.LocalDummyDevice) {
+            setMute(mute);
+        }
+        Service<?, ?> service = getRenderingControlService(device);
+        if (service == null) {
+            Log.d(getClass().getName(),
+                    "No AVTransport-Service found on Device: "
+                            + device.getDisplayString());
+            return;
+        }
+        Log.d(getClass().getName(), "Action set Mute ");
+        SetMute actionCallback = new SetMute(service, mute) {
+            @Override
+            public void failure(ActionInvocation actioninvocation,
+                                UpnpResponse upnpresponse, String s) {
+                Log.d(getClass().getName(), "Failure UpnpResponse: "
+                        + upnpresponse);
+                Log.d(getClass().getName(),
+                        upnpresponse != null ? "UpnpResponse: "
+                                + upnpresponse.getResponseDetails() : "");
+                Log.d(getClass().getName(), "s: " + s);
+            }
+
+            @Override
+            public void success(ActionInvocation actioninvocation) {
+                super.success(actioninvocation);
+            }
+        };
+        getControlPoint().execute(actionCallback);
+    }
+
+    public int getVolume(Device<?, ?, ?> device) {
+        if (device == null) {
+            return 0;
+        }
+        if (device instanceof LocalDevice || device instanceof UpnpClient.LocalDummyDevice) {
+            return getVolume();
+        }
+
+        Service<?, ?> service = getRenderingControlService(device);
+        if (service == null) {
+            Log.d(getClass().getName(),
+                    "No RenderingControl-Service found on Device: "
+                            + device.getDisplayString());
+            return 0;
+        }
+        Log.d(getClass().getName(), "Action get Volume ");
+        final ActionState actionState = new ActionState();
+        actionState.actionFinished = false;
+        GetVolume actionCallback = new GetVolume(service) {
+            @Override
+            public void failure(ActionInvocation actioninvocation,
+                                UpnpResponse upnpresponse, String s) {
+                Log.d(getClass().getName(), "Failure UpnpResponse: "
+                        + upnpresponse);
+                Log.d(getClass().getName(),
+                        upnpresponse != null ? "UpnpResponse: "
+                                + upnpresponse.getResponseDetails() : "");
+                Log.d(getClass().getName(), "s: " + s);
+                actionState.actionFinished = true;
+            }
+
+            @Override
+            public void success(ActionInvocation actioninvocation) {
+                super.success(actioninvocation);
+                actionState.actionFinished = true;
+            }
+
+            @Override
+            public void received(ActionInvocation actionInvocation, int currentVolume) {
+                actionState.result = currentVolume;
+
+            }
+        };
+
+        getControlPoint().execute(actionCallback);
+        Watchdog watchdog = Watchdog.createWatchdog(10000L);
+        watchdog.start();
+        int i = 0;
+        //FIXME analyze if this code is really the best way to solve it...
+        while (!actionState.actionFinished && !watchdog.hasTimeout()) {
+            //active wait
+            i++;
+            if (i == 100000) {
+                Log.d(getClass().getName(), "wait for action finished ");
+                i = 0;
+            }
+        }
+        if (watchdog.hasTimeout()) {
+            Log.d(getClass().getName(), "Timeout occurred");
+        } else {
+            watchdog.cancel();
+        }
+        return actionState.result == null ? 0 : (Integer) actionState.result;
+
+    }
+
+    public void setVolume(Device<?, ?, ?> device, int volume) {
+        if (device == null) {
+            return;
+        }
+        if (device instanceof LocalDevice || device instanceof UpnpClient.LocalDummyDevice) {
+            setVolume(volume);
+        }
+
+        Service<?, ?> service = getRenderingControlService(device);
+        if (service == null) {
+            Log.d(getClass().getName(),
+                    "No RenderingControl-Service found on Device: "
+                            + device.getDisplayString());
+            return;
+        }
+        Log.d(getClass().getName(), "Action set Volume ");
+        SetVolume actionCallback = new SetVolume(service, volume) {
+            @Override
+            public void failure(ActionInvocation actioninvocation,
+                                UpnpResponse upnpresponse, String s) {
+                Log.d(getClass().getName(), "Failure UpnpResponse: "
+                        + upnpresponse);
+                Log.d(getClass().getName(),
+                        upnpresponse != null ? "UpnpResponse: "
+                                + upnpresponse.getResponseDetails() : "");
+                Log.d(getClass().getName(), "s: " + s);
+            }
+
+            @Override
+            public void success(ActionInvocation actioninvocation) {
+                super.success(actioninvocation);
+            }
+        };
+        getControlPoint().execute(actionCallback);
+    }
+
+
     @SuppressWarnings({"unchecked", "rawtypes"})
     public static class LocalDummyDevice extends Device {
-        LocalDummyDevice() throws ValidationException {
+        Context context;
+
+        LocalDummyDevice(Context context) throws ValidationException {
             super(new DeviceIdentity(new UDN(LOCAL_UID)));
+            this.context = context;
         }
 
         @Override
@@ -1225,14 +1494,13 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
          */
         @Override
         public String getDisplayString() {
-            return android.os.Build.MODEL;
+            return context.getString(R.string.this_device);
         }
 
         @Override
         public DeviceDetails getDetails() {
-            return new DeviceDetails(android.os.Build.MODEL);
+            return new DeviceDetails(context.getString(R.string.this_device));
         }
-
 
     }
 }

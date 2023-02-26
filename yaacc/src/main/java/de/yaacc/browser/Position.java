@@ -28,16 +28,22 @@ public class Position implements Serializable {
 
     private final String objectId;
     private final String deviceId;
+    private final String objectName;
 
-    public Position(String objectId, String deviceId) {
+    public Position(String objectId, String deviceId, String name) {
 
         this.deviceId = deviceId;
         this.objectId = objectId;
+        this.objectName = name;
     }
 
 
     public String getObjectId() {
         return objectId;
+    }
+
+    public String getObjectName() {
+        return objectName;
     }
 
     public String getDeviceId() {

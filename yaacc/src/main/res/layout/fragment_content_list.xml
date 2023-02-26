@@ -17,14 +17,86 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 -->
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="fill_parent"
     android:layout_height="fill_parent">
 
-    <ListView
-        android:id="@+id/contentList"
-        android:layout_width="wrap_content"
-        android:layout_height="fill_parent"
-        android:layout_alignParentBottom="true" />
+    <ImageButton
+        android:id="@+id/contentListBackButton"
+        style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_alignParentStart="true"
+        android:layout_marginBottom="5dp"
+        android:contentDescription="@string/icon"
+        app:srcCompat="@drawable/ic_baseline_arrow_back_32" />
 
+    <TextView
+        android:id="@+id/contentListCurrentFolderName"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignTop="@id/contentListBackButton"
+        android:layout_alignParentEnd="true"
+        android:layout_marginStart="5dp"
+        android:layout_marginBottom="10dp"
+        android:layout_toEndOf="@id/contentListBackButton"
+        android:gravity="center_vertical"
+        android:maxLines="4"
+        android:minLines="2"
+        android:singleLine="false"
+        android:text="@string/all"
+        android:textAppearance="@android:style/TextAppearance.Material.Medium"
+        android:textColor="?android:attr/colorForeground" />
+
+    <View
+        android:id="@+id/contentListTopSeperator"
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_below="@+id/contentListCurrentFolderName"
+        android:background="?android:attr/colorForeground" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/contentList"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_above="@id/contentListBottomSeperator"
+        android:layout_below="@+id/contentListTopSeperator" />
+
+    <View
+        android:id="@+id/contentListBottomSeperator"
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_above="@id/contentListCurrentProvider"
+        android:background="?android:attr/colorForeground" />
+
+    <TextView
+        android:id="@+id/contentListCurrentProvider"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_above="@id/contentListCurrentReceivers"
+        android:layout_marginStart="5dp"
+        android:drawablePadding="5dp"
+        android:gravity="center_vertical"
+        android:minLines="2"
+        android:singleLine="false"
+        android:text="@string/all"
+        android:textAppearance="@android:style/TextAppearance.Material.Medium"
+        android:textColor="?android:attr/colorForeground"
+        app:drawableStartCompat="@drawable/ic_baseline_sensors_32" />
+
+    <TextView
+        android:id="@+id/contentListCurrentReceivers"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_marginStart="5dp"
+        android:drawablePadding="5dp"
+        android:gravity="center_vertical"
+        android:minLines="2"
+        android:singleLine="false"
+        android:text="@string/all"
+        android:textAppearance="@android:style/TextAppearance.Material.Medium"
+        android:textColor="?android:attr/colorForeground"
+        app:drawableStartCompat="@drawable/ic_baseline_devices_32" />
 
 </RelativeLayout>

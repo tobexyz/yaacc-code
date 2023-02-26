@@ -60,6 +60,7 @@ public class LocalImagePlayer implements Player, ServiceConnection {
     private SynchronizationInfo syncInfo;
     private PendingIntent notificationIntent;
     private PlayerService playerService;
+    private boolean isPlaying;
 
 
     /**
@@ -105,6 +106,13 @@ public class LocalImagePlayer implements Player, ServiceConnection {
         playerService = null;
     }
 
+    public boolean isPlaying() {
+        return isPlaying;
+    }
+
+    public void setPlaying(boolean isPlaying) {
+        this.isPlaying = isPlaying;
+    }
 
     /*
      * (non-Javadoc)
@@ -178,6 +186,7 @@ public class LocalImagePlayer implements Player, ServiceConnection {
                 Intent intent = new Intent();
                 intent.setAction(ImageViewerBroadcastReceiver.ACTION_PAUSE);
                 upnpClient.getContext().sendBroadcast(intent);
+                setPlaying(false);
 
             }
         }, getExecutionTime());
@@ -205,6 +214,7 @@ public class LocalImagePlayer implements Player, ServiceConnection {
                 Intent intent = new Intent();
                 intent.setAction(ImageViewerBroadcastReceiver.ACTION_PLAY);
                 upnpClient.getContext().sendBroadcast(intent);
+                setPlaying(true);
 
             }
         }, getExecutionTime());
@@ -231,6 +241,7 @@ public class LocalImagePlayer implements Player, ServiceConnection {
                 Intent intent = new Intent();
                 intent.setAction(ImageViewerBroadcastReceiver.ACTION_STOP);
                 upnpClient.getContext().sendBroadcast(intent);
+                setPlaying(false);
 
             }
         }, getExecutionTime());
@@ -296,6 +307,9 @@ public class LocalImagePlayer implements Player, ServiceConnection {
      */
     @Override
     public void exit() {
+        if (isPlaying()) {
+            stop();
+        }
         playerService.shutdown(this);
 
     }
@@ -512,7 +526,7 @@ public class LocalImagePlayer implements Player, ServiceConnection {
 
     @Override
     public int getIconResourceId() {
-        return R.drawable.ic_baseline_image_48;
+        return R.drawable.ic_baseline_image_32;
     }
 
     @Override

@@ -31,6 +31,7 @@ import org.fourthline.cling.support.avtransport.callback.Play;
 import org.fourthline.cling.support.avtransport.callback.Previous;
 
 import de.yaacc.R;
+import de.yaacc.upnp.ActionState;
 import de.yaacc.upnp.SynchronizationInfo;
 import de.yaacc.upnp.UpnpClient;
 

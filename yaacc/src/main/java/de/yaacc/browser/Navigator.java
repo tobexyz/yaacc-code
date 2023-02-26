@@ -20,7 +20,9 @@ package de.yaacc.browser;
 import android.util.Log;
 
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -65,6 +67,16 @@ public class Navigator implements Serializable {
             result = navigationPath.removeLast();
         }
         Log.d(getClass().getName(), "popNavigation: " + Objects.requireNonNull(result).getObjectId());
+        return result;
+    }
+
+    public List<String> getPathNames() {
+        List<String> result = new ArrayList<>();
+        for (Position pos : navigationPath) {
+            if (!pos.getObjectName().equals("")) {
+                result.add(pos.getObjectName());
+            }
+        }
         return result;
     }
 } 

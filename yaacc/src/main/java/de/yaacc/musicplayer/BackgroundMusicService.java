@@ -67,6 +67,7 @@ public class BackgroundMusicService extends Service {
     public void onCreate() {
         super.onCreate();
         Log.d(this.getClass().getName(), "On Create");
+        ((Yaacc) getApplicationContext()).createYaaccGroupNotification();
         Intent notificationIntent = new Intent(this, TabBrowserActivity.class);
         PendingIntent pendingIntent = PendingIntent.getActivity(this,
                 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE);
@@ -96,7 +97,9 @@ public class BackgroundMusicService extends Service {
             //remove player after releasing
             player = null;
         }
-        unregisterReceiver(backgroundMusicBroadcastReceiver);
+        if (backgroundMusicBroadcastReceiver != null) {
+            unregisterReceiver(backgroundMusicBroadcastReceiver);
+        }
     }
 
     /*
@@ -148,7 +151,6 @@ public class BackgroundMusicService extends Service {
             } catch (Exception ex) {
                 Log.d(getClass().getName(), "Ignoring exception on stop action: ", ex);
             }
-
         }
     }
 
@@ -210,18 +212,12 @@ public class BackgroundMusicService extends Service {
             player = new MediaPlayer();
         }
         player.setWakeMode(getApplicationContext(), PowerManager.PARTIAL_WAKE_LOCK);
-        player.setOnErrorListener(new MediaPlayer.OnErrorListener() {
-            @Override
-            public boolean onError(MediaPlayer mediaPlayer, int what, int extra) {
-                Log.e(getClass().getName(), "Error in State  " + what + " extra: " + extra);
-                return false;
-            }
+        player.setOnErrorListener((MediaPlayer mediaPlayer, int what, int extra) -> {
+            Log.e(getClass().getName(), "Error in State  " + what + " extra: " + extra);
+            return false;
         });
-        player.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
-            @Override
-            public void onCompletion(MediaPlayer mp) {
-                serviceListener.stream().forEach(it -> it.onCompletion());
-            }
+        player.setOnCompletionListener((mp) -> {
+            serviceListener.stream().forEach(it -> it.onCompletion());
         });
         player.setVolume(100, 100);
 
@@ -287,11 +283,11 @@ public class BackgroundMusicService extends Service {
         serviceListener.add(listener);
     }
 
+
     public class BackgroundMusicServiceBinder extends Binder {
         public BackgroundMusicService getService() {
             return BackgroundMusicService.this;
         }
     }
-
 
 }

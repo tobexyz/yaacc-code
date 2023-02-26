@@ -588,7 +588,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
      * Displays the notification.
      */
     private void showNotification() {
-
+        ((Yaacc) getContext().getApplicationContext()).createYaaccGroupNotification();
         NotificationCompat.Builder mBuilder = new NotificationCompat.Builder(
                 getContext(), Yaacc.NOTIFICATION_CHANNEL_ID).setOngoing(false)
                 .setGroup(Yaacc.NOTIFICATION_GROUP_KEY)
@@ -616,6 +616,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
         // mId allows you to update the notification later on.
         Log.d(getClass().getName(), "Cancle Notification with ID: " + getNotificationId());
         mNotificationManager.cancel(getNotificationId());
+        ((Yaacc) getContext().getApplicationContext()).cancelYaaccGroupNotification();
 
     }
 

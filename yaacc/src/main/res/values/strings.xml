@@ -50,7 +50,7 @@
     <string name="previous">previous</string>
     <string name="next">next</string>
     <string name="exit">Exit</string>
-    <string name="title_activity_music_player">Yaacc Music player</string>
+    <string name="title_activity_music_player">YAACC music player</string>
     <string name="musicActivityImageView">Cover</string>
     <string name="avtransportPlayerActivityImageView">Device</string>
     <string name="playerNameMusic">music</string>
@@ -58,11 +58,11 @@
     <string name="playerNameMultiContent">multi</string>
     <string name="playerNameAvTransport">remote</string>
     <string name="multiContentPlayerActivityImageView">multi content</string>
-    <string name="title_activity_avtransport_player">Yaacc Remote player</string>
-    <string name="title_activity_multi_content_player">Yaacc Default player</string>
+    <string name="title_activity_avtransport_player">YAACC remote player</string>
+    <string name="title_activity_multi_content_player">YAACC default player</string>
     <string name="can_not_start_activity">"Can not start app! Reason: "</string>
     <string name="app_descrip">Bring your UPnP devices in your local network together with android!\n <a href="http://www.yaacc.de">www.yaacc.de</a>\n\nYAACC is developed under GPLv3. Feel free to use and share it without any warranty. Licence details are documented at (www.gnu.org/licenses/gpl-3.0)\n\nFurther licences are:\nThe UPNP implementation is based on Cling (https://github.com/4thline/cling)\nMaterial design icons and symbols are used (https://github.com/google/material-design-icons)\n. Android is a trademark of Google Inc (developer.android.com/about/index.html )</string>
-    <string name="title_activity_yaacc_upnp_server_control">Yaacc Upnp server control</string>
+    <string name="title_activity_yaacc_upnp_server_control">YAACC upnp server control</string>
     <string name="yaacc_upnp_server_stop_server">stop server</string>
     <string name="yaacc_upnp_server_start_server">start server</string>
     <string name="playerCurrentItem">currentItem</string>
@@ -97,8 +97,8 @@
     <string name="not_yet_implemented">not yet implemented</string>
     <string name="avtransportPlayerActivityNextLabel">Next:</string>
     <string name="browse_context_control_device">Control device</string>
-    <string name="channel_name">Yaacc</string>
-    <string name="channel_description">Yaacc notifications</string>
+    <string name="channel_name">YAACC</string>
+    <string name="channel_description">YAACC notifications</string>
     <string name="playerNameImageShort">Images</string>
     <string name="playerShortNameMusic">Music</string>
     <string name="playerShortNameMultiContent">multi</string>
@@ -109,11 +109,18 @@
     <string name="settings_dark_mode_key">settings_dark_mode_key</string>
     <string name="settings_dark_mode_title">Dark mode</string>
     <string name="settings_dark_mode_off">Using system settings</string>
-    <string name="settings_dark_mode_on">Dark mode aktive</string>
+    <string name="settings_dark_mode_on">Dark mode active</string>
     <string name="settings_log_level_key">settings_log_level_key</string>
     <string name="settings_log_level">Log level</string>
     <string name="settings_local_server_provider_uuid_key">settings_local_server_provider_uuid_key</string>
     <string name="settings_local_server_receiver_uuid_key">settings_local_server_receiver_uuid_key</string>
+    <string name="media_store_scanner_scan_triggered">media store scan triggered</string>
+    <string name="media_store_scanner_scan_finished">media store scan finished</string>
+    <string name="media_store_scan">scan</string>
+    <string name="media_store_label">media store</string>
+    <string name="search_devices">searching for UPNP devices</string>
+    <string name="this_device">this device</string>
+    <string name="stop_not_supported">"stop not supported for third parties apps "</string>
 
 
 </resources>

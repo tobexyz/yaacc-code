@@ -27,6 +27,7 @@ import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.ImageButton;
+import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -83,37 +84,42 @@ public class MultiContentPlayerActivity extends AppCompatActivity implements Ser
             btnExit.setActivated(true);
         }
         btnPrev.setOnClickListener(v -> {
-            Player player1 = getPlayer();
-            if (player1 != null) {
-                player1.previous();
+            Player p = getPlayer();
+            if (p != null) {
+                p.previous();
             }
 
         });
         btnNext.setOnClickListener(v -> {
-            Player player12 = getPlayer();
-            if (player12 != null) {
-                player12.next();
+            Player p = getPlayer();
+            if (p != null) {
+                p.next();
             }
 
         });
         btnPlay.setOnClickListener(v -> {
-            Player player13 = getPlayer();
-            if (player13 != null) {
-                player13.play();
+            Player p = getPlayer();
+            if (p != null) {
+                p.play();
             }
 
         });
         btnPause.setOnClickListener(v -> {
-            Player player14 = getPlayer();
-            if (player14 != null) {
-                player14.pause();
+            Player p = getPlayer();
+            if (p != null) {
+                p.pause();
             }
 
         });
         btnStop.setOnClickListener(v -> {
-            Player player15 = getPlayer();
-            if (player15 != null) {
-                player15.stop();
+            Player p = getPlayer();
+            if (p != null) {
+                p.stop();
+                MultiContentPlayerActivity.this.runOnUiThread(() -> Toast.makeText(
+                                MultiContentPlayerActivity.this,
+                                R.string.stop_not_supported
+                                , Toast.LENGTH_LONG)
+                        .show());
             }
 
         });

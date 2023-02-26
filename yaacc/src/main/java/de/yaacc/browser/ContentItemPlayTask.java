@@ -20,13 +20,18 @@ package de.yaacc.browser;
 
 import android.os.AsyncTask;
 
+import org.fourthline.cling.support.model.DIDLObject;
+
 public class ContentItemPlayTask extends AsyncTask<Integer, Void, Void> {
     public final static int PLAY_CURRENT = 0;
     public final static int PLAY_ALL = 1;
-    private final ContentListClickListener parent;
+    private final ContentListFragment parent;
+    private final DIDLObject currentObject;
 
-    public ContentItemPlayTask(ContentListClickListener parent) {
+
+    public ContentItemPlayTask(ContentListFragment parent, DIDLObject currentObject) {
         this.parent = parent;
+        this.currentObject = currentObject;
     }
 
     @Override
@@ -35,9 +40,9 @@ public class ContentItemPlayTask extends AsyncTask<Integer, Void, Void> {
             return null;
         }
         if (integers[0] == PLAY_CURRENT) {
-            parent.playCurrent();
+            parent.playItem(currentObject);
         } else if (integers[0] == PLAY_ALL) {
-            parent.playAll();
+            parent.playAllChildsOfParentFrom(currentObject);
         }
         return null;
     }

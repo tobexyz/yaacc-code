@@ -24,12 +24,16 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.ListView;
+import android.widget.ImageButton;
+import android.widget.Toast;
 
 import androidx.fragment.app.Fragment;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
 import org.fourthline.cling.model.meta.Device;
 
+import java.util.ArrayList;
 import java.util.LinkedList;
 
 import de.yaacc.R;
@@ -45,8 +49,9 @@ import de.yaacc.upnp.UpnpClientListener;
 public class ServerListFragment extends Fragment implements
         UpnpClientListener, OnBackPressedListener {
     private UpnpClient upnpClient = null;
-    private ListView contentList;
+    private RecyclerView contentList;
     private BrowseDeviceAdapter bDeviceAdapter;
+
 
     /**
      * load app preferences
@@ -77,14 +82,13 @@ public class ServerListFragment extends Fragment implements
     private void populateDeviceList() {
         //FIXME: Cache should be able to decide whether it is used for browsing or for devices lists
         //IconDownloadCacheHandler.getInstance().resetCache();
+        //https://www.digitalocean.com/community/tutorials/android-recyclerview-android-cardview-example-tutorial
         if (getActivity() != null) {
             getActivity().runOnUiThread(() -> {
-                ListView deviceList = contentList;
-                deviceList.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
+                RecyclerView deviceList = contentList;
                 if (deviceList.getAdapter() == null) {
-                    bDeviceAdapter = new BrowseDeviceAdapter(getActivity(), new LinkedList<>(upnpClient.getDevicesProvidingContentDirectoryService()));
+                    bDeviceAdapter = new BrowseDeviceAdapter(getActivity(), deviceList, upnpClient, new ArrayList<>(upnpClient.getDevicesProvidingContentDirectoryService()));
                     deviceList.setAdapter(bDeviceAdapter);
-                    deviceList.setOnItemClickListener(new ServerListClickListener(upnpClient, ServerListFragment.this));
                 } else {
                     bDeviceAdapter.setDevices(new LinkedList<>(upnpClient.getDevicesProvidingContentDirectoryService()));
                 }
@@ -93,7 +97,6 @@ public class ServerListFragment extends Fragment implements
 
         }
     }
-
 
     /**
      * Refreshes the shown devices when device is added.
@@ -132,6 +135,16 @@ public class ServerListFragment extends Fragment implements
     }
 
     @Override
+    public void receiverDeviceRemoved(Device<?, ?, ?> device) {
+
+    }
+
+    @Override
+    public void receiverDeviceAdded(Device<?, ?, ?> device) {
+
+    }
+
+    @Override
     public void onResume() {
         super.onResume();
         //refresh device list
@@ -144,14 +157,20 @@ public class ServerListFragment extends Fragment implements
         // local server startup
         upnpClient = ((Yaacc) requireActivity().getApplicationContext()).getUpnpClient();
 
-
         // Define where to show the folder contents for media
-        contentList = (ListView) view.findViewById(R.id.serverList);
-        registerForContextMenu(contentList);
-
+        contentList = view.findViewById(R.id.serverList);
+        contentList.setLayoutManager(new LinearLayoutManager(getActivity()));
+        ImageButton refresh = view.findViewById(R.id.serverListRefreshButton);
+        refresh.setOnClickListener((v) -> {
+            if (getActivity() != null) {
+                getActivity().runOnUiThread(() -> {
+                    Toast.makeText(getActivity(), R.string.search_devices, Toast.LENGTH_LONG).show();
+                });
+            }
+            upnpClient.searchDevices();
+        });
         // add ourself as listener
         upnpClient.addUpnpClientListener(this);
-
         Thread thread = new Thread(this::populateDeviceList);
         thread.start();
     }
@@ -160,9 +179,13 @@ public class ServerListFragment extends Fragment implements
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
 
-        View v = inflater.inflate(R.layout.fragment_server_list, container, false);
-        init(savedInstanceState, v);
-        return v;
+        return inflater.inflate(R.layout.fragment_server_list, container, false);
+    }
+
+    @Override
+    public void onViewCreated(View view, Bundle savedInstanceState) {
+        super.onViewCreated(view, savedInstanceState);
+        init(savedInstanceState, view);
     }
 
 }

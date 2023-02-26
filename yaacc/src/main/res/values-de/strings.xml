@@ -55,10 +55,10 @@
     <string name="playerNameMultiContent">Multi</string>
     <string name="playerNameAvTransport">Entfernd</string>
     <string name="multiContentPlayerActivityImageView">variabler Inhalt</string>
-    <string name="title_activity_avtransport_player">Yaacc Netzwerkspieler</string>
-    <string name="title_activity_multi_content_player">Yaacc Standardspieler</string>
+    <string name="title_activity_avtransport_player">YAACC Netzwerkspieler</string>
+    <string name="title_activity_multi_content_player">YAACC Standardspieler</string>
     <string name="can_not_start_activity">"Die App kann nicht gestartet werden! Grund: "</string>
-    <string name="title_activity_music_player">Yaacc Musikspieler </string>
+    <string name="title_activity_music_player">YAACC Musikspieler </string>
     <string name="yaacc_menu_settings">YAACC Eigenschaften</string>
     <string name="yaacc_about">Über</string>
     <string name="title_activity_yaacc_upnp_server_control">Yaacc Upnp Server Einstellung</string>
@@ -97,11 +97,11 @@
     <string name="not_yet_implemented">not yet implemented</string>
     <string name="avtransportPlayerActivityNextLabel">Nächstes:</string>
     <string name="browse_context_control_device">Gerät steuern</string>
-    <string name="channel_name">Yaacc</string>
-    <string name="channel_description">Yaacc notifications</string>
-    <string name="playerNameImageShort">Images</string>
-    <string name="playerShortNameMusic">Music</string>
-    <string name="playerShortNameMultiContent">multi</string>
+    <string name="channel_name">YAACC</string>
+    <string name="channel_description">YAACC notifications</string>
+    <string name="playerNameImageShort">Bilder</string>
+    <string name="playerShortNameMusic">Musik</string>
+    <string name="playerShortNameMultiContent">Multi</string>
     <string name="settings_browse_chunk_size">Abfragegröße</string>
     <string name="settings_browse_chunk_size_key">browse_chunk_size_key</string>
     <string name="settings_browse_chunk_size_summ">Anzahl der abzufragenden Einträge je Anfrage</string>
@@ -114,5 +114,12 @@
     <string name="settings_log_level">Log level</string>
     <string name="settings_local_server_provider_uuid_key">settings_local_server_provider_uuid_key</string>
     <string name="settings_local_server_receiver_uuid_key">settings_local_server_receiver_uuid_key</string>
+    <string name="media_store_scanner_scan_triggered">Aktualisierung der Mediendatenbank gestartet</string>
+    <string name="media_store_scanner_scan_finished">Aktualisierung der Mediendatenbank beendet</string>
+    <string name="media_store_scan">Scan</string>
+    <string name="media_store_label">Mediendatenbank</string>
+    <string name="search_devices">Suche nach UPNP Geräten gestartet</string>
+    <string name="this_device">dieses Gerät</string>
+    <string name="stop_not_supported">"Stopp nicht unterstützt, wenn eine App außerhalb von YAACC genutzt wird"</string>
 
 </resources>
