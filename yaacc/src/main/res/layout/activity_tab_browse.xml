@@ -27,26 +27,31 @@
         android:id="@+id/browserTabLayout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:textAppearance="@android:style/TextAppearance.Material.Widget.TabWidget"
         app:tabSelectedTextColor="?android:attr/colorForeground">
 
         <com.google.android.material.tabs.TabItem
             android:layout_width="match_parent"
             android:layout_height="match_parent"
+            android:icon="@drawable/ic_baseline_sensors_48"
             android:text="@string/title_activity_server_list" />
 
         <com.google.android.material.tabs.TabItem
             android:layout_width="match_parent"
             android:layout_height="match_parent"
+            android:icon="@drawable/ic_baseline_file_48"
             android:text="@string/title_activity_content_list" />
 
         <com.google.android.material.tabs.TabItem
             android:layout_width="match_parent"
             android:layout_height="match_parent"
+            android:icon="@drawable/ic_baseline_devices_48"
             android:text="@string/title_activity_receiver_list" />
 
         <com.google.android.material.tabs.TabItem
             android:layout_width="match_parent"
             android:layout_height="match_parent"
+            android:icon="@drawable/ic_baseline_play_arrow_32"
             android:text="@string/title_activity_player_list" />
 
     </com.google.android.material.tabs.TabLayout>

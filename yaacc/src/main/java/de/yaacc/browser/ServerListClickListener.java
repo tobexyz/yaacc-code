@@ -17,11 +17,10 @@
  */
 package de.yaacc.browser;
 
+import android.content.Context;
 import android.view.View;
-import android.widget.AdapterView;
-import android.widget.AdapterView.OnItemClickListener;
 
-import androidx.fragment.app.Fragment;
+import androidx.recyclerview.widget.RecyclerView;
 
 import org.fourthline.cling.model.meta.Device;
 
@@ -30,23 +29,26 @@ import de.yaacc.upnp.UpnpClient;
 /**
  * @author Tobias Schoene (the openbit)
  */
-public class ServerListClickListener implements OnItemClickListener {
+public class ServerListClickListener implements View.OnClickListener {
 
     private final UpnpClient upnpClient;
-    private final Fragment parent;
+    private final Context parent;
+    private final RecyclerView deviceListView;
+    private final BrowseDeviceAdapter adapter;
 
-    public ServerListClickListener(UpnpClient upnpClient, Fragment parent) {
+    public ServerListClickListener(RecyclerView deviceListView, BrowseDeviceAdapter adapter, UpnpClient upnpClient, Context parent) {
         this.upnpClient = upnpClient;
         this.parent = parent;
+        this.deviceListView = deviceListView;
+        this.adapter = adapter;
     }
+
 
     @Override
-    public void onItemClick(AdapterView<?> listView, View arg1, int position, long id) {
-        BrowseDeviceAdapter adapter = (BrowseDeviceAdapter) listView.getAdapter();
-        upnpClient.setProviderDevice((Device<?, ?, ?>) adapter.getItem(position));
-        if (parent.getActivity() instanceof TabBrowserActivity) {
-            ((TabBrowserActivity) parent.getActivity()).setCurrentTab(BrowserTabs.CONTENT);
+    public void onClick(View view) {
+        upnpClient.setProviderDevice((Device<?, ?, ?>) adapter.getItem(deviceListView.getChildAdapterPosition(view)));
+        if (parent instanceof TabBrowserActivity) {
+            ((TabBrowserActivity) parent).setCurrentTab(BrowserTabs.CONTENT);
         }
     }
-
 }

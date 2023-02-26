@@ -21,10 +21,7 @@ package de.yaacc.util.image;
 import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.AsyncTask;
-import android.util.Log;
-import android.view.View;
 import android.widget.ImageView;
-import android.widget.ListView;
 
 import de.yaacc.browser.BrowseContentItemAdapter;
 
@@ -35,34 +32,23 @@ import de.yaacc.browser.BrowseContentItemAdapter;
  */
 public class IconDownloadTask extends AsyncTask<Uri, Integer, Bitmap> {
 
-    private final ListView listView;
-    private final int position;
+    private final ImageView imageView;
     private final IconDownloadCacheHandler cache;
-    private final int iconKey;
-    private BrowseContentItemAdapter browseContentItemAdapter;
+    private final BrowseContentItemAdapter browseContentItemAdapter;
 
 
-    /**
-     * Initialize a new download by handing over the the list and the position
-     * with the icon to download
-     *
-     * @param list     contains all item
-     * @param position position in list
-     */
-    public IconDownloadTask(ListView list, int iconKey, int position) {
-        this.listView = list;
-        this.position = position;
-        this.iconKey = iconKey;
+    public IconDownloadTask(ImageView imageView) {
+        this.imageView = imageView;
+        this.browseContentItemAdapter = null;
         this.cache = IconDownloadCacheHandler.getInstance();
     }
 
-    public IconDownloadTask(BrowseContentItemAdapter browseContentItemAdapter, ListView list, int iconKey, int position) {
-        this.listView = list;
-        this.position = position;
-        this.iconKey = iconKey;
+    public IconDownloadTask(ImageView imageView, BrowseContentItemAdapter browseContentItemAdapter) {
+        this.imageView = imageView;
+        this.cache = IconDownloadCacheHandler.getInstance();
         this.browseContentItemAdapter = browseContentItemAdapter;
-        this.cache = IconDownloadCacheHandler.getInstance();
     }
+
 
     /**
      * Download image and convert it to icon
@@ -90,10 +76,6 @@ public class IconDownloadTask extends AsyncTask<Uri, Integer, Bitmap> {
     }
 
 
-    public int getPosition() {
-        return position;
-    }
-
     /**
      * Replaces the icon in the list with the recently loaded icon
      *
@@ -101,13 +83,7 @@ public class IconDownloadTask extends AsyncTask<Uri, Integer, Bitmap> {
      */
     @Override
     protected void onPostExecute(Bitmap result) {
-        int visiblePosition = listView.getFirstVisiblePosition();
-        View v = listView.getChildAt(position - visiblePosition);
-        if (v != null && result != null) {
-            ImageView c = v.findViewById(iconKey);
-            Log.d(getClass().getName(), "Set image on position:" + visiblePosition);
-            c.setImageBitmap(result);
-        }
+        imageView.setImageBitmap(result);
         if (browseContentItemAdapter != null) {
             browseContentItemAdapter.removeTask(this);
         }

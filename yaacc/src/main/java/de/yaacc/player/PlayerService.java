@@ -21,7 +21,6 @@ import android.app.Notification;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Intent;
-import android.net.Uri;
 import android.os.Binder;
 import android.os.HandlerThread;
 import android.os.IBinder;
@@ -91,6 +90,7 @@ public class PlayerService extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         super.onStartCommand(intent, flags, startId);
         Log.d(this.getClass().getName(), "Received start id " + startId + ": " + intent);
+        ((Yaacc) getApplicationContext()).createYaaccGroupNotification();
         Intent notificationIntent = new Intent(this, TabBrowserActivity.class);
         PendingIntent pendingIntent = PendingIntent.getActivity(this,
                 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE);
@@ -368,6 +368,10 @@ public class PlayerService extends Service {
         assert (player != null);
         currentActivePlayer.remove(player.getId());
         player.onDestroy();
+        if (currentActivePlayer.isEmpty()) {
+            stopForeground(true);
+            ((Yaacc) getApplicationContext()).cancelYaaccGroupNotification();
+        }
     }
 
     /**
@@ -381,25 +385,6 @@ public class PlayerService extends Service {
 
     }
 
-    public void controlDevice(UpnpClient upnpClient, Device<?, ?, ?> device) {
-        if (device == null || upnpClient == null) return;
-        if (!device.getIdentity().getUdn().getIdentifierString().equals(UpnpClient.LOCAL_UID)) {
-            Intent notificationIntent = new Intent(getApplicationContext(),
-                    AVTransportPlayerActivity.class);
-            Log.d(getClass().getName(), "Put id into intent: " + device.getIdentity().getUdn().getIdentifierString());
-            notificationIntent.setData(Uri.parse("http://0.0.0.0/" + device.getIdentity().getUdn().getIdentifierString() + "")); //just for making the intents different http://stackoverflow.com/questions/10561419/scheduling-more-than-one-pendingintent-to-same-activity-using-alarmmanager
-            notificationIntent.putExtra(AVTransportController.DEVICE_ID, device.getIdentity().getUdn().getIdentifierString());
-            PendingIntent contentIntent = PendingIntent.getActivity(getApplicationContext(), 0,
-                    notificationIntent, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_CANCEL_CURRENT);
-            try {
-                contentIntent.send(getApplicationContext(), 0, new Intent());
-            } catch (PendingIntent.CanceledException e) {
-                Log.e(this.getClass().getName(), "Exception on start controller activity", e);
-            }
-
-        }
-
-    }
 
     public class PlayerServiceBinder extends Binder {
         public PlayerService getService() {

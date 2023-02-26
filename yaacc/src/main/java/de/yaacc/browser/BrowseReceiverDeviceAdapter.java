@@ -23,11 +23,14 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.BaseAdapter;
 import android.widget.CheckBox;
 import android.widget.ImageView;
-import android.widget.ListView;
+import android.widget.SeekBar;
 import android.widget.TextView;
+
+import androidx.annotation.NonNull;
+import androidx.recyclerview.widget.DiffUtil;
+import androidx.recyclerview.widget.RecyclerView;
 
 import org.fourthline.cling.model.meta.Device;
 import org.fourthline.cling.model.meta.Icon;
@@ -35,8 +38,10 @@ import org.fourthline.cling.model.meta.LocalDevice;
 import org.fourthline.cling.model.meta.RemoteDevice;
 
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedList;
+import java.util.List;
 
 import de.yaacc.R;
 import de.yaacc.upnp.UpnpClient;
@@ -46,28 +51,30 @@ import de.yaacc.util.image.IconDownloadTask;
 /**
  * @author Christoph Hähnel (eyeless)
  */
-public class BrowseReceiverDeviceAdapter extends BaseAdapter {
-    private final LayoutInflater inflator;
-    private final LinkedList<Device<?, ?, ?>> selectedDevices;
+public class BrowseReceiverDeviceAdapter extends RecyclerView.Adapter<BrowseReceiverDeviceAdapter.ViewHolder> {
+    private final List<Device<?, ?, ?>> selectedDevices;
     private final Context context;
-    private LinkedList<Device<?, ?, ?>> devices;
+    private List<Device<?, ?, ?>> devices;
+    private UpnpClient upnpClient;
+    private RecyclerView devicesListView;
 
-    public BrowseReceiverDeviceAdapter(Context ctx, Collection<Device<?, ?, ?>> devices, Collection<Device<?, ?, ?>> selectedDevices) {
+
+    public BrowseReceiverDeviceAdapter(Context ctx, UpnpClient upnpClient, RecyclerView devicesListView, Collection<Device<?, ?, ?>> devices, Collection<Device<?, ?, ?>> selectedDevices) {
         super();
-        this.devices = new LinkedList<>(devices);
+        this.devices = new ArrayList<>(devices);
         this.selectedDevices = new LinkedList<>(selectedDevices);
         context = ctx;
-        inflator = LayoutInflater.from(ctx);
-        notifyDataSetChanged();
+        this.upnpClient = upnpClient;
+        this.devicesListView = devicesListView;
     }
 
     @Override
-    public int getCount() {
+    public int getItemCount() {
         return devices.size();
     }
 
-    @Override
-    public Object getItem(int position) {
+
+    public Device<?, ?, ?> getItem(int position) {
         return devices.get(position);
     }
 
@@ -77,24 +84,17 @@ public class BrowseReceiverDeviceAdapter extends BaseAdapter {
     }
 
     @Override
-    public View getView(int position, View convertView, ViewGroup parent) {
-        ViewHolder holder;
-        if (convertView == null) {
-            convertView = inflator.inflate(R.layout.browse_receiver_device_item, parent, false);
-            Log.d(getClass().getName(), "New view created");
-            holder = new ViewHolder();
-            holder.icon = (ImageView) convertView
-                    .findViewById(R.id.browseReceiverDeviceItemIcon);
-            holder.name = (TextView) convertView
-                    .findViewById(R.id.browseReceiverDeviceItemName);
-            holder.checkBox = (CheckBox) convertView
-                    .findViewById(R.id.browseReceiverDeviceItemCheckbox);
-            convertView.setTag(holder);
-        } else {
-            Log.d(getClass().getName(), "view already there");
-            holder = (ViewHolder) convertView.getTag();
-        }
-        Device<?, ?, ?> device = (Device<?, ?, ?>) getItem(position);
+    public BrowseReceiverDeviceAdapter.ViewHolder onCreateViewHolder(ViewGroup parent,
+                                                                     int viewType) {
+        View view = LayoutInflater.from(parent.getContext())
+                .inflate(R.layout.browse_receiver_device_item, parent, false);
+
+        return new ViewHolder(view);
+    }
+
+    @Override
+    public void onBindViewHolder(final BrowseReceiverDeviceAdapter.ViewHolder holder, final int listPosition) {
+        Device<?, ?, ?> device = getItem(listPosition);
         if (device instanceof RemoteDevice && device.hasIcons()) {
             if (device.hasIcons()) {
                 Icon[] icons = device.getIcons();
@@ -103,9 +103,8 @@ public class BrowseReceiverDeviceAdapter extends BaseAdapter {
                         URL iconUri = ((RemoteDevice) device).normalizeURI(icon.getUri());
                         if (iconUri != null) {
                             Log.d(getClass().getName(), "Device icon uri:" + iconUri);
-                            new IconDownloadTask((ListView) parent, R.id.browseReceiverDeviceItemIcon, position).execute(Uri.parse(iconUri.toString()));
+                            new IconDownloadTask(holder.icon).execute(Uri.parse(iconUri.toString()));
                             break;
-
                         }
                     }
                 }
@@ -117,31 +116,71 @@ public class BrowseReceiverDeviceAdapter extends BaseAdapter {
             holder.icon.setImageResource(R.drawable.yaacc48_24_png);
         }
         holder.name.setText(device.getDetails().getFriendlyName());
+        holder.checkBox.setOnClickListener((it) -> {
+            if (!((CheckBox) it).isChecked()) {
+                Log.d(getClass().getName(), "isNotChecked:" + device.getDisplayString());
+                removeSelectedDevice(device);
+                upnpClient.removeReceiverDevice(device);
+            } else {
+                Log.d(getClass().getName(), "isChecked:" + device.getDisplayString());
+                addSelectedDevice(device);
+                upnpClient.addReceiverDevice(device);
+            }
+        });
         holder.checkBox.setChecked(selectedDevices.contains(device));
-        Log.d(getClass().getName(), "checkBox isChecked (" + device.getDisplayString() + "):" + holder.checkBox.isChecked());
-        return convertView;
+        new DeviceVolumeStateLoadTask(holder.volume, upnpClient).execute(device);
+        new DeviceMuteStateLoadTask(holder.mute, upnpClient).execute(device);
+
+
     }
 
-    public void setDevices(Collection<Device<?, ?, ?>> devices) {
-        this.devices = new LinkedList<>();
+    public void setDevices(List<Device<?, ?, ?>> devices) {
+        final DiffUtil.DiffResult diffResult = DiffUtil.calculateDiff(new DeviceDiffCallback(this.devices, devices));
+        this.devices.clear();
         this.devices.addAll(devices);
-        notifyDataSetChanged();
+        diffResult.dispatchUpdatesTo(this);
+        updateDeviceStates();
+    }
+
+    private void updateDeviceStates() {
+        for (int i = 0; i < devices.size(); i++
+        ) {
+            View view = devicesListView.getChildAt(i);
+            if (view != null) {
+                new DeviceVolumeStateLoadTask(view.findViewById(R.id.browseReceiverDeviceItemMuteVolumeSeekBar), upnpClient).execute(devices.get(i));
+                new DeviceMuteStateLoadTask(view.findViewById(R.id.browseReceiverDeviceItemMute), upnpClient).execute(devices.get(i));
+            }
+        }
+
+
     }
 
 
     public void addSelectedDevice(Device<?, ?, ?> device) {
-        this.selectedDevices.add(device);
-        notifyDataSetChanged();
+        selectedDevices.add(device);
+
     }
 
     public void removeSelectedDevice(Device<?, ?, ?> device) {
         this.selectedDevices.remove(device);
-        notifyDataSetChanged();
+
     }
 
-    static class ViewHolder {
+    static class ViewHolder extends RecyclerView.ViewHolder {
         ImageView icon;
         TextView name;
         CheckBox checkBox;
+        CheckBox mute;
+        SeekBar volume;
+
+        public ViewHolder(@NonNull View itemView) {
+            super(itemView);
+            icon = itemView.findViewById(R.id.browseReceiverDeviceItemIcon);
+            name = itemView.findViewById(R.id.browseReceiverDeviceItemName);
+            checkBox = itemView.findViewById(R.id.browseReceiverDeviceItemCheckbox);
+            mute = itemView.findViewById(R.id.browseReceiverDeviceItemMute);
+            volume = itemView.findViewById(R.id.browseReceiverDeviceItemMuteVolumeSeekBar);
+            volume.setMax(100);
+        }
     }
 } 

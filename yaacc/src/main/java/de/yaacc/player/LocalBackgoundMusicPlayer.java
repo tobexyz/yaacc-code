@@ -92,6 +92,7 @@ public class LocalBackgoundMusicPlayer extends AbstractPlayer implements Service
             } catch (IllegalArgumentException iex) {
                 Log.d(getClass().getName(), "ignoring exception while unbind service");
             }
+            backgroundMusicService.stopForeground(true);
         }
 
     }
@@ -322,7 +323,7 @@ public class LocalBackgoundMusicPlayer extends AbstractPlayer implements Service
 
     @Override
     public int getIconResourceId() {
-        return R.drawable.ic_baseline_library_music_48;
+        return R.drawable.ic_baseline_library_music_32;
     }
 
     public void seekTo(long millisecondsFromStart) {

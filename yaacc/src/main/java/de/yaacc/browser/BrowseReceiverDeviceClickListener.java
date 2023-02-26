@@ -19,40 +19,43 @@ package de.yaacc.browser;
 
 import android.util.Log;
 import android.view.View;
-import android.widget.AdapterView;
-import android.widget.AdapterView.OnItemClickListener;
 import android.widget.CheckBox;
+
+import androidx.recyclerview.widget.RecyclerView;
 
 import org.fourthline.cling.model.meta.Device;
 
 import de.yaacc.R;
-import de.yaacc.Yaacc;
+import de.yaacc.upnp.UpnpClient;
 
 /**
  * @author Tobias Schoene (the openbit)
  */
-public class BrowseReceiverDeviceClickListener implements OnItemClickListener {
+public class BrowseReceiverDeviceClickListener implements View.OnClickListener {
+    BrowseReceiverDeviceAdapter adapter;
+    RecyclerView recyclerView;
+    UpnpClient upnpClient;
 
+    public BrowseReceiverDeviceClickListener(RecyclerView recyclerView, BrowseReceiverDeviceAdapter adapter, UpnpClient upnpClient) {
+        this.upnpClient = upnpClient;
+        this.recyclerView = recyclerView;
+        this.adapter = adapter;
+    }
 
     @Override
-    public void onItemClick(AdapterView<?> listView, View itemView,
-                            int position, long id) {
-
-        BrowseReceiverDeviceAdapter adapter = (BrowseReceiverDeviceAdapter) listView
-                .getAdapter();
-        Log.d(getClass().getName(), "position: " + position);
+    public void onClick(View itemView) {
         CheckBox checkBox = (CheckBox) itemView
                 .findViewById(R.id.browseReceiverDeviceItemCheckbox);
-        Device<?, ?, ?> device = (Device<?, ?, ?>) adapter.getItem(position);
+        Device<?, ?, ?> device = (Device<?, ?, ?>) adapter.getItem(recyclerView.getChildAdapterPosition(itemView));
         if (checkBox.isChecked()) {
             Log.d(getClass().getName(), "isChecked:" + device.getDisplayString());
             adapter.removeSelectedDevice(device);
-            ((Yaacc) listView.getContext().getApplicationContext()).getUpnpClient().removeReceiverDevice(device);
+            upnpClient.removeReceiverDevice(device);
             checkBox.setChecked(false);
         } else {
             Log.d(getClass().getName(), "isNotChecked:" + device.getDisplayString());
             adapter.addSelectedDevice(device);
-            ((Yaacc) listView.getContext().getApplicationContext()).getUpnpClient().addReceiverDevice(device);
+            upnpClient.addReceiverDevice(device);
             checkBox.setChecked(true);
         }
     }

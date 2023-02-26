@@ -17,16 +17,20 @@
  */
 package de.yaacc.browser;
 
+import android.app.Activity;
 import android.content.Context;
+import android.content.ContextWrapper;
 import android.net.Uri;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.BaseAdapter;
+import android.widget.ImageButton;
 import android.widget.ImageView;
-import android.widget.ListView;
 import android.widget.TextView;
+
+import androidx.recyclerview.widget.DiffUtil;
+import androidx.recyclerview.widget.RecyclerView;
 
 import org.fourthline.cling.model.meta.Device;
 import org.fourthline.cling.model.meta.Icon;
@@ -34,68 +38,63 @@ import org.fourthline.cling.model.meta.LocalDevice;
 import org.fourthline.cling.model.meta.RemoteDevice;
 
 import java.net.URL;
-import java.util.Collection;
 import java.util.LinkedList;
+import java.util.List;
 
 import de.yaacc.R;
-import de.yaacc.browser.BrowseContentItemAdapter.ViewHolder;
+import de.yaacc.upnp.UpnpClient;
+import de.yaacc.util.MediaStoreScanner;
 import de.yaacc.util.ThemeHelper;
 import de.yaacc.util.image.IconDownloadTask;
 
 /**
  * @author Christoph Hähnel (eyeless)
  */
-public class BrowseDeviceAdapter extends BaseAdapter {
+public class BrowseDeviceAdapter extends RecyclerView.Adapter<BrowseDeviceAdapter.ViewHolder> {
 
-    private final LayoutInflater inflator;
     private final Context context;
     private LinkedList<Device<?, ?, ?>> devices;
+    private UpnpClient upnpClient;
+    private RecyclerView deviceList;
 
-    public BrowseDeviceAdapter(Context ctx, LinkedList<Device<?, ?, ?>> devices) {
+
+    public BrowseDeviceAdapter(Context ctx, RecyclerView deviceList, UpnpClient upnpClient, List<Device<?, ?, ?>> devices) {
         super();
 
-        this.devices = devices;
-        context = ctx;
-        if (ctx != null) {
-            inflator = LayoutInflater.from(ctx);
-        } else {
-            inflator = null;
+        this.devices = new LinkedList<>(devices);
+        if (this.devices == null) {
+            this.devices = new LinkedList<>();
         }
+        this.upnpClient = upnpClient;
+        this.deviceList = deviceList;
+        context = ctx;
         notifyDataSetChanged();
     }
 
     @Override
-    public int getCount() {
+    public int getItemCount() {
         return devices.size();
     }
 
-    @Override
-    public Object getItem(int position) {
+    public Device<?, ?, ?> getItem(int position) {
         return devices.get(position);
     }
 
     @Override
-    public long getItemId(int position) {
-        return 0;
+    public ViewHolder onCreateViewHolder(ViewGroup parent,
+                                         int viewType) {
+        View view = LayoutInflater.from(parent.getContext())
+                .inflate(R.layout.browse_device_item, parent, false);
+        view.setOnClickListener(new ServerListClickListener(deviceList, this, upnpClient, context));
+        return new ViewHolder(view);
     }
 
     @Override
-    public View getView(int position, View convertView, ViewGroup parent) {
-        ViewHolder holder;
-
-        if (convertView == null && inflator != null) {
-            convertView = inflator.inflate(R.layout.browse_device_item, parent, false);
-
-            holder = new ViewHolder();
-            holder.icon = (ImageView) convertView.findViewById(R.id.browseDeviceItemIcon);
-            holder.name = (TextView) convertView.findViewById(R.id.browseDeviceItemName);
-            convertView.setTag(holder);
-        } else {
-            holder = (ViewHolder) convertView.getTag();
-        }
-
-        Device<?, ?, ?> device = (Device<?, ?, ?>) getItem(position);
+    public void onBindViewHolder(final ViewHolder holder, final int listPosition) {
+        Device<?, ?, ?> device = getItem(listPosition);
         if (device instanceof RemoteDevice) {
+            holder.scanButton.setVisibility(View.GONE);
+            holder.scanButtonLabel.setVisibility(View.GONE);
             if (device.hasIcons()) {
                 Icon[] icons = device.getIcons();
                 for (Icon icon : icons) {
@@ -103,9 +102,8 @@ public class BrowseDeviceAdapter extends BaseAdapter {
                         URL iconUri = ((RemoteDevice) device).normalizeURI(icon.getUri());
                         if (iconUri != null) {
                             Log.d(getClass().getName(), "Device icon uri:" + iconUri);
-                            new IconDownloadTask((ListView) parent, R.id.browseDeviceItemIcon, position).execute(Uri.parse(iconUri.toString()));
+                            new IconDownloadTask(holder.icon).execute(Uri.parse(iconUri.toString()));
                             break;
-
                         }
                     }
                 }
@@ -114,19 +112,53 @@ public class BrowseDeviceAdapter extends BaseAdapter {
             }
         } else if (device instanceof LocalDevice) {
             //We know our icon
+            holder.scanButton.setVisibility(View.VISIBLE);
+            holder.scanButtonLabel.setVisibility(View.VISIBLE);
             holder.icon.setImageResource(R.drawable.yaacc48_24_png);
         }
 
         holder.name.setText(device.getDetails().getFriendlyName());
 
-
-        return convertView;
     }
 
-    public void setDevices(Collection<Device<?, ?, ?>> devices) {
-        this.devices = new LinkedList<>();
+
+    public void setDevices(List<Device<?, ?, ?>> devices) {
+        final DiffUtil.DiffResult diffResult = DiffUtil.calculateDiff(new DeviceDiffCallback(this.devices, devices));
+        this.devices.clear();
         this.devices.addAll(devices);
-        notifyDataSetChanged();
+        diffResult.dispatchUpdatesTo(this);
+
     }
+
+    static class ViewHolder extends RecyclerView.ViewHolder {
+        ImageView icon;
+        TextView name;
+        ImageButton scanButton;
+        TextView scanButtonLabel;
+
+
+        public ViewHolder(View itemView) {
+            super(itemView);
+            this.icon = (ImageView) itemView.findViewById(R.id.browseDeviceItemIcon);
+            this.name = (TextView) itemView.findViewById(R.id.browseDeviceItemName);
+            this.scanButtonLabel = (TextView) itemView.findViewById(R.id.browseDeviceItemMediaStoreScanLabel);
+            this.scanButton = (ImageButton) itemView.findViewById(R.id.browseDeviceItemRescan);
+            scanButton.setOnClickListener((v) -> {
+                new MediaStoreScanner().scanMediaFiles(getActivity(v.getContext()));
+            });
+        }
+
+        private Activity getActivity(Context ctx) {
+            Context context = ctx;
+            while (context instanceof ContextWrapper) {
+                if (context instanceof Activity) {
+                    return (Activity) context;
+                }
+                context = ((ContextWrapper) context).getBaseContext();
+            }
+            return null;
+        }
+    }
+
 
 }

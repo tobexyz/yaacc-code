@@ -30,6 +30,13 @@
     android:paddingRight="16dp"
     tools:context=".player.AVTransportPlayerActivity">
 
+    <TextView
+        android:id="@+id/avtransportPlayerActivityDeviceName"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_horizontal"
+        android:textAppearance="?android:attr/textAppearanceLarge" />
+
     <RelativeLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content">
@@ -181,48 +188,48 @@
 
         <ImageButton
             android:id="@+id/avtransportPlayerActivityControlPrev"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
             android:layout_marginStart="2dp"
             android:contentDescription="@string/previous"
             app:srcCompat="@drawable/ic_baseline_skip_previous_32" />
 
         <ImageButton
             android:id="@+id/avtransportPlayerActivityControlPlay"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
             android:layout_marginStart="2dp"
             android:contentDescription="@string/play"
             app:srcCompat="@drawable/ic_baseline_play_arrow_32" />
 
         <ImageButton
             android:id="@+id/avtransportPlayerActivityControlPause"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
             android:layout_marginStart="2dp"
             android:contentDescription="@string/pause"
             app:srcCompat="@drawable/ic_baseline_pause_32" />
 
         <ImageButton
             android:id="@+id/avtransportPlayerActivityControlStop"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
             android:layout_marginStart="2dp"
             android:contentDescription="@string/stop"
             app:srcCompat="@drawable/ic_baseline_stop_32" />
 
         <ImageButton
             android:id="@+id/avtransportPlayerActivityControlNext"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
             android:layout_marginStart="2dp"
             android:contentDescription="@string/next"
             app:srcCompat="@drawable/ic_baseline_skip_next_32" />
 
         <ImageButton
             android:id="@+id/avtransportPlayerActivityControlExit"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
             android:layout_marginStart="2dp"
             android:contentDescription="@string/exit"
             app:srcCompat="@drawable/ic_baseline_cancel_32" />

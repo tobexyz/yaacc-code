@@ -25,6 +25,12 @@ import androidx.viewpager2.adapter.FragmentStateAdapter;
 
 public class TabBrowserFragmentStateAdapter extends FragmentStateAdapter {
 
+    private ContentListFragment contentListFragment;
+    private ServerListFragment serverListFragment;
+    private PlayerListFragment playerListFragment;
+    private ReceiverListFragment receiverListFragment;
+
+
     public TabBrowserFragmentStateAdapter(@NonNull FragmentActivity fragmentActivity) {
         super(fragmentActivity);
     }
@@ -34,25 +40,54 @@ public class TabBrowserFragmentStateAdapter extends FragmentStateAdapter {
     public Fragment createFragment(int position) {
         BrowserTabs content = BrowserTabs.valueOf(position);
         if (content == null) {
-            return new ContentListFragment();
+
+            return getContentListFragment();
         }
         switch (content) {
             case CONTENT: {
-                return new ContentListFragment();
+                return getContentListFragment();
             }
             case SERVER: {
-                return new ServerListFragment();
+                return getServerListFragment();
             }
             case PLAYER: {
-                return new PlayerListFragment();
+                return getPlayerListFragment();
 
             }
             case RECEIVER: {
-                return new ReceiverListFragment();
+                return getReceiverListFragment();
             }
         }
-        return new ContentListFragment();
+        return getContentListFragment();
 
+    }
+
+    private Fragment getReceiverListFragment() {
+        if (receiverListFragment == null) {
+            receiverListFragment = new ReceiverListFragment();
+        }
+        return receiverListFragment;
+    }
+
+    private Fragment getPlayerListFragment() {
+        if (playerListFragment == null) {
+            playerListFragment = new PlayerListFragment();
+        }
+        return playerListFragment;
+    }
+
+    private Fragment getServerListFragment() {
+        if (serverListFragment == null) {
+            serverListFragment = new ServerListFragment();
+        }
+        return serverListFragment;
+    }
+
+    private Fragment getContentListFragment() {
+        if (contentListFragment == null) {
+            contentListFragment = new ContentListFragment();
+        }
+        return contentListFragment;
     }
 
     @Override

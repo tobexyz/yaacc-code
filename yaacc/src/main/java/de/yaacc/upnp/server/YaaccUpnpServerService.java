@@ -192,6 +192,7 @@ public class YaaccUpnpServerService extends Service {
      * Displays the notification.
      */
     private void showNotification() {
+        ((Yaacc) getApplicationContext()).createYaaccGroupNotification();
         Intent notificationIntent = new Intent(this, YaaccUpnpServerControlActivity.class);
         PendingIntent contentIntent = PendingIntent.getActivity(this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE);
         NotificationCompat.Builder mBuilder = new NotificationCompat.Builder(this, Yaacc.NOTIFICATION_CHANNEL_ID)
@@ -213,7 +214,7 @@ public class YaaccUpnpServerService extends Service {
         NotificationManager mNotificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         // mId allows you to update the notification later on.
         mNotificationManager.cancel(NotificationId.UPNP_SERVER.getId());
-
+        ((Yaacc) getApplicationContext()).cancelYaaccGroupNotification();
     }
 
     /**

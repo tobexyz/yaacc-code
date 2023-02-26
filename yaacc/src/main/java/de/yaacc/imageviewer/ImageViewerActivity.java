@@ -75,12 +75,8 @@ import de.yaacc.util.YaaccLogActivity;
  * @author Tobias Schoene (openbit)
  */
 public class ImageViewerActivity extends AppCompatActivity implements SwipeReceiver, ServiceConnection {
-    public static final String URIS = "URIS_PARAM"; // String Intent parameter
-    public static final String AUTO_START_SHOW = "AUTO_START_SHOW"; // Boolean
-    // Intent
-// parameter
-// default
-// false
+    public static final String URIS = "URIS_PARAM";
+    public static final String AUTO_START_SHOW = "AUTO_START_SHOW";
     private ImageView imageView;
     private RetrieveImageTask retrieveImageTask;
     private List<Uri> imageUris; // playlist
@@ -98,7 +94,6 @@ public class ImageViewerActivity extends AppCompatActivity implements SwipeRecei
             initialize();
         }
     }
-    //binder comes from server to communicate with method's of
 
     public void onServiceDisconnected(ComponentName className) {
         Log.d(getClass().getName(), "PlayerService disconnected");
@@ -227,9 +222,7 @@ public class ImageViewerActivity extends AppCompatActivity implements SwipeRecei
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
-// Inflate the menu; this adds items to the action bar if it is present.
         getMenuInflater().inflate(R.menu.activity_image_viewer, menu);
-
         return true;
     }
 
@@ -281,10 +274,10 @@ public class ImageViewerActivity extends AppCompatActivity implements SwipeRecei
     private void exit() {
         Player player = playerService.getFirstCurrentPlayerOfType(LocalImagePlayer.class);
         if (player != null) {
+
             player.exit();
-        } else {
-            finish();
         }
+        finish();
     }
 
     /**

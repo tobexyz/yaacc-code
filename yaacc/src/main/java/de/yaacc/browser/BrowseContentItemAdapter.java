@@ -26,11 +26,12 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.AbsListView;
-import android.widget.BaseAdapter;
+import android.widget.ImageButton;
 import android.widget.ImageView;
-import android.widget.ListView;
 import android.widget.TextView;
+import android.widget.Toast;
+
+import androidx.recyclerview.widget.RecyclerView;
 
 import org.fourthline.cling.support.model.DIDLObject;
 import org.fourthline.cling.support.model.container.Container;
@@ -46,9 +47,11 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import de.yaacc.R;
 import de.yaacc.Yaacc;
+import de.yaacc.upnp.UpnpClient;
 import de.yaacc.util.ThemeHelper;
 import de.yaacc.util.image.IconDownloadTask;
 
@@ -57,38 +60,45 @@ import de.yaacc.util.image.IconDownloadTask;
  *
  * @author Christoph Haehnel (eyeless)
  */
-public class BrowseContentItemAdapter extends BaseAdapter implements AbsListView.OnScrollListener {
+public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContentItemAdapter.ViewHolder> {
     public static final Item LOAD_MORE_FAKE_ITEM = new Item("LoadMoreFakeItem", (String) null, "...", "", (DIDLObject.Class) null);
 
     private static final Item LOADING_FAKE_ITEM = new Item("LoadingFakeItem", (String) null, "Loading...", "", (DIDLObject.Class) null);
     private boolean loading = false;
 
 
-    private LayoutInflater inflator;
     private List<DIDLObject> objects = new LinkedList<>();
     private Context context;
-    private Navigator navigator;
     private List<AsyncTask> asyncTasks;
     private boolean allItemsFetched;
+    private UpnpClient upnpClient;
+    private ContentListFragment contentListFragment;
+    private RecyclerView contentList;
 
 
-    public BrowseContentItemAdapter(Context ctx, Navigator navigator) {
-        initialize(ctx, navigator);
-    }
-
-    private void initialize(Context ctx, Navigator navigator) {
-        inflator = LayoutInflater.from(ctx);
-        context = ctx;
-        this.navigator = navigator;
+    public BrowseContentItemAdapter(ContentListFragment contentListFragment, RecyclerView contentList, UpnpClient upnpClient) {
+        context = contentListFragment.getContext();
+        this.contentListFragment = contentListFragment;
+        this.contentList = contentList;
         asyncTasks = new ArrayList<>();
         allItemsFetched = false;
-        loadMore();
+        this.upnpClient = upnpClient;
+    }
 
+    @Override
+    public long getItemId(int position) {
+        return position;
+    }
+
+    @Override
+    public int getItemViewType(int position) {
+        return position;
     }
 
     public Navigator getNavigator() {
-        return navigator;
+        return contentListFragment.getNavigator();
     }
+
 
     public void setAllItemsFetched(boolean allItemsFetched) {
         this.allItemsFetched = allItemsFetched;
@@ -104,12 +114,11 @@ public class BrowseContentItemAdapter extends BaseAdapter implements AbsListView
         } else {
             removeLoadingItem();
         }
-        notifyDataSetChanged();
         this.loading = loading;
     }
 
     @Override
-    public int getCount() {
+    public int getItemCount() {
         if (objects == null) {
             return 0;
         }
@@ -123,54 +132,72 @@ public class BrowseContentItemAdapter extends BaseAdapter implements AbsListView
         return result;
     }
 
-    public void addAll(Collection<? extends DIDLObject> objects) {
-        Log.d(getClass().getName(), "added objects; " + objects);
-        this.objects.addAll(objects);
-        notifyDataSetChanged();
+    public void addAll(Collection<? extends DIDLObject> newObjects) {
+        Log.d(getClass().getName(), "added objects; " + newObjects);
+        int start = objects.size() - 1;
+        objects.addAll(newObjects.stream().filter(it -> !objects.contains(it)).collect(Collectors.toList()));
+        notifyItemRangeInserted(start, objects.size());
     }
 
     public void clear() {
-        objects = new LinkedList<>();
-        allItemsFetched = true;
+        if (objects != null) {
+            objects.clear();
+        }
+        loading = false;
+        allItemsFetched = false;
         notifyDataSetChanged();
     }
 
-    @Override
-    public Object getItem(int arg0) {
-        return objects.get(arg0);
+    public Object getItem(int position) {
+        return objects.get(position);
     }
 
     @Override
-    public long getItemId(int arg0) {
-        return arg0;
+    public BrowseContentItemAdapter.ViewHolder onCreateViewHolder(ViewGroup parent,
+                                                                  int viewType) {
+        View view = LayoutInflater.from(parent.getContext())
+                .inflate(R.layout.browse_content_item, parent, false);
+        ContentListClickListener bItemClickListener = new ContentListClickListener(upnpClient, contentListFragment, contentList, this);
+        view.setOnClickListener(bItemClickListener);
+        return new BrowseContentItemAdapter.ViewHolder(view);
     }
 
     @Override
-    public View getView(int position, View arg1, ViewGroup parent) {
-        ViewHolder holder;
+    public void onBindViewHolder(final BrowseContentItemAdapter.ViewHolder holder, final int listPosition) {
         SharedPreferences preferences = PreferenceManager
-                .getDefaultSharedPreferences(parent.getContext());
-        context = parent.getContext();
-        if (arg1 == null) {
-            arg1 = inflator.inflate(R.layout.browse_content_item, parent, false);
-            holder = new ViewHolder();
-            holder.icon = arg1.findViewById(R.id.browseContentItemIcon);
-            holder.name = arg1.findViewById(R.id.browseContentItemName);
-            arg1.setTag(holder);
-        } else {
-            holder = (ViewHolder) arg1.getTag();
-        }
+                .getDefaultSharedPreferences(context);
 
-
-        DIDLObject currentObject = (DIDLObject) getItem(position);
+        DIDLObject currentObject = (DIDLObject) getItem(listPosition);
         holder.name.setText(currentObject.getTitle());
-        IconDownloadTask iconDownloadTask = new IconDownloadTask(
-                this, (ListView) parent, R.id.browseContentItemIcon, position);
+        IconDownloadTask iconDownloadTask = new IconDownloadTask(holder.icon,
+                this);
         asyncTasks.add(iconDownloadTask);
+
+        holder.playAll.setOnClickListener((v) -> {
+            new ContentItemPlayTask(contentListFragment, currentObject).execute(ContentItemPlayTask.PLAY_ALL);
+        });
+        holder.play.setOnClickListener((v) -> {
+            new ContentItemPlayTask(contentListFragment, currentObject).execute(ContentItemPlayTask.PLAY_CURRENT);
+        });
+        holder.download.setOnClickListener((v) -> {
+            try {
+                upnpClient.downloadItem(currentObject);
+            } catch (Exception ex) {
+                Toast toast = Toast.makeText(contentListFragment.getActivity(), "Can't download item: " + ex.getMessage(), Toast.LENGTH_SHORT);
+                toast.show();
+            }
+        });
         if (currentObject instanceof Container) {
             holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_folder_open_48, context.getTheme()), getContext().getTheme()));
+            holder.playAll.setVisibility(View.VISIBLE);
+            holder.play.setVisibility(View.VISIBLE);
+            holder.download.setVisibility(View.GONE);
+
         } else if (currentObject instanceof AudioItem) {
             holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_audiotrack_48, context.getTheme()), getContext().getTheme()));
+            holder.playAll.setVisibility(View.VISIBLE);
+            holder.play.setVisibility(View.VISIBLE);
+            holder.download.setVisibility(View.VISIBLE);
             if (preferences.getBoolean(
                     context.getString(R.string.settings_thumbnails_chkbx),
                     true)) {
@@ -184,6 +211,9 @@ public class BrowseContentItemAdapter extends BaseAdapter implements AbsListView
             }
         } else if (currentObject instanceof ImageItem) {
             holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_image_48, getContext().getTheme()), getContext().getTheme()));
+            holder.playAll.setVisibility(View.VISIBLE);
+            holder.play.setVisibility(View.VISIBLE);
+            holder.download.setVisibility(View.VISIBLE);
             if (preferences.getBoolean(
                     context.getString(R.string.settings_thumbnails_chkbx),
                     true))
@@ -192,6 +222,9 @@ public class BrowseContentItemAdapter extends BaseAdapter implements AbsListView
                                 .getFirstResource().getValue()));
         } else if (currentObject instanceof VideoItem) {
             holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_movie_48, getContext().getTheme()), getContext().getTheme()));
+            holder.playAll.setVisibility(View.VISIBLE);
+            holder.play.setVisibility(View.VISIBLE);
+            holder.download.setVisibility(View.VISIBLE);
             if (preferences.getBoolean(
                     context.getString(R.string.settings_thumbnails_chkbx),
                     true)) {
@@ -205,16 +238,27 @@ public class BrowseContentItemAdapter extends BaseAdapter implements AbsListView
             }
         } else if (currentObject instanceof PlaylistItem) {
             holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_library_music_48, getContext().getTheme()), getContext().getTheme()));
+            holder.playAll.setVisibility(View.GONE);
+            holder.play.setVisibility(View.GONE);
+            holder.download.setVisibility(View.GONE);
         } else if (currentObject instanceof TextItem) {
             holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_text_snippet_48, getContext().getTheme()), getContext().getTheme()));
+            holder.playAll.setVisibility(View.GONE);
+            holder.play.setVisibility(View.GONE);
+            holder.download.setVisibility(View.GONE);
         } else if (currentObject == LOAD_MORE_FAKE_ITEM) {
             holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_refresh_48, getContext().getTheme()), getContext().getTheme()));
         } else if (currentObject == LOADING_FAKE_ITEM) {
             holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_download_48, getContext().getTheme()), getContext().getTheme()));
+            holder.playAll.setVisibility(View.GONE);
+            holder.play.setVisibility(View.GONE);
+            holder.download.setVisibility(View.GONE);
         } else {
             holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_question_mark_48, getContext().getTheme()), getContext().getTheme()));
+            holder.playAll.setVisibility(View.GONE);
+            holder.play.setVisibility(View.GONE);
+            holder.download.setVisibility(View.GONE);
         }
-        return arg1;
     }
 
     public void cancelRunningTasks() {
@@ -223,6 +267,7 @@ public class BrowseContentItemAdapter extends BaseAdapter implements AbsListView
                 task.cancel(true);
             }
         }
+        loading = false;
         allItemsFetched = false;
     }
 
@@ -235,7 +280,7 @@ public class BrowseContentItemAdapter extends BaseAdapter implements AbsListView
     public void addLoadMoreItem() {
         if (!objects.contains(LOAD_MORE_FAKE_ITEM)) {
             objects.add(LOAD_MORE_FAKE_ITEM);
-            notifyDataSetChanged();
+            notifyItemInserted(objects.size() - 1);
         }
 
     }
@@ -243,19 +288,25 @@ public class BrowseContentItemAdapter extends BaseAdapter implements AbsListView
     public void addLoadingItem() {
         if (!objects.contains(LOADING_FAKE_ITEM)) {
             objects.add(LOADING_FAKE_ITEM);
-            notifyDataSetChanged();
+            notifyItemInserted(objects.size() - 1);
         }
 
     }
 
     public void removeLoadMoreItem() {
-        objects.remove(LOAD_MORE_FAKE_ITEM);
-        notifyDataSetChanged();
+        int idx = objects.indexOf(LOAD_MORE_FAKE_ITEM);
+        if (idx > -1) {
+            objects.remove(LOAD_MORE_FAKE_ITEM);
+            notifyItemRemoved(idx);
+        }
     }
 
     public void removeLoadingItem() {
-        objects.remove(LOADING_FAKE_ITEM);
-        notifyDataSetChanged();
+        int idx = objects.indexOf(LOADING_FAKE_ITEM);
+        if (idx > -1) {
+            objects.remove(LOADING_FAKE_ITEM);
+            notifyItemRemoved(idx);
+        }
     }
 
     public DIDLObject getFolder(int position) {
@@ -265,26 +316,12 @@ public class BrowseContentItemAdapter extends BaseAdapter implements AbsListView
         return objects.get(position);
     }
 
-    @Override
-    public void onScrollStateChanged(AbsListView view, int scrollState) {
-    }
-
-    @Override
-    public void onScroll(AbsListView view, int firstVisibleItem,
-                         int visibleItemCount, int totalItemCount) {
-        // check if the List needs more data
-        if ((firstVisibleItem + visibleItemCount) > (totalItemCount - 10)) {
-            // List needs more data. Go fetch !!
-            loadMore();
-        }
-    }
-
     public void loadMore() {
-        if (navigator == null || navigator.getCurrentPosition() == null || navigator.getCurrentPosition().getDeviceId() == null)
+        if (contentListFragment.getNavigator() == null || contentListFragment.getNavigator().getCurrentPosition() == null || contentListFragment.getNavigator().getCurrentPosition().getDeviceId() == null)
             return;
         if (loading || allItemsFetched) return;
         setLoading(true);
-        Long from = (long) getCount();
+        Long from = (long) getItemCount();
 
         Log.d(getClass().getName(), "loadMore from: " + from);
 
@@ -294,9 +331,20 @@ public class BrowseContentItemAdapter extends BaseAdapter implements AbsListView
 
     }
 
-    static class ViewHolder {
+    static class ViewHolder extends RecyclerView.ViewHolder {
         ImageView icon;
         TextView name;
-    }
+        ImageButton play;
+        ImageButton playAll;
+        ImageButton download;
 
+        public ViewHolder(View itemView) {
+            super(itemView);
+            icon = itemView.findViewById(R.id.browseContentItemIcon);
+            name = itemView.findViewById(R.id.browseContentItemName);
+            play = itemView.findViewById(R.id.browseContentItemPlay);
+            playAll = itemView.findViewById(R.id.browseContentItemPlayAll);
+            download = itemView.findViewById(R.id.browseContentItemDownload);
+        }
+    }
 }

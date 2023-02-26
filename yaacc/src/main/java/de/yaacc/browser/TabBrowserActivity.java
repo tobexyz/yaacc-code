@@ -254,6 +254,7 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
     @Override
     public void onResume() {
         long start = System.currentTimeMillis();
+        super.onResume();
         boolean serverOn = getPreferences().getBoolean(
                 getString(R.string.settings_local_server_chkbx), false);
         if (serverOn) {
@@ -261,14 +262,13 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
             if (leftSettings) {
                 getApplicationContext().stopService(getYaaccUpnpServerService());
             }
-            getApplicationContext().startService(getYaaccUpnpServerService());
+            getApplicationContext().startForegroundService(getYaaccUpnpServerService());
             Log.d(this.getClass().getName(), "Starting local service");
         } else {
             getApplicationContext().stopService(getYaaccUpnpServerService());
             Log.d(this.getClass().getName(), "Stopping local service");
         }
         leftSettings = false;
-        super.onResume();
         Log.d(this.getClass().getName(), "on on resume took: " + (System.currentTimeMillis() - start));
     }
 
@@ -350,6 +350,16 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
 
     @Override
     public void deviceUpdated(Device<?, ?, ?> device) {
+
+    }
+
+    @Override
+    public void receiverDeviceRemoved(Device<?, ?, ?> device) {
+
+    }
+
+    @Override
+    public void receiverDeviceAdded(Device<?, ?, ?> device) {
 
     }
 
