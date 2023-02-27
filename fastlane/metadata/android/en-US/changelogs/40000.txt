@@ -1,0 +1,12 @@
+Version 4.0.0
+- ui update
+  allow device control directly using the tab browser
+  display bread crumb in content list
+  display sender and receiver in content list
+  improved and fixed layout of all activities
+- allow rescan media files when YAACC UPNP server is enabled
+- fixed auto start of YAACC UPNP server on boot if activated
+- start background services only if needed
+
+Full Changelog: <a href="https://github.com/tobexyz/yaacc-code/compare/3.3.0...4.0.0">3.3.0...4.0.0</a>
+
