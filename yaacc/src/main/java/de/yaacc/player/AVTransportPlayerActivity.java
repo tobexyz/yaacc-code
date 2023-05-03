@@ -366,7 +366,7 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
     private void doSetTrackInfo() {
         if (getPlayer() == null)
             return;
-        if (getPlayer() instanceof AVTransportPlayer) {
+        if (getPlayer() instanceof AVTransportPlayer && ((AVTransportPlayer) getPlayer()).getDevice() != null) {
             ((TextView) findViewById(R.id.avtransportPlayerActivityDeviceName)).setText(((AVTransportPlayer) getPlayer()).getDevice().getDetails().getFriendlyName());
         }
         TextView current = findViewById(R.id.avtransportPlayerActivityCurrentItem);

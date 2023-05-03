@@ -177,27 +177,58 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
 
         }
 
-        // Get intent, action and MIME type
-        Intent intent = getIntent();
-        String action = intent.getAction();
-        if (Intent.ACTION_SEND.equals(action) && intent.getClipData() != null) {
-            ArrayList<PlayableItem> items = new ArrayList<>();
-            for (int i = 0; i < intent.getClipData().getItemCount(); i++) {
-                if (intent.getClipData().getItemAt(i) != null) {
-                    Uri contentUri = Uri.parse(intent.getClipData().getItemAt(i).getText().toString());
-                    items.add(creatPlayableItem(contentUri));
-                }
-            }
-            List<Player> players = upnpClient.initializePlayersWithPlayableItems(items);
-            for (Player player : players) {
-                player.play();
-            }
-            intent.setClipData(null);
-        }
+        checkIfReceivedShareIntent(null);
         Log.d(this.getClass().getName(), "on create took: " + (System.currentTimeMillis() - start));
     }
 
-    private PlayableItem creatPlayableItem(Uri uri) {
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        checkIfReceivedShareIntent(intent);
+    }
+
+    private void checkIfReceivedShareIntent(Intent receivedIntent) {
+        // Get intent, action and MIME type
+        Intent intent = receivedIntent != null ? receivedIntent : getIntent();
+        String action = intent.getAction();
+        if (Intent.ACTION_SEND.equals(action)) {
+            ArrayList<PlayableItem> items = new ArrayList<>();
+            if (intent.getExtras() != null && intent.getExtras().getString("android.intent.extra.TEXT") != null) {
+                Uri contentUri = Uri.parse(intent.getExtras().getString("android.intent.extra.TEXT"));
+                items.add(createPlayableItem(contentUri));
+            } else if (intent.getClipData() != null) {
+                for (int i = 0; i < intent.getClipData().getItemCount(); i++) {
+                    if (intent.getClipData().getItemAt(i) != null) {
+                        Uri contentUri = null;
+                        if (intent.getClipData().getItemAt(i).getText() != null) {
+                            contentUri = Uri.parse(intent.getClipData().getItemAt(i).getText().toString());
+                        } else if (intent.getClipData().getItemAt(i).getUri() != null) {
+                            contentUri = intent.getClipData().getItemAt(i).getUri();
+                        }
+                        if (contentUri != null) {
+                            items.add(createPlayableItem(contentUri));
+                        }
+                    }
+                }
+
+            }
+            //clear intent
+            if (intent.getExtras() != null && intent.getExtras().getString("android.intent.extra.TEXT") != null) {
+                intent.removeExtra("android.intent.extra.TEXT");
+            }
+            if (intent.getClipData() != null) {
+                intent.setClipData(null);
+            }
+            if (!items.isEmpty()) {
+                List<Player> players = upnpClient.initializePlayersWithPlayableItems(items);
+                for (Player player : players) {
+                    player.play();
+                }
+            }
+        }
+    }
+
+    private PlayableItem createPlayableItem(Uri uri) {
         PlayableItem item = new PlayableItem();
         if (uri == null) {
             return item;
