@@ -1,0 +1,7 @@
+Version 3.3.0
+- minor fixes
+- fixed streaming large files using YAACC server
+- fixed seeking files on remote devices
+
+Full Changelog: <a href="https://github.com/tobexyz/yaacc-code/compare/3.2.0...3.3.0">3.2.0...3.3.0</a>
+
