@@ -36,6 +36,13 @@ in order to play media from your device on any UPNP renderer in your network.
 
 [Screenshots](./doc/screenshots/screenshots.md)
 
+## Configuration
+Please take a look in the settings of the app. A lot of configuration can be done there. 
+
+The media server is stopped by default and has to be activiated in the settings. 
+For this go to settings and tick some checkboxes under "Local server configuration" depending on your needs in order to start the server
+
+
 ## A word about the cling library
 
 This project is based on the work of <https://github.com/4thline/cling>. This great UPNP library made
