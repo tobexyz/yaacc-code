@@ -1,0 +1,9 @@
+Version 3.0.0
+- Update sources to compile using jdk11 and refactor project structure
+- Set Android min api level to 27
+- Update TabBrowserActivity a bit to work with fragments
+- Provide many smaller fixes
+- Removed jetty and integrate httpcore5 as networking component
+
+Full Changelog: <a href="https://github.com/tobexyz/yaacc-code/compare/2.3.0...3.0.0">2.3.2...3.0.0</a>
+

@@ -1,0 +1,9 @@
+Version 3.2.0
+- fixed some layout issues in player activities
+- fixed minor bugs in browser activity
+- fixed problems in setting up media player in some cases
+- switch to next title in local music playing by using callbacks of MediaPlayer object
+- added setting for log level displayed in log activity
+
+Full Changelog: <a href="https://github.com/tobexyz/yaacc-code/compare/3.1.0...3.2.0">3.1.0...3.2.0</a>
+ 
