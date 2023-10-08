@@ -1,0 +1,5 @@
+Version 4.0.2
+- fixed crashes on sharing content with the app
+- now open player tab when sharing content with the app
+
+https://github.com/tobexyz/yaacc-code/compare/4.0.1...4.0.2
