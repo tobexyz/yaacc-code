@@ -98,29 +98,30 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         contentList = contentlistView.findViewById(R.id.contentList);
         contentList.setLayoutManager(new LinearLayoutManager(getActivity()));
         upnpClient.addUpnpClientListener(this);
-        Thread thread = new Thread(() -> {
-            if (upnpClient.getReceiverDevices() != null) {
-                currentReceivers.setText(upnpClient.getReceiverDevices().stream().map(it -> it.getDetails().getFriendlyName()).collect(Collectors.joining("; ")));
-            }
-            if (upnpClient.getProviderDevice() != null) {
-                currentProvider.setText(upnpClient.getProviderDevice().getDetails().getFriendlyName());
-                if (savedInstanceState == null || savedInstanceState.getSerializable(CONTENT_LIST_NAVIGATOR) == null) {
-                    showMainFolder();
-                } else {
-                    navigator = (Navigator) savedInstanceState.getSerializable(CONTENT_LIST_NAVIGATOR);
-                    if (navigator.getCurrentPosition() != null && upnpClient.getProviderDevice() != null && upnpClient.getProviderDevice().getIdentity().getUdn().getIdentifierString().equals(navigator.getCurrentPosition().getDeviceId())) {
-                        populateItemList(true);
-                    } else {
-                        showMainFolder();
-                    }
+        if (getActivity() != null) {
+            getActivity().runOnUiThread(() -> {
 
+                if (upnpClient.getReceiverDevices() != null) {
+                    currentReceivers.setText(upnpClient.getReceiverDevices().stream().map(it -> it.getDetails().getFriendlyName()).collect(Collectors.joining("; ")));
                 }
-            } else {
-
-                clearItemList();
-            }
-        });
-        thread.start();
+                if (upnpClient.getProviderDevice() != null) {
+                    currentProvider.setText(upnpClient.getProviderDevice().getDetails().getFriendlyName());
+                    if (savedInstanceState == null || savedInstanceState.getSerializable(CONTENT_LIST_NAVIGATOR) == null) {
+                        showMainFolder();
+                    } else {
+                        navigator = (Navigator) savedInstanceState.getSerializable(CONTENT_LIST_NAVIGATOR);
+                        if (navigator.getCurrentPosition() != null && upnpClient.getProviderDevice() != null && upnpClient.getProviderDevice().getIdentity().getUdn().getIdentifierString().equals(navigator.getCurrentPosition().getDeviceId())) {
+                            populateItemList(true);
+                        } else {
+                            showMainFolder();
+                        }
+                    }
+                } else {
+                    clearItemList();
+                }
+            });
+        }
+        ;
 
     }
 
