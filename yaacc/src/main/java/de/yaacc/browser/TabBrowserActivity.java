@@ -225,6 +225,7 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
                     player.play();
                 }
             }
+            setCurrentTab(BrowserTabs.PLAYER);
         }
     }
 
