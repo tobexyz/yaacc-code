@@ -460,6 +460,10 @@ public class YaaccContentDirectory {
 
 
     public String formatDuration(String millisStr) {
+
+        if (millisStr == null || millisStr.equals("")) {
+            return String.format(Locale.US, "%02d:%02d:%02d", 0L, 0L, 0L);
+        }
         String res;
         long duration = Long.parseLong(millisStr);
         long hours = TimeUnit.MILLISECONDS.toHours(duration)

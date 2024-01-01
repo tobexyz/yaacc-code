@@ -1,0 +1,4 @@
+Version 4.0.3
+- yaacc content directory: fixed exception if duration of media file in media store is not parsable
+
+https://github.com/tobexyz/yaacc-code/compare/4.0.2...4.0.3
