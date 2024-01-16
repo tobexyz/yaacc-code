@@ -1338,6 +1338,12 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
                             + device.getDisplayString());
             return 0;
         }
+        if (service.getAction("GetVolume") == null) {
+            Log.d(getClass().getName(),
+                    "No action get volume found on Device: "
+                            + device.getDisplayString());
+            return 0;
+        }
         Log.d(getClass().getName(), "Action get Volume ");
         final ActionState actionState = new ActionState();
         actionState.actionFinished = false;
