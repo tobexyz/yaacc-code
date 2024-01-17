@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="utf-8"?><!--
+ *
+ * Copyright (C) 2014 www.yaacc.de
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 3
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="horizontal"
+    android:baselineAligned="false">
+
+    <RelativeLayout xmlns:app="http://schemas.android.com/apk/res-auto"
+
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1">
+
+        <ImageButton
+            android:id="@+id/contentListBackButton"
+            style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_alignParentStart="true"
+            android:layout_marginBottom="5dp"
+            android:contentDescription="@string/icon"
+            app:srcCompat="@drawable/ic_baseline_arrow_back_32" />
+
+        <TextView
+            android:id="@+id/contentListCurrentFolderName"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/contentListBackButton"
+            android:layout_alignParentStart="true"
+            android:layout_marginStart="5dp"
+            android:layout_marginBottom="10dp"
+            android:maxLines="4"
+            android:minLines="2"
+            android:singleLine="false"
+            android:text="@string/all"
+            android:textAppearance="@android:style/TextAppearance.Material.Medium"
+            android:textColor="?android:attr/colorForeground" />
+
+        <View
+            android:id="@+id/contentListBottomSeperator"
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_above="@id/contentListCurrentProvider"
+            android:background="?android:attr/colorForeground" />
+
+        <TextView
+            android:id="@+id/contentListCurrentProvider"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_above="@id/contentListCurrentReceivers"
+            android:layout_below="@id/contentListCurrentFolderName"
+            android:layout_alignParentStart="true"
+            android:layout_marginStart="5dp"
+            android:layout_toStartOf="@id/contentListTopSeperator"
+            android:drawablePadding="5dp"
+            android:gravity="center_vertical"
+            android:minLines="2"
+            android:singleLine="false"
+            android:text="@string/all"
+            android:textAppearance="@android:style/TextAppearance.Material.Medium"
+            android:textColor="?android:attr/colorForeground"
+            app:drawableStartCompat="@drawable/ic_baseline_sensors_32" />
+
+        <TextView
+            android:id="@+id/contentListCurrentReceivers"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_alignParentStart="true"
+            android:layout_alignParentBottom="true"
+            android:layout_marginStart="5dp"
+            android:layout_toStartOf="@id/contentListTopSeperator"
+            android:drawablePadding="5dp"
+            android:gravity="center_vertical"
+            android:minLines="2"
+            android:singleLine="false"
+            android:text="@string/all"
+            android:textAppearance="@android:style/TextAppearance.Material.Medium"
+            android:textColor="?android:attr/colorForeground"
+            app:drawableStartCompat="@drawable/ic_baseline_devices_32" />
+
+        <View
+            android:id="@+id/contentListTopSeperator"
+            android:layout_width="1dp"
+            android:layout_height="match_parent"
+            android:layout_alignEnd="@id/contentListCurrentFolderName"
+            android:background="?android:attr/colorForeground" />
+    </RelativeLayout>
+
+    <RelativeLayout xmlns:app="http://schemas.android.com/apk/res-auto"
+
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="2">
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/contentList"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+    </RelativeLayout>
+</LinearLayout>
