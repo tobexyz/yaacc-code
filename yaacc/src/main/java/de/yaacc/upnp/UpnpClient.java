@@ -1239,6 +1239,12 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
                             + device.getDisplayString());
             return false;
         }
+        if (service.getAction("GetMute") == null) {
+            Log.d(getClass().getName(),
+                    "No action get mute found on Device: "
+                            + device.getDisplayString());
+            return false;
+        }
         Log.d(getClass().getName(), "Action get Mute ");
         final ActionState actionState = new ActionState();
         actionState.actionFinished = false;
@@ -1299,6 +1305,12 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         if (service == null) {
             Log.d(getClass().getName(),
                     "No AVTransport-Service found on Device: "
+                            + device.getDisplayString());
+            return;
+        }
+        if (service.getAction("SetMute") == null) {
+            Log.d(getClass().getName(),
+                    "No action set mute found on Device: "
                             + device.getDisplayString());
             return;
         }
@@ -1407,6 +1419,12 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         if (service == null) {
             Log.d(getClass().getName(),
                     "No RenderingControl-Service found on Device: "
+                            + device.getDisplayString());
+            return;
+        }
+        if (service.getAction("SetVolume") == null) {
+            Log.d(getClass().getName(),
+                    "No action set volume found on Device: "
                             + device.getDisplayString());
             return;
         }
