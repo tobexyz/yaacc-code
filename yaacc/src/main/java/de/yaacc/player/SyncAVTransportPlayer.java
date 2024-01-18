@@ -929,5 +929,26 @@ public class SyncAVTransportPlayer extends AbstractPlayer {
         public boolean watchdogFlag = false;
         public Object result = null;
     }
+
+
+    public boolean hasActionGetVolume() {
+        if (getDevice() == null) {
+            Log.d(getClass().getName(),
+                    "No receiver device found: "
+                            + deviceId);
+            return false;
+        }
+        return getUpnpClient().hasActionGetVolume(getDevice());
+    }
+
+    public boolean hasActionGetMute() {
+        if (getDevice() == null) {
+            Log.d(getClass().getName(),
+                    "No receiver device found: "
+                            + deviceId);
+            return false;
+        }
+        return getUpnpClient().hasActionGetMute(getDevice());
+    }
 }
 

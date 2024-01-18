@@ -786,4 +786,12 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
     public void setShortName(String name) {
         shortName = name;
     }
+
+    public boolean hasActionGetVolume() {
+        return true;
+    }
+
+    public boolean hasActionGetMute() {
+        return true;
+    }
 }

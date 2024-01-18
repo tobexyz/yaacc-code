@@ -520,6 +520,16 @@ public class LocalImagePlayer implements Player, ServiceConnection {
         return upnpClient.getVolume();
     }
 
+    @Override
+    public boolean hasActionGetVolume() {
+        return false;
+    }
+
+    @Override
+    public boolean hasActionGetMute() {
+        return false;
+    }
+
     public void setVolume(int volume) {
         upnpClient.setVolume(volume);
     }

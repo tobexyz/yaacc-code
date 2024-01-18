@@ -1239,7 +1239,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
                             + device.getDisplayString());
             return false;
         }
-        if (service.getAction("GetMute") == null) {
+        if (!hasActionGetMute(service)) {
             Log.d(getClass().getName(),
                     "No action get mute found on Device: "
                             + device.getDisplayString());
@@ -1294,6 +1294,25 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         return actionState.result != null && (Boolean) actionState.result;
     }
 
+    public boolean hasActionGetMute(Device<?, ?, ?> device) {
+        if (device instanceof LocalDevice || device instanceof UpnpClient.LocalDummyDevice) {
+            return true;
+        }
+        Service<?, ?> service = getRenderingControlService(device);
+        if (service == null) {
+            Log.d(getClass().getName(),
+                    "No RenderingControl-Service found on Device: "
+                            + device.getDisplayString());
+            return false;
+        }
+
+        return hasActionGetMute(service);
+    }
+
+    private boolean hasActionGetMute(Service<?, ?> service) {
+        return service.getAction("GetMute") != null;
+    }
+
     public void setMute(Device<?, ?, ?> device, boolean mute) {
         if (device == null) {
             return;
@@ -1308,7 +1327,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
                             + device.getDisplayString());
             return;
         }
-        if (service.getAction("SetMute") == null) {
+        if (!hasActionSetMute(service)) {
             Log.d(getClass().getName(),
                     "No action set mute found on Device: "
                             + device.getDisplayString());
@@ -1335,6 +1354,11 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         getControlPoint().execute(actionCallback);
     }
 
+
+    private boolean hasActionSetMute(Service<?, ?> service) {
+        return service.getAction("SetMute") != null;
+    }
+
     public int getVolume(Device<?, ?, ?> device) {
         if (device == null) {
             return 0;
@@ -1350,7 +1374,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
                             + device.getDisplayString());
             return 0;
         }
-        if (service.getAction("GetVolume") == null) {
+        if (!hasActionGetVolume(service)) {
             Log.d(getClass().getName(),
                     "No action get volume found on Device: "
                             + device.getDisplayString());
@@ -1407,6 +1431,24 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
 
     }
 
+    public boolean hasActionGetVolume(Device<?, ?, ?> device) {
+        if (device instanceof LocalDevice || device instanceof UpnpClient.LocalDummyDevice) {
+            return true;
+        }
+        Service<?, ?> service = getRenderingControlService(device);
+        if (service == null) {
+            Log.d(getClass().getName(),
+                    "No RenderingControl-Service found on Device: "
+                            + device.getDisplayString());
+            return false;
+        }
+        return hasActionGetVolume(service);
+    }
+
+    private boolean hasActionGetVolume(Service<?, ?> service) {
+        return service.getAction("GetVolume") != null;
+    }
+
     public void setVolume(Device<?, ?, ?> device, int volume) {
         if (device == null) {
             return;
@@ -1422,7 +1464,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
                             + device.getDisplayString());
             return;
         }
-        if (service.getAction("SetVolume") == null) {
+        if (!hasActionSetVolume(service)) {
             Log.d(getClass().getName(),
                     "No action set volume found on Device: "
                             + device.getDisplayString());
@@ -1447,6 +1489,10 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
             }
         };
         getControlPoint().execute(actionCallback);
+    }
+
+    public boolean hasActionSetVolume(Service<?, ?> service) {
+        return service.getAction("SetVolume") != null;
     }
 
 
