@@ -197,6 +197,10 @@ public interface Player {
 
     int getVolume();
 
+    boolean hasActionGetVolume();
+
+    boolean hasActionGetMute();
+
     void setVolume(int volume);
 
     int getIconResourceId();

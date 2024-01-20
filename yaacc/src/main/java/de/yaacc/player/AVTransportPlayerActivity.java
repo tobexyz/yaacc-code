@@ -203,23 +203,33 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
         btnExit.setOnClickListener(v -> exit());
 
         SwitchMaterial muteSwitch = (SwitchMaterial) findViewById(R.id.avtransportPlayerActivityControlMuteSwitch);
+        if (getPlayer() != null && getPlayer().hasActionGetMute()) {
+            muteSwitch.setEnabled(true);
+            muteSwitch.setChecked(getPlayer().getMute());
+        } else {
+            muteSwitch.setEnabled(true);
+            muteSwitch.setChecked(false);
+        }
+
         muteSwitch.setOnCheckedChangeListener((compoundButton, isChecked) -> {
-            if (getPlayer() != null) {
+            if (getPlayer() != null && getPlayer().hasActionGetMute()) {
                 getPlayer().setMute(isChecked);
             }
         });
         SeekBar volumeSeekBar = (SeekBar) findViewById(R.id.avtransportPlayerActivityControlVolumeSeekBar);
         volumeSeekBar.setMax(100);
-        if (getPlayer() != null) {
+        if (getPlayer() != null && getPlayer().hasActionGetVolume()) {
             Log.d(getClass().getName(), "Volume:" + getPlayer().getVolume());
+            volumeSeekBar.setEnabled(true);
             volumeSeekBar.setProgress(getPlayer().getVolume());
         } else {
-            volumeSeekBar.setProgress(100);
+            volumeSeekBar.setEnabled(false);
+            volumeSeekBar.setProgress(0);
         }
         volumeSeekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                if (getPlayer() != null) {
+                if (getPlayer() != null && getPlayer().hasActionGetVolume()) {
                     getPlayer().setVolume(progress);
                 }
             }

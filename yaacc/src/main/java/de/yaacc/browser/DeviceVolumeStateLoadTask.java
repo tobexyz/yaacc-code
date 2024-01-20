@@ -20,15 +20,22 @@ public class DeviceVolumeStateLoadTask extends AsyncTask<Device<?, ?, ?>, Intege
     @Override
     protected Integer doInBackground(Device<?, ?, ?>... devices) {
         if (devices == null || devices.length < 1) {
-            return 0;
+            return -1;
         }
         device = devices[0];
-
+        if (!upnpClient.hasActionGetVolume(device)) {
+            return -1;
+        }
         return upnpClient.getVolume(device);
     }
 
     @Override
     protected void onPostExecute(Integer result) {
+        if (result == -1) {
+            targetWidget.setEnabled(false);
+            return;
+        }
+        targetWidget.setEnabled(true);
         targetWidget.setProgress(result);
         targetWidget.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override

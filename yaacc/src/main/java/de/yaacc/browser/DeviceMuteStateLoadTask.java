@@ -20,14 +20,23 @@ public class DeviceMuteStateLoadTask extends AsyncTask<Device<?, ?, ?>, Integer,
     @Override
     protected Boolean doInBackground(Device<?, ?, ?>... devices) {
         if (devices == null || devices.length < 1) {
-            return false;
+            return null;
         }
         device = devices[0];
+        if (!upnpClient.hasActionGetMute(device)) {
+            return null;
+        }
         return upnpClient.getMute(device);
     }
 
     @Override
     protected void onPostExecute(Boolean result) {
+        if (result == null) {
+            targetWidget.setChecked(false);
+            targetWidget.setEnabled(false);
+            return;
+        }
+        targetWidget.setEnabled(true);
         targetWidget.setChecked(result);
         targetWidget.setOnClickListener((it) -> {
             upnpClient.setMute(device, targetWidget.isChecked());
