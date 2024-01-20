@@ -310,7 +310,7 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
      *
      * @return the intent
      */
-    private Intent getYaaccUpnpServerService() {
+    public Intent getYaaccUpnpServerService() {
         if (serverService == null) {
             serverService = new Intent(getApplicationContext(),
                     YaaccUpnpServerService.class);
