@@ -21,18 +21,25 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.util.Log;
+import android.util.TypedValue;
+import android.view.Gravity;
+import android.view.KeyEvent;
+import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.SeekBar;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -115,10 +122,46 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
     @Override
     protected void onResume() {
         super.onResume();
+        setVolumeControlStream(-1000); //use an invalid audio stream to block controlling default streams
         this.bindService(new Intent(this, PlayerService.class),
                 this, Context.BIND_AUTO_CREATE);
         updateTime = true;
         setTrackInfo();
+    }
+
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        if (getPlayer() != null && getPlayer().hasActionGetVolume() && (KeyEvent.KEYCODE_VOLUME_UP == keyCode || KeyEvent.KEYCODE_VOLUME_DOWN == keyCode)) {
+            Drawable icon = null;
+            switch (keyCode) {
+                case KeyEvent.KEYCODE_VOLUME_UP:
+                    getPlayer().setVolume(getPlayer().getVolume() + 1);
+                    icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_volume_up_96, getTheme()), getTheme());
+                    break;
+                case KeyEvent.KEYCODE_VOLUME_DOWN:
+                    getPlayer().setVolume(getPlayer().getVolume() - 1);
+                    icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_volume_down_96, getTheme()), getTheme());
+                    break;
+            }
+            SeekBar volumeSeekBar = (SeekBar) findViewById(R.id.avtransportPlayerActivityControlVolumeSeekBar);
+            volumeSeekBar.setProgress(getPlayer().getVolume());
+
+            LayoutInflater inflater = getLayoutInflater();
+            View layout = inflater.inflate(R.layout.custom_toast, (ViewGroup) findViewById(R.id.toast_custom));
+            TypedValue typedValue = new TypedValue();
+            getTheme().resolveAttribute(android.R.attr.colorBackground, typedValue, true);
+            layout.setBackgroundColor(typedValue.data);
+            ImageView imageView = (ImageView) layout.findViewById(R.id.customToastImageView);
+            imageView.setImageDrawable(icon);
+            TextView text = (TextView) layout.findViewById(R.id.customToastTextView);
+            text.setText("" + getPlayer().getVolume());
+            Toast toast = new Toast(getApplicationContext());
+            toast.setGravity(Gravity.CENTER_VERTICAL, 0, 0);
+            toast.setDuration(Toast.LENGTH_SHORT);
+            toast.setView(layout);
+            toast.show();
+        }
+        return super.onKeyDown(keyCode, event);
     }
 
     @Override
