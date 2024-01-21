@@ -1,0 +1,260 @@
+<?xml version="1.0" encoding="utf-8"?><!--
+ *
+ * Copyright (C) 2013 www.yaacc.de 
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 3
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="horizontal"
+    android:baselineAligned="false">
+
+    <RelativeLayout xmlns:app="http://schemas.android.com/apk/res-auto"
+
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1">
+
+        <ImageView
+            android:id="@+id/avtransportPlayerActivityImageView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_weight="2"
+            android:adjustViewBounds="false"
+            android:contentDescription="@string/avtransportPlayerActivityImageView"
+            android:scaleType="fitCenter"
+            app:srcCompat="@drawable/ic_baseline_devices_128" />
+    </RelativeLayout>
+
+    <RelativeLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_centerHorizontal="true"
+            android:gravity="bottom"
+            android:orientation="vertical"
+            android:paddingLeft="16dp"
+            android:paddingRight="16dp"
+            tools:context=".player.AVTransportPlayerActivity">
+
+            <TextView
+                android:id="@+id/avtransportPlayerActivityDeviceName"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_alignParentTop="true"
+                android:gravity="center_horizontal"
+                android:textAppearance="?android:attr/textAppearanceLarge" />
+
+            <RelativeLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_weight="1">
+
+
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/avtransportPlayerActivityControlMuteSwitch"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_alignParentTop="true"
+                    android:text="@string/activity_remote_player_mute"
+                    android:textAppearance="?android:attr/textAppearanceMedium" />
+
+                <TextView
+                    android:id="@+id/avtransportPlayerActivityControlVolumeTextView"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_below="@+id/avtransportPlayerActivityControlMuteSwitch"
+                    android:layout_alignParentStart="true"
+                    android:labelFor="@+id/avtransportPlayerActivityControlVolumeSeekBar"
+                    android:text="@string/activity_remote_player_volume"
+                    android:textAppearance="?android:attr/textAppearanceMedium" />
+
+                <SeekBar
+                    android:id="@+id/avtransportPlayerActivityControlVolumeSeekBar"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_below="@+id/avtransportPlayerActivityControlMuteSwitch"
+                    android:layout_alignParentEnd="true"
+                    android:layout_toEndOf="@+id/avtransportPlayerActivityControlVolumeTextView" />
+
+            </RelativeLayout>
+
+
+            <RelativeLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_weight="2">
+
+                <TextView
+                    android:id="@+id/avtransportPlayerActivityCurrentItem"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_alignParentStart="true"
+                    android:layout_alignParentTop="true"
+                    android:layout_alignParentEnd="true"
+                    android:text="@string/playerCurrentItem"
+                    android:textAlignment="center"
+                    android:textAppearance="?android:attr/textAppearanceLarge" />
+
+
+                <TextView
+                    android:id="@+id/avtransportPlayerActivityNextLabel"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_below="@+id/avtransportPlayerActivityCurrentItem"
+                    android:layout_alignStart="@+id/avtransportPlayerActivityCurrentItem"
+                    android:layout_marginStart="10dp"
+                    android:text="@string/avtransportPlayerActivityNextLabel"
+                    android:textAppearance="?android:attr/textAppearanceMedium" />
+
+
+                <TextView
+                    android:id="@+id/avtransportPlayerActivityNextItem"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_alignTop="@+id/avtransportPlayerActivityNextLabel"
+                    android:layout_alignParentEnd="true"
+                    android:layout_marginStart="5dp"
+                    android:layout_toEndOf="@+id/avtransportPlayerActivityNextLabel"
+                    android:text="@string/playerNextItem"
+                    android:textAppearance="?android:attr/textAppearanceMedium" />
+
+
+                <TextView
+                    android:id="@+id/avtransportPlayerActivityElapsedTime"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_below="@+id/avtransportPlayerActivityNextItem"
+                    android:layout_alignParentStart="true"
+                    android:layout_marginStart="10dp"
+                    android:text="@string/playerTimeElapsed"
+                    android:textAppearance="?android:attr/textAppearanceMedium" />
+
+                <TextView
+                    android:id="@+id/avtransportPlayerActivitySeparator"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_below="@+id/avtransportPlayerActivityNextItem"
+                    android:layout_alignBaseline="@+id/avtransportPlayerActivityElapsedTime"
+                    android:layout_marginStart="5dp"
+                    android:layout_marginEnd="5dp"
+                    android:layout_toEndOf="@id/avtransportPlayerActivityElapsedTime"
+                    android:text="@string/playerTimeSeparator"
+                    android:textAppearance="?android:attr/textAppearanceMedium" />
+
+                <TextView
+                    android:id="@+id/avtransportPlayerActivityDuration"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_below="@id/avtransportPlayerActivityNextItem"
+                    android:layout_alignBaseline="@+id/avtransportPlayerActivityElapsedTime"
+                    android:layout_toEndOf="@id/avtransportPlayerActivitySeparator"
+                    android:text="@string/playerTimeDuration"
+                    android:textAppearance="?android:attr/textAppearanceMedium" />
+
+
+                <TextView
+                    android:id="@+id/avtransportPlayerActivityPosition"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_below="@+id/avtransportPlayerActivityNextItem"
+                    android:layout_alignBaseline="@+id/avtransportPlayerActivityDuration"
+                    android:layout_alignParentEnd="true"
+                    android:layout_marginEnd="10dp"
+                    android:gravity="end"
+                    android:text="@string/playerPosition"
+                    android:textAlignment="textEnd"
+                    android:textAppearance="?android:attr/textAppearanceMedium" />
+
+
+                <SeekBar
+                    android:id="@+id/avtransportPlayerActivityControlSeekBar"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_below="@id/avtransportPlayerActivityPosition"
+                    android:layout_alignParentStart="true"
+                    android:layout_alignParentEnd="true"
+                    android:layout_marginTop="5dp"
+                    android:layout_marginBottom="5dp" />
+            </RelativeLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:orientation="horizontal"
+                android:paddingLeft="16dp"
+                android:paddingRight="16dp">
+
+
+                <ImageButton
+                    android:id="@+id/avtransportPlayerActivityControlPrev"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:layout_marginStart="2dp"
+                    android:contentDescription="@string/previous"
+                    app:srcCompat="@drawable/ic_baseline_skip_previous_32" />
+
+                <ImageButton
+                    android:id="@+id/avtransportPlayerActivityControlPlay"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:layout_marginStart="2dp"
+                    android:contentDescription="@string/play"
+                    app:srcCompat="@drawable/ic_baseline_play_arrow_32" />
+
+                <ImageButton
+                    android:id="@+id/avtransportPlayerActivityControlPause"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:layout_marginStart="2dp"
+                    android:contentDescription="@string/pause"
+                    app:srcCompat="@drawable/ic_baseline_pause_32" />
+
+                <ImageButton
+                    android:id="@+id/avtransportPlayerActivityControlStop"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:layout_marginStart="2dp"
+                    android:contentDescription="@string/stop"
+                    app:srcCompat="@drawable/ic_baseline_stop_32" />
+
+                <ImageButton
+                    android:id="@+id/avtransportPlayerActivityControlNext"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:layout_marginStart="2dp"
+                    android:contentDescription="@string/next"
+                    app:srcCompat="@drawable/ic_baseline_skip_next_32" />
+
+                <ImageButton
+                    android:id="@+id/avtransportPlayerActivityControlExit"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:layout_marginStart="2dp"
+                    android:contentDescription="@string/exit"
+                    app:srcCompat="@drawable/ic_baseline_cancel_32" />
+            </LinearLayout>
+
+        </LinearLayout>
+    </RelativeLayout>
+</LinearLayout>
