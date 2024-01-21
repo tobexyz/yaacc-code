@@ -17,6 +17,7 @@
  */
 package de.yaacc.browser;
 
+import android.content.res.Configuration;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -69,20 +70,22 @@ public class ContentListFragment extends Fragment implements OnClickListener,
     @Override
     public void onResume() {
         super.onResume();
-        Thread thread = new Thread(() -> {
-            if (upnpClient.getProviderDevice() != null) {
-                currentProvider.setText(upnpClient.getProviderDevice().getDetails().getFriendlyName());
-                if (navigator != null && navigator.getCurrentPosition().getDeviceId() != null && upnpClient.getProviderDevice().getIdentity().getUdn().getIdentifierString().equals(navigator.getCurrentPosition().getDeviceId())) {
-                    populateItemList(false);
+        getActivity().runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                if (upnpClient.getProviderDevice() != null) {
+                    currentProvider.setText(upnpClient.getProviderDevice().getDetails().getFriendlyName());
+                    if (navigator != null && navigator.getCurrentPosition().getDeviceId() != null && upnpClient.getProviderDevice().getIdentity().getUdn().getIdentifierString().equals(navigator.getCurrentPosition().getDeviceId())) {
+                        populateItemList(false);
+                    } else {
+                        showMainFolder();
+                    }
                 } else {
-                    showMainFolder();
-                }
-            } else {
 
-                clearItemList();
+                    clearItemList();
+                }
             }
         });
-        thread.start();
     }
 
     private void init(Bundle savedInstanceState, View contentlistView) {
@@ -348,6 +351,20 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         return inflater.inflate(R.layout.fragment_content_list, container, false);
 
     }
+
+    @Override
+    public void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        LayoutInflater inflater = LayoutInflater.from(getActivity());
+        populateViewForOrientation(inflater, (ViewGroup) getView());
+    }
+
+    private void populateViewForOrientation(LayoutInflater inflater, ViewGroup viewGroup) {
+        viewGroup.removeAllViewsInLayout();
+        inflater.inflate(R.layout.fragment_content_list, viewGroup);
+
+    }
+
 
     @Override
     public void onViewCreated(View view, Bundle savedInstanceState) {
