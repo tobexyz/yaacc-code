@@ -135,11 +135,15 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
             Drawable icon = null;
             switch (keyCode) {
                 case KeyEvent.KEYCODE_VOLUME_UP:
-                    getPlayer().setVolume(getPlayer().getVolume() + 1);
+                    if (getPlayer().getVolume() < 100) {
+                        getPlayer().setVolume(getPlayer().getVolume() + 1);
+                    }
                     icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_volume_up_96, getTheme()), getTheme());
                     break;
                 case KeyEvent.KEYCODE_VOLUME_DOWN:
-                    getPlayer().setVolume(getPlayer().getVolume() - 1);
+                    if (getPlayer().getVolume() > 0) {
+                        getPlayer().setVolume(getPlayer().getVolume() - 1);
+                    }
                     icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_volume_down_96, getTheme()), getTheme());
                     break;
             }
@@ -183,6 +187,7 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
         ImageButton btnStop = (ImageButton) findViewById(R.id.avtransportPlayerActivityControlStop);
         ImageButton btnPlay = (ImageButton) findViewById(R.id.avtransportPlayerActivityControlPlay);
         ImageButton btnPause = (ImageButton) findViewById(R.id.avtransportPlayerActivityControlPause);
+        ImageButton btnPlaylist = (ImageButton) findViewById(R.id.avtransportPlayerActivityControlPlaylist);
         ImageButton btnExit = (ImageButton) findViewById(R.id.avtransportPlayerActivityControlExit);
         if (player == null) {
             btnPrev.setActivated(false);
@@ -191,6 +196,7 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
             btnPlay.setActivated(false);
             btnPause.setActivated(false);
             btnExit.setActivated(false);
+            btnPlaylist.setActivated(false);
         } else {
             player.addPropertyChangeListener(event -> {
                 if (AbstractPlayer.PROPERTY_ITEM.equals(event.getPropertyName())) {
@@ -207,6 +213,7 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
             btnPlay.setActivated(true);
             btnPause.setActivated(true);
             btnExit.setActivated(true);
+            btnPlaylist.setActivated(true);
         }
         btnPrev.setOnClickListener(v -> {
             Player p = getPlayer();
@@ -244,8 +251,8 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
 
         });
         btnExit.setOnClickListener(v -> exit());
-
-        SwitchMaterial muteSwitch = (SwitchMaterial) findViewById(R.id.avtransportPlayerActivityControlMuteSwitch);
+        btnPlaylist.setOnClickListener(v -> showPlaylistDialog());
+        SwitchMaterial muteSwitch = findViewById(R.id.avtransportPlayerActivityControlMuteSwitch);
         if (getPlayer() != null && getPlayer().hasActionGetMute()) {
             muteSwitch.setEnabled(true);
             muteSwitch.setChecked(getPlayer().getMute());
@@ -476,6 +483,10 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
             }
         }, 1000L);
 
+    }
+
+    public void showPlaylistDialog() {
+        PlaylistDialogFragment.show(getSupportFragmentManager(), getPlayer());
     }
 
 }

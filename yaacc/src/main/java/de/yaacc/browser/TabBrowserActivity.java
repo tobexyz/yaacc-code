@@ -435,10 +435,14 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
             if (p.hasActionGetVolume())
                 switch (keyCode) {
                     case KeyEvent.KEYCODE_VOLUME_UP:
-                        p.setVolume(p.getVolume() + 1);
+                        if (p.getVolume() < 100) {
+                            p.setVolume(p.getVolume() + 1);
+                        }
                         break;
                     case KeyEvent.KEYCODE_VOLUME_DOWN:
-                        p.setVolume(p.getVolume() - 1);
+                        if (p.getVolume() > 0) {
+                            p.setVolume(p.getVolume() - 1);
+                        }
                         break;
                 }
         });

@@ -397,5 +397,9 @@ public class ContentListFragment extends Fragment implements OnClickListener,
             }
         }
     }
+
+    public void addToPlayList(DIDLObject currentObject) {
+        upnpClient.addToPlaylist(currentObject);
+    }
 }
 

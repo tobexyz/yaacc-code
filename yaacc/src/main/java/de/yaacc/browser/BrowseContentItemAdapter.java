@@ -179,6 +179,11 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
         holder.play.setOnClickListener((v) -> {
             new ContentItemPlayTask(contentListFragment, currentObject).execute(ContentItemPlayTask.PLAY_CURRENT);
         });
+        holder.playlistAdd.setOnClickListener((v) -> {
+            new ContentItemPlayTask(contentListFragment, currentObject).execute(ContentItemPlayTask.ADD_TO_PLAYLIST);
+            Toast toast = Toast.makeText(contentListFragment.getActivity(), R.string.add_to_playlist, Toast.LENGTH_SHORT);
+            toast.show();
+        });
         holder.download.setOnClickListener((v) -> {
             try {
                 upnpClient.downloadItem(currentObject);
@@ -192,12 +197,14 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
             holder.playAll.setVisibility(View.VISIBLE);
             holder.play.setVisibility(View.VISIBLE);
             holder.download.setVisibility(View.GONE);
+            holder.playlistAdd.setVisibility(View.GONE);
 
         } else if (currentObject instanceof AudioItem) {
             holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_audiotrack_48, context.getTheme()), getContext().getTheme()));
             holder.playAll.setVisibility(View.VISIBLE);
             holder.play.setVisibility(View.VISIBLE);
             holder.download.setVisibility(View.VISIBLE);
+            holder.playlistAdd.setVisibility(View.VISIBLE);
             if (preferences.getBoolean(
                     context.getString(R.string.settings_thumbnails_chkbx),
                     true)) {
@@ -214,6 +221,7 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
             holder.playAll.setVisibility(View.VISIBLE);
             holder.play.setVisibility(View.VISIBLE);
             holder.download.setVisibility(View.VISIBLE);
+            holder.playlistAdd.setVisibility(View.GONE);
             if (preferences.getBoolean(
                     context.getString(R.string.settings_thumbnails_chkbx),
                     true))
@@ -225,6 +233,7 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
             holder.playAll.setVisibility(View.VISIBLE);
             holder.play.setVisibility(View.VISIBLE);
             holder.download.setVisibility(View.VISIBLE);
+            holder.playlistAdd.setVisibility(View.VISIBLE);
             if (preferences.getBoolean(
                     context.getString(R.string.settings_thumbnails_chkbx),
                     true)) {
@@ -241,23 +250,31 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
             holder.playAll.setVisibility(View.GONE);
             holder.play.setVisibility(View.GONE);
             holder.download.setVisibility(View.GONE);
+            holder.playlistAdd.setVisibility(View.GONE);
         } else if (currentObject instanceof TextItem) {
             holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_text_snippet_48, getContext().getTheme()), getContext().getTheme()));
             holder.playAll.setVisibility(View.GONE);
             holder.play.setVisibility(View.GONE);
             holder.download.setVisibility(View.GONE);
+            holder.playlistAdd.setVisibility(View.GONE);
         } else if (currentObject == LOAD_MORE_FAKE_ITEM) {
             holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_refresh_48, getContext().getTheme()), getContext().getTheme()));
+            holder.playAll.setVisibility(View.GONE);
+            holder.play.setVisibility(View.GONE);
+            holder.download.setVisibility(View.GONE);
+            holder.playlistAdd.setVisibility(View.GONE);
         } else if (currentObject == LOADING_FAKE_ITEM) {
             holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_download_48, getContext().getTheme()), getContext().getTheme()));
             holder.playAll.setVisibility(View.GONE);
             holder.play.setVisibility(View.GONE);
             holder.download.setVisibility(View.GONE);
+            holder.playlistAdd.setVisibility(View.GONE);
         } else {
             holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_question_mark_48, getContext().getTheme()), getContext().getTheme()));
             holder.playAll.setVisibility(View.GONE);
             holder.play.setVisibility(View.GONE);
             holder.download.setVisibility(View.GONE);
+            holder.playlistAdd.setVisibility(View.GONE);
         }
     }
 
@@ -337,6 +354,7 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
         ImageButton play;
         ImageButton playAll;
         ImageButton download;
+        ImageButton playlistAdd;
 
         public ViewHolder(View itemView) {
             super(itemView);
@@ -345,6 +363,7 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
             play = itemView.findViewById(R.id.browseContentItemPlay);
             playAll = itemView.findViewById(R.id.browseContentItemPlayAll);
             download = itemView.findViewById(R.id.browseContentItemDownload);
+            playlistAdd = itemView.findViewById(R.id.browseContentItemPlaylistAdd);
         }
     }
 }
