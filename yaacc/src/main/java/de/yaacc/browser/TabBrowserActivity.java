@@ -21,17 +21,26 @@ import android.Manifest;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.graphics.drawable.Drawable;
 import android.media.MediaMetadataRetriever;
 import android.net.Uri;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
 import android.util.Log;
+import android.util.TypedValue;
 import android.view.ContextMenu;
 import android.view.ContextMenu.ContextMenuInfo;
+import android.view.Gravity;
+import android.view.KeyEvent;
+import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.View.OnClickListener;
+import android.view.ViewGroup;
+import android.widget.ImageView;
+import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
@@ -63,6 +72,7 @@ import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.UpnpClientListener;
 import de.yaacc.upnp.server.YaaccUpnpServerService;
 import de.yaacc.util.AboutActivity;
+import de.yaacc.util.ThemeHelper;
 import de.yaacc.util.YaaccLogActivity;
 
 /**
@@ -287,6 +297,7 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
     public void onResume() {
         long start = System.currentTimeMillis();
         super.onResume();
+        setVolumeControlStream(-1000); //use an invalid audio stream to block controlling default streams
         boolean serverOn = getPreferences().getBoolean(
                 getString(R.string.settings_local_server_chkbx), false);
         if (serverOn) {
@@ -398,5 +409,39 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
     @Override
     public void onClick(View view) {
 
+    }
+
+
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        if (KeyEvent.KEYCODE_VOLUME_UP == keyCode || KeyEvent.KEYCODE_VOLUME_DOWN == keyCode) {
+            Drawable icon = keyCode == KeyEvent.KEYCODE_VOLUME_UP ? ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_volume_up_96, getTheme()), getTheme()) : ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_volume_down_96, getTheme()), getTheme());
+            LayoutInflater inflater = getLayoutInflater();
+            View layout = inflater.inflate(R.layout.custom_toast, (ViewGroup) findViewById(R.id.toast_custom));
+            TypedValue typedValue = new TypedValue();
+            getTheme().resolveAttribute(android.R.attr.colorBackground, typedValue, true);
+            layout.setBackgroundColor(typedValue.data);
+            ImageView imageView = (ImageView) layout.findViewById(R.id.customToastImageView);
+            imageView.setImageDrawable(icon);
+            TextView text = (TextView) layout.findViewById(R.id.customToastTextView);
+            text.setText("");
+            Toast toast = new Toast(getApplicationContext());
+            toast.setGravity(Gravity.CENTER_VERTICAL, 0, 0);
+            toast.setDuration(Toast.LENGTH_SHORT);
+            toast.setView(layout);
+            toast.show();
+        }
+        upnpClient.getCurrentPlayers().forEach(p -> {
+            if (p.hasActionGetVolume())
+                switch (keyCode) {
+                    case KeyEvent.KEYCODE_VOLUME_UP:
+                        p.setVolume(p.getVolume() + 1);
+                        break;
+                    case KeyEvent.KEYCODE_VOLUME_DOWN:
+                        p.setVolume(p.getVolume() - 1);
+                        break;
+                }
+        });
+        return super.onKeyDown(keyCode, event);
     }
 }
