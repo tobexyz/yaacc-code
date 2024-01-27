@@ -24,6 +24,8 @@ import android.webkit.MimeTypeMap;
 import org.fourthline.cling.support.model.Res;
 import org.fourthline.cling.support.model.item.Item;
 
+import java.util.UUID;
+
 /**
  * representation of an item which is to be played
  *
@@ -37,9 +39,12 @@ public class PlayableItem {
     private Uri uri;
     private long duration;
 
+    private UUID id;
+
 
     public PlayableItem(Item item, int defaultDuration) {
         this.item = item;
+        id = UUID.randomUUID();
         setTitle(item.getTitle());
         Res resource = item.getFirstResource();
         if (resource != null) {
@@ -92,6 +97,7 @@ public class PlayableItem {
         uri = null;
         duration = 0;
         item = null;
+        id = UUID.randomUUID();
     }
 
 
@@ -170,5 +176,9 @@ public class PlayableItem {
 
     public void setItem(Item item) {
         this.item = item;
+    }
+
+    public UUID getId() {
+        return id;
     }
 }

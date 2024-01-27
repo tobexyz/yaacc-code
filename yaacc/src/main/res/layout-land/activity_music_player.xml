@@ -205,6 +205,14 @@
                     app:srcCompat="@drawable/ic_baseline_skip_next_32" />
 
                 <ImageButton
+                    android:id="@+id/musicActivityControlPlaylist"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:layout_marginStart="2dp"
+                    android:contentDescription="@string/playlist"
+                    app:srcCompat="@drawable/ic_baseline_playlist_play_32" />
+                
+                <ImageButton
                     android:id="@+id/musicActivityControlExit"
                     android:layout_width="48dp"
                     android:layout_height="48dp"

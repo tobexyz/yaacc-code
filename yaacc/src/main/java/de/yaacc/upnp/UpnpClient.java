@@ -31,6 +31,8 @@ import android.preference.PreferenceManager;
 import android.util.Log;
 import android.webkit.MimeTypeMap;
 
+import androidx.annotation.NonNull;
+
 import org.fourthline.cling.android.AndroidUpnpService;
 import org.fourthline.cling.controlpoint.ControlPoint;
 import org.fourthline.cling.model.Namespace;
@@ -84,6 +86,7 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -735,12 +738,6 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         if (!waitForPlayerServiceComeUp()) {
             return Collections.emptyList();
         }
-        LinkedList<PlayableItem> playableItems = new LinkedList<>();
-
-        for (Item currentItem : items) {
-            PlayableItem playableItem = new PlayableItem(currentItem, getDefaultDuration());
-            playableItems.add(playableItem);
-        }
         SynchronizationInfo synchronizationInfo = new SynchronizationInfo();
         synchronizationInfo.setOffset(getDeviceSyncOffset()); //device specific offset
 
@@ -750,7 +747,17 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         Log.d(getClass().getName(), "CurrentTime: " + new Date() + " representationTime: " + referencedPresentationTime);
         synchronizationInfo.setReferencedPresentationTime(referencedPresentationTime);
 
-        return playerService.createPlayer(this, synchronizationInfo, playableItems);
+        return playerService.createPlayer(this, synchronizationInfo, toPlayableItems(items));
+    }
+
+    @NonNull
+    private LinkedList<PlayableItem> toPlayableItems(List<Item> items) {
+        LinkedList<PlayableItem> playableItems = new LinkedList<>();
+        for (Item currentItem : items) {
+            PlayableItem playableItem = new PlayableItem(currentItem, getDefaultDuration());
+            playableItems.add(playableItem);
+        }
+        return playableItems;
     }
 
     private boolean waitForPlayerServiceComeUp() {
@@ -998,13 +1005,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      */
     public Collection<Device<?, ?, ?>> getReceiverDevices() {
         ArrayList<Device<?, ?, ?>> result = new ArrayList<>();
-        ArrayList<String> unknowsIds = new ArrayList<>(); // Maybe the the
-        // receiverDevice
-        // in the
-        // preferences
-        // isn't
-        // available any
-        // more
+        ArrayList<String> unknowsIds = new ArrayList<>();
         Set<String> receiverDeviceIds = getReceiverDeviceIds();
         for (String id : receiverDeviceIds) {
             Device<?, ?, ?> receiver = this.getDevice(id);
@@ -1495,6 +1496,10 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         return service.getAction("SetVolume") != null;
     }
 
+    public Optional<Player> getPlayer(int id) {
+        return getCurrentPlayers().stream().filter(p -> p.getId() == id).findFirst();
+    }
+
 
     @SuppressWarnings({"unchecked", "rawtypes"})
     public static class LocalDummyDevice extends Device {
@@ -1570,6 +1575,23 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         @Override
         public DeviceDetails getDetails() {
             return new DeviceDetails(context.getString(R.string.this_device));
+        }
+    }
+
+    public void addToPlaylist(DIDLObject item) {
+        List<Item> itemList = toItemList(item);
+
+        if (getCurrentPlayers().stream().filter(
+                p -> getReceiverDevices().stream()
+                        .map(d -> d.getIdentity().getUdn().getIdentifierString())
+                        .collect(Collectors.toList()).contains(p.getDeviceId())).collect(Collectors.toList()).isEmpty()) {
+            initializePlayers(itemList);
+        } else {
+            getCurrentPlayers().stream().filter(
+                            p -> getReceiverDevices().stream()
+                                    .map(d -> d.getIdentity().getUdn().getIdentifierString())
+                                    .collect(Collectors.toList()).contains(p.getDeviceId()))
+                    .forEach(p -> p.addItems(toPlayableItems(itemList)));
         }
 
     }

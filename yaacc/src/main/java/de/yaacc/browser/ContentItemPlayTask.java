@@ -25,6 +25,7 @@ import org.fourthline.cling.support.model.DIDLObject;
 public class ContentItemPlayTask extends AsyncTask<Integer, Void, Void> {
     public final static int PLAY_CURRENT = 0;
     public final static int PLAY_ALL = 1;
+    public final static int ADD_TO_PLAYLIST = 2;
     private final ContentListFragment parent;
     private final DIDLObject currentObject;
 
@@ -43,6 +44,8 @@ public class ContentItemPlayTask extends AsyncTask<Integer, Void, Void> {
             parent.playItem(currentObject);
         } else if (integers[0] == PLAY_ALL) {
             parent.playAllChildsOfParentFrom(currentObject);
+        } else if (integers[0] == ADD_TO_PLAYLIST) {
+            parent.addToPlayList(currentObject);
         }
         return null;
     }

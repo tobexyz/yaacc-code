@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?><!--
+ *
+ * Copyright (C) 2013 www.yaacc.de 
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 3
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+
+    <androidx.cardview.widget.CardView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:cardCornerRadius="6dp"
+        app:cardUseCompatPadding="true"
+        app:contentPadding="5dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <ImageButton
+                    android:id="@+id/playlistItemDragIcon"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+                    android:layout_gravity="start|center_horizontal|center_vertical"
+                    app:srcCompat="@drawable/ic_baseline_drag_indicator_32"
+                    tools:srcCompat="@drawable/ic_baseline_drag_indicator_32" />
+
+                <TextView
+                    android:id="@+id/playlistItemName"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="2"
+                    android:layout_marginLeft="5dp"
+                    android:gravity="left|center_horizontal|center_vertical"
+                    android:minLines="2"
+                    android:text="@string/all"
+                    android:textAppearance="@android:style/TextAppearance.Material.Medium"
+                    android:textColor="?android:attr/colorForeground" />
+
+                <ImageButton
+                    android:id="@+id/playlistItemDeleteIcon"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+                    android:layout_gravity="end|center_horizontal|center_vertical"
+                    app:srcCompat="@drawable/ic_baseline_delete_outline_32"
+                    tools:srcCompat="@drawable/ic_baseline_delete_outline_32" />
+            </LinearLayout>
+
+        </LinearLayout>
+    </androidx.cardview.widget.CardView>
+</LinearLayout>

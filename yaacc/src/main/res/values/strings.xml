@@ -123,6 +123,9 @@
     <string name="stop_not_supported">"stop not supported for third parties apps "</string>
     <string name="settings">settings</string>
     <string name="upnp_server">UPnP server</string>
+    <string name="browse_context_playlist_add">add to playlist</string>
+    <string name="add_to_playlist">Added item to playlist of current receivers</string>
+    <string name="playlist">playlist</string>
 
 
 </resources>
