@@ -20,7 +20,6 @@ package de.yaacc.player;
 import android.app.Activity;
 import android.app.Dialog;
 import android.os.Bundle;
-import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -107,7 +106,6 @@ public class PlaylistDialogFragment extends DialogFragment {
                     int toPosition = target.getAdapterPosition();
                     if (player.isPlaying() && (viewHolder.getAdapterPosition() <= player.getCurrentItemIndex()
                             || target.getAdapterPosition() <= player.getCurrentItemIndex())) {
-                        Log.e(getClass().getName(), "" + player.getCurrentItemIndex());
                         //do not allow to drag current playing item
                         return false;
                     }

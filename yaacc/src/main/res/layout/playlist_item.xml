@@ -38,7 +38,16 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal">
-                
+
+                <ImageButton
+                    android:id="@+id/playlistItemDragIcon"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+                    android:layout_gravity="start|center_horizontal|center_vertical"
+                    app:srcCompat="@drawable/ic_baseline_drag_indicator_32"
+                    tools:srcCompat="@drawable/ic_baseline_drag_indicator_32" />
+
                 <TextView
                     android:id="@+id/playlistItemName"
                     android:layout_width="wrap_content"

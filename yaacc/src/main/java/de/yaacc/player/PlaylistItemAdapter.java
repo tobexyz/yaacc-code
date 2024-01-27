@@ -6,6 +6,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageButton;
+import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -16,6 +17,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import de.yaacc.R;
+import de.yaacc.util.ThemeHelper;
 
 public class PlaylistItemAdapter extends RecyclerView.Adapter<PlaylistItemAdapter.ViewHolder> {
 
@@ -60,11 +62,17 @@ public class PlaylistItemAdapter extends RecyclerView.Adapter<PlaylistItemAdapte
     public void onBindViewHolder(final PlaylistItemAdapter.ViewHolder holder, final int listPosition) {
         PlayableItem item = getItem(listPosition);
         holder.name.setText(item.getTitle());
+        if (player.isPlaying() && listPosition <= player.getCurrentItemIndex()) {
+            holder.dragIcon.setImageDrawable(ThemeHelper.tintDrawable(context.getResources().getDrawable(R.drawable.ic_baseline_lock_32, context.getTheme()), context.getTheme()));
+            holder.deleteIcon.setVisibility(View.GONE);
+        } else {
+            holder.dragIcon.setImageDrawable(ThemeHelper.tintDrawable(context.getResources().getDrawable(R.drawable.ic_baseline_drag_indicator_32, context.getTheme()), context.getTheme()));
+            holder.deleteIcon.setVisibility(View.VISIBLE);
+        }
         holder.deleteIcon.setOnClickListener(l -> removeItem(listPosition));
         if (player.isPlaying() && player.getCurrentItemIndex() == listPosition) {
             holder.name.setTypeface(null, Typeface.BOLD);
             holder.name.setText(item.getTitle() + " ▶");
-            ;
         }
     }
 
@@ -82,12 +90,13 @@ public class PlaylistItemAdapter extends RecyclerView.Adapter<PlaylistItemAdapte
 
     static class ViewHolder extends RecyclerView.ViewHolder {
         ImageButton deleteIcon;
-
+        ImageView dragIcon;
         TextView name;
 
 
         public ViewHolder(@NonNull View itemView) {
             super(itemView);
+            dragIcon = itemView.findViewById(R.id.playlistItemDragIcon);
             deleteIcon = itemView.findViewById(R.id.playlistItemDeleteIcon);
             name = itemView.findViewById(R.id.playlistItemName);
         }
