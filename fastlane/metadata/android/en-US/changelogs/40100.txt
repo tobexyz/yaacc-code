@@ -1,0 +1,8 @@
+Version 4.1.0
+- improved landscape layout
+- volume control possible using hardware buttons
+- add songs to playlist of current players
+- allow editing the current playlist of a player
+- status of build in server now editable on sender tab
+
+https://github.com/tobexyz/yaacc-code/compare/4.0.3...4.1.0
