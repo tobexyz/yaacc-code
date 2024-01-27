@@ -26,8 +26,59 @@
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/serverList"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:layout_above="@id/serverListRefreshButton" />
+        android:layout_height="wrap_content"
+        android:layout_alignParentStart="true"
+        android:layout_alignParentTop="true"
+        android:layout_alignParentEnd="true"
+        android:layout_above="@id/serverListLocalServerLabel" />
+
+    <TextView
+        android:id="@+id/serverListLocalServerLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentStart="true"
+        android:layout_alignParentBottom="true"
+        android:layout_marginStart="10dp"
+        android:layout_marginTop="10dp"
+        android:layout_marginEnd="10dp"
+        android:layout_marginBottom="10dp"
+        android:text="@string/upnp_server"
+        android:textAppearance="@android:style/TextAppearance.Material.Medium"
+        android:textColor="?android:attr/colorForeground" />
+
+
+    <com.google.android.material.switchmaterial.SwitchMaterial
+        android:id="@+id/serverListLocalServerEnabled"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_toEndOf="@id/serverListLocalServerLabel"
+        android:layout_alignParentBottom="true"
+        android:layout_marginBottom="10dp"
+        android:layout_marginLeft="10dp" />
+
+
+    <ImageView
+        android:id="@+id/serverListProviderEnabled"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:layout_marginLeft="10dp"
+        android:layout_marginBottom="10dp"
+        android:layout_toEndOf="@id/serverListLocalServerEnabled"
+        android:layout_alignParentBottom="true"
+        android:contentDescription="@string/settings"
+        app:srcCompat="@drawable/ic_baseline_sensors_32" />
+
+    <ImageView
+        android:id="@+id/serverListReceiverEnabled"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:layout_marginLeft="10dp"
+        android:layout_marginBottom="10dp"
+        android:layout_toEndOf="@id/serverListProviderEnabled"
+        android:layout_alignParentBottom="true"
+        android:contentDescription="@string/settings"
+        app:srcCompat="@drawable/ic_baseline_devices_32" />
+
 
     <ImageButton
         android:id="@+id/serverListRefreshButton"

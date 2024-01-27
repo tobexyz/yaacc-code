@@ -121,5 +121,7 @@
     <string name="search_devices">Suche nach UPNP Geräten gestartet</string>
     <string name="this_device">dieses Gerät</string>
     <string name="stop_not_supported">"Stopp nicht unterstützt, wenn eine App außerhalb von YAACC genutzt wird"</string>
+    <string name="settings">Einstellungen</string>
+    <string name="upnp_server">UPnP Server</string>
 
 </resources>

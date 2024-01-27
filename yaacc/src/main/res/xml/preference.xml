@@ -33,14 +33,7 @@
             android:key="@string/settings_log_level_key"
             android:title="@string/settings_log_level" />
     </PreferenceCategory>
-    <PreferenceCategory android:title="@string/settings_category_send_rec">
-        <ListPreference
-            android:key="@string/settings_selected_provider_title"
-            android:title="@string/settings_selected_provider_title" />
-        <MultiSelectListPreference
-            android:key="@string/settings_selected_receivers_title"
-            android:title="@string/settings_selected_receivers_title" />
-    </PreferenceCategory>
+
     <PreferenceCategory android:title="@string/settings_category_browsing">
         <CheckBoxPreference
             android:defaultValue="true"

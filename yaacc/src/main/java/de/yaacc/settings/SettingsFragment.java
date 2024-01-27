@@ -23,24 +23,14 @@ import android.text.InputType;
 import androidx.appcompat.app.AppCompatDelegate;
 import androidx.preference.CheckBoxPreference;
 import androidx.preference.EditTextPreference;
-import androidx.preference.ListPreference;
-import androidx.preference.MultiSelectListPreference;
 import androidx.preference.PreferenceFragmentCompat;
 
-import org.fourthline.cling.model.meta.Device;
-
-import java.util.ArrayList;
-import java.util.LinkedList;
-
 import de.yaacc.R;
-import de.yaacc.Yaacc;
-import de.yaacc.upnp.UpnpClient;
-import de.yaacc.upnp.UpnpClientListener;
 
 /**
  * @author Christoph Hähnel (eyeless)
  */
-public class SettingsFragment extends PreferenceFragmentCompat implements UpnpClientListener {
+public class SettingsFragment extends PreferenceFragmentCompat {
     @Override
     public void onCreatePreferences(Bundle savedInstanceState, String rootKey) {
         setPreferencesFromResource(R.xml.preference, rootKey);
@@ -59,8 +49,6 @@ public class SettingsFragment extends PreferenceFragmentCompat implements UpnpCl
             numberPreference.setOnBindEditTextListener(
                     editText -> editText.setInputType(InputType.TYPE_CLASS_NUMBER));
         }
-        populateDeviceLists();
-        ((Yaacc) getActivity().getApplicationContext()).getUpnpClient().addUpnpClientListener(this);
 
         CheckBoxPreference checkBoxPreference = findPreference(getString(R.string.settings_dark_mode_key));
         if (checkBoxPreference != null) {
@@ -73,85 +61,6 @@ public class SettingsFragment extends PreferenceFragmentCompat implements UpnpCl
                 return true;
             });
         }
-
-    }
-
-
-    private void populateDeviceLists() {
-        LinkedList<Device<?, ?, ?>> devices = new LinkedList<>();
-        // TODO: populate with found devices
-
-        UpnpClient upnpClient = ((Yaacc) getActivity().getApplicationContext()).getUpnpClient();
-
-        if (upnpClient != null) {
-            if (upnpClient.isInitialized()) {
-                devices.addAll(upnpClient
-                        .getDevicesProvidingContentDirectoryService());
-            }
-
-            ListPreference providerLp = (ListPreference) findPreference(getString(R.string.settings_selected_provider_title));
-
-            // One entry per found device for providing media data
-            ArrayList<CharSequence> providerEntries = new ArrayList<>();
-            ArrayList<CharSequence> providerEntryValues = new ArrayList<>();
-            for (Device<?, ?, ?> currentDevice : devices) {
-                providerEntries.add(currentDevice.getDisplayString());
-                providerEntryValues.add(currentDevice.getIdentity().getUdn()
-                        .getIdentifierString());
-            }
-
-            providerLp.setEntries(providerEntries
-                    .toArray(new CharSequence[]{}));
-            providerLp.setEntryValues(providerEntryValues
-                    .toArray(new CharSequence[]{}));
-
-            devices = new LinkedList<>(upnpClient.getDevicesProvidingAvTransportService());
-
-            // One entry per found device for receiving media data
-            MultiSelectListPreference receiverMsLp = (MultiSelectListPreference) findPreference(getString(R.string.settings_selected_receivers_title));
-            ArrayList<CharSequence> receiverEntries = new ArrayList<>();
-            ArrayList<CharSequence> receiverEntryValues = new ArrayList<>();
-            for (Device<?, ?, ?> currentDevice : devices) {
-                receiverEntries.add(currentDevice.getDisplayString());
-                receiverEntryValues.add(currentDevice.getIdentity().getUdn()
-                        .getIdentifierString());
-            }
-
-
-            receiverMsLp.setEntries(receiverEntries
-                    .toArray(new CharSequence[]{}));
-            receiverMsLp.setEntryValues(receiverEntryValues
-                    .toArray(new CharSequence[]{}));
-        }
-    }
-
-    @Override
-    public void deviceAdded(Device<?, ?, ?> device) {
-        if (this.isVisible()) {
-            populateDeviceLists();
-        }
-    }
-
-    @Override
-    public void deviceRemoved(Device<?, ?, ?> device) {
-        if (this.isVisible()) {
-            populateDeviceLists();
-        }
-    }
-
-    @Override
-    public void deviceUpdated(Device<?, ?, ?> device) {
-        // TODO Auto-generated method stub
-
-    }
-
-    @Override
-    public void receiverDeviceRemoved(Device<?, ?, ?> device) {
-
-    }
-
-    @Override
-    public void receiverDeviceAdded(Device<?, ?, ?> device) {
 
     }
 
