@@ -460,7 +460,10 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
                 volumeToast.show();
             }
             if (viewPager != null && tabLayout != null && tabLayout.getSelectedTabPosition() == BrowserTabs.RECEIVER.ordinal() && tabLayout.getTabAt(tabLayout.getSelectedTabPosition()).view != null) {
-                ((RecyclerView) getSupportFragmentManager().getFragments().get(viewPager.getCurrentItem()).getView().findViewById(R.id.receiverList)).getAdapter().notifyDataSetChanged();
+                List<Fragment> fragments = getSupportFragmentManager().getFragments();
+                if (fragments.size() > viewPager.getCurrentItem()) {
+                    ((RecyclerView) fragments.get(viewPager.getCurrentItem()).getView().findViewById(R.id.receiverList)).getAdapter().notifyDataSetChanged();
+                }
             }
         }
 
