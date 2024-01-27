@@ -1005,13 +1005,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      */
     public Collection<Device<?, ?, ?>> getReceiverDevices() {
         ArrayList<Device<?, ?, ?>> result = new ArrayList<>();
-        ArrayList<String> unknowsIds = new ArrayList<>(); // Maybe the the
-        // receiverDevice
-        // in the
-        // preferences
-        // isn't
-        // available any
-        // more
+        ArrayList<String> unknowsIds = new ArrayList<>();
         Set<String> receiverDeviceIds = getReceiverDeviceIds();
         for (String id : receiverDeviceIds) {
             Device<?, ?, ?> receiver = this.getDevice(id);

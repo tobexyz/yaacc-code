@@ -77,6 +77,7 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
     private int playerId;
 
     private AVTransportController player;
+    private Toast volumeToast;
 
     public void onServiceConnected(ComponentName className, IBinder binder) {
         if (binder instanceof PlayerService.PlayerServiceBinder) {
@@ -149,23 +150,30 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
             }
             SeekBar volumeSeekBar = (SeekBar) findViewById(R.id.avtransportPlayerActivityControlVolumeSeekBar);
             volumeSeekBar.setProgress(getPlayer().getVolume());
-
-            LayoutInflater inflater = getLayoutInflater();
-            View layout = inflater.inflate(R.layout.custom_toast, (ViewGroup) findViewById(R.id.toast_custom));
-            TypedValue typedValue = new TypedValue();
-            getTheme().resolveAttribute(android.R.attr.colorBackground, typedValue, true);
-            layout.setBackgroundColor(typedValue.data);
-            ImageView imageView = (ImageView) layout.findViewById(R.id.customToastImageView);
-            imageView.setImageDrawable(icon);
-            TextView text = (TextView) layout.findViewById(R.id.customToastTextView);
-            text.setText("" + getPlayer().getVolume());
-            Toast toast = new Toast(getApplicationContext());
-            toast.setGravity(Gravity.CENTER_VERTICAL, 0, 0);
-            toast.setDuration(Toast.LENGTH_SHORT);
-            toast.setView(layout);
-            toast.show();
+            if (volumeToast != null) {
+                volumeToast.cancel();
+            }
+            volumeToast = createVolumeToast(icon, getPlayer().getVolume());
+            volumeToast.show();
         }
         return super.onKeyDown(keyCode, event);
+    }
+
+    private Toast createVolumeToast(Drawable icon, int volume) {
+        LayoutInflater inflater = getLayoutInflater();
+        View layout = inflater.inflate(R.layout.custom_toast, (ViewGroup) findViewById(R.id.toast_custom));
+        TypedValue typedValue = new TypedValue();
+        getTheme().resolveAttribute(android.R.attr.colorBackground, typedValue, true);
+        layout.setBackgroundColor(typedValue.data);
+        ImageView imageView = (ImageView) layout.findViewById(R.id.customToastImageView);
+        imageView.setImageDrawable(icon);
+        TextView text = (TextView) layout.findViewById(R.id.customToastTextView);
+        text.setText("" + volume);
+        Toast toast = new Toast(getApplicationContext());
+        toast.setGravity(Gravity.CENTER_VERTICAL, 0, 0);
+        toast.setDuration(Toast.LENGTH_SHORT);
+        toast.setView(layout);
+        return toast;
     }
 
     @Override
