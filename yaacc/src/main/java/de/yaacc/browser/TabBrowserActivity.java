@@ -60,6 +60,9 @@ import org.fourthline.cling.support.model.item.MusicTrack;
 import org.fourthline.cling.support.model.item.VideoItem;
 import org.seamless.util.MimeType;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -250,13 +253,14 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
         final String title = "shared with yaacc with ♥";
         //auto closeable requires Android code level 29 current min level is 27
         MediaMetadataRetriever metaRetriever = new MediaMetadataRetriever();
+        Res res = null;
         try {
             try {
                 metaRetriever.setDataSource(uriString);
                 String duration = metaRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION);
                 item.setDuration(Long.parseLong(duration));
                 item.setMimeType(metaRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_MIMETYPE));
-                Res res = new Res(MimeType.valueOf(item.getMimeType()), 1L, duration);
+                res = new Res(MimeType.valueOf(item.getMimeType()), 1L, duration);
                 res.setValue(uriString);
                 if (item.getMimeType().startsWith("audio/")) {
                     item.setItem(new MusicTrack("1", "2", title, "", "", "", res));
@@ -268,12 +272,19 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
             } catch (RuntimeException e) {
                 //no media file with duration
                 Log.d(getClass().getName(), "Can't retrieve duration of media url assume shared image", e);
-                Res res = new Res(MimeType.valueOf("image/*"), 1L, "");
+                res = new Res(MimeType.valueOf("image/*"), 1L, "");
                 res.setValue(uriString);
                 item.setMimeType("image/*");
                 item.setItem(new ImageItem("1", "2", title, "", res));
             }
             item.setUri(uri);
+            if (this.getPreferences().getBoolean(getApplicationContext().getString(R.string.settings_local_server_proxy_chkbx), false)) {
+                String contentKey = sha256(uriString);
+                String proxyUrl = "http://" + YaaccUpnpServerService.getIpAddress() + ":" + YaaccUpnpServerService.PORT + "/" + YaaccUpnpServerService.PROXY_PATH + "/" + contentKey;
+                this.getPreferences().edit().putString(YaaccUpnpServerService.PROXY_LINK_KEY_PREFIX + contentKey, uriString).commit();
+                item.setUri(Uri.parse(proxyUrl));
+                res.setValue(proxyUrl);
+            }
             item.setTitle(title);
         } finally {
             metaRetriever.close();
@@ -462,12 +473,36 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
             if (viewPager != null && tabLayout != null && tabLayout.getSelectedTabPosition() == BrowserTabs.RECEIVER.ordinal() && tabLayout.getTabAt(tabLayout.getSelectedTabPosition()).view != null) {
                 List<Fragment> fragments = getSupportFragmentManager().getFragments();
                 if (fragments.size() > viewPager.getCurrentItem()) {
-                    ((RecyclerView) fragments.get(viewPager.getCurrentItem()).getView().findViewById(R.id.receiverList)).getAdapter().notifyDataSetChanged();
+                    RecyclerView view = ((RecyclerView) fragments.get(viewPager.getCurrentItem()).getView().findViewById(R.id.receiverList));
+                    if (view != null && view.getAdapter() != null) {
+                        view.getAdapter().notifyDataSetChanged();
+                    }
                 }
             }
         }
 
 
         return super.onKeyDown(keyCode, event);
+    }
+
+
+    private static String sha256(String input) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(
+                    input.getBytes(StandardCharsets.UTF_8));
+            StringBuilder hexString = new StringBuilder(2 * hash.length);
+            for (int i = 0; i < hash.length; i++) {
+                String hex = Integer.toHexString(0xff & hash[i]);
+                if (hex.length() == 1) {
+                    hexString.append('0');
+                }
+                hexString.append(hex);
+            }
+            return hexString.toString();
+        } catch (NoSuchAlgorithmException ex) {
+            Log.e(TabBrowserActivity.class.getName(), "no sha256 found", ex);
+            return input;
+        }
     }
 }

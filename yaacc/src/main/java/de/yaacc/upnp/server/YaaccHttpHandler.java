@@ -29,6 +29,7 @@ import android.provider.MediaStore;
 import android.util.Log;
 
 import androidx.core.content.res.ResourcesCompat;
+import androidx.preference.PreferenceManager;
 
 import org.apache.hc.core5.http.ClassicHttpRequest;
 import org.apache.hc.core5.http.ClassicHttpResponse;
@@ -49,6 +50,8 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Locale;
@@ -147,6 +150,8 @@ public class YaaccHttpHandler implements HttpRequestHandler {
             contentHolder = lookupAlbumArt(albumId);
         } else if (!thumbId.equals("")) {
             contentHolder = lookupThumbnail(thumbId);
+        } else if (YaaccUpnpServerService.PROXY_PATH.equals(type)) {
+            contentHolder = lookupProxyContent(pathSegments.get(1));
         }
         if (contentHolder == null) {
             // tricky but works
@@ -313,6 +318,16 @@ public class YaaccHttpHandler implements HttpRequestHandler {
         return result;
     }
 
+    private ContentHolder lookupProxyContent(String contentKey) {
+
+        String targetUri = PreferenceManager.getDefaultSharedPreferences(getContext()).getString(YaaccUpnpServerService.PROXY_LINK_KEY_PREFIX + contentKey, null);
+        if (targetUri == null) {
+            return null;
+        }
+        ContentHolder result = new ContentHolder(MimeType.valueOf("*/*"), targetUri);
+        return result;
+    }
+
     private byte[] getDefaultIcon() {
         Drawable drawable = ResourcesCompat.getDrawable(getContext().getResources(),
                 R.drawable.yaacc192_32, getContext().getTheme());
@@ -361,13 +376,20 @@ public class YaaccHttpHandler implements HttpRequestHandler {
             return mimeType;
         }
 
-        public HttpEntity getHttpEntity() throws FileNotFoundException {
+        public HttpEntity getHttpEntity() throws MalformedURLException, IOException {
             HttpEntity result = null;
             if (getUri() != null && !getUri().equals("")) {
-                File file = new File(getUri());
-                result = new InputStreamEntity(new FileInputStream(file), ContentType.parse(getMimeType().toString()));
-                Log.d(getClass().getName(), "Return file-Uri: " + getUri()
-                        + "Mimetype: " + getMimeType());
+                try {
+                    File file = new File(getUri());
+                    result = new InputStreamEntity(new FileInputStream(file), ContentType.parse(getMimeType().toString()));
+                    Log.d(getClass().getName(), "Return file-Uri: " + getUri()
+                            + "Mimetype: " + getMimeType());
+                } catch (FileNotFoundException ex) {
+                    //file not found maybe external url
+                    result = new InputStreamEntity(new URL(getUri()).openStream(), ContentType.parse(getMimeType().toString()));
+                    Log.d(getClass().getName(), "Return external-Uri: " + getUri()
+                            + "Mimetype: " + getMimeType());
+                }
             } else if (content != null) {
                 result = new ByteArrayEntity(content, ContentType.parse(getMimeType().toString()));
             }

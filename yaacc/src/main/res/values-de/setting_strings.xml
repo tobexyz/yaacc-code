@@ -57,6 +57,9 @@
     <string name="settings_local_server_provider_off">Medienbereitstellung deaktiviert</string>
     <string name="settings_local_server_provider_on">Medienbereitstellung aktiviert</string>
     <string name="settings_local_server_provider_chkbx">local_server_provider_chkbx</string>
+    <string name="settings_local_server_proxy_off">Medienproxy deaktiviert</string>
+    <string name="settings_local_server_proxy_on">Medienproxy aktiviert</string>
+    <string name="settings_local_server_proxy_chkbx">local_server_proxy_chkbx</string>
     <string name="settings_local_server_testcontent">Lokaler Server verwendet Testinhalte</string>
     <string name="settings_local_server_mediastore">Lokaler Server verwendet den MediaStore</string>
     <string name="settings_local_server_serve_images_off">Bilderbereistellung deaktiviert</string>

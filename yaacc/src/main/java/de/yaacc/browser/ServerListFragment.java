@@ -209,6 +209,12 @@ public class ServerListFragment extends Fragment implements
         } else {
             receiverImageView.setImageDrawable(getContext().getDrawable(R.drawable.ic_baseline_desktop_access_disabled_32));
         }
+        ImageView proxyImageView = (ImageView) view.findViewById(R.id.serverListProxyEnabled);
+        if (PreferenceManager.getDefaultSharedPreferences(getContext()).getBoolean(getContext().getString(R.string.settings_local_server_proxy_chkbx), false)) {
+            proxyImageView.setImageDrawable(getContext().getDrawable(R.drawable.ic_baseline_import_export_24));
+        } else {
+            proxyImageView.setImageDrawable(getContext().getDrawable(R.drawable.ic_baseline_mobiledata_off_24));
+        }
     }
 
     @Override
