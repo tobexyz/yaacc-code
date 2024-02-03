@@ -21,18 +21,25 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.util.Log;
+import android.util.TypedValue;
+import android.view.Gravity;
+import android.view.KeyEvent;
+import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.SeekBar;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -70,6 +77,7 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
     private int playerId;
 
     private AVTransportController player;
+    private Toast volumeToast;
 
     public void onServiceConnected(ComponentName className, IBinder binder) {
         if (binder instanceof PlayerService.PlayerServiceBinder) {
@@ -115,10 +123,57 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
     @Override
     protected void onResume() {
         super.onResume();
+        setVolumeControlStream(-1000); //use an invalid audio stream to block controlling default streams
         this.bindService(new Intent(this, PlayerService.class),
                 this, Context.BIND_AUTO_CREATE);
         updateTime = true;
         setTrackInfo();
+    }
+
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        if (getPlayer() != null && getPlayer().hasActionGetVolume() && (KeyEvent.KEYCODE_VOLUME_UP == keyCode || KeyEvent.KEYCODE_VOLUME_DOWN == keyCode)) {
+            Drawable icon = null;
+            switch (keyCode) {
+                case KeyEvent.KEYCODE_VOLUME_UP:
+                    if (getPlayer().getVolume() < 100) {
+                        getPlayer().setVolume(getPlayer().getVolume() + 1);
+                    }
+                    icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_volume_up_96, getTheme()), getTheme());
+                    break;
+                case KeyEvent.KEYCODE_VOLUME_DOWN:
+                    if (getPlayer().getVolume() > 0) {
+                        getPlayer().setVolume(getPlayer().getVolume() - 1);
+                    }
+                    icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_volume_down_96, getTheme()), getTheme());
+                    break;
+            }
+            SeekBar volumeSeekBar = (SeekBar) findViewById(R.id.avtransportPlayerActivityControlVolumeSeekBar);
+            volumeSeekBar.setProgress(getPlayer().getVolume());
+            if (volumeToast != null) {
+                volumeToast.cancel();
+            }
+            volumeToast = createVolumeToast(icon, getPlayer().getVolume());
+            volumeToast.show();
+        }
+        return super.onKeyDown(keyCode, event);
+    }
+
+    private Toast createVolumeToast(Drawable icon, int volume) {
+        LayoutInflater inflater = getLayoutInflater();
+        View layout = inflater.inflate(R.layout.custom_toast, (ViewGroup) findViewById(R.id.toast_custom));
+        TypedValue typedValue = new TypedValue();
+        getTheme().resolveAttribute(android.R.attr.colorBackground, typedValue, true);
+        layout.setBackgroundColor(typedValue.data);
+        ImageView imageView = (ImageView) layout.findViewById(R.id.customToastImageView);
+        imageView.setImageDrawable(icon);
+        TextView text = (TextView) layout.findViewById(R.id.customToastTextView);
+        text.setText("" + volume);
+        Toast toast = new Toast(getApplicationContext());
+        toast.setGravity(Gravity.CENTER_VERTICAL, 0, 0);
+        toast.setDuration(Toast.LENGTH_SHORT);
+        toast.setView(layout);
+        return toast;
     }
 
     @Override
@@ -140,6 +195,7 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
         ImageButton btnStop = (ImageButton) findViewById(R.id.avtransportPlayerActivityControlStop);
         ImageButton btnPlay = (ImageButton) findViewById(R.id.avtransportPlayerActivityControlPlay);
         ImageButton btnPause = (ImageButton) findViewById(R.id.avtransportPlayerActivityControlPause);
+        ImageButton btnPlaylist = (ImageButton) findViewById(R.id.avtransportPlayerActivityControlPlaylist);
         ImageButton btnExit = (ImageButton) findViewById(R.id.avtransportPlayerActivityControlExit);
         if (player == null) {
             btnPrev.setActivated(false);
@@ -148,6 +204,7 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
             btnPlay.setActivated(false);
             btnPause.setActivated(false);
             btnExit.setActivated(false);
+            btnPlaylist.setActivated(false);
         } else {
             player.addPropertyChangeListener(event -> {
                 if (AbstractPlayer.PROPERTY_ITEM.equals(event.getPropertyName())) {
@@ -164,6 +221,7 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
             btnPlay.setActivated(true);
             btnPause.setActivated(true);
             btnExit.setActivated(true);
+            btnPlaylist.setActivated(true);
         }
         btnPrev.setOnClickListener(v -> {
             Player p = getPlayer();
@@ -201,25 +259,35 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
 
         });
         btnExit.setOnClickListener(v -> exit());
+        btnPlaylist.setOnClickListener(v -> showPlaylistDialog());
+        SwitchMaterial muteSwitch = findViewById(R.id.avtransportPlayerActivityControlMuteSwitch);
+        if (getPlayer() != null && getPlayer().hasActionGetMute()) {
+            muteSwitch.setEnabled(true);
+            muteSwitch.setChecked(getPlayer().getMute());
+        } else {
+            muteSwitch.setEnabled(true);
+            muteSwitch.setChecked(false);
+        }
 
-        SwitchMaterial muteSwitch = (SwitchMaterial) findViewById(R.id.avtransportPlayerActivityControlMuteSwitch);
         muteSwitch.setOnCheckedChangeListener((compoundButton, isChecked) -> {
-            if (getPlayer() != null) {
+            if (getPlayer() != null && getPlayer().hasActionGetMute()) {
                 getPlayer().setMute(isChecked);
             }
         });
         SeekBar volumeSeekBar = (SeekBar) findViewById(R.id.avtransportPlayerActivityControlVolumeSeekBar);
         volumeSeekBar.setMax(100);
-        if (getPlayer() != null) {
+        if (getPlayer() != null && getPlayer().hasActionGetVolume()) {
             Log.d(getClass().getName(), "Volume:" + getPlayer().getVolume());
+            volumeSeekBar.setEnabled(true);
             volumeSeekBar.setProgress(getPlayer().getVolume());
         } else {
-            volumeSeekBar.setProgress(100);
+            volumeSeekBar.setEnabled(false);
+            volumeSeekBar.setProgress(0);
         }
         volumeSeekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                if (getPlayer() != null) {
+                if (getPlayer() != null && getPlayer().hasActionGetVolume()) {
                     getPlayer().setVolume(progress);
                 }
             }
@@ -423,6 +491,10 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
             }
         }, 1000L);
 
+    }
+
+    public void showPlaylistDialog() {
+        PlaylistDialogFragment.show(getSupportFragmentManager(), getPlayer());
     }
 
 }

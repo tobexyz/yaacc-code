@@ -19,17 +19,20 @@ package de.yaacc.browser;
 
 import android.content.SharedPreferences;
 import android.os.Bundle;
-import android.preference.PreferenceManager;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageButton;
+import android.widget.ImageView;
 import android.widget.Toast;
 
 import androidx.fragment.app.Fragment;
+import androidx.preference.PreferenceManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+
+import com.google.android.material.switchmaterial.SwitchMaterial;
 
 import org.fourthline.cling.model.meta.Device;
 
@@ -150,6 +153,7 @@ public class ServerListFragment extends Fragment implements
         //refresh device list
         Thread thread = new Thread(this::populateDeviceList);
         thread.start();
+        setLocalServerState(getView());
     }
 
     private void init(Bundle savedInstanceState, View view) {
@@ -169,10 +173,42 @@ public class ServerListFragment extends Fragment implements
             }
             upnpClient.searchDevices();
         });
+        setLocalServerState(view);
+        SwitchMaterial localServerEnabledSwitch = (SwitchMaterial) view.findViewById(R.id.serverListLocalServerEnabled);
+        localServerEnabledSwitch.setOnClickListener((v -> {
+            PreferenceManager.getDefaultSharedPreferences(v.getContext()).edit().putBoolean(v.getContext().getString(R.string.settings_local_server_chkbx), localServerEnabledSwitch.isChecked()).commit();
+            if (v.getContext() instanceof TabBrowserActivity) {
+                if (localServerEnabledSwitch.isChecked()) {
+                    v.getContext().getApplicationContext().startForegroundService(((TabBrowserActivity) v.getContext()).getYaaccUpnpServerService());
+                } else {
+                    v.getContext().getApplicationContext().stopService(((TabBrowserActivity) v.getContext()).getYaaccUpnpServerService());
+                }
+                setLocalServerState(view);
+            }
+
+
+        }));
         // add ourself as listener
         upnpClient.addUpnpClientListener(this);
         Thread thread = new Thread(this::populateDeviceList);
         thread.start();
+    }
+
+    private void setLocalServerState(View view) {
+        SwitchMaterial localServerEnabledSwitch = (SwitchMaterial) view.findViewById(R.id.serverListLocalServerEnabled);
+        localServerEnabledSwitch.setChecked(PreferenceManager.getDefaultSharedPreferences(getContext()).getBoolean(getContext().getString(R.string.settings_local_server_chkbx), false));
+        ImageView providerImageView = (ImageView) view.findViewById(R.id.serverListProviderEnabled);
+        if (PreferenceManager.getDefaultSharedPreferences(getContext()).getBoolean(getContext().getString(R.string.settings_local_server_provider_chkbx), false)) {
+            providerImageView.setImageDrawable(getContext().getDrawable(R.drawable.ic_baseline_sensors_32));
+        } else {
+            providerImageView.setImageDrawable(getContext().getDrawable(R.drawable.ic_baseline_sensors_off_32));
+        }
+        ImageView receiverImageView = (ImageView) view.findViewById(R.id.serverListReceiverEnabled);
+        if (PreferenceManager.getDefaultSharedPreferences(getContext()).getBoolean(getContext().getString(R.string.settings_local_server_receiver_chkbx), false)) {
+            receiverImageView.setImageDrawable(getContext().getDrawable(R.drawable.ic_baseline_devices_24));
+        } else {
+            receiverImageView.setImageDrawable(getContext().getDrawable(R.drawable.ic_baseline_desktop_access_disabled_32));
+        }
     }
 
     @Override

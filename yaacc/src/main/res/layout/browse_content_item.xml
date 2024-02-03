@@ -50,13 +50,24 @@
                 android:layout_marginStart="5dp"
                 android:layout_marginTop="10dp"
                 android:layout_marginBottom="10dp"
-                android:layout_toStartOf="@id/browseContentItemDownload"
+                android:layout_toStartOf="@id/browseContentItemPlaylistAdd"
                 android:layout_toEndOf="@id/browseContentItemIcon"
                 android:ellipsize="end"
                 android:maxLines="2"
                 android:text="@string/all"
                 android:textAppearance="@android:style/TextAppearance.Material.Medium"
                 android:textColor="?android:attr/colorForeground" />
+
+            <ImageButton
+                android:id="@+id/browseContentItemPlaylistAdd"
+                style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_marginStart="2dp"
+                android:layout_toStartOf="@id/browseContentItemDownload"
+                android:contentDescription="@string/browse_context_playlist_add"
+                android:scaleType="center"
+                app:srcCompat="@drawable/ic_baseline_playlist_add_32" />
 
             <ImageButton
                 android:id="@+id/browseContentItemDownload"
@@ -88,8 +99,7 @@
                 android:layout_alignParentEnd="true"
                 android:layout_marginStart="2dp"
                 android:contentDescription="@string/browse_context_play_all"
-                app:srcCompat="@drawable/ic_baseline_playlist_play_32" />
-
+                app:srcCompat="@drawable/ic_baseline_double_arrow_32" />
 
         </RelativeLayout>
     </androidx.cardview.widget.CardView>

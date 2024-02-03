@@ -22,6 +22,7 @@ import android.graphics.Bitmap;
 
 import java.beans.PropertyChangeListener;
 import java.net.URI;
+import java.util.List;
 
 import de.yaacc.upnp.SynchronizationInfo;
 
@@ -65,6 +66,12 @@ public interface Player {
      */
     void setItems(PlayableItem... items);
 
+    /**
+     * adds additional item to the end of the playlist
+     *
+     * @param items the items to be added
+     */
+    void addItems(List<PlayableItem> items);
 
     /**
      * Drops all Items.
@@ -145,6 +152,10 @@ public interface Player {
      */
     String getCurrentItemTitle();
 
+    int getCurrentItemIndex();
+
+    boolean isPlaying();
+
 
     /**
      * returns the title of the next item
@@ -197,6 +208,10 @@ public interface Player {
 
     int getVolume();
 
+    boolean hasActionGetVolume();
+
+    boolean hasActionGetMute();
+
     void setVolume(int volume);
 
     int getIconResourceId();
@@ -212,4 +227,7 @@ public interface Player {
     PendingIntent getNotificationIntent();
 
     void seekTo(long millisecondsFromStart);
+
+    List<PlayableItem> getItems();
+
 }

@@ -51,7 +51,6 @@ public class ReceiverListFragment extends Fragment implements
     private static final String RECEIVER_LIST_NAVIGATOR = "RECEIVER_LIST_NAVIGATOR";
     protected RecyclerView contentList;
     private UpnpClient upnpClient = null;
-    private Device selectedDevice = null;
     private BrowseReceiverDeviceAdapter bDeviceAdapter;
 
     @Override

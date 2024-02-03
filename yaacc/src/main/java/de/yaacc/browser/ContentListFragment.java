@@ -69,20 +69,22 @@ public class ContentListFragment extends Fragment implements OnClickListener,
     @Override
     public void onResume() {
         super.onResume();
-        Thread thread = new Thread(() -> {
-            if (upnpClient.getProviderDevice() != null) {
-                currentProvider.setText(upnpClient.getProviderDevice().getDetails().getFriendlyName());
-                if (navigator != null && navigator.getCurrentPosition().getDeviceId() != null && upnpClient.getProviderDevice().getIdentity().getUdn().getIdentifierString().equals(navigator.getCurrentPosition().getDeviceId())) {
-                    populateItemList(false);
+        getActivity().runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                if (upnpClient.getProviderDevice() != null) {
+                    currentProvider.setText(upnpClient.getProviderDevice().getDetails().getFriendlyName());
+                    if (navigator != null && navigator.getCurrentPosition().getDeviceId() != null && upnpClient.getProviderDevice().getIdentity().getUdn().getIdentifierString().equals(navigator.getCurrentPosition().getDeviceId())) {
+                        populateItemList(false);
+                    } else {
+                        showMainFolder();
+                    }
                 } else {
-                    showMainFolder();
-                }
-            } else {
 
-                clearItemList();
+                    clearItemList();
+                }
             }
         });
-        thread.start();
     }
 
     private void init(Bundle savedInstanceState, View contentlistView) {
@@ -349,6 +351,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
 
     }
 
+
     @Override
     public void onViewCreated(View view, Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
@@ -393,6 +396,10 @@ public class ContentListFragment extends Fragment implements OnClickListener,
                 player.play();
             }
         }
+    }
+
+    public void addToPlayList(DIDLObject currentObject) {
+        upnpClient.addToPlaylist(currentObject);
     }
 }
 

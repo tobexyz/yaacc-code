@@ -67,6 +67,7 @@ public class MultiContentPlayerActivity extends AppCompatActivity implements Ser
         ImageButton btnStop = findViewById(R.id.multiContentPlayerActivityControlStop);
         ImageButton btnPlay = findViewById(R.id.multiContentPlayerActivityControlPlay);
         ImageButton btnPause = findViewById(R.id.multiContentPlayerActivityControlPause);
+        ImageButton btnPlaylist = (ImageButton) findViewById(R.id.multiContentPlayerActivityControlPlaylist);
         ImageButton btnExit = findViewById(R.id.multiContentPlayerActivityControlExit);
         if (player == null) {
             btnPrev.setActivated(false);
@@ -74,6 +75,7 @@ public class MultiContentPlayerActivity extends AppCompatActivity implements Ser
             btnStop.setActivated(false);
             btnPlay.setActivated(false);
             btnPause.setActivated(false);
+            btnPlaylist.setActivated(false);
             btnExit.setActivated(false);
         } else {
             btnPrev.setActivated(true);
@@ -81,6 +83,7 @@ public class MultiContentPlayerActivity extends AppCompatActivity implements Ser
             btnStop.setActivated(true);
             btnPlay.setActivated(true);
             btnPause.setActivated(true);
+            btnPlaylist.setActivated(true);
             btnExit.setActivated(true);
         }
         btnPrev.setOnClickListener(v -> {
@@ -124,6 +127,11 @@ public class MultiContentPlayerActivity extends AppCompatActivity implements Ser
 
         });
         btnExit.setOnClickListener(v -> exit());
+        btnPlaylist.setOnClickListener(v -> showPlaylistDialog());
+    }
+
+    public void showPlaylistDialog() {
+        PlaylistDialogFragment.show(getSupportFragmentManager(), getPlayer());
     }
 
     private void exit() {

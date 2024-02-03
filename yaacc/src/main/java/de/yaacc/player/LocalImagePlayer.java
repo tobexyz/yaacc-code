@@ -34,6 +34,7 @@ import java.beans.PropertyChangeListener;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
 
@@ -454,6 +455,11 @@ public class LocalImagePlayer implements Player, ServiceConnection {
         return "";
     }
 
+    public int getCurrentItemIndex() {
+        //not yet implemented
+        return 0;
+    }
+
 
     /**
      * returns the title of the next current item
@@ -520,6 +526,16 @@ public class LocalImagePlayer implements Player, ServiceConnection {
         return upnpClient.getVolume();
     }
 
+    @Override
+    public boolean hasActionGetVolume() {
+        return false;
+    }
+
+    @Override
+    public boolean hasActionGetMute() {
+        return false;
+    }
+
     public void setVolume(int volume) {
         upnpClient.setVolume(volume);
     }
@@ -544,4 +560,13 @@ public class LocalImagePlayer implements Player, ServiceConnection {
         // Do nothing
     }
 
+    @Override
+    public void addItems(List<PlayableItem> playableItemList) {
+        //Not yet implemented
+    }
+
+    @Override
+    public List<PlayableItem> getItems() {
+        return new ArrayList<>();
+    }
 }

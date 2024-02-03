@@ -390,6 +390,11 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
         showNotification();
     }
 
+    @Override
+    public void addItems(List<PlayableItem> playableItems) {
+        items.addAll(playableItems);
+    }
+
     /**
      * returns the current item position in the playlist
      *
@@ -397,6 +402,10 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
      */
     public String getPositionString() {
         return " (" + (currentIndex + 1) + "/" + items.size() + ")";
+    }
+
+    public int getCurrentItemIndex() {
+        return currentIndex;
     }
 
     /**
@@ -786,4 +795,14 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
     public void setShortName(String name) {
         shortName = name;
     }
+
+    public boolean hasActionGetVolume() {
+        return true;
+    }
+
+    public boolean hasActionGetMute() {
+        return true;
+    }
+
+
 }

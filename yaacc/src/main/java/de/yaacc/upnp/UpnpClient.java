@@ -31,6 +31,8 @@ import android.preference.PreferenceManager;
 import android.util.Log;
 import android.webkit.MimeTypeMap;
 
+import androidx.annotation.NonNull;
+
 import org.fourthline.cling.android.AndroidUpnpService;
 import org.fourthline.cling.controlpoint.ControlPoint;
 import org.fourthline.cling.model.Namespace;
@@ -84,6 +86,7 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -735,12 +738,6 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         if (!waitForPlayerServiceComeUp()) {
             return Collections.emptyList();
         }
-        LinkedList<PlayableItem> playableItems = new LinkedList<>();
-
-        for (Item currentItem : items) {
-            PlayableItem playableItem = new PlayableItem(currentItem, getDefaultDuration());
-            playableItems.add(playableItem);
-        }
         SynchronizationInfo synchronizationInfo = new SynchronizationInfo();
         synchronizationInfo.setOffset(getDeviceSyncOffset()); //device specific offset
 
@@ -750,7 +747,17 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         Log.d(getClass().getName(), "CurrentTime: " + new Date() + " representationTime: " + referencedPresentationTime);
         synchronizationInfo.setReferencedPresentationTime(referencedPresentationTime);
 
-        return playerService.createPlayer(this, synchronizationInfo, playableItems);
+        return playerService.createPlayer(this, synchronizationInfo, toPlayableItems(items));
+    }
+
+    @NonNull
+    private LinkedList<PlayableItem> toPlayableItems(List<Item> items) {
+        LinkedList<PlayableItem> playableItems = new LinkedList<>();
+        for (Item currentItem : items) {
+            PlayableItem playableItem = new PlayableItem(currentItem, getDefaultDuration());
+            playableItems.add(playableItem);
+        }
+        return playableItems;
     }
 
     private boolean waitForPlayerServiceComeUp() {
@@ -998,13 +1005,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      */
     public Collection<Device<?, ?, ?>> getReceiverDevices() {
         ArrayList<Device<?, ?, ?>> result = new ArrayList<>();
-        ArrayList<String> unknowsIds = new ArrayList<>(); // Maybe the the
-        // receiverDevice
-        // in the
-        // preferences
-        // isn't
-        // available any
-        // more
+        ArrayList<String> unknowsIds = new ArrayList<>();
         Set<String> receiverDeviceIds = getReceiverDeviceIds();
         for (String id : receiverDeviceIds) {
             Device<?, ?, ?> receiver = this.getDevice(id);
@@ -1239,6 +1240,12 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
                             + device.getDisplayString());
             return false;
         }
+        if (!hasActionGetMute(service)) {
+            Log.d(getClass().getName(),
+                    "No action get mute found on Device: "
+                            + device.getDisplayString());
+            return false;
+        }
         Log.d(getClass().getName(), "Action get Mute ");
         final ActionState actionState = new ActionState();
         actionState.actionFinished = false;
@@ -1288,6 +1295,25 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         return actionState.result != null && (Boolean) actionState.result;
     }
 
+    public boolean hasActionGetMute(Device<?, ?, ?> device) {
+        if (device instanceof LocalDevice || device instanceof UpnpClient.LocalDummyDevice) {
+            return true;
+        }
+        Service<?, ?> service = getRenderingControlService(device);
+        if (service == null) {
+            Log.d(getClass().getName(),
+                    "No RenderingControl-Service found on Device: "
+                            + device.getDisplayString());
+            return false;
+        }
+
+        return hasActionGetMute(service);
+    }
+
+    private boolean hasActionGetMute(Service<?, ?> service) {
+        return service.getAction("GetMute") != null;
+    }
+
     public void setMute(Device<?, ?, ?> device, boolean mute) {
         if (device == null) {
             return;
@@ -1299,6 +1325,12 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         if (service == null) {
             Log.d(getClass().getName(),
                     "No AVTransport-Service found on Device: "
+                            + device.getDisplayString());
+            return;
+        }
+        if (!hasActionSetMute(service)) {
+            Log.d(getClass().getName(),
+                    "No action set mute found on Device: "
                             + device.getDisplayString());
             return;
         }
@@ -1323,6 +1355,11 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         getControlPoint().execute(actionCallback);
     }
 
+
+    private boolean hasActionSetMute(Service<?, ?> service) {
+        return service.getAction("SetMute") != null;
+    }
+
     public int getVolume(Device<?, ?, ?> device) {
         if (device == null) {
             return 0;
@@ -1335,6 +1372,12 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         if (service == null) {
             Log.d(getClass().getName(),
                     "No RenderingControl-Service found on Device: "
+                            + device.getDisplayString());
+            return 0;
+        }
+        if (!hasActionGetVolume(service)) {
+            Log.d(getClass().getName(),
+                    "No action get volume found on Device: "
                             + device.getDisplayString());
             return 0;
         }
@@ -1389,6 +1432,24 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
 
     }
 
+    public boolean hasActionGetVolume(Device<?, ?, ?> device) {
+        if (device instanceof LocalDevice || device instanceof UpnpClient.LocalDummyDevice) {
+            return true;
+        }
+        Service<?, ?> service = getRenderingControlService(device);
+        if (service == null) {
+            Log.d(getClass().getName(),
+                    "No RenderingControl-Service found on Device: "
+                            + device.getDisplayString());
+            return false;
+        }
+        return hasActionGetVolume(service);
+    }
+
+    private boolean hasActionGetVolume(Service<?, ?> service) {
+        return service.getAction("GetVolume") != null;
+    }
+
     public void setVolume(Device<?, ?, ?> device, int volume) {
         if (device == null) {
             return;
@@ -1401,6 +1462,12 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         if (service == null) {
             Log.d(getClass().getName(),
                     "No RenderingControl-Service found on Device: "
+                            + device.getDisplayString());
+            return;
+        }
+        if (!hasActionSetVolume(service)) {
+            Log.d(getClass().getName(),
+                    "No action set volume found on Device: "
                             + device.getDisplayString());
             return;
         }
@@ -1423,6 +1490,14 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
             }
         };
         getControlPoint().execute(actionCallback);
+    }
+
+    public boolean hasActionSetVolume(Service<?, ?> service) {
+        return service.getAction("SetVolume") != null;
+    }
+
+    public Optional<Player> getPlayer(int id) {
+        return getCurrentPlayers().stream().filter(p -> p.getId() == id).findFirst();
     }
 
 
@@ -1500,6 +1575,23 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         @Override
         public DeviceDetails getDetails() {
             return new DeviceDetails(context.getString(R.string.this_device));
+        }
+    }
+
+    public void addToPlaylist(DIDLObject item) {
+        List<Item> itemList = toItemList(item);
+
+        if (getCurrentPlayers().stream().filter(
+                p -> getReceiverDevices().stream()
+                        .map(d -> d.getIdentity().getUdn().getIdentifierString())
+                        .collect(Collectors.toList()).contains(p.getDeviceId())).collect(Collectors.toList()).isEmpty()) {
+            initializePlayers(itemList);
+        } else {
+            getCurrentPlayers().stream().filter(
+                            p -> getReceiverDevices().stream()
+                                    .map(d -> d.getIdentity().getUdn().getIdentifierString())
+                                    .collect(Collectors.toList()).contains(p.getDeviceId()))
+                    .forEach(p -> p.addItems(toPlayableItems(itemList)));
         }
 
     }

@@ -84,6 +84,7 @@ public class MusicPlayerActivity extends AppCompatActivity implements ServiceCon
         ImageButton btnStop = (ImageButton) findViewById(R.id.musicActivityControlStop);
         ImageButton btnPlay = (ImageButton) findViewById(R.id.musicActivityControlPlay);
         ImageButton btnPause = (ImageButton) findViewById(R.id.musicActivityControlPause);
+        ImageButton btnPlaylist = (ImageButton) findViewById(R.id.musicActivityControlPlaylist);
         ImageButton btnExit = (ImageButton) findViewById(R.id.musicActivityControlExit);
         if (player == null) {
             btnPrev.setActivated(false);
@@ -92,6 +93,7 @@ public class MusicPlayerActivity extends AppCompatActivity implements ServiceCon
             btnPlay.setActivated(false);
             btnPause.setActivated(false);
             btnPause.setActivated(false);
+            btnPlaylist.setActivated(false);
             btnExit.setActivated(false);
         } else {
             player.addPropertyChangeListener(event -> {
@@ -107,6 +109,7 @@ public class MusicPlayerActivity extends AppCompatActivity implements ServiceCon
             btnStop.setActivated(true);
             btnPlay.setActivated(true);
             btnPause.setActivated(true);
+            btnPlaylist.setActivated(true);
             btnExit.setActivated(true);
         }
         btnPrev.setOnClickListener(v -> {
@@ -145,7 +148,7 @@ public class MusicPlayerActivity extends AppCompatActivity implements ServiceCon
 
         });
         btnExit.setOnClickListener(v -> MusicPlayerActivity.this.exit());
-
+        btnPlaylist.setOnClickListener(v -> showPlaylistDialog());
         seekBar = (SeekBar) findViewById(R.id.musicActivitySeekBar);
         seekBar.setMax(100);
         seekBar.setProgress(0);
@@ -178,6 +181,10 @@ public class MusicPlayerActivity extends AppCompatActivity implements ServiceCon
 
         });
 
+    }
+
+    public void showPlaylistDialog() {
+        PlaylistDialogFragment.show(getSupportFragmentManager(), getPlayer());
     }
 
     @Override

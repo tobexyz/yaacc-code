@@ -21,23 +21,33 @@ import android.Manifest;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.graphics.drawable.Drawable;
 import android.media.MediaMetadataRetriever;
 import android.net.Uri;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
 import android.util.Log;
+import android.util.TypedValue;
 import android.view.ContextMenu;
 import android.view.ContextMenu.ContextMenuInfo;
+import android.view.Gravity;
+import android.view.KeyEvent;
+import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.View.OnClickListener;
+import android.view.ViewGroup;
+import android.widget.ImageView;
+import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
+import androidx.recyclerview.widget.RecyclerView;
 import androidx.viewpager2.adapter.FragmentStateAdapter;
 import androidx.viewpager2.widget.ViewPager2;
 
@@ -63,6 +73,7 @@ import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.UpnpClientListener;
 import de.yaacc.upnp.server.YaaccUpnpServerService;
 import de.yaacc.util.AboutActivity;
+import de.yaacc.util.ThemeHelper;
 import de.yaacc.util.YaaccLogActivity;
 
 /**
@@ -96,6 +107,7 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
 
 
     private Intent serverService = null;
+    private Toast volumeToast = null;
 
     @Override
     protected void onSaveInstanceState(@NonNull Bundle outState) {
@@ -236,8 +248,9 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
         }
         String uriString = uri.toString();
         final String title = "shared with yaacc with ♥";
-        try (MediaMetadataRetriever metaRetriever = new MediaMetadataRetriever()) {
-
+        //auto closeable requires Android code level 29 current min level is 27
+        MediaMetadataRetriever metaRetriever = new MediaMetadataRetriever();
+        try {
             try {
                 metaRetriever.setDataSource(uriString);
                 String duration = metaRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION);
@@ -262,6 +275,8 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
             }
             item.setUri(uri);
             item.setTitle(title);
+        } finally {
+            metaRetriever.close();
         }
         return item;
     }
@@ -287,6 +302,7 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
     public void onResume() {
         long start = System.currentTimeMillis();
         super.onResume();
+        setVolumeControlStream(-1000); //use an invalid audio stream to block controlling default streams
         boolean serverOn = getPreferences().getBoolean(
                 getString(R.string.settings_local_server_chkbx), false);
         if (serverOn) {
@@ -310,7 +326,7 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
      *
      * @return the intent
      */
-    private Intent getYaaccUpnpServerService() {
+    public Intent getYaaccUpnpServerService() {
         if (serverService == null) {
             serverService = new Intent(getApplicationContext(),
                     YaaccUpnpServerService.class);
@@ -398,5 +414,60 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
     @Override
     public void onClick(View view) {
 
+    }
+
+    private Toast createVolumeToast(Drawable icon) {
+        LayoutInflater inflater = getLayoutInflater();
+        View layout = inflater.inflate(R.layout.custom_toast, (ViewGroup) findViewById(R.id.toast_custom));
+        TypedValue typedValue = new TypedValue();
+        getTheme().resolveAttribute(android.R.attr.colorBackground, typedValue, true);
+        layout.setBackgroundColor(typedValue.data);
+        ImageView imageView = (ImageView) layout.findViewById(R.id.customToastImageView);
+        imageView.setImageDrawable(icon);
+        TextView text = (TextView) layout.findViewById(R.id.customToastTextView);
+        text.setText("");
+        Toast toast = new Toast(getApplicationContext());
+        toast.setGravity(Gravity.CENTER_VERTICAL, 0, 0);
+        toast.setDuration(Toast.LENGTH_SHORT);
+        toast.setView(layout);
+        return toast;
+    }
+
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        upnpClient.getReceiverDevices().forEach(d -> {
+            if (upnpClient.hasActionGetVolume(d))
+                switch (keyCode) {
+                    case KeyEvent.KEYCODE_VOLUME_UP:
+                        if (upnpClient.getVolume(d) < 100) {
+                            upnpClient.setVolume(d, upnpClient.getVolume(d) + 1);
+                        }
+                        break;
+                    case KeyEvent.KEYCODE_VOLUME_DOWN:
+                        if (upnpClient.getVolume(d) > 0) {
+                            upnpClient.setVolume(d, upnpClient.getVolume(d) - 1);
+                        }
+                        break;
+                }
+        });
+        if (!upnpClient.getReceiverDevices().isEmpty()) {
+            if (KeyEvent.KEYCODE_VOLUME_UP == keyCode || KeyEvent.KEYCODE_VOLUME_DOWN == keyCode) {
+                Drawable icon = keyCode == KeyEvent.KEYCODE_VOLUME_UP ? ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_volume_up_96, getTheme()), getTheme()) : ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_volume_down_96, getTheme()), getTheme());
+                if (volumeToast != null) {
+                    volumeToast.cancel();
+                }
+                volumeToast = createVolumeToast(icon);
+                volumeToast.show();
+            }
+            if (viewPager != null && tabLayout != null && tabLayout.getSelectedTabPosition() == BrowserTabs.RECEIVER.ordinal() && tabLayout.getTabAt(tabLayout.getSelectedTabPosition()).view != null) {
+                List<Fragment> fragments = getSupportFragmentManager().getFragments();
+                if (fragments.size() > viewPager.getCurrentItem()) {
+                    ((RecyclerView) fragments.get(viewPager.getCurrentItem()).getView().findViewById(R.id.receiverList)).getAdapter().notifyDataSetChanged();
+                }
+            }
+        }
+
+
+        return super.onKeyDown(keyCode, event);
     }
 }
