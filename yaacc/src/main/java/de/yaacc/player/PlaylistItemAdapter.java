@@ -77,8 +77,10 @@ public class PlaylistItemAdapter extends RecyclerView.Adapter<PlaylistItemAdapte
     }
 
     private void removeItem(int listPosition) {
-        player.getItems().remove(listPosition);
-        setItems(player.getItems());
+        if (player.getItems().size() > listPosition && listPosition > 0) {
+            player.getItems().remove(listPosition);
+            setItems(player.getItems());
+        }
     }
 
     public void setItems(List<PlayableItem> items) {
