@@ -29,6 +29,7 @@ import android.provider.MediaStore;
 import android.util.Log;
 
 import androidx.core.content.res.ResourcesCompat;
+import androidx.preference.PreferenceManager;
 
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.EntityDetails;
@@ -50,6 +51,8 @@ import org.seamless.util.MimeType;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.List;
 import java.util.Locale;
 
@@ -151,6 +154,8 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
             contentHolder = lookupAlbumArt(albumId);
         } else if (!thumbId.isEmpty()) {
             contentHolder = lookupThumbnail(thumbId);
+        } else if (YaaccUpnpServerService.PROXY_PATH.equals(type)) {
+            contentHolder = lookupProxyContent(pathSegments.get(1));
         }
         if (contentHolder == null) {
             // tricky but works
@@ -317,6 +322,16 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
         return result;
     }
 
+    private ContentHolder lookupProxyContent(String contentKey) {
+
+        String targetUri = PreferenceManager.getDefaultSharedPreferences(getContext()).getString(YaaccUpnpServerService.PROXY_LINK_KEY_PREFIX + contentKey, null);
+        if (targetUri == null) {
+            return null;
+        }
+        ContentHolder result = new ContentHolder(MimeType.valueOf("*/*"), targetUri);
+        return result;
+    }
+
     private byte[] getDefaultIcon() {
         Drawable drawable = ResourcesCompat.getDrawable(getContext().getResources(),
                 R.drawable.yaacc192_32, getContext().getTheme());
@@ -369,10 +384,17 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
         public AsyncEntityProducer getEntityProducer() {
             AsyncEntityProducer result = null;
             if (getUri() != null && !getUri().isEmpty()) {
-                File file = new File(getUri());
+                    File file = new File(getUri());
                 result = AsyncEntityProducers.create(file, ContentType.parse(getMimeType().toString()));
-                Log.d(getClass().getName(), "Return file-Uri: " + getUri()
-                        + "Mimetype: " + getMimeType());
+                    Log.d(getClass().getName(), "Return file-Uri: " + getUri()
+                            + "Mimetype: " + getMimeType());
+                } catch (FileNotFoundException ex) {
+                    //file not found maybe external url
+                    result = new InputStreamEntity(new URL(getUri()).openStream(), ContentType.parse(getMimeType().toString()));
+                    result = AsyncEntityProducers.create(file, ContentType.parse(getMimeType().toString()));
+                    Log.d(getClass().getName(), "Return external-Uri: " + getUri()
+                            + "Mimetype: " + getMimeType());
+                }
             } else if (content != null) {
                 result = AsyncEntityProducers.create(content, ContentType.parse(getMimeType().toString()));
             }

@@ -79,6 +79,17 @@
         android:contentDescription="@string/settings"
         app:srcCompat="@drawable/ic_baseline_devices_32" />
 
+    <ImageView
+        android:id="@+id/serverListProxyEnabled"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:layout_marginLeft="10dp"
+        android:layout_marginBottom="10dp"
+        android:layout_toEndOf="@id/serverListReceiverEnabled"
+        android:layout_alignParentBottom="true"
+        android:contentDescription="@string/settings"
+        app:srcCompat="@drawable/ic_baseline_import_export_32" />
+
 
     <ImageButton
         android:id="@+id/serverListRefreshButton"

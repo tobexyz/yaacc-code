@@ -97,6 +97,9 @@ import de.yaacc.util.NotificationId;
  * @author Tobias Schoene (openbit)
  */
 public class YaaccUpnpServerService extends Service {
+
+    public static final String PROXY_LINK_KEY_PREFIX = "proxy_link_";
+    public static final String PROXY_PATH = "proxy";
     public static final int LOCK_TIMEOUT = 5000;
     private static final Pattern IPV4_PATTERN =
             Pattern.compile(
@@ -248,6 +251,10 @@ public class YaaccUpnpServerService extends Service {
                     localServer = createMediaServerDevice();
                 }
                 getUpnpClient().getRegistry().addDevice(localServer);
+
+            }
+            if (preferences.getBoolean(getApplicationContext().getString(R.string.settings_local_server_provider_chkbx), false)
+                    || preferences.getBoolean(getApplicationContext().getString(R.string.settings_local_server_proxy_chkbx), false)) {
 
                 createHttpServer();
             }
@@ -847,7 +854,7 @@ public class YaaccUpnpServerService extends Service {
      *
      * @return the address or null if anything went wrong
      */
-    public String getIpAddress() {
+    public static String getIpAddress() {
         String hostAddress = null;
         try {
             for (Enumeration<NetworkInterface> networkInterfaces = NetworkInterface
