@@ -88,6 +88,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.stream.Collectors;
 
 import de.yaacc.R;
@@ -120,6 +122,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     private boolean mute = false;
     private PlayerService playerService;
     private Device<?, ?, ?> localDummyDevice;
+    private Timer searchNotificationTimer;
 
     public UpnpClient() {
     }
@@ -548,6 +551,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
             // Getting ready for future device advertisements
             getAndroidUpnpService().getRegistry().addListener(this);
             searchDevices();
+            startPeriodicallyDeviceSearch();
         }
     }
 
@@ -711,6 +715,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      */
     public void searchDevices() {
         if (isInitialized()) {
+            Log.d(this.getClass().getName(), "triggered upnp device search");
             getAndroidUpnpService().getControlPoint().search();
         }
     }
@@ -1594,5 +1599,21 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
                     .forEach(p -> p.addItems(toPlayableItems(itemList)));
         }
 
+    }
+
+    private void startPeriodicallyDeviceSearch() {
+        int upnpNotificationFrequency = Integer.parseInt(preferences.getString(getContext().getString(R.string.settings_sending_upnp_alive_interval_key), "5000"));
+        if (upnpNotificationFrequency != -1) {
+
+            new Timer().schedule(new TimerTask() {
+                @Override
+                public void run() {
+                    Log.d(UpnpClient.this.getClass().getName(), "Sending upnp device search");
+                    searchDevices();
+                    startPeriodicallyDeviceSearch(); //recursion because we want to react on duration changes
+                }
+            }, upnpNotificationFrequency);
+
+        }
     }
 }
