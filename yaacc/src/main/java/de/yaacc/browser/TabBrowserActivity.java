@@ -60,6 +60,7 @@ import org.fourthline.cling.support.model.item.MusicTrack;
 import org.fourthline.cling.support.model.item.VideoItem;
 import org.seamless.util.MimeType;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -287,7 +288,11 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
             }
             item.setTitle(title);
         } finally {
-            metaRetriever.close();
+            try {
+                metaRetriever.close();
+            } catch (IOException e) {
+                Log.d(getClass().getName(), "ignoring exception on closing MediaMetadataRetriever", e);
+            }
         }
         return item;
     }
