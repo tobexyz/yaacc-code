@@ -15,4 +15,4 @@ layout: default
 * Allow sharing of urls and sending them to the current media renderers
 * Implemented parts of UPnP Version 3 at once (sending synchronization information to the renderer)
 
-| [Screenshots](screenshots/) |  [About](about/) |
+| [Screenshots](screenshots/) |  [About](about/) | [Code](doxygen/html/inherits.html)
