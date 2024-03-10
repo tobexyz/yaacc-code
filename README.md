@@ -15,8 +15,8 @@ tobexyz
 alt="Get it on F-Droid"
 height="80">](https://f-droid.org/packages/de.yaacc/)
 
-<img src="./doc/screenshots/4.1.x/browse_servers.png" alt= “” width="30%" height="30%"> <img src="./doc/screenshots/4.1.x/browse_image_folder.png" alt= “” width="30%" height="30%"> <img src="./doc/screenshots/4.1.x/browse_receiver.png" alt= “” width="30%" height="30%">
-<img src="./doc/screenshots/4.1.x/music_player.png" alt= “” width="30%" height="30%"> <img src="./doc/screenshots/4.1.x/playlist_fully_editable.png" alt= “” width="30%" height="30%"> <img src="./doc/screenshots/4.1.x/image_player_show_menu.png" alt= “” width="30%" height="30%">
+<img src="./docs/screenshots/4.1.x/browse_servers.png" alt= “” width="30%" height="30%"> <img src="./docs/screenshots/4.1.x/browse_image_folder.png" alt= “” width="30%" height="30%"> <img src="./docs/screenshots/4.1.x/browse_receiver.png" alt= “” width="30%" height="30%">
+<img src="./docs/screenshots/4.1.x/music_player.png" alt= “” width="30%" height="30%"> <img src="./docs/screenshots/4.1.x/playlist_fully_editable.png" alt= “” width="30%" height="30%"> <img src="./docs/screenshots/4.1.x/image_player_show_menu.png" alt= “” width="30%" height="30%">
 
 ## Description
 
@@ -34,7 +34,6 @@ in order to play media from your device on any UPNP renderer in your network.
 * Allow sharing of urls and sending them to the current media renderers
 * Implemented parts of UPnP Version 3 at once (sending synchronization information to the renderer)
 
-[Screenshots](./doc/screenshots/screenshots.md)
 
 ## Configuration
 Please take a look in the settings of the app. A lot of configuration can be done there. 
