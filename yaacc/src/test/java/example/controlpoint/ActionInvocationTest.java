@@ -14,7 +14,7 @@
  */
 package example.controlpoint;
 
-import example.binarylight.BinaryLightSampleData;
+import static org.junit.Assert.assertEquals;
 
 import org.fourthline.cling.binding.LocalServiceBinder;
 import org.fourthline.cling.binding.annotations.AnnotationLocalServiceBinder;
@@ -36,10 +36,9 @@ import org.fourthline.cling.model.types.BooleanDatatype;
 import org.fourthline.cling.model.types.Datatype;
 import org.fourthline.cling.model.types.UDAServiceId;
 import org.fourthline.cling.model.types.UDAServiceType;
-import org.testng.annotations.DataProvider;
 import org.junit.Test;
 
-import static org.junit.Assert.assertEquals;
+import example.binarylight.BinaryLightSampleData;
 
 /**
  * Invoking an action
@@ -111,10 +110,10 @@ import static org.junit.Assert.assertEquals;
  */
 public class ActionInvocationTest {
 
-    protected LocalService bindService(Class<?> clazz) throws Exception {
+    protected LocalService<?> bindService(Class<?> clazz) throws Exception {
         LocalServiceBinder binder = new AnnotationLocalServiceBinder();
         // Let's also test the overloaded reader
-        LocalService svc = binder.read(
+        LocalService<?> svc = binder.read(
                 clazz,
                 new UDAServiceId("SwitchPower"),
                 new UDAServiceType("SwitchPower", 1),
@@ -127,16 +126,18 @@ public class ActionInvocationTest {
         return svc;
     }
 
-    @DataProvider(name = "devices")
-    public Object[][] getDevices() throws Exception {
-        return new LocalDevice[][]{
-                {BinaryLightSampleData.createDevice(bindService(TestServiceOne.class))},
-                {BinaryLightSampleData.createDevice(bindService(TestServiceTwo.class))},
-                {BinaryLightSampleData.createDevice(bindService(TestServiceThree.class))},
-        };
+
+    @Test
+    public void invokeActions() throws Exception {
+        LocalDevice[] devices = new LocalDevice[]{
+                BinaryLightSampleData.createDevice(bindService(TestServiceOne.class)),
+                BinaryLightSampleData.createDevice(bindService(TestServiceTwo.class)),
+                BinaryLightSampleData.createDevice(bindService(TestServiceThree.class))};
+        for (LocalDevice device : devices) {
+            invokeActions(device);
+        }
     }
 
-    @Test(dataProvider = "devices")
     public void invokeActions(LocalDevice device) throws Exception {
 
         MockUpnpService upnpService = new MockUpnpService();
@@ -245,7 +246,17 @@ public class ActionInvocationTest {
 
     }
 
-    @Test(dataProvider = "devices")
+    @Test
+    public void invokeActionsWithAlias() throws Exception {
+        LocalDevice[] devices = new LocalDevice[]{
+                BinaryLightSampleData.createDevice(bindService(TestServiceOne.class)),
+                BinaryLightSampleData.createDevice(bindService(TestServiceTwo.class)),
+                BinaryLightSampleData.createDevice(bindService(TestServiceThree.class))};
+        for (LocalDevice device : devices) {
+            invokeActionsWithAlias(device);
+        }
+    }
+
     public void invokeActionsWithAlias(LocalDevice device) throws Exception {
 
         MockUpnpService upnpService = new MockUpnpService();

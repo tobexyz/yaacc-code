@@ -30,7 +30,6 @@ import org.fourthline.cling.model.types.UDAServiceId;
 import org.fourthline.cling.model.types.UDAServiceType;
 import org.fourthline.cling.test.data.SampleData;
 import org.junit.Test;
-import org.testng.annotations.DataProvider;
 
 /**
  * Annotating a service implementation
@@ -91,25 +90,26 @@ public class BasicBindingTest {
         );
     }
 
-    @DataProvider(name = "devices")
-    public Object[][] getDevices() {
+
+    public LocalDevice[] getDevices() throws Exception {
+
+        return new LocalDevice[]{
+                createTestDevice(SwitchPowerNamedStateVariable.class),
+                createTestDevice(SwitchPowerAnnotatedClass.class),
+                createTestDevice(SwitchPowerExtraGetter.class),
+                createTestDevice(SwitchPowerBeanReturn.class),
+        };
+    }
 
 
-        try {
-            return new LocalDevice[][]{
-                    {createTestDevice(SwitchPowerNamedStateVariable.class)},
-                    {createTestDevice(SwitchPowerAnnotatedClass.class)},
-                    {createTestDevice(SwitchPowerExtraGetter.class)},
-                    {createTestDevice(SwitchPowerBeanReturn.class)},
-            };
-        } catch (Exception ex) {
-            ex.printStackTrace(System.err);
-            // Damn testng swallows exceptions in provider/factory methods
-            throw new RuntimeException(ex);
+    @Test
+    public void validateBinding() throws Exception {
+        LocalDevice[] devices = getDevices();
+        for (LocalDevice device : devices) {
+            validateBinding(device);
         }
     }
 
-    @Test(dataProvider = "devices")
     public void validateBinding(LocalDevice device) {
 
         LocalService svc = device.getServices()[0];
@@ -161,7 +161,14 @@ public class BasicBindingTest {
 
     }
 
-    @Test(dataProvider = "devices")
+    @Test
+    public void invokeActions() throws Exception {
+        LocalDevice[] devices = getDevices();
+        for (LocalDevice device : devices) {
+            invokeActions(device);
+        }
+    }
+
     public void invokeActions(LocalDevice device) {
         // We mostly care about the binding without exceptions, but let's also test invocation
         LocalService svc = device.getServices()[0];

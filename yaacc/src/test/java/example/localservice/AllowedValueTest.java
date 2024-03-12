@@ -27,32 +27,31 @@ import org.fourthline.cling.model.types.Datatype;
 import org.fourthline.cling.model.types.DeviceType;
 import org.fourthline.cling.test.data.SampleData;
 import org.junit.Test;
-import org.testng.annotations.DataProvider;
 
 /**
- * Restricting numeric value ranges
+ * Exclusive list of string values
  * <p>
- * For numeric state variables, you can limit the set of legal values within a range
- * when declaring the state variable:
+ * If you have a static list of legal string values, set it directly on the annotation
+ * of your state variable's field:
  * </p>
- * <a class="citation" href="javacode://example.localservice.MyServiceWithAllowedValueRange" style="include: VAR"/>
+ * <a class="citation" href="javacode://example.localservice.MyServiceWithAllowedValues" style="include: VAR"/>
  * <p>
- * Alternatively, if your allowed range has to be determined dynamically when
+ * Alternatively, if your allowed values have to be determined dynamically when
  * your service is being bound, you can implement a class with the
- * <code>org.fourthline.cling.binding.AllowedValueRangeProvider</code> interface:
+ * <code>org.fourthline.cling.binding.AllowedValueProvider</code> interface:
  * </p>
- * <a class="citation" href="javacode://example.localservice.MyServiceWithAllowedValueRangeProvider" style="include: PROVIDER"/>
+ * <a class="citation" href="javacode://example.localservice.MyServiceWithAllowedValueProvider" style="include: PROVIDER"/>
  * <p>
  * Then, instead of specifying a static list of string values in your state variable declaration,
  * name the provider class:
  * </p>
- * <a class="citation" id="MyServiceWithAllowedValueRangeProvider-VAR" href="javacode://example.localservice.MyServiceWithAllowedValueRangeProvider" style="include: VAR"/>
+ * <a class="citation" id="MyServiceWithAllowedValueProvider-VAR" href="javacode://example.localservice.MyServiceWithAllowedValueProvider" style="include: VAR"/>
  * <p>
  * Note that this provider will only be queried when your annotations are being processed,
  * once when your service is bound in Cling.
  * </p>
  */
-public class AllowedValueRangeTest {
+public class AllowedValueTest {
 
     public LocalDevice createTestDevice(Class serviceClass) throws Exception {
 
@@ -68,28 +67,31 @@ public class AllowedValueRangeTest {
         );
     }
 
-    @DataProvider(name = "devices")
-    public Object[][] getDevices() {
-        try {
-            return new LocalDevice[][]{
-                    {createTestDevice(MyServiceWithAllowedValueRange.class)},
-                    {createTestDevice(MyServiceWithAllowedValueRangeProvider.class)},
-            };
-        } catch (Exception ex) {
-            ex.printStackTrace(System.err);
-            // Damn testng swallows exceptions in provider/factory methods
-            throw new RuntimeException(ex);
+    public LocalDevice[] getDevices() throws Exception {
+
+        return new LocalDevice[]
+                {createTestDevice(MyServiceWithAllowedValues.class),
+                        createTestDevice(MyServiceWithAllowedValueProvider.class)
+                };
+
+    }
+
+    @Test
+    public void validateBinding() throws Exception {
+        LocalDevice[] devices = getDevices();
+        for (LocalDevice device : devices) {
+            validateBinding(device);
         }
     }
 
-    @Test(dataProvider = "devices")
     public void validateBinding(LocalDevice device) {
         LocalService svc = device.getServices()[0];
         assertEquals(svc.getStateVariables().length, 1);
-        assertEquals(svc.getStateVariables()[0].getTypeDetails().getDatatype().getBuiltin(), Datatype.Builtin.I4);
-        assertEquals(svc.getStateVariables()[0].getTypeDetails().getAllowedValueRange().getMinimum(), 10);
-        assertEquals(svc.getStateVariables()[0].getTypeDetails().getAllowedValueRange().getMaximum(), 100);
-        assertEquals(svc.getStateVariables()[0].getTypeDetails().getAllowedValueRange().getStep(), 5);
+        assertEquals(svc.getStateVariables()[0].getTypeDetails().getDatatype().getBuiltin(), Datatype.Builtin.STRING);
+        assertEquals(svc.getStateVariables()[0].getTypeDetails().getAllowedValues().length, 3);
+        assertEquals(svc.getStateVariables()[0].getTypeDetails().getAllowedValues()[0], "Foo");
+        assertEquals(svc.getStateVariables()[0].getTypeDetails().getAllowedValues()[1], "Bar");
+        assertEquals(svc.getStateVariables()[0].getTypeDetails().getAllowedValues()[2], "Baz");
     }
 
 }

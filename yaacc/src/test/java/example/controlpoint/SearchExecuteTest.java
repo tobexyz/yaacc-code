@@ -14,6 +14,9 @@
  */
 package example.controlpoint;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
+
 import org.fourthline.cling.mock.MockUpnpService;
 import org.fourthline.cling.model.message.UpnpMessage;
 import org.fourthline.cling.model.message.header.DeviceTypeHeader;
@@ -37,8 +40,6 @@ import org.fourthline.cling.protocol.async.SendingSearch;
 import org.junit.Test;
 
 import java.util.UUID;
-
-import static org.junit.Assert.*;
 
 /**
  * Searching the network
@@ -184,9 +185,14 @@ public class SearchExecuteTest {
         assertEquals(search.getSearchTarget().getString(), new STAllHeader().getString());
     }
 
-    @Test(expectedExceptions = java.lang.IllegalArgumentException.class)
+    @Test
     public void searchInvalidST() {
-        SendingSearch search = new SendingSearch(new MockUpnpService(), new MXHeader());
+        try {
+            new SendingSearch(new MockUpnpService(), new MXHeader());
+            fail();
+        } catch (IllegalArgumentException e) {
+            //ignore expected exception
+        }
     }
 
     protected void assertMessages(MockUpnpService upnpService, UpnpHeader header) throws Exception {

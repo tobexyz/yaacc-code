@@ -15,6 +15,8 @@
 
 package example.localservice;
 
+import static org.junit.Assert.assertEquals;
+
 import org.fourthline.cling.binding.LocalServiceBinder;
 import org.fourthline.cling.binding.annotations.AnnotationLocalServiceBinder;
 import org.fourthline.cling.model.DefaultServiceManager;
@@ -30,13 +32,10 @@ import org.fourthline.cling.model.meta.LocalService;
 import org.fourthline.cling.model.profile.RemoteClientInfo;
 import org.fourthline.cling.model.types.UDADeviceType;
 import org.fourthline.cling.test.data.SampleData;
-import org.testng.annotations.DataProvider;
 import org.junit.Test;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-
-import static org.junit.Assert.assertEquals;
 
 /**
  * Accessing remote client information
@@ -83,23 +82,22 @@ public class RemoteClientInfoTest {
         );
     }
 
-    @DataProvider(name = "devices")
-    public Object[][] getDevices() {
 
-
-        try {
-            return new LocalDevice[][]{
-                    {createTestDevice(SwitchPowerWithClientInfo.class)}
-            };
-        } catch (Exception ex) {
-            ex.printStackTrace(System.err);
-            // Damn TestNG swallows exceptions in provider/factory methods
-            throw new RuntimeException(ex);
-        }
+    public LocalDevice[] getDevices() throws Exception {
+        return new LocalDevice[]{
+                createTestDevice(SwitchPowerWithClientInfo.class)
+        };
     }
 
 
-    @Test(dataProvider = "devices")
+    @Test
+    public void invokeActions() throws Exception {
+        LocalDevice[] devices = getDevices();
+        for (LocalDevice device : devices) {
+            invokeActions(device);
+        }
+    }
+
     public void invokeActions(LocalDevice device) throws Exception {
         LocalService svc = device.getServices()[0];
 

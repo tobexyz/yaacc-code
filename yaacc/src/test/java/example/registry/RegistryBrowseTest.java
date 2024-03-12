@@ -14,12 +14,17 @@
  */
 package example.registry;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.fail;
+
 import org.fourthline.cling.mock.MockUpnpService;
-import org.fourthline.cling.model.resource.DeviceDescriptorResource;
-import org.fourthline.cling.model.resource.Resource;
 import org.fourthline.cling.model.meta.Device;
 import org.fourthline.cling.model.meta.LocalDevice;
 import org.fourthline.cling.model.meta.RemoteDevice;
+import org.fourthline.cling.model.resource.DeviceDescriptorResource;
+import org.fourthline.cling.model.resource.Resource;
 import org.fourthline.cling.model.types.DeviceType;
 import org.fourthline.cling.model.types.ServiceType;
 import org.fourthline.cling.model.types.UDADeviceType;
@@ -29,13 +34,10 @@ import org.fourthline.cling.registry.Registry;
 import org.fourthline.cling.test.data.SampleData;
 import org.fourthline.cling.test.data.SampleDeviceRoot;
 import org.fourthline.cling.test.data.SampleDeviceRootLocal;
-import org.testng.Assert;
 import org.junit.Test;
 
 import java.net.URI;
 import java.util.Collection;
-
-import static org.junit.Assert.*;
 
 /**
  * Browsing the Registry
@@ -102,14 +104,14 @@ public class RegistryBrowseTest {
 
         try {
             DeviceType deviceType = new UDADeviceType("MY-DEVICE-TYPE", 1);         // DOC: FIND_DEV_TYPE
-            Collection<Device> devices = registry.getDevices(deviceType);           // DOC: FIND_DEV_TYPE
+            Collection<Device<?, ?, ?>> devices = registry.getDevices(deviceType);           // DOC: FIND_DEV_TYPE
             assertEquals(devices.size(), 1);
         } finally {
         }
 
         try {
             ServiceType serviceType = new UDAServiceType("MY-SERVICE-TYPE-ONE", 1); // DOC: FIND_SERV_TYPE
-            Collection<Device> devices = registry.getDevices(serviceType);          // DOC: FIND_SERV_TYPE
+            Collection<Device<?, ?, ?>> devices = registry.getDevices(serviceType);          // DOC: FIND_SERV_TYPE
             assertEquals(devices.size(), 1);
         } finally {
         }
@@ -132,18 +134,23 @@ public class RegistryBrowseTest {
         assertNotNull(resource);
     }
 
-    @Test(expectedExceptions = IllegalArgumentException.class)
-    public void findLocalDeviceInvalidRelativePath() throws Exception {
-        MockUpnpService upnpService = new MockUpnpService();
+    @Test
+    public void findLocalDeviceInvalidRelativePath() {
+        try {
+            MockUpnpService upnpService = new MockUpnpService();
 
-        LocalDevice deviceOne = SampleData.createLocalDevice();
-        upnpService.getRegistry().addDevice(deviceOne);
+            LocalDevice deviceOne = SampleData.createLocalDevice();
+            upnpService.getRegistry().addDevice(deviceOne);
 
-        DeviceDescriptorResource resource =
-                upnpService.getRegistry().getResource(
-                        DeviceDescriptorResource.class,
-                        URI.create("http://host/invalid/absolute/URI")
-                );
+            DeviceDescriptorResource resource =
+                    upnpService.getRegistry().getResource(
+                            DeviceDescriptorResource.class,
+                            URI.create("http://host/invalid/absolute/URI")
+                    );
+            fail();
+        } catch (IllegalArgumentException ex) {
+            //ignore expected excetion
+        }
     }
 
     /* TODO: We for now just ignore duplicate devices because we need to test proxies

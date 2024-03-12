@@ -14,6 +14,8 @@
  */
 package example.localservice;
 
+import static org.junit.Assert.assertEquals;
+
 import org.fourthline.cling.binding.LocalServiceBinder;
 import org.fourthline.cling.binding.annotations.AnnotationLocalServiceBinder;
 import org.fourthline.cling.model.DefaultServiceManager;
@@ -25,10 +27,7 @@ import org.fourthline.cling.model.meta.LocalService;
 import org.fourthline.cling.model.types.Datatype;
 import org.fourthline.cling.model.types.DeviceType;
 import org.fourthline.cling.test.data.SampleData;
-import org.testng.annotations.DataProvider;
 import org.junit.Test;
-
-import static org.junit.Assert.assertEquals;
 
 /**
  * Working with enums
@@ -63,22 +62,23 @@ public class EnumTest {
         );
     }
 
-    @DataProvider(name = "devices")
-    public Object[][] getDevices() {
+
+    public LocalDevice[] getDevices() throws Exception {
+
+        return new LocalDevice[]{
+                createTestDevice(MyServiceWithEnum.class),
+        };
+    }
 
 
-        try {
-            return new LocalDevice[][]{
-                    {createTestDevice(MyServiceWithEnum.class)},
-            };
-        } catch (Exception ex) {
-            ex.printStackTrace(System.err);
-            // Damn testng swallows exceptions in provider/factory methods
-            throw new RuntimeException(ex);
+    @Test
+    public void validateBinding() throws Exception {
+        LocalDevice[] devices = getDevices();
+        for (LocalDevice device : devices) {
+            validateBinding(device);
         }
     }
 
-    @Test(dataProvider = "devices")
     public void validateBinding(LocalDevice device) {
 
         LocalService svc = device.getServices()[0];
@@ -100,7 +100,14 @@ public class EnumTest {
 
     }
 
-    @Test(dataProvider = "devices")
+    @Test
+    public void invokeActions() throws Exception {
+        LocalDevice[] devices = getDevices();
+        for (LocalDevice device : devices) {
+            invokeActions(device);
+        }
+    }
+
     public void invokeActions(LocalDevice device) {
         LocalService svc = device.getServices()[0];
 

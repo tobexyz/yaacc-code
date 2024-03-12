@@ -20,6 +20,8 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
+import android.util.Log;
+
 import org.fourthline.cling.UpnpServiceConfiguration;
 import org.fourthline.cling.mock.MockProtocolFactory;
 import org.fourthline.cling.mock.MockRouter;
@@ -29,6 +31,7 @@ import org.fourthline.cling.model.message.StreamResponseMessage;
 import org.fourthline.cling.model.message.UpnpRequest;
 import org.fourthline.cling.model.message.UpnpResponse;
 import org.fourthline.cling.protocol.ProtocolCreationException;
+import org.fourthline.cling.protocol.ProtocolFactory;
 import org.fourthline.cling.protocol.ReceivingSync;
 import org.fourthline.cling.transport.spi.StreamClient;
 import org.fourthline.cling.transport.spi.StreamServer;
@@ -39,13 +42,11 @@ import org.junit.Test;
 
 import java.net.InetAddress;
 import java.net.URI;
-import java.util.logging.Logger;
 
 abstract public class StreamServerClientTest {
 
     public static final String TEST_HOST = "localhost";
     public static final int TEST_PORT = 8081;
-    final private static Logger log = Logger.getLogger(StreamServerClientTest.class.getName());
     private UpnpServiceConfiguration configuration = new MockUpnpServiceConfiguration(false, true);
     private StreamServer server;
     private StreamClient client;
@@ -80,6 +81,10 @@ abstract public class StreamServerClientTest {
             stream.run();
         }
     };
+
+    protected ProtocolFactory getProtocolFactory() {
+        return protocolFactory;
+    }
 
     @After
     public void stop() throws Exception {
@@ -309,7 +314,7 @@ abstract public class StreamServerClientTest {
         @Override
         protected StreamResponseMessage executeSync() {
             try {
-                log.info("Sleeping for 2 seconds before completion...");
+                Log.i(getClass().getName(), "Sleeping for 2 seconds before completion...");
                 Thread.sleep(2000);
             } catch (InterruptedException ex) {
                 throw new RuntimeException(ex);
@@ -330,7 +335,7 @@ abstract public class StreamServerClientTest {
         @Override
         protected StreamResponseMessage executeSync() {
             try {
-                log.info("Sleeping for 4 seconds before completion...");
+                Log.i(getClass().getName(), "Sleeping for 4 seconds before completion...");
                 Thread.sleep(4000);
             } catch (InterruptedException ex) {
                 throw new RuntimeException(ex);
@@ -355,7 +360,7 @@ abstract public class StreamServerClientTest {
             int i = 0;
             while (i < 4) {
                 try {
-                    log.info("Sleeping for 500ms before checking connection...");
+                    Log.i(getClass().getName(), "Sleeping for 500ms before checking connection...");
                     Thread.sleep(500);
                 } catch (InterruptedException ex) {
                     return null;
@@ -384,7 +389,7 @@ abstract public class StreamServerClientTest {
             int i = 0;
             while (i < 10) {
                 try {
-                    log.info("Sleeping for 500ms before checking connection...");
+                    Log.i(getClass().getName(), "Sleeping for 500ms before checking connection...");
                     Thread.sleep(500);
                 } catch (InterruptedException ex) {
                     return null;

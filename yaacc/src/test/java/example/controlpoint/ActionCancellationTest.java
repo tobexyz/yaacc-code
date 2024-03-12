@@ -14,7 +14,7 @@
  */
 package example.controlpoint;
 
-import example.binarylight.BinaryLightSampleData;
+import static org.junit.Assert.assertEquals;
 
 import org.fourthline.cling.binding.LocalServiceBinder;
 import org.fourthline.cling.binding.annotations.AnnotationLocalServiceBinder;
@@ -28,12 +28,12 @@ import org.fourthline.cling.model.meta.Action;
 import org.fourthline.cling.model.meta.LocalDevice;
 import org.fourthline.cling.model.meta.LocalService;
 import org.fourthline.cling.model.types.UDAServiceId;
-import org.testng.annotations.DataProvider;
 import org.junit.Test;
 
 import java.util.concurrent.Future;
 
-import static org.junit.Assert.assertEquals;
+import example.binarylight.BinaryLightSampleData;
+
 
 /**
  * Cancelling an action invocation
@@ -121,15 +121,10 @@ public class ActionCancellationTest {
         return svc;
     }
 
-    @DataProvider(name = "devices")
-    public Object[][] getDevices() throws Exception {
-        return new LocalDevice[][]{
-                {BinaryLightSampleData.createDevice(bindService(SwitchPowerWithInterruption.class))},
-        };
-    }
 
-    @Test(dataProvider = "devices")
-    public void invokeActions(LocalDevice device) throws Exception {
+    @Test
+    public void invokeActions() throws Exception {
+        LocalDevice device = BinaryLightSampleData.createDevice(bindService(SwitchPowerWithInterruption.class));
         final boolean[] tests = new boolean[1];
 
         MockUpnpService upnpService = new MockUpnpService(false, false, true);

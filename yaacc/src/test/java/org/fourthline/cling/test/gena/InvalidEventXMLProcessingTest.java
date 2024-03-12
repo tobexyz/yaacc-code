@@ -58,14 +58,14 @@ import java.util.Map;
 public class InvalidEventXMLProcessingTest {
 
     @DataProvider
-    public static Object[][] invalidXMLFile() throws Exception {
+    public static Object[][] invalidXMLFile() {
         return new String[][]{
                 {"/invalidxml/event/invalid_root_element.xml"},
         };
     }
 
     @DataProvider
-    public static Object[][] invalidRecoverableXMLFile() throws Exception {
+    public static Object[][] invalidRecoverableXMLFile() {
         return new String[][]{
                 {"/invalidxml/event/truncated.xml"},
                 {"/invalidxml/event/orange_liveradio.xml"},
@@ -75,7 +75,7 @@ public class InvalidEventXMLProcessingTest {
     // TODO: Shouldn't these be failures of the LastChangeParser?
     // The GENA parser does the right thing for most of them, no?
     @DataProvider
-    public static Object[][] invalidUnrecoverableXMLFile() throws Exception {
+    public static Object[][] invalidUnrecoverableXMLFile() {
         return new String[][]{
                 {"/invalidxml/event/unrecoverable/denon_avr4306.xml"},
                 {"/invalidxml/event/unrecoverable/philips_np2900.xml"},
@@ -189,7 +189,7 @@ public class InvalidEventXMLProcessingTest {
             public void invalidMessage(UnsupportedDataException ex) {
             }
         };
-        subscription.receive(new UnsignedIntegerFourBytes(0), new ArrayList<StateVariableValue>());
+        subscription.receive(new UnsignedIntegerFourBytes(0), new ArrayList<>());
 
         OutgoingEventRequestMessage outgoingCall =
                 new OutgoingEventRequestMessage(subscription, SampleData.getLocalBaseURL());
@@ -206,7 +206,7 @@ public class InvalidEventXMLProcessingTest {
         // All of the messages must have a LastChange state variable, and we should be able to parse
         // the XML value of that state variable
         boolean found = false;
-        for (StateVariableValue stateVariableValue : message.getStateVariableValues()) {
+        for (StateVariableValue<?> stateVariableValue : message.getStateVariableValues()) {
             if (stateVariableValue.getStateVariable().getName().equals("LastChange")
                     && stateVariableValue.getValue() != null) {
                 found = true;
