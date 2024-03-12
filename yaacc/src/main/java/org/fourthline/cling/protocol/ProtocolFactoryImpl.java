@@ -15,6 +15,8 @@
 
 package org.fourthline.cling.protocol;
 
+import android.util.Log;
+
 import org.fourthline.cling.UpnpService;
 import org.fourthline.cling.model.Namespace;
 import org.fourthline.cling.model.NetworkAddress;
@@ -52,8 +54,6 @@ import org.fourthline.cling.transport.RouterException;
 import java.net.URI;
 import java.net.URL;
 import java.util.List;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -66,7 +66,6 @@ import jakarta.inject.Inject;
 @ApplicationScoped
 public class ProtocolFactoryImpl implements ProtocolFactory {
 
-    final private static Logger log = Logger.getLogger(ProtocolFactory.class.getName());
 
     protected final UpnpService upnpService;
 
@@ -76,7 +75,7 @@ public class ProtocolFactoryImpl implements ProtocolFactory {
 
     @Inject
     public ProtocolFactoryImpl(UpnpService upnpService) {
-        log.fine("Creating ProtocolFactory: " + getClass().getName());
+        Log.d(getClass().getName(), "Creating ProtocolFactory: " + getClass().getName());
         this.upnpService = upnpService;
     }
 
@@ -86,7 +85,7 @@ public class ProtocolFactoryImpl implements ProtocolFactory {
 
     public ReceivingAsync createReceivingAsync(IncomingDatagramMessage message) throws ProtocolCreationException {
 
-        log.info("Creating protocol for incoming asynchronous: " + message);
+        Log.i(getClass().getName(), "Creating protocol for incoming asynchronous: " + message);
 
 
         if (message.getOperation() instanceof UpnpRequest) {
@@ -149,14 +148,14 @@ public class ProtocolFactoryImpl implements ProtocolFactory {
                     return true;
             }
         } catch (InvalidValueException ex) {
-            log.log(Level.INFO, "Not a named service type header value: " + usnHeader);
+            Log.i(getClass().getName(), "Not a named service type header value: " + usnHeader);
         }
-        log.log(Level.INFO, "Service advertisement not supported, dropping it: " + usnHeader);
+        Log.i(getClass().getName(), "Service advertisement not supported, dropping it: " + usnHeader);
         return false;
     }
 
     public ReceivingSync createReceivingSync(StreamRequestMessage message) throws ProtocolCreationException {
-        log.fine("Creating protocol for incoming synchronous: " + message);
+        Log.d(getClass().getName(), "Creating protocol for incoming synchronous: " + message);
 
         if (message.getOperation().getMethod().equals(UpnpRequest.Method.GET)) {
 
@@ -187,7 +186,7 @@ public class ProtocolFactoryImpl implements ProtocolFactory {
             // TODO: UPNP VIOLATION: Yamaha does the same
             // /dev/9ab0c000-f668-11de-9976-00a0de870fd4/svc/upnp-org/RenderingControl/event/cb><http://10.189.150.197:42082/dev/9ab0c000-f668-11de-9976-00a0de870fd4/svc/upnp-org/RenderingControl/event/cb
             if (message.getUri().getPath().contains(Namespace.EVENTS + Namespace.CALLBACK_FILE)) {
-                log.warning("Fixing trailing garbage in event message path: " + message.getUri().getPath());
+                Log.w(getClass().getName(), "Fixing trailing garbage in event message path: " + message.getUri().getPath());
                 String invalid = message.getUri().toString();
                 message.setUri(
                         URI.create(invalid.substring(

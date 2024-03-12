@@ -15,6 +15,8 @@
 
 package org.fourthline.cling.support.connectionmanager;
 
+import android.util.Log;
+
 import org.fourthline.cling.binding.annotations.UpnpAction;
 import org.fourthline.cling.binding.annotations.UpnpInputArgument;
 import org.fourthline.cling.binding.annotations.UpnpOutputArgument;
@@ -35,7 +37,6 @@ import org.fourthline.cling.support.model.ProtocolInfos;
 import java.beans.PropertyChangeSupport;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.logging.Logger;
 
 /**
  * Base for connection management, implements the connection ID "0" behavior.
@@ -62,7 +63,6 @@ import java.util.logging.Logger;
 })
 public class ConnectionManagerService {
 
-    final private static Logger log = Logger.getLogger(ConnectionManagerService.class.getName());
 
     final protected PropertyChangeSupport propertyChangeSupport;
     final protected Map<Integer, ConnectionInfo> activeConnections = new ConcurrentHashMap();
@@ -92,8 +92,8 @@ public class ConnectionManagerService {
     }
 
     public ConnectionManagerService(PropertyChangeSupport propertyChangeSupport,
-                                            ProtocolInfos sourceProtocolInfo, ProtocolInfos sinkProtocolInfo,
-                                            ConnectionInfo... activeConnections) {
+                                    ProtocolInfos sourceProtocolInfo, ProtocolInfos sinkProtocolInfo,
+                                    ConnectionInfo... activeConnections) {
         this.propertyChangeSupport =
                 propertyChangeSupport == null
                         ? new PropertyChangeSupport(this) : propertyChangeSupport;
@@ -121,7 +121,7 @@ public class ConnectionManagerService {
     })
     synchronized public ConnectionInfo getCurrentConnectionInfo(@UpnpInputArgument(name = "ConnectionID") int connectionId)
             throws ActionException {
-        log.fine("Getting connection information of connection ID: " + connectionId);
+        Log.d(getClass().getName(), "Getting connection information of connection ID: " + connectionId);
         ConnectionInfo info;
         if ((info = activeConnections.get(connectionId)) == null) {
             throw new ConnectionManagerException(
@@ -140,7 +140,7 @@ public class ConnectionManagerService {
         for (Integer connectionID : activeConnections.keySet()) {
             csv.add(new UnsignedIntegerFourBytes(connectionID));
         }
-        log.fine("Returning current connection IDs: " + csv.size());
+        Log.d(getClass().getName(), "Returning current connection IDs: " + csv.size());
         return csv;
     }
 

@@ -15,6 +15,8 @@
 
 package org.fourthline.cling.protocol.async;
 
+import android.util.Log;
+
 import org.fourthline.cling.UpnpService;
 import org.fourthline.cling.model.Location;
 import org.fourthline.cling.model.NetworkAddress;
@@ -31,7 +33,6 @@ import org.fourthline.cling.transport.RouterException;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.logging.Logger;
 
 /**
  * Sending notification messages for a registered local device.
@@ -44,7 +45,6 @@ import java.util.logging.Logger;
  */
 public abstract class SendingNotification extends SendingAsync {
 
-    final private static Logger log = Logger.getLogger(SendingNotification.class.getName());
 
     private LocalDevice device;
 
@@ -60,9 +60,9 @@ public abstract class SendingNotification extends SendingAsync {
     protected void execute() throws RouterException {
 
         List<NetworkAddress> activeStreamServers =
-            getUpnpService().getRouter().getActiveStreamServers(null);
+                getUpnpService().getRouter().getActiveStreamServers(null);
         if (activeStreamServers.size() == 0) {
-            log.fine("Aborting notifications, no active stream servers found (network disabled?)");
+            Log.d(getClass().getName(), "Aborting notifications, no active stream servers found (network disabled?)");
             return;
         }
 
@@ -85,11 +85,11 @@ public abstract class SendingNotification extends SendingAsync {
                 }
 
                 // UDA 1.0 is silent about this but UDA 1.1 recomments "a few hundred milliseconds"
-                log.finer("Sleeping " + getBulkIntervalMilliseconds() + " milliseconds");
+                Log.v(getClass().getName(), "Sleeping " + getBulkIntervalMilliseconds() + " milliseconds");
                 Thread.sleep(getBulkIntervalMilliseconds());
 
             } catch (InterruptedException ex) {
-                log.warning("Advertisement thread was interrupted: " + ex);
+                Log.w(getClass().getName(), "Advertisement thread was interrupted: " + ex);
             }
         }
     }
@@ -103,7 +103,7 @@ public abstract class SendingNotification extends SendingAsync {
     }
 
     public void sendMessages(Location descriptorLocation) throws RouterException {
-        log.finer("Sending root device messages: " + getDevice());
+        Log.v(getClass().getName(), "Sending root device messages: " + getDevice());
         List<OutgoingNotificationRequest> rootDeviceMsgs =
                 createDeviceMessages(getDevice(), descriptorLocation);
         for (OutgoingNotificationRequest upnpMessage : rootDeviceMsgs) {
@@ -112,7 +112,7 @@ public abstract class SendingNotification extends SendingAsync {
 
         if (getDevice().hasEmbeddedDevices()) {
             for (LocalDevice embeddedDevice : getDevice().findEmbeddedDevices()) {
-                log.finer("Sending embedded device messages: " + embeddedDevice);
+                Log.v(getClass().getName(), "Sending embedded device messages: " + embeddedDevice);
                 List<OutgoingNotificationRequest> embeddedDeviceMsgs =
                         createDeviceMessages(embeddedDevice, descriptorLocation);
                 for (OutgoingNotificationRequest upnpMessage : embeddedDeviceMsgs) {
@@ -124,7 +124,7 @@ public abstract class SendingNotification extends SendingAsync {
         List<OutgoingNotificationRequest> serviceTypeMsgs =
                 createServiceTypeMessages(getDevice(), descriptorLocation);
         if (serviceTypeMsgs.size() > 0) {
-            log.finer("Sending service type messages");
+            Log.v(getClass().getName(), "Sending service type messages");
             for (OutgoingNotificationRequest upnpMessage : serviceTypeMsgs) {
                 getUpnpService().getRouter().send(upnpMessage);
             }

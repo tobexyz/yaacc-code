@@ -14,13 +14,13 @@
  */
 package org.fourthline.cling.support.model.dlna;
 
+import android.util.Log;
+
 import org.seamless.util.Exceptions;
 
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
  * Transforms known and standardized DLNA attributes from/to string representation.
@@ -34,7 +34,6 @@ import java.util.logging.Logger;
  */
 public abstract class DLNAAttribute<T> {
 
-    final private static Logger log = Logger.getLogger(DLNAAttribute.class.getName());
     private T value;
 
     /**
@@ -57,17 +56,17 @@ public abstract class DLNAAttribute<T> {
         for (int i = 0; i < type.getAttributeTypes().length && attr == null; i++) {
             Class<? extends DLNAAttribute> attributeClass = type.getAttributeTypes()[i];
             try {
-                log.log(Level.INFO, "Trying to parse DLNA '" + type + "' with class: " + attributeClass.getSimpleName());
+                Log.i(DLNAAttribute.class.getName(), "Trying to parse DLNA '" + type + "' with class: " + attributeClass.getSimpleName());
                 attr = attributeClass.newInstance();
                 if (attributeValue != null) {
                     attr.setString(attributeValue, contentFormat);
                 }
             } catch (InvalidDLNAProtocolAttributeException ex) {
-                log.log(Level.INFO, "Invalid DLNA attribute value for tested type: " + attributeClass.getSimpleName() + " - " + ex.getMessage());
+                Log.i(DLNAAttribute.class.getName(), "Invalid DLNA attribute value for tested type: " + attributeClass.getSimpleName() + " - " + ex.getMessage());
                 attr = null;
             } catch (Exception ex) {
-                log.severe("Error instantiating DLNA attribute of type '" + type + "' with value: " + attributeValue);
-                log.log(Level.SEVERE, "Exception root cause: ", Exceptions.unwrap(ex));
+                Log.e(DLNAAttribute.class.getName(), "Error instantiating DLNA attribute of type '" + type + "' with value: " + attributeValue);
+                Log.e(DLNAAttribute.class.getName(), "Exception root cause: ", Exceptions.unwrap(ex));
             }
         }
         return attr;

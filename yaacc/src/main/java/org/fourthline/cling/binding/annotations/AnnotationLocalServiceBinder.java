@@ -15,6 +15,8 @@
 
 package org.fourthline.cling.binding.annotations;
 
+import android.util.Log;
+
 import org.fourthline.cling.binding.LocalServiceBinder;
 import org.fourthline.cling.binding.LocalServiceBindingException;
 import org.fourthline.cling.model.ValidationError;
@@ -43,10 +45,9 @@ import java.net.URL;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.Locale;
-import java.util.logging.Logger;
 
 /**
  * Reads {@link org.fourthline.cling.model.meta.LocalService} metadata from annotations.
@@ -55,10 +56,9 @@ import java.util.logging.Logger;
  */
 public class AnnotationLocalServiceBinder implements LocalServiceBinder {
 
-    private static Logger log = Logger.getLogger(AnnotationLocalServiceBinder.class.getName());
 
     public LocalService read(Class<?> clazz) throws LocalServiceBindingException {
-        log.fine("Reading and binding annotations of service implementation class: " + clazz);
+        Log.d(getClass().getName(), "Reading and binding annotations of service implementation class: " + clazz);
 
         // Read the service ID and service type from the annotation
         if (clazz.isAnnotationPresent(UpnpService.class)) {
@@ -91,7 +91,7 @@ public class AnnotationLocalServiceBinder implements LocalServiceBinder {
     }
 
     public LocalService read(Class<?> clazz, ServiceId id, ServiceType type,
-                                   boolean supportsQueryStateVariables, Set<Class> stringConvertibleTypes)
+                             boolean supportsQueryStateVariables, Set<Class> stringConvertibleTypes)
             throws LocalServiceBindingException {
 
         Map<StateVariable, StateVariableAccessor> stateVariables = readStateVariables(clazz, stringConvertibleTypes);
@@ -106,9 +106,9 @@ public class AnnotationLocalServiceBinder implements LocalServiceBinder {
             return new LocalService(type, id, actions, stateVariables, stringConvertibleTypes, supportsQueryStateVariables);
 
         } catch (ValidationException ex) {
-            log.severe("Could not validate device model: " + ex.toString());
+            Log.e(getClass().getName(), "Could not validate device model: " + ex.toString());
             for (ValidationError validationError : ex.getErrors()) {
-                log.severe(validationError.toString());
+                Log.e(getClass().getName(), validationError.toString());
             }
             throw new LocalServiceBindingException("Validation of model failed, check the log");
         }
@@ -168,7 +168,7 @@ public class AnnotationLocalServiceBinder implements LocalServiceBinder {
                 } else if (getter != null) {
                     accessor = new GetterStateVariableAccessor(getter);
                 } else {
-                    log.finer("No field or getter found for state variable, skipping accessor: " + v.name());
+                    Log.v(getClass().getName(), "No field or getter found for state variable, skipping accessor: " + v.name());
                 }
 
                 StateVariable stateVar =
@@ -244,8 +244,8 @@ public class AnnotationLocalServiceBinder implements LocalServiceBinder {
             AnnotationActionBinder actionBinder =
                     new AnnotationActionBinder(method, stateVariables, stringConvertibleTypes);
             Action action = actionBinder.appendAction(map);
-            if(isActionExcluded(action)) {
-            	map.remove(action);
+            if (isActionExcluded(action)) {
+                map.remove(action);
             }
         }
 
@@ -255,10 +255,10 @@ public class AnnotationLocalServiceBinder implements LocalServiceBinder {
     /**
      * Override this method to exclude action/methods after they have been discovered.
      */
-    protected  boolean isActionExcluded(Action action) {
-    	return false;
+    protected boolean isActionExcluded(Action action) {
+        return false;
     }
-    
+
     // TODO: I don't like the exceptions much, user has no idea what to do
 
     static String toUpnpStateVariableName(String javaName) {

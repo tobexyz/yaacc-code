@@ -15,8 +15,7 @@
 
 package org.fourthline.cling.registry;
 
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import android.util.Log;
 
 /**
  * Runs periodically and calls {@link org.fourthline.cling.registry.RegistryImpl#maintain()}.
@@ -25,7 +24,6 @@ import java.util.logging.Logger;
  */
 public class RegistryMaintainer implements Runnable {
 
-    private static Logger log = Logger.getLogger(RegistryMaintainer.class.getName());
 
     final private RegistryImpl registry;
     final private int sleepIntervalMillis;
@@ -39,14 +37,14 @@ public class RegistryMaintainer implements Runnable {
 
     public void stop() {
 
-        log.log(Level.INFO, "Setting stopped status on thread");
+        Log.i(getClass().getName(), "Setting stopped status on thread");
         stopped = true;
     }
 
     public void run() {
         stopped = false;
 
-        log.log(Level.INFO, "Running registry maintenance loop every milliseconds: " + sleepIntervalMillis);
+        Log.i(getClass().getName(), "Running registry maintenance loop every milliseconds: " + sleepIntervalMillis);
         while (!stopped) {
 
             try {
@@ -57,7 +55,7 @@ public class RegistryMaintainer implements Runnable {
             }
 
         }
-        log.log(Level.INFO, "Stopped status on thread received, ending maintenance loop");
+        Log.i(getClass().getName(), "Stopped status on thread received, ending maintenance loop");
     }
 
 }

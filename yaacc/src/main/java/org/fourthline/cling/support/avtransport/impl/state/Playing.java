@@ -15,6 +15,8 @@
 
 package org.fourthline.cling.support.avtransport.impl.state;
 
+import android.util.Log;
+
 import org.fourthline.cling.support.avtransport.lastchange.AVTransportVariable;
 import org.fourthline.cling.support.model.AVTransport;
 import org.fourthline.cling.support.model.SeekMode;
@@ -23,21 +25,19 @@ import org.fourthline.cling.support.model.TransportInfo;
 import org.fourthline.cling.support.model.TransportState;
 
 import java.net.URI;
-import java.util.logging.Logger;
 
 /**
  * @author Christian Bauer
  */
 public abstract class Playing<T extends AVTransport> extends AbstractState<T> {
 
-    final private static Logger log = Logger.getLogger(Playing.class.getName());
 
     public Playing(T transport) {
         super(transport);
     }
 
     public void onEntry() {
-        log.fine("Setting transport state to PLAYING");
+        Log.d(getClass().getName(), "Setting transport state to PLAYING");
         getTransport().setTransportInfo(
                 new TransportInfo(
                         TransportState.PLAYING,
@@ -53,15 +53,21 @@ public abstract class Playing<T extends AVTransport> extends AbstractState<T> {
     }
 
     public abstract Class<? extends AbstractState<?>> setTransportURI(URI uri, String metaData);
+
     public abstract Class<? extends AbstractState<?>> stop();
+
     public abstract Class<? extends AbstractState<?>> play(String speed);
+
     public abstract Class<? extends AbstractState<?>> pause();
+
     public abstract Class<? extends AbstractState<?>> next();
+
     public abstract Class<? extends AbstractState<?>> previous();
+
     public abstract Class<? extends AbstractState<?>> seek(SeekMode unit, String target);
 
     public TransportAction[] getCurrentTransportActions() {
-        return new TransportAction[] {
+        return new TransportAction[]{
                 TransportAction.Stop,
                 TransportAction.Play,
                 TransportAction.Pause,

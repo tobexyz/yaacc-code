@@ -15,7 +15,7 @@
 
 package org.fourthline.cling.model;
 
-import java.util.logging.Logger;
+import android.util.Log;
 
 import org.fourthline.cling.model.types.Datatype;
 import org.fourthline.cling.model.types.InvalidValueException;
@@ -26,8 +26,6 @@ import org.fourthline.cling.model.types.InvalidValueException;
  * @author Christian Bauer
  */
 public class VariableValue {
-
-    final private static Logger log = Logger.getLogger(VariableValue.class.getName());
 
     final private Datatype datatype;
     final private Object value;
@@ -46,15 +44,15 @@ public class VariableValue {
      * </p>
      *
      * @param datatype The type of the variable.
-     * @param value The value of the variable.
+     * @param value    The value of the variable.
      * @throws InvalidValueException If the value is invalid for the given datatype, or if
-     *         its string representation is invalid in XML.
+     *                               its string representation is invalid in XML.
      */
     public VariableValue(Datatype datatype, Object value) throws InvalidValueException {
         this.datatype = datatype;
         this.value = value instanceof String ? datatype.valueOf((String) value) : value;
 
-		if (ModelUtil.ANDROID_RUNTIME) return; // Skipping validation on Android
+        if (ModelUtil.ANDROID_RUNTIME) return; // Skipping validation on Android
 
         // We can skip this validation because we can catch invalid values
         // of any remote service (action invocation, event value) before, they are
@@ -73,8 +71,8 @@ public class VariableValue {
         // created.
 
         if (!getDatatype().isValid(getValue()))
-            throw new InvalidValueException("Invalid value for " + getDatatype() +": " + getValue());
-        
+            throw new InvalidValueException("Invalid value for " + getDatatype() + ": " + getValue());
+
         logInvalidXML(toString());
     }
 
@@ -97,7 +95,7 @@ public class VariableValue {
                     (cp >= 0x20 && cp <= 0xD7FF) ||
                     (cp >= 0xE000 && cp <= 0xFFFD) ||
                     (cp >= 0x10000 && cp <= 0x10FFFF))) {
-           		log.warning("Found invalid XML char code: " + cp);
+                Log.w(getClass().getName(), "Found invalid XML char code: " + cp);
             }
             i += Character.charCount(cp);
         }

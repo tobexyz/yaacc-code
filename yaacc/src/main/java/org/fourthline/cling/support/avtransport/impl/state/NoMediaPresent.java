@@ -15,6 +15,8 @@
 
 package org.fourthline.cling.support.avtransport.impl.state;
 
+import android.util.Log;
+
 import org.fourthline.cling.support.avtransport.lastchange.AVTransportVariable;
 import org.fourthline.cling.support.model.AVTransport;
 import org.fourthline.cling.support.model.TransportAction;
@@ -22,21 +24,19 @@ import org.fourthline.cling.support.model.TransportInfo;
 import org.fourthline.cling.support.model.TransportState;
 
 import java.net.URI;
-import java.util.logging.Logger;
 
 /**
  * @author Christian Bauer
  */
 public abstract class NoMediaPresent<T extends AVTransport> extends AbstractState<T> {
 
-    final private static Logger log = Logger.getLogger(Stopped.class.getName());
 
     public NoMediaPresent(T transport) {
         super(transport);
     }
 
     public void onEntry() {
-        log.fine("Setting transport state to NO_MEDIA_PRESENT");
+        Log.d(getClass().getName(), "Setting transport state to NO_MEDIA_PRESENT");
         getTransport().setTransportInfo(
                 new TransportInfo(
                         TransportState.NO_MEDIA_PRESENT,
@@ -54,7 +54,7 @@ public abstract class NoMediaPresent<T extends AVTransport> extends AbstractStat
     public abstract Class<? extends AbstractState> setTransportURI(URI uri, String metaData);
 
     public TransportAction[] getCurrentTransportActions() {
-        return new TransportAction[] {
+        return new TransportAction[]{
                 TransportAction.Stop
         };
     }

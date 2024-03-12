@@ -15,6 +15,8 @@
 
 package org.fourthline.cling.support.renderingcontrol.callback;
 
+import android.util.Log;
+
 import org.fourthline.cling.controlpoint.ActionCallback;
 import org.fourthline.cling.model.action.ActionInvocation;
 import org.fourthline.cling.model.meta.Service;
@@ -22,15 +24,11 @@ import org.fourthline.cling.model.types.UnsignedIntegerFourBytes;
 import org.fourthline.cling.model.types.UnsignedIntegerTwoBytes;
 import org.fourthline.cling.support.model.Channel;
 
-import java.util.logging.Logger;
-
 /**
- *
  * @author Christian Bauer
  */
 public abstract class SetVolume extends ActionCallback {
 
-    private static Logger log = Logger.getLogger(SetVolume.class.getName());
 
     public SetVolume(Service service, long newVolume) {
         this(new UnsignedIntegerFourBytes(0), service, newVolume);
@@ -45,7 +43,7 @@ public abstract class SetVolume extends ActionCallback {
 
     @Override
     public void success(ActionInvocation invocation) {
-        log.fine("Executed successfully");
+        Log.d(getClass().getName(), "Executed successfully");
 
     }
 }

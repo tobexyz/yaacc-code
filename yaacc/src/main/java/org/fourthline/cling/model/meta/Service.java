@@ -15,6 +15,8 @@
 
 package org.fourthline.cling.model.meta;
 
+import android.util.Log;
+
 import org.fourthline.cling.model.ServiceReference;
 import org.fourthline.cling.model.ValidationError;
 import org.fourthline.cling.model.ValidationException;
@@ -26,7 +28,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.logging.Logger;
 
 /**
  * The metadata of a service, with actions and state variables.
@@ -35,7 +36,6 @@ import java.util.logging.Logger;
  */
 public abstract class Service<D extends Device, S extends Service> {
 
-    final private static Logger log = Logger.getLogger(Service.class.getName());
 
     final private ServiceType serviceType;
     final private ServiceId serviceId;
@@ -188,9 +188,9 @@ public abstract class Service<D extends Device, S extends Service> {
                 List<ValidationError> actionErrors = action.validate();
                 if (actionErrors.size() > 0) {
                     actions.remove(action.getName()); // Remove it
-                    log.warning("Discarding invalid action of service '" + getServiceId() + "': " + action.getName());
+                    Log.w(getClass().getName(), "Discarding invalid action of service '" + getServiceId() + "': " + action.getName());
                     for (ValidationError actionError : actionErrors) {
-                        log.warning("Invalid action '" + action.getName() + "': " + actionError);
+                        Log.w(getClass().getName(), "Invalid action '" + action.getName() + "': " + actionError);
                     }
                 }
             }

@@ -15,6 +15,8 @@
 
 package org.fourthline.cling.registry;
 
+import android.util.Log;
+
 import org.fourthline.cling.model.DiscoveryOptions;
 import org.fourthline.cling.model.gena.CancelReason;
 import org.fourthline.cling.model.gena.LocalGENASubscription;
@@ -31,8 +33,6 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
  * Internal class, required by {@link RegistryImpl}.
@@ -41,7 +41,6 @@ import java.util.logging.Logger;
  */
 class LocalItems extends RegistryItems<LocalDevice, LocalGENASubscription> {
 
-    private static Logger log = Logger.getLogger(Registry.class.getName());
 
     protected Map<UDN, DiscoveryOptions> discoveryOptions = new HashMap<>();
     protected long lastAliveIntervalTimestamp = 0;
@@ -82,11 +81,11 @@ class LocalItems extends RegistryItems<LocalDevice, LocalGENASubscription> {
         setDiscoveryOptions(localDevice.getIdentity().getUdn(), options);
 
         if (registry.getDevice(localDevice.getIdentity().getUdn(), false) != null) {
-            log.log(Level.INFO, "Ignoring addition, device already registered: " + localDevice);
+            Log.i(getClass().getName(), "Ignoring addition, device already registered: " + localDevice);
             return;
         }
 
-        log.log(Level.INFO, "Adding local device to registry: " + localDevice);
+        Log.i(getClass().getName(), "Adding local device to registry: " + localDevice);
 
         for (Resource deviceResource : getResources(localDevice)) {
 
@@ -95,11 +94,11 @@ class LocalItems extends RegistryItems<LocalDevice, LocalGENASubscription> {
             }
 
             registry.addResource(deviceResource);
-            log.log(Level.INFO, "Registered resource: " + deviceResource);
+            Log.i(getClass().getName(), "Registered resource: " + deviceResource);
 
         }
 
-        log.log(Level.INFO, "Adding item to registry with expiration in seconds: " + localDevice.getIdentity().getMaxAgeSeconds());
+        Log.i(getClass().getName(), "Adding item to registry with expiration in seconds: " + localDevice.getIdentity().getMaxAgeSeconds());
 
         RegistryItem<UDN, LocalDevice> localItem = new RegistryItem<>(
                 localDevice.getIdentity().getUdn(),
@@ -108,7 +107,7 @@ class LocalItems extends RegistryItems<LocalDevice, LocalGENASubscription> {
         );
 
         getDeviceItems().add(localItem);
-        log.log(Level.INFO, "Registered local device: " + localItem);
+        Log.i(getClass().getName(), "Registered local device: " + localItem);
 
         if (isByeByeBeforeFirstAlive(localItem.getKey()))
             advertiseByebye(localDevice, true);
@@ -145,14 +144,14 @@ class LocalItems extends RegistryItems<LocalDevice, LocalGENASubscription> {
         LocalDevice registeredDevice = get(localDevice.getIdentity().getUdn(), true);
         if (registeredDevice != null) {
 
-            log.log(Level.INFO, "Removing local device from registry: " + localDevice);
+            Log.i(getClass().getName(), "Removing local device from registry: " + localDevice);
 
             setDiscoveryOptions(localDevice.getIdentity().getUdn(), null);
             getDeviceItems().remove(new RegistryItem(localDevice.getIdentity().getUdn()));
 
             for (Resource deviceResource : getResources(localDevice)) {
                 if (registry.removeResource(deviceResource)) {
-                    log.log(Level.INFO, "Unregistered resource: " + deviceResource);
+                    Log.i(getClass().getName(), "Unregistered resource: " + deviceResource);
                 }
             }
 
@@ -165,7 +164,7 @@ class LocalItems extends RegistryItems<LocalDevice, LocalGENASubscription> {
                         incomingSubscription.getItem().getService().getDevice().getIdentity().getUdn();
 
                 if (subscriptionForUDN.equals(registeredDevice.getIdentity().getUdn())) {
-                    log.log(Level.INFO, "Removing incoming subscription: " + incomingSubscription.getKey());
+                    Log.i(getClass().getName(), "Removing incoming subscription: " + incomingSubscription.getKey());
                     it.remove();
                     if (!shuttingDown) {
                         registry.getConfiguration().getRegistryListenerExecutor().execute(
@@ -236,7 +235,7 @@ class LocalItems extends RegistryItems<LocalDevice, LocalGENASubscription> {
                 lastAliveIntervalTimestamp = now;
                 for (RegistryItem<UDN, LocalDevice> localItem : getDeviceItems()) {
                     if (isAdvertised(localItem.getKey())) {
-                        log.log(Level.INFO, "Flooding advertisement of local item: " + localItem);
+                        Log.i(getClass().getName(), "Flooding advertisement of local item: " + localItem);
                         expiredLocalItems.add(localItem);
                     }
                 }
@@ -248,7 +247,7 @@ class LocalItems extends RegistryItems<LocalDevice, LocalGENASubscription> {
             // Alive interval is not enabled, regular expiration check of all devices
             for (RegistryItem<UDN, LocalDevice> localItem : getDeviceItems()) {
                 if (isAdvertised(localItem.getKey()) && localItem.getExpirationDetails().hasExpired(true)) {
-                    log.log(Level.INFO, "Local item has expired: " + localItem);
+                    Log.i(getClass().getName(), "Local item has expired: " + localItem);
                     expiredLocalItems.add(localItem);
                 }
             }
@@ -256,7 +255,7 @@ class LocalItems extends RegistryItems<LocalDevice, LocalGENASubscription> {
 
         // Now execute the advertisements
         for (RegistryItem<UDN, LocalDevice> expiredLocalItem : expiredLocalItems) {
-            log.log(Level.INFO, "Refreshing local device advertisement: " + expiredLocalItem.getItem());
+            Log.i(getClass().getName(), "Refreshing local device advertisement: " + expiredLocalItem.getItem());
             advertiseAlive(expiredLocalItem.getItem());
             expiredLocalItem.getExpirationDetails().stampLastRefresh();
         }
@@ -269,7 +268,7 @@ class LocalItems extends RegistryItems<LocalDevice, LocalGENASubscription> {
             }
         }
         for (RegistryItem<String, LocalGENASubscription> subscription : expiredIncomingSubscriptions) {
-            log.log(Level.INFO, "Removing expired: " + subscription);
+            Log.i(getClass().getName(), "Removing expired: " + subscription);
             removeSubscription(subscription.getItem());
             subscription.getItem().end(CancelReason.EXPIRED);
         }
@@ -279,10 +278,10 @@ class LocalItems extends RegistryItems<LocalDevice, LocalGENASubscription> {
     /* ############################################################################################################ */
 
     void shutdown() {
-        log.log(Level.INFO, "Clearing all registered subscriptions to local devices during shutdown");
+        Log.i(getClass().getName(), "Clearing all registered subscriptions to local devices during shutdown");
         getSubscriptionItems().clear();
 
-        log.log(Level.INFO, "Removing all local devices from registry during shutdown");
+        Log.i(getClass().getName(), "Removing all local devices from registry during shutdown");
         removeAll(true);
     }
 
@@ -290,10 +289,10 @@ class LocalItems extends RegistryItems<LocalDevice, LocalGENASubscription> {
         registry.executeAsyncProtocol(new Runnable() {
             public void run() {
                 try {
-                    log.log(Level.INFO, "Sleeping some milliseconds to avoid flooding the network with ALIVE msgs");
+                    Log.i(getClass().getName(), "Sleeping some milliseconds to avoid flooding the network with ALIVE msgs");
                     Thread.sleep(randomGenerator.nextInt(100));
                 } catch (InterruptedException ex) {
-                    log.severe("Background execution interrupted: " + ex.getMessage());
+                    Log.e(getClass().getName(), "Background execution interrupted: " + ex.getMessage());
                 }
                 registry.getProtocolFactory().createSendingNotificationAlive(localDevice).run();
             }

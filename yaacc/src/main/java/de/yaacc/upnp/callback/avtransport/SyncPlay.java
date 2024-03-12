@@ -17,19 +17,18 @@
  */
 package de.yaacc.upnp.callback.avtransport;
 
+import android.util.Log;
+
 import org.fourthline.cling.controlpoint.ActionCallback;
 import org.fourthline.cling.model.action.ActionInvocation;
 import org.fourthline.cling.model.meta.Service;
 import org.fourthline.cling.model.types.UnsignedIntegerFourBytes;
-
-import java.util.logging.Logger;
 
 /**
  * @author Tobias Schoene (TheOpenBit)
  */
 public abstract class SyncPlay extends ActionCallback {
 
-    private final static Logger log = Logger.getLogger(SyncPlay.class.getName());
 
     public SyncPlay(UnsignedIntegerFourBytes instanceId, Service<?, ?> service, String referencePositionUnits, String referencePosition, String referencePresentationTime, String referenceClockId) {
         super(new ActionInvocation(service.getAction("SyncPlay")));
@@ -42,7 +41,7 @@ public abstract class SyncPlay extends ActionCallback {
 
     @Override
     public void success(ActionInvocation invocation) {
-        log.fine("Execution successful");
+        Log.d(getClass().getName(), "Execution successful");
     }
 
 }

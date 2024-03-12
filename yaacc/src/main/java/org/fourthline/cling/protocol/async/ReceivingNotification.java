@@ -15,6 +15,8 @@
 
 package org.fourthline.cling.protocol.async;
 
+import android.util.Log;
+
 import org.fourthline.cling.UpnpService;
 import org.fourthline.cling.model.ValidationError;
 import org.fourthline.cling.model.ValidationException;
@@ -27,8 +29,6 @@ import org.fourthline.cling.model.types.UDN;
 import org.fourthline.cling.protocol.ReceivingAsync;
 import org.fourthline.cling.protocol.RetrieveRemoteDescriptors;
 import org.fourthline.cling.transport.RouterException;
-
-import java.util.logging.Logger;
 
 /**
  * Handles reception of notification messages.
@@ -71,7 +71,6 @@ import java.util.logging.Logger;
  */
 public class ReceivingNotification extends ReceivingAsync<IncomingNotificationRequest> {
 
-    final private static Logger log = Logger.getLogger(ReceivingNotification.class.getName());
 
     public ReceivingNotification(UpnpService upnpService, IncomingDatagramMessage<UpnpRequest> inputMessage) {
         super(upnpService, new IncomingNotificationRequest(inputMessage));
@@ -81,40 +80,40 @@ public class ReceivingNotification extends ReceivingAsync<IncomingNotificationRe
 
         UDN udn = getInputMessage().getUDN();
         if (udn == null) {
-            log.info("Ignoring notification message without UDN: " + getInputMessage());
+            Log.i(getClass().getName(), "Ignoring notification message without UDN: " + getInputMessage());
             return;
         }
 
         RemoteDeviceIdentity rdIdentity = new RemoteDeviceIdentity(getInputMessage());
-        log.info("Received device notification: " + rdIdentity);
+        Log.i(getClass().getName(), "Received device notification: " + rdIdentity);
 
         RemoteDevice rd;
         try {
             rd = new RemoteDevice(rdIdentity);
         } catch (ValidationException ex) {
-            log.warning("Validation errors of device during discovery: " + rdIdentity);
+            Log.w(getClass().getName(), "Validation errors of device during discovery: " + rdIdentity);
             for (ValidationError validationError : ex.getErrors()) {
-                log.warning(validationError.toString());
+                Log.w(getClass().getName(), validationError.toString());
             }
             return;
         }
 
         if (getInputMessage().isAliveMessage()) {
 
-            log.info("Received device ALIVE advertisement, descriptor location is: " + rdIdentity.getDescriptorURL());
+            Log.i(getClass().getName(), "Received device ALIVE advertisement, descriptor location is: " + rdIdentity.getDescriptorURL());
 
             if (rdIdentity.getDescriptorURL() == null) {
-                log.finer("Ignoring message without location URL header: " + getInputMessage());
+                Log.v(getClass().getName(), "Ignoring message without location URL header: " + getInputMessage());
                 return;
             }
 
             if (rdIdentity.getMaxAgeSeconds() == null) {
-                log.info("Ignoring message without max-age header: " + getInputMessage());
+                Log.i(getClass().getName(), "Ignoring message without max-age header: " + getInputMessage());
                 return;
             }
 
             if (getUpnpService().getRegistry().update(rdIdentity)) {
-                log.info("Remote device was already known: " + udn);
+                Log.i(getClass().getName(), "Remote device was already known: " + udn);
                 return;
             }
 
@@ -126,14 +125,14 @@ public class ReceivingNotification extends ReceivingAsync<IncomingNotificationRe
 
         } else if (getInputMessage().isByeByeMessage()) {
 
-            log.info("Received device BYEBYE advertisement");
+            Log.i(getClass().getName(), "Received device BYEBYE advertisement");
             boolean removed = getUpnpService().getRegistry().removeDevice(rd);
             if (removed) {
-                log.info("Removed remote device from registry: " + rd);
+                Log.i(getClass().getName(), "Removed remote device from registry: " + rd);
             }
 
         } else {
-            log.info("Ignoring unknown notification message: " + getInputMessage());
+            Log.i(getClass().getName(), "Ignoring unknown notification message: " + getInputMessage());
         }
 
     }

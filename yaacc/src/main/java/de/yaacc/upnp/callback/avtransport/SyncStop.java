@@ -17,19 +17,17 @@
  */
 package de.yaacc.upnp.callback.avtransport;
 
+import android.util.Log;
+
 import org.fourthline.cling.controlpoint.ActionCallback;
 import org.fourthline.cling.model.action.ActionInvocation;
 import org.fourthline.cling.model.meta.Service;
 import org.fourthline.cling.model.types.UnsignedIntegerFourBytes;
 
-import java.util.logging.Logger;
-
 /**
  * @author Tobias Schoene (TheOpenBit)
  */
 public abstract class SyncStop extends ActionCallback {
-
-    private static Logger log = Logger.getLogger(SyncStop.class.getName());
 
 
     public SyncStop(UnsignedIntegerFourBytes instanceId, Service<?, ?> service, String stopTime, String referenceClockId) {
@@ -42,7 +40,7 @@ public abstract class SyncStop extends ActionCallback {
 
     @Override
     public void success(ActionInvocation invocation) {
-        log.fine("Execution successful");
+        Log.d(getClass().getName(), "Execution successful");
     }
 
 }
