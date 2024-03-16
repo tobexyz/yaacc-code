@@ -14,6 +14,8 @@
  */
 package example.mediaserver;
 
+import static org.junit.Assert.assertEquals;
+
 import org.fourthline.cling.binding.annotations.AnnotationLocalServiceBinder;
 import org.fourthline.cling.controlpoint.ActionCallback;
 import org.fourthline.cling.model.DefaultServiceManager;
@@ -35,13 +37,13 @@ import org.fourthline.cling.support.model.Res;
 import org.fourthline.cling.support.model.SortCriterion;
 import org.fourthline.cling.support.model.item.Item;
 import org.fourthline.cling.support.model.item.MusicTrack;
-import org.seamless.util.io.IO;
-import org.seamless.util.MimeType;
 import org.junit.Test;
+import org.seamless.util.MimeType;
 
+import java.io.BufferedReader;
+import java.io.IOException;
 import java.io.InputStream;
-
-import static org.junit.Assert.assertEquals;
+import java.io.InputStreamReader;
 
 /**
  * Browsing a ContentDirectory
@@ -289,7 +291,7 @@ public class ContentDirectoryBrowseTest {
         InputStream is = null;
         try {
             is = Thread.currentThread().getContextClassLoader().getResourceAsStream(resource);
-            return IO.readLines(is);
+            return readLines(is);
         } catch (Exception ex) {
             throw new RuntimeException(ex);
         } finally {
@@ -410,4 +412,20 @@ public class ContentDirectoryBrowseTest {
         }
     }
 
+    private String readLines(InputStream is) throws IOException {
+        if (is == null) throw new IllegalArgumentException("Inputstream was null");
+
+        BufferedReader inputReader;
+        inputReader = new BufferedReader(
+                new InputStreamReader(is)
+        );
+
+        StringBuilder input = new StringBuilder();
+        String inputLine;
+        while ((inputLine = inputReader.readLine()) != null) {
+            input.append(inputLine).append(System.getProperty("line.separator"));
+        }
+
+        return input.length() > 0 ? input.toString() : "";
+    }
 }

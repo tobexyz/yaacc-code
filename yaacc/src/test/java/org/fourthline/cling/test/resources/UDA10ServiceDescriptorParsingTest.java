@@ -23,7 +23,11 @@ import org.fourthline.cling.model.meta.RemoteService;
 import org.fourthline.cling.test.data.SampleData;
 import org.fourthline.cling.test.data.SampleServiceOne;
 import org.junit.Test;
-import org.seamless.util.io.IO;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 
 
 public class UDA10ServiceDescriptorParsingTest {
@@ -35,7 +39,7 @@ public class UDA10ServiceDescriptorParsingTest {
 
         RemoteService service = SampleData.createUndescribedRemoteService();
 
-        service = binder.describe(service, IO.readLines(getClass().getResourceAsStream("/descriptors/service/uda10.xml")));
+        service = binder.describe(service, readLines(getClass().getResourceAsStream("/descriptors/service/uda10.xml")));
 
         SampleServiceOne.assertMatch(service, SampleData.getFirstService(SampleData.createRemoteDevice()));
     }
@@ -47,7 +51,7 @@ public class UDA10ServiceDescriptorParsingTest {
 
         RemoteService service = SampleData.createUndescribedRemoteService();
 
-        service = binder.describe(service, IO.readLines(getClass().getResourceAsStream("/descriptors/service/uda10.xml")));
+        service = binder.describe(service, readLines(getClass().getResourceAsStream("/descriptors/service/uda10.xml")));
 
         SampleServiceOne.assertMatch(service, SampleData.getFirstService(SampleData.createRemoteDevice()));
     }
@@ -72,4 +76,20 @@ public class UDA10ServiceDescriptorParsingTest {
         SampleServiceOne.assertMatch(service, SampleData.getFirstService(rd));
     }
 
+    private String readLines(InputStream is) throws IOException {
+        if (is == null) throw new IllegalArgumentException("Inputstream was null");
+
+        BufferedReader inputReader;
+        inputReader = new BufferedReader(
+                new InputStreamReader(is)
+        );
+
+        StringBuilder input = new StringBuilder();
+        String inputLine;
+        while ((inputLine = inputReader.readLine()) != null) {
+            input.append(inputLine).append(System.getProperty("line.separator"));
+        }
+
+        return input.length() > 0 ? input.toString() : "";
+    }
 }

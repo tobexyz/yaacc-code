@@ -34,6 +34,8 @@ import org.fourthline.cling.protocol.ProtocolFactory;
 import org.fourthline.cling.registry.Registry;
 import org.fourthline.cling.transport.Router;
 
+import de.yaacc.upnp.server.YaaccRouter;
+
 /**
  * This is an android service to provide access to an upnp registry.
  *
@@ -89,10 +91,11 @@ public class UpnpRegistryService extends Service {
         return upnpService;
     }
 
-    protected AndroidRouter createRouter(UpnpServiceConfiguration configuration,
-                                         ProtocolFactory protocolFactory,
-                                         Context context) {
-        return new AndroidRouter(configuration, protocolFactory, context);
+    protected YaaccRouter createRouter(UpnpServiceConfiguration configuration,
+                                       ProtocolFactory protocolFactory,
+                                       Context context) {
+        //return new AndroidRouter(configuration, protocolFactory, context);
+        return new YaaccRouter(configuration, protocolFactory, context);
     }
 
     @Override
