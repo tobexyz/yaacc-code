@@ -23,7 +23,6 @@ import org.fourthline.cling.model.XMLUtil;
 import org.fourthline.cling.model.types.UnsignedIntegerFourBytes;
 import org.fourthline.cling.support.shared.AbstractMap;
 import org.seamless.util.Exceptions;
-import org.seamless.util.io.IO;
 import org.seamless.xml.DOMParser;
 import org.seamless.xml.SAXParser;
 import org.w3c.dom.Document;
@@ -32,7 +31,10 @@ import org.xml.sax.Attributes;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
 
+import java.io.BufferedReader;
+import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.StringReader;
 import java.lang.reflect.Constructor;
 import java.util.Collections;
@@ -85,7 +87,8 @@ public abstract class LastChangeParser extends SAXParser {
         InputStream is = null;
         try {
             is = Thread.currentThread().getContextClassLoader().getResourceAsStream(resource);
-            return parse(IO.readLines(is));
+
+            return parse(readLines(is));
         } finally {
             if (is != null) is.close();
         }
@@ -228,6 +231,23 @@ public abstract class LastChangeParser extends SAXParser {
         protected boolean isLastElement(String uri, String localName, String qName) {
             return CONSTANTS.InstanceID.equals(localName);
         }
+    }
+
+    private String readLines(InputStream is) throws IOException {
+        if (is == null) throw new IllegalArgumentException("Inputstream was null");
+
+        BufferedReader inputReader;
+        inputReader = new BufferedReader(
+                new InputStreamReader(is)
+        );
+
+        StringBuilder input = new StringBuilder();
+        String inputLine;
+        while ((inputLine = inputReader.readLine()) != null) {
+            input.append(inputLine).append(System.getProperty("line.separator"));
+        }
+
+        return input.length() > 0 ? input.toString() : "";
     }
 
 }

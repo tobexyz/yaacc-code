@@ -45,10 +45,13 @@ import org.fourthline.cling.transport.impl.RecoveringGENAEventProcessorImpl;
 import org.fourthline.cling.transport.spi.GENAEventProcessor;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.seamless.util.io.IO;
 import org.seamless.xml.XmlPullParserUtils;
 import org.xmlpull.v1.XmlPullParser;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
@@ -166,7 +169,7 @@ public class InvalidEventXMLProcessingTest {
     protected void read(String invalidXMLFile, UpnpService upnpService) throws Exception {
         ServiceDescriptorBinder binder = new UDA10ServiceDescriptorBinderImpl();
         RemoteService service = SampleData.createUndescribedRemoteService();
-        service = binder.describe(service, IO.readLines(
+        service = binder.describe(service, readLines(
                 getClass().getResourceAsStream("/descriptors/service/uda10_avtransport.xml"))
         );
 
@@ -199,7 +202,7 @@ public class InvalidEventXMLProcessingTest {
         StreamRequestMessage incomingStream = new StreamRequestMessage(outgoingCall);
 
         IncomingEventRequestMessage message = new IncomingEventRequestMessage(incomingStream, service);
-        message.setBody(BodyType.STRING, IO.readLines(getClass().getResourceAsStream(invalidXMLFile)));
+        message.setBody(BodyType.STRING, readLines(getClass().getResourceAsStream(invalidXMLFile)));
 
         upnpService.getConfiguration().getGenaEventProcessor().readBody(message);
 
@@ -235,5 +238,22 @@ public class InvalidEventXMLProcessingTest {
             values.put(tag, value);
         }
         return values;
+    }
+
+    private String readLines(InputStream is) throws IOException {
+        if (is == null) throw new IllegalArgumentException("Inputstream was null");
+
+        BufferedReader inputReader;
+        inputReader = new BufferedReader(
+                new InputStreamReader(is)
+        );
+
+        StringBuilder input = new StringBuilder();
+        String inputLine;
+        while ((inputLine = inputReader.readLine()) != null) {
+            input.append(inputLine).append(System.getProperty("line.separator"));
+        }
+
+        return input.length() > 0 ? input.toString() : "";
     }
 }

@@ -15,7 +15,8 @@
 
 package org.fourthline.cling.model.types;
 
-import org.seamless.util.io.Base64Coder;
+
+import java.util.Base64;
 
 /**
  * @author Christian Bauer
@@ -32,7 +33,7 @@ public class Base64Datatype extends AbstractDatatype<byte[]> {
     public byte[] valueOf(String s) throws InvalidValueException {
         if (s.equals("")) return null;
         try {
-            return Base64Coder.decode(s);
+            return Base64.getDecoder().decode(s);
         } catch (Exception ex) {
             throw new InvalidValueException(ex.getMessage(), ex);
         }
@@ -42,7 +43,7 @@ public class Base64Datatype extends AbstractDatatype<byte[]> {
     public String getString(byte[] value) throws InvalidValueException {
         if (value == null) return "";
         try {
-            return new String(Base64Coder.encode(value), "UTF-8");
+            return new String(Base64.getEncoder().encode(value), "UTF-8");
         } catch (Exception ex) {
             throw new InvalidValueException(ex.getMessage(), ex);
         }
