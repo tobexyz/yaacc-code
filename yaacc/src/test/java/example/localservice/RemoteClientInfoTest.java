@@ -22,7 +22,6 @@ import org.fourthline.cling.binding.annotations.AnnotationLocalServiceBinder;
 import org.fourthline.cling.model.DefaultServiceManager;
 import org.fourthline.cling.model.action.ActionInvocation;
 import org.fourthline.cling.model.action.RemoteActionInvocation;
-import org.fourthline.cling.model.message.Connection;
 import org.fourthline.cling.model.message.UpnpHeaders;
 import org.fourthline.cling.model.message.header.UpnpHeader;
 import org.fourthline.cling.model.message.header.UserAgentHeader;
@@ -33,9 +32,6 @@ import org.fourthline.cling.model.profile.RemoteClientInfo;
 import org.fourthline.cling.model.types.UDADeviceType;
 import org.fourthline.cling.test.data.SampleData;
 import org.junit.Test;
-
-import java.net.InetAddress;
-import java.net.UnknownHostException;
 
 /**
  * Accessing remote client information
@@ -105,33 +101,7 @@ public class RemoteClientInfoTest {
         requestHeaders.add(UpnpHeader.Type.USER_AGENT, new UserAgentHeader("foo/bar"));
         requestHeaders.add("X-MY-HEADER", "foo");
 
-        RemoteClientInfo clientInfo = new RemoteClientInfo(
-                new Connection() {
-                    @Override
-                    public boolean isOpen() {
-                        return true;
-                    }
-
-                    @Override
-                    public InetAddress getRemoteAddress() {
-                        try {
-                            return InetAddress.getByName("10.0.0.1");
-                        } catch (UnknownHostException ex) {
-                            throw new RuntimeException(ex);
-                        }
-                    }
-
-                    @Override
-                    public InetAddress getLocalAddress() {
-                        try {
-                            return InetAddress.getByName("10.0.0.2");
-                        } catch (UnknownHostException ex) {
-                            throw new RuntimeException(ex);
-                        }
-                    }
-                },
-                requestHeaders
-        );
+        RemoteClientInfo clientInfo = new RemoteClientInfo(requestHeaders);
 
         ActionInvocation setTargetInvocation = new RemoteActionInvocation(
                 svc.getAction("SetTarget"), clientInfo

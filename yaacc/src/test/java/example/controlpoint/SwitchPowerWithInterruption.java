@@ -21,7 +21,6 @@ import org.fourthline.cling.binding.annotations.UpnpService;
 import org.fourthline.cling.binding.annotations.UpnpServiceId;
 import org.fourthline.cling.binding.annotations.UpnpServiceType;
 import org.fourthline.cling.binding.annotations.UpnpStateVariable;
-import org.fourthline.cling.model.profile.RemoteClientInfo;
 
 /**
  * Reacting to cancellation on the server
@@ -140,8 +139,8 @@ import org.fourthline.cling.model.profile.RemoteClientInfo;
  * </p>
  */
 @UpnpService(
-    serviceId = @UpnpServiceId("SwitchPower"),
-    serviceType = @UpnpServiceType(value = "SwitchPower", version = 1)
+        serviceId = @UpnpServiceId("SwitchPower"),
+        serviceType = @UpnpServiceType(value = "SwitchPower")
 )
 public class SwitchPowerWithInterruption {
 
@@ -153,8 +152,7 @@ public class SwitchPowerWithInterruption {
 
     // DOC:ACTION_METHOD
     @UpnpAction
-    public void setTarget(@UpnpInputArgument(name = "NewTargetValue") boolean newTargetValue,
-                          RemoteClientInfo remoteClientInfo) throws InterruptedException {
+    public void setTarget(@UpnpInputArgument(name = "NewTargetValue") boolean newTargetValue) throws InterruptedException {
         // DOC:ACTUAL_WORK
         target = newTargetValue;
         status = newTargetValue;
@@ -168,9 +166,7 @@ public class SwitchPowerWithInterruption {
             if (Thread.interrupted())
                 interrupted = true;
 
-            // ... for remote service invocation
-            if (remoteClientInfo != null && remoteClientInfo.isRequestCancelled())
-                interrupted = true;
+
         }
         throw new InterruptedException("Execution interrupted");
     }

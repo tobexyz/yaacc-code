@@ -148,8 +148,6 @@ public class ActionSampleData {
         @UpnpAction(out = @UpnpOutputArgument(name = "RetTargetValue"))
         public boolean getTarget(RemoteClientInfo clientInfo) {
             assertNotNull(clientInfo);
-            assertEquals(clientInfo.getRemoteAddress().getHostAddress(), "10.0.0.1");
-            assertEquals(clientInfo.getLocalAddress().getHostAddress(), "10.0.0.2");
             assertEquals(clientInfo.getRequestUserAgent(), "foo/bar");
             clientInfo.getExtraResponseHeaders().add("X-MY-HEADER", "foobar");
             return target;

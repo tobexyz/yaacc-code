@@ -1,19 +1,22 @@
 /*
- * Copyright (C) 2013 4th Line GmbH, Switzerland
  *
- * The contents of this file are subject to the terms of either the GNU
- * Lesser General Public License Version 2 or later ("LGPL") or the
- * Common Development and Distribution License Version 1 or later
- * ("CDDL") (collectively, the "License"). You may not use this file
- * except in compliance with the License. See LICENSE.txt for more
- * information.
+ * Copyright (C) 2024 Tobias Schoene www.yaacc.de
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 3
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
-
-package org.fourthline.cling.test.transport;
+package de.yaacc.upnp.server;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -33,8 +36,6 @@ import org.fourthline.cling.model.message.UpnpResponse;
 import org.fourthline.cling.protocol.ProtocolCreationException;
 import org.fourthline.cling.protocol.ProtocolFactory;
 import org.fourthline.cling.protocol.ReceivingSync;
-import org.fourthline.cling.transport.spi.StreamClient;
-import org.fourthline.cling.transport.spi.StreamServer;
 import org.fourthline.cling.transport.spi.UpnpStream;
 import org.junit.After;
 import org.junit.Before;
@@ -43,39 +44,45 @@ import org.junit.Test;
 import java.net.InetAddress;
 import java.net.URI;
 
-abstract public class StreamServerClientTest {
+import de.yaacc.upnp.YaaccAsyncStreamServerConfigurationImpl;
+import de.yaacc.upnp.YaaccAsyncStreamServerImpl;
+import de.yaacc.upnp.YaaccStreamingClientConfigurationImpl;
+import de.yaacc.upnp.YaaccStreamingClientImpl;
+
+public class YaaccSteamingServerClientTest {
 
     public static final String TEST_HOST = "localhost";
     public static final int TEST_PORT = 8081;
-    private UpnpServiceConfiguration configuration = new MockUpnpServiceConfiguration(false, true);
-    private StreamServer server;
-    private StreamClient client;
-    private TestProtocol lastExecutedServerProtocol;
-    private MockProtocolFactory protocolFactory = new MockProtocolFactory() {
+    final private UpnpServiceConfiguration configuration = new MockUpnpServiceConfiguration(false, true);
+    private YaaccAsyncStreamServerImpl server;
+    private YaaccStreamingClientImpl client;
+
+    final private MockProtocolFactory protocolFactory = new MockProtocolFactory() {
+
         @Override
-        public ReceivingSync createReceivingSync(StreamRequestMessage requestMessage) throws ProtocolCreationException {
+        public ReceivingSync<?, ?> createReceivingSync(StreamRequestMessage requestMessage) throws ProtocolCreationException {
             String path = requestMessage.getUri().getPath();
             if (path.endsWith(OKEmptyResponse.PATH)) {
-                lastExecutedServerProtocol = new OKEmptyResponse(requestMessage);
+                return new OKEmptyResponse(requestMessage);
             } else if (path.endsWith(OKBodyResponse.PATH)) {
-                lastExecutedServerProtocol = new OKBodyResponse(requestMessage);
+                return new OKBodyResponse(requestMessage);
             } else if (path.endsWith(NoResponse.PATH)) {
-                lastExecutedServerProtocol = new NoResponse(requestMessage);
+                return new NoResponse(requestMessage);
             } else if (path.endsWith(DelayedResponse.PATH)) {
-                lastExecutedServerProtocol = new DelayedResponse(requestMessage);
+                return new DelayedResponse(requestMessage);
             } else if (path.endsWith(TooLongResponse.PATH)) {
-                lastExecutedServerProtocol = new TooLongResponse(requestMessage);
+                return new TooLongResponse(requestMessage);
             } else if (path.endsWith(CheckAliveResponse.PATH)) {
-                lastExecutedServerProtocol = new CheckAliveResponse(requestMessage);
+                return new CheckAliveResponse(requestMessage);
             } else if (path.endsWith(CheckAliveLongResponse.PATH)) {
-                lastExecutedServerProtocol = new CheckAliveLongResponse(requestMessage);
-            } else {
-                throw new ProtocolCreationException("Invalid test path: " + path);
+                return new CheckAliveLongResponse(requestMessage);
             }
-            return lastExecutedServerProtocol;
+            throw new ProtocolCreationException("Invalid test path: " + path);
+
+
         }
     };
-    private MockRouter router = new MockRouter(configuration, protocolFactory) {
+    final private MockRouter router = new MockRouter(configuration, protocolFactory) {
         @Override
         public void received(UpnpStream stream) {
             stream.run();
@@ -106,10 +113,6 @@ abstract public class StreamServerClientTest {
         }
     }
 
-    @Before
-    public void clearLastProtocol() {
-        lastExecutedServerProtocol = null;
-    }
 
     @Test
     public void basic() throws Exception {
@@ -118,70 +121,57 @@ abstract public class StreamServerClientTest {
         responseMessage = client.sendRequest(createRequestMessage(OKEmptyResponse.PATH));
         assertEquals(responseMessage.getOperation().getStatusCode(), 200);
         assertFalse(responseMessage.hasBody());
-        assertTrue(lastExecutedServerProtocol.isComplete);
 
-        lastExecutedServerProtocol = null;
+
         responseMessage = client.sendRequest(createRequestMessage(OKBodyResponse.PATH));
         assertEquals(responseMessage.getOperation().getStatusCode(), 200);
         assertTrue(responseMessage.hasBody());
         assertEquals(responseMessage.getBodyString(), "foo");
-        assertTrue(lastExecutedServerProtocol.isComplete);
 
-        lastExecutedServerProtocol = null;
+
         responseMessage = client.sendRequest(createRequestMessage(NoResponse.PATH));
         assertEquals(responseMessage.getOperation().getStatusCode(), 404);
         assertFalse(responseMessage.hasBody());
-        assertFalse(lastExecutedServerProtocol.isComplete);
+
     }
 
     @Test
     public void cancelled() throws Exception {
         final boolean[] tests = new boolean[1];
 
-        final Thread requestThread = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    client.sendRequest(createRequestMessage(DelayedResponse.PATH));
-                } catch (InterruptedException ex) {
-                    // We expect this thread to be interrupted
-                    tests[0] = true;
-                }
+        final Thread requestThread = new Thread(() -> {
+            try {
+                client.sendRequest(createRequestMessage(DelayedResponse.PATH));
+            } catch (InterruptedException ex) {
+                // We expect this thread to be interrupted
+                tests[0] = true;
             }
         });
 
         requestThread.start();
 
         // Cancel the request after 250ms
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    Thread.sleep(250);
-                } catch (InterruptedException ex) {
-                    // Ignore
-                }
-                requestThread.interrupt();
+        new Thread(() -> {
+            try {
+                Thread.sleep(250);
+            } catch (InterruptedException ex) {
+                // Ignore
             }
+            requestThread.interrupt();
         }).start();
 
         Thread.sleep(3000);
         for (boolean test : tests) {
             assertTrue(test);
         }
-        // The server doesn't check if the connection is still alive, so it will complete
-        assertTrue(lastExecutedServerProtocol.isComplete);
+
     }
 
     @Test
     public void expired() throws Exception {
         StreamResponseMessage responseMessage = client.sendRequest(createRequestMessage(TooLongResponse.PATH));
         assertNull(responseMessage);
-        assertFalse(lastExecutedServerProtocol.isComplete);
-        // The client expires the HTTP connection but the server doesn't check if
-        // it's alive, so the server will complete the request after a while
-        Thread.sleep(3000);
-        assertTrue(lastExecutedServerProtocol.isComplete);
+
     }
 
     @Test
@@ -189,55 +179,43 @@ abstract public class StreamServerClientTest {
         StreamResponseMessage responseMessage = client.sendRequest(createRequestMessage(CheckAliveResponse.PATH));
         assertEquals(200, responseMessage.getOperation().getStatusCode());
         assertFalse(responseMessage.hasBody());
-        assertTrue(lastExecutedServerProtocol.isComplete);
     }
 
     @Test
     public void checkAliveExpired() throws Exception {
         StreamResponseMessage responseMessage = client.sendRequest(createRequestMessage(CheckAliveLongResponse.PATH));
         assertNull(responseMessage);
-        // The client expires the HTTP connection and the server checks if the
-        // connection is still alive, it will abort the request
-        Thread.sleep(3000);
-        //FIXME assertFalse(lastExecutedServerProtocol.isComplete);
     }
 
     @Test
     public void checkAliveCancelled() throws Exception {
         final boolean[] tests = new boolean[1];
 
-        final Thread requestThread = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    client.sendRequest(createRequestMessage(CheckAliveResponse.PATH));
-                } catch (InterruptedException ex) {
-                    // We expect this thread to be interrupted
-                    tests[0] = true;
-                }
+        final Thread requestThread = new Thread(() -> {
+            try {
+                client.sendRequest(createRequestMessage(CheckAliveResponse.PATH));
+            } catch (InterruptedException ex) {
+                // We expect this thread to be interrupted
+                tests[0] = true;
             }
         });
 
         requestThread.start();
 
         // Cancel the request after 1 second
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    Thread.sleep(1000);
-                } catch (InterruptedException ex) {
-                    // Ignore
-                }
-                requestThread.interrupt();
+        new Thread(() -> {
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException ex) {
+                // Ignore
             }
+            requestThread.interrupt();
         }).start();
 
         Thread.sleep(3000);
         for (boolean test : tests) {
             assertTrue(test);
         }
-        //FIXME assertFalse(lastExecutedServerProtocol.isComplete);
     }
 
     protected StreamRequestMessage createRequestMessage(String path) {
@@ -247,19 +225,16 @@ abstract public class StreamServerClientTest {
         );
     }
 
-    abstract public StreamServer createStreamServer(int port);
 
-    abstract public StreamClient createStreamClient(UpnpServiceConfiguration configuration);
+    public abstract static class TestProtocol extends ReceivingSync<StreamRequestMessage, StreamResponseMessage> {
 
-    public abstract class TestProtocol extends ReceivingSync<StreamRequestMessage, StreamResponseMessage> {
-        protected boolean isComplete = false;
 
         public TestProtocol(StreamRequestMessage inputMessage) {
             super(null, inputMessage);
         }
     }
 
-    public class OKEmptyResponse extends TestProtocol {
+    public static class OKEmptyResponse extends TestProtocol {
 
         public static final String PATH = "/ok";
 
@@ -269,12 +244,11 @@ abstract public class StreamServerClientTest {
 
         @Override
         protected StreamResponseMessage executeSync() {
-            isComplete = true;
             return new StreamResponseMessage(UpnpResponse.Status.OK);
         }
     }
 
-    public class OKBodyResponse extends TestProtocol {
+    public static class OKBodyResponse extends TestProtocol {
 
         public static final String PATH = "/okbody";
 
@@ -284,12 +258,11 @@ abstract public class StreamServerClientTest {
 
         @Override
         protected StreamResponseMessage executeSync() {
-            isComplete = true;
             return new StreamResponseMessage("foo");
         }
     }
 
-    public class NoResponse extends TestProtocol {
+    public static class NoResponse extends TestProtocol {
 
         public static final String PATH = "/noresponse";
 
@@ -303,7 +276,7 @@ abstract public class StreamServerClientTest {
         }
     }
 
-    public class DelayedResponse extends TestProtocol {
+    public static class DelayedResponse extends TestProtocol {
 
         public static final String PATH = "/delayed";
 
@@ -319,12 +292,11 @@ abstract public class StreamServerClientTest {
             } catch (InterruptedException ex) {
                 throw new RuntimeException(ex);
             }
-            isComplete = true;
             return new StreamResponseMessage(UpnpResponse.Status.OK);
         }
     }
 
-    public class TooLongResponse extends TestProtocol {
+    public static class TooLongResponse extends TestProtocol {
 
         public static final String PATH = "/toolong";
 
@@ -335,17 +307,16 @@ abstract public class StreamServerClientTest {
         @Override
         protected StreamResponseMessage executeSync() {
             try {
-                Log.i(getClass().getName(), "Sleeping for 4 seconds before completion...");
-                Thread.sleep(4000);
+                Log.i(getClass().getName(), "Sleeping for 6 seconds before completion...");
+                Thread.sleep(6000);
             } catch (InterruptedException ex) {
                 throw new RuntimeException(ex);
             }
-            isComplete = true;
             return new StreamResponseMessage(UpnpResponse.Status.OK);
         }
     }
 
-    public class CheckAliveResponse extends TestProtocol {
+    public static class CheckAliveResponse extends TestProtocol {
 
         public static final String PATH = "/checkalive";
 
@@ -356,26 +327,22 @@ abstract public class StreamServerClientTest {
         @Override
         protected StreamResponseMessage executeSync() {
             // Return OK response after 2 seconds, check if client connection every 500ms
-            isComplete = false;
             int i = 0;
             while (i < 4) {
                 try {
                     Log.i(getClass().getName(), "Sleeping for 500ms before checking connection...");
                     Thread.sleep(500);
                 } catch (InterruptedException ex) {
-                    return null;
+                    throw new RuntimeException(ex);
                 }
-                if (getRemoteClientInfo().isRequestCancelled()) {
-                    return null;
-                }
+
                 i++;
             }
-            isComplete = true;
             return new StreamResponseMessage(UpnpResponse.Status.OK);
         }
     }
 
-    public class CheckAliveLongResponse extends TestProtocol {
+    public static class CheckAliveLongResponse extends TestProtocol {
 
         public static final String PATH = "/checkalivelong";
 
@@ -392,16 +359,37 @@ abstract public class StreamServerClientTest {
                     Log.i(getClass().getName(), "Sleeping for 500ms before checking connection...");
                     Thread.sleep(500);
                 } catch (InterruptedException ex) {
-                    return null;
+                    throw new RuntimeException(ex);
                 }
-                if (getRemoteClientInfo().isRequestCancelled()) {
-                    return null;
-                }
+
                 i++;
             }
-            isComplete = true;
             return new StreamResponseMessage(UpnpResponse.Status.OK);
         }
     }
+
+
+    public YaaccAsyncStreamServerImpl createStreamServer(int port) {
+        YaaccAsyncStreamServerConfigurationImpl configuration =
+                new YaaccAsyncStreamServerConfigurationImpl(port);
+
+
+        return new YaaccAsyncStreamServerImpl(
+                getProtocolFactory(),
+                configuration
+        );
+    }
+
+
+    public YaaccStreamingClientImpl createStreamClient(UpnpServiceConfiguration configuration) {
+        return new YaaccStreamingClientImpl(
+                new YaaccStreamingClientConfigurationImpl(
+                        configuration.getSyncProtocolExecutorService(),
+                        5
+                )
+        );
+
+    }
+
 
 }

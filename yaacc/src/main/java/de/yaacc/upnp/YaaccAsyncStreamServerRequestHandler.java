@@ -50,6 +50,7 @@ import java.util.Map;
 
 public class YaaccAsyncStreamServerRequestHandler extends UpnpStream implements AsyncServerRequestHandler<Message<HttpRequest, byte[]>> {
 
+
     protected YaaccAsyncStreamServerRequestHandler(ProtocolFactory protocolFactory) {
         super(protocolFactory);
     }
@@ -112,6 +113,7 @@ public class YaaccAsyncStreamServerRequestHandler extends UpnpStream implements 
                             UpnpRequest.Method.getByHttpName(requestMethod),
                             URI.create(requestURI)
                     );
+
         } catch (IllegalArgumentException ex) {
             throw new RuntimeException("Invalid request URI: " + requestURI, ex);
         }
