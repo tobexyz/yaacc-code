@@ -60,11 +60,11 @@ import de.yaacc.R;
  *
  * @author Tobias Schoene (tobexyz)
  */
-public class YaaccHttpHandler implements AsyncServerRequestHandler<Message<HttpRequest, byte[]>> {
+public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHandler<Message<HttpRequest, byte[]>> {
 
     private final Context context;
 
-    public YaaccHttpHandler(Context context) {
+    public YaaccUpnpServerServiceHttpHandler(Context context) {
         this.context = context;
 
     }
