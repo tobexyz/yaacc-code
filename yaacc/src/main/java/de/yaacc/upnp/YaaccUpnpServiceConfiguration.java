@@ -19,7 +19,6 @@
 package de.yaacc.upnp;
 
 import org.fourthline.cling.DefaultUpnpServiceConfiguration;
-import org.fourthline.cling.android.AndroidNetworkAddressFactory;
 import org.fourthline.cling.binding.xml.DeviceDescriptorBinder;
 import org.fourthline.cling.binding.xml.RecoveringUDA10DeviceDescriptorBinderImpl;
 import org.fourthline.cling.binding.xml.ServiceDescriptorBinder;
@@ -28,6 +27,7 @@ import org.fourthline.cling.model.Namespace;
 import org.fourthline.cling.model.types.ServiceType;
 import org.fourthline.cling.model.types.UDAServiceType;
 import org.fourthline.cling.protocol.ProtocolFactory;
+import org.fourthline.cling.transport.impl.NetworkAddressFactoryImpl;
 import org.fourthline.cling.transport.impl.RecoveringGENAEventProcessorImpl;
 import org.fourthline.cling.transport.impl.RecoveringSOAPActionProcessorImpl;
 import org.fourthline.cling.transport.spi.GENAEventProcessor;
@@ -54,7 +54,7 @@ public class YaaccUpnpServiceConfiguration extends DefaultUpnpServiceConfigurati
 
     @Override
     protected NetworkAddressFactory createNetworkAddressFactory(int streamListenPort) {
-        return new AndroidNetworkAddressFactory(streamListenPort);
+        return new NetworkAddressFactoryImpl(streamListenPort);
     }
 
     @Override
