@@ -94,7 +94,7 @@ public class YaaccAsyncStreamServerImpl implements StreamServer<YaaccAsyncStream
     synchronized public void stop() {
 
         try {
-            server.awaitShutdown(TimeValue.ofSeconds(1));
+            server.awaitShutdown(TimeValue.ofSeconds(1000));
         } catch (InterruptedException e) {
             Log.w(getClass().getName(), "got exception on stream server stop ", e);
         }

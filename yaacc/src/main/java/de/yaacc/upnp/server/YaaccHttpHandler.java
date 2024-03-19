@@ -30,26 +30,26 @@ import android.util.Log;
 
 import androidx.core.content.res.ResourcesCompat;
 
-import org.apache.hc.core5.http.ClassicHttpRequest;
-import org.apache.hc.core5.http.ClassicHttpResponse;
 import org.apache.hc.core5.http.ContentType;
-import org.apache.hc.core5.http.HttpEntity;
+import org.apache.hc.core5.http.EntityDetails;
 import org.apache.hc.core5.http.HttpException;
+import org.apache.hc.core5.http.HttpRequest;
 import org.apache.hc.core5.http.HttpStatus;
+import org.apache.hc.core5.http.Message;
 import org.apache.hc.core5.http.MethodNotSupportedException;
-import org.apache.hc.core5.http.io.HttpRequestHandler;
-import org.apache.hc.core5.http.io.entity.ByteArrayEntity;
-import org.apache.hc.core5.http.io.entity.InputStreamEntity;
-import org.apache.hc.core5.http.io.entity.StringEntity;
+import org.apache.hc.core5.http.nio.AsyncEntityProducer;
+import org.apache.hc.core5.http.nio.AsyncRequestConsumer;
+import org.apache.hc.core5.http.nio.AsyncServerRequestHandler;
+import org.apache.hc.core5.http.nio.entity.AsyncEntityProducers;
+import org.apache.hc.core5.http.nio.entity.BasicAsyncEntityConsumer;
+import org.apache.hc.core5.http.nio.support.AsyncResponseBuilder;
+import org.apache.hc.core5.http.nio.support.BasicRequestConsumer;
 import org.apache.hc.core5.http.protocol.HttpContext;
 import org.seamless.util.MimeType;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Locale;
 
@@ -60,7 +60,7 @@ import de.yaacc.R;
  *
  * @author Tobias Schoene (tobexyz)
  */
-public class YaaccHttpHandler implements HttpRequestHandler {
+public class YaaccHttpHandler implements AsyncServerRequestHandler<Message<HttpRequest, byte[]>> {
 
     private final Context context;
 
@@ -71,12 +71,20 @@ public class YaaccHttpHandler implements HttpRequestHandler {
 
 
     @Override
-    public void handle(ClassicHttpRequest request, ClassicHttpResponse response, HttpContext context) throws HttpException, IOException {
-        Log.d(getClass().getName(), "Processing HTTP request: "
-                + request.getRequestUri());
+    public AsyncRequestConsumer<Message<HttpRequest, byte[]>> prepare(HttpRequest request, EntityDetails entityDetails, HttpContext context) {
+        return new BasicRequestConsumer<>(entityDetails != null ? new BasicAsyncEntityConsumer() : null);
+    }
 
+    @Override
+    public void handle(final Message<HttpRequest, byte[]> request,
+                       final ResponseTrigger responseTrigger,
+                       final HttpContext context) throws HttpException, IOException {
+
+        Log.d(getClass().getName(), "Processing HTTP request: "
+                + request.getHead().getRequestUri());
+        final AsyncResponseBuilder responseBuilder = AsyncResponseBuilder.create(HttpStatus.SC_OK);
         // Extract what we need from the HTTP httpRequest
-        String requestMethod = request.getMethod()
+        String requestMethod = request.getHead().getMethod()
                 .toUpperCase(Locale.ENGLISH);
 
         // Only accept HTTP-GET
@@ -88,13 +96,12 @@ public class YaaccHttpHandler implements HttpRequestHandler {
                     + " method not supported");
         }
 
-        Uri requestUri = Uri.parse(request.getRequestUri());
+        Uri requestUri = Uri.parse(request.getHead().getRequestUri());
         List<String> pathSegments = requestUri.getPathSegments();
         if (pathSegments.size() < 2 || pathSegments.size() > 3) {
-            response.setCode(HttpStatus.SC_FORBIDDEN);
-            StringEntity entity = new StringEntity(
-                    "<html><body><h1>Access denied</h1></body></html>", StandardCharsets.UTF_8);
-            response.setEntity(entity);
+            responseBuilder.setStatus(HttpStatus.SC_FORBIDDEN);
+            responseBuilder.setEntity(AsyncEntityProducers.create("<html><body><h1>Access denied</h1></body></html>", ContentType.TEXT_HTML));
+            responseTrigger.submitResponse(responseBuilder.build(), context);
             Log.d(getClass().getName(), "end doService: Access denied");
             return;
         }
@@ -107,10 +114,9 @@ public class YaaccHttpHandler implements HttpRequestHandler {
             try {
                 Long.parseLong(albumId);
             } catch (NumberFormatException nex) {
-                response.setCode(HttpStatus.SC_FORBIDDEN);
-                StringEntity entity = new StringEntity(
-                        "<html><body><h1>Access denied</h1></body></html>", StandardCharsets.UTF_8);
-                response.setEntity(entity);
+                responseBuilder.setStatus(HttpStatus.SC_FORBIDDEN);
+                responseBuilder.setEntity(AsyncEntityProducers.create("<html><body><h1>Access denied</h1></body></html>", ContentType.TEXT_HTML));
+                responseTrigger.submitResponse(responseBuilder.build(), context);
                 Log.d(getClass().getName(), "end doService: Access denied");
                 return;
             }
@@ -119,10 +125,9 @@ public class YaaccHttpHandler implements HttpRequestHandler {
             try {
                 Long.parseLong(thumbId);
             } catch (NumberFormatException nex) {
-                response.setCode(HttpStatus.SC_FORBIDDEN);
-                StringEntity entity = new StringEntity(
-                        "<html><body><h1>Access denied</h1></body></html>", StandardCharsets.UTF_8);
-                response.setEntity(entity);
+                responseBuilder.setStatus(HttpStatus.SC_FORBIDDEN);
+                responseBuilder.setEntity(AsyncEntityProducers.create("<html><body><h1>Access denied</h1></body></html>", ContentType.TEXT_HTML));
+                responseTrigger.submitResponse(responseBuilder.build(), context);
                 Log.d(getClass().getName(), "end doService: Access denied");
                 return;
             }
@@ -131,38 +136,37 @@ public class YaaccHttpHandler implements HttpRequestHandler {
             try {
                 Long.parseLong(contentId);
             } catch (NumberFormatException nex) {
-                response.setCode(HttpStatus.SC_FORBIDDEN);
-                StringEntity entity = new StringEntity(
-                        "<html><body><h1>Access denied</h1></body></html>", StandardCharsets.UTF_8);
-                response.setEntity(entity);
+                responseBuilder.setStatus(HttpStatus.SC_FORBIDDEN);
+                responseBuilder.setEntity(AsyncEntityProducers.create("<html><body><h1>Access denied</h1></body></html>", ContentType.TEXT_HTML));
+                responseTrigger.submitResponse(responseBuilder.build(), context);
                 Log.d(getClass().getName(), "end doService: Access denied");
                 return;
             }
         }
 
         ContentHolder contentHolder = null;
-        if (!contentId.equals("")) {
+        if (!contentId.isEmpty()) {
             contentHolder = lookupContent(contentId);
-        } else if (!albumId.equals("")) {
+        } else if (!albumId.isEmpty()) {
             contentHolder = lookupAlbumArt(albumId);
-        } else if (!thumbId.equals("")) {
+        } else if (!thumbId.isEmpty()) {
             contentHolder = lookupThumbnail(thumbId);
         }
         if (contentHolder == null) {
             // tricky but works
             Log.d(getClass().getName(), "Resource with id " + contentId
                     + albumId + thumbId + " not found");
-            response.setCode(HttpStatus.SC_NOT_FOUND);
-            StringEntity entity = new StringEntity(
+            responseBuilder.setStatus(HttpStatus.SC_NOT_FOUND);
+            String response =
                     "<html><body><h1>Resource with id " + contentId + albumId
-                            + thumbId + " not found</h1></body></html>",
-                    StandardCharsets.UTF_8);
-            response.setEntity(entity);
+                            + thumbId + " not found</h1></body></html>";
+            responseBuilder.setEntity(AsyncEntityProducers.create(response, ContentType.TEXT_HTML));
         } else {
 
-            response.setCode(HttpStatus.SC_OK);
-            response.setEntity(contentHolder.getHttpEntity());
+            responseBuilder.setStatus(HttpStatus.SC_OK);
+            responseBuilder.setEntity(contentHolder.getEntityProducer());
         }
+        responseTrigger.submitResponse(responseBuilder.build(), context);
         Log.d(getClass().getName(), "end doService: ");
     }
 
@@ -285,9 +289,9 @@ public class YaaccHttpHandler implements HttpRequestHandler {
         if (idStr == null) {
             return null;
         }
-        Long id;
+        long id;
         try {
-            id = Long.valueOf(idStr);
+            id = Long.parseLong(idStr);
         } catch (NumberFormatException nfe) {
             Log.d(getClass().getName(), "ParsingError of id: " + idStr, nfe);
             return null;
@@ -361,17 +365,19 @@ public class YaaccHttpHandler implements HttpRequestHandler {
             return mimeType;
         }
 
-        public HttpEntity getHttpEntity() throws FileNotFoundException {
-            HttpEntity result = null;
-            if (getUri() != null && !getUri().equals("")) {
+
+        public AsyncEntityProducer getEntityProducer() {
+            AsyncEntityProducer result = null;
+            if (getUri() != null && !getUri().isEmpty()) {
                 File file = new File(getUri());
-                result = new InputStreamEntity(new FileInputStream(file), ContentType.parse(getMimeType().toString()));
+                result = AsyncEntityProducers.create(file, ContentType.parse(getMimeType().toString()));
                 Log.d(getClass().getName(), "Return file-Uri: " + getUri()
                         + "Mimetype: " + getMimeType());
             } else if (content != null) {
-                result = new ByteArrayEntity(content, ContentType.parse(getMimeType().toString()));
+                result = AsyncEntityProducers.create(content, ContentType.parse(getMimeType().toString()));
             }
             return result;
+
         }
     }
 }
