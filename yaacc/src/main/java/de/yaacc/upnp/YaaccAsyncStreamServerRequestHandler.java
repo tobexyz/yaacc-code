@@ -122,9 +122,6 @@ public class YaaccAsyncStreamServerRequestHandler extends UpnpStream implements 
             throw new RuntimeException("Method not supported: " + requestMethod);
         }
 
-        // Connection wrapper
-        //FIXME needed? requestMessage.setConnection(request.createConnection());
-
         UpnpHeaders headers = new UpnpHeaders();
         Header[] requestHeaders = request.getHeaders();
         for (Header header : requestHeaders) {

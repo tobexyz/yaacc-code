@@ -46,7 +46,6 @@ public class YaaccAsyncStreamServerImpl implements StreamServer<YaaccAsyncStream
         this.configuration = configuration;
         this.localPort = configuration.getListenPort();
         this.protocolFactory = protocolFactory;
-
     }
 
     public YaaccAsyncStreamServerConfigurationImpl getConfiguration() {
@@ -93,8 +92,9 @@ public class YaaccAsyncStreamServerImpl implements StreamServer<YaaccAsyncStream
 
     synchronized public void stop() {
 
+        server.initiateShutdown();
         try {
-            server.awaitShutdown(TimeValue.ofSeconds(1000));
+            server.awaitShutdown(TimeValue.ofSeconds(3));
         } catch (InterruptedException e) {
             Log.w(getClass().getName(), "got exception on stream server stop ", e);
         }

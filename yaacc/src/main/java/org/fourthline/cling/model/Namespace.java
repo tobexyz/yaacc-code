@@ -29,7 +29,6 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.logging.Logger;
 
 /**
  * Enforces path conventions for all locally offered resources (descriptors, icons, etc.)
@@ -60,7 +59,6 @@ import java.util.logging.Logger;
  */
 public class Namespace {
 
-    final private static Logger log = Logger.getLogger(Namespace.class.getName());
 
     public static final String DEVICE = "/dev";
     public static final String SERVICE = "/svc";
