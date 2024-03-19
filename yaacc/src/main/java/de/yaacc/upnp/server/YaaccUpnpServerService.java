@@ -300,7 +300,7 @@ public class YaaccUpnpServerService extends Service {
 
                     })
                     .setCanonicalHostName(getIpAddress())
-                    .register("*", new YaaccHttpHandler(getApplicationContext()))
+                    .register("*", new YaaccUpnpServerServiceHttpHandler(getApplicationContext()))
                     .create();
 
             httpServer.listen(new InetSocketAddress(PORT), URIScheme.HTTP);

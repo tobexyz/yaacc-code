@@ -33,7 +33,7 @@ import android.webkit.MimeTypeMap;
 
 import androidx.annotation.NonNull;
 
-import org.fourthline.cling.android.AndroidUpnpService;
+import org.fourthline.cling.UpnpService;
 import org.fourthline.cling.controlpoint.ControlPoint;
 import org.fourthline.cling.model.Namespace;
 import org.fourthline.cling.model.ValidationException;
@@ -115,7 +115,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     public static String LOCAL_UID = "LOCAL_UID";
     private final List<UpnpClientListener> listeners = new ArrayList<>();
     SharedPreferences preferences;
-    private AndroidUpnpService androidUpnpService;
+    private UpnpService upnpService;
     private Context context;
     private boolean mute = false;
     private PlayerService playerService;
@@ -222,8 +222,8 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      */
     @Override
     public void onServiceConnected(ComponentName className, IBinder service) {
-        if (service instanceof AndroidUpnpService) {
-            setAndroidUpnpService(((AndroidUpnpService) service));
+        if (service instanceof UpnpRegistryService.UpnpRegistryServiceBinder) {
+            setUpnpService(((UpnpRegistryService.UpnpRegistryServiceBinder) service).getService().getUpnpService());
             refreshUpnpDeviceCatalog();
         }
         if (service instanceof PlayerService.PlayerServiceBinder) {
@@ -243,8 +243,8 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     @Override
     public void onServiceDisconnected(ComponentName componentName) {
         Log.d(getClass().getName(), "on Service disconnect: " + componentName);
-        if (AndroidUpnpService.class.getName().equals(componentName.getClassName())) {
-            setAndroidUpnpService(null);
+        if (UpnpRegistryService.class.getName().equals(componentName.getClassName())) {
+            setUpnpService(null);
         }
         if (PlayerService.class.getName().equals(componentName.getClassName())) {
             playerService = null;
@@ -422,8 +422,8 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      *
      * @return the service
      */
-    private AndroidUpnpService getAndroidUpnpService() {
-        return androidUpnpService;
+    private UpnpService getUpnpService() {
+        return upnpService;
     }
 
     /**
@@ -432,8 +432,8 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      *
      * @param upnpService upnpservice
      */
-    private void setAndroidUpnpService(AndroidUpnpService upnpService) {
-        this.androidUpnpService = upnpService;
+    private void setUpnpService(UpnpService upnpService) {
+        this.upnpService = upnpService;
     }
 
     /**
@@ -502,7 +502,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      * @return true or false
      */
     public boolean isInitialized() {
-        return getAndroidUpnpService() != null;
+        return getUpnpService() != null;
     }
 
     /**
@@ -514,7 +514,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         if (!isInitialized()) {
             return null;
         }
-        return androidUpnpService.getControlPoint();
+        return upnpService.getControlPoint();
     }
 
     /**
@@ -526,7 +526,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         if (!isInitialized()) {
             return null;
         }
-        return androidUpnpService.getRegistry();
+        return upnpService.getRegistry();
     }
 
     /**
@@ -541,12 +541,12 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      */
     private void refreshUpnpDeviceCatalog() {
         if (isInitialized()) {
-            for (Device<?, ?, ?> device : getAndroidUpnpService().getRegistry().getDevices()) {
+            for (Device<?, ?, ?> device : getUpnpService().getRegistry().getDevices()) {
                 // FIXME: What about removed devices?
                 this.deviceAdded(device);
             }
             // Getting ready for future device advertisements
-            getAndroidUpnpService().getRegistry().addListener(this);
+            getUpnpService().getRegistry().addListener(this);
             searchDevices();
         }
     }
@@ -711,7 +711,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      */
     public void searchDevices() {
         if (isInitialized()) {
-            getAndroidUpnpService().getControlPoint().search();
+            getUpnpService().getControlPoint().search();
         }
     }
 
