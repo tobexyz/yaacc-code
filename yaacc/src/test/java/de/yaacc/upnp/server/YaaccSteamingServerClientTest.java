@@ -96,9 +96,12 @@ public class YaaccSteamingServerClientTest {
     @After
     public void stop() throws Exception {
         Thread.sleep(1000);
-        server.stop();
         client.stop();
         Thread.sleep(1000);
+        server.stop();
+        Thread.sleep(1000);
+        server = null;
+        client = null;
     }
 
     @Before
@@ -106,6 +109,7 @@ public class YaaccSteamingServerClientTest {
         if (server == null) {
             server = createStreamServer(TEST_PORT);
             server.init(InetAddress.getByName(TEST_HOST), router);
+
             configuration.getStreamServerExecutorService().execute(server);
 
             client = createStreamClient(configuration);
@@ -179,6 +183,7 @@ public class YaaccSteamingServerClientTest {
         StreamResponseMessage responseMessage = client.sendRequest(createRequestMessage(CheckAliveResponse.PATH));
         assertEquals(200, responseMessage.getOperation().getStatusCode());
         assertFalse(responseMessage.hasBody());
+
     }
 
     @Test

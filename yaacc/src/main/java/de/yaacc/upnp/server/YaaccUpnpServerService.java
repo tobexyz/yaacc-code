@@ -181,9 +181,9 @@ public class YaaccUpnpServerService extends Service {
 
         }
         if (httpServer != null) {
-
+            httpServer.initiateShutdown();
             try {
-                httpServer.awaitShutdown(TimeValue.ofSeconds(1000));
+                httpServer.awaitShutdown(TimeValue.ofSeconds(3));
             } catch (InterruptedException e) {
                 Log.w(getClass().getName(), "got exception on stream server stop ", e);
             }
