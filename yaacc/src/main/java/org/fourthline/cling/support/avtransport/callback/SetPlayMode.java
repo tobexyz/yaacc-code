@@ -15,20 +15,19 @@
 
 package org.fourthline.cling.support.avtransport.callback;
 
+import android.util.Log;
+
 import org.fourthline.cling.controlpoint.ActionCallback;
 import org.fourthline.cling.model.action.ActionInvocation;
 import org.fourthline.cling.model.meta.Service;
 import org.fourthline.cling.model.types.UnsignedIntegerFourBytes;
 import org.fourthline.cling.support.model.PlayMode;
 
-import java.util.logging.Logger;
-
 /**
  * @author Christian Bauer
  */
 public abstract class SetPlayMode extends ActionCallback {
 
-    private static Logger log = Logger.getLogger(SetPlayMode.class.getName());
 
     public SetPlayMode(Service service, PlayMode playMode) {
         this(new UnsignedIntegerFourBytes(0), service, playMode);
@@ -42,6 +41,6 @@ public abstract class SetPlayMode extends ActionCallback {
 
     @Override
     public void success(ActionInvocation invocation) {
-        log.fine("Execution successful");
+        Log.d(getClass().getName(), "Execution successful");
     }
 }

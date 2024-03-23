@@ -15,6 +15,8 @@
 
 package org.fourthline.cling.support.contentdirectory.callback;
 
+import android.util.Log;
+
 import org.fourthline.cling.controlpoint.ActionCallback;
 import org.fourthline.cling.model.action.ActionException;
 import org.fourthline.cling.model.action.ActionInvocation;
@@ -25,8 +27,6 @@ import org.fourthline.cling.support.contentdirectory.DIDLParser;
 import org.fourthline.cling.support.model.DIDLContent;
 import org.fourthline.cling.support.model.SearchResult;
 import org.fourthline.cling.support.model.SortCriterion;
-
-import java.util.logging.Logger;
 
 /**
  * Invokes a "Search" action, parses the result.
@@ -53,7 +53,6 @@ public abstract class Search extends ActionCallback {
         }
     }
 
-    private static Logger log = Logger.getLogger(Search.class.getName());
 
     /**
      * Search with first result 0 and {@link #getDefaultMaxResults()}, filters with {@link #CAPS_WILDCARD}.
@@ -69,7 +68,7 @@ public abstract class Search extends ActionCallback {
                   long firstResult, Long maxResults, SortCriterion... orderBy) {
         super(new ActionInvocation(service.getAction("Search")));
 
-        log.fine("Creating browse action for container ID: " + containerId);
+        Log.d(getClass().getName(), "Creating browse action for container ID: " + containerId);
 
         getActionInvocation().setInput("ContainerID", containerId);
         getActionInvocation().setInput("SearchCriteria", searchCriteria);
@@ -90,7 +89,7 @@ public abstract class Search extends ActionCallback {
 
     @Override
     public void success(ActionInvocation actionInvocation) {
-        log.fine("Successful search action, reading output argument values");
+        Log.d(getClass().getName(), "Successful search action, reading output argument values");
 
         SearchResult result = new SearchResult(
                 actionInvocation.getOutput("Result").getValue().toString(),

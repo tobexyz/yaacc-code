@@ -25,7 +25,6 @@ import org.fourthline.cling.UpnpService;
 import org.fourthline.cling.mock.MockUpnpService;
 import org.fourthline.cling.model.action.ActionException;
 import org.fourthline.cling.model.action.ActionInvocation;
-import org.fourthline.cling.model.message.Connection;
 import org.fourthline.cling.model.message.StreamRequestMessage;
 import org.fourthline.cling.model.message.StreamResponseMessage;
 import org.fourthline.cling.model.message.UpnpMessage;
@@ -49,9 +48,7 @@ import org.fourthline.cling.protocol.sync.ReceivingAction;
 import org.junit.Test;
 import org.seamless.util.MimeType;
 
-import java.net.InetAddress;
 import java.net.URI;
-import java.net.UnknownHostException;
 
 /**
  * @author Christian Bauer
@@ -113,30 +110,7 @@ public class ActionInvokeIncomingTest {
 
         URI controlURI = upnpService.getConfiguration().getNamespace().getControlPath(service);
         StreamRequestMessage request = new StreamRequestMessage(UpnpRequest.Method.POST, controlURI);
-        request.setConnection(new Connection() {
-            @Override
-            public boolean isOpen() {
-                return true;
-            }
 
-            @Override
-            public InetAddress getRemoteAddress() {
-                try {
-                    return InetAddress.getByName("10.0.0.1");
-                } catch (UnknownHostException ex) {
-                    throw new RuntimeException(ex);
-                }
-            }
-
-            @Override
-            public InetAddress getLocalAddress() {
-                try {
-                    return InetAddress.getByName("10.0.0.2");
-                } catch (UnknownHostException ex) {
-                    throw new RuntimeException(ex);
-                }
-            }
-        });
         addMandatoryRequestHeaders(service, action, request);
         request.setBody(UpnpMessage.BodyType.STRING, GET_REQUEST);
 

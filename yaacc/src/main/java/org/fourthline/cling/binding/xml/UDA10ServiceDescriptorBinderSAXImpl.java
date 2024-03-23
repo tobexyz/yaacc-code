@@ -15,6 +15,11 @@
 
 package org.fourthline.cling.binding.xml;
 
+import static org.fourthline.cling.binding.xml.Descriptor.Service.ATTRIBUTE;
+import static org.fourthline.cling.binding.xml.Descriptor.Service.ELEMENT;
+
+import android.util.Log;
+
 import org.fourthline.cling.binding.staging.MutableAction;
 import org.fourthline.cling.binding.staging.MutableActionArgument;
 import org.fourthline.cling.binding.staging.MutableAllowedValueRange;
@@ -35,10 +40,6 @@ import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.logging.Logger;
-
-import static org.fourthline.cling.binding.xml.Descriptor.Service.ATTRIBUTE;
-import static org.fourthline.cling.binding.xml.Descriptor.Service.ELEMENT;
 
 /**
  * Implementation based on JAXP SAX.
@@ -47,7 +48,6 @@ import static org.fourthline.cling.binding.xml.Descriptor.Service.ELEMENT;
  */
 public class UDA10ServiceDescriptorBinderSAXImpl extends UDA10ServiceDescriptorBinderImpl {
 
-    private static Logger log = Logger.getLogger(ServiceDescriptorBinder.class.getName());
 
     @Override
     public <S extends Service> S describe(S undescribedService, String descriptorXml) throws DescriptorBindingException, ValidationException {
@@ -57,7 +57,7 @@ public class UDA10ServiceDescriptorBinderSAXImpl extends UDA10ServiceDescriptorB
         }
 
         try {
-            log.fine("Reading service from XML descriptor");
+            Log.d(getClass().getName(), "Reading service from XML descriptor");
 
             SAXParser parser = new SAXParser();
 
@@ -75,7 +75,7 @@ public class UDA10ServiceDescriptorBinderSAXImpl extends UDA10ServiceDescriptorB
             );
 
             // Build the immutable descriptor graph
-            return (S)descriptor.build(undescribedService.getDevice());
+            return (S) descriptor.build(undescribedService.getDevice());
 
         } catch (ValidationException ex) {
             throw ex;
@@ -242,7 +242,7 @@ public class UDA10ServiceDescriptorBinderSAXImpl extends UDA10ServiceDescriptorB
                         getInstance().direction = ActionArgument.Direction.valueOf(directionString.toUpperCase(Locale.ROOT));
                     } catch (IllegalArgumentException ex) {
                         // TODO: UPNP VIOLATION: Pelco SpectraIV-IP uses illegal value INOUT
-                        log.warning("UPnP specification violation: Invalid action argument direction, assuming 'IN': " + directionString);
+                        Log.w(getClass().getName(), "UPnP specification violation: Invalid action argument direction, assuming 'IN': " + directionString);
                         getInstance().direction = ActionArgument.Direction.IN;
                     }
                     break;

@@ -462,7 +462,9 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
             if (viewPager != null && tabLayout != null && tabLayout.getSelectedTabPosition() == BrowserTabs.RECEIVER.ordinal() && tabLayout.getTabAt(tabLayout.getSelectedTabPosition()).view != null) {
                 List<Fragment> fragments = getSupportFragmentManager().getFragments();
                 if (fragments.size() > viewPager.getCurrentItem()) {
-                    ((RecyclerView) fragments.get(viewPager.getCurrentItem()).getView().findViewById(R.id.receiverList)).getAdapter().notifyDataSetChanged();
+                    if (((RecyclerView) fragments.get(viewPager.getCurrentItem()).getView().findViewById(R.id.receiverList)) != null) {
+                        ((RecyclerView) fragments.get(viewPager.getCurrentItem()).getView().findViewById(R.id.receiverList)).getAdapter().notifyDataSetChanged();
+                    }
                 }
             }
         }

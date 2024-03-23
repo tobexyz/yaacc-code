@@ -15,6 +15,8 @@
 
 package org.fourthline.cling.support.contentdirectory.callback;
 
+import android.util.Log;
+
 import org.fourthline.cling.controlpoint.ActionCallback;
 import org.fourthline.cling.model.action.ActionException;
 import org.fourthline.cling.model.action.ActionInvocation;
@@ -26,8 +28,6 @@ import org.fourthline.cling.support.model.BrowseFlag;
 import org.fourthline.cling.support.model.BrowseResult;
 import org.fourthline.cling.support.model.DIDLContent;
 import org.fourthline.cling.support.model.SortCriterion;
-
-import java.util.logging.Logger;
 
 /**
  * Invokes a "Browse" action, parses the result.
@@ -54,7 +54,6 @@ public abstract class Browse extends ActionCallback {
         }
     }
 
-    private static Logger log = Logger.getLogger(Browse.class.getName());
 
     /**
      * Browse with first result 0 and {@link #getDefaultMaxResults()}, filters with {@link #CAPS_WILDCARD}.
@@ -67,11 +66,11 @@ public abstract class Browse extends ActionCallback {
      * @param maxResults Can be <code>null</code>, then {@link #getDefaultMaxResults()} is used.
      */
     public Browse(Service service, String objectID, BrowseFlag flag,
-                                String filter, long firstResult, Long maxResults, SortCriterion... orderBy) {
+                  String filter, long firstResult, Long maxResults, SortCriterion... orderBy) {
 
         super(new ActionInvocation(service.getAction("Browse")));
 
-        log.fine("Creating browse action for object ID: " + objectID);
+        Log.d(getClass().getName(), "Creating browse action for object ID: " + objectID);
 
         getActionInvocation().setInput("ObjectID", objectID);
         getActionInvocation().setInput("BrowseFlag", flag.toString());
@@ -90,7 +89,7 @@ public abstract class Browse extends ActionCallback {
     }
 
     public void success(ActionInvocation invocation) {
-        log.fine("Successful browse action, reading output argument values");
+        Log.d(getClass().getName(), "Successful browse action, reading output argument values");
 
         BrowseResult result = new BrowseResult(
                 invocation.getOutput("Result").getValue().toString(),
@@ -144,6 +143,7 @@ public abstract class Browse extends ActionCallback {
     }
 
     public abstract void received(ActionInvocation actionInvocation, DIDLContent didl);
+
     public abstract void updateStatus(Status status);
 
 }

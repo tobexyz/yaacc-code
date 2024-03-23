@@ -15,21 +15,19 @@
 
 package org.fourthline.cling.support.avtransport.callback;
 
+import android.util.Log;
+
 import org.fourthline.cling.controlpoint.ActionCallback;
 import org.fourthline.cling.controlpoint.ControlPoint;
 import org.fourthline.cling.model.action.ActionInvocation;
 import org.fourthline.cling.model.meta.Service;
 import org.fourthline.cling.model.types.UnsignedIntegerFourBytes;
 
-import java.util.logging.Logger;
-
 /**
- *
  * @author Christian Bauer
  */
 public abstract class Previous extends ActionCallback {
 
-    private static Logger log = Logger.getLogger(Previous.class.getName());
 
     protected Previous(ActionInvocation actionInvocation, ControlPoint controlPoint) {
         super(actionInvocation, controlPoint);
@@ -50,6 +48,6 @@ public abstract class Previous extends ActionCallback {
 
     @Override
     public void success(ActionInvocation invocation) {
-        log.fine("Execution successful");
+        Log.d(getClass().getName(), "Execution successful");
     }
 }

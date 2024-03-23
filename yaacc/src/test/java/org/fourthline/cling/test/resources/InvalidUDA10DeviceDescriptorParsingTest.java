@@ -32,7 +32,11 @@ import org.fourthline.cling.model.meta.RemoteDevice;
 import org.fourthline.cling.test.data.SampleData;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.seamless.util.io.IO;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 
 /**
  * @author Christian Bauer
@@ -154,7 +158,24 @@ public class InvalidUDA10DeviceDescriptorParsingTest {
     protected void readDevice(String invalidXMLFile, UpnpService upnpService) throws Exception {
         RemoteDevice device = new RemoteDevice(SampleData.createRemoteDeviceIdentity());
         upnpService.getConfiguration().getDeviceDescriptorBinderUDA10()
-                .describe(device, IO.readLines(getClass().getResourceAsStream(invalidXMLFile)));
+                .describe(device, readLines(getClass().getResourceAsStream(invalidXMLFile)));
+    }
+
+    private String readLines(InputStream is) throws IOException {
+        if (is == null) throw new IllegalArgumentException("Inputstream was null");
+
+        BufferedReader inputReader;
+        inputReader = new BufferedReader(
+                new InputStreamReader(is)
+        );
+
+        StringBuilder input = new StringBuilder();
+        String inputLine;
+        while ((inputLine = inputReader.readLine()) != null) {
+            input.append(inputLine).append(System.getProperty("line.separator"));
+        }
+
+        return input.length() > 0 ? input.toString() : "";
     }
 
 }

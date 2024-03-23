@@ -15,20 +15,18 @@
 
 package org.fourthline.cling.model.message.header;
 
+import android.util.Log;
+
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
  * @author Christian Bauer
  */
 public class CallbackHeader extends UpnpHeader<List<URL>> {
-
-    final private static Logger log = Logger.getLogger(CallbackHeader.class.getName());
 
     public CallbackHeader() {
         setValue(new ArrayList<URL>());
@@ -63,7 +61,7 @@ public class CallbackHeader extends UpnpHeader<List<URL>> {
                 sp = sp.trim();
 
                 if (!sp.startsWith("http://")) {
-                    log.warning("Discarding non-http callback URL: " + sp);
+                    Log.d(getClass().getName(), "Discarding non-http callback URL: " + sp);
                     continue;
                 }
 
@@ -81,7 +79,7 @@ public class CallbackHeader extends UpnpHeader<List<URL>> {
             	    */
                     url.toURI();
                 } catch (URISyntaxException ex) {
-                    log.log(Level.WARNING, "Discarding callback URL, not a valid URI on this platform: " + url, ex);
+                    Log.w(getClass().getName(), "Discarding callback URL, not a valid URI on this platform: " + url, ex);
                     continue;
                 }
 

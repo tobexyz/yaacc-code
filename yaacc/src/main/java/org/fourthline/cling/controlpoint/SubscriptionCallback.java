@@ -15,6 +15,8 @@
 
 package org.fourthline.cling.controlpoint;
 
+import android.util.Log;
+
 import org.fourthline.cling.model.UnsupportedDataException;
 import org.fourthline.cling.model.UserConstants;
 import org.fourthline.cling.model.gena.CancelReason;
@@ -30,8 +32,6 @@ import org.fourthline.cling.protocol.sync.SendingSubscribe;
 import org.seamless.util.Exceptions;
 
 import java.util.Collections;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
  * Subscribe and receive events from a service through GENA.
@@ -73,8 +73,6 @@ import java.util.logging.Logger;
  * @author Christian Bauer
  */
 public abstract class SubscriptionCallback implements Runnable {
-
-    protected static Logger log = Logger.getLogger(SubscriptionCallback.class.getName());
 
     protected final Service service;
     protected final Integer requestedDurationSeconds;
@@ -144,7 +142,7 @@ public abstract class SubscriptionCallback implements Runnable {
     private void establishLocalSubscription(LocalService service) {
 
         if (getControlPoint().getRegistry().getLocalDevice(service.getDevice().getIdentity().getUdn(), false) == null) {
-            log.fine("Local device service is currently not registered, failing subscription immediately");
+            Log.d(getClass().getName(), "Local device service is currently not registered, failing subscription immediately");
             failed(null, null, new IllegalStateException("Local device is not registered"));
             return;
         }
@@ -181,29 +179,29 @@ public abstract class SubscriptionCallback implements Runnable {
 
                         public void eventReceived() {
                             synchronized (SubscriptionCallback.this) {
-                                log.info("Local service state updated, notifying callback, sequence is: " + getCurrentSequence());
+                                Log.i(getClass().getName(), "Local service state updated, notifying callback, sequence is: " + getCurrentSequence());
                                 SubscriptionCallback.this.eventReceived(this);
                                 incrementSequence();
                             }
                         }
                     };
 
-            log.info("Local device service is currently registered, also registering subscription");
+            Log.i(getClass().getName(), "Local device service is currently registered, also registering subscription");
             getControlPoint().getRegistry().addLocalSubscription(localSubscription);
 
-            log.info("Notifying subscription callback of local subscription availablity");
+            Log.i(getClass().getName(), "Notifying subscription callback of local subscription availablity");
             localSubscription.establish();
 
-            log.info("Simulating first initial event for local subscription callback, sequence: " + localSubscription.getCurrentSequence());
+            Log.i(getClass().getName(), "Simulating first initial event for local subscription callback, sequence: " + localSubscription.getCurrentSequence());
             eventReceived(localSubscription);
             localSubscription.incrementSequence();
 
-            log.info("Starting to monitor state changes of local service");
+            Log.i(getClass().getName(), "Starting to monitor state changes of local service");
             localSubscription.registerOnService();
 
         } catch (Exception ex) {
-            log.info("Local callback creation failed: " + ex.toString());
-            log.log(Level.INFO, "Exception root cause: ", Exceptions.unwrap(ex));
+            Log.i(getClass().getName(), "Local callback creation failed: " + ex.toString());
+            Log.i(getClass().getName(), "Exception root cause: ", Exceptions.unwrap(ex));
             if (localSubscription != null)
                 getControlPoint().getRegistry().removeLocalSubscription(localSubscription);
             failed(localSubscription, null, ex);
@@ -274,13 +272,13 @@ public abstract class SubscriptionCallback implements Runnable {
     }
 
     private void endLocalSubscription(LocalGENASubscription subscription) {
-        log.fine("Removing local subscription and ending it in callback: " + subscription);
+        Log.d(getClass().getName(), "Removing local subscription and ending it in callback: " + subscription);
         getControlPoint().getRegistry().removeLocalSubscription(subscription);
         subscription.end(null); // No reason, on controlpoint request
     }
 
     private void endRemoteSubscription(RemoteGENASubscription subscription) {
-        log.fine("Ending remote subscription: " + subscription);
+        Log.d(getClass().getName(), "Ending remote subscription: " + subscription);
         getControlPoint().getConfiguration().getSyncProtocolExecutorService().execute(
                 getControlPoint().getProtocolFactory().createSendingUnsubscribe(subscription)
         );
@@ -359,12 +357,12 @@ public abstract class SubscriptionCallback implements Runnable {
      */
     protected void invalidMessage(RemoteGENASubscription remoteGENASubscription,
                                   UnsupportedDataException ex) {
-        log.info("Invalid event message received, causing: " + ex);
-        if (log.isLoggable(Level.FINE)) {
-            log.fine("------------------------------------------------------------------------------");
-            log.fine(ex.getData() != null ? ex.getData().toString() : "null");
-            log.fine("------------------------------------------------------------------------------");
-        }
+        Log.i(getClass().getName(), "Invalid event message received, causing: " + ex);
+
+        Log.d(getClass().getName(), "------------------------------------------------------------------------------");
+        Log.d(getClass().getName(), ex.getData() != null ? ex.getData().toString() : "null");
+        Log.d(getClass().getName(), "------------------------------------------------------------------------------");
+
     }
 
     @Override

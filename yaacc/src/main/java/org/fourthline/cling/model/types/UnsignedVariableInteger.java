@@ -15,7 +15,7 @@
 
 package org.fourthline.cling.model.types;
 
-import java.util.logging.Logger;
+import android.util.Log;
 
 /**
  * A crude solution for unsigned "non-negative" types in UPnP, not usable for any arithmetic.
@@ -23,8 +23,6 @@ import java.util.logging.Logger;
  * @author Christian Bauer
  */
 public abstract class UnsignedVariableInteger {
-
-    final private static Logger log = Logger.getLogger(UnsignedVariableInteger.class.getName());
 
     public enum Bits {
         EIGHT(0xffL),
@@ -56,7 +54,7 @@ public abstract class UnsignedVariableInteger {
         if (s.startsWith("-")) {
             // Don't throw exception, just cut it!
             // TODO: UPNP VIOLATION: Twonky Player returns "-1" as the track number
-            log.warning("Invalid negative integer value '" + s + "', assuming value 0!");
+            Log.w(getClass().getName(), "Invalid negative integer value '" + s + "', assuming value 0!");
             s = "0";
         }
         setValue(Long.parseLong(s.trim()));

@@ -15,6 +15,8 @@
 
 package org.fourthline.cling.protocol.async;
 
+import android.util.Log;
+
 import org.fourthline.cling.UpnpService;
 import org.fourthline.cling.model.meta.LocalDevice;
 import org.fourthline.cling.model.types.NotificationSubtype;
@@ -46,7 +48,7 @@ public class SendingNotificationByebye extends SendingNotification {
 
     @Override
     protected void execute() throws RouterException {
-        log.fine("Sending byebye messages ("+getBulkRepeat()+" times) for: " + getDevice());
+        Log.d(getClass().getName(), "Sending byebye messages (" + getBulkRepeat() + " times) for: " + getDevice());
         super.execute();
     }
 

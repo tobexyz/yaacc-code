@@ -17,7 +17,8 @@
  import static org.junit.Assert.assertEquals;
 
  import org.junit.Test;
- import org.seamless.util.io.Base64Coder;
+
+ import java.util.Base64;
 
  /**
   * @author Christian Bauer
@@ -26,9 +27,9 @@
 
      @Test
      public void encodeDecode() {
-         assertEquals(Base64Coder.encodeString("foo bar baz"), "Zm9vIGJhciBiYXo=");
-         assertEquals(Base64Coder.decodeString("Zm9vIGJhciBiYXo="), "foo bar baz");
-         assertEquals(Base64Coder.decodeString("Zm9v\nIGJh\rciBiYXo="), "foo bar baz");
+         assertEquals("Zm9vIGJhciBiYXo=", Base64.getEncoder().encodeToString("foo bar baz".getBytes()));
+         assertEquals("foo bar baz", new String(Base64.getDecoder().decode("Zm9vIGJhciBiYXo=")));
+         assertEquals("foo bar baz", new String(Base64.getDecoder().decode("Zm9v\nIGJh\rciBiYXo=".replace("\n", "").replace("\r", ""))));
      }
 
  }

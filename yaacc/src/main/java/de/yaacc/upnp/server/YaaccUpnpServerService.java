@@ -36,12 +36,14 @@ import android.util.Log;
 import androidx.core.app.NotificationCompat;
 import androidx.core.content.res.ResourcesCompat;
 
+import org.apache.hc.core5.function.Callback;
 import org.apache.hc.core5.http.ConnectionClosedException;
-import org.apache.hc.core5.http.ExceptionListener;
-import org.apache.hc.core5.http.HttpConnection;
-import org.apache.hc.core5.http.impl.bootstrap.HttpServer;
-import org.apache.hc.core5.http.impl.bootstrap.ServerBootstrap;
+import org.apache.hc.core5.http.URIScheme;
+import org.apache.hc.core5.http.impl.bootstrap.HttpAsyncServer;
 import org.apache.hc.core5.http.io.SocketConfig;
+import org.apache.hc.core5.http2.impl.nio.bootstrap.H2ServerBootstrap;
+import org.apache.hc.core5.reactor.IOReactorConfig;
+import org.apache.hc.core5.util.TimeValue;
 import org.fourthline.cling.binding.annotations.AnnotationLocalServiceBinder;
 import org.fourthline.cling.model.DefaultServiceManager;
 import org.fourthline.cling.model.ValidationError;
@@ -66,9 +68,8 @@ import org.fourthline.cling.support.renderingcontrol.AbstractAudioRenderingContr
 import org.fourthline.cling.support.xmicrosoft.AbstractMediaReceiverRegistrarService;
 
 import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.net.BindException;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.NetworkInterface;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
@@ -114,7 +115,7 @@ public class YaaccUpnpServerService extends Service {
     private boolean watchdog;
 
 
-    private HttpServer httpServer;
+    private HttpAsyncServer httpServer;
     private boolean initialized = false;
 
     /*
@@ -180,8 +181,12 @@ public class YaaccUpnpServerService extends Service {
 
         }
         if (httpServer != null) {
-
-            httpServer.stop();
+            httpServer.initiateShutdown();
+            try {
+                httpServer.awaitShutdown(TimeValue.ofSeconds(3));
+            } catch (InterruptedException e) {
+                Log.w(getClass().getName(), "got exception on stream server stop ", e);
+            }
 
         }
         cancleNotification();
@@ -266,55 +271,43 @@ public class YaaccUpnpServerService extends Service {
      */
     private void createHttpServer() {
         // Create a HttpService for providing content in the network.
-        try {
 
-            //FIXME set correct timeout
-            SocketConfig socketConfig = SocketConfig.custom()
-                    .setSoKeepAlive(true)
-                    .setTcpNoDelay(false)
-                    .build();
+        //FIXME set correct timeout
+        SocketConfig socketConfig = SocketConfig.custom()
+                .setSoKeepAlive(true)
+                .setTcpNoDelay(false)
+                .build();
+        IOReactorConfig config = IOReactorConfig.custom()
+                .setSoKeepAlive(true)
+                .setTcpNoDelay(true)
+                .build();
+        // Set up the HTTP service
+        if (httpServer == null) {
+            httpServer = H2ServerBootstrap.bootstrap()
+                    .setIOReactorConfig(config)
+                    .setExceptionCallback(new Callback<Exception>() {
 
-            // Set up the HTTP service
-            if (httpServer == null) {
-                httpServer = ServerBootstrap.bootstrap()
-                        .setListenerPort(PORT)
-                        .setSocketConfig(socketConfig)
-                        .setExceptionListener(new ExceptionListener() {
-
-                            @Override
-                            public void onError(final Exception ex) {
-                                Log.i(getClass().getName(), "YaaccHttpServer throws exception:", ex);
+                        @Override
+                        public void execute(Exception ex) {
+                            if (ex instanceof SocketTimeoutException) {
+                                Log.e(getClass().getName(), "connection timeout:", ex);
+                            } else if (ex instanceof ConnectionClosedException) {
+                                Log.e(getClass().getName(), "connection closed:", ex);
+                            } else {
+                                Log.e(getClass().getName(), "connection error:", ex);
                             }
+                        }
 
-                            @Override
-                            public void onError(final HttpConnection conn, final Exception ex) {
-                                if (ex instanceof SocketTimeoutException) {
-                                    Log.i(getClass().getName(), "connection timeout:", ex);
-                                } else if (ex instanceof ConnectionClosedException) {
-                                    Log.i(getClass().getName(), "connection closed:", ex);
-                                } else {
-                                    Log.i(getClass().getName(), "connection error:", ex);
-                                }
-                            }
+                    })
+                    .setCanonicalHostName(getIpAddress())
+                    .register("*", new YaaccUpnpServerServiceHttpHandler(getApplicationContext()))
+                    .create();
 
-                        })
-                        .setCanonicalHostName(getIpAddress())
-                        .register("*", new YaaccHttpHandler(getApplicationContext()))
-                        .create();
-
-
-                httpServer.start();
-            }
-
-        } catch (BindException e) {
-            Log.w(this.getClass().getName(), "Server already running");
-        } catch (IOException e) {
-            // FIXME Ignored right error handling on rebind needed
-            Log.w(this.getClass().getName(), "ContentProvider can not be initialized!", e);
-            // throw new
-            // IllegalStateException("ContentProvider can not be initialized!",
-            // e);
+            httpServer.listen(new InetSocketAddress(PORT), URIScheme.HTTP);
+            httpServer.start();
         }
+
+
     }
 
     /**

@@ -15,20 +15,20 @@
 
 package org.fourthline.cling.support.lastchange;
 
+import android.util.Log;
+
 import org.fourthline.cling.model.types.Datatype;
 import org.fourthline.cling.model.types.InvalidValueException;
 import org.seamless.util.Exceptions;
 
 import java.net.URI;
 import java.util.Map;
-import java.util.logging.Logger;
 
 /**
  * @author Christian Bauer
  */
 public class EventedValueURI extends EventedValue<URI> {
 
-    final private static Logger log = Logger.getLogger(EventedValueURI.class.getName());
 
     public EventedValueURI(URI value) {
         super(value);
@@ -37,7 +37,7 @@ public class EventedValueURI extends EventedValue<URI> {
     public EventedValueURI(Map.Entry<String, String>[] attributes) {
         super(attributes);
     }
-    
+
     @Override
     protected URI valueOf(String s) throws InvalidValueException {
         try {
@@ -45,7 +45,7 @@ public class EventedValueURI extends EventedValue<URI> {
             // to parse whatever devices give us, like the Roku which sends "unknown url".
             return super.valueOf(s);
         } catch (InvalidValueException ex) {
-            log.info("Ignoring invalid URI in evented value '" + s +"': " + Exceptions.unwrap(ex));
+            Log.i(getClass().getName(), "Ignoring invalid URI in evented value '" + s + "': " + Exceptions.unwrap(ex));
             return null;
         }
     }

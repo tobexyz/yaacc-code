@@ -15,6 +15,8 @@
 
 package org.fourthline.cling;
 
+import android.util.Log;
+
 import org.fourthline.cling.binding.xml.DeviceDescriptorBinder;
 import org.fourthline.cling.binding.xml.ServiceDescriptorBinder;
 import org.fourthline.cling.binding.xml.UDA10DeviceDescriptorBinderImpl;
@@ -52,7 +54,6 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.logging.Logger;
 
 import jakarta.enterprise.inject.Alternative;
 
@@ -84,7 +85,6 @@ import jakarta.enterprise.inject.Alternative;
 @Alternative
 public class DefaultUpnpServiceConfiguration implements UpnpServiceConfiguration {
 
-    private static Logger log = Logger.getLogger(DefaultUpnpServiceConfiguration.class.getName());
 
     final private int streamListenPort;
 
@@ -256,7 +256,7 @@ public class DefaultUpnpServiceConfiguration implements UpnpServiceConfiguration
     }
 
     public void shutdown() {
-        log.fine("Shutting down default executor service");
+        Log.d(getClass().getName(), "Shutting down default executor service");
         getDefaultExecutorService().shutdownNow();
     }
 
@@ -305,7 +305,7 @@ public class DefaultUpnpServiceConfiguration implements UpnpServiceConfiguration
                         @Override
                         public void rejectedExecution(Runnable runnable, ThreadPoolExecutor threadPoolExecutor) {
                             // Log and discard
-                            log.info("Thread pool rejected execution of " + runnable.getClass());
+                            Log.i(getClass().getName(), "Thread pool rejected execution of " + runnable.getClass());
                             super.rejectedExecution(runnable, threadPoolExecutor);
                         }
                     }
@@ -336,8 +336,8 @@ public class DefaultUpnpServiceConfiguration implements UpnpServiceConfiguration
                     return;
                 }
                 // Log only
-                log.warning("Thread terminated " + runnable + " abruptly with exception: " + throwable);
-                log.warning("Root cause: " + cause);
+                Log.w(getClass().getName(), "Thread terminated " + runnable + " abruptly with exception: " + throwable);
+                Log.w(getClass().getName(), "Root cause: " + cause);
             }
         }
     }

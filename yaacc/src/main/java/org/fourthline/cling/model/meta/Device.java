@@ -15,6 +15,8 @@
 
 package org.fourthline.cling.model.meta;
 
+import android.util.Log;
+
 import org.fourthline.cling.model.Namespace;
 import org.fourthline.cling.model.Validatable;
 import org.fourthline.cling.model.ValidationError;
@@ -32,8 +34,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
  * Describes either a root or embedded device.
@@ -42,7 +42,6 @@ import java.util.logging.Logger;
  */
 public abstract class Device<DI extends DeviceIdentity, D extends Device, S extends Service> implements Validatable {
 
-    final private static Logger log = Logger.getLogger(Device.class.getName());
     final protected S[] services;
     final protected D[] embeddedDevices;
     final private DI identity;
@@ -87,7 +86,7 @@ public abstract class Device<DI extends DeviceIdentity, D extends Device, S exte
                     if (iconErrors.isEmpty()) {
                         validIcons.add(icon);
                     } else {
-                        log.warning("Discarding invalid '" + icon + "': " + iconErrors);
+                        Log.w(getClass().getName(), "Discarding invalid '" + icon + "': " + iconErrors);
                     }
                 }
             }
@@ -118,11 +117,11 @@ public abstract class Device<DI extends DeviceIdentity, D extends Device, S exte
 
         List<ValidationError> errors = validate();
         if (errors.size() > 0) {
-            if (log.isLoggable(Level.INFO)) {
-                for (ValidationError error : errors) {
-                    log.log(Level.INFO, error.toString());
-                }
+
+            for (ValidationError error : errors) {
+                Log.i(getClass().getName(), error.toString());
             }
+
             throw new ValidationException("Validation of device graph failed, call getErrors() on exception", errors);
         }
     }

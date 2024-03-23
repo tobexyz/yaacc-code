@@ -30,6 +30,7 @@ public class YaaccAsyncStreamServerConfigurationImpl implements StreamServerConf
         this.listenPort = listenPort;
     }
 
+
     /**
      * @return Defaults to <code>0</code>.
      */

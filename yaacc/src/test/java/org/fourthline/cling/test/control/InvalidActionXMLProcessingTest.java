@@ -48,8 +48,11 @@ import org.fourthline.cling.transport.impl.RecoveringSOAPActionProcessorImpl;
 import org.fourthline.cling.transport.spi.SOAPActionProcessor;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.seamless.util.io.IO;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.net.URI;
 
 /**
@@ -167,14 +170,14 @@ public class InvalidActionXMLProcessingTest {
         RemoteService service = SampleData.createUndescribedRemoteService();
         service = binder.describe(
                 service,
-                IO.readLines(getClass().getResourceAsStream("/descriptors/service/uda10_connectionmanager.xml"))
+                readLines(getClass().getResourceAsStream("/descriptors/service/uda10_connectionmanager.xml"))
         );
 
         Action action = service.getAction("GetProtocolInfo");
 
         ActionInvocation actionInvocation = new ActionInvocation(action);
         StreamResponseMessage response = new StreamResponseMessage(
-                IO.readLines(getClass().getResourceAsStream("/invalidxml/control/response_uppercase_args.xml"))
+                readLines(getClass().getResourceAsStream("/invalidxml/control/response_uppercase_args.xml"))
         );
 
         processor.readBody(new IncomingActionResponseMessage(response), actionInvocation);
@@ -212,7 +215,24 @@ public class InvalidActionXMLProcessingTest {
                         )
                 )
         );
-        message.setBody(IO.readLines(getClass().getResourceAsStream(xmlFile)));
+        message.setBody(readLines(getClass().getResourceAsStream(xmlFile)));
         return message;
+    }
+
+    private String readLines(InputStream is) throws IOException {
+        if (is == null) throw new IllegalArgumentException("Inputstream was null");
+
+        BufferedReader inputReader;
+        inputReader = new BufferedReader(
+                new InputStreamReader(is)
+        );
+
+        StringBuilder input = new StringBuilder();
+        String inputLine;
+        while ((inputLine = inputReader.readLine()) != null) {
+            input.append(inputLine).append(System.getProperty("line.separator"));
+        }
+
+        return input.length() > 0 ? input.toString() : "";
     }
 }

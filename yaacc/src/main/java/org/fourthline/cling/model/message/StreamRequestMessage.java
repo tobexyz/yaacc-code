@@ -25,11 +25,9 @@ import java.net.URL;
  */
 public class StreamRequestMessage extends UpnpMessage<UpnpRequest> {
 
-    protected Connection connection;
 
     public StreamRequestMessage(StreamRequestMessage source) {
         super(source);
-        this.connection = source.getConnection();
     }
 
     public StreamRequestMessage(UpnpRequest operation) {
@@ -72,17 +70,9 @@ public class StreamRequestMessage extends UpnpMessage<UpnpRequest> {
     public URI getUri() {
         return getOperation().getURI();
     }
-    
+
     public void setUri(URI uri) {
         getOperation().setUri(uri);
     }
 
-	public void setConnection(Connection connection) {
-		this.connection = connection;
-	}
-	
-	public Connection getConnection() {
-		return connection;
-	}
-    
 }

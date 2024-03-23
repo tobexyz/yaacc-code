@@ -16,6 +16,7 @@
 package org.fourthline.cling.model.meta;
 
 
+import android.util.Log;
 
 import org.fourthline.cling.model.Validatable;
 import org.fourthline.cling.model.ValidationError;
@@ -24,7 +25,6 @@ import org.fourthline.cling.model.types.Datatype;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.logging.Logger;
 
 /**
  * Type of a state variable, its default value, and integrity rules for allowed values and ranges.
@@ -33,7 +33,6 @@ import java.util.logging.Logger;
  */
 public class StateVariableTypeDetails implements Validatable {
 
-    final private static Logger log = Logger.getLogger(StateVariableTypeDetails.class.getName());
 
     final private Datatype datatype;
     final private String defaultValue;
@@ -116,13 +115,13 @@ public class StateVariableTypeDetails implements Validatable {
 
             for (String s : getAllowedValues()) {
                 if (s.length() > 31) {
-                    log.warning("UPnP specification violation, allowed value string must be less than 32 chars: " + s);
+                    Log.w(getClass().getName(), "UPnP specification violation, allowed value string must be less than 32 chars: " + s);
                 }
             }
 
-            if(!foundDefaultInAllowedValues(defaultValue, allowedValues)) {
-                log.warning("UPnP specification violation, allowed string values " +
-                                    "don't contain default value: " + defaultValue
+            if (!foundDefaultInAllowedValues(defaultValue, allowedValues)) {
+                Log.w(getClass().getName(), "UPnP specification violation, allowed string values " +
+                        "don't contain default value: " + defaultValue
                 );
             }
         }

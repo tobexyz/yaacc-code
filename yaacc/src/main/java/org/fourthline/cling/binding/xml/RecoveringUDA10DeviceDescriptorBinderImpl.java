@@ -15,6 +15,8 @@
 
 package org.fourthline.cling.binding.xml;
 
+import android.util.Log;
+
 import org.fourthline.cling.model.ValidationException;
 import org.fourthline.cling.model.meta.Device;
 import org.seamless.util.Exceptions;
@@ -23,7 +25,6 @@ import org.seamless.xml.XmlPullParserUtils;
 import org.xml.sax.SAXParseException;
 
 import java.util.Locale;
-import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -32,7 +33,6 @@ import java.util.regex.Pattern;
  */
 public class RecoveringUDA10DeviceDescriptorBinderImpl extends UDA10DeviceDescriptorBinderImpl {
 
-    private static Logger log = Logger.getLogger(RecoveringUDA10DeviceDescriptorBinderImpl.class.getName());
 
     @Override
     public <D extends Device> D describe(D undescribedDevice, String descriptorXml) throws DescriptorBindingException, ValidationException {
@@ -43,11 +43,11 @@ public class RecoveringUDA10DeviceDescriptorBinderImpl extends UDA10DeviceDescri
 
             try {
                 if (descriptorXml != null)
-                  descriptorXml = descriptorXml.trim(); // Always trim whitespace
+                    descriptorXml = descriptorXml.trim(); // Always trim whitespace
                 device = super.describe(undescribedDevice, descriptorXml);
                 return device;
             } catch (DescriptorBindingException ex) {
-                log.warning("Regular parsing failed: " + Exceptions.unwrap(ex).getMessage());
+                Log.w(getClass().getName(), "Regular parsing failed: " + Exceptions.unwrap(ex).getMessage());
                 originalException = ex;
             }
 
@@ -60,7 +60,7 @@ public class RecoveringUDA10DeviceDescriptorBinderImpl extends UDA10DeviceDescri
                     device = super.describe(undescribedDevice, fixedXml);
                     return device;
                 } catch (DescriptorBindingException ex) {
-                    log.warning("Removing leading garbage didn't work: " + Exceptions.unwrap(ex).getMessage());
+                    Log.w(getClass().getName(), "Removing leading garbage didn't work: " + Exceptions.unwrap(ex).getMessage());
                 }
             }
 
@@ -70,7 +70,7 @@ public class RecoveringUDA10DeviceDescriptorBinderImpl extends UDA10DeviceDescri
                     device = super.describe(undescribedDevice, fixedXml);
                     return device;
                 } catch (DescriptorBindingException ex) {
-                    log.warning("Removing trailing garbage didn't work: " + Exceptions.unwrap(ex).getMessage());
+                    Log.w(getClass().getName(), "Removing trailing garbage didn't work: " + Exceptions.unwrap(ex).getMessage());
                 }
             }
 
@@ -84,7 +84,7 @@ public class RecoveringUDA10DeviceDescriptorBinderImpl extends UDA10DeviceDescri
                         device = super.describe(undescribedDevice, fixedXml);
                         return device;
                     } catch (DescriptorBindingException ex) {
-                        log.warning("Fixing namespace prefix didn't work: " + Exceptions.unwrap(ex).getMessage());
+                        Log.w(getClass().getName(), "Fixing namespace prefix didn't work: " + Exceptions.unwrap(ex).getMessage());
                         lastException = ex;
                     }
                 } else {
@@ -93,12 +93,12 @@ public class RecoveringUDA10DeviceDescriptorBinderImpl extends UDA10DeviceDescri
             }
 
             fixedXml = XmlPullParserUtils.fixXMLEntities(descriptorXml);
-            if(!fixedXml.equals(descriptorXml)) {
+            if (!fixedXml.equals(descriptorXml)) {
                 try {
                     device = super.describe(undescribedDevice, fixedXml);
                     return device;
                 } catch (DescriptorBindingException ex) {
-                    log.warning("Fixing XML entities didn't work: " + Exceptions.unwrap(ex).getMessage());
+                    Log.w(getClass().getName(), "Fixing XML entities didn't work: " + Exceptions.unwrap(ex).getMessage());
                 }
             }
 
@@ -130,19 +130,19 @@ public class RecoveringUDA10DeviceDescriptorBinderImpl extends UDA10DeviceDescri
     		<?xml version="1.0"?>...
     	    */
 
-    		int index = descriptorXml.indexOf("<?xml");
-    		if(index == -1) return descriptorXml;
-    		return descriptorXml.substring(index);
-    	}
+        int index = descriptorXml.indexOf("<?xml");
+        if (index == -1) return descriptorXml;
+        return descriptorXml.substring(index);
+    }
 
     protected String fixGarbageTrailingChars(String descriptorXml, DescriptorBindingException ex) {
         int index = descriptorXml.indexOf("</root>");
         if (index == -1) {
-            log.warning("No closing </root> element in descriptor");
+            Log.w(getClass().getName(), "No closing </root> element in descriptor");
             return null;
         }
         if (descriptorXml.length() != index + "</root>".length()) {
-            log.warning("Detected garbage characters after <root> node, removing");
+            Log.w(getClass().getName(), "Detected garbage characters after <root> node, removing");
             return descriptorXml.substring(0, index) + "</root>";
         }
         return null;
@@ -170,24 +170,24 @@ public class RecoveringUDA10DeviceDescriptorBinderImpl extends UDA10DeviceDescri
         }
 
         String missingNS = matcher.group(1);
-        log.warning("Fixing missing namespace declaration for: " + missingNS);
+        Log.w(getClass().getName(), "Fixing missing namespace declaration for: " + missingNS);
 
         // Extract <root> attributes
         pattern = Pattern.compile("<root([^>]*)");
         matcher = pattern.matcher(descriptorXml);
         if (!matcher.find() || matcher.groupCount() != 1) {
-            log.fine("Could not find <root> element attributes");
+            Log.d(getClass().getName(), "Could not find <root> element attributes");
             return null;
         }
 
         String rootAttributes = matcher.group(1);
-        log.fine("Preserving existing <root> element attributes/namespace declarations: " + matcher.group(0));
+        Log.d(getClass().getName(), "Preserving existing <root> element attributes/namespace declarations: " + matcher.group(0));
 
         // Extract <root> body
         pattern = Pattern.compile("<root[^>]*>(.*)</root>", Pattern.DOTALL);
         matcher = pattern.matcher(descriptorXml);
         if (!matcher.find() || matcher.groupCount() != 1) {
-            log.fine("Could not extract body of <root> element");
+            Log.d(getClass().getName(), "Could not extract body of <root> element");
             return null;
         }
 
@@ -195,10 +195,10 @@ public class RecoveringUDA10DeviceDescriptorBinderImpl extends UDA10DeviceDescri
 
         // Add missing namespace, it only matters that it is defined, not that it is correct
         return "<?xml version=\"1.0\" encoding=\"UTF-8\" ?>"
-            + "<root "
-            + String.format(Locale.ROOT, "xmlns:%s=\"urn:schemas-dlna-org:device-1-0\"", missingNS) + rootAttributes + ">"
-            + rootBody
-            + "</root>";
+                + "<root "
+                + String.format(Locale.ROOT, "xmlns:%s=\"urn:schemas-dlna-org:device-1-0\"", missingNS) + rootAttributes + ">"
+                + rootBody
+                + "</root>";
 
         // TODO: Should we match different undeclared prefixes with their correct namespace?
         // So if it's "dlna" we use "urn:schemas-dlna-org:device-1-0" etc.
@@ -218,7 +218,7 @@ public class RecoveringUDA10DeviceDescriptorBinderImpl extends UDA10DeviceDescri
      * @param exception The original exception while parsing the XML.
      */
     protected void handleInvalidDescriptor(String xml, DescriptorBindingException exception)
-        throws DescriptorBindingException {
+            throws DescriptorBindingException {
         throw exception;
     }
 
@@ -243,7 +243,7 @@ public class RecoveringUDA10DeviceDescriptorBinderImpl extends UDA10DeviceDescri
      * @return Device A "fixed" {@link Device} model, instead of throwing an exception.
      */
     protected <D extends Device> D handleInvalidDevice(String xml, D device, ValidationException exception)
-        throws ValidationException {
+            throws ValidationException {
         throw exception;
     }
 }

@@ -45,10 +45,13 @@ import org.fourthline.cling.transport.impl.RecoveringGENAEventProcessorImpl;
 import org.fourthline.cling.transport.spi.GENAEventProcessor;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.seamless.util.io.IO;
 import org.seamless.xml.XmlPullParserUtils;
 import org.xmlpull.v1.XmlPullParser;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
@@ -58,14 +61,14 @@ import java.util.Map;
 public class InvalidEventXMLProcessingTest {
 
     @DataProvider
-    public static Object[][] invalidXMLFile() throws Exception {
+    public static Object[][] invalidXMLFile() {
         return new String[][]{
                 {"/invalidxml/event/invalid_root_element.xml"},
         };
     }
 
     @DataProvider
-    public static Object[][] invalidRecoverableXMLFile() throws Exception {
+    public static Object[][] invalidRecoverableXMLFile() {
         return new String[][]{
                 {"/invalidxml/event/truncated.xml"},
                 {"/invalidxml/event/orange_liveradio.xml"},
@@ -75,7 +78,7 @@ public class InvalidEventXMLProcessingTest {
     // TODO: Shouldn't these be failures of the LastChangeParser?
     // The GENA parser does the right thing for most of them, no?
     @DataProvider
-    public static Object[][] invalidUnrecoverableXMLFile() throws Exception {
+    public static Object[][] invalidUnrecoverableXMLFile() {
         return new String[][]{
                 {"/invalidxml/event/unrecoverable/denon_avr4306.xml"},
                 {"/invalidxml/event/unrecoverable/philips_np2900.xml"},
@@ -166,7 +169,7 @@ public class InvalidEventXMLProcessingTest {
     protected void read(String invalidXMLFile, UpnpService upnpService) throws Exception {
         ServiceDescriptorBinder binder = new UDA10ServiceDescriptorBinderImpl();
         RemoteService service = SampleData.createUndescribedRemoteService();
-        service = binder.describe(service, IO.readLines(
+        service = binder.describe(service, readLines(
                 getClass().getResourceAsStream("/descriptors/service/uda10_avtransport.xml"))
         );
 
@@ -189,7 +192,7 @@ public class InvalidEventXMLProcessingTest {
             public void invalidMessage(UnsupportedDataException ex) {
             }
         };
-        subscription.receive(new UnsignedIntegerFourBytes(0), new ArrayList<StateVariableValue>());
+        subscription.receive(new UnsignedIntegerFourBytes(0), new ArrayList<>());
 
         OutgoingEventRequestMessage outgoingCall =
                 new OutgoingEventRequestMessage(subscription, SampleData.getLocalBaseURL());
@@ -199,14 +202,14 @@ public class InvalidEventXMLProcessingTest {
         StreamRequestMessage incomingStream = new StreamRequestMessage(outgoingCall);
 
         IncomingEventRequestMessage message = new IncomingEventRequestMessage(incomingStream, service);
-        message.setBody(BodyType.STRING, IO.readLines(getClass().getResourceAsStream(invalidXMLFile)));
+        message.setBody(BodyType.STRING, readLines(getClass().getResourceAsStream(invalidXMLFile)));
 
         upnpService.getConfiguration().getGenaEventProcessor().readBody(message);
 
         // All of the messages must have a LastChange state variable, and we should be able to parse
         // the XML value of that state variable
         boolean found = false;
-        for (StateVariableValue stateVariableValue : message.getStateVariableValues()) {
+        for (StateVariableValue<?> stateVariableValue : message.getStateVariableValues()) {
             if (stateVariableValue.getStateVariable().getName().equals("LastChange")
                     && stateVariableValue.getValue() != null) {
                 found = true;
@@ -235,5 +238,22 @@ public class InvalidEventXMLProcessingTest {
             values.put(tag, value);
         }
         return values;
+    }
+
+    private String readLines(InputStream is) throws IOException {
+        if (is == null) throw new IllegalArgumentException("Inputstream was null");
+
+        BufferedReader inputReader;
+        inputReader = new BufferedReader(
+                new InputStreamReader(is)
+        );
+
+        StringBuilder input = new StringBuilder();
+        String inputLine;
+        while ((inputLine = inputReader.readLine()) != null) {
+            input.append(inputLine).append(System.getProperty("line.separator"));
+        }
+
+        return input.length() > 0 ? input.toString() : "";
     }
 }

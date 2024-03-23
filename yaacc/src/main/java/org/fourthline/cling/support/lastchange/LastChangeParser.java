@@ -17,11 +17,12 @@ package org.fourthline.cling.support.lastchange;
 
 import static org.fourthline.cling.model.XMLUtil.appendNewElement;
 
+import android.util.Log;
+
 import org.fourthline.cling.model.XMLUtil;
 import org.fourthline.cling.model.types.UnsignedIntegerFourBytes;
 import org.fourthline.cling.support.shared.AbstractMap;
 import org.seamless.util.Exceptions;
-import org.seamless.util.io.IO;
 import org.seamless.xml.DOMParser;
 import org.seamless.xml.SAXParser;
 import org.w3c.dom.Document;
@@ -30,14 +31,15 @@ import org.xml.sax.Attributes;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
 
+import java.io.BufferedReader;
+import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.StringReader;
 import java.lang.reflect.Constructor;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import javax.xml.parsers.DocumentBuilderFactory;
 
@@ -57,7 +59,6 @@ import javax.xml.parsers.DocumentBuilderFactory;
  */
 public abstract class LastChangeParser extends SAXParser {
 
-    final private static Logger log = Logger.getLogger(LastChangeParser.class.getName());
 
     abstract protected String getNamespace();
 
@@ -86,7 +87,8 @@ public abstract class LastChangeParser extends SAXParser {
         InputStream is = null;
         try {
             is = Thread.currentThread().getContextClassLoader().getResourceAsStream(resource);
-            return parse(IO.readLines(is));
+
+            return parse(readLines(is));
         } finally {
             if (is != null) is.close();
         }
@@ -101,21 +103,19 @@ public abstract class LastChangeParser extends SAXParser {
         Event event = new Event();
         new RootHandler(event, this);
 
-        if (log.isLoggable(Level.FINE)) {
-            log.fine("Parsing 'LastChange' event XML content");
-            log.fine("===================================== 'LastChange' BEGIN ============================================");
-            log.fine(xml);
-            log.fine("====================================== 'LastChange' END  ============================================");
-        }
+
+        Log.d(getClass().getName(), "Parsing 'LastChange' event XML content");
+        Log.d(getClass().getName(), "===================================== 'LastChange' BEGIN ============================================");
+        Log.d(getClass().getName(), xml);
+        Log.d(getClass().getName(), "====================================== 'LastChange' END  ============================================");
+
         parse(new InputSource(new StringReader(xml)));
 
-        log.fine("Parsed event with instances IDs: " + event.getInstanceIDs().size());
-        if (log.isLoggable(Level.INFO)) {
-            for (InstanceID instanceID : event.getInstanceIDs()) {
-                log.log(Level.INFO, "InstanceID '" + instanceID.getId() + "' has values: " + instanceID.getValues().size());
-                for (EventedValue eventedValue : instanceID.getValues()) {
-                    log.log(Level.INFO, eventedValue.getName() + " => " + eventedValue.getValue());
-                }
+        Log.i(getClass().getName(), "Parsed event with instances IDs: " + event.getInstanceIDs().size());
+        for (InstanceID instanceID : event.getInstanceIDs()) {
+            Log.i(getClass().getName(), "InstanceID '" + instanceID.getId() + "' has values: " + instanceID.getValues().size());
+            for (EventedValue eventedValue : instanceID.getValues()) {
+                Log.i(getClass().getName(), eventedValue.getName() + " => " + eventedValue.getValue());
             }
         }
 
@@ -223,7 +223,7 @@ public abstract class LastChangeParser extends SAXParser {
                     getInstance().getValues().add(esv);
             } catch (Exception ex) {
                 // Don't exit, just log a warning
-                log.warning("Error reading event XML, ignoring value: " + Exceptions.unwrap(ex));
+                Log.w(getClass().getName(), "Error reading event XML, ignoring value: " + Exceptions.unwrap(ex));
             }
         }
 
@@ -231,6 +231,23 @@ public abstract class LastChangeParser extends SAXParser {
         protected boolean isLastElement(String uri, String localName, String qName) {
             return CONSTANTS.InstanceID.equals(localName);
         }
+    }
+
+    private String readLines(InputStream is) throws IOException {
+        if (is == null) throw new IllegalArgumentException("Inputstream was null");
+
+        BufferedReader inputReader;
+        inputReader = new BufferedReader(
+                new InputStreamReader(is)
+        );
+
+        StringBuilder input = new StringBuilder();
+        String inputLine;
+        while ((inputLine = inputReader.readLine()) != null) {
+            input.append(inputLine).append(System.getProperty("line.separator"));
+        }
+
+        return input.length() > 0 ? input.toString() : "";
     }
 
 }

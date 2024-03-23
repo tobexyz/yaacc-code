@@ -15,6 +15,8 @@
 
 package org.fourthline.cling.support.connectionmanager;
 
+import android.util.Log;
+
 import org.fourthline.cling.binding.annotations.UpnpAction;
 import org.fourthline.cling.binding.annotations.UpnpInputArgument;
 import org.fourthline.cling.binding.annotations.UpnpOutputArgument;
@@ -34,7 +36,6 @@ import org.fourthline.cling.support.model.ProtocolInfo;
 import org.fourthline.cling.support.model.ProtocolInfos;
 
 import java.beans.PropertyChangeSupport;
-import java.util.logging.Logger;
 
 /**
  * Support for setup and teardown of an arbitrary number of connections with a manager peer.
@@ -44,7 +45,6 @@ import java.util.logging.Logger;
  */
 public abstract class AbstractPeeringConnectionManagerService extends ConnectionManagerService {
 
-    final private static Logger log = Logger.getLogger(AbstractPeeringConnectionManagerService.class.getName());
 
     protected AbstractPeeringConnectionManagerService(ConnectionInfo... activeConnections) {
         super(activeConnections);
@@ -72,7 +72,7 @@ public abstract class AbstractPeeringConnectionManagerService extends Connection
     synchronized protected void storeConnection(ConnectionInfo info) {
         CSV<UnsignedIntegerFourBytes> oldConnectionIDs = getCurrentConnectionIDs();
         activeConnections.put(info.getConnectionID(), info);
-        log.fine("Connection stored, firing event: " + info.getConnectionID());
+        Log.d(getClass().getName(), "Connection stored, firing event: " + info.getConnectionID());
         CSV<UnsignedIntegerFourBytes> newConnectionIDs = getCurrentConnectionIDs();
         getPropertyChangeSupport().firePropertyChange("CurrentConnectionIDs", oldConnectionIDs, newConnectionIDs);
     }
@@ -80,7 +80,7 @@ public abstract class AbstractPeeringConnectionManagerService extends Connection
     synchronized protected void removeConnection(int connectionID) {
         CSV<UnsignedIntegerFourBytes> oldConnectionIDs = getCurrentConnectionIDs();
         activeConnections.remove(connectionID);
-        log.fine("Connection removed, firing event: " + connectionID);
+        Log.d(getClass().getName(), "Connection removed, firing event: " + connectionID);
         CSV<UnsignedIntegerFourBytes> newConnectionIDs = getCurrentConnectionIDs();
         getPropertyChangeSupport().firePropertyChange("CurrentConnectionIDs", oldConnectionIDs, newConnectionIDs);
     }
@@ -106,7 +106,7 @@ public abstract class AbstractPeeringConnectionManagerService extends Connection
             throw new ConnectionManagerException(ErrorCode.ARGUMENT_VALUE_INVALID, "Unsupported direction: " + direction);
         }
 
-        log.fine("Preparing for connection with local new ID " + connectionId + " and peer connection ID: " + peerConnectionId);
+        Log.d(getClass().getName(), "Preparing for connection with local new ID " + connectionId + " and peer connection ID: " + peerConnectionId);
 
         ConnectionInfo newConnectionInfo = createConnection(
                 connectionId,
@@ -125,7 +125,7 @@ public abstract class AbstractPeeringConnectionManagerService extends Connection
     synchronized public void connectionComplete(@UpnpInputArgument(name = "ConnectionID", stateVariable = "A_ARG_TYPE_ConnectionID") int connectionID)
             throws ActionException {
         ConnectionInfo info = getCurrentConnectionInfo(connectionID);
-        log.fine("Closing connection ID " + connectionID);
+        Log.d(getClass().getName(), "Closing connection ID " + connectionID);
         closeConnection(info);
         removeConnection(connectionID);
     }
@@ -134,7 +134,7 @@ public abstract class AbstractPeeringConnectionManagerService extends Connection
      * Generate a new local connection identifier, prepare the peer, store connection details.
      *
      * @return <code>-1</code> if the {@link #peerFailure(org.fourthline.cling.model.action.ActionInvocation, org.fourthline.cling.model.message.UpnpResponse, String)}
-     *         method had to be called, otherwise the local identifier of the established connection.
+     * method had to be called, otherwise the local identifier of the established connection.
      */
     synchronized public int createConnectionWithPeer(final ServiceReference localServiceReference,
                                                      final ControlPoint controlPoint,
@@ -147,7 +147,7 @@ public abstract class AbstractPeeringConnectionManagerService extends Connection
 
         final int localConnectionID = getNewConnectionId();
 
-        log.fine("Creating new connection ID " + localConnectionID + " with peer: " + peerService);
+        Log.d(getClass().getName(), "Creating new connection ID " + localConnectionID + " with peer: " + peerService);
         final boolean[] failed = new boolean[1];
         new PrepareForConnection(
                 peerService,
@@ -201,7 +201,7 @@ public abstract class AbstractPeeringConnectionManagerService extends Connection
                                                      final ConnectionInfo connectionInfo) throws ActionException {
 
         // It is important that you synchronize the whole procedure
-        log.fine("Closing connection ID " + connectionInfo.getConnectionID() + " with peer: " + peerService);
+        Log.d(getClass().getName(), "Closing connection ID " + connectionInfo.getConnectionID() + " with peer: " + peerService);
         new ConnectionComplete(
                 peerService,
                 controlPoint,
@@ -232,13 +232,13 @@ public abstract class AbstractPeeringConnectionManagerService extends Connection
      * Called when connection creation or closing with a peer failed.
      * <p>
      * This is the failure result of an action invocation on the peer's connection
-     * management service. The execution of the {@link #createConnectionWithPeer(org.fourthline.cling.model.ServiceReference, org.fourthline.cling.controlpoint.ControlPoint, org.fourthline.cling.model.meta.Service, org.fourthline.cling.support.model.ProtocolInfo , org.fourthline.cling.support.model.ConnectionInfo.Direction)}
+     * management service. The execution of the {@link #createConnectionWithPeer(org.fourthline.cling.model.ServiceReference, org.fourthline.cling.controlpoint.ControlPoint, org.fourthline.cling.model.meta.Service, org.fourthline.cling.support.model.ProtocolInfo, org.fourthline.cling.support.model.ConnectionInfo.Direction)}
      * and {@link #closeConnectionWithPeer(org.fourthline.cling.controlpoint.ControlPoint, org.fourthline.cling.model.meta.Service, org.fourthline.cling.support.model.ConnectionInfo)}
      * methods will block until this method completes handling any failure.
      * </p>
      *
-     * @param invocation The underlying action invocation of the remote connection manager service.
-     * @param operation The network message response if there was a response, or <code>null</code>.
+     * @param invocation            The underlying action invocation of the remote connection manager service.
+     * @param operation             The network message response if there was a response, or <code>null</code>.
      * @param defaultFailureMessage A user-friendly error message generated from the invocation exception and response.
      */
     protected abstract void peerFailure(ActionInvocation invocation, UpnpResponse operation, String defaultFailureMessage);

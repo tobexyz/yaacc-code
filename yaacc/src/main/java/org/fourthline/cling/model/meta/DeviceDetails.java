@@ -15,6 +15,8 @@
 
 package org.fourthline.cling.model.meta;
 
+import android.util.Log;
+
 import org.fourthline.cling.model.Validatable;
 import org.fourthline.cling.model.ValidationError;
 import org.fourthline.cling.model.types.DLNACaps;
@@ -22,9 +24,8 @@ import org.fourthline.cling.model.types.DLNADoc;
 
 import java.net.URI;
 import java.net.URL;
-import java.util.List;
 import java.util.ArrayList;
-import java.util.logging.Logger;
+import java.util.List;
 
 /**
  * Encapsulates all optional metadata about a device.
@@ -33,7 +34,6 @@ import java.util.logging.Logger;
  */
 public class DeviceDetails implements Validatable {
 
-    final private static Logger log = Logger.getLogger(DeviceDetails.class.getName());
 
     final private URL baseURL;
     final private String friendlyName;
@@ -44,7 +44,7 @@ public class DeviceDetails implements Validatable {
     final private URI presentationURI;
     final private DLNADoc[] dlnaDocs;
     final private DLNACaps dlnaCaps;
-    final private DLNACaps secProductCaps; 
+    final private DLNACaps secProductCaps;
 
     public DeviceDetails(String friendlyName) {
         this(null, friendlyName, null, null, null, null, null);
@@ -71,10 +71,10 @@ public class DeviceDetails implements Validatable {
                          ModelDetails modelDetails, DLNADoc[] dlnaDocs, DLNACaps dlnaCaps) {
         this(null, friendlyName, manufacturerDetails, modelDetails, null, null, null, dlnaDocs, dlnaCaps);
     }
-    
+
     public DeviceDetails(String friendlyName, ManufacturerDetails manufacturerDetails,
-            ModelDetails modelDetails, DLNADoc[] dlnaDocs, DLNACaps dlnaCaps, DLNACaps secProductCaps) {
-    	this(null, friendlyName, manufacturerDetails, modelDetails, null, null, null, dlnaDocs, dlnaCaps, secProductCaps);
+                         ModelDetails modelDetails, DLNADoc[] dlnaDocs, DLNACaps dlnaCaps, DLNACaps secProductCaps) {
+        this(null, friendlyName, manufacturerDetails, modelDetails, null, null, null, dlnaDocs, dlnaCaps, secProductCaps);
     }
 
     public DeviceDetails(String friendlyName, ManufacturerDetails manufacturerDetails, ModelDetails modelDetails,
@@ -135,12 +135,12 @@ public class DeviceDetails implements Validatable {
     }
 
     public DeviceDetails(URL baseURL, String friendlyName,
-            ManufacturerDetails manufacturerDetails, ModelDetails modelDetails,
-            String serialNumber, String upc,
-            URI presentationURI, DLNADoc[] dlnaDocs, DLNACaps dlnaCaps) {
-    	 this(baseURL, friendlyName, manufacturerDetails, modelDetails, serialNumber, upc, presentationURI, dlnaDocs, dlnaCaps, null);
+                         ManufacturerDetails manufacturerDetails, ModelDetails modelDetails,
+                         String serialNumber, String upc,
+                         URI presentationURI, DLNADoc[] dlnaDocs, DLNACaps dlnaCaps) {
+        this(baseURL, friendlyName, manufacturerDetails, modelDetails, serialNumber, upc, presentationURI, dlnaDocs, dlnaCaps, null);
     }
-    
+
     public DeviceDetails(URL baseURL, String friendlyName,
                          ManufacturerDetails manufacturerDetails, ModelDetails modelDetails,
                          String serialNumber, String upc,
@@ -192,7 +192,7 @@ public class DeviceDetails implements Validatable {
     public DLNACaps getDlnaCaps() {
         return dlnaCaps;
     }
-    
+
     public DLNACaps getSecProductCaps() {
         return secProductCaps;
     }
@@ -203,12 +203,12 @@ public class DeviceDetails implements Validatable {
         if (getUpc() != null) {
             // This is broken in more than half of the devices I've tested, so let's not even bother with a warning
             if (getUpc().length() != 12) {
-                log.fine("UPnP specification violation, UPC must be 12 digits: " + getUpc());
+                Log.d(getClass().getName(), "UPnP specification violation, UPC must be 12 digits: " + getUpc());
             } else {
                 try {
                     Long.parseLong(getUpc());
                 } catch (NumberFormatException ex) {
-                    log.fine("UPnP specification violation, UPC must be 12 digits all-numeric: " + getUpc());
+                    Log.d(getClass().getName(), "UPnP specification violation, UPC must be 12 digits all-numeric: " + getUpc());
                 }
             }
         }

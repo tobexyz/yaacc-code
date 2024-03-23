@@ -16,14 +16,15 @@
 package org.fourthline.cling.model.meta;
 
 
+import android.util.Log;
+
 import org.fourthline.cling.model.ModelUtil;
 import org.fourthline.cling.model.Validatable;
 import org.fourthline.cling.model.ValidationError;
 import org.fourthline.cling.model.types.Datatype;
 
-import java.util.List;
 import java.util.ArrayList;
-import java.util.logging.Logger;
+import java.util.List;
 
 /**
  * The metadata of a named state variable.
@@ -31,8 +32,6 @@ import java.util.logging.Logger;
  * @author Christian Bauer
  */
 public class StateVariable<S extends Service> implements Validatable {
-
-    final private static Logger log = Logger.getLogger(StateVariable.class.getName());
 
     final private String name;
     final private StateVariableTypeDetails type;
@@ -83,8 +82,8 @@ public class StateVariable<S extends Service> implements Validatable {
                     "StateVariable without name of: " + getService()
             ));
         } else if (!ModelUtil.isValidUDAName(getName())) {
-            log.warning("UPnP specification violation of: " + getService().getDevice());
-            log.warning("Invalid state variable name: " + this);
+            Log.w(getClass().getName(), "UPnP specification violation of: " + getService().getDevice());
+            Log.w(getClass().getName(), "Invalid state variable name: " + this);
         }
 
         errors.addAll(getTypeDetails().validate());

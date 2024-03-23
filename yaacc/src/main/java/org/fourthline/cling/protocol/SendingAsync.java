@@ -15,12 +15,11 @@
 
 package org.fourthline.cling.protocol;
 
+import android.util.Log;
+
 import org.fourthline.cling.UpnpService;
 import org.fourthline.cling.transport.RouterException;
 import org.seamless.util.Exceptions;
-
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
  * Supertype for all synchronously executing protocols, sending UPnP messages.
@@ -37,7 +36,6 @@ import java.util.logging.Logger;
  */
 public abstract class SendingAsync implements Runnable {
 
-    final private static Logger log = Logger.getLogger(SendingAsync.class.getName());
 
     private final UpnpService upnpService;
 
@@ -55,7 +53,7 @@ public abstract class SendingAsync implements Runnable {
         } catch (Exception ex) {
             Throwable cause = Exceptions.unwrap(ex);
             if (cause instanceof InterruptedException) {
-                log.log(Level.INFO, "Interrupted protocol '" + getClass().getSimpleName() + "': " + ex, cause);
+                Log.d(getClass().getName(), "Interrupted protocol '" + getClass().getSimpleName() + "': " + ex, cause);
             } else {
                 throw new RuntimeException(
                         "Fatal error while executing protocol '" + getClass().getSimpleName() + "': " + ex, ex

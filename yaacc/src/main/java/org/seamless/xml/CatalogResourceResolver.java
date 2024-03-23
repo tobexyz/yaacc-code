@@ -14,6 +14,8 @@
   */
  package org.seamless.xml;
 
+ import android.util.Log;
+
  import org.w3c.dom.ls.LSInput;
  import org.w3c.dom.ls.LSResourceResolver;
 
@@ -22,8 +24,6 @@
  import java.net.URI;
  import java.net.URL;
  import java.util.Map;
- import java.util.logging.Level;
- import java.util.logging.Logger;
 
  /**
   * Another namespace-URI-to-whatever (namespace, context, resolver, map) magic thingy.
@@ -38,7 +38,6 @@
   */
  public class CatalogResourceResolver implements LSResourceResolver {
 
-     private static Logger log = Logger.getLogger(CatalogResourceResolver.class.getName());
 
      private final Map<URI, URL> catalog;
 
@@ -47,10 +46,10 @@
      }
 
      public LSInput resolveResource(String type, String namespaceURI, String publicId, String systemId, String baseURI) {
-         log.log(Level.INFO, "Trying to resolve system identifier URI in catalog: " + systemId);
+         Log.i(getClass().getName(), "Trying to resolve system identifier URI in catalog: " + systemId);
          URL systemURL;
          if ((systemURL = catalog.get(URI.create(systemId))) != null) {
-             log.log(Level.INFO, "Loading catalog resource: " + systemURL);
+             Log.i(getClass().getName(), "Loading catalog resource: " + systemURL);
              try {
                  Input i = new Input(systemURL.openStream());
                  i.setBaseURI(baseURI);
@@ -61,7 +60,7 @@
                  throw new RuntimeException(ex);
              }
          }
-         log.info(
+         Log.i(getClass().getName(),
                  "System identifier not found in catalog, continuing with default resolution " +
                          "(this most likely means remote HTTP request!): " + systemId
          );
