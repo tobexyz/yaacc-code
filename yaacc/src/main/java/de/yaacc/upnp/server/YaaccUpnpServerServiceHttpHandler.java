@@ -20,6 +20,7 @@ package de.yaacc.upnp.server;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.drawable.BitmapDrawable;
@@ -31,6 +32,7 @@ import android.util.Log;
 import androidx.core.content.res.ResourcesCompat;
 import androidx.preference.PreferenceManager;
 
+import org.apache.hc.core5.function.Callback;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.EntityDetails;
 import org.apache.hc.core5.http.HttpException;
@@ -41,6 +43,7 @@ import org.apache.hc.core5.http.MethodNotSupportedException;
 import org.apache.hc.core5.http.nio.AsyncEntityProducer;
 import org.apache.hc.core5.http.nio.AsyncRequestConsumer;
 import org.apache.hc.core5.http.nio.AsyncServerRequestHandler;
+import org.apache.hc.core5.http.nio.StreamChannel;
 import org.apache.hc.core5.http.nio.entity.AsyncEntityProducers;
 import org.apache.hc.core5.http.nio.entity.BasicAsyncEntityConsumer;
 import org.apache.hc.core5.http.nio.support.AsyncResponseBuilder;
@@ -51,8 +54,9 @@ import org.seamless.util.MimeType;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
-import java.net.MalformedURLException;
+import java.io.InputStream;
 import java.net.URL;
+import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Locale;
 
@@ -148,6 +152,8 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
         }
 
         ContentHolder contentHolder = null;
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(getContext());
+        preferences.getBoolean(getContext().getString(R.string.settings_local_server_provider_chkbx), false);
         if (!contentId.isEmpty()) {
             contentHolder = lookupContent(contentId);
         } else if (!albumId.isEmpty()) {
@@ -328,8 +334,7 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
         if (targetUri == null) {
             return null;
         }
-        ContentHolder result = new ContentHolder(MimeType.valueOf("*/*"), targetUri);
-        return result;
+        return new ContentHolder(MimeType.valueOf("*/*"), targetUri);
     }
 
     private byte[] getDefaultIcon() {
@@ -384,14 +389,27 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
         public AsyncEntityProducer getEntityProducer() {
             AsyncEntityProducer result = null;
             if (getUri() != null && !getUri().isEmpty()) {
+                if (new File(getUri()).exists()) {
+
                     File file = new File(getUri());
-                result = AsyncEntityProducers.create(file, ContentType.parse(getMimeType().toString()));
+                    result = AsyncEntityProducers.create(file, ContentType.parse(getMimeType().toString()));
                     Log.d(getClass().getName(), "Return file-Uri: " + getUri()
                             + "Mimetype: " + getMimeType());
-                } catch (FileNotFoundException ex) {
+                } else {
                     //file not found maybe external url
-                    result = new InputStreamEntity(new URL(getUri()).openStream(), ContentType.parse(getMimeType().toString()));
-                    result = AsyncEntityProducers.create(file, ContentType.parse(getMimeType().toString()));
+                    result = AsyncEntityProducers.createBinary(new Callback<>() {
+                        @Override
+                        public void execute(StreamChannel<ByteBuffer> object) {
+                            try (InputStream input = new URL(getUri()).openStream()) {
+                                ByteBuffer byteBuffer = ByteBuffer.allocate(3);
+                                while (input.available() > 0) {
+                                    byteBuffer.put((byte) input.read());
+                                }
+                            } catch (IOException e) {
+                                Log.e(getClass().getName(), "Error reading external file", e);
+                            }
+                        }
+                    }, ContentType.parse(getMimeType().toString()));
                     Log.d(getClass().getName(), "Return external-Uri: " + getUri()
                             + "Mimetype: " + getMimeType());
                 }

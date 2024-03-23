@@ -27,11 +27,11 @@ import android.content.SharedPreferences.Editor;
 import android.media.AudioManager;
 import android.net.Uri;
 import android.os.IBinder;
-import android.preference.PreferenceManager;
 import android.util.Log;
 import android.webkit.MimeTypeMap;
 
 import androidx.annotation.NonNull;
+import androidx.preference.PreferenceManager;
 
 import org.fourthline.cling.UpnpService;
 import org.fourthline.cling.controlpoint.ControlPoint;
