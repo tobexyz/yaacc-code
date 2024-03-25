@@ -282,6 +282,7 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
                 String contentKey = sha256(uriString);
                 String proxyUrl = "http://" + YaaccUpnpServerService.getIpAddress() + ":" + YaaccUpnpServerService.PORT + "/" + YaaccUpnpServerService.PROXY_PATH + "/" + contentKey;
                 this.getPreferences().edit().putString(YaaccUpnpServerService.PROXY_LINK_KEY_PREFIX + contentKey, uriString).commit();
+                this.getPreferences().edit().putString(YaaccUpnpServerService.PROXY_LINK_MIME_TYPE_KEY_PREFIX + contentKey, item.getMimeType()).commit();
                 item.setUri(Uri.parse(proxyUrl));
                 res.setValue(proxyUrl);
             }

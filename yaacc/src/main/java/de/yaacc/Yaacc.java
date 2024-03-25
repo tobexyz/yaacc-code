@@ -144,10 +144,10 @@ public class Yaacc extends Application {
         upnpClient.shutdown();
         //clear proxy links from preferences
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
-        Set<String> proxyLinks = preferences.getAll().keySet().stream().filter(k -> k.startsWith("proxy_link")).collect(Collectors.toSet());
+        Set<String> proxyLinks = preferences.getAll().keySet().stream().filter(k -> k.startsWith(YaaccUpnpServerService.PROXY_LINK_MIME_TYPE_KEY_PREFIX)).collect(Collectors.toSet());
+        proxyLinks.addAll(preferences.getAll().keySet().stream().filter(k -> k.startsWith(YaaccUpnpServerService.PROXY_LINK_KEY_PREFIX)).collect(Collectors.toSet()));
         SharedPreferences.Editor editor = preferences.edit();
-        proxyLinks.forEach(k -> editor.remove(k));
-        editor.commit();
+        proxyLinks.forEach(k -> editor.remove(k).commit());
         stopService(new Intent(this, PlayerService.class));
         stopService(new Intent(this, BackgroundMusicService.class));
         stopService(new Intent(this, YaaccAudioRenderingControlService.class));

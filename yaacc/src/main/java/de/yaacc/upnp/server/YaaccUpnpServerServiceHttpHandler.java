@@ -152,8 +152,7 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
         }
 
         ContentHolder contentHolder = null;
-        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(getContext());
-        preferences.getBoolean(getContext().getString(R.string.settings_local_server_provider_chkbx), false);
+
         if (!contentId.isEmpty()) {
             contentHolder = lookupContent(contentId);
         } else if (!albumId.isEmpty()) {
@@ -166,11 +165,11 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
         if (contentHolder == null) {
             // tricky but works
             Log.d(getClass().getName(), "Resource with id " + contentId
-                    + albumId + thumbId + " not found");
+                    + albumId + thumbId + pathSegments.get(1) + " not found");
             responseBuilder.setStatus(HttpStatus.SC_NOT_FOUND);
             String response =
                     "<html><body><h1>Resource with id " + contentId + albumId
-                            + thumbId + " not found</h1></body></html>";
+                            + thumbId + pathSegments.get(1) + " not found</h1></body></html>";
             responseBuilder.setEntity(AsyncEntityProducers.create(response, ContentType.TEXT_HTML));
         } else {
 
@@ -193,6 +192,11 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
      */
     private ContentHolder lookupContent(String contentId) {
         ContentHolder result = null;
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(getContext());
+        if (!preferences.getBoolean(getContext().getString(R.string.settings_local_server_chkbx), false)) {
+            return null;
+        }
+
         if (contentId == null) {
             return null;
         }
@@ -243,8 +247,12 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
 
         ContentHolder result = new ContentHolder(MimeType.valueOf("image/png"),
                 getDefaultIcon());
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(getContext());
+        if (!preferences.getBoolean(getContext().getString(R.string.settings_local_server_chkbx), false)) {
+            return result;
+        }
         if (albumId == null) {
-            return null;
+            return result;
         }
         Log.d(getClass().getName(), "System media store lookup album: "
                 + albumId);
@@ -297,15 +305,19 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
 
         ContentHolder result = new ContentHolder(MimeType.valueOf("image/png"),
                 getDefaultIcon());
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(getContext());
+        if (!preferences.getBoolean(getContext().getString(R.string.settings_local_server_chkbx), false)) {
+            return result;
+        }
         if (idStr == null) {
-            return null;
+            return result;
         }
         long id;
         try {
             id = Long.parseLong(idStr);
         } catch (NumberFormatException nfe) {
             Log.d(getClass().getName(), "ParsingError of id: " + idStr, nfe);
-            return null;
+            return result;
         }
 
         Log.d(getClass().getName(), "System media store lookup thumbnail: "
@@ -334,7 +346,12 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
         if (targetUri == null) {
             return null;
         }
-        return new ContentHolder(MimeType.valueOf("*/*"), targetUri);
+        String targetMimetype = PreferenceManager.getDefaultSharedPreferences(getContext()).getString(YaaccUpnpServerService.PROXY_LINK_MIME_TYPE_KEY_PREFIX + contentKey, null);
+        MimeType mimeType = MimeType.valueOf("*/*");
+        if (targetMimetype != null) {
+            mimeType = MimeType.valueOf(targetMimetype);
+        }
+        return new ContentHolder(mimeType, targetUri);
     }
 
     private byte[] getDefaultIcon() {
@@ -398,15 +415,28 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
                 } else {
                     //file not found maybe external url
                     result = AsyncEntityProducers.createBinary(new Callback<>() {
+                        InputStream input;
+
                         @Override
-                        public void execute(StreamChannel<ByteBuffer> object) {
-                            try (InputStream input = new URL(getUri()).openStream()) {
-                                ByteBuffer byteBuffer = ByteBuffer.allocate(3);
-                                while (input.available() > 0) {
-                                    byteBuffer.put((byte) input.read());
+                        public void execute(StreamChannel<ByteBuffer> outputChannel) {
+                            try {
+                                if (input == null) {
+                                    input = new URL(getUri()).openStream();
                                 }
+                                byte[] tempBuffer = new byte[1024];
+                                ByteBuffer readBuffer = ByteBuffer.allocate(1024);
+                                int bytesRead;
+                                if (-1 != (bytesRead = input.read(tempBuffer))) {
+                                    readBuffer.put(tempBuffer, 0, bytesRead);
+                                    readBuffer.rewind();
+                                    outputChannel.write(readBuffer);
+                                }
+                                if (bytesRead == -1) {
+                                    outputChannel.endStream();
+                                }
+
                             } catch (IOException e) {
-                                Log.e(getClass().getName(), "Error reading external file", e);
+                                Log.e(getClass().getName(), "Error reading external content", e);
                             }
                         }
                     }, ContentType.parse(getMimeType().toString()));

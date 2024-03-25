@@ -99,6 +99,7 @@ import de.yaacc.util.NotificationId;
 public class YaaccUpnpServerService extends Service {
 
     public static final String PROXY_LINK_KEY_PREFIX = "proxy_link_";
+    public static final String PROXY_LINK_MIME_TYPE_KEY_PREFIX = "proxy_link_mime_type";
     public static final String PROXY_PATH = "proxy";
     public static final int LOCK_TIMEOUT = 5000;
     private static final Pattern IPV4_PATTERN =
