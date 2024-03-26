@@ -526,6 +526,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
         return millis;
     }
 
+
     public long getRemainingTime() {
         return parseTimeStringToMillis(getDuration()) - parseTimeStringToMillis(getElapsedTime());
     }

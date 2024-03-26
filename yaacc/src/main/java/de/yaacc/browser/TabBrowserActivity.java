@@ -63,6 +63,7 @@ import org.seamless.util.MimeType;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -235,6 +236,7 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
                 intent.setClipData(null);
             }
             if (!items.isEmpty()) {
+
                 List<Player> players = upnpClient.initializePlayersWithPlayableItems(items);
                 for (Player player : players) {
                     player.play();
@@ -257,11 +259,12 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
         try {
             try {
                 metaRetriever.setDataSource(uriString);
-                String duration = metaRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION);
-                item.setDuration(Long.parseLong(duration));
+                long duration = Long.parseLong(metaRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION));
+                item.setDuration(duration);
                 item.setMimeType(metaRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_MIMETYPE));
-                res = new Res(MimeType.valueOf(item.getMimeType()), 1L, duration);
-                res.setValue(uriString);
+                long bitrate = Long.parseLong(metaRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE));
+                long size = (bitrate / 8 * duration / 1000 / 1000);
+                res = new Res(MimeType.valueOf(item.getMimeType()), size, parseMillisToTimeStringTo(duration), bitrate, uriString);
                 if (item.getMimeType().startsWith("audio/")) {
                     item.setItem(new MusicTrack("1", "2", title, "", "", "", res));
                 } else if (item.getMimeType().startsWith("video/")) {
@@ -506,4 +509,14 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
             return input;
         }
     }
+
+    private String parseMillisToTimeStringTo(long millis) {
+        Duration duration = Duration.ofMillis(millis);
+        long durationSeconds = duration.getSeconds();
+        long hours = durationSeconds / 3600;
+        long minutes = (durationSeconds % 3600) / 60;
+        long seconds = durationSeconds % 60;
+        return String.format("%02d:%02d:%02d", hours, minutes, seconds);
+    }
+
 }

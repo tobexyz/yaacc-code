@@ -424,12 +424,9 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
                                     input = new URL(getUri()).openStream();
                                 }
                                 byte[] tempBuffer = new byte[1024];
-                                ByteBuffer readBuffer = ByteBuffer.allocate(1024);
                                 int bytesRead;
                                 if (-1 != (bytesRead = input.read(tempBuffer))) {
-                                    readBuffer.put(tempBuffer, 0, bytesRead);
-                                    readBuffer.rewind();
-                                    outputChannel.write(readBuffer);
+                                    outputChannel.write(ByteBuffer.wrap(tempBuffer, 0, bytesRead));
                                 }
                                 if (bytesRead == -1) {
                                     outputChannel.endStream();
