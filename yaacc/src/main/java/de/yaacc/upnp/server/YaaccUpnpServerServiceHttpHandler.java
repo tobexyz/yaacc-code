@@ -32,7 +32,6 @@ import android.util.Log;
 import androidx.core.content.res.ResourcesCompat;
 import androidx.preference.PreferenceManager;
 
-import org.apache.hc.core5.function.Callback;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.EntityDetails;
 import org.apache.hc.core5.http.HttpException;
@@ -44,6 +43,7 @@ import org.apache.hc.core5.http.nio.AsyncEntityProducer;
 import org.apache.hc.core5.http.nio.AsyncRequestConsumer;
 import org.apache.hc.core5.http.nio.AsyncServerRequestHandler;
 import org.apache.hc.core5.http.nio.StreamChannel;
+import org.apache.hc.core5.http.nio.entity.AbstractBinAsyncEntityProducer;
 import org.apache.hc.core5.http.nio.entity.AsyncEntityProducers;
 import org.apache.hc.core5.http.nio.entity.BasicAsyncEntityConsumer;
 import org.apache.hc.core5.http.nio.support.AsyncResponseBuilder;
@@ -56,6 +56,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
+import java.net.URLConnection;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Locale;
@@ -414,29 +415,69 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
                             + "Mimetype: " + getMimeType());
                 } else {
                     //file not found maybe external url
-                    result = AsyncEntityProducers.createBinary(new Callback<>() {
-                        InputStream input;
+                    result = new AbstractBinAsyncEntityProducer(0, ContentType.parse(getMimeType().toString())) {
+                        private InputStream input;
+                        private long length = -1;
 
-                        @Override
-                        public void execute(StreamChannel<ByteBuffer> outputChannel) {
+                        AbstractBinAsyncEntityProducer init() {
                             try {
                                 if (input == null) {
-                                    input = new URL(getUri()).openStream();
+                                    URLConnection con = new URL(getUri()).openConnection();
+                                    input = con.getInputStream();
+                                    length = con.getContentLength();
+                                }
+                            } catch (IOException e) {
+                                Log.e(getClass().getName(), "Error opening external content", e);
+                            }
+                            return this;
+                        }
+
+                        @Override
+                        public long getContentLength() {
+                            return length;
+                        }
+
+                        @Override
+                        protected int availableData() {
+                            return Integer.MAX_VALUE;
+                        }
+
+                        @Override
+                        protected void produceData(final StreamChannel<ByteBuffer> channel) throws IOException {
+                            try {
+                                if (input == null) {
+                                    //retry opening external content if it hasn't been opened yet
+                                    URLConnection con = new URL(getUri()).openConnection();
+                                    input = con.getInputStream();
+                                    length = con.getContentLength();
                                 }
                                 byte[] tempBuffer = new byte[1024];
                                 int bytesRead;
                                 if (-1 != (bytesRead = input.read(tempBuffer))) {
-                                    outputChannel.write(ByteBuffer.wrap(tempBuffer, 0, bytesRead));
+                                    channel.write(ByteBuffer.wrap(tempBuffer, 0, bytesRead));
                                 }
                                 if (bytesRead == -1) {
-                                    outputChannel.endStream();
+                                    channel.endStream();
                                 }
 
                             } catch (IOException e) {
                                 Log.e(getClass().getName(), "Error reading external content", e);
+                                throw e;
                             }
                         }
-                    }, ContentType.parse(getMimeType().toString()));
+
+
+                        @Override
+                        public boolean isRepeatable() {
+                            return false;
+                        }
+
+                        @Override
+                        public void failed(final Exception cause) {
+                        }
+
+                    }.init();
+
                     Log.d(getClass().getName(), "Return external-Uri: " + getUri()
                             + "Mimetype: " + getMimeType());
                 }

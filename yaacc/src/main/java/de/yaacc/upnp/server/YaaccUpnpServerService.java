@@ -245,6 +245,7 @@ public class YaaccUpnpServerService extends Service {
             while (!getUpnpClient().isInitialized() && !watchdog) {
                 // wait for upnpClient initialization
             }
+
         }
         if (getUpnpClient().isInitialized()) {
             if (preferences.getBoolean(getApplicationContext().getString(R.string.settings_local_server_provider_chkbx), false)) {
