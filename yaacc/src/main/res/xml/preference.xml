@@ -39,13 +39,15 @@
             android:defaultValue="true"
             android:key="@string/settings_thumbnails_chkbx"
             android:summaryOff="@string/settings_browse_thumbnails_off"
-            android:summaryOn="@string/settings_browse_thumbnails_on" />
+            android:summaryOn="@string/settings_browse_thumbnails_on"
+            android:title="@string/settings_browse_thumbnails_title" />
         <CheckBoxPreference
             android:defaultValue="true"
             android:dependency="@string/settings_thumbnails_chkbx"
             android:key="@string/settings_browse_thumbnails_coverlookup_chkbx"
             android:summaryOff="@string/settings_browse_thumbnails_coverlookup_off"
-            android:summaryOn="@string/settings_browse_thumbnails_coverlookup_on" />
+            android:summaryOn="@string/settings_browse_thumbnails_coverlookup_on" 
+            android:title="@string/settings_browse_thumbnails_coverlookup_title" />
         <EditTextPreference
             android:defaultValue="10"
             android:dialogTitle="@string/settings_browse_load_threads"
@@ -77,6 +79,7 @@
         <CheckBoxPreference
             android:defaultValue="true"
             android:disableDependentsState="true"
+            android:title="@string/settings_replay_title"
             android:key="@string/settings_replay_playlist_chkbx"
             android:summaryOff="@string/settings_replay_playlist_off"
             android:summaryOn="@string/settings_replay_playlist_on" />
@@ -84,49 +87,65 @@
             android:defaultValue="false"
             android:disableDependentsState="true"
             android:key="@string/settings_music_player_shuffle_chkbx"
+            android:title="@string/settings_music_player_shuffle_title"
             android:summaryOff="@string/settings_music_player_shuffle_off"
             android:summaryOn="@string/settings_music_player_shuffle_on" />
+        <ListPreference
+            android:defaultValue="5000"
+            android:entries="@array/duration_entries_with_never"
+            android:entryValues="@array/duration_values_with_never"
+            android:key="@string/image_viewer_settings_duration_key"
+            android:title="@string/image_viewer_settings_duration" />
     </PreferenceCategory>
     <PreferenceCategory android:title="@string/settings_local_server_title">
         <CheckBoxPreference
             android:key="@string/settings_local_server_chkbx"
+            android:title="@string/settings_local_server_activation_title"
             android:summaryOff="@string/settings_local_server_stopped"
             android:summaryOn="@string/settings_local_server_started" />
         <CheckBoxPreference
             android:dependency="@string/settings_local_server_chkbx"
+            android:title="@string/settings_local_server_autostart_title"
             android:key="@string/settings_local_server_autostart_chkbx"
             android:summaryOff="@string/settings_local_server_autostart_deactivated"
             android:summaryOn="@string/settings_local_server_autostart_activated" />
         <CheckBoxPreference
             android:key="@string/settings_local_server_proxy_chkbx"
+            android:title="@string/settings_local_server_proxy_title"
             android:summaryOff="@string/settings_local_server_proxy_off"
             android:summaryOn="@string/settings_local_server_proxy_on" />
         <CheckBoxPreference
             android:key="@string/settings_local_server_receiver_chkbx"
+            android:title="@string/settings_local_server_revceiver_title"
             android:summaryOff="@string/settings_local_server_receiver_off"
             android:summaryOn="@string/settings_local_server_receiver_on" />
         <CheckBoxPreference
             android:key="@string/settings_local_server_provider_chkbx"
+            android:title="@string/settings_local_server_provider_title"
             android:summaryOff="@string/settings_local_server_provider_off"
             android:summaryOn="@string/settings_local_server_provider_on" />
         <CheckBoxPreference
             android:key="@string/settings_local_server_testcontent_chkbx"
+            android:title="@string/settings_local_server_provider_source_title"
             android:summaryOff="@string/settings_local_server_mediastore"
             android:summaryOn="@string/settings_local_server_testcontent" />
         <CheckBoxPreference
             android:defaultValue="true"
             android:key="@string/settings_local_server_serve_images_chkbx"
-            android:summaryOff="@string/settings_local_server_serve_images_on"
+            android:title="@string/settings_local_server_serve_images_title"
+            android:summaryOff="@string/settings_local_server_serve_images_off"
             android:summaryOn="@string/settings_local_server_serve_images_on" />
         <CheckBoxPreference
             android:defaultValue="true"
             android:key="@string/settings_local_server_serve_video_chkbx"
-            android:summaryOff="@string/settings_local_server_serve_video_on"
+            android:title="@string/settings_local_server_serve_video_title"
+            android:summaryOff="@string/settings_local_server_serve_video_off"
             android:summaryOn="@string/settings_local_server_serve_video_on" />
         <CheckBoxPreference
             android:defaultValue="true"
             android:key="@string/settings_local_server_serve_music_chkbx"
-            android:summaryOff="@string/settings_local_server_serve_music_on"
+            android:title="@string/settings_local_server_serve_music_title"
+            android:summaryOff="@string/settings_local_server_serve_music_off"
             android:summaryOn="@string/settings_local_server_serve_music_on" />
         <ListPreference
             android:defaultValue="30000"
@@ -163,13 +182,5 @@
             android:key="@string/settings_device_playback_offset_key"
             android:summary="@string/settings_device_playback_offset_summ"
             android:title="@string/settings_device_playback_offset" />
-    </PreferenceCategory>
-    <PreferenceCategory android:title="@string/settings_image_app">
-        <ListPreference
-            android:defaultValue="5000"
-            android:entries="@array/duration_entries_with_never"
-            android:entryValues="@array/duration_values_with_never"
-            android:key="@string/image_viewer_settings_duration_key"
-            android:title="@string/image_viewer_settings_duration" />
-    </PreferenceCategory>
+    </PreferenceCategory>    
 </PreferenceScreen>

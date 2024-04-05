@@ -65,6 +65,7 @@ Build the project by running following command in the project root:
 After the build has finished the debug apk is located in
 ```./yaacc/build/outputs/apk/debug/yaacc-debug.apk```
 
-## the old sf wiki
+## Documentation
 
-[wiki](./wiki/YaaccWiki.md)
+<https://tobexyz.github.io/yaacc-code>
+

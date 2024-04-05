@@ -4,7 +4,6 @@ permalink: about/
 ---
 [Up]({{site.baseurl}}/)
 
-
 # About
 
 YAACC (Yet Another Android Client Controller) is a hobby project I am working on in my free time. So
@@ -16,4 +15,6 @@ Have fun!
 
 tobexyz
 
-[<img src="https://f-droid.org/badge/get-it-on.png" alt="Get it on F-Droid" height="80">](https://f-droid.org/packages/de.yaacc/)
+[<img src="https://f-droid.org/badge/get-it-on.png" alt="Get it on F-Droid" height="80">][fdroid]
+
+[fdroid]: https://f-droid.org/packages/de.yaacc/

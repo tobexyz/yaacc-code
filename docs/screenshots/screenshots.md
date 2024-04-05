@@ -2,15 +2,19 @@
 layout: default
 permalink: screenshots/
 ---
+<!-- markdownlint-configure-file {
+    "first-line-h1": false
+} -->
 [Up]({{site.baseurl}}/)
 
-# Screenshots of YAACC
+# Screenshot gallary of YAACC
 
-- [Version 4.x.x](#4.x.x)
+- [Version 4.1.x](#4.1.x)
+- [Version 4.0.x](#4.0.x)
 - [Version 3.x.x](#3.x.x)
 - [Version 2.x.x](#2.x.x)
 
-<div id='4.1.x.'/>
+<div id='4.1.x'/>
 ## Version 4.1.x
 
 ![browse_servers](./4.1.x/browse_servers.png){:height="30%" width="30%"}
@@ -23,7 +27,7 @@ permalink: screenshots/
 ![image_player](./4.1.x/image_player.png){:height="30%" width="30%"}
 ![image_player_show_menu](./4.1.x/image_player_show_menu.png){:height="30%" width="30%"}
 
-<div id='4.0.x.'/>
+<div id='4.0.x'/>
 ## Version 4.0.x
 
 ![browse_servers](./4.0.x/browse_servers.png){:height="30%" width="30%"}
@@ -36,8 +40,7 @@ permalink: screenshots/
 ![image_player](./4.0.x/image_player.png){:height="30%" width="30%"}
 ![image_player_show_menu](./4.0.x/image_player_show_menu.png){:height="30%" width="30%"}
 
-
-<div id='3.x.x.'/>
+<div id='3.x.x'/>
 ## Version 3.x.x
 
 ![browse_servers](./3.x.x/browse_servers.png){:height="30%" width="30%"}
@@ -50,11 +53,12 @@ permalink: screenshots/
 ![image_player](./3.x.x/image_player.png){:height="30%" width="30%"}
 ![image_player_show_menu](./3.x.x/image_player_show_menu.png){:height="30%" width="30%"}
 
-<div id='2.x.x.'/>
+<div id='2.x.x'/>
 ## up to version 2.x.x
 
 ![contentDirectory](./up_to_version_2.x.x/1contentDirectory.png){:height="30%" width="30%"}
-![currentActivePlayers](./up_to_version_2.x.x/1CurrentActivePlayers2.png){:height="30%" width="30%"}
+![currentActivePlayers](./up_to_version_2.x.x/1CurrentActivePlayers2.png)
+{:height="30%" width="30%"}
 ![deviceList](./up_to_version_2.x.x/1deviceList.png){:height="30%" width="30%"}
 ![imageViewerMenu](./up_to_version_2.x.x/1imageViewerMenu.png){:height="30%" width="30%"}
 ![itemListImage](./up_to_version_2.x.x/1itemListImage.png){:height="30%" width="30%"}
