@@ -61,8 +61,8 @@
     <string name="title_activity_avtransport_player">YAACC remote player</string>
     <string name="title_activity_multi_content_player">YAACC default player</string>
     <string name="can_not_start_activity">"Can not start app! Reason: "</string>
-    <string name="app_descrip">Bring your UPnP devices in your local network together with android!\n <a href="http://www.yaacc.de">www.yaacc.de</a>\n\nYAACC is developed under GPLv3. Feel free to use and share it without any warranty. Licence details are documented at (www.gnu.org/licenses/gpl-3.0)\n\nFurther licences are:\nThe UPNP implementation is based on Cling (https://github.com/4thline/cling)\nMaterial design icons and symbols are used (https://github.com/google/material-design-icons)\n. Android is a trademark of Google Inc (developer.android.com/about/index.html )</string>
-    <string name="title_activity_yaacc_upnp_server_control">YAACC upnp server control</string>
+    <string name="app_descrip">Bring your UPnP devices in your local network together with android!\n <a href="http://www.yaacc.de">www.yaacc.de</a>\n\nYAACC is developed under GPLv3. Feel free to use and share it without any warranty. Licence details are documented at (www.gnu.org/licenses/gpl-3.0)\n\nFurther licences are:\nThe UPnP implementation is based on Cling (https://github.com/4thline/cling)\nMaterial design icons and symbols are used (https://github.com/google/material-design-icons)\n. Android is a trademark of Google Inc (developer.android.com/about/index.html )</string>
+    <string name="title_activity_yaacc_upnp_server_control">YAACC UPnP server control</string>
     <string name="yaacc_upnp_server_stop_server">stop server</string>
     <string name="yaacc_upnp_server_start_server">start server</string>
     <string name="playerCurrentItem">currentItem</string>
@@ -118,7 +118,7 @@
     <string name="media_store_scanner_scan_finished">media store scan finished</string>
     <string name="media_store_scan">scan</string>
     <string name="media_store_label">media store</string>
-    <string name="search_devices">searching for UPNP devices</string>
+    <string name="search_devices">searching for UPnP devices</string>
     <string name="this_device">this device</string>
     <string name="stop_not_supported">"stop not supported for third parties apps "</string>
     <string name="settings">settings</string>

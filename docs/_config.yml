@@ -18,13 +18,13 @@
 # You can create any custom variable you would like, and they will be accessible
 # in the templates via {{ site.myvariable }}.
 
-title: YAACC - Android UPNP/DLNA Client and Server
+title: YAACC - Android UPnP/DLNA Client and Server
 email:
 description: >- # this means to ignore newlines until "baseurl:"
-  The App allows you to play media from UPNP/DLNA devices in your network 
-  on your android device or any capable UPNP device in your network. 
-  It is also possible to start an UPNP server on your device in order 
-  to play media from your device on any UPNP renderer in your network.
+  Play media from UPnP/DLNA devices in your network 
+  on your android device or any capable UPnP/DLNA device in your network. 
+  It is also possible to start an UPnP/DLNA server on your device and play 
+  media from your device on any UPnP/DLNA renderer in your network.
 baseurl: "/yaacc-code/" # the subpath of your site, e.g. /blog
 url: "https://tobexyz.github.io" # the base hostname & protocol for your site, e.g. http://example.com
 twitter_username:

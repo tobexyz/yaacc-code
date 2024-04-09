@@ -6,8 +6,9 @@ permalink: about/
 
 # About
 
-YAACC (Yet Another Android Client Controller) is a hobby project I am working on in my free time. So
-it's not perfect and I am only able to test the app with my own hardware setup.
+YAACC (Yet Another Android Client Controller) is a hobby project
+I am working on in my free time. So it's not perfect and I am
+only able to test the app with my own hardware setup.
 
 Please, help improving YAACC by reporting problems or sending pull requests.
 

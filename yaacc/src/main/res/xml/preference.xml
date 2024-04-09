@@ -116,7 +116,7 @@
             android:summaryOn="@string/settings_local_server_proxy_on" />
         <CheckBoxPreference
             android:key="@string/settings_local_server_receiver_chkbx"
-            android:title="@string/settings_local_server_revceiver_title"
+            android:title="@string/settings_local_server_receiver_title"
             android:summaryOff="@string/settings_local_server_receiver_off"
             android:summaryOn="@string/settings_local_server_receiver_on" />
         <CheckBoxPreference

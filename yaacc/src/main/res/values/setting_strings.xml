@@ -50,7 +50,7 @@
     <string name="settings_browse_thumbnails_coverlookup_chkbx" translatable="false">thumbnail_cover_lookup_chkbx</string>
     <string name="settings_browse_load_threads_key" translatable="false">settings_browse_load_threads_key</string>
     <string name="settings_browse_load_threads">mumber of threads</string>
-    <string name="settings_browse_load_threads_summ">Configure the number of threads used for loading content from the upnp server. More threads causes faster loading but increase the possibility of errors. Changes are effect after restart of yaacc.</string>
+    <string name="settings_browse_load_threads_summ">Configure the number of threads used for loading content from the UPnP server. More threads causes faster loading but increase the possibility of errors. Changes are effect after restart of yaacc.</string>
     <string name="settings_no_content_found">no content found for browsing</string>
     <string name="settings_audio_chkbx" translatable="false">audio_chkbx</string>
     <string name="settings_video_chkbx" translatable="false">video_chkbx</string>
@@ -94,7 +94,7 @@
     <string name="settings_local_server_autostart_deactivated">server will not start after booting</string>
     <string name="settings_local_server_autostart_activated">server will start after booting</string>
     <string name="settings_local_server_autostart_chkbx" translatable="false">settings_local_server_autostart_chkbx</string>
-    <string name="settings_sending_upnp_alive_interval">sending UPNP alive notifications</string>
+    <string name="settings_sending_upnp_alive_interval">sending UPnP alive notifications</string>
     <string name="settings_sending_upnp_alive_interval_key" translatable="false">settings_sending_upnp_alive_interval_key</string>
     <string name="settings_category_playing">media playing behavior</string>
     <string name="settings_replay_title">replay playlist</string>

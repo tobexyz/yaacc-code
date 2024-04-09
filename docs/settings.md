@@ -17,7 +17,7 @@ permalink: settings/
 | **media browsing behavior** | category for media browsing settings |
 | thumbnails | show thumbnails or not|
 | cover images | search for cover images in media files or use a cover.jpg file within the directories |
-| number of threads | Configure the number of threads used for loading content from the UPNP server. More threads causes faster loading but increase the possibility of errors. Changes are effect after restart of yaacc. |
+| number of threads | Configure the number of threads used for loading content from the UPnP server. More threads causes faster loading but increase the possibility of errors. Changes are effect after restart of YAACC. |
 | chunk size when browsing |amount of items fetched from server in one request |
 | **media playing behavior** | category for media playing settings |
 | default item duration | default item duration if media file provides no duration information |
@@ -35,5 +35,5 @@ permalink: settings/
 | serve images | activate or deactivate publishing of images |
 | serve music | activate or deactivate publishing of music |
 | serve videos | activate or deactivate publishing of music |
-| sending UPNP alive notifications | define the frequency for sending UPNP alive notifications |
+| sending UPnP alive notifications | define the frequency for sending UPnP alive notifications |
 | network name for local server| display name of the media server |
