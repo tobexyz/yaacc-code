@@ -20,6 +20,7 @@ package de.yaacc.upnp.server;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.drawable.BitmapDrawable;
@@ -29,6 +30,7 @@ import android.provider.MediaStore;
 import android.util.Log;
 
 import androidx.core.content.res.ResourcesCompat;
+import androidx.preference.PreferenceManager;
 
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.EntityDetails;
@@ -40,6 +42,8 @@ import org.apache.hc.core5.http.MethodNotSupportedException;
 import org.apache.hc.core5.http.nio.AsyncEntityProducer;
 import org.apache.hc.core5.http.nio.AsyncRequestConsumer;
 import org.apache.hc.core5.http.nio.AsyncServerRequestHandler;
+import org.apache.hc.core5.http.nio.StreamChannel;
+import org.apache.hc.core5.http.nio.entity.AbstractBinAsyncEntityProducer;
 import org.apache.hc.core5.http.nio.entity.AsyncEntityProducers;
 import org.apache.hc.core5.http.nio.entity.BasicAsyncEntityConsumer;
 import org.apache.hc.core5.http.nio.support.AsyncResponseBuilder;
@@ -50,6 +54,10 @@ import org.seamless.util.MimeType;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.URL;
+import java.net.URLConnection;
+import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Locale;
 
@@ -145,21 +153,24 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
         }
 
         ContentHolder contentHolder = null;
+
         if (!contentId.isEmpty()) {
             contentHolder = lookupContent(contentId);
         } else if (!albumId.isEmpty()) {
             contentHolder = lookupAlbumArt(albumId);
         } else if (!thumbId.isEmpty()) {
             contentHolder = lookupThumbnail(thumbId);
+        } else if (YaaccUpnpServerService.PROXY_PATH.equals(type)) {
+            contentHolder = lookupProxyContent(pathSegments.get(1));
         }
         if (contentHolder == null) {
             // tricky but works
             Log.d(getClass().getName(), "Resource with id " + contentId
-                    + albumId + thumbId + " not found");
+                    + albumId + thumbId + pathSegments.get(1) + " not found");
             responseBuilder.setStatus(HttpStatus.SC_NOT_FOUND);
             String response =
                     "<html><body><h1>Resource with id " + contentId + albumId
-                            + thumbId + " not found</h1></body></html>";
+                            + thumbId + pathSegments.get(1) + " not found</h1></body></html>";
             responseBuilder.setEntity(AsyncEntityProducers.create(response, ContentType.TEXT_HTML));
         } else {
 
@@ -182,6 +193,11 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
      */
     private ContentHolder lookupContent(String contentId) {
         ContentHolder result = null;
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(getContext());
+        if (!preferences.getBoolean(getContext().getString(R.string.settings_local_server_chkbx), false)) {
+            return null;
+        }
+
         if (contentId == null) {
             return null;
         }
@@ -232,8 +248,12 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
 
         ContentHolder result = new ContentHolder(MimeType.valueOf("image/png"),
                 getDefaultIcon());
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(getContext());
+        if (!preferences.getBoolean(getContext().getString(R.string.settings_local_server_chkbx), false)) {
+            return result;
+        }
         if (albumId == null) {
-            return null;
+            return result;
         }
         Log.d(getClass().getName(), "System media store lookup album: "
                 + albumId);
@@ -286,15 +306,19 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
 
         ContentHolder result = new ContentHolder(MimeType.valueOf("image/png"),
                 getDefaultIcon());
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(getContext());
+        if (!preferences.getBoolean(getContext().getString(R.string.settings_local_server_chkbx), false)) {
+            return result;
+        }
         if (idStr == null) {
-            return null;
+            return result;
         }
         long id;
         try {
             id = Long.parseLong(idStr);
         } catch (NumberFormatException nfe) {
             Log.d(getClass().getName(), "ParsingError of id: " + idStr, nfe);
-            return null;
+            return result;
         }
 
         Log.d(getClass().getName(), "System media store lookup thumbnail: "
@@ -315,6 +339,20 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
             Log.d(getClass().getName(), "System media store is empty.");
         }
         return result;
+    }
+
+    private ContentHolder lookupProxyContent(String contentKey) {
+
+        String targetUri = PreferenceManager.getDefaultSharedPreferences(getContext()).getString(YaaccUpnpServerService.PROXY_LINK_KEY_PREFIX + contentKey, null);
+        if (targetUri == null) {
+            return null;
+        }
+        String targetMimetype = PreferenceManager.getDefaultSharedPreferences(getContext()).getString(YaaccUpnpServerService.PROXY_LINK_MIME_TYPE_KEY_PREFIX + contentKey, null);
+        MimeType mimeType = MimeType.valueOf("*/*");
+        if (targetMimetype != null) {
+            mimeType = MimeType.valueOf(targetMimetype);
+        }
+        return new ContentHolder(mimeType, targetUri);
     }
 
     private byte[] getDefaultIcon() {
@@ -369,10 +407,80 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
         public AsyncEntityProducer getEntityProducer() {
             AsyncEntityProducer result = null;
             if (getUri() != null && !getUri().isEmpty()) {
-                File file = new File(getUri());
-                result = AsyncEntityProducers.create(file, ContentType.parse(getMimeType().toString()));
-                Log.d(getClass().getName(), "Return file-Uri: " + getUri()
-                        + "Mimetype: " + getMimeType());
+                if (new File(getUri()).exists()) {
+
+                    File file = new File(getUri());
+                    result = AsyncEntityProducers.create(file, ContentType.parse(getMimeType().toString()));
+                    Log.d(getClass().getName(), "Return file-Uri: " + getUri()
+                            + "Mimetype: " + getMimeType());
+                } else {
+                    //file not found maybe external url
+                    result = new AbstractBinAsyncEntityProducer(0, ContentType.parse(getMimeType().toString())) {
+                        private InputStream input;
+                        private long length = -1;
+
+                        AbstractBinAsyncEntityProducer init() {
+                            try {
+                                if (input == null) {
+                                    URLConnection con = new URL(getUri()).openConnection();
+                                    input = con.getInputStream();
+                                    length = con.getContentLength();
+                                }
+                            } catch (IOException e) {
+                                Log.e(getClass().getName(), "Error opening external content", e);
+                            }
+                            return this;
+                        }
+
+                        @Override
+                        public long getContentLength() {
+                            return length;
+                        }
+
+                        @Override
+                        protected int availableData() {
+                            return Integer.MAX_VALUE;
+                        }
+
+                        @Override
+                        protected void produceData(final StreamChannel<ByteBuffer> channel) throws IOException {
+                            try {
+                                if (input == null) {
+                                    //retry opening external content if it hasn't been opened yet
+                                    URLConnection con = new URL(getUri()).openConnection();
+                                    input = con.getInputStream();
+                                    length = con.getContentLength();
+                                }
+                                byte[] tempBuffer = new byte[1024];
+                                int bytesRead;
+                                if (-1 != (bytesRead = input.read(tempBuffer))) {
+                                    channel.write(ByteBuffer.wrap(tempBuffer, 0, bytesRead));
+                                }
+                                if (bytesRead == -1) {
+                                    channel.endStream();
+                                }
+
+                            } catch (IOException e) {
+                                Log.e(getClass().getName(), "Error reading external content", e);
+                                throw e;
+                            }
+                        }
+
+
+                        @Override
+                        public boolean isRepeatable() {
+                            return false;
+                        }
+
+                        @Override
+                        public void failed(final Exception cause) {
+                        }
+
+                    }.init();
+
+                    Log.d(getClass().getName(), "Return external-Uri: " + getUri()
+                            + "Mimetype: " + getMimeType());
+                }
             } else if (content != null) {
                 result = AsyncEntityProducers.create(content, ContentType.parse(getMimeType().toString()));
             }

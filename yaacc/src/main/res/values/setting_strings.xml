@@ -63,6 +63,9 @@
     <string name="settings_local_server_provider_off">content directory is disabled</string>
     <string name="settings_local_server_provider_on">content directory is enabled</string>
     <string name="settings_local_server_provider_chkbx">local_server_provider_chkbx</string>
+    <string name="settings_local_server_proxy_off">media proxy deactivated</string>
+    <string name="settings_local_server_proxy_on">media proxy activated</string>
+    <string name="settings_local_server_proxy_chkbx">local_server_proxy_chkbx</string>
     <string name="settings_local_server_testcontent">local server using test content</string>
     <string name="settings_local_server_mediastore">local server using mediastore</string>
     <string name="settings_local_server_testcontent_chkbx" translatable="false">local_server_testcontent_chkbx</string>

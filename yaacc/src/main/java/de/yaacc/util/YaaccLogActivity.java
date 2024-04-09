@@ -21,12 +21,12 @@ package de.yaacc.util;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
-import android.preference.PreferenceManager;
 import android.view.View;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.preference.PreferenceManager;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -83,9 +83,7 @@ public class YaaccLogActivity extends AppCompatActivity {
             textView.setText(log.toString());
             textView.setTextIsSelectable(true);
             ScrollView scrollView = findViewById(R.id.yaaccLog_scrollView);
-            scrollView.post(() -> {
-                scrollView.fullScroll(View.FOCUS_DOWN);
-            });
+            scrollView.post(() -> scrollView.fullScroll(View.FOCUS_DOWN));
 
         } catch (IOException e) {
             textView.setText("Error while reading log: " + e.getMessage());

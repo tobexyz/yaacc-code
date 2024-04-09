@@ -30,11 +30,11 @@ import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.os.Binder;
 import android.os.IBinder;
-import android.preference.PreferenceManager;
 import android.util.Log;
 
 import androidx.core.app.NotificationCompat;
 import androidx.core.content.res.ResourcesCompat;
+import androidx.preference.PreferenceManager;
 
 import org.apache.hc.core5.function.Callback;
 import org.apache.hc.core5.http.ConnectionClosedException;
@@ -97,6 +97,10 @@ import de.yaacc.util.NotificationId;
  * @author Tobias Schoene (openbit)
  */
 public class YaaccUpnpServerService extends Service {
+
+    public static final String PROXY_LINK_KEY_PREFIX = "proxy_link_";
+    public static final String PROXY_LINK_MIME_TYPE_KEY_PREFIX = "proxy_link_mime_type";
+    public static final String PROXY_PATH = "proxy";
     public static final int LOCK_TIMEOUT = 5000;
     private static final Pattern IPV4_PATTERN =
             Pattern.compile(
@@ -241,6 +245,7 @@ public class YaaccUpnpServerService extends Service {
             while (!getUpnpClient().isInitialized() && !watchdog) {
                 // wait for upnpClient initialization
             }
+
         }
         if (getUpnpClient().isInitialized()) {
             if (preferences.getBoolean(getApplicationContext().getString(R.string.settings_local_server_provider_chkbx), false)) {
@@ -248,6 +253,10 @@ public class YaaccUpnpServerService extends Service {
                     localServer = createMediaServerDevice();
                 }
                 getUpnpClient().getRegistry().addDevice(localServer);
+
+            }
+            if (preferences.getBoolean(getApplicationContext().getString(R.string.settings_local_server_provider_chkbx), false)
+                    || preferences.getBoolean(getApplicationContext().getString(R.string.settings_local_server_proxy_chkbx), false)) {
 
                 createHttpServer();
             }
@@ -847,7 +856,7 @@ public class YaaccUpnpServerService extends Service {
      *
      * @return the address or null if anything went wrong
      */
-    public String getIpAddress() {
+    public static String getIpAddress() {
         String hostAddress = null;
         try {
             for (Enumeration<NetworkInterface> networkInterfaces = NetworkInterface

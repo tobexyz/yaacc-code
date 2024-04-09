@@ -29,15 +29,17 @@ import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.os.BatteryManager;
 import android.os.PowerManager;
-import android.preference.PreferenceManager;
 import android.util.Log;
 
 import androidx.appcompat.app.AppCompatDelegate;
 import androidx.core.app.NotificationCompat;
+import androidx.preference.PreferenceManager;
 
 import java.util.HashMap;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
+import java.util.stream.Collectors;
 
 import de.yaacc.browser.TabBrowserActivity;
 import de.yaacc.musicplayer.BackgroundMusicService;
@@ -140,6 +142,12 @@ public class Yaacc extends Application {
     public void exit() {
         Log.d(getClass().getName(), "Start shutdown and close");
         upnpClient.shutdown();
+        //clear proxy links from preferences
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
+        Set<String> proxyLinks = preferences.getAll().keySet().stream().filter(k -> k.startsWith(YaaccUpnpServerService.PROXY_LINK_MIME_TYPE_KEY_PREFIX)).collect(Collectors.toSet());
+        proxyLinks.addAll(preferences.getAll().keySet().stream().filter(k -> k.startsWith(YaaccUpnpServerService.PROXY_LINK_KEY_PREFIX)).collect(Collectors.toSet()));
+        SharedPreferences.Editor editor = preferences.edit();
+        proxyLinks.forEach(k -> editor.remove(k).commit());
         stopService(new Intent(this, PlayerService.class));
         stopService(new Intent(this, BackgroundMusicService.class));
         stopService(new Intent(this, YaaccAudioRenderingControlService.class));

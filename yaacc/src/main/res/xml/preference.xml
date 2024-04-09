@@ -98,6 +98,10 @@
             android:summaryOff="@string/settings_local_server_autostart_deactivated"
             android:summaryOn="@string/settings_local_server_autostart_activated" />
         <CheckBoxPreference
+            android:key="@string/settings_local_server_proxy_chkbx"
+            android:summaryOff="@string/settings_local_server_proxy_off"
+            android:summaryOn="@string/settings_local_server_proxy_on" />
+        <CheckBoxPreference
             android:key="@string/settings_local_server_receiver_chkbx"
             android:summaryOff="@string/settings_local_server_receiver_off"
             android:summaryOn="@string/settings_local_server_receiver_on" />
