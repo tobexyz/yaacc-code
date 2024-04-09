@@ -6,8 +6,7 @@ layout: default
     "first-line-h1": false
 } -->
 
-* TOC
-  {:toc}
+* TOC {:toc}
 
 # Features
 
