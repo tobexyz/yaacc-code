@@ -17,87 +17,100 @@
 * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 -->
 <resources>
-    <string name="settings_category_send_rec">Sending and Receiving</string>
-    <string name="settings_category_browsing">Media browsing behavior</string>
-    <string name="settings_selected_provider_title">Current media provider</string>
-    <string name="settings_change_provider">Tab to change current provider</string>
-    <string name="settings_selected_receivers_title">Current media receivers</string>
-    <string name="settings_change_receiver">Tab to change current receiver</string>
-    <string name="settings_audio_app">Audio Playback</string>
-    <string name="settings_video_app">Video Playback</string>
-    <string name="settings_image_app">Image Playback</string>
+    <string name="settings_category_send_rec">sending and Receiving</string>
+    <string name="settings_category_browsing">media browsing behavior</string>
+    <string name="settings_selected_provider_title">current media provider</string>
+    <string name="settings_change_provider">tab to change current provider</string>
+    <string name="settings_selected_receivers_title">current media receivers</string>
+    <string name="settings_change_receiver">tab to change current receiver</string>
+    <string name="settings_audio_app">audio Playback</string>
+    <string name="settings_video_app">video Playback</string>
+    <string name="settings_image_app">image Playback</string>
     <string name="settings_default_duration">default item duration</string>
-    <string name="settings_default_duration_key">default item duration</string>
+    <string name="settings_default_duration_key" translatable="false">settings_default_duration_key</string>
     <string name="settings_silence_duration">silence duration</string>
-    <string name="settings_silence_duration_key">silence duration</string>
-    <string name="settings_image_app_on">Local image playback directly in YAACC is enabled</string>
-    <string name="settings_image_app_off">Local image playback opens a third party application</string>
-    <string name="settings_video_app_on">Local video playback directly in YAACC is enabled</string>
-    <string name="settings_video_app_off">Local video playback opens a third party application</string>
-    <string name="settings_browse_audio_on">Show audio files</string>
-    <string name="settings_browse_audio_off">Show no audio files</string>
-    <string name="settings_browse_video_on">Show video files</string>
-    <string name="settings_browse_video_off">Show no video files</string>
-    <string name="settings_browse_image_on">Show image files</string>
-    <string name="settings_browse_image_off">Show no image files</string>
-    <string name="settings_thumbnails_chkbx">thumbnails_chkbx</string>
-    <string name="settings_browse_thumbnails_on">Show image thumbnails</string>
-    <string name="settings_browse_thumbnails_off">Show no image thumbnails</string>
-    <string name="settings_browse_thumbnails_coverlookup_on">Images in directories are used as music covers</string>
-    <string name="settings_browse_thumbnails_coverlookup_off">Images in directories are not used as covers</string>
+    <string name="settings_silence_duration_key" translatable="false">settings_silence_duration_key</string>
+    <string name="settings_image_app_on">local image playback directly in YAACC is enabled</string>
+    <string name="settings_image_app_off">local image playback opens a third party application</string>
+    <string name="settings_video_app_on">local video playback directly in YAACC is enabled</string>
+    <string name="settings_video_app_off">local video playback opens a third party application</string>
+    <string name="settings_browse_audio_on">show audio files</string>
+    <string name="settings_browse_audio_off">show no audio files</string>
+    <string name="settings_browse_video_on">show video files</string>
+    <string name="settings_browse_video_off">show no video files</string>
+    <string name="settings_browse_image_on">show image files</string>
+    <string name="settings_browse_image_off">show no image files</string>
+    <string name="settings_thumbnails_chkbx" translatable="false">thumbnails_chkbx</string>
+    <string name="settings_browse_thumbnails_title">thumbnails</string>
+    <string name="settings_browse_thumbnails_on">show image thumbnails</string>
+    <string name="settings_browse_thumbnails_off">show no image thumbnails</string>
+    <string name="settings_browse_thumbnails_coverlookup_title">cover images</string>
+    <string name="settings_browse_thumbnails_coverlookup_on">images in directories are used as music covers</string>
+    <string name="settings_browse_thumbnails_coverlookup_off">images in directories are not used as covers</string>
     <string name="settings_browse_thumbnails_coverlookup_chkbx" translatable="false">thumbnail_cover_lookup_chkbx</string>
-    <string name="settings_browse_load_threads_key">settings_browse_load_threads_key</string>
-    <string name="settings_browse_load_threads">Number of threads</string>
-    <string name="settings_browse_load_threads_summ">Configure the number of threads used for loading content from the upnp server. More threads causes faster loading but increase the possibility of errors. Changes are effect after restart of yaacc.</string>
-    <string name="settings_no_content_found">No content found for browsing</string>
-    <string name="settings_audio_chkbx">audio_chkbx</string>
-    <string name="settings_video_chkbx">video_chkbx</string>
-    <string name="settings_image_chkbx">image_chkbx</string>
-    <string name="settings_local_server_title">Local server configuration</string>
+    <string name="settings_browse_load_threads_key" translatable="false">settings_browse_load_threads_key</string>
+    <string name="settings_browse_load_threads">mumber of threads</string>
+    <string name="settings_browse_load_threads_summ">Configure the number of threads used for loading content from the UPnP server. More threads causes faster loading but increase the possibility of errors. Changes are effect after restart of yaacc.</string>
+    <string name="settings_no_content_found">no content found for browsing</string>
+    <string name="settings_audio_chkbx" translatable="false">audio_chkbx</string>
+    <string name="settings_video_chkbx" translatable="false">video_chkbx</string>
+    <string name="settings_image_chkbx" translatable="false">image_chkbx</string>
+    <string name="settings_local_server_title">local server configuration</string>
+    <string name="settings_local_server_activation_title">local server state</string>
     <string name="settings_local_server_started">local server is started</string>
     <string name="settings_local_server_stopped">local server is stopped</string>
-    <string name="settings_local_server_chkbx">local_server_chkbx</string>
+    <string name="settings_local_server_chkbx" translatable="false">local_server_chkbx</string>
+    <string name="settings_local_server_receiver_title">media receiver service</string>
     <string name="settings_local_server_receiver_off">media receiver is disabled</string>
     <string name="settings_local_server_receiver_on">media receiver is enabled</string>
-    <string name="settings_local_server_receiver_chkbx">local_server_receiver_chkbx</string>
+    <string name="settings_local_server_receiver_chkbx" translatable="false">local_server_receiver_chkbx</string>
+    <string name="settings_local_server_provider_title">media provider service</string>
     <string name="settings_local_server_provider_off">content directory is disabled</string>
     <string name="settings_local_server_provider_on">content directory is enabled</string>
-    <string name="settings_local_server_provider_chkbx">local_server_provider_chkbx</string>
+    <string name="settings_local_server_provider_chkbx" translatable="false">local_server_provider_chkbx</string>
+    <string name="settings_local_server_proxy_title">media proxy service</string>
     <string name="settings_local_server_proxy_off">media proxy deactivated</string>
     <string name="settings_local_server_proxy_on">media proxy activated</string>
-    <string name="settings_local_server_proxy_chkbx">local_server_proxy_chkbx</string>
+    <string name="settings_local_server_proxy_chkbx" translatable="false">local_server_proxy_chkbx</string>
     <string name="settings_local_server_testcontent">local server using test content</string>
+    <string name="settings_local_server_provider_source_title">media provider source</string>
     <string name="settings_local_server_mediastore">local server using mediastore</string>
     <string name="settings_local_server_testcontent_chkbx" translatable="false">local_server_testcontent_chkbx</string>
+    <string name="settings_local_server_serve_images_title">serve images</string>
     <string name="settings_local_server_serve_images_off">serve images is disabled</string>
     <string name="settings_local_server_serve_images_on">serve images is enabled</string>
-    <string name="settings_local_server_serve_images_chkbx">local_server_serve_images_chkbx</string>
+    <string name="settings_local_server_serve_images_chkbx" translatable="false">local_server_serve_images_chkbx</string>
+    <string name="settings_local_server_serve_music_title">serve music</string>
     <string name="settings_local_server_serve_music_off">serve music is disabled</string>
     <string name="settings_local_server_serve_music_on">serve music is enabled</string>
-    <string name="settings_local_server_serve_music_chkbx">local_server_serve_music_chkbx</string>
+    <string name="settings_local_server_serve_music_chkbx" translatable="false">local_server_serve_music_chkbx</string>
+    <string name="settings_local_server_serve_video_title">serve videos</string>
     <string name="settings_local_server_serve_video_off">serve video is disabled</string>
     <string name="settings_local_server_serve_video_on">serve video is enabled</string>
-    <string name="settings_local_server_serve_video_chkbx">local_server_serve_video_chkbx</string>
+    <string name="settings_local_server_serve_video_chkbx" translatable="false">local_server_serve_video_chkbx</string>
     <string name="settings_local_server_name">network name for local server</string>
-    <string name="settings_local_server_name_key">Local server name</string>
-    <string name="settings_local_server_autostart_deactivated">Server will not start after booting</string>
-    <string name="settings_local_server_autostart_activated">Server will start after booting</string>
-    <string name="settings_local_server_autostart_chkbx">settings_local_server_autostart_chkbx</string>
-    <string name="settings_sending_upnp_alive_interval">Sending upnp alive notifications</string>
+    <string name="settings_local_server_name_key" translatable="false">settings_local_server_name_key</string>
+    <string name="settings_local_server_autostart_title">autostart server on boot</string>
+    <string name="settings_local_server_autostart_deactivated">server will not start after booting</string>
+    <string name="settings_local_server_autostart_activated">server will start after booting</string>
+    <string name="settings_local_server_autostart_chkbx" translatable="false">settings_local_server_autostart_chkbx</string>
+    <string name="settings_sending_upnp_alive_interval">sending UPnP alive notifications</string>
     <string name="settings_sending_upnp_alive_interval_key" translatable="false">settings_sending_upnp_alive_interval_key</string>
-    <string name="settings_category_playing">Media playing behavior</string>
-    <string name="settings_replay_playlist_chkbx">settings_replay_playlist_chkbx</string>
-    <string name="settings_replay_playlist_on">Replay playlist</string>
-    <string name="settings_replay_playlist_off">Don\'t replay playlist</string>
-    <string name="settings_music_player_shuffle_chkbx">settings_music_player_chkbx</string>
-    <string name="settings_music_player_shuffle_on">Shuffled music play</string>
-    <string name="settings_music_player_shuffle_off">Ordered music play</string>
-    <string name="settings_category_synchronization">Synchronization settings</string>
-    <string name="settings_default_playback_delay">Playback delay</string>
-    <string name="settings_default_playback_delay_key">settings_default_playback_delay_key</string>
-    <string name="settings_device_playback_offset">Device offset</string>
+    <string name="settings_category_playing">media playing behavior</string>
+    <string name="settings_replay_title">replay playlist</string>
+    <string name="settings_replay_playlist_chkbx" translatable="false">settings_replay_playlist_chkbx</string>
+    <string name="settings_replay_playlist_on">replay playlist</string>
+    <string name="settings_replay_playlist_off">don\'t replay playlist</string>
+    <string name="settings_music_player_shuffle_title">shuffle music</string>
+    <string name="settings_music_player_shuffle_chkbx" translatable="false">settings_music_player_chkbx</string>
+    <string name="settings_music_player_shuffle_on">shuffled music play</string>
+    <string name="settings_music_player_shuffle_off">ordered music play</string>
+    <string name="settings_category_synchronization">synchronization settings</string>
+    <string name="settings_default_playback_delay">playback delay</string>
+    <string name="settings_default_playback_delay_key" translatable="false">settings_default_playback_delay_key</string>
+    <string name="settings_device_playback_offset">device offset</string>
     <string name="settings_device_playback_offset_summ">offset in ms</string>
-    <string name="settings_device_playback_offset_key">settings_device_playback_offset_key</string>
+    <string name="settings_device_playback_offset_key" translatable="false">settings_device_playback_offset_key</string>
 
 
 </resources>
