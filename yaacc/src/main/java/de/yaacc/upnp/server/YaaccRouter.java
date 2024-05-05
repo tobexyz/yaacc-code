@@ -15,8 +15,6 @@ import org.fourthline.cling.transport.RouterException;
 import org.fourthline.cling.transport.RouterImpl;
 import org.fourthline.cling.transport.spi.InitializationException;
 
-import java.util.Objects;
-
 public class YaaccRouter extends RouterImpl {
     private final Context context;
     private final WifiManager wifiManager;
@@ -127,12 +125,18 @@ public class YaaccRouter extends RouterImpl {
 
     private boolean isWifi() {
         ConnectivityManager connectivityManager = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
-        return Objects.requireNonNull(connectivityManager.getNetworkCapabilities(connectivityManager.getActiveNetwork())).hasTransport(NetworkCapabilities.TRANSPORT_WIFI);
+        if (connectivityManager.getNetworkCapabilities(connectivityManager.getActiveNetwork()) == null) {
+            return false;
+        }
+        return connectivityManager.getNetworkCapabilities(connectivityManager.getActiveNetwork()).hasTransport(NetworkCapabilities.TRANSPORT_WIFI);
     }
 
     private boolean isCellular() {
         ConnectivityManager connectivityManager = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
-        return Objects.requireNonNull(connectivityManager.getNetworkCapabilities(connectivityManager.getActiveNetwork())).hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR);
+        if (connectivityManager.getNetworkCapabilities(connectivityManager.getActiveNetwork()) == null) {
+            return false;
+        }
+        return connectivityManager.getNetworkCapabilities(connectivityManager.getActiveNetwork()).hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR);
     }
 
     protected void setWiFiMulticastLock(boolean enable) {
