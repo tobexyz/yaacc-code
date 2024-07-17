@@ -1077,7 +1077,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      * @return the providerDeviceId
      */
     public String getProviderDeviceId() {
-        if (getContext() != null) {
+        if (getContext() != null && preferences.contains(getContext().getString(R.string.settings_selected_provider_title))) {
             return preferences.getString(getContext().getString(R.string.settings_selected_provider_title), null);
         }
         return "";

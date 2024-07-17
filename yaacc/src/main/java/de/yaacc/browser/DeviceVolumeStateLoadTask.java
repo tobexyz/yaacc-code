@@ -40,7 +40,9 @@ public class DeviceVolumeStateLoadTask extends AsyncTask<Device<?, ?, ?>, Intege
         targetWidget.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                upnpClient.setVolume(device, progress);
+                if (fromUser) {
+                    upnpClient.setVolume(device, progress);
+                }
             }
 
             @Override
