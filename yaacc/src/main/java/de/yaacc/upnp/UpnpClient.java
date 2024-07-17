@@ -1001,7 +1001,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      *
      * @param receiverDeviceIds the device ids.
      */
-    private void setReceiverDeviceIds(Set<String> receiverDeviceIds) {
+    public void setReceiverDeviceIds(Set<String> receiverDeviceIds) {
         assert (receiverDeviceIds != null);
         Editor prefEdit = preferences.edit();
         prefEdit.putStringSet(getContext().getString(R.string.settings_selected_receivers_title), receiverDeviceIds);
@@ -1032,13 +1032,25 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         return result;
     }
 
+    public int getReceiverDevicesReadyCount() {
+        int result = 0;
+        Set<String> receiverDeviceIds = getReceiverDeviceIds();
+        for (String id : receiverDeviceIds) {
+            Device<?, ?, ?> receiver = this.getDevice(id);
+            if (receiver != null) {
+                result++;
+            }
+        }
+        return result;
+    }
+
     /**
      * set the receiverDevices to the devices in the given collection.
      *
      * @param receiverDevices the devices
      */
     public void setReceiverDevices(Collection<Device<?, ?, ?>> receiverDevices) {
-        assert (receiverDevices != null);
+        if (receiverDevices == null) return;
         HashSet<String> receiverIds = new HashSet<>();
         for (Device<?, ?, ?> receiver : receiverDevices) {
             Log.d(this.getClass().getName(), "Receiver: " + receiver);

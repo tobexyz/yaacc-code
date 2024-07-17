@@ -57,6 +57,7 @@ import com.google.android.material.tabs.TabLayout;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -173,7 +174,7 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
             Log.d(getClass().getName(), "Upnp client is null");
             return;
         }
-
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
         if (savedInstanceState != null) {
             setCurrentTab(BrowserTabs.valueOf(savedInstanceState.getInt(CURRENT_TAB_KEY, BrowserTabs.CONTENT.ordinal())));
         } else if (upnpClient.getProviderDevice() != null) {
@@ -220,9 +221,9 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
             }
             if (contentUri != null) {
                 long delayedExecution = 0;
-                if (upnpClient.getReceiverDevices().isEmpty()) {
+                if (upnpClient.getReceiverDevicesReadyCount() == 0) {
                     //schedule execution to be sure the receiver devices come up
-                    delayedExecution = 6000L;
+                    delayedExecution = 3000L;
                 }
                 if (!upnpClient.isPlayerServiceInitialized()) {
                     //schedule execution to be sure the player devices come up
@@ -230,17 +231,29 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
                     delayedExecution += 3000L;
                 }
 
+
                 ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
                 Handler handler = new Handler(Looper.getMainLooper());
                 final Uri uri = contentUri;
                 Runnable execution = new Runnable() {
                     @Override
                     public void run() {
+                        if (upnpClient.getReceiverDevicesReadyCount() == 0) {
+                            runOnUiThread(new Runnable() {
+                                @Override
+                                public void run() {
+                                    Toast.makeText(getApplicationContext(), "no receiver found using local device", Toast.LENGTH_LONG).show();
+                                }
+                            });
+
+                            upnpClient.setReceiverDeviceIds(Set.of(UpnpClient.LOCAL_UID));
+                        }
                         items.add(upnpClient.createPlayableItem(uri));
 
                         handler.post(new Runnable() {
                             @Override
                             public void run() {
+
                                 List<Player> players = upnpClient.initializePlayersWithPlayableItems(items);
                                 for (Player player : players) {
                                     player.play();
