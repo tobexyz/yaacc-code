@@ -117,7 +117,7 @@ public class DIDLParser extends SAXParser {
         createRootHandler(content, this);
 
         Log.d(getClass().getName(), "Parsing DIDL XML content");
-        parse(new InputSource(new StringReader(xml.replaceAll("&", "&amp;"))));
+        parse(new InputSource(new StringReader(xml.replaceAll("&(?!amp;)", "&amp;"))));
         return content;
     }
 

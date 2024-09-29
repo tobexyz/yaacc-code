@@ -1,0 +1,6 @@
+Version 4.2.0
+- added proxy function for https urls shared with yaacc to terminate ssl and provide an http content url for receiver device
+- setup new documentation page https://tobexyz.github.io/yaacc-code/
+- code refactorings
+
+https://github.com/tobexyz/yaacc-code/compare/4.1.0...4.2.0
