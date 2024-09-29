@@ -15,6 +15,8 @@
 
 package org.fourthline.cling.controlpoint;
 
+import android.util.Log;
+
 import org.fourthline.cling.UpnpServiceConfiguration;
 import org.fourthline.cling.controlpoint.event.ExecuteAction;
 import org.fourthline.cling.controlpoint.event.Search;
@@ -24,12 +26,12 @@ import org.fourthline.cling.model.message.header.UpnpHeader;
 import org.fourthline.cling.protocol.ProtocolFactory;
 import org.fourthline.cling.registry.Registry;
 
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
-import java.util.logging.Logger;
 
 /**
  * Default implementation.
@@ -43,7 +45,6 @@ import java.util.logging.Logger;
 @ApplicationScoped
 public class ControlPointImpl implements ControlPoint {
 
-    private static Logger log = Logger.getLogger(ControlPointImpl.class.getName());
 
     protected UpnpServiceConfiguration configuration;
     protected ProtocolFactory protocolFactory;
@@ -54,8 +55,8 @@ public class ControlPointImpl implements ControlPoint {
 
     @Inject
     public ControlPointImpl(UpnpServiceConfiguration configuration, ProtocolFactory protocolFactory, Registry registry) {
-        log.fine("Creating ControlPoint: " + getClass().getName());
-        
+        Log.d(getClass().getName(), "Creating ControlPoint: " + getClass().getName());
+
         this.configuration = configuration;
         this.protocolFactory = protocolFactory;
         this.registry = registry;
@@ -90,7 +91,7 @@ public class ControlPointImpl implements ControlPoint {
     }
 
     public void search(UpnpHeader searchType, int mxSeconds) {
-        log.fine("Sending asynchronous search for: " + searchType.getString());
+        Log.d(getClass().getName(), "Sending asynchronous search for: " + searchType.getString());
         getConfiguration().getAsyncProtocolExecutor().execute(
                 getProtocolFactory().createSendingSearch(searchType, mxSeconds)
         );
@@ -101,14 +102,14 @@ public class ControlPointImpl implements ControlPoint {
     }
 
     public Future execute(ActionCallback callback) {
-        log.fine("Invoking action in background: " + callback);
+        Log.d(getClass().getName(), "Invoking action in background: " + callback);
         callback.setControlPoint(this);
         ExecutorService executor = getConfiguration().getSyncProtocolExecutorService();
         return executor.submit(callback);
     }
 
     public void execute(SubscriptionCallback callback) {
-        log.fine("Invoking subscription in background: " + callback);
+        Log.d(getClass().getName(), "Invoking subscription in background: " + callback);
         callback.setControlPoint(this);
         getConfiguration().getSyncProtocolExecutorService().execute(callback);
     }

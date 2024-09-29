@@ -15,11 +15,12 @@
 
 package org.fourthline.cling.model.types;
 
+import android.util.Log;
+
 import org.fourthline.cling.model.Constants;
 
-import java.util.logging.Logger;
-import java.util.regex.Pattern;
 import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Represents a service identifier, for example <code>urn:my-domain-namespace:serviceId:MyService123</code>
@@ -28,16 +29,15 @@ import java.util.regex.Matcher;
  */
 public class ServiceId {
 
-    final private static Logger log = Logger.getLogger(ServiceId.class.getName());
 
     public static final String UNKNOWN = "UNKNOWN";
 
     public static final Pattern PATTERN =
-        Pattern.compile("urn:(" + Constants.REGEX_NAMESPACE + "):serviceId:(" + Constants.REGEX_ID + ")");
+            Pattern.compile("urn:(" + Constants.REGEX_NAMESPACE + "):serviceId:(" + Constants.REGEX_ID + ")");
 
     // Note: 'service' vs. 'serviceId'
     public static final Pattern BROKEN_PATTERN =
-               Pattern.compile("urn:(" + Constants.REGEX_NAMESPACE + "):service:(" + Constants.REGEX_ID+ ")");
+            Pattern.compile("urn:(" + Constants.REGEX_NAMESPACE + "):service:(" + Constants.REGEX_ID + ")");
 
     private String namespace;
     private String id;
@@ -91,14 +91,14 @@ public class ServiceId {
         // urn:upnp-org:serviceId:
         matcher = Pattern.compile("urn:(" + Constants.REGEX_NAMESPACE + "):serviceId:").matcher(s);
         if (matcher.matches() && matcher.groupCount() >= 1) {
-            log.warning("UPnP specification violation, no service ID token, defaulting to " + UNKNOWN + ": " + s);
+            Log.w(ServiceId.class.getName(), "UPnP specification violation, no service ID token, defaulting to " + UNKNOWN + ": " + s);
             return new ServiceId(matcher.group(1), UNKNOWN);
         }
 
         // TODO: UPNP VIOLATION: PS Audio Bridge has invalid service IDs
         String tokens[] = s.split("[:]");
         if (tokens.length == 4) {
-            log.warning("UPnP specification violation, trying a simple colon-split of: " + s);
+            Log.w(ServiceId.class.getName(), "UPnP specification violation, trying a simple colon-split of: " + s);
             return new ServiceId(tokens[1], tokens[3]);
         }
 

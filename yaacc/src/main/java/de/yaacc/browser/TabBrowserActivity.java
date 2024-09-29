@@ -22,10 +22,10 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.drawable.Drawable;
-import android.media.MediaMetadataRetriever;
 import android.net.Uri;
 import android.os.Bundle;
-import android.preference.PreferenceManager;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 import android.util.TypedValue;
 import android.view.ContextMenu;
@@ -47,22 +47,20 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
+import androidx.preference.PreferenceManager;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.viewpager2.adapter.FragmentStateAdapter;
 import androidx.viewpager2.widget.ViewPager2;
 
 import com.google.android.material.tabs.TabLayout;
 
-import org.fourthline.cling.model.meta.Device;
-import org.fourthline.cling.support.model.Res;
-import org.fourthline.cling.support.model.item.ImageItem;
-import org.fourthline.cling.support.model.item.MusicTrack;
-import org.fourthline.cling.support.model.item.VideoItem;
-import org.seamless.util.MimeType;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import de.yaacc.R;
 import de.yaacc.Yaacc;
@@ -70,7 +68,6 @@ import de.yaacc.player.PlayableItem;
 import de.yaacc.player.Player;
 import de.yaacc.settings.SettingsActivity;
 import de.yaacc.upnp.UpnpClient;
-import de.yaacc.upnp.UpnpClientListener;
 import de.yaacc.upnp.server.YaaccUpnpServerService;
 import de.yaacc.util.AboutActivity;
 import de.yaacc.util.ThemeHelper;
@@ -81,8 +78,7 @@ import de.yaacc.util.YaaccLogActivity;
  *
  * @author Tobias Schoene (the openbit)
  */
-public class TabBrowserActivity extends AppCompatActivity implements OnClickListener,
-        UpnpClientListener {
+public class TabBrowserActivity extends AppCompatActivity implements OnClickListener {
     private static final String[] permissions = new String[]{
             Manifest.permission.INTERNET,
             Manifest.permission.ACCESS_WIFI_STATE,
@@ -178,10 +174,7 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
             Log.d(getClass().getName(), "Upnp client is null");
             return;
         }
-        // add ourself as listener
-        upnpClient.addUpnpClientListener(this);
-
-
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
         if (savedInstanceState != null) {
             setCurrentTab(BrowserTabs.valueOf(savedInstanceState.getInt(CURRENT_TAB_KEY, BrowserTabs.CONTENT.ordinal())));
         } else if (upnpClient.getProviderDevice() != null) {
@@ -203,26 +196,21 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
         // Get intent, action and MIME type
         Intent intent = receivedIntent != null ? receivedIntent : getIntent();
         String action = intent.getAction();
+        Uri contentUri = null;
         if (Intent.ACTION_SEND.equals(action)) {
             ArrayList<PlayableItem> items = new ArrayList<>();
             if (intent.getExtras() != null && intent.getExtras().getString("android.intent.extra.TEXT") != null) {
-                Uri contentUri = Uri.parse(intent.getExtras().getString("android.intent.extra.TEXT"));
-                items.add(createPlayableItem(contentUri));
+                contentUri = Uri.parse(intent.getExtras().getString("android.intent.extra.TEXT"));
             } else if (intent.getClipData() != null) {
                 for (int i = 0; i < intent.getClipData().getItemCount(); i++) {
                     if (intent.getClipData().getItemAt(i) != null) {
-                        Uri contentUri = null;
                         if (intent.getClipData().getItemAt(i).getText() != null) {
                             contentUri = Uri.parse(intent.getClipData().getItemAt(i).getText().toString());
                         } else if (intent.getClipData().getItemAt(i).getUri() != null) {
                             contentUri = intent.getClipData().getItemAt(i).getUri();
                         }
-                        if (contentUri != null) {
-                            items.add(createPlayableItem(contentUri));
-                        }
                     }
                 }
-
             }
             //clear intent
             if (intent.getExtras() != null && intent.getExtras().getString("android.intent.extra.TEXT") != null) {
@@ -231,58 +219,69 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
             if (intent.getClipData() != null) {
                 intent.setClipData(null);
             }
-            if (!items.isEmpty()) {
-                List<Player> players = upnpClient.initializePlayersWithPlayableItems(items);
-                for (Player player : players) {
-                    player.play();
+            if (contentUri != null) {
+                long delayedExecution = 0;
+                if (upnpClient.getReceiverDevicesReadyCount() == 0) {
+                    //schedule execution to be sure the receiver devices come up
+                    delayedExecution = 3000L;
+                }
+                if (!upnpClient.isPlayerServiceInitialized()) {
+                    //schedule execution to be sure the player devices come up
+                    upnpClient.startService();
+                    delayedExecution += 3000L;
+                }
+
+
+                ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
+                Handler handler = new Handler(Looper.getMainLooper());
+                final Uri uri = contentUri;
+                Runnable execution = new Runnable() {
+                    @Override
+                    public void run() {
+                        if (upnpClient.getReceiverDevicesReadyCount() == 0) {
+                            runOnUiThread(new Runnable() {
+                                @Override
+                                public void run() {
+                                    Toast.makeText(getApplicationContext(), "no receiver found using local device", Toast.LENGTH_LONG).show();
+                                }
+                            });
+
+                            upnpClient.setReceiverDeviceIds(Set.of(UpnpClient.LOCAL_UID));
+                        }
+                        items.add(upnpClient.createPlayableItem(uri));
+
+                        handler.post(new Runnable() {
+                            @Override
+                            public void run() {
+
+                                List<Player> players = upnpClient.initializePlayersWithPlayableItems(items);
+                                for (Player player : players) {
+                                    player.play();
+                                }
+                                setCurrentTab(BrowserTabs.PLAYER);
+                            }
+                        });
+                    }
+                };
+
+                if (delayedExecution > 0) {
+                    executor.schedule(execution, delayedExecution, TimeUnit.MILLISECONDS);
+                    Toast.makeText(getApplicationContext(), String.format("start in %s seconds", delayedExecution / 1000), Toast.LENGTH_LONG).show();
+                } else {
+                    executor.execute(execution);
                 }
             }
-            setCurrentTab(BrowserTabs.PLAYER);
+
         }
     }
 
-    private PlayableItem createPlayableItem(Uri uri) {
-        PlayableItem item = new PlayableItem();
-        if (uri == null) {
-            return item;
-        }
-        String uriString = uri.toString();
-        final String title = "shared with yaacc with ♥";
-        //auto closeable requires Android code level 29 current min level is 27
-        MediaMetadataRetriever metaRetriever = new MediaMetadataRetriever();
-        try {
-            try {
-                metaRetriever.setDataSource(uriString);
-                String duration = metaRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION);
-                item.setDuration(Long.parseLong(duration));
-                item.setMimeType(metaRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_MIMETYPE));
-                Res res = new Res(MimeType.valueOf(item.getMimeType()), 1L, duration);
-                res.setValue(uriString);
-                if (item.getMimeType().startsWith("audio/")) {
-                    item.setItem(new MusicTrack("1", "2", title, "", "", "", res));
-                } else if (item.getMimeType().startsWith("video/")) {
-                    item.setItem(new VideoItem("1", "2", title, "", res));
-                } else if (item.getMimeType().startsWith("image/")) {
-                    item.setItem(new ImageItem("1", "2", title, "", res));
-                }
-            } catch (RuntimeException e) {
-                //no media file with duration
-                Log.d(getClass().getName(), "Can't retrieve duration of media url assume shared image", e);
-                Res res = new Res(MimeType.valueOf("image/*"), 1L, "");
-                res.setValue(uriString);
-                item.setMimeType("image/*");
-                item.setItem(new ImageItem("1", "2", title, "", res));
-            }
-            item.setUri(uri);
-            item.setTitle(title);
-        } finally {
-            metaRetriever.close();
-        }
-        return item;
-    }
 
     public void setCurrentTab(final BrowserTabs content) {
-        runOnUiThread(() -> Objects.requireNonNull(tabLayout.getTabAt(content.ordinal())).select());
+        runOnUiThread(() -> {
+            if (tabLayout.getTabAt(content.ordinal()) != null) {
+                tabLayout.getTabAt(content.ordinal()).select();
+            }
+        });
 
     }
 
@@ -385,32 +384,6 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
         return super.onOptionsItemSelected(item);
     }
 
-
-    @Override
-    public void deviceAdded(Device<?, ?, ?> device) {
-
-    }
-
-    @Override
-    public void deviceRemoved(Device<?, ?, ?> device) {
-
-    }
-
-    @Override
-    public void deviceUpdated(Device<?, ?, ?> device) {
-
-    }
-
-    @Override
-    public void receiverDeviceRemoved(Device<?, ?, ?> device) {
-
-    }
-
-    @Override
-    public void receiverDeviceAdded(Device<?, ?, ?> device) {
-
-    }
-
     @Override
     public void onClick(View view) {
 
@@ -462,7 +435,10 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
             if (viewPager != null && tabLayout != null && tabLayout.getSelectedTabPosition() == BrowserTabs.RECEIVER.ordinal() && tabLayout.getTabAt(tabLayout.getSelectedTabPosition()).view != null) {
                 List<Fragment> fragments = getSupportFragmentManager().getFragments();
                 if (fragments.size() > viewPager.getCurrentItem()) {
-                    ((RecyclerView) fragments.get(viewPager.getCurrentItem()).getView().findViewById(R.id.receiverList)).getAdapter().notifyDataSetChanged();
+                    RecyclerView view = ((RecyclerView) fragments.get(viewPager.getCurrentItem()).getView().findViewById(R.id.receiverList));
+                    if (view != null && view.getAdapter() != null) {
+                        view.getAdapter().notifyDataSetChanged();
+                    }
                 }
             }
         }
@@ -470,4 +446,6 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
 
         return super.onKeyDown(keyCode, event);
     }
+
+
 }

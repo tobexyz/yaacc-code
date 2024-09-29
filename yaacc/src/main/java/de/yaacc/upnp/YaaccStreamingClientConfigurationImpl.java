@@ -31,6 +31,14 @@ public class YaaccStreamingClientConfigurationImpl extends AbstractStreamClientC
         super(timeoutExecutorService);
     }
 
+    public YaaccStreamingClientConfigurationImpl(ExecutorService requestExecutorService, int timeoutSeconds) {
+        super(requestExecutorService, timeoutSeconds);
+    }
+
+    public YaaccStreamingClientConfigurationImpl(ExecutorService requestExecutorService, int timeoutSeconds, int logWarningSeconds) {
+        super(requestExecutorService, timeoutSeconds, logWarningSeconds);
+    }
+
 
     @Override
     public String getUserAgentValue(int majorVersion, int minorVersion) {

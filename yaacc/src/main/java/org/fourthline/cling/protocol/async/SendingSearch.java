@@ -15,6 +15,8 @@
 
 package org.fourthline.cling.protocol.async;
 
+import android.util.Log;
+
 import org.fourthline.cling.UpnpService;
 import org.fourthline.cling.model.message.discovery.OutgoingSearchRequest;
 import org.fourthline.cling.model.message.header.MXHeader;
@@ -22,9 +24,6 @@ import org.fourthline.cling.model.message.header.STAllHeader;
 import org.fourthline.cling.model.message.header.UpnpHeader;
 import org.fourthline.cling.protocol.SendingAsync;
 import org.fourthline.cling.transport.RouterException;
-
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
  * Sending search request messages using the supplied search type.
@@ -36,8 +35,6 @@ import java.util.logging.Logger;
  * @author Christian Bauer
  */
 public class SendingSearch extends SendingAsync {
-
-    final private static Logger log = Logger.getLogger(SendingSearch.class.getName());
 
     private final UpnpHeader searchTarget;
     private final int mxSeconds;
@@ -81,7 +78,7 @@ public class SendingSearch extends SendingAsync {
 
     protected void execute() throws RouterException {
 
-        log.info("Executing search for target: " + searchTarget.getString() + " with MX seconds: " + getMxSeconds());
+        Log.i(getClass().getName(), "Executing search for target: " + searchTarget.getString() + " with MX seconds: " + getMxSeconds());
 
         OutgoingSearchRequest msg = new OutgoingSearchRequest(searchTarget, getMxSeconds());
         prepareOutgoingSearchRequest(msg);
@@ -92,12 +89,12 @@ public class SendingSearch extends SendingAsync {
                 getUpnpService().getRouter().send(msg);
 
                 // UDA 1.0 is silent about this but UDA 1.1 recommends "a few hundred milliseconds"
-                log.info("Sleeping " + getBulkIntervalMilliseconds() + " milliseconds");
+                Log.i(getClass().getName(), "Sleeping " + getBulkIntervalMilliseconds() + " milliseconds");
                 Thread.sleep(getBulkIntervalMilliseconds());
 
             } catch (InterruptedException ex) {
                 // Interruption means we stop sending search messages, e.g. on shutdown of thread pool
-                log.log(Level.INFO, "got exception on search", ex);
+                Log.i(getClass().getName(), "got exception on search", ex);
                 break;
             }
         }

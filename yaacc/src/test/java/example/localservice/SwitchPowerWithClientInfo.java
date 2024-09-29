@@ -26,21 +26,21 @@ import org.fourthline.cling.binding.annotations.UpnpStateVariables;
 import org.fourthline.cling.model.profile.RemoteClientInfo;
 
 @UpnpService(
-    serviceId = @UpnpServiceId("SwitchPower"),
-    serviceType = @UpnpServiceType(value = "SwitchPower", version = 1)
+        serviceId = @UpnpServiceId("SwitchPower"),
+        serviceType = @UpnpServiceType(value = "SwitchPower", version = 1)
 )
 @UpnpStateVariables(
-    {
-        @UpnpStateVariable(
-            name = "Target",
-            defaultValue = "0",
-            sendEvents = false
-        ),
-        @UpnpStateVariable(
-            name = "Status",
-            defaultValue = "0"
-        )
-    }
+        {
+                @UpnpStateVariable(
+                        name = "Target",
+                        defaultValue = "0",
+                        sendEvents = false
+                ),
+                @UpnpStateVariable(
+                        name = "Status",
+                        defaultValue = "0"
+                )
+        }
 )
 public class SwitchPowerWithClientInfo {
 
@@ -56,17 +56,11 @@ public class SwitchPowerWithClientInfo {
 
         if (clientInfo != null) {
             System.out.println(
-                "Client's address is: " + clientInfo.getRemoteAddress()
+                    "Client's user agent is: " + clientInfo.getRequestUserAgent()
             );
             System.out.println(
-                "Received message on: " + clientInfo.getLocalAddress()
-            );
-            System.out.println(
-                "Client's user agent is: " + clientInfo.getRequestUserAgent()
-            );
-            System.out.println(
-                "Client's custom header is: " +
-                clientInfo.getRequestHeaders().getFirstHeader("X-MY-HEADER")
+                    "Client's custom header is: " +
+                            clientInfo.getRequestHeaders().getFirstHeader("X-MY-HEADER")
             );
 
             // Return some extra headers in the response

@@ -15,12 +15,15 @@
 
 package org.fourthline.cling.binding.xml;
 
+import static org.fourthline.cling.binding.xml.Descriptor.Device.ELEMENT;
+
+import android.util.Log;
+
 import org.fourthline.cling.binding.staging.MutableDevice;
 import org.fourthline.cling.binding.staging.MutableIcon;
 import org.fourthline.cling.binding.staging.MutableService;
 import org.fourthline.cling.binding.staging.MutableUDAVersion;
 import org.fourthline.cling.model.ValidationException;
-import org.fourthline.cling.model.XMLUtil;
 import org.fourthline.cling.model.meta.Device;
 import org.fourthline.cling.model.types.DLNACaps;
 import org.fourthline.cling.model.types.DLNADoc;
@@ -39,9 +42,6 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.logging.Logger;
-
-import static org.fourthline.cling.binding.xml.Descriptor.Device.ELEMENT;
 
 /**
  * A JAXP SAX parser implementation, which is actually slower than the DOM implementation (on desktop and on Android)!
@@ -50,7 +50,6 @@ import static org.fourthline.cling.binding.xml.Descriptor.Device.ELEMENT;
  */
 public class UDA10DeviceDescriptorBinderSAXImpl extends UDA10DeviceDescriptorBinderImpl {
 
-    private static Logger log = Logger.getLogger(DeviceDescriptorBinder.class.getName());
 
     @Override
     public <D extends Device> D describe(D undescribedDevice, String descriptorXml) throws DescriptorBindingException, ValidationException {
@@ -60,7 +59,7 @@ public class UDA10DeviceDescriptorBinderSAXImpl extends UDA10DeviceDescriptorBin
         }
 
         try {
-            log.fine("Populating device from XML descriptor: " + undescribedDevice);
+            Log.d(getClass().getName(), "Populating device from XML descriptor: " + undescribedDevice);
 
             // Read the XML into a mutable descriptor graph
 
@@ -139,7 +138,7 @@ public class UDA10DeviceDescriptorBinderSAXImpl extends UDA10DeviceDescriptorBin
                 case major:
                     String majorVersion = getCharacters().trim();
                     if (!majorVersion.equals("1")) {
-                        log.warning("Unsupported UDA major version, ignoring: " + majorVersion);
+                        Log.w(getClass().getName(), "Unsupported UDA major version, ignoring: " + majorVersion);
                         majorVersion = "1";
                     }
                     getInstance().major = Integer.valueOf(majorVersion);
@@ -147,7 +146,7 @@ public class UDA10DeviceDescriptorBinderSAXImpl extends UDA10DeviceDescriptorBin
                 case minor:
                     String minorVersion = getCharacters().trim();
                     if (!minorVersion.equals("0")) {
-                        log.warning("Unsupported UDA minor version, ignoring: " + minorVersion);
+                        Log.w(getClass().getName(), "Unsupported UDA minor version, ignoring: " + minorVersion);
                         minorVersion = "0";
                     }
                     getInstance().minor = Integer.valueOf(minorVersion);
@@ -235,7 +234,7 @@ public class UDA10DeviceDescriptorBinderSAXImpl extends UDA10DeviceDescriptorBin
                     try {
                         getInstance().dlnaDocs.add(DLNADoc.valueOf(txt));
                     } catch (InvalidValueException ex) {
-                        log.info("Invalid X_DLNADOC value, ignoring value: " + txt);
+                        Log.i(getClass().getName(), "Invalid X_DLNADOC value, ignoring value: " + txt);
                     }
                     break;
                 case X_DLNACAP:
@@ -291,12 +290,12 @@ public class UDA10DeviceDescriptorBinderSAXImpl extends UDA10DeviceDescriptorBin
                     getInstance().height = Integer.valueOf(getCharacters());
                     break;
                 case depth:
-                	try {
-                		getInstance().depth = Integer.valueOf(getCharacters());
-                	} catch(NumberFormatException ex) {
-                		log.warning("Invalid icon depth '" + getCharacters() + "', using 16 as default: " + ex);
-                		getInstance().depth = 16;
-                	}
+                    try {
+                        getInstance().depth = Integer.valueOf(getCharacters());
+                    } catch (NumberFormatException ex) {
+                        Log.w(getClass().getName(), "Invalid icon depth '" + getCharacters() + "', using 16 as default: " + ex);
+                        getInstance().depth = 16;
+                    }
                     break;
                 case url:
                     getInstance().uri = parseURI(getCharacters());
@@ -305,8 +304,8 @@ public class UDA10DeviceDescriptorBinderSAXImpl extends UDA10DeviceDescriptorBin
                     try {
                         getInstance().mimeType = getCharacters();
                         MimeType.valueOf(getInstance().mimeType);
-                    } catch(IllegalArgumentException ex) {
-                        log.warning("Ignoring invalid icon mime type: " + getInstance().mimeType);
+                    } catch (IllegalArgumentException ex) {
+                        Log.w(getClass().getName(), "Ignoring invalid icon mime type: " + getInstance().mimeType);
                         getInstance().mimeType = "";
                     }
                     break;
@@ -380,8 +379,8 @@ public class UDA10DeviceDescriptorBinderSAXImpl extends UDA10DeviceDescriptorBin
                         break;
                 }
             } catch (InvalidValueException ex) {
-                log.warning(
-                    "UPnP specification violation, skipping invalid service declaration. " + ex.getMessage()
+                Log.d(getClass().getName(),
+                        "UPnP specification violation, skipping invalid service declaration. " + ex.getMessage()
                 );
             }
         }

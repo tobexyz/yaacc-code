@@ -15,6 +15,8 @@
 
 package org.fourthline.cling.model;
 
+import android.util.Log;
+
 import org.fourthline.cling.model.meta.LocalService;
 import org.fourthline.cling.model.meta.StateVariable;
 import org.fourthline.cling.model.state.StateVariableAccessor;
@@ -31,8 +33,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
  * Default implementation, creates and manages a single instance of a plain Java bean.
@@ -49,8 +49,6 @@ import java.util.logging.Logger;
  * @author Christian Bauer
  */
 public class DefaultServiceManager<T> implements ServiceManager<T> {
-
-    private static Logger log = Logger.getLogger(DefaultServiceManager.class.getName());
 
     final protected LocalService<T> service;
     final protected Class<T> serviceClass;
@@ -74,8 +72,7 @@ public class DefaultServiceManager<T> implements ServiceManager<T> {
     protected void lock() {
         try {
             if (lock.tryLock(getLockTimeoutMillis(), TimeUnit.MILLISECONDS)) {
-                if (log.isLoggable(Level.FINEST))
-                    log.log(Level.INFO, "Acquired lock");
+                Log.i(getClass().getName(), "Acquired lock");
             } else {
                 throw new RuntimeException("Failed to acquire lock in milliseconds: " + getLockTimeoutMillis());
             }
@@ -86,7 +83,7 @@ public class DefaultServiceManager<T> implements ServiceManager<T> {
 
     protected void unlock() {
 
-        log.log(Level.INFO, "Releasing lock");
+        Log.i(getClass().getName(), "Releasing lock");
         lock.unlock();
     }
 
@@ -137,7 +134,7 @@ public class DefaultServiceManager<T> implements ServiceManager<T> {
         try {
             Collection<StateVariableValue> values = readInitialEventedStateVariableValues();
             if (values != null) {
-                log.fine("Obtained initial state variable values for event, skipping individual state variable accessors");
+                Log.d(getClass().getName(), "Obtained initial state variable values for event, skipping individual state variable accessors");
                 return values;
             }
             values = new ArrayList<>();
@@ -164,13 +161,13 @@ public class DefaultServiceManager<T> implements ServiceManager<T> {
 
                 StateVariable stateVariable = getService().getStateVariable(variableName);
                 if (stateVariable == null || !stateVariable.getEventDetails().isSendEvents()) {
-                    log.fine("Ignoring unknown or non-evented state variable: " + variableName);
+                    Log.d(getClass().getName(), "Ignoring unknown or non-evented state variable: " + variableName);
                     continue;
                 }
 
                 StateVariableAccessor accessor = getService().getAccessor(stateVariable);
                 if (accessor == null) {
-                    log.warning("Ignoring evented state variable without accessor: " + variableName);
+                    Log.w(getClass().getName(), "Ignoring evented state variable without accessor: " + variableName);
                     continue;
                 }
                 values.add(accessor.read(stateVariable, getImplementation()));
@@ -182,7 +179,7 @@ public class DefaultServiceManager<T> implements ServiceManager<T> {
     }
 
     protected void init() {
-        log.fine("No service implementation instance available, initializing...");
+        Log.d(getClass().getName(), "No service implementation instance available, initializing...");
         try {
             // The actual instance we ware going to use and hold a reference to (1:1 instance for manager)
             serviceImpl = createServiceInstance();
@@ -204,7 +201,7 @@ public class DefaultServiceManager<T> implements ServiceManager<T> {
             // Use this constructor if possible
             return serviceClass.getConstructor(LocalService.class).newInstance(getService());
         } catch (NoSuchMethodException ex) {
-            log.fine("Creating new service implementation instance with no-arg constructor: " + serviceClass.getName());
+            Log.d(getClass().getName(), "Creating new service implementation instance with no-arg constructor: " + serviceClass.getName());
             return serviceClass.newInstance();
         }
     }
@@ -213,10 +210,10 @@ public class DefaultServiceManager<T> implements ServiceManager<T> {
         Method m;
         if ((m = Reflections.getGetterMethod(serviceImpl.getClass(), "propertyChangeSupport")) != null &&
                 PropertyChangeSupport.class.isAssignableFrom(m.getReturnType())) {
-            log.fine("Service implementation instance offers PropertyChangeSupport, using that: " + serviceImpl.getClass().getName());
+            Log.d(getClass().getName(), "Service implementation instance offers PropertyChangeSupport, using that: " + serviceImpl.getClass().getName());
             return (PropertyChangeSupport) m.invoke(serviceImpl);
         }
-        log.fine("Creating new PropertyChangeSupport for service implementation: " + serviceImpl.getClass().getName());
+        Log.d(getClass().getName(), "Creating new PropertyChangeSupport for service implementation: " + serviceImpl.getClass().getName());
         return new PropertyChangeSupport(serviceImpl);
     }
 
@@ -236,13 +233,13 @@ public class DefaultServiceManager<T> implements ServiceManager<T> {
     protected class DefaultPropertyChangeListener implements PropertyChangeListener {
 
         public void propertyChange(PropertyChangeEvent e) {
-            log.finer("Property change event on local service: " + e.getPropertyName());
+            Log.v(getClass().getName(), "Property change event on local service: " + e.getPropertyName());
 
             // Prevent recursion
             if (e.getPropertyName().equals(EVENTED_STATE_VARIABLES)) return;
 
             String[] variableNames = ModelUtil.fromCommaSeparatedList(e.getPropertyName());
-            log.fine("Changed variable names: " + Arrays.toString(variableNames));
+            Log.d(getClass().getName(), "Changed variable names: " + Arrays.toString(variableNames));
 
             try {
                 Collection<StateVariableValue> currentValues = getCurrentState(variableNames);
@@ -257,8 +254,7 @@ public class DefaultServiceManager<T> implements ServiceManager<T> {
 
             } catch (Exception ex) {
                 // TODO: Is it OK to only log this error? It means we keep running although we couldn't send events?
-                log.log(
-                        Level.SEVERE,
+                Log.w(getClass().getName(),
                         "Error reading state of service after state variable update event: " + Exceptions.unwrap(ex),
                         ex
                 );

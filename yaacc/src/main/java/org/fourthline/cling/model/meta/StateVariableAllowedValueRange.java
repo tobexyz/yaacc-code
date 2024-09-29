@@ -15,12 +15,13 @@
 
 package org.fourthline.cling.model.meta;
 
+import android.util.Log;
+
 import org.fourthline.cling.model.Validatable;
 import org.fourthline.cling.model.ValidationError;
 
-import java.util.List;
 import java.util.ArrayList;
-import java.util.logging.Logger;
+import java.util.List;
 
 /**
  * Integrity rule for a state variable, restricting its values to a range with steps.
@@ -30,8 +31,6 @@ import java.util.logging.Logger;
  * @author Christian Bauer
  */
 public class StateVariableAllowedValueRange implements Validatable {
-
-    final private static Logger log = Logger.getLogger(StateVariableAllowedValueRange.class.getName());
 
     final private long minimum;
     final private long maximum;
@@ -43,8 +42,8 @@ public class StateVariableAllowedValueRange implements Validatable {
 
     public StateVariableAllowedValueRange(long minimum, long maximum, long step) {
         if (minimum > maximum) {
-            log.warning("UPnP specification violation, allowed value range minimum '" + minimum
-                                + "' is greater than maximum '" + maximum + "', switching values.");
+            Log.w(getClass().getName(), "UPnP specification violation, allowed value range minimum '" + minimum
+                    + "' is greater than maximum '" + maximum + "', switching values.");
             this.minimum = maximum;
             this.maximum = minimum;
         } else {

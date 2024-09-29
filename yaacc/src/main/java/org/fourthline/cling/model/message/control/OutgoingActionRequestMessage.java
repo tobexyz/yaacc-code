@@ -15,17 +15,18 @@
 
 package org.fourthline.cling.model.message.control;
 
-import java.util.logging.Logger;
+import android.util.Log;
+
 import org.fourthline.cling.model.action.ActionInvocation;
 import org.fourthline.cling.model.action.RemoteActionInvocation;
-import org.fourthline.cling.model.meta.Action;
-import org.fourthline.cling.model.meta.QueryStateVariableAction;
 import org.fourthline.cling.model.message.StreamRequestMessage;
 import org.fourthline.cling.model.message.UpnpRequest;
 import org.fourthline.cling.model.message.header.ContentTypeHeader;
 import org.fourthline.cling.model.message.header.SoapActionHeader;
 import org.fourthline.cling.model.message.header.UpnpHeader;
 import org.fourthline.cling.model.message.header.UserAgentHeader;
+import org.fourthline.cling.model.meta.Action;
+import org.fourthline.cling.model.meta.QueryStateVariableAction;
 import org.fourthline.cling.model.types.SoapActionType;
 
 import java.net.URL;
@@ -34,8 +35,6 @@ import java.net.URL;
  * @author Christian Bauer
  */
 public class OutgoingActionRequestMessage extends StreamRequestMessage implements ActionRequestMessage {
-
-    private static Logger log = Logger.getLogger(OutgoingActionRequestMessage.class.getName());
 
     final private String actionNamespace;
 
@@ -46,10 +45,10 @@ public class OutgoingActionRequestMessage extends StreamRequestMessage implement
         if (actionInvocation instanceof RemoteActionInvocation) {
             RemoteActionInvocation remoteActionInvocation = (RemoteActionInvocation) actionInvocation;
             if (remoteActionInvocation.getRemoteClientInfo() != null
-                && remoteActionInvocation.getRemoteClientInfo().getRequestUserAgent() != null) {
+                    && remoteActionInvocation.getRemoteClientInfo().getRequestUserAgent() != null) {
                 getHeaders().add(
-                    UpnpHeader.Type.USER_AGENT,
-                    new UserAgentHeader(remoteActionInvocation.getRemoteClientInfo().getRequestUserAgent())
+                        UpnpHeader.Type.USER_AGENT,
+                        new UserAgentHeader(remoteActionInvocation.getRemoteClientInfo().getRequestUserAgent())
                 );
             }
         } else if (actionInvocation.getClientInfo() != null) {
@@ -67,7 +66,7 @@ public class OutgoingActionRequestMessage extends StreamRequestMessage implement
 
         SoapActionHeader soapActionHeader;
         if (action instanceof QueryStateVariableAction) {
-            log.fine("Adding magic control SOAP action header for state variable query action");
+            Log.d(getClass().getName(), "Adding magic control SOAP action header for state variable query action");
             soapActionHeader = new SoapActionHeader(
                     new SoapActionType(
                             SoapActionType.MAGIC_CONTROL_NS, SoapActionType.MAGIC_CONTROL_TYPE, null, action.getName()
@@ -88,7 +87,7 @@ public class OutgoingActionRequestMessage extends StreamRequestMessage implement
         if (getOperation().getMethod().equals(UpnpRequest.Method.POST)) {
 
             getHeaders().add(UpnpHeader.Type.SOAPACTION, soapActionHeader);
-            log.fine("Added SOAP action header: " + soapActionHeader);
+            Log.d(getClass().getName(), "Added SOAP action header: " + soapActionHeader);
 
         /* TODO: Finish the M-POST crap (or not)
         } else if (getOperation().getMethod().equals(UpnpRequest.Method.MPOST)) {

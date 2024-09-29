@@ -15,19 +15,20 @@
 
 package org.fourthline.cling.model;
 
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.logging.Logger;
+import android.util.Log;
 
 import org.fourthline.cling.model.meta.Device;
 import org.fourthline.cling.model.meta.Icon;
 import org.fourthline.cling.model.meta.Service;
 import org.fourthline.cling.model.resource.Resource;
 import org.seamless.util.URIUtil;
+
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 /**
  * Enforces path conventions for all locally offered resources (descriptors, icons, etc.)
@@ -58,7 +59,6 @@ import org.seamless.util.URIUtil;
  */
 public class Namespace {
 
-    final private static Logger log = Logger.getLogger(Namespace.class.getName());
 
     public static final String DEVICE = "/dev";
     public static final String SERVICE = "/svc";
@@ -158,16 +158,16 @@ public class Namespace {
         Set<Resource> resources = new HashSet<>();
         List<ValidationError> errors = new ArrayList<>();
 
-        log.fine("Discovering local resources of device graph");
+        Log.d(getClass().getName(), "Discovering local resources of device graph");
         Resource[] discoveredResources = device.discoverResources(this);
         for (Resource resource : discoveredResources) {
-            log.finer("Discovered: " + resource);
+            Log.v(getClass().getName(), "Discovered: " + resource);
             if (!resources.add(resource)) {
-                log.finer("Local resource already exists, queueing validation error");
+                Log.v(getClass().getName(), "Local resource already exists, queueing validation error");
                 errors.add(new ValidationError(
-                    getClass(),
-                    "resources",
-                    "Local URI namespace conflict between resources of device: " + resource
+                        getClass(),
+                        "resources",
+                        "Local URI namespace conflict between resources of device: " + resource
                 ));
             }
         }
@@ -181,15 +181,15 @@ public class Namespace {
         try {
             // not calling getBasePath() on purpose since we're not sure if all DalvikVMs will inline it correctly
             return
-                new URI(
-                    basePath.getScheme(),
-                    null,
-                    basePath.getHost(),
-                    basePath.getPort(),
-                    decodedPath + path,
-                    null,
-                    null
-                );
+                    new URI(
+                            basePath.getScheme(),
+                            null,
+                            basePath.getHost(),
+                            basePath.getPort(),
+                            decodedPath + path,
+                            null,
+                            null
+                    );
         } catch (URISyntaxException e) {
             return URI.create(basePath + path);
         }

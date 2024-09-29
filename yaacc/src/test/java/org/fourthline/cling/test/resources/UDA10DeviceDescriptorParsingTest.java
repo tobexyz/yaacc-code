@@ -28,7 +28,11 @@ import org.fourthline.cling.model.profile.RemoteClientInfo;
 import org.fourthline.cling.test.data.SampleData;
 import org.fourthline.cling.test.data.SampleDeviceRoot;
 import org.junit.Test;
-import org.seamless.util.io.IO;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 
 
 public class UDA10DeviceDescriptorParsingTest {
@@ -39,7 +43,7 @@ public class UDA10DeviceDescriptorParsingTest {
         DeviceDescriptorBinder binder = new UDA10DeviceDescriptorBinderImpl();
 
         RemoteDevice device = new RemoteDevice(SampleData.createRemoteDeviceIdentity());
-        device = binder.describe(device, IO.readLines(getClass().getResourceAsStream("/descriptors/device/uda10.xml")));
+        device = binder.describe(device, readLines(getClass().getResourceAsStream("/descriptors/device/uda10.xml")));
 
         SampleDeviceRoot.assertLocalResourcesMatch(
                 new MockUpnpService().getConfiguration().getNamespace().getResources(device)
@@ -54,7 +58,7 @@ public class UDA10DeviceDescriptorParsingTest {
         DeviceDescriptorBinder binder = new UDA10DeviceDescriptorBinderSAXImpl();
 
         RemoteDevice device = new RemoteDevice(SampleData.createRemoteDeviceIdentity());
-        device = binder.describe(device, IO.readLines(getClass().getResourceAsStream("/descriptors/device/uda10.xml")));
+        device = binder.describe(device, readLines(getClass().getResourceAsStream("/descriptors/device/uda10.xml")));
 
         SampleDeviceRoot.assertLocalResourcesMatch(
                 new MockUpnpService().getConfiguration().getNamespace().getResources(device)
@@ -131,7 +135,7 @@ public class UDA10DeviceDescriptorParsingTest {
         RemoteDevice device = new RemoteDevice(SampleData.createRemoteDeviceIdentity());
         device = binder.describe(
                 device,
-                IO.readLines(getClass().getResourceAsStream("/descriptors/device/uda10_withbase.xml"))
+                readLines(getClass().getResourceAsStream("/descriptors/device/uda10_withbase.xml"))
         );
 
         assertEquals(
@@ -176,7 +180,7 @@ public class UDA10DeviceDescriptorParsingTest {
         RemoteDevice device = new RemoteDevice(SampleData.createRemoteDeviceIdentity());
         device = binder.describe(
                 device,
-                IO.readLines(getClass().getResourceAsStream("/descriptors/device/uda10_withbase2.xml"))
+                readLines(getClass().getResourceAsStream("/descriptors/device/uda10_withbase2.xml"))
         );
 
         assertEquals(
@@ -219,12 +223,31 @@ public class UDA10DeviceDescriptorParsingTest {
         DeviceDescriptorBinder binder = new UDA10DeviceDescriptorBinderImpl();
 
         RemoteDevice device = new RemoteDevice(SampleData.createRemoteDeviceIdentity());
-        device = binder.describe(device, IO.readLines(getClass().getResourceAsStream("/descriptors/device/uda10_emptybase.xml")));
+        device = binder.describe(device, readLines(getClass().getResourceAsStream("/descriptors/device/uda10_emptybase.xml")));
 
         SampleDeviceRoot.assertLocalResourcesMatch(
                 new MockUpnpService().getConfiguration().getNamespace().getResources(device)
         );
         SampleDeviceRoot.assertMatch(device, SampleData.createRemoteDevice());
     }
+
+    private String readLines(InputStream is) throws IOException {
+        if (is == null) throw new IllegalArgumentException("Inputstream was null");
+
+        BufferedReader inputReader;
+        inputReader = new BufferedReader(
+                new InputStreamReader(is)
+        );
+
+        StringBuilder input = new StringBuilder();
+        String inputLine;
+        while ((inputLine = inputReader.readLine()) != null) {
+            input.append(inputLine).append(System.getProperty("line.separator"));
+        }
+
+        return input.length() > 0 ? input.toString() : "";
+    }
+
+
 }
 

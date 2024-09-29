@@ -15,6 +15,8 @@
 
 package org.fourthline.cling.support.avtransport.impl;
 
+import android.util.Log;
+
 import org.fourthline.cling.model.types.ErrorCode;
 import org.fourthline.cling.model.types.UnsignedIntegerFourBytes;
 import org.fourthline.cling.support.avtransport.AVTransportErrorCode;
@@ -39,7 +41,6 @@ import org.seamless.statemachine.TransitionException;
 import java.net.URI;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.logging.Logger;
 
 /**
  * State-machine based implementation of AVTransport service.
@@ -78,7 +79,6 @@ import java.util.logging.Logger;
  */
 public class AVTransportService<T extends AVTransport> extends AbstractAVTransportService {
 
-    final private static Logger log = Logger.getLogger(AVTransportService.class.getName());
 
     final private Map<Long, AVTransportStateMachine> stateMachines = new ConcurrentHashMap();
 
@@ -88,7 +88,7 @@ public class AVTransportService<T extends AVTransport> extends AbstractAVTranspo
 
     public AVTransportService(Class<? extends AVTransportStateMachine> stateMachineDefinition,
                               Class<? extends AbstractState> initialState) {
-        this(stateMachineDefinition, initialState, (Class<T>)AVTransport.class);
+        this(stateMachineDefinition, initialState, (Class<T>) AVTransport.class);
     }
 
     public AVTransportService(Class<? extends AVTransportStateMachine> stateMachineDefinition,
@@ -228,7 +228,7 @@ public class AVTransportService<T extends AVTransport> extends AbstractAVTranspo
     public void seek(UnsignedIntegerFourBytes instanceId, String unit, String target) throws AVTransportException {
         SeekMode seekMode;
         try {
-             seekMode = SeekMode.valueOrExceptionOf(unit);
+            seekMode = SeekMode.valueOrExceptionOf(unit);
         } catch (IllegalArgumentException ex) {
             throw new AVTransportException(
                     AVTransportErrorCode.SEEKMODE_NOT_SUPPORTED, "Unsupported seek mode: " + unit
@@ -290,13 +290,13 @@ public class AVTransportService<T extends AVTransport> extends AbstractAVTranspo
             long id = instanceId.getValue();
             AVTransportStateMachine stateMachine = stateMachines.get(id);
             if (stateMachine == null && id == 0 && createDefaultTransport) {
-                log.fine("Creating default transport instance with ID '0'");
+                Log.d(getClass().getName(), "Creating default transport instance with ID '0'");
                 stateMachine = createStateMachine(instanceId);
                 stateMachines.put(id, stateMachine);
             } else if (stateMachine == null) {
                 throw new AVTransportException(AVTransportErrorCode.INVALID_INSTANCE_ID);
             }
-            log.fine("Found transport control with ID '" + id + "'");
+            Log.d(getClass().getName(), "Found transport control with ID '" + id + "'");
             return stateMachine;
         }
     }

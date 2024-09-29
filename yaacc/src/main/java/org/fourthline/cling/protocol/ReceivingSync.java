@@ -15,13 +15,13 @@
 
 package org.fourthline.cling.protocol;
 
+import android.util.Log;
+
 import org.fourthline.cling.UpnpService;
 import org.fourthline.cling.model.message.StreamRequestMessage;
 import org.fourthline.cling.model.message.StreamResponseMessage;
 import org.fourthline.cling.model.profile.RemoteClientInfo;
 import org.fourthline.cling.transport.RouterException;
-
-import java.util.logging.Logger;
 
 /**
  * Supertype for all synchronously executing protocols, handling reception of UPnP messages and return a response.
@@ -38,14 +38,12 @@ import java.util.logging.Logger;
  * implementing was successful or not, including not only creation but also delivery of the response.
  * </p>
  *
- * @param <IN> The type of incoming UPnP message handled by this protocol.
+ * @param <IN>  The type of incoming UPnP message handled by this protocol.
  * @param <OUT> The type of response UPnP message created by this protocol.
- *
  * @author Christian Bauer
  */
 public abstract class ReceivingSync<IN extends StreamRequestMessage, OUT extends StreamResponseMessage> extends ReceivingAsync<IN> {
 
-    final private static Logger log = Logger.getLogger(UpnpService.class.getName());
 
     final protected RemoteClientInfo remoteClientInfo;
     protected OUT outputMessage;
@@ -63,7 +61,7 @@ public abstract class ReceivingSync<IN extends StreamRequestMessage, OUT extends
         outputMessage = executeSync();
 
         if (outputMessage != null && getRemoteClientInfo().getExtraResponseHeaders().size() > 0) {
-            log.fine("Setting extra headers on response message: " + getRemoteClientInfo().getExtraResponseHeaders().size());
+            Log.d(getClass().getName(), "Setting extra headers on response message: " + getRemoteClientInfo().getExtraResponseHeaders().size());
             outputMessage.getHeaders().putAll(getRemoteClientInfo().getExtraResponseHeaders());
         }
     }

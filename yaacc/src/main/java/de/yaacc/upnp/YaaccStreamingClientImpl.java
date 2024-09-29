@@ -20,6 +20,7 @@ package de.yaacc.upnp;
 
 import android.util.Log;
 
+import org.apache.hc.client5.http.classic.methods.HttpUriRequest;
 import org.apache.hc.client5.http.classic.methods.HttpUriRequestBase;
 import org.apache.hc.client5.http.config.ConnectionConfig;
 import org.apache.hc.client5.http.impl.DefaultConnectionKeepAliveStrategy;
@@ -54,7 +55,7 @@ import java.util.Objects;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
-public class YaaccStreamingClientImpl extends AbstractStreamClient<YaaccStreamingClientConfigurationImpl, ClassicHttpRequest> {
+public class YaaccStreamingClientImpl extends AbstractStreamClient<YaaccStreamingClientConfigurationImpl, HttpUriRequest> {
 
 
     final protected YaaccStreamingClientConfigurationImpl configuration;
@@ -77,13 +78,13 @@ public class YaaccStreamingClientImpl extends AbstractStreamClient<YaaccStreamin
     }
 
     @Override
-    protected ClassicHttpRequest createRequest(StreamRequestMessage requestMessage) {
+    protected HttpUriRequest createRequest(StreamRequestMessage requestMessage) {
         return new HttpUriRequestBase(requestMessage.getOperation().getHttpMethodName(), requestMessage.getUri());
     }
 
     @Override
     protected Callable<StreamResponseMessage> createCallable(final StreamRequestMessage requestMessage,
-                                                             final ClassicHttpRequest request) {
+                                                             final HttpUriRequest request) {
         return () -> {
             Log.d(getClass().getName(), "Sending HTTP request: " + requestMessage);
             Log.v(getClass().getName(), "Body: " + requestMessage.getBodyString());
@@ -95,8 +96,9 @@ public class YaaccStreamingClientImpl extends AbstractStreamClient<YaaccStreamin
     }
 
     @Override
-    protected boolean abort(ClassicHttpRequest request, String reason) {
+    protected boolean abort(HttpUriRequest request, String reason) {
         Log.d(getClass().getName(), "Received request abort, ignoring it!! Reason:" + reason);
+        request.abort();
         return true;
     }
 

@@ -15,14 +15,14 @@
 
 package org.fourthline.cling.support.model.dlna.message.header;
 
+import android.util.Log;
+
 import org.fourthline.cling.model.message.header.InvalidHeaderException;
 import org.fourthline.cling.model.message.header.UpnpHeader;
 import org.seamless.util.Exceptions;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
  * Transforms known and standardized DLNA/HTTP headers from/to string representation.
@@ -36,7 +36,6 @@ import java.util.logging.Logger;
  */
 public abstract class DLNAHeader<T> extends UpnpHeader<T> {
 
-    final private static Logger log = Logger.getLogger(DLNAHeader.class.getName());
 
     /**
      * Create a new instance of a {@link DLNAHeader} subtype that matches the given type and value.
@@ -58,17 +57,17 @@ public abstract class DLNAHeader<T> extends UpnpHeader<T> {
         for (int i = 0; i < type.getHeaderTypes().length && upnpHeader == null; i++) {
             Class<? extends DLNAHeader> headerClass = type.getHeaderTypes()[i];
             try {
-                log.log(Level.INFO, "Trying to parse '" + type + "' with class: " + headerClass.getSimpleName());
+                Log.i(DLNAHeader.class.getName(), "Trying to parse '" + type + "' with class: " + headerClass.getSimpleName());
                 upnpHeader = headerClass.newInstance();
                 if (headerValue != null) {
                     upnpHeader.setString(headerValue);
                 }
             } catch (InvalidHeaderException ex) {
-                log.log(Level.INFO, "Invalid header value for tested type: " + headerClass.getSimpleName() + " - " + ex.getMessage());
+                Log.i(DLNAHeader.class.getName(), "Invalid header value for tested type: " + headerClass.getSimpleName() + " - " + ex.getMessage());
                 upnpHeader = null;
             } catch (Exception ex) {
-                log.severe("Error instantiating header of type '" + type + "' with value: " + headerValue);
-                log.log(Level.SEVERE, "Exception root cause: ", Exceptions.unwrap(ex));
+                Log.e(DLNAHeader.class.getName(), "Error instantiating header of type '" + type + "' with value: " + headerValue);
+                Log.e(DLNAHeader.class.getName(), "Exception root cause: ", Exceptions.unwrap(ex));
             }
 
         }

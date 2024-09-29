@@ -15,14 +15,13 @@
 
 package org.fourthline.cling.protocol;
 
+import android.util.Log;
+
 import org.fourthline.cling.UpnpService;
 import org.fourthline.cling.model.message.UpnpMessage;
 import org.fourthline.cling.model.message.header.UpnpHeader;
 import org.fourthline.cling.transport.RouterException;
 import org.seamless.util.Exceptions;
-
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
  * Supertype for all asynchronously executing protocols, handling reception of UPnP messages.
@@ -33,12 +32,9 @@ import java.util.logging.Logger;
  * </p>
  *
  * @param <M> The type of UPnP message handled by this protocol.
- *
  * @author Christian Bauer
  */
 public abstract class ReceivingAsync<M extends UpnpMessage> implements Runnable {
-
-    final private static Logger log = Logger.getLogger(UpnpService.class.getName());
 
     private final UpnpService upnpService;
 
@@ -62,7 +58,7 @@ public abstract class ReceivingAsync<M extends UpnpMessage> implements Runnable 
         try {
             proceed = waitBeforeExecution();
         } catch (InterruptedException ex) {
-            log.info("Protocol wait before execution interrupted (on shutdown?): " + getClass().getSimpleName());
+            Log.i(getClass().getName(), "Protocol wait before execution interrupted (on shutdown?): " + getClass().getSimpleName());
             proceed = false;
         }
 
@@ -72,10 +68,10 @@ public abstract class ReceivingAsync<M extends UpnpMessage> implements Runnable 
             } catch (Exception ex) {
                 Throwable cause = Exceptions.unwrap(ex);
                 if (cause instanceof InterruptedException) {
-                    log.log(Level.INFO, "Interrupted protocol '" + getClass().getSimpleName() + "': " + ex, cause);
+                    Log.i(getClass().getName(), "Interrupted protocol '" + getClass().getSimpleName() + "': " + ex, cause);
                 } else {
                     throw new RuntimeException(
-                        "Fatal error while executing protocol '" + getClass().getSimpleName() + "': " + ex, ex
+                            "Fatal error while executing protocol '" + getClass().getSimpleName() + "': " + ex, ex
                     );
                 }
             }
@@ -86,7 +82,6 @@ public abstract class ReceivingAsync<M extends UpnpMessage> implements Runnable 
      * Provides an opportunity to pause before executing the protocol.
      *
      * @return <code>true</code> (default) if execution should continue after waiting.
-     *
      * @throws InterruptedException If waiting has been interrupted, which also stops execution.
      */
     protected boolean waitBeforeExecution() throws InterruptedException {

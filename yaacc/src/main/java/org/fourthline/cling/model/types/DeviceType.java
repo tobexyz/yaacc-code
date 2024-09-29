@@ -15,9 +15,10 @@
 
 package org.fourthline.cling.model.types;
 
+import android.util.Log;
+
 import org.fourthline.cling.model.Constants;
 
-import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -31,8 +32,6 @@ import java.util.regex.Pattern;
  * @author Christian Bauer
  */
 public class DeviceType {
-
-    final private static Logger log = Logger.getLogger(DeviceType.class.getName());
 
     public static final String UNKNOWN = "UNKNOWN";
 
@@ -104,7 +103,7 @@ public class DeviceType {
             // urn:schemas-upnp-org:device::1
             matcher = Pattern.compile("urn:(" + Constants.REGEX_NAMESPACE + "):device::([0-9]+).*").matcher(s);
             if (matcher.matches() && matcher.groupCount() >= 2) {
-                log.warning("UPnP specification violation, no device type token, defaulting to " + UNKNOWN + ": " + s);
+                Log.w(DeviceType.class.getName(), "UPnP specification violation, no device type token, defaulting to " + UNKNOWN + ": " + s);
                 return new DeviceType(matcher.group(1), UNKNOWN, Integer.valueOf(matcher.group(2)));
             }
 
@@ -113,17 +112,17 @@ public class DeviceType {
             matcher = Pattern.compile("urn:(" + Constants.REGEX_NAMESPACE + "):device:(.+?):([0-9]+).*").matcher(s);
             if (matcher.matches() && matcher.groupCount() >= 3) {
                 String cleanToken = matcher.group(2).replaceAll("[^a-zA-Z_0-9\\-]", "-");
-                log.warning(
-                    "UPnP specification violation, replacing invalid device type token '"
-                        + matcher.group(2)
-                        + "' with: "
-                        + cleanToken
+                Log.w(DeviceType.class.getName(),
+                        "UPnP specification violation, replacing invalid device type token '"
+                                + matcher.group(2)
+                                + "' with: "
+                                + cleanToken
                 );
                 return new DeviceType(matcher.group(1), cleanToken, Integer.valueOf(matcher.group(3)));
             }
         } catch (RuntimeException e) {
             throw new InvalidValueException(String.format(
-                "Can't parse device type string (namespace/type/version) '%s': %s", s, e.toString()
+                    "Can't parse device type string (namespace/type/version) '%s': %s", s, e.toString()
             ));
         }
 
@@ -143,7 +142,7 @@ public class DeviceType {
 
     @Override
     public String toString() {
-        return "urn:" + getNamespace() + ":device:" + getType()+ ":" + getVersion();
+        return "urn:" + getNamespace() + ":device:" + getType() + ":" + getVersion();
     }
 
     @Override

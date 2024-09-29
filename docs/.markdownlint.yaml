@@ -1,0 +1,7 @@
+default: true
+MD033:
+  allowed_elements:
+    - img
+    - div
+MD013:
+  tables: false

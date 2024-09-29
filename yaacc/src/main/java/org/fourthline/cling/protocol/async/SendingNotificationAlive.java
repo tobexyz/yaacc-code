@@ -15,12 +15,12 @@
 
 package org.fourthline.cling.protocol.async;
 
+import android.util.Log;
+
 import org.fourthline.cling.UpnpService;
 import org.fourthline.cling.model.meta.LocalDevice;
 import org.fourthline.cling.model.types.NotificationSubtype;
 import org.fourthline.cling.transport.RouterException;
-
-import java.util.logging.Logger;
 
 /**
  * Sending <em>ALIVE</em> notification messages for a registered local device.
@@ -29,7 +29,6 @@ import java.util.logging.Logger;
  */
 public class SendingNotificationAlive extends SendingNotification {
 
-    final private static Logger log = Logger.getLogger(SendingNotification.class.getName());
 
     public SendingNotificationAlive(UpnpService upnpService, LocalDevice device) {
         super(upnpService, device);
@@ -37,7 +36,7 @@ public class SendingNotificationAlive extends SendingNotification {
 
     @Override
     protected void execute() throws RouterException {
-        log.fine("Sending alive messages ("+getBulkRepeat()+" times) for: " + getDevice());
+        Log.d(getClass().getName(), "Sending alive messages (" + getBulkRepeat() + " times) for: " + getDevice());
         super.execute();
     }
 

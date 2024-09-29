@@ -68,6 +68,7 @@ public class AVTransportPlayer extends AbstractPlayer {
     private PositionInfo currentPositionInfo;
     private ActionState positionActionState = null;
     private URI albumArtUri;
+    private long itemDuration;
 
 
     /**
@@ -175,6 +176,7 @@ public class AVTransportPlayer extends AbstractPlayer {
             return;
         }
         Log.d(getClass().getName(), "Action SetAVTransportURI ");
+        itemDuration = playableItem.getDuration();
         final ActionState actionState = new ActionState();
         actionState.actionFinished = false;
         Item item = playableItem.getItem();

@@ -25,15 +25,16 @@ import android.content.ServiceConnection;
 import android.content.SharedPreferences;
 import android.content.SharedPreferences.Editor;
 import android.media.AudioManager;
+import android.media.MediaMetadataRetriever;
 import android.net.Uri;
 import android.os.IBinder;
-import android.preference.PreferenceManager;
 import android.util.Log;
 import android.webkit.MimeTypeMap;
 
 import androidx.annotation.NonNull;
+import androidx.preference.PreferenceManager;
 
-import org.fourthline.cling.android.AndroidUpnpService;
+import org.fourthline.cling.UpnpService;
 import org.fourthline.cling.controlpoint.ControlPoint;
 import org.fourthline.cling.model.Namespace;
 import org.fourthline.cling.model.ValidationException;
@@ -70,12 +71,19 @@ import org.fourthline.cling.support.model.container.Container;
 import org.fourthline.cling.support.model.item.AudioItem;
 import org.fourthline.cling.support.model.item.ImageItem;
 import org.fourthline.cling.support.model.item.Item;
+import org.fourthline.cling.support.model.item.MusicTrack;
+import org.fourthline.cling.support.model.item.VideoItem;
 import org.fourthline.cling.support.renderingcontrol.callback.GetMute;
 import org.fourthline.cling.support.renderingcontrol.callback.GetVolume;
 import org.fourthline.cling.support.renderingcontrol.callback.SetMute;
 import org.fourthline.cling.support.renderingcontrol.callback.SetVolume;
+import org.seamless.util.MimeType;
 
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collection;
@@ -88,11 +96,13 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import de.yaacc.R;
 import de.yaacc.Yaacc;
 import de.yaacc.browser.Position;
+import de.yaacc.browser.TabBrowserActivity;
 import de.yaacc.musicplayer.BackgroundMusicService;
 import de.yaacc.player.PlayableItem;
 import de.yaacc.player.Player;
@@ -115,7 +125,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     public static String LOCAL_UID = "LOCAL_UID";
     private final List<UpnpClientListener> listeners = new ArrayList<>();
     SharedPreferences preferences;
-    private AndroidUpnpService androidUpnpService;
+    private UpnpService upnpService;
     private Context context;
     private boolean mute = false;
     private PlayerService playerService;
@@ -222,12 +232,13 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      */
     @Override
     public void onServiceConnected(ComponentName className, IBinder service) {
-        if (service instanceof AndroidUpnpService) {
-            setAndroidUpnpService(((AndroidUpnpService) service));
+        if (service instanceof UpnpRegistryService.UpnpRegistryServiceBinder) {
+            setUpnpService(((UpnpRegistryService.UpnpRegistryServiceBinder) service).getService().getUpnpService());
             refreshUpnpDeviceCatalog();
         }
         if (service instanceof PlayerService.PlayerServiceBinder) {
             playerService = ((PlayerService.PlayerServiceBinder) service).getService();
+            Log.e(getClass().getName(), "player service bounded");
 
         }
 
@@ -243,8 +254,8 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     @Override
     public void onServiceDisconnected(ComponentName componentName) {
         Log.d(getClass().getName(), "on Service disconnect: " + componentName);
-        if (AndroidUpnpService.class.getName().equals(componentName.getClassName())) {
-            setAndroidUpnpService(null);
+        if (UpnpRegistryService.class.getName().equals(componentName.getClassName())) {
+            setUpnpService(null);
         }
         if (PlayerService.class.getName().equals(componentName.getClassName())) {
             playerService = null;
@@ -422,8 +433,8 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      *
      * @return the service
      */
-    private AndroidUpnpService getAndroidUpnpService() {
-        return androidUpnpService;
+    private UpnpService getUpnpService() {
+        return upnpService;
     }
 
     /**
@@ -432,8 +443,8 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      *
      * @param upnpService upnpservice
      */
-    private void setAndroidUpnpService(AndroidUpnpService upnpService) {
-        this.androidUpnpService = upnpService;
+    private void setUpnpService(UpnpService upnpService) {
+        this.upnpService = upnpService;
     }
 
     /**
@@ -502,7 +513,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      * @return true or false
      */
     public boolean isInitialized() {
-        return getAndroidUpnpService() != null;
+        return getUpnpService() != null;
     }
 
     /**
@@ -514,7 +525,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         if (!isInitialized()) {
             return null;
         }
-        return androidUpnpService.getControlPoint();
+        return upnpService.getControlPoint();
     }
 
     /**
@@ -526,7 +537,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         if (!isInitialized()) {
             return null;
         }
-        return androidUpnpService.getRegistry();
+        return upnpService.getRegistry();
     }
 
     /**
@@ -541,12 +552,12 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      */
     private void refreshUpnpDeviceCatalog() {
         if (isInitialized()) {
-            for (Device<?, ?, ?> device : getAndroidUpnpService().getRegistry().getDevices()) {
+            for (Device<?, ?, ?> device : getUpnpService().getRegistry().getDevices()) {
                 // FIXME: What about removed devices?
                 this.deviceAdded(device);
             }
             // Getting ready for future device advertisements
-            getAndroidUpnpService().getRegistry().addListener(this);
+            getUpnpService().getRegistry().addListener(this);
             searchDevices();
         }
     }
@@ -711,7 +722,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      */
     public void searchDevices() {
         if (isInitialized()) {
-            getAndroidUpnpService().getControlPoint().search();
+            getUpnpService().getControlPoint().search();
         }
     }
 
@@ -990,7 +1001,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      *
      * @param receiverDeviceIds the device ids.
      */
-    private void setReceiverDeviceIds(Set<String> receiverDeviceIds) {
+    public void setReceiverDeviceIds(Set<String> receiverDeviceIds) {
         assert (receiverDeviceIds != null);
         Editor prefEdit = preferences.edit();
         prefEdit.putStringSet(getContext().getString(R.string.settings_selected_receivers_title), receiverDeviceIds);
@@ -1021,13 +1032,25 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         return result;
     }
 
+    public int getReceiverDevicesReadyCount() {
+        int result = 0;
+        Set<String> receiverDeviceIds = getReceiverDeviceIds();
+        for (String id : receiverDeviceIds) {
+            Device<?, ?, ?> receiver = this.getDevice(id);
+            if (receiver != null) {
+                result++;
+            }
+        }
+        return result;
+    }
+
     /**
      * set the receiverDevices to the devices in the given collection.
      *
      * @param receiverDevices the devices
      */
     public void setReceiverDevices(Collection<Device<?, ?, ?>> receiverDevices) {
-        assert (receiverDevices != null);
+        if (receiverDevices == null) return;
         HashSet<String> receiverIds = new HashSet<>();
         for (Device<?, ?, ?> receiver : receiverDevices) {
             Log.d(this.getClass().getName(), "Receiver: " + receiver);
@@ -1066,7 +1089,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      * @return the providerDeviceId
      */
     public String getProviderDeviceId() {
-        if (getContext() != null) {
+        if (getContext() != null && preferences.contains(getContext().getString(R.string.settings_selected_provider_title))) {
             return preferences.getString(getContext().getString(R.string.settings_selected_provider_title), null);
         }
         return "";
@@ -1274,23 +1297,10 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
 
             }
         };
-        getControlPoint().execute(actionCallback);
-        Watchdog watchdog = Watchdog.createWatchdog(10000L);
-        watchdog.start();
-        //FIXME really best way to solve it?
-        int i = 0;
-        while (!actionState.actionFinished && !watchdog.hasTimeout()) {
-            //active wait
-            i++;
-            if (i == 100000) {
-                Log.d(getClass().getName(), "wait for action finished ");
-                i = 0;
-            }
-        }
-        if (watchdog.hasTimeout()) {
-            Log.d(getClass().getName(), "Timeout occurred");
-        } else {
-            watchdog.cancel();
+        try {
+            getControlPoint().execute(actionCallback).get(10000L, TimeUnit.MILLISECONDS);
+        } catch (Exception ex) {
+            Log.d(getClass().getName(), "Timeout occurred", ex);
         }
         return actionState.result != null && (Boolean) actionState.result;
     }
@@ -1409,24 +1419,10 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
 
             }
         };
-
-        getControlPoint().execute(actionCallback);
-        Watchdog watchdog = Watchdog.createWatchdog(10000L);
-        watchdog.start();
-        int i = 0;
-        //FIXME analyze if this code is really the best way to solve it...
-        while (!actionState.actionFinished && !watchdog.hasTimeout()) {
-            //active wait
-            i++;
-            if (i == 100000) {
-                Log.d(getClass().getName(), "wait for action finished ");
-                i = 0;
-            }
-        }
-        if (watchdog.hasTimeout()) {
-            Log.d(getClass().getName(), "Timeout occurred");
-        } else {
-            watchdog.cancel();
+        try {
+            getControlPoint().execute(actionCallback).get(10000L, TimeUnit.MILLISECONDS);
+        } catch (Exception ex) {
+            Log.d(getClass().getName(), "Timeout occurred", ex);
         }
         return actionState.result == null ? 0 : (Integer) actionState.result;
 
@@ -1594,5 +1590,94 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
                     .forEach(p -> p.addItems(toPlayableItems(itemList)));
         }
 
+    }
+
+    public PlayableItem createPlayableItem(Uri uri) {
+        PlayableItem item = new PlayableItem();
+        if (uri == null) {
+            return item;
+        }
+        String uriString = uri.toString();
+        final String title = "shared with yaacc with ♥";
+        //auto closeable requires Android code level 29 current min level is 27
+        MediaMetadataRetriever metaRetriever = new MediaMetadataRetriever();
+        Res res = null;
+        try {
+            try {
+                metaRetriever.setDataSource(uriString);
+                long duration = Long.parseLong(metaRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION));
+                item.setDuration(duration);
+                item.setMimeType(metaRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_MIMETYPE));
+                long bitrate = Long.parseLong(metaRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE));
+                long size = (bitrate / 8 * duration / 1000 / 1000);
+                res = new Res(MimeType.valueOf(item.getMimeType()), size, parseMillisToTimeStringTo(duration), bitrate, uriString);
+                if (item.getMimeType().startsWith("audio/")) {
+                    item.setItem(new MusicTrack("1", "2", title, "", "", "", res));
+                } else if (item.getMimeType().startsWith("video/")) {
+                    item.setItem(new VideoItem("1", "2", title, "", res));
+                } else if (item.getMimeType().startsWith("image/")) {
+                    item.setItem(new ImageItem("1", "2", title, "", res));
+                }
+            } catch (RuntimeException e) {
+                //no media file with duration
+                Log.d(getClass().getName(), "Can't retrieve duration of media url assume shared image", e);
+                res = new Res(MimeType.valueOf("image/*"), 1L, "");
+                res.setValue(uriString);
+                item.setMimeType("image/*");
+                item.setItem(new ImageItem("1", "2", title, "", res));
+            }
+            item.setUri(uri);
+            if (this.getPreferences().getBoolean(getContext().getString(R.string.settings_local_server_proxy_chkbx), false)) {
+                String contentKey = sha256(uriString);
+                String proxyUrl = "http://" + YaaccUpnpServerService.getIpAddress() + ":" + YaaccUpnpServerService.PORT + "/" + YaaccUpnpServerService.PROXY_PATH + "/" + contentKey;
+                this.getPreferences().edit().putString(YaaccUpnpServerService.PROXY_LINK_KEY_PREFIX + contentKey, uriString).commit();
+                this.getPreferences().edit().putString(YaaccUpnpServerService.PROXY_LINK_MIME_TYPE_KEY_PREFIX + contentKey, item.getMimeType()).commit();
+                item.setUri(Uri.parse(proxyUrl));
+                res.setValue(proxyUrl);
+            }
+            item.setTitle(title);
+        } finally {
+            metaRetriever.close();
+        }
+        return item;
+    }
+
+    private static String sha256(String input) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(
+                    input.getBytes(StandardCharsets.UTF_8));
+            StringBuilder hexString = new StringBuilder(2 * hash.length);
+            for (int i = 0; i < hash.length; i++) {
+                String hex = Integer.toHexString(0xff & hash[i]);
+                if (hex.length() == 1) {
+                    hexString.append('0');
+                }
+                hexString.append(hex);
+            }
+            return hexString.toString();
+        } catch (NoSuchAlgorithmException ex) {
+            Log.e(TabBrowserActivity.class.getName(), "no sha256 found", ex);
+            return input;
+        }
+    }
+
+    private String parseMillisToTimeStringTo(long millis) {
+        Duration duration = Duration.ofMillis(millis);
+        long durationSeconds = duration.getSeconds();
+        long hours = durationSeconds / 3600;
+        long minutes = (durationSeconds % 3600) / 60;
+        long seconds = durationSeconds % 60;
+        return String.format("%02d:%02d:%02d", hours, minutes, seconds);
+    }
+
+    private SharedPreferences getPreferences() {
+        return PreferenceManager
+                .getDefaultSharedPreferences(getContext());
+
+    }
+
+    public boolean isPlayerServiceInitialized() {
+        return playerService != null;
     }
 }

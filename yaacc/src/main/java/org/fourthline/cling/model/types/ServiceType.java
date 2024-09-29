@@ -15,11 +15,12 @@
 
 package org.fourthline.cling.model.types;
 
+import android.util.Log;
+
 import org.fourthline.cling.model.Constants;
 
-import java.util.logging.Logger;
-import java.util.regex.Pattern;
 import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Represents a service type, for example <code>urn:my-domain-namespace:service:MyService:1</code>.
@@ -32,14 +33,12 @@ import java.util.regex.Matcher;
  */
 public class ServiceType {
 
-    final private static Logger log = Logger.getLogger(ServiceType.class.getName());
-
     public static final Pattern PATTERN =
-        Pattern.compile("urn:(" + Constants.REGEX_NAMESPACE + "):service:(" + Constants.REGEX_TYPE + "):([0-9]+).*");
+            Pattern.compile("urn:(" + Constants.REGEX_NAMESPACE + "):service:(" + Constants.REGEX_TYPE + "):([0-9]+).*");
 
     // Note: 'serviceId' vs. 'service'
     public static final Pattern BROKEN_PATTERN =
-        Pattern.compile("urn:(" + Constants.REGEX_NAMESPACE + "):serviceId:(" + Constants.REGEX_TYPE + "):([0-9]+).*");
+            Pattern.compile("urn:(" + Constants.REGEX_NAMESPACE + "):serviceId:(" + Constants.REGEX_TYPE + "):([0-9]+).*");
 
     private String namespace;
     private String type;
@@ -116,11 +115,11 @@ public class ServiceType {
             matcher = Pattern.compile("urn:(" + Constants.REGEX_NAMESPACE + "):service:(.+?):([0-9]+).*").matcher(s);
             if (matcher.matches() && matcher.groupCount() >= 3) {
                 String cleanToken = matcher.group(2).replaceAll("[^a-zA-Z_0-9\\-]", "-");
-                log.warning(
-                    "UPnP specification violation, replacing invalid service type token '"
-                        + matcher.group(2)
-                        + "' with: "
-                        + cleanToken
+                Log.w(ServiceType.class.getName(),
+                        "UPnP specification violation, replacing invalid service type token '"
+                                + matcher.group(2)
+                                + "' with: "
+                                + cleanToken
                 );
                 return new ServiceType(matcher.group(1), cleanToken, Integer.valueOf(matcher.group(3)));
             }
@@ -130,17 +129,17 @@ public class ServiceType {
             matcher = Pattern.compile("urn:(" + Constants.REGEX_NAMESPACE + "):serviceId:(.+?):([0-9]+).*").matcher(s);
             if (matcher.matches() && matcher.groupCount() >= 3) {
                 String cleanToken = matcher.group(2).replaceAll("[^a-zA-Z_0-9\\-]", "-");
-                log.warning(
-                    "UPnP specification violation, replacing invalid service type token '"
-                    + matcher.group(2)
-                    + "' with: "
-                    + cleanToken
+                Log.w(ServiceType.class.getName(),
+                        "UPnP specification violation, replacing invalid service type token '"
+                                + matcher.group(2)
+                                + "' with: "
+                                + cleanToken
                 );
                 return new ServiceType(matcher.group(1), cleanToken, Integer.valueOf(matcher.group(3)));
             }
         } catch (RuntimeException e) {
             throw new InvalidValueException(String.format(
-                "Can't parse service type string (namespace/type/version) '%s': %s", s, e.toString()
+                    "Can't parse service type string (namespace/type/version) '%s': %s", s, e.toString()
             ));
         }
 
@@ -149,7 +148,7 @@ public class ServiceType {
 
     /**
      * @return <code>true</code> if this type's namespace/name matches the other type's namespace/name and
-     *         this type's version is equal or higher than the given types version.
+     * this type's version is equal or higher than the given types version.
      */
     public boolean implementsVersion(ServiceType that) {
         if (that == null) return false;

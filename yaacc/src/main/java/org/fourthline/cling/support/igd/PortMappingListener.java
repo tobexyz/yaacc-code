@@ -15,6 +15,8 @@
 
 package org.fourthline.cling.support.igd;
 
+import android.util.Log;
+
 import org.fourthline.cling.model.action.ActionInvocation;
 import org.fourthline.cling.model.message.UpnpResponse;
 import org.fourthline.cling.model.meta.Device;
@@ -34,7 +36,6 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.logging.Logger;
 
 /**
  * Maintains UPnP port mappings on an InternetGatewayDevice automatically.
@@ -50,7 +51,7 @@ import java.util.logging.Logger;
  * </p>
  * <pre>{@code
  * upnpService.getRegistry().addListener(
- *newPortMappingListener(newPortMapping(8123, "10.0.0.2",PortMapping.Protocol.TCP))
+ * newPortMappingListener(newPortMapping(8123, "10.0.0.2",PortMapping.Protocol.TCP))
  * );}</pre>
  * <p>
  * If all you need from the Cling UPnP stack is NAT port mapping, use the following idiom:
@@ -69,7 +70,6 @@ import java.util.logging.Logger;
  */
 public class PortMappingListener extends DefaultRegistryListener {
 
-    private static final Logger log = Logger.getLogger(PortMappingListener.class.getName());
 
     public static final DeviceType IGD_DEVICE_TYPE = new UDADeviceType("InternetGatewayDevice", 1);
     public static final DeviceType CONNECTION_DEVICE_TYPE = new UDADeviceType("WANConnectionDevice", 1);
@@ -96,7 +96,7 @@ public class PortMappingListener extends DefaultRegistryListener {
         Service connectionService;
         if ((connectionService = discoverConnectionService(device)) == null) return;
 
-        log.fine("Activating port mappings on: " + connectionService);
+        Log.d(getClass().getName(), "Activating port mappings on: " + connectionService);
 
         final List<PortMapping> activeForService = new ArrayList<>();
         for (final PortMapping pm : portMappings) {
@@ -104,7 +104,7 @@ public class PortMappingListener extends DefaultRegistryListener {
 
                 @Override
                 public void success(ActionInvocation invocation) {
-                    log.fine("Port mapping added: " + pm);
+                    Log.d(getClass().getName(), "Port mapping added: " + pm);
                     activeForService.add(pm);
                 }
 
@@ -142,12 +142,12 @@ public class PortMappingListener extends DefaultRegistryListener {
             final Iterator<PortMapping> it = activeEntry.getValue().iterator();
             while (it.hasNext()) {
                 final PortMapping pm = it.next();
-                log.fine("Trying to delete port mapping on IGD: " + pm);
+                Log.d(getClass().getName(), "Trying to delete port mapping on IGD: " + pm);
                 new PortMappingDelete(activeEntry.getKey(), registry.getUpnpService().getControlPoint(), pm) {
 
                     @Override
                     public void success(ActionInvocation invocation) {
-                        log.fine("Port mapping deleted: " + pm);
+                        Log.d(getClass().getName(), "Port mapping deleted: " + pm);
                         it.remove();
                     }
 
@@ -169,25 +169,25 @@ public class PortMappingListener extends DefaultRegistryListener {
 
         Device[] connectionDevices = device.findDevices(CONNECTION_DEVICE_TYPE);
         if (connectionDevices.length == 0) {
-            log.fine("IGD doesn't support '" + CONNECTION_DEVICE_TYPE + "': " + device);
+            Log.d(getClass().getName(), "IGD doesn't support '" + CONNECTION_DEVICE_TYPE + "': " + device);
             return null;
         }
 
         Device connectionDevice = connectionDevices[0];
-        log.fine("Using first discovered WAN connection device: " + connectionDevice);
+        Log.d(getClass().getName(), "Using first discovered WAN connection device: " + connectionDevice);
 
         Service ipConnectionService = connectionDevice.findService(IP_SERVICE_TYPE);
         Service pppConnectionService = connectionDevice.findService(PPP_SERVICE_TYPE);
 
         if (ipConnectionService == null && pppConnectionService == null) {
-            log.fine("IGD doesn't support IP or PPP WAN connection service: " + device);
+            Log.d(getClass().getName(), "IGD doesn't support IP or PPP WAN connection service: " + device);
         }
 
         return ipConnectionService != null ? ipConnectionService : pppConnectionService;
     }
 
     protected void handleFailureMessage(String s) {
-        log.warning(s);
+        Log.w(getClass().getName(), s);
     }
 
 }

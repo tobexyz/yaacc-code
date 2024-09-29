@@ -15,6 +15,8 @@
 
 package org.fourthline.cling;
 
+import android.util.Log;
+
 import org.fourthline.cling.controlpoint.ControlPoint;
 import org.fourthline.cling.controlpoint.ControlPointImpl;
 import org.fourthline.cling.protocol.ProtocolFactory;
@@ -28,8 +30,6 @@ import org.fourthline.cling.transport.RouterImpl;
 import org.seamless.util.Exceptions;
 
 import jakarta.enterprise.inject.Alternative;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
  * Default implementation of {@link UpnpService}, starts immediately on construction.
@@ -49,7 +49,6 @@ import java.util.logging.Logger;
 @Alternative
 public class UpnpServiceImpl implements UpnpService {
 
-    private static Logger log = Logger.getLogger(UpnpServiceImpl.class.getName());
 
     protected final UpnpServiceConfiguration configuration;
     protected final ControlPoint controlPoint;
@@ -68,9 +67,9 @@ public class UpnpServiceImpl implements UpnpService {
     public UpnpServiceImpl(UpnpServiceConfiguration configuration, RegistryListener... registryListeners) {
         this.configuration = configuration;
 
-        log.info(">>> Starting UPnP service...");
+        Log.i(getClass().getName(), ">>> Starting UPnP service...");
 
-        log.info("Using configuration: " + getConfiguration().getClass().getName());
+        Log.i(getClass().getName(), "Using configuration: " + getConfiguration().getClass().getName());
 
         // Instantiation order is important: Router needs to start its network services after registry is ready
 
@@ -91,7 +90,7 @@ public class UpnpServiceImpl implements UpnpService {
 
         this.controlPoint = createControlPoint(protocolFactory, registry);
 
-        log.info("<<< UPnP service started successfully");
+        Log.i(getClass().getName(), "<<< UPnP service started successfully");
     }
 
     protected ProtocolFactory createProtocolFactory() {
@@ -138,11 +137,11 @@ public class UpnpServiceImpl implements UpnpService {
         Runnable shutdown = new Runnable() {
             @Override
             public void run() {
-                log.info(">>> Shutting down UPnP service...");
+                Log.i(getClass().getName(), ">>> Shutting down UPnP service...");
                 shutdownRegistry();
                 shutdownRouter();
                 shutdownConfiguration();
-                log.info("<<< UPnP service shutdown completed");
+                Log.i(getClass().getName(), "<<< UPnP service shutdown completed");
             }
         };
         if (separateThread) {
@@ -163,9 +162,9 @@ public class UpnpServiceImpl implements UpnpService {
         } catch (RouterException ex) {
             Throwable cause = Exceptions.unwrap(ex);
             if (cause instanceof InterruptedException) {
-                log.log(Level.INFO, "Router shutdown was interrupted: " + ex, cause);
+                Log.i(getClass().getName(), "Router shutdown was interrupted: " + ex, cause);
             } else {
-                log.log(Level.SEVERE, "Router error on shutdown: " + ex, cause);
+                Log.e(getClass().getName(), "Router error on shutdown: " + ex, cause);
             }
         }
     }
