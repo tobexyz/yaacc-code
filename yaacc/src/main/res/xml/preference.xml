@@ -19,6 +19,9 @@
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
+
+    
+
     <PreferenceCategory android:title="@string/settings_category_appearance">
         <CheckBoxPreference
             android:defaultValue="true"
@@ -46,7 +49,7 @@
             android:dependency="@string/settings_thumbnails_chkbx"
             android:key="@string/settings_browse_thumbnails_coverlookup_chkbx"
             android:summaryOff="@string/settings_browse_thumbnails_coverlookup_off"
-            android:summaryOn="@string/settings_browse_thumbnails_coverlookup_on" 
+            android:summaryOn="@string/settings_browse_thumbnails_coverlookup_on"
             android:title="@string/settings_browse_thumbnails_coverlookup_title" />
         <EditTextPreference
             android:defaultValue="10"
@@ -160,14 +163,12 @@
             android:enabled="false"
             app:isPreferenceVisible="false"
             android:inputType="text"
-            android:key="@string/settings_local_server_provider_uuid_key"
-            />
+            android:key="@string/settings_local_server_provider_uuid_key" />
         <EditTextPreference
             android:enabled="false"
             app:isPreferenceVisible="false"
             android:inputType="text"
-            android:key="@string/settings_local_server_receiver_uuid_key"
-            />
+            android:key="@string/settings_local_server_receiver_uuid_key" />
     </PreferenceCategory>
     <PreferenceCategory android:title="@string/settings_category_synchronization">
         <ListPreference
@@ -182,5 +183,5 @@
             android:key="@string/settings_device_playback_offset_key"
             android:summary="@string/settings_device_playback_offset_summ"
             android:title="@string/settings_device_playback_offset" />
-    </PreferenceCategory>    
+    </PreferenceCategory>
 </PreferenceScreen>

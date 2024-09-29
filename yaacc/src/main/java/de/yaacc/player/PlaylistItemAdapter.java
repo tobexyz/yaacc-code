@@ -10,7 +10,6 @@ import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
-import androidx.recyclerview.widget.DiffUtil;
 import androidx.recyclerview.widget.RecyclerView;
 
 import java.util.ArrayList;
@@ -79,15 +78,16 @@ public class PlaylistItemAdapter extends RecyclerView.Adapter<PlaylistItemAdapte
     private void removeItem(int listPosition) {
         if (player.getItems().size() > listPosition && listPosition > 0) {
             player.getItems().remove(listPosition);
-            setItems(player.getItems());
+            setItems(player.getItems(), listPosition);
         }
     }
 
-    public void setItems(List<PlayableItem> items) {
-        final DiffUtil.DiffResult diffResult = DiffUtil.calculateDiff(new PlayableItemDiffCallback(this.items, items));
+    public void setItems(List<PlayableItem> items, int removedPosition) {
         this.items.clear();
         this.items.addAll(items);
-        diffResult.dispatchUpdatesTo(this);
+        notifyItemRemoved(removedPosition);
+        int itemChangedCount = this.items.size() - removedPosition;
+        notifyItemRangeChanged(removedPosition, itemChangedCount);
     }
 
     static class ViewHolder extends RecyclerView.ViewHolder {
