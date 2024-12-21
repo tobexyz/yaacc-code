@@ -111,6 +111,9 @@
     <string name="settings_device_playback_offset">device offset</string>
     <string name="settings_device_playback_offset_summ">offset in ms</string>
     <string name="settings_device_playback_offset_key" translatable="false">settings_device_playback_offset_key</string>
-
+    <string name="settings_swipe_chkbx">settings_swipe_chkbx</string>
+    <string name="settings_browse_swipe_off">Change tabs on touch</string>
+    <string name="settings_browse_swipe_on">Change tabs on swipe and touch</string>
+    <string name="settings_browse_swipe_title">"Swipe on browse "</string>
 
 </resources>

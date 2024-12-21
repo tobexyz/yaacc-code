@@ -88,4 +88,8 @@
     <string name="settings_default_playback_delay">Wartezeit vor dem Abspielen</string>
     <string name="settings_device_playback_offset">Gerätespezifischer Abspielversatz</string>
     <string name="settings_device_playback_offset_summ">Versatz in ms</string>
+    <string name="settings_swipe_chkbx">settings_swipe_chkbx</string>
+    <string name="settings_browse_swipe_off">Tabwechsel nur mit Touch</string>
+    <string name="settings_browse_swipe_on">Tabwechsel mit Swipe und Touch</string>
+    <string name="settings_browse_swipe_title">"Swipe-Verhalten "</string>
 </resources>
