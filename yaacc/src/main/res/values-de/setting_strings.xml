@@ -92,4 +92,7 @@
     <string name="settings_browse_swipe_off">Tabwechsel nur mit Touch</string>
     <string name="settings_browse_swipe_on">Tabwechsel mit Swipe und Touch</string>
     <string name="settings_browse_swipe_title">"Swipe-Verhalten "</string>
+    <string name="settings_local_server_if_filter_key">settings_local_server_if_filter_key</string>
+    <string name="settings_local_server_if_filter_names">Ignorierte Interfaces für die IP-Ermittlung</string>
+
 </resources>

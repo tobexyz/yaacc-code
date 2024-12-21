@@ -166,6 +166,10 @@
             android:key="@string/settings_local_server_name_key"
             android:title="@string/settings_local_server_name" />
         <EditTextPreference
+            android:key="@string/settings_local_server_if_filter_key"
+            android:title="@string/settings_local_server_if_filter_names"
+            android:defaultValue="rmnet,ccmni"/>
+        <EditTextPreference
             android:enabled="false"
             app:isPreferenceVisible="false"
             android:inputType="text"

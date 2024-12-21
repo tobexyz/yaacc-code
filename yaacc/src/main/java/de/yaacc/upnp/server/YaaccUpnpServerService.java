@@ -81,6 +81,7 @@ import java.util.Timer;
 import java.util.TimerTask;
 import java.util.UUID;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import de.yaacc.R;
 import de.yaacc.Yaacc;
@@ -308,7 +309,7 @@ public class YaaccUpnpServerService extends Service {
                         }
 
                     })
-                    .setCanonicalHostName(getIpAddress())
+                    .setCanonicalHostName(getIpAddress(getApplicationContext()))
                     .register("*", new YaaccUpnpServerServiceHttpHandler(getApplicationContext()))
                     .create();
 
@@ -416,7 +417,7 @@ public class YaaccUpnpServerService extends Service {
             DeviceDetails yaaccDetails = new DeviceDetails(
                     "YAACC - MediaServer(" + getLocalServerName() + ")", new ManufacturerDetails("yaacc.de",
                     "http://www.yaacc.de"), new ModelDetails(getLocalServerName() + "-MediaServer", "Free Android UPnP AV MediaServer, GNU GPL",
-                    versionName), URI.create("http://" + getIpAddress() + ":" + PORT));
+                    versionName), URI.create("http://" + getIpAddress(getApplicationContext()) + ":" + PORT));
 
 
             DeviceIdentity identity = new DeviceIdentity(new UDN(mediaServerUuid));
@@ -500,7 +501,7 @@ public class YaaccUpnpServerService extends Service {
 
             @Override
             protected YaaccContentDirectory createServiceInstance() {
-                return new YaaccContentDirectory(getApplicationContext(), getIpAddress());
+                return new YaaccContentDirectory(getApplicationContext(), getIpAddress(getApplicationContext()));
             }
         });
         return contentDirectoryService;
@@ -844,27 +845,28 @@ public class YaaccUpnpServerService extends Service {
     // return false;
     // }
 
-    /**
-     * @return the initialized
-     */
-    public boolean isInitialized() {
-        return initialized;
-    }
 
     /**
      * get the ip address of the device
      *
      * @return the address or null if anything went wrong
      */
-    public static String getIpAddress() {
+    public static String getIpAddress(Context context) {
+        return getIfAndIpAddress(context)[0];
+    }
+
+    public static String[] getIfAndIpAddress(Context context) {
         String hostAddress = null;
+        String[] result = new String[2];
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
+        List<String> interfaces = List.of(preferences.getString(context.getString(R.string.settings_local_server_if_filter_key), "").split(","));
         try {
             for (Enumeration<NetworkInterface> networkInterfaces = NetworkInterface
                     .getNetworkInterfaces(); networkInterfaces
                          .hasMoreElements(); ) {
                 NetworkInterface networkInterface = networkInterfaces
                         .nextElement();
-                if (!networkInterface.getName().startsWith("rmnet")) {
+                if (interfaces.stream().filter(i -> networkInterface.getName().startsWith(i)).collect(Collectors.toList()).isEmpty()) {
                     for (Enumeration<InetAddress> inetAddresses = networkInterface
                             .getInetAddresses(); inetAddresses.hasMoreElements(); ) {
                         InetAddress inetAddress = inetAddresses.nextElement();
@@ -874,6 +876,7 @@ public class YaaccUpnpServerService extends Service {
                                 .getHostAddress()).matches()) {
 
                             hostAddress = inetAddress.getHostAddress();
+                            result[1] = networkInterface.getName();
                         }
 
                     }
@@ -885,7 +888,8 @@ public class YaaccUpnpServerService extends Service {
         }
         // maybe wifi is off we have to use the loopback device
         hostAddress = hostAddress == null ? "0.0.0.0" : hostAddress;
-        return hostAddress;
+        result[0] = hostAddress;
+        return result;
     }
 
     public class YaaccUpnpServerServiceBinder extends Binder {
