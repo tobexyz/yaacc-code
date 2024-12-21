@@ -103,8 +103,7 @@ public class PlayerListItemAdapter extends RecyclerView.Adapter<PlayerListItemAd
             }
             TypedValue typedValue = new TypedValue();
             playerListView.getContext().getApplicationContext().getTheme().resolveAttribute(resId, typedValue, true);
-            int color = typedValue.data;
-            holder.name.setTextColor(color);
+            
             if (player.getIcon() != null) {
                 holder.icon.setImageBitmap(Bitmap.createScaledBitmap(player.getIcon(), 48, 48, false));
             } else {
