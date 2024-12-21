@@ -27,6 +27,7 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.Button;
 import android.widget.CheckBox;
+import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.preference.PreferenceManager;
@@ -62,6 +63,9 @@ public class YaaccUpnpServerControlActivity extends AppCompatActivity {
         Log.d(getClass().getName(), "providerActive: " + providerActive);
         CheckBox providerCheckBox = findViewById(R.id.providerEnabled);
         providerCheckBox.setChecked(providerActive);
+        TextView localServerControlInterface = findViewById(R.id.localServerControlInterface);
+        String[] ipConfig = YaaccUpnpServerService.getIfAndIpAddress(this);
+        localServerControlInterface.setText(ipConfig[1] + "@" + ipConfig[0]);
 
 
     }

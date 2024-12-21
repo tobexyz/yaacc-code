@@ -115,5 +115,6 @@
     <string name="settings_browse_swipe_off">Change tabs on touch</string>
     <string name="settings_browse_swipe_on">Change tabs on swipe and touch</string>
     <string name="settings_browse_swipe_title">"Swipe on browse "</string>
-
+    <string name="settings_local_server_if_filter_key">settings_local_server_if_filter_key</string>
+    <string name="settings_local_server_if_filter_names">black listed interfaces for ip adress retrieval</string>
 </resources>
