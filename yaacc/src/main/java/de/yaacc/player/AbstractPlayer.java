@@ -18,6 +18,7 @@
 package de.yaacc.player;
 
 import android.app.Activity;
+import android.app.AlarmManager;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.ComponentName;
@@ -26,12 +27,13 @@ import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
-import android.os.Handler;
+import android.os.Build;
 import android.os.IBinder;
 import android.util.Log;
 import android.widget.Toast;
 
 import androidx.core.app.NotificationCompat;
+import androidx.core.content.ContextCompat;
 import androidx.preference.PreferenceManager;
 
 import java.beans.PropertyChangeListener;
@@ -62,10 +64,10 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
     private final PropertyChangeSupport pcs = new PropertyChangeSupport(this);
     private final List<PlayableItem> items = new ArrayList<>();
     private final UpnpClient upnpClient;
-    private Handler playerTimer;
     private int previousIndex = 0;
     private int currentIndex = 0;
     private Timer execTimer;
+    private PendingIntent alarmIntent;
     private boolean isPlaying = false;
     private boolean isProcessingCommand = false;
     private PlayerService playerService;
@@ -349,8 +351,13 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
     }
 
     protected void cancelTimer() {
-        if (playerTimer != null) {
-            playerTimer.removeCallbacksAndMessages(null);
+
+        if (alarmIntent != null) {
+            AlarmManager alarmManager =
+                    (AlarmManager) getContext().getSystemService(Context.ALARM_SERVICE);
+            if (alarmManager != null) {
+                alarmManager.cancel(alarmIntent);
+            }
         }
     }
 
@@ -539,15 +546,50 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
     public void startTimer(final long duration) {
         Log.d(getClass().getName(), "Start timer duration: " + duration);
         cancelTimer();
-        playerTimer = new Handler(playerService.getPlayerHandlerThread().getLooper());
-        playerTimer.postDelayed(new Runnable() {
+        Intent intent = new Intent();
+        intent.setAction(PlayerServiceBroadcastReceiver.ACTION_NEXT);
+        intent.putExtra(PLAYER_ID, getId());
+        ContextCompat.getMainExecutor(getContext()).execute(() -> {
+            AlarmManager alarmManager =
+                    (AlarmManager) getContext().getSystemService(Context.ALARM_SERVICE);
+            alarmIntent = PendingIntent.getBroadcast(getContext(), intent.hashCode(), intent,
+                    PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_ONE_SHOT);
 
-            @Override
-            public void run() {
-                Log.d(getClass().getName(), "TimerEvent for switching to next item" + this);
-                AbstractPlayer.this.next();
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (alarmManager.canScheduleExactAlarms()) {
+                    alarmManager.setExactAndAllowWhileIdle(
+                            AlarmManager.RTC_WAKEUP,
+                            System.currentTimeMillis() + duration,
+                            alarmIntent
+                    );
+                    Log.w(getClass().getName(), "ExactAndAllowWhileIdle alarm event in: " + (System.currentTimeMillis() + duration));
+                } else {
+                    alarmManager.setAndAllowWhileIdle(
+                            AlarmManager.RTC_WAKEUP,
+                            System.currentTimeMillis() + duration,
+                            alarmIntent
+                    );
+                    Log.w(getClass().getName(), "AndAllowWhileIdle alarm event in: " + (System.currentTimeMillis() + duration));
+                }
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                alarmManager.setExact(
+                        AlarmManager.RTC_WAKEUP,
+                        System.currentTimeMillis() + duration,
+                        alarmIntent
+                );
+                Log.w(getClass().getName(), "exact alarm event in: " + (System.currentTimeMillis() + duration));
+            } else {
+                alarmManager.set(
+                        AlarmManager.RTC_WAKEUP,
+                        System.currentTimeMillis() + duration,
+                        alarmIntent
+                );
+                Log.d(getClass().getName(), "set alarm event in: " + (System.currentTimeMillis() + duration));
             }
-        }, duration);
+
+
+        });
+
     }
 
     /*
@@ -620,11 +662,11 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
     /**
      * Cancels the notification.
      */
-    private void cancleNotification() {
+    private void cancelNotification() {
         NotificationManager mNotificationManager = (NotificationManager) getContext()
                 .getSystemService(Context.NOTIFICATION_SERVICE);
         // mId allows you to update the notification later on.
-        Log.d(getClass().getName(), "Cancle Notification with ID: " + getNotificationId());
+        Log.d(getClass().getName(), "Cancel Notification with ID: " + getNotificationId());
         mNotificationManager.cancel(getNotificationId());
         ((Yaacc) getContext().getApplicationContext()).cancelYaaccGroupNotification();
 
@@ -662,7 +704,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
     @Override
     public void onDestroy() {
         stop();
-        cancleNotification();
+        cancelNotification();
         items.clear();
         if (playerService != null) {
             try {

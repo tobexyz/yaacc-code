@@ -24,6 +24,7 @@ import android.content.Intent;
 import android.os.Binder;
 import android.os.HandlerThread;
 import android.os.IBinder;
+import android.os.PowerManager;
 import android.util.Log;
 import android.widget.Toast;
 
@@ -52,8 +53,11 @@ import de.yaacc.util.NotificationId;
 public class PlayerService extends Service {
 
     private final IBinder binder = new PlayerServiceBinder();
+    private PlayerServiceBroadcastReceiver playerServiceBroadcastReceiver;
     private final Map<Integer, Player> currentActivePlayer = new HashMap<>();
     private HandlerThread playerHandlerThread;
+
+    private PowerManager.WakeLock wakeLock;
 
 
     public PlayerService() {
@@ -90,6 +94,10 @@ public class PlayerService extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         super.onStartCommand(intent, flags, startId);
         Log.d(this.getClass().getName(), "Received start id " + startId + ": " + intent);
+        if (playerServiceBroadcastReceiver == null) {
+            playerServiceBroadcastReceiver = new PlayerServiceBroadcastReceiver(this);
+            playerServiceBroadcastReceiver.registerReceiver();
+        }
         ((Yaacc) getApplicationContext()).createYaaccGroupNotification();
         Intent notificationIntent = new Intent(this, TabBrowserActivity.class);
         PendingIntent pendingIntent = PendingIntent.getActivity(this,
@@ -102,6 +110,7 @@ public class PlayerService extends Service {
                 .setSmallIcon(R.drawable.ic_notification_default)
                 .setContentIntent(pendingIntent)
                 .build();
+
         startForeground(NotificationId.PLAYER_SERVICE.getId(), notification);
         initialize();
 
@@ -158,7 +167,7 @@ public class PlayerService extends Service {
             }
 
         }
-        Log.d(getClass().getName(), "video:" + video + " image: " + image + "audio:" + music);
+        Log.d(getClass().getName(), "video:" + video + " image: " + image + " audio:" + music);
         for (Device<?, ?, ?> device : upnpClient.getReceiverDevices()) {
             result = createPlayer(upnpClient, device, video, image, music, syncInfo);
             if (result != null) {
@@ -169,6 +178,15 @@ public class PlayerService extends Service {
         }
         return resultList;
     }
+
+    @Override
+    public boolean onUnbind(Intent intent) {
+        if (playerServiceBroadcastReceiver != null) {
+            unregisterReceiver(playerServiceBroadcastReceiver);
+        }
+        return super.onUnbind(intent);
+    }
+
 
     /**
      * creates a player for the given device
@@ -286,6 +304,11 @@ public class PlayerService extends Service {
         return Collections.unmodifiableCollection(currentActivePlayer.values());
     }
 
+    public Player getCurrentPlayerById(Integer id) {
+
+        return currentActivePlayer.get(id);
+    }
+
     /**
      * returns all current players of the given type.
      *
@@ -372,6 +395,8 @@ public class PlayerService extends Service {
             stopForeground(true);
             ((Yaacc) getApplicationContext()).cancelYaaccGroupNotification();
         }
+
+
     }
 
     /**

@@ -72,7 +72,7 @@ public class BackgroundMusicBroadcastReceiver extends BroadcastReceiver {
     }
 
     public void registerReceiver() {
-        Log.d(this.getClass().getName(), "Register Receiver");
+        Log.d(this.getClass().getName(), "Register BackgroundMusicBroadcastReceiver");
         IntentFilter intentFilter = new IntentFilter();
         intentFilter.addAction(ACTION_PLAY);
         intentFilter.addAction(ACTION_PAUSE);
