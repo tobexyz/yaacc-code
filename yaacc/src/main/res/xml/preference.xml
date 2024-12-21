@@ -40,6 +40,12 @@
     <PreferenceCategory android:title="@string/settings_category_browsing">
         <CheckBoxPreference
             android:defaultValue="true"
+            android:key="@string/settings_swipe_chkbx"
+            android:summaryOff="@string/settings_browse_swipe_off"
+            android:summaryOn="@string/settings_browse_swipe_on"
+            android:title="@string/settings_browse_swipe_title" />
+        <CheckBoxPreference
+            android:defaultValue="true"
             android:key="@string/settings_thumbnails_chkbx"
             android:summaryOff="@string/settings_browse_thumbnails_off"
             android:summaryOn="@string/settings_browse_thumbnails_on"
@@ -170,7 +176,7 @@
             android:inputType="text"
             android:key="@string/settings_local_server_receiver_uuid_key" />
     </PreferenceCategory>
-    <PreferenceCategory android:title="@string/settings_category_synchronization">
+    <PreferenceCategory app:isPreferenceVisible="false" android:title="@string/settings_category_synchronization">
         <ListPreference
             android:entries="@array/duration_entries"
             android:entryValues="@array/duration_values"

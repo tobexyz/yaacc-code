@@ -139,6 +139,7 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
         tabLayout = findViewById(R.id.browserTabLayout);
         pagerAdapter = new TabBrowserFragmentStateAdapter(this);
         viewPager.setAdapter(pagerAdapter);
+        viewPager.setUserInputEnabled(getPreferences().getBoolean(getString(R.string.settings_swipe_chkbx), true));
         tabLayout.addOnTabSelectedListener(new TabLayout.OnTabSelectedListener() {
             @Override
             public void onTabSelected(TabLayout.Tab tab) {
@@ -174,7 +175,7 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
             Log.d(getClass().getName(), "Upnp client is null");
             return;
         }
-        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
+
         if (savedInstanceState != null) {
             setCurrentTab(BrowserTabs.valueOf(savedInstanceState.getInt(CURRENT_TAB_KEY, BrowserTabs.CONTENT.ordinal())));
         } else if (upnpClient.getProviderDevice() != null) {
@@ -301,6 +302,7 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
     public void onResume() {
         long start = System.currentTimeMillis();
         super.onResume();
+        viewPager.setUserInputEnabled(getPreferences().getBoolean(getString(R.string.settings_swipe_chkbx), true));
         setVolumeControlStream(-1000); //use an invalid audio stream to block controlling default streams
         boolean serverOn = getPreferences().getBoolean(
                 getString(R.string.settings_local_server_chkbx), false);
