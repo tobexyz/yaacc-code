@@ -562,14 +562,14 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
                             System.currentTimeMillis() + duration,
                             alarmIntent
                     );
-                    Log.w(getClass().getName(), "ExactAndAllowWhileIdle alarm event in: " + (System.currentTimeMillis() + duration));
+                    Log.d(getClass().getName(), "ExactAndAllowWhileIdle alarm event in: " + (System.currentTimeMillis() + duration));
                 } else {
                     alarmManager.setAndAllowWhileIdle(
                             AlarmManager.RTC_WAKEUP,
                             System.currentTimeMillis() + duration,
                             alarmIntent
                     );
-                    Log.w(getClass().getName(), "AndAllowWhileIdle alarm event in: " + (System.currentTimeMillis() + duration));
+                    Log.d(getClass().getName(), "AndAllowWhileIdle alarm event in: " + (System.currentTimeMillis() + duration));
                 }
             } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
                 alarmManager.setExact(
@@ -577,7 +577,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
                         System.currentTimeMillis() + duration,
                         alarmIntent
                 );
-                Log.w(getClass().getName(), "exact alarm event in: " + (System.currentTimeMillis() + duration));
+                Log.d(getClass().getName(), "exact alarm event in: " + (System.currentTimeMillis() + duration));
             } else {
                 alarmManager.set(
                         AlarmManager.RTC_WAKEUP,

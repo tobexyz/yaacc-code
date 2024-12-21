@@ -42,19 +42,18 @@ public class PlayerServiceBroadcastReceiver extends BroadcastReceiver {
 
     @Override
     public void onReceive(Context context, Intent intent) {
-        Log.w(this.getClass().getName(), "Received Action: " + intent.getAction());
+        Log.d(this.getClass().getName(), "Received Action: " + intent.getAction());
         if (playerService == null) return;
-        Log.w(this.getClass().getName(), "Execute Action on playerService: " + playerService);
+        Log.d(this.getClass().getName(), "Execute Action on playerService: " + playerService);
         if (ACTION_NEXT.equals(intent.getAction())) {
             Integer playerId = intent.getIntExtra(AbstractPlayer.PLAYER_ID, -1);
-            Log.w(this.getClass().getName(), "Player of intent not found: " + playerId + " Intent: " + intent.getStringExtra("ID"));
+            Log.d(this.getClass().getName(), "Player of intent not found: " + playerId + " Intent: " + intent.getStringExtra("ID"));
             Player player = playerService.getCurrentPlayerById(playerId);
             if (player != null) {
                 player.next();
             } else {
-                Log.w(this.getClass().getName(), "Player of intent not found: " + playerId);
+                Log.d(this.getClass().getName(), "Player of intent not found: " + playerId);
             }
-            ;
         }
     }
 
