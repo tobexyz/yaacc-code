@@ -64,7 +64,7 @@ android {
     }
 
     defaultConfig {
-        resourceConfigurations += ["en", "de"]
+        resourceConfigurations += ["en", "de", "nl"]
         targetSdkVersion 33
         minSdkVersion 27
     }
