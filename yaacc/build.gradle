@@ -1,7 +1,7 @@
 buildscript {
 
     dependencies {
-        classpath 'com.android.tools.build:gradle:8.3.0'
+        classpath 'com.android.tools.build:gradle:8.7.3'
 
     }
 }
@@ -21,7 +21,6 @@ dependencies {
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
     implementation 'org.apache.httpcomponents.client5:httpclient5:5.2.1'
     implementation 'org.apache.httpcomponents.core5:httpcore5:5.2'
-//    implementation 'org.slf4j:slf4j-simple:2.0.6'
     implementation 'androidx.appcompat:appcompat:1.5.1'
     implementation 'androidx.preference:preference:1.1.0'
     implementation 'androidx.lifecycle:lifecycle-livedata-ktx:2.4.1'
@@ -31,7 +30,7 @@ dependencies {
 }
 
 android {
-    compileSdk 32
+    compileSdk 33
 
 
     sourceSets {
@@ -60,9 +59,13 @@ android {
         targetCompatibility JavaVersion.VERSION_11
     }
 
+    androidResources {
+        generateLocaleConfig false
+    }
 
     defaultConfig {
-        targetSdkVersion 32
+        resourceConfigurations += ["en", "de"]
+        targetSdkVersion 33
         minSdkVersion 27
     }
     lint {

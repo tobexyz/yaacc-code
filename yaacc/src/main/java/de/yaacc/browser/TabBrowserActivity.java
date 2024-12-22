@@ -54,6 +54,7 @@ import androidx.viewpager2.widget.ViewPager2;
 
 import com.google.android.material.tabs.TabLayout;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -239,29 +240,33 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
                 Runnable execution = new Runnable() {
                     @Override
                     public void run() {
-                        if (upnpClient.getReceiverDevicesReadyCount() == 0) {
-                            runOnUiThread(new Runnable() {
+                        try {
+                            if (upnpClient.getReceiverDevicesReadyCount() == 0) {
+                                runOnUiThread(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        Toast.makeText(getApplicationContext(), "no receiver found using local device", Toast.LENGTH_LONG).show();
+                                    }
+                                });
+
+                                upnpClient.setReceiverDeviceIds(Set.of(UpnpClient.LOCAL_UID));
+                            }
+                            items.add(upnpClient.createPlayableItem(uri));
+
+                            handler.post(new Runnable() {
                                 @Override
                                 public void run() {
-                                    Toast.makeText(getApplicationContext(), "no receiver found using local device", Toast.LENGTH_LONG).show();
+
+                                    List<Player> players = upnpClient.initializePlayersWithPlayableItems(items);
+                                    for (Player player : players) {
+                                        player.play();
+                                    }
+                                    setCurrentTab(BrowserTabs.PLAYER);
                                 }
                             });
-
-                            upnpClient.setReceiverDeviceIds(Set.of(UpnpClient.LOCAL_UID));
+                        } catch (IOException ioException) {
+                            throw new RuntimeException(ioException);
                         }
-                        items.add(upnpClient.createPlayableItem(uri));
-
-                        handler.post(new Runnable() {
-                            @Override
-                            public void run() {
-
-                                List<Player> players = upnpClient.initializePlayersWithPlayableItems(items);
-                                for (Player player : players) {
-                                    player.play();
-                                }
-                                setCurrentTab(BrowserTabs.PLAYER);
-                            }
-                        });
                     }
                 };
 

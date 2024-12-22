@@ -103,14 +103,14 @@
     <string name="playerShortNameMusic">Music</string>
     <string name="playerShortNameMultiContent">multi</string>
     <string name="settings_browse_chunk_size">chunk size when browsing</string>
-    <string name="settings_browse_chunk_size_key">browse_chunk_size_key</string>
+    <string name="settings_browse_chunk_size_key" translatable="false">browse_chunk_size_key</string>
     <string name="settings_browse_chunk_size_summ">amount of items fetched from server in one request</string>
     <string name="settings_category_appearance">Appearance</string>
-    <string name="settings_dark_mode_key">settings_dark_mode_key</string>
+    <string name="settings_dark_mode_key" translatable="false">settings_dark_mode_key</string>
     <string name="settings_dark_mode_title">Dark mode</string>
     <string name="settings_dark_mode_off">Using system settings</string>
     <string name="settings_dark_mode_on">Dark mode active</string>
-    <string name="settings_log_level_key">settings_log_level_key</string>
+    <string name="settings_log_level_key" translatable="false">settings_log_level_key</string>
     <string name="settings_log_level">Log level</string>
     <string name="settings_local_server_provider_uuid_key">settings_local_server_provider_uuid_key</string>
     <string name="settings_local_server_receiver_uuid_key">settings_local_server_receiver_uuid_key</string>
