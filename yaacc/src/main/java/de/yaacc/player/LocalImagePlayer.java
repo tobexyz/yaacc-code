@@ -476,6 +476,11 @@ public class LocalImagePlayer implements Player, ServiceConnection {
     }
 
     @Override
+    public long getCurrentPosition() {
+        return 0;
+    }
+
+    @Override
     public String getElapsedTime() {
         return "";
     }
@@ -568,5 +573,15 @@ public class LocalImagePlayer implements Player, ServiceConnection {
     @Override
     public List<PlayableItem> getItems() {
         return new ArrayList<>();
+    }
+
+    @Override
+    public void fastForward(int i) {
+        //Not implemented
+    }
+
+    @Override
+    public void fastRewind(int i) {
+        //Not implemented
     }
 }

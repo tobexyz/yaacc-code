@@ -197,6 +197,8 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
         ImageButton btnPause = (ImageButton) findViewById(R.id.avtransportPlayerActivityControlPause);
         ImageButton btnPlaylist = (ImageButton) findViewById(R.id.avtransportPlayerActivityControlPlaylist);
         ImageButton btnExit = (ImageButton) findViewById(R.id.avtransportPlayerActivityControlExit);
+        ImageButton btnFf = (ImageButton) findViewById(R.id.avtransportPlayerActivityControlFastForward);
+        ImageButton btnFr = (ImageButton) findViewById(R.id.avtransportPlayerActivityControlFastRewind);
         if (player == null) {
             btnPrev.setActivated(false);
             btnNext.setActivated(false);
@@ -205,6 +207,8 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
             btnPause.setActivated(false);
             btnExit.setActivated(false);
             btnPlaylist.setActivated(false);
+            btnFf.setActivated(false);
+            btnFr.setActivated(false);
         } else {
             player.addPropertyChangeListener(event -> {
                 if (AbstractPlayer.PROPERTY_ITEM.equals(event.getPropertyName())) {
@@ -222,7 +226,24 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
             btnPause.setActivated(true);
             btnExit.setActivated(true);
             btnPlaylist.setActivated(true);
+            btnFf.setActivated(true);
+            btnFr.setActivated(true);
         }
+
+        btnFf.setOnClickListener(v -> {
+            Player ply = getPlayer();
+            if (ply != null) {
+                ply.fastForward(10);
+            }
+        });
+
+        btnFr.setOnClickListener(v -> {
+            Player ply = getPlayer();
+            if (ply != null) {
+                ply.fastRewind(10);
+            }
+        });
+
         btnPrev.setOnClickListener(v -> {
             Player p = getPlayer();
             if (p != null) {

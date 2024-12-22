@@ -172,6 +172,13 @@ public interface Player {
     String getDuration();
 
     /**
+     * returns the current position of the current item in millis
+     *
+     * @return the position
+     */
+    long getCurrentPosition();
+
+    /**
      * returns the elapsed time of the current item
      *
      * @return the elapsed time
@@ -230,4 +237,17 @@ public interface Player {
 
     List<PlayableItem> getItems();
 
+    /**
+     * fast forward seconds
+     *
+     * @param i seconds
+     */
+    void fastForward(int i);
+
+    /**
+     * fast rewind seconds
+     *
+     * @param i seconds
+     */
+    void fastRewind(int i);
 }

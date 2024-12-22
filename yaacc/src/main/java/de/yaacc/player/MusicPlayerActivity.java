@@ -86,6 +86,8 @@ public class MusicPlayerActivity extends AppCompatActivity implements ServiceCon
         ImageButton btnPause = (ImageButton) findViewById(R.id.musicActivityControlPause);
         ImageButton btnPlaylist = (ImageButton) findViewById(R.id.musicActivityControlPlaylist);
         ImageButton btnExit = (ImageButton) findViewById(R.id.musicActivityControlExit);
+        ImageButton btnFf = (ImageButton) findViewById(R.id.musicActivityControlFastForward);
+        ImageButton btnFr = (ImageButton) findViewById(R.id.musicActivityControlFastRewind);
         if (player == null) {
             btnPrev.setActivated(false);
             btnNext.setActivated(false);
@@ -95,6 +97,8 @@ public class MusicPlayerActivity extends AppCompatActivity implements ServiceCon
             btnPause.setActivated(false);
             btnPlaylist.setActivated(false);
             btnExit.setActivated(false);
+            btnFf.setActivated(false);
+            btnFr.setActivated(false);
         } else {
             player.addPropertyChangeListener(event -> {
                 if (LocalBackgoundMusicPlayer.PROPERTY_ITEM.equals(event.getPropertyName())) {
@@ -111,7 +115,23 @@ public class MusicPlayerActivity extends AppCompatActivity implements ServiceCon
             btnPause.setActivated(true);
             btnPlaylist.setActivated(true);
             btnExit.setActivated(true);
+            btnFf.setActivated(true);
+            btnFr.setActivated(true);
         }
+        btnFf.setOnClickListener(v -> {
+            Player ply = getPlayer();
+            if (ply != null) {
+                ply.fastForward(10);
+            }
+        });
+
+        btnFr.setOnClickListener(v -> {
+            Player ply = getPlayer();
+            if (ply != null) {
+                ply.fastRewind(10);
+            }
+        });
+
         btnPrev.setOnClickListener(v -> {
             Player ply = getPlayer();
             if (ply != null) {

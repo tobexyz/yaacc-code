@@ -740,6 +740,9 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
         this.pcs.firePropertyChange(property, oldValue, newValue);
     }
 
+
+    public abstract long getCurrentPosition();
+
     @Override
     public String getDuration() {
         return "";
@@ -847,5 +850,15 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
         return true;
     }
 
+    @Override
+    public void fastForward(int i) {
+
+        seekTo(getCurrentPosition() + (i * 1000));
+    }
+
+    @Override
+    public void fastRewind(int i) {
+        seekTo(getCurrentPosition() - (i * 1000));
+    }
 
 }
