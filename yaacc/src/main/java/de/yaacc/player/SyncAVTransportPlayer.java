@@ -245,6 +245,18 @@ public class SyncAVTransportPlayer extends AbstractPlayer {
         getUpnpClient().getControlPoint().execute(actionCallback);
     }
 
+    public long getCurrentPosition() {
+        if (currentPositionInfo == null) {
+            getPositionInfo();
+        }
+        if (currentPositionInfo != null) {
+            Log.v(getClass().getName(), "Elapsed time: " + currentPositionInfo.getTrackElapsedSeconds() + " in millis: " + currentPositionInfo.getTrackRemainingSeconds() * 1000);
+            return currentPositionInfo.getTrackElapsedSeconds() * 1000;
+        }
+        return -1;
+
+    }
+
     /**
      * Watchdog for async calls to complete
      */

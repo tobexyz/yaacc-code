@@ -449,6 +449,19 @@ public class AVTransportPlayer extends AbstractPlayer {
         return R.drawable.ic_baseline_devices_32;
     }
 
+
+    public long getCurrentPosition() {
+        if (currentPositionInfo == null) {
+            getPositionInfo();
+        }
+        if (currentPositionInfo != null) {
+            Log.v(getClass().getName(), "Elapsed time: " + currentPositionInfo.getTrackElapsedSeconds() + " in millis: " + currentPositionInfo.getTrackRemainingSeconds() * 1000);
+            return currentPositionInfo.getTrackElapsedSeconds() * 1000;
+        }
+        return -1;
+
+    }
+
     @Override
     public void seekTo(long millisecondsFromStart) {
         if (getDevice() == null) {
