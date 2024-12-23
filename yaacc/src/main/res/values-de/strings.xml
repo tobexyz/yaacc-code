@@ -71,7 +71,6 @@
     <string name="playerPosition">Position</string>
     <string name="playerTiming">Timing: </string>
     <string name="playerTimeDuration">Dauer</string>
-    <string name="playerTimeSeparator"> / </string>
     <string name="playerTimeElapsed">Verstrichene Zeit</string>
     <string name="bucket_names">Galerien</string>
     <string name="all_images">Alle Bilder</string>
@@ -103,17 +102,12 @@
     <string name="playerShortNameMusic">Musik</string>
     <string name="playerShortNameMultiContent">Multi</string>
     <string name="settings_browse_chunk_size">Abfragegröße</string>
-    <string name="settings_browse_chunk_size_key">browse_chunk_size_key</string>
     <string name="settings_browse_chunk_size_summ">Anzahl der abzufragenden Einträge je Anfrage</string>
     <string name="settings_category_appearance">Erscheinungsbild</string>
-    <string name="settings_dark_mode_key">settings_dark_mode_key</string>
     <string name="settings_dark_mode_title">Dunkles Design</string>
     <string name="settings_dark_mode_off">Verwende Systemeinstellungen</string>
     <string name="settings_dark_mode_on">Dunkles Design aktiv</string>
-    <string name="settings_log_level_key">settings_log_level_key</string>
     <string name="settings_log_level">Log level</string>
-    <string name="settings_local_server_provider_uuid_key">settings_local_server_provider_uuid_key</string>
-    <string name="settings_local_server_receiver_uuid_key">settings_local_server_receiver_uuid_key</string>
     <string name="media_store_scanner_scan_triggered">Aktualisierung der Mediendatenbank gestartet</string>
     <string name="media_store_scanner_scan_finished">Aktualisierung der Mediendatenbank beendet</string>
     <string name="media_store_scan">Scan</string>

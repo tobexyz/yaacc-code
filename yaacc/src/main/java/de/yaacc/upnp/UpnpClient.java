@@ -79,6 +79,7 @@ import org.fourthline.cling.support.renderingcontrol.callback.SetMute;
 import org.fourthline.cling.support.renderingcontrol.callback.SetVolume;
 import org.seamless.util.MimeType;
 
+import java.io.IOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -1592,7 +1593,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
 
     }
 
-    public PlayableItem createPlayableItem(Uri uri) {
+    public PlayableItem createPlayableItem(Uri uri) throws IOException {
         PlayableItem item = new PlayableItem();
         if (uri == null) {
             return item;
@@ -1600,9 +1601,8 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         String uriString = uri.toString();
         final String title = "shared with yaacc with ♥";
         //auto closeable requires Android code level 29 current min level is 27
-        MediaMetadataRetriever metaRetriever = new MediaMetadataRetriever();
-        Res res = null;
-        try {
+        try (MediaMetadataRetriever metaRetriever = new MediaMetadataRetriever()) {
+            Res res = null;
             try {
                 metaRetriever.setDataSource(uriString);
                 long duration = Long.parseLong(metaRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION));
@@ -1636,8 +1636,6 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
                 res.setValue(proxyUrl);
             }
             item.setTitle(title);
-        } finally {
-            metaRetriever.close();
         }
         return item;
     }
