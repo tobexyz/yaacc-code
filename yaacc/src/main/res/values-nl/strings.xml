@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">LOOP</string>
+    <string name="app_name">YAACC</string>
     <string name="menu_settings">Instellingen</string>
     <string name="browse_main_folder">Blader door de hoofdmap</string>
     <string name="browse_context_title">Beschikbare acties</string>
@@ -11,7 +11,7 @@
     <string name="browse_button_prev">Vorig artikel</string>
     <string name="browse_button_stop">Stop het afspelen</string>
     <string name="browse_button_next">Volgend artikel</string>
-    <string name="title_activity_main">LOOP</string>
+    <string name="title_activity_main">YAACC</string>
     <string name="title_activity_upnp_browser">UpnpBrowserActiviteit</string>
     <string name="title_activity_image_viewer">ImageViewerActiviteit</string>
     <string name="title_activity_settings">Instellingen</string>
@@ -77,7 +77,7 @@
     <string name="not_yet_implemented">nog niet geïmplementeerd</string>
     <string name="avtransportPlayerActivityNextLabel">Volgende:</string>
     <string name="browse_context_control_device">Controle-apparaat</string>
-    <string name="channel_name">LOOP</string>
+    <string name="channel_name">YAACC</string>
     <string name="channel_description">YAACC-meldingen</string>
     <string name="playerNameImageShort">Afbeeldingen</string>
     <string name="playerShortNameMusic">Muziek</string>
