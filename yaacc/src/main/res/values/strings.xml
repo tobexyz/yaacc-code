@@ -128,7 +128,6 @@
     <string name="playlist">playlist</string>
     <string name="fast_rewind">fast rewind</string>
     <string name="fast_forward">fast forward</string>
-    <string name="settings_no_content_found">no content found for browsing</string>
 
 
 </resources>
