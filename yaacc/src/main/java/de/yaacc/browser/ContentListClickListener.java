@@ -69,7 +69,7 @@ public class ContentListClickListener implements View.OnClickListener {
                 newObjectId = adapter.getFolder(position).getId();
             }
 
-            navigator.pushPosition(new Position(newObjectId, upnpClient.getProviderDeviceId(), currentObject.getTitle()));
+            navigator.pushPosition(new Position(position, newObjectId, upnpClient.getProviderDeviceId(), currentObject.getTitle()));
             contentListFragment.populateItemList(true);
         } else if (currentObject instanceof Item) {
             if (currentObject == BrowseContentItemAdapter.LOAD_MORE_FAKE_ITEM) {

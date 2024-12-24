@@ -112,7 +112,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
                         showMainFolder();
                     } else {
                         navigator = (Navigator) savedInstanceState.getSerializable(CONTENT_LIST_NAVIGATOR);
-                        if (navigator.getCurrentPosition() != null && upnpClient.getProviderDevice() != null && upnpClient.getProviderDevice().getIdentity().getUdn().getIdentifierString().equals(navigator.getCurrentPosition().getDeviceId())) {
+                        if (navigator != null && navigator.getCurrentPosition() != null && upnpClient.getProviderDevice() != null && upnpClient.getProviderDevice().getIdentity().getUdn().getIdentifierString().equals(navigator.getCurrentPosition().getDeviceId())) {
                             populateItemList(true);
                         } else {
                             showMainFolder();
@@ -144,7 +144,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
             });
         }
         navigator = new Navigator();
-        Position pos = new Position(Navigator.ITEM_ROOT_OBJECT_ID, upnpClient.getProviderDevice().getIdentity().getUdn().getIdentifierString(), "");
+        Position pos = new Position(0, Navigator.ITEM_ROOT_OBJECT_ID, upnpClient.getProviderDevice().getIdentity().getUdn().getIdentifierString(), "");
         navigator.pushPosition(pos);
         populateItemList(true);
     }
@@ -166,6 +166,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
     }
 
     /**
@@ -195,7 +196,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
             //Fixme: Cache should store information for different folders....
             //IconDownloadCacheHandler.getInstance().resetCache();
             final RecyclerView itemList = contentList;
-            navigator.popPosition(); // First pop is our
+            Position lastPosition = navigator.popPosition(); // First pop is our
             if (getActivity() != null) {
                 getActivity().runOnUiThread(() -> {
                     if (Navigator.ITEM_ROOT_OBJECT_ID.equals(navigator.getCurrentPosition().getObjectId())) {
@@ -208,6 +209,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
             }
             // currentPosition
             initBrowsItemAdapter(itemList);
+            itemList.postDelayed(() -> itemList.smoothScrollToPosition(lastPosition.getPositionId()), 100);
             bItemAdapter.clear();
             bItemAdapter.loadMore();
 
@@ -265,6 +267,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
                 showFolderNavigation();
                 currentFolderNameView.setText(navigator.getPathNames().stream().collect(Collectors.joining(" > ")));
             }
+
             if (bItemAdapter != null) {
                 bItemAdapter.cancelRunningTasks();
             }
@@ -277,7 +280,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
     private void clearItemList() {
         requireActivity().runOnUiThread(() -> {
             navigator = new Navigator();
-            Position pos = new Position(Navigator.ITEM_ROOT_OBJECT_ID, null, "");
+            Position pos = new Position(0, Navigator.ITEM_ROOT_OBJECT_ID, null, "");
             navigator.pushPosition(pos);
             if (bItemAdapter != null) {
                 bItemAdapter.clear();
@@ -366,7 +369,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         if (item == null) {
             return;
         }
-        ContentDirectoryBrowseResult result = upnpClient.browseSync(new Position(item.getParentID(), upnpClient.getProviderDevice().getIdentity().getUdn().getIdentifierString(), item.getTitle()));
+        ContentDirectoryBrowseResult result = upnpClient.browseSync(new Position(0, item.getParentID(), upnpClient.getProviderDevice().getIdentity().getUdn().getIdentifierString(), item.getTitle()));
         if (result == null || (result.getResult() != null && result.getResult().getItems().size() == 0)) {
             Log.d(getClass().getName(), "Browse result of parent no direct items found...");
             if (result != null && result.getResult() != null && result.getResult().getContainers().size() > 0) {

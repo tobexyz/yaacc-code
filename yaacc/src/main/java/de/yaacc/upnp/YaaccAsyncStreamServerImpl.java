@@ -91,7 +91,9 @@ public class YaaccAsyncStreamServerImpl implements StreamServer<YaaccAsyncStream
     }
 
     synchronized public void stop() {
-
+        if (server == null) {
+            return;
+        }
         server.initiateShutdown();
         try {
             server.awaitShutdown(TimeValue.ofSeconds(3));
