@@ -1599,7 +1599,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
             return item;
         }
         String uriString = uri.toString();
-        final String title = "shared with yaacc with ♥";
+        final String title = "shared with ♥ by yaacc";
         //auto closeable requires Android code level 29 current min level is 27
         try (MediaMetadataRetriever metaRetriever = new MediaMetadataRetriever()) {
             Res res = null;
