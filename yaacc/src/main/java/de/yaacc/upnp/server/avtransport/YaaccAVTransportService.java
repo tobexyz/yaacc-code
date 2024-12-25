@@ -61,7 +61,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import de.yaacc.upnp.UpnpClient;
-import de.yaacc.upnp.model.types.SyncOffset;
 
 
 /**
@@ -328,63 +327,6 @@ public class YaaccAVTransportService implements LastChangeDelegator {
                         new AvTransport(instanceId, getLastChange(), StorageMedium.NETWORK),
                         upnpClient});
     }
-
-    @UpnpAction(name = "GetSyncOffset",
-            out = {@UpnpOutputArgument(name = "CurrentSyncOffset", stateVariable = "SyncOffset", getterName = "toString")})
-    public SyncOffset getSyncOffset(@UpnpInputArgument(name = "InstanceID") UnsignedIntegerFourBytes instanceId) throws AVTransportException {
-        return ((AvTransport) findStateMachine(instanceId).getCurrentState().getTransport()).getSynchronizationInfo().getOffset();
-    }
-
-    @UpnpAction(name = "SetSyncOffset")
-    public void setSyncOffset(@UpnpInputArgument(name = "InstanceID") UnsignedIntegerFourBytes instanceId,
-                              @UpnpInputArgument(name = "NewSyncOffset", stateVariable = "SyncOffset") String offset) throws AVTransportException {
-        ((AvTransport) findStateMachine(instanceId).getCurrentState().getTransport()).getSynchronizationInfo().setOffset(new SyncOffset(offset));
-    }
-
-    @UpnpAction(name = "AdjustSyncOffset")
-    public void adjustSyncOffset(@UpnpInputArgument(name = "InstanceID") UnsignedIntegerFourBytes instanceId,
-                                 @UpnpInputArgument(name = "Adjustment", stateVariable = "SyncOffset") String offset) throws AVTransportException {
-        ((AvTransport) findStateMachine(instanceId).getCurrentState().getTransport()).getSynchronizationInfo().getOffset().add(new SyncOffset(offset));
-    }
-
-
-    @UpnpAction(name = "SyncPlay")
-    public void syncPlay(@UpnpInputArgument(name = "InstanceID") UnsignedIntegerFourBytes instanceId,
-                         @UpnpInputArgument(name = "Speed", stateVariable = "TransportPlaySpeed") String speed,
-                         @UpnpInputArgument(name = "ReferencePositionUnits", stateVariable = "A_ARG_TYPE_SeekMode") String referencedPositionUnits,
-                         @UpnpInputArgument(name = "ReferencePosition", stateVariable = "A_ARG_TYPE_SeekTarget") String referencedPosition,
-                         @UpnpInputArgument(name = "ReferencePresentationTime", stateVariable = "A_ARG_TYPE_PresentationTime") String referencedPresentationTime,
-                         @UpnpInputArgument(name = "ReferenceClockId", stateVariable = "A_ARG_TYPE_ClockId") String referencedClockId) throws AVTransportException {
-        try {
-            ((AvTransportStateMachine) findStateMachine(instanceId)).syncPlay(speed, referencedPositionUnits, referencedPosition, referencedPresentationTime, referencedClockId);
-        } catch (TransitionException ex) {
-            throw new AVTransportException(AVTransportErrorCode.TRANSITION_NOT_AVAILABLE, ex.getMessage());
-        }
-    }
-
-
-    @UpnpAction(name = "SyncStop")
-    public void syncStop(@UpnpInputArgument(name = "InstanceID") UnsignedIntegerFourBytes instanceId,
-                         @UpnpInputArgument(name = "StopTime", stateVariable = "A_ARG_TYPE_PresentationTime") String referencedPresentationTime,
-                         @UpnpInputArgument(name = "ReferenceClockId", stateVariable = "A_ARG_TYPE_ClockId") String referencedClockId) throws AVTransportException {
-        try {
-            ((AvTransportStateMachine) findStateMachine(instanceId)).syncStop(referencedPresentationTime, referencedClockId);
-        } catch (TransitionException ex) {
-            throw new AVTransportException(AVTransportErrorCode.TRANSITION_NOT_AVAILABLE, ex.getMessage());
-        }
-    }
-
-    @UpnpAction(name = "SyncPause")
-    public void syncPause(@UpnpInputArgument(name = "InstanceID") UnsignedIntegerFourBytes instanceId,
-                          @UpnpInputArgument(name = "PauseTime", stateVariable = "A_ARG_TYPE_PresentationTime") String referencedPresentationTime,
-                          @UpnpInputArgument(name = "ReferenceClockId", stateVariable = "A_ARG_TYPE_ClockId") String referencedClockId) throws AVTransportException {
-        try {
-            ((AvTransportStateMachine) findStateMachine(instanceId)).syncStop(referencedPresentationTime, referencedClockId);
-        } catch (TransitionException ex) {
-            throw new AVTransportException(AVTransportErrorCode.TRANSITION_NOT_AVAILABLE, ex.getMessage());
-        }
-    }
-
 
     @UpnpAction(name = "GetCurrentTransportActions", out = @UpnpOutputArgument(name = "Actions", stateVariable = "CurrentTransportActions"))
     public String getCurrentTransportActionsString(@UpnpInputArgument(name = "InstanceID") UnsignedIntegerFourBytes instanceId) {

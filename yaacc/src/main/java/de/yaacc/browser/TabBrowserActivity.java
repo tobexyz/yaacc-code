@@ -18,6 +18,8 @@
 package de.yaacc.browser;
 
 import android.Manifest;
+import android.content.ActivityNotFoundException;
+import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
@@ -26,6 +28,8 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.PowerManager;
+import android.provider.Settings;
 import android.util.Log;
 import android.util.TypedValue;
 import android.view.ContextMenu;
@@ -88,9 +92,10 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
             Manifest.permission.CHANGE_WIFI_MULTICAST_STATE,
             Manifest.permission.READ_EXTERNAL_STORAGE,
             Manifest.permission.WRITE_EXTERNAL_STORAGE,
-            Manifest.permission.GET_TASKS,
             Manifest.permission.RECEIVE_BOOT_COMPLETED,
-            Manifest.permission.WAKE_LOCK
+            Manifest.permission.WAKE_LOCK,
+            Manifest.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
+
     };
     private static final String CURRENT_TAB_KEY = "currentTab";
     //FIXME dirty
@@ -170,6 +175,8 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
             Log.d(getClass().getName(), "All permissions granted");
         }
 
+        checkBatteryOptimizationEnabled();
+
         // local server startup
         upnpClient = ((Yaacc) getApplicationContext()).getUpnpClient();
         if (upnpClient == null) {
@@ -186,6 +193,21 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
 
         checkIfReceivedShareIntent(null);
         Log.d(this.getClass().getName(), "on create took: " + (System.currentTimeMillis() - start));
+    }
+
+    private void checkBatteryOptimizationEnabled() {
+        Intent intent = new Intent();
+        String packageName = getPackageName();
+        PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+        if (!pm.isIgnoringBatteryOptimizations(packageName)) {
+            intent.setAction(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+            intent.setData(Uri.parse("package:" + packageName));
+        }
+        try {
+            startActivity(intent);
+        } catch (ActivityNotFoundException ex) {
+            Log.d(getClass().getName(), "Ignoring exception ActivityNotFoundException during check for battery optimization");
+        }
     }
 
     @Override

@@ -20,8 +20,6 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
 
-    
-
     <PreferenceCategory android:title="@string/settings_category_appearance">
         <CheckBoxPreference
             android:defaultValue="true"
@@ -168,7 +166,7 @@
         <EditTextPreference
             android:key="@string/settings_local_server_if_filter_key"
             android:title="@string/settings_local_server_if_filter_names"
-            android:defaultValue="rmnet,ccmni"/>
+            android:defaultValue="rmnet,ccmni" />
         <EditTextPreference
             android:enabled="false"
             app:isPreferenceVisible="false"
@@ -179,19 +177,5 @@
             app:isPreferenceVisible="false"
             android:inputType="text"
             android:key="@string/settings_local_server_receiver_uuid_key" />
-    </PreferenceCategory>
-    <PreferenceCategory app:isPreferenceVisible="false" android:title="@string/settings_category_synchronization">
-        <ListPreference
-            android:entries="@array/duration_entries"
-            android:entryValues="@array/duration_values"
-            android:key="@string/settings_default_playback_delay_key"
-            android:title="@string/settings_default_playback_delay" />
-        <EditTextPreference
-            android:defaultValue="0"
-            android:dialogTitle="@string/settings_device_playback_offset"
-            android:inputType="number"
-            android:key="@string/settings_device_playback_offset_key"
-            android:summary="@string/settings_device_playback_offset_summ"
-            android:title="@string/settings_device_playback_offset" />
     </PreferenceCategory>
 </PreferenceScreen>

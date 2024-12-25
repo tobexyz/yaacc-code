@@ -34,12 +34,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
     @Override
     public void onCreatePreferences(Bundle savedInstanceState, String rootKey) {
         setPreferencesFromResource(R.xml.preference, rootKey);
-        EditTextPreference numberPreference = findPreference(getString(R.string.settings_device_playback_offset_key));
-        if (numberPreference != null) {
-            numberPreference.setOnBindEditTextListener(
-                    editText -> editText.setInputType(InputType.TYPE_CLASS_NUMBER));
-        }
-        numberPreference = findPreference(getString(R.string.settings_browse_load_threads_key));
+        EditTextPreference numberPreference = findPreference(getString(R.string.settings_browse_load_threads_key));
         if (numberPreference != null) {
             numberPreference.setOnBindEditTextListener(
                     editText -> editText.setInputType(InputType.TYPE_CLASS_NUMBER));

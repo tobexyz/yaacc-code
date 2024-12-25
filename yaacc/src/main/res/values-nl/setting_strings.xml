@@ -69,9 +69,6 @@
     <string name="settings_music_player_shuffle_on">geschud muziekspel</string>
     <string name="settings_music_player_shuffle_off">bestelde muziek afspelen</string>
     <string name="settings_category_synchronization">synchronisatie-instellingen</string>
-    <string name="settings_default_playback_delay">afspeelvertraging</string>
-    <string name="settings_device_playback_offset">apparaat gecompenseerd</string>
-    <string name="settings_device_playback_offset_summ">offset in ms</string>
     <string name="settings_browse_swipe_off">Wijzig tabbladen via aanraking</string>
     <string name="settings_browse_swipe_on">Wijzig tabbladen door te vegen en aan te raken</string>
     <string name="settings_browse_swipe_title">Veeg op bladeren</string>

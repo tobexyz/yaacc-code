@@ -70,9 +70,6 @@
     <string name="settings_music_player_shuffle_on">reprodução de música embaralhada</string>
     <string name="settings_music_player_shuffle_off">ordem de reprodução de música</string>
     <string name="settings_category_synchronization">configurações de sincronização</string>
-    <string name="settings_default_playback_delay">atraso de reprodução</string>
-    <string name="settings_device_playback_offset">deslocamento do dispositivo</string>
-    <string name="settings_device_playback_offset_summ">deslocamento em ms</string>
     <string name="settings_browse_swipe_off">Alterar guias ao tocar</string>
     <string name="settings_browse_swipe_on">Alterar guias deslizando e tocando</string>
     <string name="settings_browse_swipe_title">Deslize para navegar</string>
