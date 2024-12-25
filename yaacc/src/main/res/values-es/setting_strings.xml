@@ -68,9 +68,6 @@
     <string name="settings_music_player_shuffle_on">reproducción de música aleatoria</string>
     <string name="settings_music_player_shuffle_off">reproducción de música ordenada</string>
     <string name="settings_category_synchronization">configuración de sincronización</string>
-    <string name="settings_default_playback_delay">retraso de reproducción</string>
-    <string name="settings_device_playback_offset">compensación del dispositivo</string>
-    <string name="settings_device_playback_offset_summ">desplazamiento en ms</string>
     <string name="settings_browse_swipe_off">Cambiar pestañas al tocar</string>
     <string name="settings_browse_swipe_on">Cambiar pestañas al deslizar y tocar</string>
     <string name="settings_browse_swipe_title">Desliza el dedo para navegar</string>

@@ -24,8 +24,6 @@ import java.beans.PropertyChangeListener;
 import java.net.URI;
 import java.util.List;
 
-import de.yaacc.upnp.SynchronizationInfo;
-
 
 /**
  * A Player is able to play stop a couple of MediaObjects
@@ -194,20 +192,7 @@ public interface Player {
 
     void setIcon(Bitmap icon);
 
-    /**
-     * Get the synchronization information
-     *
-     * @return the info object
-     */
-    SynchronizationInfo getSyncInfo();
-
-    /**
-     * Set the synchronization information
-     *
-     * @param syncInfo the info object
-     */
-    void setSyncInfo(SynchronizationInfo syncInfo);
-
+   
     boolean getMute();
 
 

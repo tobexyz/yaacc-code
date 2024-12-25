@@ -21,19 +21,16 @@ import org.fourthline.cling.model.meta.Service;
 import org.fourthline.cling.model.types.UnsignedIntegerFourBytes;
 import org.fourthline.cling.support.model.Channel;
 
-import java.util.logging.Logger;
-
 /**
- *
  * @author Christian Bauer
  */
 public abstract class GetMute extends ActionCallback {
 
-    private static Logger log = Logger.getLogger(GetMute.class.getName());
 
     public GetMute(Service service) {
         this(new UnsignedIntegerFourBytes(0), service);
     }
+
     public GetMute(UnsignedIntegerFourBytes instanceId, Service service) {
         super(new ActionInvocation(service.getAction("GetMute")));
         getActionInvocation().setInput("InstanceID", instanceId);

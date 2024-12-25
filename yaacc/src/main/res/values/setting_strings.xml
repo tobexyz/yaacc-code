@@ -108,11 +108,6 @@
     <string name="settings_music_player_shuffle_on">shuffled music play</string>
     <string name="settings_music_player_shuffle_off">ordered music play</string>
     <string name="settings_category_synchronization">synchronization settings</string>
-    <string name="settings_default_playback_delay">playback delay</string>
-    <string name="settings_default_playback_delay_key" translatable="false">settings_default_playback_delay_key</string>
-    <string name="settings_device_playback_offset">device offset</string>
-    <string name="settings_device_playback_offset_summ">offset in ms</string>
-    <string name="settings_device_playback_offset_key" translatable="false">settings_device_playback_offset_key</string>
     <string name="settings_swipe_chkbx" translatable="false">settings_swipe_chkbx</string>
     <string name="settings_browse_swipe_off">Change tabs on touch</string>
     <string name="settings_browse_swipe_on">Change tabs on swipe and touch</string>
