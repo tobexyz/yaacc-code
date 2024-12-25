@@ -69,9 +69,6 @@
     <string name="settings_music_player_shuffle_on">lecture de musique mélangée</string>
     <string name="settings_music_player_shuffle_off">j\'ai commandé une lecture de musique</string>
     <string name="settings_category_synchronization">paramètres de synchronisation</string>
-    <string name="settings_default_playback_delay">retard de lecture</string>
-    <string name="settings_device_playback_offset">décalage de l\'appareil</string>
-    <string name="settings_device_playback_offset_summ">décalage en ms</string>
     <string name="settings_browse_swipe_off">Changer d\'onglet au toucher</string>
     <string name="settings_browse_swipe_on">Changer d\'onglet par glissement et toucher</string>
     <string name="settings_browse_swipe_title">Glisser lors de la navigation</string>

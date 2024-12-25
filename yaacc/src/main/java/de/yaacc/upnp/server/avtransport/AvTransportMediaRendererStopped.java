@@ -165,29 +165,6 @@ public class AvTransportMediaRendererStopped extends Stopped<AvTransport> implem
         return AvTransportMediaRendererStopped.class;
     }
 
-    @Override
-    public Class<? extends AbstractState<?>> syncPlay(String speed, String referencedPositionUnits, String referencedPosition, String referencedPresentationTime, String referencedClockId) {
-        getTransport().getSynchronizationInfo().setSpeed(speed);
-        getTransport().getSynchronizationInfo().setReferencedPositionUnits(referencedPositionUnits);
-        getTransport().getSynchronizationInfo().setReferencedPosition(referencedPosition);
-        getTransport().getSynchronizationInfo().setReferencedPresentationTime(referencedPresentationTime);
-        getTransport().getSynchronizationInfo().setReferencedClockId(referencedClockId);
-        return AvTransportMediaRendererPlaying.class;
-    }
-
-    @Override
-    public Class<? extends AbstractState<?>> syncPause(String referencedPresentationTime, String referencedClockId) {
-        getTransport().getSynchronizationInfo().setReferencedPresentationTime(referencedPresentationTime);
-        getTransport().getSynchronizationInfo().setReferencedClockId(referencedClockId);
-        return AvTransportMediaRendererPaused.class;
-    }
-
-    @Override
-    public Class<? extends AbstractState<?>> syncStop(String referencedPresentationTime, String referencedClockId) {
-        getTransport().getSynchronizationInfo().setReferencedPresentationTime(referencedPresentationTime);
-        getTransport().getSynchronizationInfo().setReferencedClockId(referencedClockId);
-        return AvTransportMediaRendererStopped.class;
-    }
 
     @Override
     public TransportAction[] getPossibleTransportActions() {
@@ -196,10 +173,7 @@ public class AvTransportMediaRendererStopped extends Stopped<AvTransport> implem
                 TransportAction.Play,
                 TransportAction.Next,
                 TransportAction.Previous,
-                TransportAction.Seek,
-                TransportAction.SyncPause,
-                TransportAction.SyncPlay,
-                TransportAction.SyncStop
+                TransportAction.Seek
         };
     }
 } 

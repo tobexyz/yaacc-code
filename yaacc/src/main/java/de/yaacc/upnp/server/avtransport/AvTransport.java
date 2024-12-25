@@ -22,24 +22,14 @@ import org.fourthline.cling.support.lastchange.LastChange;
 import org.fourthline.cling.support.model.AVTransport;
 import org.fourthline.cling.support.model.StorageMedium;
 
-import de.yaacc.upnp.SynchronizationInfo;
 
 /**
  * @author Tobias Schoene (TheOpenBit)
  */
 public class AvTransport extends AVTransport {
 
-    SynchronizationInfo synchronizationInfo = new SynchronizationInfo();
-
     public AvTransport(UnsignedIntegerFourBytes instanceID, LastChange lastChange, StorageMedium possiblePlayMedium) {
         super(instanceID, lastChange, possiblePlayMedium);
     }
 
-    public SynchronizationInfo getSynchronizationInfo() {
-        return synchronizationInfo;
-    }
-
-    public void setSynchronizationInfo(SynchronizationInfo synchronizationInfo) {
-        this.synchronizationInfo = synchronizationInfo;
-    }
 }

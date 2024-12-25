@@ -41,17 +41,14 @@ import java.beans.PropertyChangeSupport;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Calendar;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
-import java.util.Locale;
 import java.util.Timer;
 import java.util.TimerTask;
 
 import de.yaacc.R;
 import de.yaacc.Yaacc;
-import de.yaacc.upnp.SynchronizationInfo;
 import de.yaacc.upnp.UpnpClient;
 
 /**
@@ -73,7 +70,6 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
     private PlayerService playerService;
     private String name;
     private String shortName;
-    private SynchronizationInfo syncInfo;
     private boolean paused;
     private Object loadedItem = null;
     private int currentLoadedIndex = -1;
@@ -201,7 +197,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
         cancelTimer();
         currentIndex--;
         if (currentIndex < 0) {
-            if (items.size() > 0) {
+            if (!items.isEmpty()) {
                 currentIndex = items.size() - 1;
             } else {
                 currentIndex = 0;
@@ -249,7 +245,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
                 doPause();
                 setProcessingCommand(false);
             }
-        }, getExecutionTime());
+        }, new Date(System.currentTimeMillis()));
     }
 
     /*
@@ -288,9 +284,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
                     setProcessingCommand(false);
                 }
             }
-        }, getExecutionTime());
-
-
+        }, new Date(System.currentTimeMillis()));
     }
 
 
@@ -320,14 +314,14 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
                         toast.show();
                     });
                 }
-                if (items.size() > 0) {
+                if (!items.isEmpty()) {
                     stopItem(items.get(currentIndex));
                 }
                 isPlaying = false;
                 paused = false;
                 setProcessingCommand(false);
             }
-        }, getExecutionTime());
+        }, new Date(System.currentTimeMillis()));
     }
 
     /**
@@ -459,7 +453,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
     }
 
     protected void loadItem(int previousIndex, int nextIndex) {
-        if (items.size() == 0)
+        if (items.isEmpty())
             return;
         PlayableItem playableItem = items.get(nextIndex);
         Object loadedItem = loadItem(nextIndex);
@@ -571,23 +565,14 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
                     );
                     Log.d(getClass().getName(), "AndAllowWhileIdle alarm event in: " + (System.currentTimeMillis() + duration));
                 }
-            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            } else {
                 alarmManager.setExact(
                         AlarmManager.RTC_WAKEUP,
                         System.currentTimeMillis() + duration,
                         alarmIntent
                 );
                 Log.d(getClass().getName(), "exact alarm event in: " + (System.currentTimeMillis() + duration));
-            } else {
-                alarmManager.set(
-                        AlarmManager.RTC_WAKEUP,
-                        System.currentTimeMillis() + duration,
-                        alarmIntent
-                );
-                Log.d(getClass().getName(), "set alarm event in: " + (System.currentTimeMillis() + duration));
             }
-
-
         });
 
     }
@@ -759,40 +744,6 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
         return null;
     }
 
-    @Override
-    public SynchronizationInfo getSyncInfo() {
-        return syncInfo;
-    }
-
-    @Override
-    public void setSyncInfo(SynchronizationInfo syncInfo) {
-        if (syncInfo == null) {
-            syncInfo = new SynchronizationInfo();
-        }
-        this.syncInfo = syncInfo;
-    }
-
-    protected Date getExecutionTime() {
-        Calendar execTime = Calendar.getInstance(Locale.getDefault());
-        if (getSyncInfo() != null) {
-            execTime.set(Calendar.HOUR_OF_DAY, getSyncInfo().getReferencedPresentationTimeOffset().getHour());
-            execTime.set(Calendar.MINUTE, getSyncInfo().getReferencedPresentationTimeOffset().getMinute());
-            execTime.set(Calendar.SECOND, getSyncInfo().getReferencedPresentationTimeOffset().getSecond());
-            execTime.set(Calendar.MILLISECOND, getSyncInfo().getReferencedPresentationTimeOffset().getMillis());
-            execTime.add(Calendar.HOUR, getSyncInfo().getOffset().getHour());
-            execTime.add(Calendar.MINUTE, getSyncInfo().getOffset().getMinute());
-            execTime.add(Calendar.SECOND, getSyncInfo().getOffset().getSecond());
-            execTime.add(Calendar.MILLISECOND, getSyncInfo().getOffset().getMillis());
-            Log.d(getClass().getName(), "ReferencedRepresentationTimeOffset: " + getSyncInfo().getReferencedPresentationTimeOffset());
-        }
-        Log.d(getClass().getName(), "current time: " + new Date() + " get execution time: " + execTime.getTime());
-        if (execTime.getTime().getTime() <= System.currentTimeMillis()) {
-            Log.d(getClass().getName(), "ExecutionTime is in past!! We will start immediately");
-            return null;
-
-        }
-        return execTime.getTime();
-    }
 
     protected void executeCommand(TimerTask command, Date executionTime) {
         if (execTimer != null) {
@@ -853,12 +804,12 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
     @Override
     public void fastForward(int i) {
 
-        seekTo(getCurrentPosition() + (i * 1000));
+        seekTo(getCurrentPosition() + (i * 1000L));
     }
 
     @Override
     public void fastRewind(int i) {
-        seekTo(getCurrentPosition() - (i * 1000));
+        seekTo(getCurrentPosition() - (i * 1000L));
     }
 
 }
