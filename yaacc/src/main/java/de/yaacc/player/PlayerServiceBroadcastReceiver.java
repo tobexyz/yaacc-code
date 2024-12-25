@@ -47,12 +47,12 @@ public class PlayerServiceBroadcastReceiver extends BroadcastReceiver {
         Log.d(this.getClass().getName(), "Execute Action on playerService: " + playerService);
         if (ACTION_NEXT.equals(intent.getAction())) {
             Integer playerId = intent.getIntExtra(AbstractPlayer.PLAYER_ID, -1);
-            Log.d(this.getClass().getName(), "Player of intent not found: " + playerId + " Intent: " + intent.getStringExtra("ID"));
             Player player = playerService.getCurrentPlayerById(playerId);
             if (player != null) {
+                Log.d(this.getClass().getName(), "Player of intent found: " + playerId + " Intent: " + intent);
                 player.next();
             } else {
-                Log.d(this.getClass().getName(), "Player of intent not found: " + playerId);
+                Log.d(this.getClass().getName(), "Player of intent not found: " + playerId + " Intent: " + intent);
             }
         }
     }

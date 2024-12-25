@@ -561,7 +561,7 @@ public class AVTransportPlayer extends AbstractPlayer {
             try {
                 Thread.sleep(200);
             } catch (InterruptedException e) {
-                e.printStackTrace();
+                Log.w(getClass().getName(), e);
             }
         };
         waitForActionComplete(actionState, fn);

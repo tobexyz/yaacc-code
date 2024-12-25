@@ -126,9 +126,9 @@ public class PlayerService extends Service {
     }
 
     public Player getPlayer(int playerId) {
-        Log.d(this.getClass().getName(), "Get Player for id " + playerId);
+        Log.v(this.getClass().getName(), "Get Player for id " + playerId);
         if (currentActivePlayer.get(playerId) == null) {
-            Log.d(this.getClass().getName(), "Get Player not found");
+            Log.v(this.getClass().getName(), "Get Player not found");
         }
         return currentActivePlayer.get(playerId);
     }
