@@ -319,12 +319,6 @@ public class ImageViewerActivity extends AppCompatActivity implements SwipeRecei
             return;
         isProcessingCommand = true;
         if (currentImageIndex < imageUris.size()) {
-            runOnUiThread(() -> {
-                Toast toast = Toast.makeText(ImageViewerActivity.this,
-                        getResources().getString(R.string.play)
-                                + getPositionString(), Toast.LENGTH_SHORT);
-                toast.show();
-            });
 // Start the pictureShow
             pictureShowActive = true;
             loadImage();
@@ -356,12 +350,6 @@ public class ImageViewerActivity extends AppCompatActivity implements SwipeRecei
         isProcessingCommand = true;
         cancleTimer();
         currentImageIndex = 0;
-        runOnUiThread(() -> {
-            Toast toast = Toast.makeText(ImageViewerActivity.this,
-                    getResources().getString(R.string.stop)
-                            + getPositionString(), Toast.LENGTH_SHORT);
-            toast.show();
-        });
         showDefaultImage();
         pictureShowActive = false;
         isProcessingCommand = false;
@@ -392,12 +380,6 @@ public class ImageViewerActivity extends AppCompatActivity implements SwipeRecei
             return;
         isProcessingCommand = true;
         cancleTimer();
-        runOnUiThread(() -> {
-            Toast toast = Toast.makeText(ImageViewerActivity.this,
-                    getResources().getString(R.string.pause)
-                            + getPositionString(), Toast.LENGTH_SHORT);
-            toast.show();
-        });
         pictureShowActive = false;
         isProcessingCommand = false;
     }
@@ -418,15 +400,6 @@ public class ImageViewerActivity extends AppCompatActivity implements SwipeRecei
                 currentImageIndex = 0;
             }
         }
-        /*
-        runOnUiThread(new Runnable() {
-            public void run() {
-                Toast toast = Toast.makeText(ImageViewerActivity.this,
-                        getResources().getString(R.string.previous)
-                                + getPositionString(), Toast.LENGTH_SHORT);
-                toast.show();
-            }
-        });*/
         loadImage();
         isProcessingCommand = false;
     }
@@ -444,15 +417,6 @@ public class ImageViewerActivity extends AppCompatActivity implements SwipeRecei
             currentImageIndex = 0;
 // pictureShowActive = false; restart after last image
         }
-        /*
-        runOnUiThread(new Runnable() {
-            public void run() {
-                Toast toast = Toast.makeText(ImageViewerActivity.this,
-                        getResources().getString(R.string.next)
-                                + getPositionString(), Toast.LENGTH_SHORT);
-                toast.show();
-            }
-        });*/
         loadImage();
         isProcessingCommand = false;
     }
