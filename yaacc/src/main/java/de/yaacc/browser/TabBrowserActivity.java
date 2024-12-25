@@ -18,6 +18,7 @@
 package de.yaacc.browser;
 
 import android.Manifest;
+import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -202,7 +203,11 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
             intent.setAction(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
             intent.setData(Uri.parse("package:" + packageName));
         }
-        startActivity(intent);
+        try {
+            startActivity(intent);
+        } catch (ActivityNotFoundException ex) {
+            Log.d(getClass().getName(), "Ignoring exception ActivityNotFoundException during check for battery optimization");
+        }
     }
 
     @Override

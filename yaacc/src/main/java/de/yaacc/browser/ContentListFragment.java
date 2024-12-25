@@ -209,7 +209,10 @@ public class ContentListFragment extends Fragment implements OnClickListener,
             }
             // currentPosition
             initBrowsItemAdapter(itemList);
-            itemList.postDelayed(() -> itemList.smoothScrollToPosition(lastPosition.getPositionId()), 100);
+            ((LinearLayoutManager) itemList.getLayoutManager()).scrollToPositionWithOffset(lastPosition.getPositionId(), 0);
+            itemList.postDelayed(() -> {
+                ((LinearLayoutManager) itemList.getLayoutManager()).scrollToPositionWithOffset(lastPosition.getPositionId(), 0);
+            }, 200);
             bItemAdapter.clear();
             bItemAdapter.loadMore();
 
