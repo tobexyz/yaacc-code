@@ -77,6 +77,16 @@
                 android:orientation="horizontal">
 
                 <ImageButton
+                    android:id="@+id/browseDeviceItemConfig"
+                    style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="2dp"
+                    android:contentDescription="@string/settings"
+                    android:visibility="gone"
+                    app:srcCompat="@drawable/ic_baseline_settings_32" />
+
+                <ImageButton
                     android:id="@+id/browseDeviceItemRescan"
                     style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
                     android:layout_width="wrap_content"

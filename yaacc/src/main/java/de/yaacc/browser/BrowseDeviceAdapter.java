@@ -20,6 +20,7 @@ package de.yaacc.browser;
 import android.app.Activity;
 import android.content.Context;
 import android.content.ContextWrapper;
+import android.content.Intent;
 import android.net.Uri;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -43,6 +44,7 @@ import java.util.List;
 
 import de.yaacc.R;
 import de.yaacc.upnp.UpnpClient;
+import de.yaacc.upnp.server.YaaccUpnpServerControlActivity;
 import de.yaacc.util.MediaStoreScanner;
 import de.yaacc.util.ThemeHelper;
 import de.yaacc.util.image.IconDownloadTask;
@@ -86,7 +88,7 @@ public class BrowseDeviceAdapter extends RecyclerView.Adapter<BrowseDeviceAdapte
         View view = LayoutInflater.from(parent.getContext())
                 .inflate(R.layout.browse_device_item, parent, false);
         view.setOnClickListener(new ServerListClickListener(deviceList, this, upnpClient, context));
-        return new ViewHolder(view);
+        return new ViewHolder(view, context);
     }
 
     @Override
@@ -115,6 +117,7 @@ public class BrowseDeviceAdapter extends RecyclerView.Adapter<BrowseDeviceAdapte
             holder.scanButton.setVisibility(View.VISIBLE);
             holder.scanButtonLabel.setVisibility(View.VISIBLE);
             holder.icon.setImageResource(R.drawable.yaacc48_24_png);
+            holder.configButton.setVisibility(View.VISIBLE);
         }
 
         holder.name.setText(device.getDetails().getFriendlyName());
@@ -135,16 +138,24 @@ public class BrowseDeviceAdapter extends RecyclerView.Adapter<BrowseDeviceAdapte
         TextView name;
         ImageButton scanButton;
         TextView scanButtonLabel;
+        ImageButton configButton;
+
+        Context context;
 
 
-        public ViewHolder(View itemView) {
+        public ViewHolder(View itemView, Context context) {
             super(itemView);
+            this.context = context;
             this.icon = (ImageView) itemView.findViewById(R.id.browseDeviceItemIcon);
             this.name = (TextView) itemView.findViewById(R.id.browseDeviceItemName);
             this.scanButtonLabel = (TextView) itemView.findViewById(R.id.browseDeviceItemMediaStoreScanLabel);
             this.scanButton = (ImageButton) itemView.findViewById(R.id.browseDeviceItemRescan);
             scanButton.setOnClickListener((v) -> {
                 new MediaStoreScanner().scanMediaFiles(getActivity(v.getContext()));
+            });
+            this.configButton = (ImageButton) itemView.findViewById(R.id.browseDeviceItemConfig);
+            configButton.setOnClickListener((v) -> {
+                ViewHolder.this.context.startActivity(new Intent(ViewHolder.this.context, YaaccUpnpServerControlActivity.class));
             });
         }
 
