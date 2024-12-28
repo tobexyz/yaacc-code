@@ -61,7 +61,7 @@ public class ReceivingEvent extends ReceivingSync<StreamRequestMessage, Outgoing
                 );
 
         if (resource == null) {
-            Log.d(getClass().getName(), "No local resource found: " + getInputMessage());
+            Log.v(getClass().getName(), "No local resource found: " + getInputMessage());
             return new OutgoingEventResponseMessage(new UpnpResponse(UpnpResponse.Status.NOT_FOUND));
         }
 
@@ -70,22 +70,22 @@ public class ReceivingEvent extends ReceivingSync<StreamRequestMessage, Outgoing
 
         // Error conditions UDA 1.0 section 4.2.1
         if (requestMessage.getSubscrptionId() == null) {
-            Log.d(getClass().getName(), "Subscription ID missing in event request: " + getInputMessage());
+            Log.v(getClass().getName(), "Subscription ID missing in event request: " + getInputMessage());
             return new OutgoingEventResponseMessage(new UpnpResponse(UpnpResponse.Status.PRECONDITION_FAILED));
         }
 
         if (!requestMessage.hasValidNotificationHeaders()) {
-            Log.d(getClass().getName(), "Missing NT and/or NTS headers in event request: " + getInputMessage());
+            Log.v(getClass().getName(), "Missing NT and/or NTS headers in event request: " + getInputMessage());
             return new OutgoingEventResponseMessage(new UpnpResponse(UpnpResponse.Status.BAD_REQUEST));
         }
 
         if (!requestMessage.hasValidNotificationHeaders()) {
-            Log.d(getClass().getName(), "Invalid NT and/or NTS headers in event request: " + getInputMessage());
+            Log.v(getClass().getName(), "Invalid NT and/or NTS headers in event request: " + getInputMessage());
             return new OutgoingEventResponseMessage(new UpnpResponse(UpnpResponse.Status.PRECONDITION_FAILED));
         }
 
         if (requestMessage.getSequence() == null) {
-            Log.d(getClass().getName(), "Sequence missing in event request: " + getInputMessage());
+            Log.v(getClass().getName(), "Sequence missing in event request: " + getInputMessage());
             return new OutgoingEventResponseMessage(new UpnpResponse(UpnpResponse.Status.PRECONDITION_FAILED));
         }
 
@@ -94,7 +94,7 @@ public class ReceivingEvent extends ReceivingSync<StreamRequestMessage, Outgoing
             getUpnpService().getConfiguration().getGenaEventProcessor().readBody(requestMessage);
 
         } catch (final UnsupportedDataException ex) {
-            Log.d(getClass().getName(), "Can't read event message request body, " + ex);
+            Log.v(getClass().getName(), "Can't read event message request body, " + ex);
 
             // Pass the parsing failure on to any listeners, so they can take action if necessary
             final RemoteGENASubscription subscription =
@@ -118,14 +118,14 @@ public class ReceivingEvent extends ReceivingSync<StreamRequestMessage, Outgoing
                 getUpnpService().getRegistry().getWaitRemoteSubscription(requestMessage.getSubscrptionId());
 
         if (subscription == null) {
-            Log.i(getClass().getName(), "Invalid subscription ID, no active subscription: " + requestMessage);
+            Log.v(getClass().getName(), "Invalid subscription ID, no active subscription: " + requestMessage);
             return new OutgoingEventResponseMessage(new UpnpResponse(UpnpResponse.Status.PRECONDITION_FAILED));
         }
 
         getUpnpService().getConfiguration().getRegistryListenerExecutor().execute(
                 new Runnable() {
                     public void run() {
-                        Log.d(getClass().getName(), "Calling active subscription with event state variable values");
+                        Log.v(getClass().getName(), "Calling active subscription with event state variable values");
                         subscription.receive(
                                 requestMessage.getSequence(),
                                 requestMessage.getStateVariableValues()

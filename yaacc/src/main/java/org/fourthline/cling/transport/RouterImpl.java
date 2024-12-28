@@ -90,7 +90,7 @@ public class RouterImpl implements Router {
      */
     @Inject
     public RouterImpl(UpnpServiceConfiguration configuration, ProtocolFactory protocolFactory) {
-        Log.i(getClass().getName(), "Creating Router: " + getClass().getName());
+        Log.v(getClass().getName(), "Creating Router: " + getClass().getName());
         this.configuration = configuration;
         this.protocolFactory = protocolFactory;
     }
@@ -124,7 +124,7 @@ public class RouterImpl implements Router {
         try {
             if (!enabled) {
                 try {
-                    Log.d(getClass().getName(), "Starting networking services...");
+                    Log.v(getClass().getName(), "Starting networking services...");
                     networkAddressFactory = getConfiguration().createNetworkAddressFactory();
 
                     startInterfaceBasedTransports(networkAddressFactory.getNetworkInterfaces());
@@ -157,28 +157,28 @@ public class RouterImpl implements Router {
         lock(writeLock);
         try {
             if (enabled) {
-                Log.d(getClass().getName(), "Disabling network services...");
+                Log.v(getClass().getName(), "Disabling network services...");
 
                 if (streamClient != null) {
-                    Log.d(getClass().getName(), "Stopping stream client connection management/pool");
+                    Log.v(getClass().getName(), "Stopping stream client connection management/pool");
                     streamClient.stop();
                     streamClient = null;
                 }
 
                 for (Map.Entry<InetAddress, StreamServer> entry : streamServers.entrySet()) {
-                    Log.d(getClass().getName(), "Stopping stream server on address: " + entry.getKey());
+                    Log.v(getClass().getName(), "Stopping stream server on address: " + entry.getKey());
                     entry.getValue().stop();
                 }
                 streamServers.clear();
 
                 for (Map.Entry<NetworkInterface, MulticastReceiver> entry : multicastReceivers.entrySet()) {
-                    Log.d(getClass().getName(), "Stopping multicast receiver on interface: " + entry.getKey().getDisplayName());
+                    Log.v(getClass().getName(), "Stopping multicast receiver on interface: " + entry.getKey().getDisplayName());
                     entry.getValue().stop();
                 }
                 multicastReceivers.clear();
 
                 for (Map.Entry<InetAddress, DatagramIO> entry : datagramIOs.entrySet()) {
-                    Log.d(getClass().getName(), "Stopping datagram I/O on address: " + entry.getKey());
+                    Log.v(getClass().getName(), "Stopping datagram I/O on address: " + entry.getKey());
                     entry.getValue().stop();
                 }
                 datagramIOs.clear();
@@ -206,7 +206,7 @@ public class RouterImpl implements Router {
     @Override
     public void handleStartFailure(InitializationException ex) throws InitializationException {
         if (ex instanceof NoNetworkException) {
-            Log.d(getClass().getName(), "Unable to initialize network router, no network found.");
+            Log.v(getClass().getName(), "Unable to initialize network router, no network found.");
         } else {
             Log.e(getClass().getName(), "Unable to initialize network router: " + ex);
             Log.e(getClass().getName(), "Cause: " + Exceptions.unwrap(ex));
@@ -262,18 +262,18 @@ public class RouterImpl implements Router {
      */
     public void received(IncomingDatagramMessage msg) {
         if (!enabled) {
-            Log.d(getClass().getName(), "Router disabled, ignoring incoming message: " + msg);
+            Log.v(getClass().getName(), "Router disabled, ignoring incoming message: " + msg);
             return;
         }
         try {
             ReceivingAsync protocol = getProtocolFactory().createReceivingAsync(msg);
             if (protocol == null) {
 
-                Log.d(getClass().getName(), "No protocol, ignoring received message: " + msg);
+                Log.v(getClass().getName(), "No protocol, ignoring received message: " + msg);
                 return;
             }
 
-            Log.i(getClass().getName(), "Received asynchronous message: " + msg);
+            Log.v(getClass().getName(), "Received asynchronous message: " + msg);
             getConfiguration().getAsyncProtocolExecutor().execute(protocol);
         } catch (ProtocolCreationException ex) {
             Log.w(getClass().getName(), "Handling received datagram failed - " + Exceptions.unwrap(ex).toString());
@@ -288,10 +288,10 @@ public class RouterImpl implements Router {
      */
     public void received(UpnpStream stream) {
         if (!enabled) {
-            Log.d(getClass().getName(), "Router disabled, ignoring incoming: " + stream);
+            Log.v(getClass().getName(), "Router disabled, ignoring incoming: " + stream);
             return;
         }
-        Log.d(getClass().getName(), "Received synchronous stream: " + stream);
+        Log.v(getClass().getName(), "Received synchronous stream: " + stream);
         getConfiguration().getSyncProtocolExecutorService().execute(stream);
     }
 
@@ -308,7 +308,7 @@ public class RouterImpl implements Router {
                     datagramIO.send(msg);
                 }
             } else {
-                Log.d(getClass().getName(), "Router disabled, not sending datagram: " + msg);
+                Log.v(getClass().getName(), "Router disabled, not sending datagram: " + msg);
             }
         } finally {
             unlock(readLock);
@@ -327,17 +327,17 @@ public class RouterImpl implements Router {
         try {
             if (enabled) {
                 if (streamClient == null) {
-                    Log.d(getClass().getName(), "No StreamClient available, not sending: " + msg);
+                    Log.v(getClass().getName(), "No StreamClient available, not sending: " + msg);
                     return null;
                 }
-                Log.d(getClass().getName(), "Sending via TCP unicast stream: " + msg);
+                Log.v(getClass().getName(), "Sending via TCP unicast stream: " + msg);
                 try {
                     return streamClient.sendRequest(msg);
                 } catch (InterruptedException ex) {
                     throw new RouterException("Sending stream request was interrupted", ex);
                 }
             } else {
-                Log.d(getClass().getName(), "Router disabled, not sending stream request: " + msg);
+                Log.v(getClass().getName(), "Router disabled, not sending stream request: " + msg);
                 return null;
             }
         } finally {
@@ -361,13 +361,13 @@ public class RouterImpl implements Router {
                 for (Map.Entry<InetAddress, DatagramIO> entry : datagramIOs.entrySet()) {
                     InetAddress broadcast = networkAddressFactory.getBroadcastAddress(entry.getKey());
                     if (broadcast != null) {
-                        Log.d(getClass().getName(), "Sending UDP datagram to broadcast address: " + broadcast.getHostAddress());
+                        Log.v(getClass().getName(), "Sending UDP datagram to broadcast address: " + broadcast.getHostAddress());
                         DatagramPacket packet = new DatagramPacket(bytes, bytes.length, broadcast, 9);
                         entry.getValue().send(packet);
                     }
                 }
             } else {
-                Log.d(getClass().getName(), "Router disabled, not broadcasting bytes: " + bytes.length);
+                Log.v(getClass().getName(), "Router disabled, not broadcasting bytes: " + bytes.length);
             }
         } finally {
             unlock(readLock);
@@ -380,10 +380,10 @@ public class RouterImpl implements Router {
             // We only have the MulticastReceiver as an interface-based transport
             MulticastReceiver multicastReceiver = getConfiguration().createMulticastReceiver(networkAddressFactory);
             if (multicastReceiver == null) {
-                Log.i(getClass().getName(), "Configuration did not create a MulticastReceiver for: " + networkInterface);
+                Log.v(getClass().getName(), "Configuration did not create a MulticastReceiver for: " + networkInterface);
             } else {
                 try {
-                    Log.d(getClass().getName(), "Init multicast receiver on interface: " + networkInterface.getDisplayName());
+                    Log.v(getClass().getName(), "Init multicast receiver on interface: " + networkInterface.getDisplayName());
                     multicastReceiver.init(
                             networkInterface,
                             this,
@@ -410,7 +410,7 @@ public class RouterImpl implements Router {
         }
 
         for (Map.Entry<NetworkInterface, MulticastReceiver> entry : multicastReceivers.entrySet()) {
-            Log.d(getClass().getName(), "Starting multicast receiver on interface: " + entry.getKey().getDisplayName());
+            Log.v(getClass().getName(), "Starting multicast receiver on interface: " + entry.getKey().getDisplayName());
             getConfiguration().getMulticastReceiverExecutor().execute(entry.getValue());
         }
     }
@@ -425,11 +425,11 @@ public class RouterImpl implements Router {
             // HTTP servers
             StreamServer streamServer = getConfiguration().createStreamServer(protocolFactory, networkAddressFactory);
             if (streamServer == null) {
-                Log.i(getClass().getName(), "Configuration did not create a StreamServer for: " + address);
+                Log.v(getClass().getName(), "Configuration did not create a StreamServer for: " + address);
             } else {
                 try {
 
-                    Log.i(getClass().getName(), "Init stream server on address: " + address);
+                    Log.v(getClass().getName(), "Init stream server on address: " + address);
                     streamServer.init(address, this);
                     streamServers.put(address, streamServer);
                 } catch (InitializationException ex) {
@@ -437,7 +437,7 @@ public class RouterImpl implements Router {
                     Throwable cause = Exceptions.unwrap(ex);
                     if (cause instanceof BindException) {
                         Log.w(getClass().getName(), "Failed to init StreamServer: " + cause);
-                        Log.i(getClass().getName(), "Initialization exception root cause", cause);
+                        Log.v(getClass().getName(), "Initialization exception root cause", cause);
                         Log.w(getClass().getName(), "Removing unusable address: " + address);
                         addresses.remove();
                         continue; // Don't try anything else with this address
@@ -449,10 +449,10 @@ public class RouterImpl implements Router {
             // Datagram I/O
             DatagramIO datagramIO = getConfiguration().createDatagramIO(networkAddressFactory);
             if (datagramIO == null) {
-                Log.i(getClass().getName(), "Configuration did not create a StreamServer for: " + address);
+                Log.v(getClass().getName(), "Configuration did not create a StreamServer for: " + address);
             } else {
                 try {
-                    Log.i(getClass().getName(), "Init datagram I/O on address: " + address);
+                    Log.v(getClass().getName(), "Init datagram I/O on address: " + address);
                     datagramIO.init(address, this, getConfiguration().getDatagramProcessor());
                     datagramIOs.put(address, datagramIO);
                 } catch (InitializationException ex) {
@@ -473,12 +473,12 @@ public class RouterImpl implements Router {
         }
 
         for (Map.Entry<InetAddress, StreamServer> entry : streamServers.entrySet()) {
-            Log.i(getClass().getName(), "Starting stream server on address: " + entry.getKey());
+            Log.v(getClass().getName(), "Starting stream server on address: " + entry.getKey());
             getConfiguration().getStreamServerExecutorService().execute(entry.getValue());
         }
 
         for (Map.Entry<InetAddress, DatagramIO> entry : datagramIOs.entrySet()) {
-            Log.i(getClass().getName(), "Starting datagram I/O on address: " + entry.getKey());
+            Log.v(getClass().getName(), "Starting datagram I/O on address: " + entry.getKey());
             getConfiguration().getDatagramIOExecutor().execute(entry.getValue());
         }
     }

@@ -75,7 +75,7 @@ public class ProtocolFactoryImpl implements ProtocolFactory {
 
     @Inject
     public ProtocolFactoryImpl(UpnpService upnpService) {
-        Log.d(getClass().getName(), "Creating ProtocolFactory: " + getClass().getName());
+        Log.v(getClass().getName(), "Creating ProtocolFactory: " + getClass().getName());
         this.upnpService = upnpService;
     }
 
@@ -85,7 +85,7 @@ public class ProtocolFactoryImpl implements ProtocolFactory {
 
     public ReceivingAsync createReceivingAsync(IncomingDatagramMessage message) throws ProtocolCreationException {
 
-        Log.i(getClass().getName(), "Creating protocol for incoming asynchronous: " + message);
+        Log.v(getClass().getName(), "Creating protocol for incoming asynchronous: " + message);
 
 
         if (message.getOperation() instanceof UpnpRequest) {
@@ -148,14 +148,14 @@ public class ProtocolFactoryImpl implements ProtocolFactory {
                     return true;
             }
         } catch (InvalidValueException ex) {
-            Log.i(getClass().getName(), "Not a named service type header value: " + usnHeader);
+            Log.v(getClass().getName(), "Not a named service type header value: " + usnHeader);
         }
-        Log.i(getClass().getName(), "Service advertisement not supported, dropping it: " + usnHeader);
+        Log.v(getClass().getName(), "Service advertisement not supported, dropping it: " + usnHeader);
         return false;
     }
 
     public ReceivingSync createReceivingSync(StreamRequestMessage message) throws ProtocolCreationException {
-        Log.d(getClass().getName(), "Creating protocol for incoming synchronous: " + message);
+        Log.v(getClass().getName(), "Creating protocol for incoming synchronous: " + message);
 
         if (message.getOperation().getMethod().equals(UpnpRequest.Method.GET)) {
 

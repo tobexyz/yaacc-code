@@ -169,7 +169,7 @@ public class PullSOAPActionProcessorImpl extends SOAPActionProcessorImpl {
                         "Could not find argument '" + arg.getName() + "' node");
             }
 
-            Log.d(getClass().getName(), "Reading action argument: " + arg.getName());
+            Log.v(getClass().getName(), "Reading action argument: " + arg.getName());
             values[i] = createValue(arg, value);
         }
         return values;
@@ -209,10 +209,10 @@ public class PullSOAPActionProcessorImpl extends SOAPActionProcessorImpl {
                 int numericCode = Integer.valueOf(errorCode);
                 ErrorCode standardErrorCode = ErrorCode.getByCode(numericCode);
                 if (standardErrorCode != null) {
-                    Log.d(getClass().getName(), "Reading fault element: " + standardErrorCode.getCode() + " - " + errorDescription);
+                    Log.v(getClass().getName(), "Reading fault element: " + standardErrorCode.getCode() + " - " + errorDescription);
                     return new ActionException(standardErrorCode, errorDescription, false);
                 } else {
-                    Log.d(getClass().getName(), "Reading fault element: " + numericCode + " - " + errorDescription);
+                    Log.v(getClass().getName(), "Reading fault element: " + numericCode + " - " + errorDescription);
                     return new ActionException(numericCode, errorDescription);
                 }
             } catch (NumberFormatException ex) {

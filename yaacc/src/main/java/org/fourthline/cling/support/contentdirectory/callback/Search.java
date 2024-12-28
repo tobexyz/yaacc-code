@@ -68,7 +68,7 @@ public abstract class Search extends ActionCallback {
                   long firstResult, Long maxResults, SortCriterion... orderBy) {
         super(new ActionInvocation(service.getAction("Search")));
 
-        Log.d(getClass().getName(), "Creating browse action for container ID: " + containerId);
+        Log.v(getClass().getName(), "Creating browse action for container ID: " + containerId);
 
         getActionInvocation().setInput("ContainerID", containerId);
         getActionInvocation().setInput("SearchCriteria", searchCriteria);
@@ -89,7 +89,7 @@ public abstract class Search extends ActionCallback {
 
     @Override
     public void success(ActionInvocation actionInvocation) {
-        Log.d(getClass().getName(), "Successful search action, reading output argument values");
+        Log.v(getClass().getName(), "Successful search action, reading output argument values");
 
         SearchResult result = new SearchResult(
                 actionInvocation.getOutput("Result").getValue().toString(),

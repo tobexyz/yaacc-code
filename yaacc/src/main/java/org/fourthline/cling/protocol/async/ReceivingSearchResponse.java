@@ -50,21 +50,21 @@ public class ReceivingSearchResponse extends ReceivingAsync<IncomingSearchRespon
     protected void execute() throws RouterException {
 
         if (!getInputMessage().isSearchResponseMessage()) {
-            Log.d(getClass().getName(), "Ignoring invalid search response message: " + getInputMessage());
+            Log.v(getClass().getName(), "Ignoring invalid search response message: " + getInputMessage());
             return;
         }
 
         UDN udn = getInputMessage().getRootDeviceUDN();
         if (udn == null) {
-            Log.d(getClass().getName(), "Ignoring search response message without UDN: " + getInputMessage());
+            Log.v(getClass().getName(), "Ignoring search response message without UDN: " + getInputMessage());
             return;
         }
 
         RemoteDeviceIdentity rdIdentity = new RemoteDeviceIdentity(getInputMessage());
-        Log.d(getClass().getName(), "Received device search response: " + rdIdentity);
+        Log.v(getClass().getName(), "Received device search response: " + rdIdentity);
 
         if (getUpnpService().getRegistry().update(rdIdentity)) {
-            Log.d(getClass().getName(), "Remote device was already known: " + udn);
+            Log.v(getClass().getName(), "Remote device was already known: " + udn);
             return;
         }
 

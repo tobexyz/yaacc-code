@@ -67,9 +67,9 @@ public class UpnpServiceImpl implements UpnpService {
     public UpnpServiceImpl(UpnpServiceConfiguration configuration, RegistryListener... registryListeners) {
         this.configuration = configuration;
 
-        Log.i(getClass().getName(), ">>> Starting UPnP service...");
+        Log.v(getClass().getName(), ">>> Starting UPnP service...");
 
-        Log.i(getClass().getName(), "Using configuration: " + getConfiguration().getClass().getName());
+        Log.v(getClass().getName(), "Using configuration: " + getConfiguration().getClass().getName());
 
         // Instantiation order is important: Router needs to start its network services after registry is ready
 
@@ -90,7 +90,7 @@ public class UpnpServiceImpl implements UpnpService {
 
         this.controlPoint = createControlPoint(protocolFactory, registry);
 
-        Log.i(getClass().getName(), "<<< UPnP service started successfully");
+        Log.v(getClass().getName(), "<<< UPnP service started successfully");
     }
 
     protected ProtocolFactory createProtocolFactory() {
@@ -137,11 +137,11 @@ public class UpnpServiceImpl implements UpnpService {
         Runnable shutdown = new Runnable() {
             @Override
             public void run() {
-                Log.i(getClass().getName(), ">>> Shutting down UPnP service...");
+                Log.v(getClass().getName(), ">>> Shutting down UPnP service...");
                 shutdownRegistry();
                 shutdownRouter();
                 shutdownConfiguration();
-                Log.i(getClass().getName(), "<<< UPnP service shutdown completed");
+                Log.v(getClass().getName(), "<<< UPnP service shutdown completed");
             }
         };
         if (separateThread) {
@@ -162,7 +162,7 @@ public class UpnpServiceImpl implements UpnpService {
         } catch (RouterException ex) {
             Throwable cause = Exceptions.unwrap(ex);
             if (cause instanceof InterruptedException) {
-                Log.i(getClass().getName(), "Router shutdown was interrupted: " + ex, cause);
+                Log.v(getClass().getName(), "Router shutdown was interrupted: " + ex, cause);
             } else {
                 Log.e(getClass().getName(), "Router error on shutdown: " + ex, cause);
             }

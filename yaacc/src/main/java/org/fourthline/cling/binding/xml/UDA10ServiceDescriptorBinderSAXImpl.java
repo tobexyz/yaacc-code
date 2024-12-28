@@ -57,7 +57,7 @@ public class UDA10ServiceDescriptorBinderSAXImpl extends UDA10ServiceDescriptorB
         }
 
         try {
-            Log.d(getClass().getName(), "Reading service from XML descriptor");
+            Log.v(getClass().getName(), "Reading service from XML descriptor");
 
             SAXParser parser = new SAXParser();
 

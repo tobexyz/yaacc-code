@@ -54,7 +54,7 @@ public class GENAEventProcessorImpl implements GENAEventProcessor, ErrorHandler 
     }
 
     public void writeBody(OutgoingEventRequestMessage requestMessage) throws UnsupportedDataException {
-        Log.d(getClass().getName(), "Writing body of: " + requestMessage);
+        Log.v(getClass().getName(), "Writing body of: " + requestMessage);
 
         try {
 
@@ -77,7 +77,7 @@ public class GENAEventProcessorImpl implements GENAEventProcessor, ErrorHandler 
 
     public void readBody(IncomingEventRequestMessage requestMessage) throws UnsupportedDataException {
 
-        Log.d(getClass().getName(), "Reading body of: " + requestMessage);
+        Log.v(getClass().getName(), "Reading body of: " + requestMessage);
         Log.v(getClass().getName(), "===================================== GENA BODY BEGIN ============================================");
         Log.v(getClass().getName(), requestMessage.getBody() != null ? requestMessage.getBody().toString() : "null");
         Log.v(getClass().getName(), "-===================================== GENA BODY END ============================================");
@@ -160,7 +160,7 @@ public class GENAEventProcessorImpl implements GENAEventProcessor, ErrorHandler 
                     String stateVariableName = getUnprefixedNodeName(propertyChild);
                     for (StateVariable stateVariable : stateVariables) {
                         if (stateVariable.getName().equals(stateVariableName)) {
-                            Log.d(getClass().getName(), "Reading state variable value: " + stateVariableName);
+                            Log.v(getClass().getName(), "Reading state variable value: " + stateVariableName);
                             String value = XMLUtil.getTextContent(propertyChild);
                             message.getStateVariableValues().add(
                                     new StateVariableValue(stateVariable, value)

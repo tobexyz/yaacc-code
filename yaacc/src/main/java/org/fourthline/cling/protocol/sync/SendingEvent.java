@@ -69,22 +69,22 @@ public class SendingEvent extends SendingSync<OutgoingEventRequestMessage, Strea
 
     protected StreamResponseMessage executeSync() throws RouterException {
 
-        Log.d(getClass().getName(), "Sending event for subscription: " + subscriptionId);
+        Log.v(getClass().getName(), "Sending event for subscription: " + subscriptionId);
 
         StreamResponseMessage lastResponse = null;
 
         for (OutgoingEventRequestMessage requestMessage : requestMessages) {
 
             if (currentSequence.getValue() == 0) {
-                Log.d(getClass().getName(), "Sending initial event message to callback URL: " + requestMessage.getUri());
+                Log.v(getClass().getName(), "Sending initial event message to callback URL: " + requestMessage.getUri());
             } else {
-                Log.d(getClass().getName(), "Sending event message '" + currentSequence + "' to callback URL: " + requestMessage.getUri());
+                Log.v(getClass().getName(), "Sending event message '" + currentSequence + "' to callback URL: " + requestMessage.getUri());
             }
 
 
             // Send request
             lastResponse = getUpnpService().getRouter().send(requestMessage);
-            Log.d(getClass().getName(), "Received event callback response: " + lastResponse);
+            Log.v(getClass().getName(), "Received event callback response: " + lastResponse);
 
         }
 

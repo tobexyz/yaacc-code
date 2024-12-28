@@ -75,11 +75,11 @@ public class ReceivingAction extends ReceivingSync<StreamRequestMessage, StreamR
                 );
 
         if (resource == null) {
-            Log.d(getClass().getName(), "No local resource found: " + getInputMessage());
+            Log.v(getClass().getName(), "No local resource found: " + getInputMessage());
             return null;
         }
 
-        Log.d(getClass().getName(), "Found local action resource matching relative request URI: " + getInputMessage().getUri());
+        Log.v(getClass().getName(), "Found local action resource matching relative request URI: " + getInputMessage().getUri());
 
         RemoteActionInvocation invocation;
         OutgoingActionResponseMessage responseMessage = null;
@@ -90,14 +90,14 @@ public class ReceivingAction extends ReceivingSync<StreamRequestMessage, StreamR
             IncomingActionRequestMessage requestMessage =
                     new IncomingActionRequestMessage(getInputMessage(), resource.getModel());
 
-            Log.i(getClass().getName(), "Created incoming action request message: " + requestMessage);
+            Log.v(getClass().getName(), "Created incoming action request message: " + requestMessage);
             invocation = new RemoteActionInvocation(requestMessage.getAction(), getRemoteClientInfo());
 
             // Throws UnsupportedDataException if the body can't be read
-            Log.i(getClass().getName(), "Reading body of request message:" + requestMessage.getBodyString());
+            Log.v(getClass().getName(), "Reading body of request message:" + requestMessage.getBodyString());
             getUpnpService().getConfiguration().getSoapActionProcessor().readBody(requestMessage, invocation);
 
-            Log.i(getClass().getName(), "Executing on local service: " + invocation);
+            Log.v(getClass().getName(), "Executing on local service: " + invocation);
             resource.getModel().getExecutor(invocation.getAction()).execute(invocation);
 
             if (invocation.getFailure() == null) {
@@ -106,7 +106,7 @@ public class ReceivingAction extends ReceivingSync<StreamRequestMessage, StreamR
             } else {
 
                 if (invocation.getFailure() instanceof ActionCancelledException) {
-                    Log.i(getClass().getName(), "Action execution was cancelled, returning 404 to client");
+                    Log.v(getClass().getName(), "Action execution was cancelled, returning 404 to client");
                     // A 404 status is appropriate for this situation: The resource is gone/not available and it's
                     // a temporary condition. Most likely the cancellation happened because the client connection
                     // has been dropped, so it doesn't really matter what we return here anyway.
@@ -142,10 +142,10 @@ public class ReceivingAction extends ReceivingSync<StreamRequestMessage, StreamR
 
         try {
 
-            Log.d(getClass().getName(), "Writing body of response message");
+            Log.v(getClass().getName(), "Writing body of response message");
             getUpnpService().getConfiguration().getSoapActionProcessor().writeBody(responseMessage, invocation);
 
-            Log.d(getClass().getName(), "Returning finished response message: " + responseMessage);
+            Log.v(getClass().getName(), "Returning finished response message: " + responseMessage);
             return responseMessage;
 
         } catch (UnsupportedDataException ex) {

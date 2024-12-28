@@ -74,12 +74,12 @@
              try {
                  factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
              } catch (SAXNotRecognizedException ex) {
-                 Log.i(getClass().getName(), "Feature disallow-doctype-decl not known");
+                 Log.v(getClass().getName(), "Feature disallow-doctype-decl not known");
              }
              try {
                  factory.setXIncludeAware(false);
              } catch (UnsupportedOperationException usex) {
-                 Log.i(getClass().getName(), "can't set factory.setXIncludeAware(false);");
+                 Log.v(getClass().getName(), "can't set factory.setXIncludeAware(false);");
              }
              factory.setNamespaceAware(true);
 

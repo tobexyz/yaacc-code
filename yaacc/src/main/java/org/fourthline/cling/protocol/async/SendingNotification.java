@@ -62,7 +62,7 @@ public abstract class SendingNotification extends SendingAsync {
         List<NetworkAddress> activeStreamServers =
                 getUpnpService().getRouter().getActiveStreamServers(null);
         if (activeStreamServers.size() == 0) {
-            Log.d(getClass().getName(), "Aborting notifications, no active stream servers found (network disabled?)");
+            Log.v(getClass().getName(), "Aborting notifications, no active stream servers found (network disabled?)");
             return;
         }
 

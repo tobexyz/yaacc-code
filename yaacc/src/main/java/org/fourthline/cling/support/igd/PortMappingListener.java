@@ -96,7 +96,7 @@ public class PortMappingListener extends DefaultRegistryListener {
         Service connectionService;
         if ((connectionService = discoverConnectionService(device)) == null) return;
 
-        Log.d(getClass().getName(), "Activating port mappings on: " + connectionService);
+        Log.v(getClass().getName(), "Activating port mappings on: " + connectionService);
 
         final List<PortMapping> activeForService = new ArrayList<>();
         for (final PortMapping pm : portMappings) {
@@ -104,7 +104,7 @@ public class PortMappingListener extends DefaultRegistryListener {
 
                 @Override
                 public void success(ActionInvocation invocation) {
-                    Log.d(getClass().getName(), "Port mapping added: " + pm);
+                    Log.v(getClass().getName(), "Port mapping added: " + pm);
                     activeForService.add(pm);
                 }
 
@@ -142,12 +142,12 @@ public class PortMappingListener extends DefaultRegistryListener {
             final Iterator<PortMapping> it = activeEntry.getValue().iterator();
             while (it.hasNext()) {
                 final PortMapping pm = it.next();
-                Log.d(getClass().getName(), "Trying to delete port mapping on IGD: " + pm);
+                Log.v(getClass().getName(), "Trying to delete port mapping on IGD: " + pm);
                 new PortMappingDelete(activeEntry.getKey(), registry.getUpnpService().getControlPoint(), pm) {
 
                     @Override
                     public void success(ActionInvocation invocation) {
-                        Log.d(getClass().getName(), "Port mapping deleted: " + pm);
+                        Log.v(getClass().getName(), "Port mapping deleted: " + pm);
                         it.remove();
                     }
 
@@ -169,18 +169,18 @@ public class PortMappingListener extends DefaultRegistryListener {
 
         Device[] connectionDevices = device.findDevices(CONNECTION_DEVICE_TYPE);
         if (connectionDevices.length == 0) {
-            Log.d(getClass().getName(), "IGD doesn't support '" + CONNECTION_DEVICE_TYPE + "': " + device);
+            Log.v(getClass().getName(), "IGD doesn't support '" + CONNECTION_DEVICE_TYPE + "': " + device);
             return null;
         }
 
         Device connectionDevice = connectionDevices[0];
-        Log.d(getClass().getName(), "Using first discovered WAN connection device: " + connectionDevice);
+        Log.v(getClass().getName(), "Using first discovered WAN connection device: " + connectionDevice);
 
         Service ipConnectionService = connectionDevice.findService(IP_SERVICE_TYPE);
         Service pppConnectionService = connectionDevice.findService(PPP_SERVICE_TYPE);
 
         if (ipConnectionService == null && pppConnectionService == null) {
-            Log.d(getClass().getName(), "IGD doesn't support IP or PPP WAN connection service: " + device);
+            Log.v(getClass().getName(), "IGD doesn't support IP or PPP WAN connection service: " + device);
         }
 
         return ipConnectionService != null ? ipConnectionService : pppConnectionService;

@@ -40,7 +40,7 @@
                                    Class[] constructorArgumentTypes,
                                    Object[] constructorArguments) {
 
-         Log.d(getClass().getName(), "Creating state machine with initial state: " + initialStateClass);
+         Log.v(getClass().getName(), "Creating state machine with initial state: " + initialStateClass);
 
          this.initialStateClass = initialStateClass;
 
@@ -54,7 +54,7 @@
                                  .newInstance(constructorArguments)
                                  : stateClass.newInstance();
 
-                 Log.d(getClass().getName(), "Adding state instance: " + state.getClass().getName());
+                 Log.v(getClass().getName(), "Adding state instance: " + state.getClass().getName());
                  stateObjects.put(stateClass, state);
 
              } catch (NoSuchMethodException ex) {
@@ -101,13 +101,13 @@
              }
 
              Method signalMethod = getMethodOfCurrentState(method);
-             Log.d(getClass().getName(), "Invoking signal method of current state: " + signalMethod.toString());
+             Log.v(getClass().getName(), "Invoking signal method of current state: " + signalMethod.toString());
              Object methodReturn = signalMethod.invoke(currentState, args);
 
              if (methodReturn != null && methodReturn instanceof Class) {
                  Class nextStateClass = (Class) methodReturn;
                  if (stateObjects.containsKey(nextStateClass)) {
-                     Log.d(getClass().getName(), "Executing transition to next state: " + nextStateClass.getName());
+                     Log.v(getClass().getName(), "Executing transition to next state: " + nextStateClass.getName());
                      invokeExitMethod(currentState);
                      currentState = stateObjects.get(nextStateClass);
                      invokeEntryMethod(currentState);
@@ -131,7 +131,7 @@
      }
 
      private void invokeEntryMethod(Object state) {
-         Log.d(getClass().getName(), "Trying to invoke entry method of state: " + state.getClass().getName());
+         Log.v(getClass().getName(), "Trying to invoke entry method of state: " + state.getClass().getName());
          try {
              Method onEntryMethod = state.getClass().getMethod(METHOD_ON_ENTRY);
              onEntryMethod.invoke(state);

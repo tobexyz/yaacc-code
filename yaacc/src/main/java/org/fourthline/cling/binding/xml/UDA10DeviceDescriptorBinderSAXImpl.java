@@ -59,7 +59,7 @@ public class UDA10DeviceDescriptorBinderSAXImpl extends UDA10DeviceDescriptorBin
         }
 
         try {
-            Log.d(getClass().getName(), "Populating device from XML descriptor: " + undescribedDevice);
+            Log.v(getClass().getName(), "Populating device from XML descriptor: " + undescribedDevice);
 
             // Read the XML into a mutable descriptor graph
 
@@ -234,7 +234,7 @@ public class UDA10DeviceDescriptorBinderSAXImpl extends UDA10DeviceDescriptorBin
                     try {
                         getInstance().dlnaDocs.add(DLNADoc.valueOf(txt));
                     } catch (InvalidValueException ex) {
-                        Log.i(getClass().getName(), "Invalid X_DLNADOC value, ignoring value: " + txt);
+                        Log.v(getClass().getName(), "Invalid X_DLNADOC value, ignoring value: " + txt);
                     }
                     break;
                 case X_DLNACAP:
@@ -379,7 +379,7 @@ public class UDA10DeviceDescriptorBinderSAXImpl extends UDA10DeviceDescriptorBin
                         break;
                 }
             } catch (InvalidValueException ex) {
-                Log.d(getClass().getName(),
+                Log.v(getClass().getName(),
                         "UPnP specification violation, skipping invalid service declaration. " + ex.getMessage()
                 );
             }

@@ -43,7 +43,7 @@ public class PullGENAEventProcessorImpl extends GENAEventProcessorImpl {
 
 
     public void readBody(IncomingEventRequestMessage requestMessage) throws UnsupportedDataException {
-        Log.d(getClass().getName(), "Reading body of: " + requestMessage);
+        Log.v(getClass().getName(), "Reading body of: " + requestMessage);
         Log.v(getClass().getName(), "===================================== GENA BODY BEGIN ============================================");
         Log.v(getClass().getName(), requestMessage.getBody() != null ? requestMessage.getBody().toString() : null);
         Log.v(getClass().getName(), "-===================================== GENA BODY END ============================================");
@@ -80,7 +80,7 @@ public class PullGENAEventProcessorImpl extends GENAEventProcessorImpl {
                 String stateVariableName = xpp.getName();
                 for (StateVariable stateVariable : stateVariables) {
                     if (stateVariable.getName().equals(stateVariableName)) {
-                        Log.d(getClass().getName(), "Reading state variable value: " + stateVariableName);
+                        Log.v(getClass().getName(), "Reading state variable value: " + stateVariableName);
                         String value = xpp.nextText();
                         message.getStateVariableValues().add(new StateVariableValue(stateVariable, value));
                         break;

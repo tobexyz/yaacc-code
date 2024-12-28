@@ -83,7 +83,7 @@ public class AnnotationActionBinder {
             name = AnnotationLocalServiceBinder.toUpnpActionName(getMethod().getName());
         }
 
-        Log.d(getClass().getName(), "Creating action and executor: " + name);
+        Log.v(getClass().getName(), "Creating action and executor: " + name);
 
         List<ActionArgument> inputArguments = createInputArguments();
         Map<ActionArgument<LocalService>, StateVariableAccessor> outputArguments = createOutputArguments();

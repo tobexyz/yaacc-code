@@ -61,7 +61,7 @@ public class CallbackHeader extends UpnpHeader<List<URL>> {
                 sp = sp.trim();
 
                 if (!sp.startsWith("http://")) {
-                    Log.d(getClass().getName(), "Discarding non-http callback URL: " + sp);
+                    Log.v(getClass().getName(), "Discarding non-http callback URL: " + sp);
                     continue;
                 }
 

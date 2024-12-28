@@ -36,7 +36,7 @@ public abstract class PausedPlay<T extends AVTransport> extends AbstractState<T>
     }
 
     public void onEntry() {
-        Log.d(getClass().getName(), "Setting transport state to PAUSED_PLAYBACK");
+        Log.v(getClass().getName(), "Setting transport state to PAUSED_PLAYBACK");
         getTransport().setTransportInfo(
                 new TransportInfo(
                         TransportState.PAUSED_PLAYBACK,

@@ -58,7 +58,7 @@ public class AnnotationLocalServiceBinder implements LocalServiceBinder {
 
 
     public LocalService read(Class<?> clazz) throws LocalServiceBindingException {
-        Log.d(getClass().getName(), "Reading and binding annotations of service implementation class: " + clazz);
+        Log.v(getClass().getName(), "Reading and binding annotations of service implementation class: " + clazz);
 
         // Read the service ID and service type from the annotation
         if (clazz.isAnnotationPresent(UpnpService.class)) {

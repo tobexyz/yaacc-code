@@ -81,7 +81,7 @@ public class DatagramIOImpl implements DatagramIO<DatagramIOConfigurationImpl> {
             // TODO: UPNP VIOLATION: The spec does not prohibit using the 1900 port here again, however, the
             // Netgear ReadyNAS miniDLNA implementation will no longer answer if it has to send search response
             // back via UDP unicast to port 1900... so we use an ephemeral port
-            Log.i(getClass().getName(), "Creating bound socket (for datagram input/output) on: " + bindAddress);
+            Log.v(getClass().getName(), "Creating bound socket (for datagram input/output) on: " + bindAddress);
             localAddress = new InetSocketAddress(bindAddress, 0);
             socket = new MulticastSocket(localAddress);
             socket.setTimeToLive(configuration.getTimeToLive());
@@ -98,7 +98,7 @@ public class DatagramIOImpl implements DatagramIO<DatagramIOConfigurationImpl> {
     }
 
     public void run() {
-        Log.d(getClass().getName(), "Entering blocking receiving loop, listening for UDP datagrams on: " + socket.getLocalAddress());
+        Log.v(getClass().getName(), "Entering blocking receiving loop, listening for UDP datagrams on: " + socket.getLocalAddress());
 
         while (true) {
 
@@ -108,7 +108,7 @@ public class DatagramIOImpl implements DatagramIO<DatagramIOConfigurationImpl> {
 
                 socket.receive(datagram);
 
-                Log.d(getClass().getName(),
+                Log.v(getClass().getName(),
                         "UDP datagram received from: "
                                 + datagram.getAddress().getHostAddress()
                                 + ":" + datagram.getPort()
@@ -119,17 +119,17 @@ public class DatagramIOImpl implements DatagramIO<DatagramIOConfigurationImpl> {
                 router.received(datagramProcessor.read(localAddress.getAddress(), datagram));
 
             } catch (SocketException ex) {
-                Log.d(getClass().getName(), "Socket closed", ex);
+                Log.v(getClass().getName(), "Socket closed", ex);
                 break;
             } catch (UnsupportedDataException ex) {
-                Log.d(getClass().getName(), "Could not read datagram: " + ex.getMessage(), ex);
+                Log.v(getClass().getName(), "Could not read datagram: " + ex.getMessage(), ex);
             } catch (Exception ex) {
                 throw new RuntimeException(ex);
             }
         }
         try {
             if (!socket.isClosed()) {
-                Log.d(getClass().getName(), "Closing unicast socket");
+                Log.v(getClass().getName(), "Closing unicast socket");
                 socket.close();
             }
         } catch (Exception ex) {
@@ -138,24 +138,24 @@ public class DatagramIOImpl implements DatagramIO<DatagramIOConfigurationImpl> {
     }
 
     synchronized public void send(OutgoingDatagramMessage message) {
-        Log.d(getClass().getName(), "Sending message from address: " + localAddress);
+        Log.v(getClass().getName(), "Sending message from address: " + localAddress);
 
         DatagramPacket packet = datagramProcessor.write(message);
 
-        Log.d(getClass().getName(), "Sending UDP datagram packet to: " + message.getDestinationAddress() + ":" + message.getDestinationPort());
+        Log.v(getClass().getName(), "Sending UDP datagram packet to: " + message.getDestinationAddress() + ":" + message.getDestinationPort());
 
 
         send(packet);
     }
 
     synchronized public void send(DatagramPacket datagram) {
-        Log.d(getClass().getName(), "Sending message from address: " + localAddress);
+        Log.v(getClass().getName(), "Sending message from address: " + localAddress);
 
 
         try {
             socket.send(datagram);
         } catch (SocketException ex) {
-            Log.d(getClass().getName(), "Socket closed, aborting datagram send to: " + datagram.getAddress());
+            Log.v(getClass().getName(), "Socket closed, aborting datagram send to: " + datagram.getAddress());
         } catch (RuntimeException ex) {
             throw ex;
         } catch (Exception ex) {

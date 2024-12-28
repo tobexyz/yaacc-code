@@ -72,7 +72,7 @@ public class DefaultServiceManager<T> implements ServiceManager<T> {
     protected void lock() {
         try {
             if (lock.tryLock(getLockTimeoutMillis(), TimeUnit.MILLISECONDS)) {
-                Log.i(getClass().getName(), "Acquired lock");
+                Log.v(getClass().getName(), "Acquired lock");
             } else {
                 throw new RuntimeException("Failed to acquire lock in milliseconds: " + getLockTimeoutMillis());
             }
@@ -83,7 +83,7 @@ public class DefaultServiceManager<T> implements ServiceManager<T> {
 
     protected void unlock() {
 
-        Log.i(getClass().getName(), "Releasing lock");
+        Log.v(getClass().getName(), "Releasing lock");
         lock.unlock();
     }
 
@@ -134,7 +134,7 @@ public class DefaultServiceManager<T> implements ServiceManager<T> {
         try {
             Collection<StateVariableValue> values = readInitialEventedStateVariableValues();
             if (values != null) {
-                Log.d(getClass().getName(), "Obtained initial state variable values for event, skipping individual state variable accessors");
+                Log.v(getClass().getName(), "Obtained initial state variable values for event, skipping individual state variable accessors");
                 return values;
             }
             values = new ArrayList<>();
@@ -161,7 +161,7 @@ public class DefaultServiceManager<T> implements ServiceManager<T> {
 
                 StateVariable stateVariable = getService().getStateVariable(variableName);
                 if (stateVariable == null || !stateVariable.getEventDetails().isSendEvents()) {
-                    Log.d(getClass().getName(), "Ignoring unknown or non-evented state variable: " + variableName);
+                    Log.v(getClass().getName(), "Ignoring unknown or non-evented state variable: " + variableName);
                     continue;
                 }
 
@@ -179,7 +179,7 @@ public class DefaultServiceManager<T> implements ServiceManager<T> {
     }
 
     protected void init() {
-        Log.d(getClass().getName(), "No service implementation instance available, initializing...");
+        Log.v(getClass().getName(), "No service implementation instance available, initializing...");
         try {
             // The actual instance we ware going to use and hold a reference to (1:1 instance for manager)
             serviceImpl = createServiceInstance();
@@ -201,7 +201,7 @@ public class DefaultServiceManager<T> implements ServiceManager<T> {
             // Use this constructor if possible
             return serviceClass.getConstructor(LocalService.class).newInstance(getService());
         } catch (NoSuchMethodException ex) {
-            Log.d(getClass().getName(), "Creating new service implementation instance with no-arg constructor: " + serviceClass.getName());
+            Log.v(getClass().getName(), "Creating new service implementation instance with no-arg constructor: " + serviceClass.getName());
             return serviceClass.newInstance();
         }
     }
@@ -210,10 +210,10 @@ public class DefaultServiceManager<T> implements ServiceManager<T> {
         Method m;
         if ((m = Reflections.getGetterMethod(serviceImpl.getClass(), "propertyChangeSupport")) != null &&
                 PropertyChangeSupport.class.isAssignableFrom(m.getReturnType())) {
-            Log.d(getClass().getName(), "Service implementation instance offers PropertyChangeSupport, using that: " + serviceImpl.getClass().getName());
+            Log.v(getClass().getName(), "Service implementation instance offers PropertyChangeSupport, using that: " + serviceImpl.getClass().getName());
             return (PropertyChangeSupport) m.invoke(serviceImpl);
         }
-        Log.d(getClass().getName(), "Creating new PropertyChangeSupport for service implementation: " + serviceImpl.getClass().getName());
+        Log.v(getClass().getName(), "Creating new PropertyChangeSupport for service implementation: " + serviceImpl.getClass().getName());
         return new PropertyChangeSupport(serviceImpl);
     }
 
@@ -239,7 +239,7 @@ public class DefaultServiceManager<T> implements ServiceManager<T> {
             if (e.getPropertyName().equals(EVENTED_STATE_VARIABLES)) return;
 
             String[] variableNames = ModelUtil.fromCommaSeparatedList(e.getPropertyName());
-            Log.d(getClass().getName(), "Changed variable names: " + Arrays.toString(variableNames));
+            Log.v(getClass().getName(), "Changed variable names: " + Arrays.toString(variableNames));
 
             try {
                 Collection<StateVariableValue> currentValues = getCurrentState(variableNames);

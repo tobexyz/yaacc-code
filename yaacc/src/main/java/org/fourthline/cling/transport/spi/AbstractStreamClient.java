@@ -38,8 +38,8 @@ public abstract class AbstractStreamClient<C extends StreamClientConfiguration, 
     public StreamResponseMessage sendRequest(StreamRequestMessage requestMessage) throws InterruptedException {
 
 
-        Log.i(getClass().getName(), "Preparing HTTP request: " + requestMessage);
-        Log.i(getClass().getName(), "HTTP body: " + requestMessage.getBodyString());
+        Log.v(getClass().getName(), "Preparing HTTP request: " + requestMessage);
+        Log.v(getClass().getName(), "HTTP body: " + requestMessage.getBodyString());
 
         REQUEST request = createRequest(requestMessage);
         if (request == null)
@@ -56,7 +56,7 @@ public abstract class AbstractStreamClient<C extends StreamClientConfiguration, 
 
         // Wait on the current thread for completion
         try {
-            Log.i(getClass().getName(),
+            Log.v(getClass().getName(),
                     "Waiting " + getConfiguration().getTimeoutSeconds()
                             + " seconds for HTTP request to complete: " + requestMessage
             );
@@ -66,7 +66,7 @@ public abstract class AbstractStreamClient<C extends StreamClientConfiguration, 
             // Log a warning if it took too long
             long elapsed = System.currentTimeMillis() - start;
 
-            Log.i(getClass().getName(), "Got HTTP response in " + elapsed + "ms: " + requestMessage);
+            Log.v(getClass().getName(), "Got HTTP response in " + elapsed + "ms: " + requestMessage);
             if (getConfiguration().getLogWarningSeconds() > 0
                     && elapsed > getConfiguration().getLogWarningSeconds() * 1000) {
                 Log.w(getClass().getName(), "HTTP request took a long time (" + elapsed + "ms): " + requestMessage);
@@ -77,13 +77,13 @@ public abstract class AbstractStreamClient<C extends StreamClientConfiguration, 
         } catch (InterruptedException ex) {
 
 
-            Log.d(getClass().getName(), "Interruption, aborting request: " + requestMessage);
+            Log.v(getClass().getName(), "Interruption, aborting request: " + requestMessage);
             abort(request, "Interruption, aborting request: " + requestMessage);
             throw new InterruptedException("HTTP request interrupted and aborted");
 
         } catch (TimeoutException ex) {
 
-            Log.i(getClass().getName(),
+            Log.v(getClass().getName(),
                     "Timeout of " + getConfiguration().getTimeoutSeconds()
                             + " seconds while waiting for HTTP request to complete, aborting: " + requestMessage
             );
