@@ -32,6 +32,7 @@ public class Position implements Serializable {
 
     private final int positionId;
 
+
     public Position(int positionId, String objectId, String deviceId, String name) {
 
         this.deviceId = deviceId;

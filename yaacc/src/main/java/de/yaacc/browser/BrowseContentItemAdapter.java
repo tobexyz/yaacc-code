@@ -31,6 +31,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.preference.PreferenceManager;
+import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import org.fourthline.cling.support.model.DIDLObject;
@@ -334,6 +335,11 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
     }
 
     public void loadMore() {
+        loadMore(Long.parseLong(PreferenceManager.getDefaultSharedPreferences(getContext()).getString(getContext().getString(R.string.settings_browse_chunk_size_key), "50")), null);
+
+    }
+
+    public void loadMore(Long itemsToLoad, Integer scrollToPositionId) {
         if (contentListFragment.getNavigator() == null || contentListFragment.getNavigator().getCurrentPosition() == null || contentListFragment.getNavigator().getCurrentPosition().getDeviceId() == null)
             return;
         if (loading || allItemsFetched) return;
@@ -342,10 +348,15 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
 
         Log.d(getClass().getName(), "loadMore from: " + from);
 
-        BrowseItemLoadTask browseItemLoadTask = new BrowseItemLoadTask(this, Long.parseLong(PreferenceManager.getDefaultSharedPreferences(getContext()).getString(getContext().getString(R.string.settings_browse_chunk_size_key), "50")));
+        BrowseItemLoadTask browseItemLoadTask = new BrowseItemLoadTask(this, itemsToLoad, scrollToPositionId);
         asyncTasks.add(browseItemLoadTask);
         browseItemLoadTask.executeOnExecutor(((Yaacc) getContext().getApplicationContext()).getContentLoadExecutor(), from);
 
+    }
+
+    public void scrollToPositionId(Integer id) {
+        if (id == null) return;
+        ((LinearLayoutManager) contentList.getLayoutManager()).scrollToPositionWithOffset(id, 0);
     }
 
     static class ViewHolder extends RecyclerView.ViewHolder {

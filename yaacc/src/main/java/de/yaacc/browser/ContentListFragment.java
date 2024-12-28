@@ -29,6 +29,7 @@ import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.fragment.app.Fragment;
+import androidx.preference.PreferenceManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -209,12 +210,10 @@ public class ContentListFragment extends Fragment implements OnClickListener,
             }
             // currentPosition
             initBrowsItemAdapter(itemList);
-            ((LinearLayoutManager) itemList.getLayoutManager()).scrollToPositionWithOffset(lastPosition.getPositionId(), 0);
-            itemList.postDelayed(() -> {
-                ((LinearLayoutManager) itemList.getLayoutManager()).scrollToPositionWithOffset(lastPosition.getPositionId(), 0);
-            }, 200);
             bItemAdapter.clear();
-            bItemAdapter.loadMore();
+            int chunkSize = Integer.parseInt(PreferenceManager.getDefaultSharedPreferences(getContext()).getString(getContext().getString(R.string.settings_browse_chunk_size_key), "50"));
+            bItemAdapter.loadMore((long) (lastPosition.getPositionId() + chunkSize), lastPosition.getPositionId());
+
 
         }
         return true;
