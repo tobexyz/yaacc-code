@@ -37,7 +37,7 @@ public abstract class Stopped<T extends AVTransport> extends AbstractState<T> {
     }
 
     public void onEntry() {
-        Log.d(getClass().getName(), "Setting transport state to STOPPED");
+        Log.v(getClass().getName(), "Setting transport state to STOPPED");
         getTransport().setTransportInfo(
                 new TransportInfo(
                         TransportState.STOPPED,

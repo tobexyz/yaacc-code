@@ -119,7 +119,7 @@ public abstract class Device<DI extends DeviceIdentity, D extends Device, S exte
         if (errors.size() > 0) {
 
             for (ValidationError error : errors) {
-                Log.i(getClass().getName(), error.toString());
+                Log.v(getClass().getName(), error.toString());
             }
 
             throw new ValidationException("Validation of device graph failed, call getErrors() on exception", errors);

@@ -61,7 +61,7 @@ public abstract class ReceivingSync<IN extends StreamRequestMessage, OUT extends
         outputMessage = executeSync();
 
         if (outputMessage != null && getRemoteClientInfo().getExtraResponseHeaders().size() > 0) {
-            Log.d(getClass().getName(), "Setting extra headers on response message: " + getRemoteClientInfo().getExtraResponseHeaders().size());
+            Log.v(getClass().getName(), "Setting extra headers on response message: " + getRemoteClientInfo().getExtraResponseHeaders().size());
             outputMessage.getHeaders().putAll(getRemoteClientInfo().getExtraResponseHeaders());
         }
     }

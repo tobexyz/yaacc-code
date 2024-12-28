@@ -53,7 +53,7 @@ public abstract class SendingAsync implements Runnable {
         } catch (Exception ex) {
             Throwable cause = Exceptions.unwrap(ex);
             if (cause instanceof InterruptedException) {
-                Log.d(getClass().getName(), "Interrupted protocol '" + getClass().getSimpleName() + "': " + ex, cause);
+                Log.v(getClass().getName(), "Interrupted protocol '" + getClass().getSimpleName() + "': " + ex, cause);
             } else {
                 throw new RuntimeException(
                         "Fatal error while executing protocol '" + getClass().getSimpleName() + "': " + ex, ex

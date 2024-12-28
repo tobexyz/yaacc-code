@@ -68,7 +68,7 @@ public abstract class UpnpStream implements Runnable {
      * @return The TCP (HTTP) stream response message, or <code>null</code> if a 404 should be send to the client.
      */
     public StreamResponseMessage process(StreamRequestMessage requestMsg) {
-        Log.d(getClass().getName(), "Processing stream request message: " + requestMsg);
+        Log.v(getClass().getName(), "Processing stream request message: " + requestMsg);
 
         try {
             // Try to get a protocol implementation that matches the request message
@@ -79,7 +79,7 @@ public abstract class UpnpStream implements Runnable {
         }
 
         // Run it
-        Log.d(getClass().getName(), "Running protocol for synchronous message processing: " + syncProtocol);
+        Log.v(getClass().getName(), "Running protocol for synchronous message processing: " + syncProtocol);
         syncProtocol.run();
 
         // ... then grab the response

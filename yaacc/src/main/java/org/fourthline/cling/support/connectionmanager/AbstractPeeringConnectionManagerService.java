@@ -72,7 +72,7 @@ public abstract class AbstractPeeringConnectionManagerService extends Connection
     synchronized protected void storeConnection(ConnectionInfo info) {
         CSV<UnsignedIntegerFourBytes> oldConnectionIDs = getCurrentConnectionIDs();
         activeConnections.put(info.getConnectionID(), info);
-        Log.d(getClass().getName(), "Connection stored, firing event: " + info.getConnectionID());
+        Log.v(getClass().getName(), "Connection stored, firing event: " + info.getConnectionID());
         CSV<UnsignedIntegerFourBytes> newConnectionIDs = getCurrentConnectionIDs();
         getPropertyChangeSupport().firePropertyChange("CurrentConnectionIDs", oldConnectionIDs, newConnectionIDs);
     }
@@ -80,7 +80,7 @@ public abstract class AbstractPeeringConnectionManagerService extends Connection
     synchronized protected void removeConnection(int connectionID) {
         CSV<UnsignedIntegerFourBytes> oldConnectionIDs = getCurrentConnectionIDs();
         activeConnections.remove(connectionID);
-        Log.d(getClass().getName(), "Connection removed, firing event: " + connectionID);
+        Log.v(getClass().getName(), "Connection removed, firing event: " + connectionID);
         CSV<UnsignedIntegerFourBytes> newConnectionIDs = getCurrentConnectionIDs();
         getPropertyChangeSupport().firePropertyChange("CurrentConnectionIDs", oldConnectionIDs, newConnectionIDs);
     }
@@ -106,7 +106,7 @@ public abstract class AbstractPeeringConnectionManagerService extends Connection
             throw new ConnectionManagerException(ErrorCode.ARGUMENT_VALUE_INVALID, "Unsupported direction: " + direction);
         }
 
-        Log.d(getClass().getName(), "Preparing for connection with local new ID " + connectionId + " and peer connection ID: " + peerConnectionId);
+        Log.v(getClass().getName(), "Preparing for connection with local new ID " + connectionId + " and peer connection ID: " + peerConnectionId);
 
         ConnectionInfo newConnectionInfo = createConnection(
                 connectionId,
@@ -125,7 +125,7 @@ public abstract class AbstractPeeringConnectionManagerService extends Connection
     synchronized public void connectionComplete(@UpnpInputArgument(name = "ConnectionID", stateVariable = "A_ARG_TYPE_ConnectionID") int connectionID)
             throws ActionException {
         ConnectionInfo info = getCurrentConnectionInfo(connectionID);
-        Log.d(getClass().getName(), "Closing connection ID " + connectionID);
+        Log.v(getClass().getName(), "Closing connection ID " + connectionID);
         closeConnection(info);
         removeConnection(connectionID);
     }
@@ -147,7 +147,7 @@ public abstract class AbstractPeeringConnectionManagerService extends Connection
 
         final int localConnectionID = getNewConnectionId();
 
-        Log.d(getClass().getName(), "Creating new connection ID " + localConnectionID + " with peer: " + peerService);
+        Log.v(getClass().getName(), "Creating new connection ID " + localConnectionID + " with peer: " + peerService);
         final boolean[] failed = new boolean[1];
         new PrepareForConnection(
                 peerService,
@@ -201,7 +201,7 @@ public abstract class AbstractPeeringConnectionManagerService extends Connection
                                                      final ConnectionInfo connectionInfo) throws ActionException {
 
         // It is important that you synchronize the whole procedure
-        Log.d(getClass().getName(), "Closing connection ID " + connectionInfo.getConnectionID() + " with peer: " + peerService);
+        Log.v(getClass().getName(), "Closing connection ID " + connectionInfo.getConnectionID() + " with peer: " + peerService);
         new ConnectionComplete(
                 peerService,
                 controlPoint,

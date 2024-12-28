@@ -45,7 +45,7 @@ public class EventedValueURI extends EventedValue<URI> {
             // to parse whatever devices give us, like the Roku which sends "unknown url".
             return super.valueOf(s);
         } catch (InvalidValueException ex) {
-            Log.i(getClass().getName(), "Ignoring invalid URI in evented value '" + s + "': " + Exceptions.unwrap(ex));
+            Log.v(getClass().getName(), "Ignoring invalid URI in evented value '" + s + "': " + Exceptions.unwrap(ex));
             return null;
         }
     }

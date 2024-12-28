@@ -37,14 +37,14 @@ public class RegistryMaintainer implements Runnable {
 
     public void stop() {
 
-        Log.i(getClass().getName(), "Setting stopped status on thread");
+        Log.v(getClass().getName(), "Setting stopped status on thread");
         stopped = true;
     }
 
     public void run() {
         stopped = false;
 
-        Log.i(getClass().getName(), "Running registry maintenance loop every milliseconds: " + sleepIntervalMillis);
+        Log.v(getClass().getName(), "Running registry maintenance loop every milliseconds: " + sleepIntervalMillis);
         while (!stopped) {
 
             try {
@@ -55,7 +55,7 @@ public class RegistryMaintainer implements Runnable {
             }
 
         }
-        Log.i(getClass().getName(), "Stopped status on thread received, ending maintenance loop");
+        Log.v(getClass().getName(), "Stopped status on thread received, ending maintenance loop");
     }
 
 }

@@ -70,7 +70,7 @@ public abstract class Browse extends ActionCallback {
 
         super(new ActionInvocation(service.getAction("Browse")));
 
-        Log.d(getClass().getName(), "Creating browse action for object ID: " + objectID);
+        Log.v(getClass().getName(), "Creating browse action for object ID: " + objectID);
 
         getActionInvocation().setInput("ObjectID", objectID);
         getActionInvocation().setInput("BrowseFlag", flag.toString());
@@ -89,7 +89,7 @@ public abstract class Browse extends ActionCallback {
     }
 
     public void success(ActionInvocation invocation) {
-        Log.d(getClass().getName(), "Successful browse action, reading output argument values");
+        Log.v(getClass().getName(), "Successful browse action, reading output argument values");
 
         BrowseResult result = new BrowseResult(
                 invocation.getOutput("Result").getValue().toString(),

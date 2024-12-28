@@ -80,12 +80,12 @@ public class ReceivingNotification extends ReceivingAsync<IncomingNotificationRe
 
         UDN udn = getInputMessage().getUDN();
         if (udn == null) {
-            Log.i(getClass().getName(), "Ignoring notification message without UDN: " + getInputMessage());
+            Log.v(getClass().getName(), "Ignoring notification message without UDN: " + getInputMessage());
             return;
         }
 
         RemoteDeviceIdentity rdIdentity = new RemoteDeviceIdentity(getInputMessage());
-        Log.i(getClass().getName(), "Received device notification: " + rdIdentity);
+        Log.v(getClass().getName(), "Received device notification: " + rdIdentity);
 
         RemoteDevice rd;
         try {
@@ -100,7 +100,7 @@ public class ReceivingNotification extends ReceivingAsync<IncomingNotificationRe
 
         if (getInputMessage().isAliveMessage()) {
 
-            Log.i(getClass().getName(), "Received device ALIVE advertisement, descriptor location is: " + rdIdentity.getDescriptorURL());
+            Log.v(getClass().getName(), "Received device ALIVE advertisement, descriptor location is: " + rdIdentity.getDescriptorURL());
 
             if (rdIdentity.getDescriptorURL() == null) {
                 Log.v(getClass().getName(), "Ignoring message without location URL header: " + getInputMessage());
@@ -108,12 +108,12 @@ public class ReceivingNotification extends ReceivingAsync<IncomingNotificationRe
             }
 
             if (rdIdentity.getMaxAgeSeconds() == null) {
-                Log.i(getClass().getName(), "Ignoring message without max-age header: " + getInputMessage());
+                Log.v(getClass().getName(), "Ignoring message without max-age header: " + getInputMessage());
                 return;
             }
 
             if (getUpnpService().getRegistry().update(rdIdentity)) {
-                Log.i(getClass().getName(), "Remote device was already known: " + udn);
+                Log.v(getClass().getName(), "Remote device was already known: " + udn);
                 return;
             }
 
@@ -125,14 +125,14 @@ public class ReceivingNotification extends ReceivingAsync<IncomingNotificationRe
 
         } else if (getInputMessage().isByeByeMessage()) {
 
-            Log.i(getClass().getName(), "Received device BYEBYE advertisement");
+            Log.v(getClass().getName(), "Received device BYEBYE advertisement");
             boolean removed = getUpnpService().getRegistry().removeDevice(rd);
             if (removed) {
-                Log.i(getClass().getName(), "Removed remote device from registry: " + rd);
+                Log.v(getClass().getName(), "Removed remote device from registry: " + rd);
             }
 
         } else {
-            Log.i(getClass().getName(), "Ignoring unknown notification message: " + getInputMessage());
+            Log.v(getClass().getName(), "Ignoring unknown notification message: " + getInputMessage());
         }
 
     }

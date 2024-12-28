@@ -59,7 +59,7 @@ public abstract class UpnpHeader<T> {
         for (int i = 0; i < type.getHeaderTypes().length && upnpHeader == null; i++) {
             Class<? extends UpnpHeader> headerClass = type.getHeaderTypes()[i];
             try {
-                Log.d(UpnpHeader.class.getName(), "Trying to parse '" + type + "' with class: " + headerClass.getSimpleName());
+                Log.v(UpnpHeader.class.getName(), "Trying to parse '" + type + "' with class: " + headerClass.getSimpleName());
                 upnpHeader = headerClass.newInstance();
                 if (headerValue != null) {
                     upnpHeader.setString(headerValue);

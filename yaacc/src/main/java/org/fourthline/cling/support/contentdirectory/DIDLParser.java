@@ -116,7 +116,7 @@ public class DIDLParser extends SAXParser {
         DIDLContent content = new DIDLContent();
         createRootHandler(content, this);
 
-        Log.d(getClass().getName(), "Parsing DIDL XML content");
+        Log.v(getClass().getName(), "Parsing DIDL XML content");
         parse(new InputSource(new StringReader(xml.replaceAll("&(?!amp;)", "&amp;"))));
         return content;
     }
@@ -385,7 +385,7 @@ public class DIDLParser extends SAXParser {
 
         String title = container.getTitle();
         if (title == null) {
-            Log.d(getClass().getName(), "Missing 'dc:title' element for container: " + container.getId());
+            Log.v(getClass().getName(), "Missing 'dc:title' element for container: " + container.getId());
             title = UNKNOWN_TITLE;
         }
 
@@ -466,7 +466,7 @@ public class DIDLParser extends SAXParser {
 
         String title = item.getTitle();
         if (title == null) {
-            Log.d(getClass().getName(), "Missing 'dc:title' element for item: " + item.getId());
+            Log.v(getClass().getName(), "Missing 'dc:title' element for item: " + item.getId());
             title = UNKNOWN_TITLE;
         }
 
@@ -587,7 +587,7 @@ public class DIDLParser extends SAXParser {
             }
 
         } else {
-            Log.d(getClass().getName(), "Unknown desc metadata content, please override populateDescMetadata(): " + descMeta.getMetadata());
+            Log.v(getClass().getName(), "Unknown desc metadata content, please override populateDescMetadata(): " + descMeta.getMetadata());
         }
     }
 
@@ -626,9 +626,9 @@ public class DIDLParser extends SAXParser {
      */
     public void debugXML(String s) {
 
-        Log.d(getClass().getName(), "-------------------------------------------------------------------------------------");
-        Log.d(getClass().getName(), "\n" + s);
-        Log.d(getClass().getName(), "-------------------------------------------------------------------------------------");
+        Log.v(getClass().getName(), "-------------------------------------------------------------------------------------");
+        Log.v(getClass().getName(), "\n" + s);
+        Log.v(getClass().getName(), "-------------------------------------------------------------------------------------");
 
     }
 
@@ -676,7 +676,7 @@ public class DIDLParser extends SAXParser {
                                 WriteStatus.valueOf(getCharacters())
                         );
                     } catch (Exception ex) {
-                        Log.i(getClass().getName(), "Ignoring invalid writeStatus value: " + getCharacters());
+                        Log.v(getClass().getName(), "Ignoring invalid writeStatus value: " + getCharacters());
                     }
                 } else if ("class".equals(localName)) {
                     getInstance().setClazz(

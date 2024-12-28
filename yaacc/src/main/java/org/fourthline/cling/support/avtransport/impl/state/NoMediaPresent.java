@@ -36,7 +36,7 @@ public abstract class NoMediaPresent<T extends AVTransport> extends AbstractStat
     }
 
     public void onEntry() {
-        Log.d(getClass().getName(), "Setting transport state to NO_MEDIA_PRESENT");
+        Log.v(getClass().getName(), "Setting transport state to NO_MEDIA_PRESENT");
         getTransport().setTransportInfo(
                 new TransportInfo(
                         TransportState.NO_MEDIA_PRESENT,

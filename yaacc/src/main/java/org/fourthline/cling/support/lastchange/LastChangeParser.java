@@ -104,18 +104,18 @@ public abstract class LastChangeParser extends SAXParser {
         new RootHandler(event, this);
 
 
-        Log.d(getClass().getName(), "Parsing 'LastChange' event XML content");
-        Log.d(getClass().getName(), "===================================== 'LastChange' BEGIN ============================================");
-        Log.d(getClass().getName(), xml);
-        Log.d(getClass().getName(), "====================================== 'LastChange' END  ============================================");
+        Log.v(getClass().getName(), "Parsing 'LastChange' event XML content");
+        Log.v(getClass().getName(), "===================================== 'LastChange' BEGIN ============================================");
+        Log.v(getClass().getName(), xml);
+        Log.v(getClass().getName(), "====================================== 'LastChange' END  ============================================");
 
         parse(new InputSource(new StringReader(xml)));
 
-        Log.i(getClass().getName(), "Parsed event with instances IDs: " + event.getInstanceIDs().size());
+        Log.v(getClass().getName(), "Parsed event with instances IDs: " + event.getInstanceIDs().size());
         for (InstanceID instanceID : event.getInstanceIDs()) {
-            Log.i(getClass().getName(), "InstanceID '" + instanceID.getId() + "' has values: " + instanceID.getValues().size());
+            Log.v(getClass().getName(), "InstanceID '" + instanceID.getId() + "' has values: " + instanceID.getValues().size());
             for (EventedValue eventedValue : instanceID.getValues()) {
-                Log.i(getClass().getName(), eventedValue.getName() + " => " + eventedValue.getValue());
+                Log.v(getClass().getName(), eventedValue.getName() + " => " + eventedValue.getValue());
             }
         }
 

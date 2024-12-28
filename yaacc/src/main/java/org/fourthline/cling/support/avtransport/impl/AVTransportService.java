@@ -290,13 +290,13 @@ public class AVTransportService<T extends AVTransport> extends AbstractAVTranspo
             long id = instanceId.getValue();
             AVTransportStateMachine stateMachine = stateMachines.get(id);
             if (stateMachine == null && id == 0 && createDefaultTransport) {
-                Log.d(getClass().getName(), "Creating default transport instance with ID '0'");
+                Log.v(getClass().getName(), "Creating default transport instance with ID '0'");
                 stateMachine = createStateMachine(instanceId);
                 stateMachines.put(id, stateMachine);
             } else if (stateMachine == null) {
                 throw new AVTransportException(AVTransportErrorCode.INVALID_INSTANCE_ID);
             }
-            Log.d(getClass().getName(), "Found transport control with ID '" + id + "'");
+            Log.v(getClass().getName(), "Found transport control with ID '" + id + "'");
             return stateMachine;
         }
     }

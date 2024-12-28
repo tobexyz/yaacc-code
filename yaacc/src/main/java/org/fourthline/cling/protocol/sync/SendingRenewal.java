@@ -56,7 +56,7 @@ public class SendingRenewal extends SendingSync<OutgoingRenewalRequestMessage, I
     }
 
     protected IncomingSubscribeResponseMessage executeSync() throws RouterException {
-        Log.d(getClass().getName(), "Sending subscription renewal request: " + getInputMessage());
+        Log.v(getClass().getName(), "Sending subscription renewal request: " + getInputMessage());
 
         StreamResponseMessage response;
         try {
@@ -74,7 +74,7 @@ public class SendingRenewal extends SendingSync<OutgoingRenewalRequestMessage, I
         final IncomingSubscribeResponseMessage responseMessage = new IncomingSubscribeResponseMessage(response);
 
         if (response.getOperation().isFailed()) {
-            Log.d(getClass().getName(), "Subscription renewal failed, response was: " + response);
+            Log.v(getClass().getName(), "Subscription renewal failed, response was: " + response);
             getUpnpService().getRegistry().removeRemoteSubscription(subscription);
             getUpnpService().getConfiguration().getRegistryListenerExecutor().execute(
                     new Runnable() {
@@ -84,7 +84,7 @@ public class SendingRenewal extends SendingSync<OutgoingRenewalRequestMessage, I
                     }
             );
         } else if (!responseMessage.isValidHeaders()) {
-            Log.i(getClass().getName(), "Subscription renewal failed, invalid or missing (SID, Timeout) response headers");
+            Log.v(getClass().getName(), "Subscription renewal failed, invalid or missing (SID, Timeout) response headers");
             getUpnpService().getConfiguration().getRegistryListenerExecutor().execute(
                     new Runnable() {
                         public void run() {
@@ -93,7 +93,7 @@ public class SendingRenewal extends SendingSync<OutgoingRenewalRequestMessage, I
                     }
             );
         } else {
-            Log.d(getClass().getName(), "Subscription renewed, updating in registry, response was: " + response);
+            Log.v(getClass().getName(), "Subscription renewed, updating in registry, response was: " + response);
             subscription.setActualSubscriptionDurationSeconds(responseMessage.getSubscriptionDurationSeconds());
             getUpnpService().getRegistry().updateRemoteSubscription(subscription);
         }
@@ -102,7 +102,7 @@ public class SendingRenewal extends SendingSync<OutgoingRenewalRequestMessage, I
     }
 
     protected void onRenewalFailure() {
-        Log.d(getClass().getName(), "Subscription renewal failed, removing subscription from registry");
+        Log.v(getClass().getName(), "Subscription renewal failed, removing subscription from registry");
         getUpnpService().getRegistry().removeRemoteSubscription(subscription);
         getUpnpService().getConfiguration().getRegistryListenerExecutor().execute(
                 new Runnable() {
