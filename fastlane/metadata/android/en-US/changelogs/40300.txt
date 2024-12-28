@@ -1,0 +1,9 @@
+Version 4.3.0
+- added configurable multi language support
+- scroll position now restored on back navigation in content view
+- switching tabs by swiping is now configurable
+- it is now possible to blacklist network devices used for the media server
+- seeking forward and backward is now possible
+- minor fixes and code refactorings
+
+https://github.com/tobexyz/yaacc-code/compare/4.2.0...4.3.0
