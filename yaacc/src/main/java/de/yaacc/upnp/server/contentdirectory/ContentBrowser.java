@@ -30,6 +30,7 @@ import org.seamless.util.MimeType;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import de.yaacc.upnp.server.YaaccUpnpServerService;
 
@@ -77,5 +78,32 @@ public abstract class ContentBrowser {
         return "http://" + contentDirectory.getIpAddress() + ":"
                 + YaaccUpnpServerService.PORT + "/res/" + id + "/file." + fileExtension;
     }
+
+
+    protected String makeLikeClause(String column, int len) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(column);
+        sb.append(" like ?");
+        for (int i = 1; i < len; i++) {
+            sb.append(" or ");
+            sb.append(column);
+            sb.append(" like ? ");
+        }
+        return sb.toString();
+    }
+
+    protected List<String> getMediaPathesForLikeClause() {
+        return getMediaPathes().stream().map(it -> "%" + it + "%").collect(Collectors.toList());
+    }
+
+    protected List<String> getMediaPathes() {
+        List<String> result = new ArrayList<>();
+        result.add("DCIM/CAMERA");
+        result.add("DOWNLOADS");
+        //result.add("PICTURES");
+        return result;
+
+    }
+
 
 }
