@@ -53,6 +53,11 @@ public class Log {
         return 0;
     }
 
+    public static int v(String tag, String msg, Throwable tr) {
+        System.out.println("VERBOSE: " + tag + ": " + msg + '\n' + getStackTraceString(tr));
+        return 0;
+    }
+
     public static String getStackTraceString(Throwable tr) {
         if (tr == null) {
             return "";
