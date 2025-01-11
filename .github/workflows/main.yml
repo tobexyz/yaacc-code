@@ -4,7 +4,7 @@ name: Deploy Jekyll & Doxygen GitHub Pages dependencies preinstalled
 on:
   # Runs on pushes targeting the default branch
   push:
-    branches: [ "develop" ]
+    branches: [ "develop" , "feat/ci" ]
 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
@@ -28,6 +28,23 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Set Up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+          cache: 'gradle'
+      - name: Change wrapper permissions
+        run: chmod +x ./gradlew
+      - name: Run gradle build
+        run: ./gradlew build
+      - name: Upload APK Debug - ${{ env.repository_name }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.date_today }} - YAACC - APK(s) debug generated
+          path: ./yaacc/build/outputs/apk/debug/
+
+      # build pages
       - name: Setup Pages
         uses: actions/configure-pages@v4
       - name: Build with Jekyll
