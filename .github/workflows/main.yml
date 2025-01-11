@@ -4,7 +4,7 @@ name: Deploy debug APK, Jekyll & Doxygen GitHub Pages
 on:
   # Runs on pushes targeting the default branch
   push:
-    branches: [ "develop" , "feat/ci" ]
+    branches: [ "develop" ]
 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
