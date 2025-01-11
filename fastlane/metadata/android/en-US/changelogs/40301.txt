@@ -1,0 +1,5 @@
+Version 4.3.1
+- reduced log level of classes implementing the upnp stack
+- fixed bug in landscape layout of AVTransport player
+
+
