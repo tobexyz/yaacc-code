@@ -342,7 +342,8 @@ public class YaaccContentDirectory {
                 + " browseFlag: " + browseFlag + " filter: " + filter
                 + " firstResult: " + firstResult + " maxResults: " + maxResults
                 + " orderby: " + stream(orderby).map(SortCriterion::toString).collect(Collectors.joining(",")));
-        int childCount;
+        long childCount;
+        long totalMatches = 1L;
         DIDLObject didlObject;
         DIDLContent didl = new DIDLContent();
         if (isUsingTestContent()) {
@@ -380,6 +381,7 @@ public class YaaccContentDirectory {
         } else {
             childCount = 0;
             if (findBrowserFor(objectID) != null) {
+                totalMatches = findBrowserFor(objectID).getSize(this, objectID);
                 if (browseFlag == BrowseFlag.METADATA) {
                     didlObject = findBrowserFor(objectID).browseMeta(this, objectID, firstResult, maxResults, orderby);
                     didl.addObject(didlObject);
@@ -393,6 +395,7 @@ public class YaaccContentDirectory {
                     }
 
                 }
+
             }
         }
         BrowseResult result;
@@ -400,7 +403,7 @@ public class YaaccContentDirectory {
             // Generate output with nested items
             String didlXml = new DIDLParser().generate(didl, false);
             Log.d(getClass().getName(), "CDResponse: " + didlXml);
-            result = new BrowseResult(didlXml, childCount, childCount);
+            result = new BrowseResult(didlXml, childCount, totalMatches);
         } catch (Exception e) {
             throw new ContentDirectoryException(
                     ContentDirectoryErrorCode.CANNOT_PROCESS.getCode(),

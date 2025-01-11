@@ -25,6 +25,7 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -84,19 +85,7 @@ import de.yaacc.util.YaaccLogActivity;
  * @author Tobias Schoene (the openbit)
  */
 public class TabBrowserActivity extends AppCompatActivity implements OnClickListener {
-    private static final String[] permissions = new String[]{
-            Manifest.permission.INTERNET,
-            Manifest.permission.ACCESS_WIFI_STATE,
-            Manifest.permission.ACCESS_NETWORK_STATE,
-            Manifest.permission.CHANGE_WIFI_STATE,
-            Manifest.permission.CHANGE_WIFI_MULTICAST_STATE,
-            Manifest.permission.READ_EXTERNAL_STORAGE,
-            Manifest.permission.WRITE_EXTERNAL_STORAGE,
-            Manifest.permission.RECEIVE_BOOT_COMPLETED,
-            Manifest.permission.WAKE_LOCK,
-            Manifest.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
 
-    };
     private static final String CURRENT_TAB_KEY = "currentTab";
     //FIXME dirty
     public static boolean leftSettings = false;
@@ -111,6 +100,56 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
     private Intent serverService = null;
     private Toast volumeToast = null;
 
+    //https://developer.android.com/about/versions/14/changes/partial-photo-video-access
+    private static String[] getPermissions() {
+        if (android.os.Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            return new String[]{
+                    Manifest.permission.INTERNET,
+                    Manifest.permission.ACCESS_WIFI_STATE,
+                    Manifest.permission.ACCESS_NETWORK_STATE,
+                    Manifest.permission.CHANGE_WIFI_STATE,
+                    Manifest.permission.CHANGE_WIFI_MULTICAST_STATE,
+                    Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                    Manifest.permission.RECEIVE_BOOT_COMPLETED,
+                    Manifest.permission.WAKE_LOCK,
+                    Manifest.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                    Manifest.permission.READ_MEDIA_AUDIO,
+                    Manifest.permission.READ_MEDIA_IMAGES,
+                    Manifest.permission.READ_MEDIA_VIDEO,
+                    Manifest.permission.MANAGE_EXTERNAL_STORAGE
+
+            };
+        } else if (android.os.Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            return new String[]{
+                    Manifest.permission.INTERNET,
+                    Manifest.permission.ACCESS_WIFI_STATE,
+                    Manifest.permission.ACCESS_NETWORK_STATE,
+                    Manifest.permission.CHANGE_WIFI_STATE,
+                    Manifest.permission.CHANGE_WIFI_MULTICAST_STATE,
+                    Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                    Manifest.permission.READ_EXTERNAL_STORAGE,
+                    Manifest.permission.RECEIVE_BOOT_COMPLETED,
+                    Manifest.permission.WAKE_LOCK,
+                    Manifest.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                    Manifest.permission.MANAGE_EXTERNAL_STORAGE
+            };
+        }
+        return new String[]{
+                Manifest.permission.INTERNET,
+                Manifest.permission.ACCESS_WIFI_STATE,
+                Manifest.permission.ACCESS_NETWORK_STATE,
+                Manifest.permission.CHANGE_WIFI_STATE,
+                Manifest.permission.CHANGE_WIFI_MULTICAST_STATE,
+                Manifest.permission.READ_EXTERNAL_STORAGE,
+                Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                Manifest.permission.RECEIVE_BOOT_COMPLETED,
+                Manifest.permission.WAKE_LOCK,
+                Manifest.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
+
+        };
+
+    }
+
     @Override
     protected void onSaveInstanceState(@NonNull Bundle outState) {
         super.onSaveInstanceState(outState);
@@ -118,7 +157,7 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
     }
 
     private boolean checkIfAlreadyhavePermission() {
-        for (String permission : permissions) {
+        for (String permission : getPermissions()) {
             int permissionState = ContextCompat.checkSelfPermission(this, permission);
             if (permissionState == PackageManager.PERMISSION_DENIED) {
                 return false;
@@ -128,7 +167,7 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
     }
 
     private void requestForSpecificPermission() {
-        ActivityCompat.requestPermissions(this, permissions,
+        ActivityCompat.requestPermissions(this, getPermissions(),
                 101);
 
     }

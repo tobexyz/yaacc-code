@@ -47,11 +47,13 @@ public class RootFolderBrowser extends ContentBrowser {
     @Override
     public DIDLObject browseMeta(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
 
-        return new StorageFolder(ContentDirectoryIDs.ROOT.getId(), ContentDirectoryIDs.PARENT_OF_ROOT.getId(), "Yaacc", "yaacc", getSize(),
+        return new StorageFolder(ContentDirectoryIDs.ROOT.getId(), ContentDirectoryIDs.PARENT_OF_ROOT.getId(), "Yaacc", "yaacc", getSize(contentDirectory, myId),
                 null);
     }
 
-    private Integer getSize() {
+    @Override
+    public Integer getSize(YaaccContentDirectory contentDirectory, String myId) {
+
         int result = 0;
         if (isServingMusic()) {
             result++;

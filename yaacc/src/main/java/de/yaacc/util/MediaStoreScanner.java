@@ -29,7 +29,6 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import de.yaacc.R;
 
@@ -40,6 +39,7 @@ public class MediaStoreScanner {
     }
 
     public void scanMediaFiles(Activity context) {
+        checkPermissions(context);
         Toast.makeText(context,
                 context.getString(R.string.media_store_scanner_scan_triggered),
                 Toast.LENGTH_SHORT).show();
@@ -48,7 +48,7 @@ public class MediaStoreScanner {
         dirsToScan.add(Environment.getExternalStorageDirectory());
         dirsToScan.addAll(recursiveListFiles(Environment.getExternalStorageDirectory()));
         final Point filesSize = new Point(dirsToScan.size(), dirsToScan.size());
-        MediaScannerConnection.scanFile(context, dirsToScan.stream().map(it -> it.getAbsolutePath()).collect(Collectors.toList()).toArray(new String[0]), null, (String path, Uri uri) -> {
+        MediaScannerConnection.scanFile(context, dirsToScan.stream().map(File::getAbsolutePath).toArray(String[]::new), null, (String path, Uri uri) -> {
             filesSize.x--;
             if (filesSize.x <= 0) {
                 context.runOnUiThread(() -> {
@@ -59,6 +59,18 @@ public class MediaStoreScanner {
             }
         });
     }
+
+    private void checkPermissions(Activity context) {
+        /*if (ActivityCompat.shouldShowRequestPermissionRationale(context, Manifest.permission.READ_EXTERNAL_STORAGE)) {
+            Toast.makeText(context, "Storage permission required. Please allow this permission", Toast.LENGTH_LONG).show();
+            ActivityCompat.requestPermissions(context,
+                    new String[]{Manifest.permission.READ_MEDIA_AUDIO}, 100);
+        } else {
+            ActivityCompat.requestPermissions(context,
+                    new String[]{android.Manifest.permission.READ_EXTERNAL_STORAGE}, 100);
+        }*/
+    }
+
 
     public List<File> recursiveListFiles(File directory) {
         File[] files = directory.listFiles();

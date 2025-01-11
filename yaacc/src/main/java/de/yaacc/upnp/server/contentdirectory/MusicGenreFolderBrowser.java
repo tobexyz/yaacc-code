@@ -26,6 +26,8 @@ import android.util.Log;
 
 import org.fourthline.cling.support.model.DIDLObject;
 import org.fourthline.cling.support.model.PersonWithRole;
+import org.fourthline.cling.support.model.Protocol;
+import org.fourthline.cling.support.model.ProtocolInfo;
 import org.fourthline.cling.support.model.Res;
 import org.fourthline.cling.support.model.SortCriterion;
 import org.fourthline.cling.support.model.container.Container;
@@ -35,7 +37,6 @@ import org.seamless.util.MimeType;
 
 import java.net.URI;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 
 import de.yaacc.upnp.server.YaaccUpnpServerService;
@@ -89,7 +90,8 @@ public class MusicGenreFolderBrowser extends ContentBrowser {
         return result;
     }
 
-    private Integer getSize(YaaccContentDirectory contentDirectory, String myId) {
+    @Override
+    public Integer getSize(YaaccContentDirectory contentDirectory, String myId) {
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
             String[] projection = {MediaStore.Audio.Media._ID};
             String selection = MediaStore.Audio.Media.GENRE_ID + "=?";
@@ -252,7 +254,8 @@ public class MusicGenreFolderBrowser extends ContentBrowser {
                                 + contentDirectory.getIpAddress() + ":"
                                 + YaaccUpnpServerService.PORT + "/album/" + albumId);
 
-                        Res resource = new Res(mimeType, size, uri);
+                        ProtocolInfo protocolInfo = new ProtocolInfo(Protocol.HTTP_GET, ProtocolInfo.WILDCARD, mimeType.toString(), getDLNAAttributes(mimeType));
+                        Res resource = new Res(protocolInfo, size, uri);
 
                         resource.setDuration(duration);
                         MusicTrack musicTrack = new MusicTrack(
@@ -286,7 +289,7 @@ public class MusicGenreFolderBrowser extends ContentBrowser {
                 Log.d(getClass().getName(), "System media store is empty.");
             }
         }
-        result.sort(Comparator.comparing(DIDLObject::getTitle));
+
         return result;
 
     }

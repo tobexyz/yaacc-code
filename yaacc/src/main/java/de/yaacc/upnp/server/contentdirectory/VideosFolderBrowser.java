@@ -25,6 +25,8 @@ import android.provider.MediaStore;
 import android.util.Log;
 
 import org.fourthline.cling.support.model.DIDLObject;
+import org.fourthline.cling.support.model.Protocol;
+import org.fourthline.cling.support.model.ProtocolInfo;
 import org.fourthline.cling.support.model.Res;
 import org.fourthline.cling.support.model.SortCriterion;
 import org.fourthline.cling.support.model.container.Container;
@@ -57,10 +59,11 @@ public class VideosFolderBrowser extends ContentBrowser {
 
     }
 
-    private Integer getSize(YaaccContentDirectory contentDirectory, String myId) {
+    @Override
+    public Integer getSize(YaaccContentDirectory contentDirectory, String myId) {
         String[] projection = {MediaStore.Video.Media._ID};
-        String selection = "";
-        String[] selectionArgs = null;
+        String selection = "(" + makeLikeClause(MediaStore.Video.Media.RELATIVE_PATH, getMediaPathes().size()) + ")";
+        String[] selectionArgs = getMediaPathesForLikeClause().toArray(new String[0]);
         try (Cursor cursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, projection, selection,
                 selectionArgs, null)) {
             return cursor.getCount();
@@ -78,8 +81,8 @@ public class VideosFolderBrowser extends ContentBrowser {
         List<Item> result = new ArrayList<>();
         String[] projection = {MediaStore.Video.Media._ID, MediaStore.Video.Media.DISPLAY_NAME, MediaStore.Video.Media.MIME_TYPE,
                 MediaStore.Video.Media.SIZE, MediaStore.Video.Media.DURATION};
-        String selection = "";
-        String[] selectionArgs = null;
+        String selection = "(" + makeLikeClause(MediaStore.Video.Media.RELATIVE_PATH, getMediaPathes().size()) + ")";
+        String[] selectionArgs = getMediaPathesForLikeClause().toArray(new String[0]);
         try (Cursor mediaCursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, projection, selection,
                 selectionArgs, MediaStore.Video.Media.DISPLAY_NAME + " ASC")) {
 
@@ -100,7 +103,8 @@ public class VideosFolderBrowser extends ContentBrowser {
                         // file parameter only needed for media players which decide the
                         // ability of playing a file by the file extension
                         String uri = getUriString(contentDirectory, id, mimeType);
-                        Res resource = new Res(mimeType, size, uri);
+                        ProtocolInfo protocolInfo = new ProtocolInfo(Protocol.HTTP_GET, ProtocolInfo.WILDCARD, mimeType.toString(), getDLNAAttributes(mimeType));
+                        Res resource = new Res(protocolInfo, size, uri);
                         resource.setDuration(duration);
                         result.add(new VideoItem(ContentDirectoryIDs.VIDEO_PREFIX.getId() + id, ContentDirectoryIDs.VIDEOS_FOLDER.getId(), name, "", resource));
                         Log.d(getClass().getName(), "VideoItem: " + id + " Name: " + name + " uri: " + uri);

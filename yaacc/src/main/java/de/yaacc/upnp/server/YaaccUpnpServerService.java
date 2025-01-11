@@ -329,7 +329,7 @@ public class YaaccUpnpServerService extends Service {
             new Timer().schedule(new TimerTask() {
                 @Override
                 public void run() {
-                    Log.d(YaaccUpnpServerService.this.getClass().getName(), "Sending upnp alive notivication");
+                    Log.v(YaaccUpnpServerService.this.getClass().getName(), "Sending upnp alive notivication");
                     SendingNotificationAlive sendingNotificationAlive;
                     if (localServer != null) {
                         sendingNotificationAlive = new SendingNotificationAlive(getUpnpClient().getRegistry().getUpnpService(), localServer);
@@ -854,6 +854,11 @@ public class YaaccUpnpServerService extends Service {
     public static String getIpAddress(Context context) {
         return getIfAndIpAddress(context)[0];
     }
+
+    public static String getIfName(Context context) {
+        return getIfAndIpAddress(context)[1];
+    }
+
 
     public static String[] getIfAndIpAddress(Context context) {
         String hostAddress = null;

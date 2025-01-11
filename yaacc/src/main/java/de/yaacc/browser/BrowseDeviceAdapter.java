@@ -146,14 +146,14 @@ public class BrowseDeviceAdapter extends RecyclerView.Adapter<BrowseDeviceAdapte
         public ViewHolder(View itemView, Context context) {
             super(itemView);
             this.context = context;
-            this.icon = (ImageView) itemView.findViewById(R.id.browseDeviceItemIcon);
-            this.name = (TextView) itemView.findViewById(R.id.browseDeviceItemName);
-            this.scanButtonLabel = (TextView) itemView.findViewById(R.id.browseDeviceItemMediaStoreScanLabel);
-            this.scanButton = (ImageButton) itemView.findViewById(R.id.browseDeviceItemRescan);
+            this.icon = itemView.findViewById(R.id.browseDeviceItemIcon);
+            this.name = itemView.findViewById(R.id.browseDeviceItemName);
+            this.scanButtonLabel = itemView.findViewById(R.id.browseDeviceItemMediaStoreScanLabel);
+            this.scanButton = itemView.findViewById(R.id.browseDeviceItemRescan);
             scanButton.setOnClickListener((v) -> {
                 new MediaStoreScanner().scanMediaFiles(getActivity(v.getContext()));
             });
-            this.configButton = (ImageButton) itemView.findViewById(R.id.browseDeviceItemConfig);
+            this.configButton = itemView.findViewById(R.id.browseDeviceItemConfig);
             configButton.setOnClickListener((v) -> {
                 ViewHolder.this.context.startActivity(new Intent(ViewHolder.this.context, YaaccUpnpServerControlActivity.class));
             });

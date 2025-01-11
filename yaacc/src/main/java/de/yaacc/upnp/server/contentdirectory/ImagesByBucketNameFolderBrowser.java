@@ -26,6 +26,8 @@ import android.util.Log;
 
 import org.fourthline.cling.support.model.DIDLObject;
 import org.fourthline.cling.support.model.DIDLObject.Property.UPNP;
+import org.fourthline.cling.support.model.Protocol;
+import org.fourthline.cling.support.model.ProtocolInfo;
 import org.fourthline.cling.support.model.Res;
 import org.fourthline.cling.support.model.SortCriterion;
 import org.fourthline.cling.support.model.container.Container;
@@ -58,7 +60,8 @@ public class ImagesByBucketNameFolderBrowser extends ContentBrowser {
                 contentDirectory, myId), "yaacc", getSize(contentDirectory, myId), null);
     }
 
-    private Integer getSize(YaaccContentDirectory contentDirectory, String myId) {
+    @Override
+    public Integer getSize(YaaccContentDirectory contentDirectory, String myId) {
 
         String[] projection = {MediaStore.Images.Media.BUCKET_ID};
         String selection = MediaStore.Images.Media.BUCKET_ID + "=?";
@@ -122,7 +125,8 @@ public class ImagesByBucketNameFolderBrowser extends ContentBrowser {
                         // file parameter only needed for media players which decide the
                         // ability of playing a file by the file extension
                         String uri = getUriString(contentDirectory, id, mimeType);
-                        Res resource = new Res(mimeType, size, uri);
+                        ProtocolInfo protocolInfo = new ProtocolInfo(Protocol.HTTP_GET, ProtocolInfo.WILDCARD, mimeType.toString(), getDLNAAttributes(mimeType));
+                        Res resource = new Res(protocolInfo, size, uri);
 
                         Photo photo = new Photo(ContentDirectoryIDs.IMAGE_BY_BUCKET_PREFIX.getId() + id, myId, name, "", "", resource);
                         URI albumArtUri = URI.create("http://"

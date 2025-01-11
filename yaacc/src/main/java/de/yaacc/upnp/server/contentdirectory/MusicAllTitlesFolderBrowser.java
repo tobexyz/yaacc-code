@@ -27,6 +27,8 @@ import android.util.Log;
 import org.fourthline.cling.support.model.DIDLObject;
 import org.fourthline.cling.support.model.DIDLObject.Property.UPNP;
 import org.fourthline.cling.support.model.PersonWithRole;
+import org.fourthline.cling.support.model.Protocol;
+import org.fourthline.cling.support.model.ProtocolInfo;
 import org.fourthline.cling.support.model.Res;
 import org.fourthline.cling.support.model.SortCriterion;
 import org.fourthline.cling.support.model.container.Container;
@@ -36,7 +38,6 @@ import org.seamless.util.MimeType;
 
 import java.net.URI;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 
 import de.yaacc.R;
@@ -62,25 +63,27 @@ public class MusicAllTitlesFolderBrowser extends ContentBrowser {
                 getSize(contentDirectory, myId), items);
 */
 
-
-        return new StorageFolder(myId, ContentDirectoryIDs.MUSIC_ALL_TITLES_FOLDER.getId(), getContext().getString(R.string.all), "yaacc", getSize(
+        Log.d(getClass().getName(), "Foo2: " + myId + " first: " + firstResult + " max: " + maxResults);
+        return new StorageFolder(myId, ContentDirectoryIDs.MUSIC_FOLDER.getId(), getContext().getString(R.string.all), "yaacc", getSize(
                 contentDirectory, myId), null);
 
     }
 
-    private Integer getSize(YaaccContentDirectory contentDirectory, String myId) {
+    @Override
+    public Integer getSize(YaaccContentDirectory contentDirectory, String myId) {
 
         String[] projection = {MediaStore.Audio.Media._ID};
+        //String selection = "(" + makeLikeClause(MediaStore.Audio.Media.RELATIVE_PATH, getMediaPathes().size()) + ")";
+        //String[] selectionArgs = getMediaPathesForLikeClause().toArray(new String[0]);
         String selection = "";
         String[] selectionArgs = null;
         try (Cursor cursor = contentDirectory
                 .getContext()
                 .getContentResolver()
-                .query(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, projection,
+                .query(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, projection,
                         selection, selectionArgs, null)) {
             return cursor.getCount();
         }
-
     }
 
     @Override
@@ -107,6 +110,7 @@ public class MusicAllTitlesFolderBrowser extends ContentBrowser {
                     MediaStore.Audio.Media.ARTIST,
                     MediaStore.Audio.Media.DURATION,
                     MediaStore.Audio.Media.BITRATE,
+                    MediaStore.Audio.Media.RELATIVE_PATH,
                     MediaStore.Audio.Media.GENRE};
         } else {
             projection = new String[]{MediaStore.Audio.Media._ID,
@@ -119,6 +123,8 @@ public class MusicAllTitlesFolderBrowser extends ContentBrowser {
                     MediaStore.Audio.Media.ARTIST,
                     MediaStore.Audio.Media.DURATION};
         }
+        //String selection = "(" + makeLikeClause(MediaStore.Audio.Media.RELATIVE_PATH, getMediaPathes().size()) + ")";
+        //String[] selectionArgs = getMediaPathesForLikeClause().toArray(new String[0]);
         String selection = "";
         String[] selectionArgs = null;
         try (Cursor mediaCursor = contentDirectory
@@ -133,6 +139,7 @@ public class MusicAllTitlesFolderBrowser extends ContentBrowser {
                 int currentCount = 0;
                 while (!mediaCursor.isAfterLast() && currentCount < maxResults) {
                     if (firstResult <= currentIndex) {
+                        Log.d(getClass().getName(), "browse firstResult: " + firstResult + " currentIndex:" + currentIndex + " currentCount: " + currentCount);
                         @SuppressLint("Range") String id = mediaCursor.getString(mediaCursor
                                 .getColumnIndex(MediaStore.Audio.Media._ID));
                         @SuppressLint("Range") String name = mediaCursor.getString(mediaCursor
@@ -156,9 +163,16 @@ public class MusicAllTitlesFolderBrowser extends ContentBrowser {
                                         + mediaCursor.getString(mediaCursor
                                         .getColumnIndex(MediaStore.Audio.Media.MIME_TYPE)));
 
+                        Log.d(getClass().getName(),
+                                "PATH: "
+                                        + mediaCursor.getString(mediaCursor
+                                        .getColumnIndex(MediaStore.Audio.Media.RELATIVE_PATH)));
+
+
                         MimeType mimeType = MimeType
                                 .valueOf(mediaCursor.getString(mediaCursor
                                         .getColumnIndex(MediaStore.Audio.Media.MIME_TYPE)));
+
                         // file parameter only needed for media players which decide
                         // the
                         // ability of playing a file by the file extension
@@ -166,11 +180,12 @@ public class MusicAllTitlesFolderBrowser extends ContentBrowser {
                         URI albumArtUri = URI.create("http://"
                                 + contentDirectory.getIpAddress() + ":"
                                 + YaaccUpnpServerService.PORT + "/album/" + albumId);
-                        Res resource = new Res(mimeType, size, uri);
+                        ProtocolInfo protocolInfo = new ProtocolInfo(Protocol.HTTP_GET, ProtocolInfo.WILDCARD, mimeType.toString(), getDLNAAttributes(mimeType));
+                        Res resource = new Res(protocolInfo, size, uri);
                         resource.setDuration(duration);
                         MusicTrack musicTrack = new MusicTrack(
                                 ContentDirectoryIDs.MUSIC_ALL_TITLES_ITEM_PREFIX.getId()
-                                        + id, ContentDirectoryIDs.MUSIC_FOLDER.getId(),
+                                        + id, ContentDirectoryIDs.MUSIC_ALL_TITLES_FOLDER.getId(),
                                 title + "-(" + name + ")", "", album, artist, resource);
                         musicTrack.replaceFirstProperty(new UPNP.ALBUM_ART_URI(
                                 albumArtUri));
@@ -197,7 +212,6 @@ public class MusicAllTitlesFolderBrowser extends ContentBrowser {
                 Log.d(getClass().getName(), "System media store is empty.");
             }
         }
-        result.sort(Comparator.comparing(DIDLObject::getTitle));
         return result;
 
     }

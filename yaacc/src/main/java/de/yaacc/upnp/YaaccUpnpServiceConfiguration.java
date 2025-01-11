@@ -18,6 +18,8 @@
  */
 package de.yaacc.upnp;
 
+import android.content.Context;
+
 import org.fourthline.cling.DefaultUpnpServiceConfiguration;
 import org.fourthline.cling.binding.xml.DeviceDescriptorBinder;
 import org.fourthline.cling.binding.xml.RecoveringUDA10DeviceDescriptorBinderImpl;
@@ -27,7 +29,6 @@ import org.fourthline.cling.model.Namespace;
 import org.fourthline.cling.model.types.ServiceType;
 import org.fourthline.cling.model.types.UDAServiceType;
 import org.fourthline.cling.protocol.ProtocolFactory;
-import org.fourthline.cling.transport.impl.NetworkAddressFactoryImpl;
 import org.fourthline.cling.transport.impl.RecoveringGENAEventProcessorImpl;
 import org.fourthline.cling.transport.impl.RecoveringSOAPActionProcessorImpl;
 import org.fourthline.cling.transport.spi.GENAEventProcessor;
@@ -39,14 +40,16 @@ import org.fourthline.cling.transport.spi.StreamServer;
 public class YaaccUpnpServiceConfiguration extends DefaultUpnpServiceConfiguration {
 
     private static final int PORT = 49154;
+    private final Context context;
 
 
-    public YaaccUpnpServiceConfiguration() {
-        this(PORT);
+    public YaaccUpnpServiceConfiguration(Context context) {
+        this(PORT, context);
     }
 
-    public YaaccUpnpServiceConfiguration(int streamListenPort) {
+    public YaaccUpnpServiceConfiguration(int streamListenPort, Context context) {
         super(streamListenPort, false);
+        this.context = context;
 
         // This should be the default on Android 2.1 but it's not set by default
         //FIXME really needed? System.setProperty("org.xml.sax.driver", "org.xmlpull.v1.sax2.Driver");
@@ -54,7 +57,7 @@ public class YaaccUpnpServiceConfiguration extends DefaultUpnpServiceConfigurati
 
     @Override
     protected NetworkAddressFactory createNetworkAddressFactory(int streamListenPort) {
-        return new NetworkAddressFactoryImpl(streamListenPort);
+        return new YaaccNetworkAddressFactoryImpl(streamListenPort, context);
     }
 
     @Override

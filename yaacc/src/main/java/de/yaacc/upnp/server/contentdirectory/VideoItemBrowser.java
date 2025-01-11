@@ -25,6 +25,8 @@ import android.provider.MediaStore;
 import android.util.Log;
 
 import org.fourthline.cling.support.model.DIDLObject;
+import org.fourthline.cling.support.model.Protocol;
+import org.fourthline.cling.support.model.ProtocolInfo;
 import org.fourthline.cling.support.model.Res;
 import org.fourthline.cling.support.model.SortCriterion;
 import org.fourthline.cling.support.model.container.Container;
@@ -70,7 +72,8 @@ public class VideoItemBrowser extends ContentBrowser {
                 // file parameter only needed for media players which decide the
                 // ability of playing a file by the file extension
                 String uri = getUriString(contentDirectory, id, mimeType);
-                Res resource = new Res(mimeType, size, uri);
+                ProtocolInfo protocolInfo = new ProtocolInfo(Protocol.HTTP_GET, ProtocolInfo.WILDCARD, mimeType.toString(), getDLNAAttributes(mimeType));
+                Res resource = new Res(protocolInfo, size, uri);
                 resource.setDuration(duration);
                 result = new VideoItem(ContentDirectoryIDs.VIDEO_PREFIX.getId() + id, ContentDirectoryIDs.VIDEOS_FOLDER.getId(), name, "", resource);
                 Log.d(getClass().getName(), "VideoItem: " + id + " Name: " + name + " uri: " + uri);
@@ -83,6 +86,13 @@ public class VideoItemBrowser extends ContentBrowser {
 
         return result;
     }
+
+    @Override
+    public Integer getSize(YaaccContentDirectory contentDirectory, String myId) {
+
+        return 1;
+    }
+
 
     @Override
     public List<Container> browseContainer(

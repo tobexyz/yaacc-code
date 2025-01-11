@@ -27,6 +27,8 @@ import android.util.Log;
 import org.fourthline.cling.support.model.DIDLObject;
 import org.fourthline.cling.support.model.DIDLObject.Property.UPNP;
 import org.fourthline.cling.support.model.PersonWithRole;
+import org.fourthline.cling.support.model.Protocol;
+import org.fourthline.cling.support.model.ProtocolInfo;
 import org.fourthline.cling.support.model.Res;
 import org.fourthline.cling.support.model.SortCriterion;
 import org.fourthline.cling.support.model.container.Container;
@@ -126,7 +128,8 @@ public class MusicArtistItemBrowser extends ContentBrowser {
                 URI albumArtUri = URI.create("http://"
                         + contentDirectory.getIpAddress() + ":"
                         + YaaccUpnpServerService.PORT + "/album/" + albumId);
-                Res resource = new Res(mimeType, size, uri);
+                ProtocolInfo protocolInfo = new ProtocolInfo(Protocol.HTTP_GET, ProtocolInfo.WILDCARD, mimeType.toString(), getDLNAAttributes(mimeType));
+                Res resource = new Res(protocolInfo, size, uri);
                 resource.setDuration(duration);
                 MusicTrack musicTrack = new MusicTrack(
                         ContentDirectoryIDs.MUSIC_ARTIST_ITEM_PREFIX.getId() + id,
@@ -153,6 +156,12 @@ public class MusicArtistItemBrowser extends ContentBrowser {
             }
         }
         return result;
+    }
+
+    @Override
+    public Integer getSize(YaaccContentDirectory contentDirectory, String myId) {
+
+        return 1;
     }
 
     @Override

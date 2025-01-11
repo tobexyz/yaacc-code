@@ -32,7 +32,6 @@ import org.fourthline.cling.support.model.container.StorageFolder;
 import org.fourthline.cling.support.model.item.Item;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -58,7 +57,8 @@ public class MusicArtistsFolderBrowser extends ContentBrowser {
 
     }
 
-    private Integer getSize(YaaccContentDirectory contentDirectory, String myId) {
+    @Override
+    public Integer getSize(YaaccContentDirectory contentDirectory, String myId) {
 
         String[] projection = {MediaStore.Audio.Artists._ID};
         String selection = "";
@@ -116,7 +116,6 @@ public class MusicArtistsFolderBrowser extends ContentBrowser {
                 Log.d(getClass().getName(), "System media store is empty.");
             }
         }
-        result.sort(Comparator.comparing(DIDLObject::getTitle));
         Log.d(getClass().getName(), "Returning " + result.size() + " MusicAlbum Containers");
         return result;
     }
