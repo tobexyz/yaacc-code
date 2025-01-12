@@ -864,14 +864,15 @@ public class YaaccUpnpServerService extends Service {
         String hostAddress = null;
         String[] result = new String[2];
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
-        List<String> interfaces = List.of(preferences.getString(context.getString(R.string.settings_local_server_if_filter_key), "").split(","));
+        List<String> interfaces = new ArrayList<>(List.of(preferences.getString(context.getString(R.string.settings_local_server_if_filter_key), "lo,dummy,rmnet,ccmni").split(",")));
+        interfaces.remove(""); //remove empty string, if there, otherwise we got into trouble finding an network interface in code  below
         try {
             for (Enumeration<NetworkInterface> networkInterfaces = NetworkInterface
                     .getNetworkInterfaces(); networkInterfaces
                          .hasMoreElements(); ) {
                 NetworkInterface networkInterface = networkInterfaces
                         .nextElement();
-                if (interfaces.stream().filter(i -> networkInterface.getName().startsWith(i)).collect(Collectors.toList()).isEmpty()) {
+                if (interfaces.stream().filter(i -> networkInterface.getName().startsWith(i.trim())).collect(Collectors.toList()).isEmpty()) {
                     for (Enumeration<InetAddress> inetAddresses = networkInterface
                             .getInetAddresses(); inetAddresses.hasMoreElements(); ) {
                         InetAddress inetAddress = inetAddresses.nextElement();
@@ -879,11 +880,9 @@ public class YaaccUpnpServerService extends Service {
                                 .getHostAddress() != null
                                 && IPV4_PATTERN.matcher(inetAddress
                                 .getHostAddress()).matches()) {
-
                             hostAddress = inetAddress.getHostAddress();
                             result[1] = networkInterface.getName();
                         }
-
                     }
                 }
             }

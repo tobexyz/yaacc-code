@@ -68,12 +68,17 @@ public class YaaccNetworkAddressFactoryImpl implements NetworkAddressFactory {
     @Override
     public Iterator<NetworkInterface> getNetworkInterfaces() {
         List<NetworkInterface> ifList = new ArrayList<>();
-        try {
-            ifList.add(NetworkInterface.getByName(YaaccUpnpServerService.getIfName(context)));
-        } catch (
-                SocketException se) {
+        if (YaaccUpnpServerService.getIfName(context) != null) {
+            try {
+                ifList.add(NetworkInterface.getByName(YaaccUpnpServerService.getIfName(context)));
+            } catch (
+                    SocketException se) {
+                Log.d(getClass().getName(),
+                        "Error while retrieving network interfaces", se);
+            }
+        } else {
             Log.d(getClass().getName(),
-                    "Error while retrieving network interfaces", se);
+                    "network interface name is null, maybe device is offline");
         }
         return ifList.iterator();
     }
@@ -82,15 +87,20 @@ public class YaaccNetworkAddressFactoryImpl implements NetworkAddressFactory {
     @Override
     public Iterator<InetAddress> getBindAddresses() {
         List<InetAddress> result = new ArrayList<>();
-        try {
-            Enumeration<InetAddress> iter = NetworkInterface.getByName(YaaccUpnpServerService.getIfName(context)).getInetAddresses();
-            while (iter.hasMoreElements()) {
-                result.add(iter.nextElement());
+        if (YaaccUpnpServerService.getIfName(context) != null) {
+            try {
+                Enumeration<InetAddress> iter = NetworkInterface.getByName(YaaccUpnpServerService.getIfName(context)).getInetAddresses();
+                while (iter.hasMoreElements()) {
+                    result.add(iter.nextElement());
+                }
+            } catch (
+                    SocketException se) {
+                Log.d(getClass().getName(),
+                        "Error while retrieving network interfaces", se);
             }
-        } catch (
-                SocketException se) {
+        } else {
             Log.d(getClass().getName(),
-                    "Error while retrieving network interfaces", se);
+                    "network interface name is null, maybe device is offline");
         }
         return result.iterator();
     }

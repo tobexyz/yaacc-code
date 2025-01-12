@@ -35,6 +35,7 @@ import androidx.preference.PreferenceManager;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.EntityDetails;
 import org.apache.hc.core5.http.HttpException;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.hc.core5.http.HttpRequest;
 import org.apache.hc.core5.http.HttpStatus;
 import org.apache.hc.core5.http.Message;
@@ -58,6 +59,7 @@ import java.io.InputStream;
 import java.net.URL;
 import java.net.URLConnection;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
@@ -151,7 +153,7 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
                 return;
             }
         }
-
+        Arrays.stream(request.getHead().getHeaders()).forEach(it -> Log.d(getClass().getName(), "HEADER " + it.getName() + ": " + it.getValue()));
         ContentHolder contentHolder = null;
 
         if (!contentId.isEmpty()) {
@@ -177,6 +179,7 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
             responseBuilder.setStatus(HttpStatus.SC_OK);
             responseBuilder.setEntity(contentHolder.getEntityProducer());
         }
+        responseBuilder.setHeader(HttpHeaders.ACCEPT_RANGES, "none");
         responseTrigger.submitResponse(responseBuilder.build(), context);
         Log.d(getClass().getName(), "end doService: ");
     }
