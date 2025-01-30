@@ -56,6 +56,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.RandomAccessFile;
 import java.net.URL;
 import java.net.URLConnection;
 import java.nio.ByteBuffer;
@@ -64,6 +65,7 @@ import java.util.List;
 import java.util.Locale;
 
 import de.yaacc.R;
+import de.yaacc.util.HttpRange;
 
 /**
  * A http service to retrieve media content by an id.
@@ -115,6 +117,8 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
             Log.d(getClass().getName(), "end doService: Access denied");
             return;
         }
+
+
         String type = pathSegments.get(0);
         String albumId = "";
         String thumbId = "";
@@ -154,16 +158,16 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
             }
         }
         Arrays.stream(request.getHead().getHeaders()).forEach(it -> Log.d(getClass().getName(), "HEADER " + it.getName() + ": " + it.getValue()));
+        List<HttpRange> ranges = HttpRange.parseRangeHeader(request.getHead().getHeader(HttpHeaders.RANGE).toString());
         ContentHolder contentHolder = null;
-
         if (!contentId.isEmpty()) {
-            contentHolder = lookupContent(contentId);
+            contentHolder = lookupContent(contentId, ranges);
         } else if (!albumId.isEmpty()) {
-            contentHolder = lookupAlbumArt(albumId);
+            contentHolder = lookupAlbumArt(albumId, ranges);
         } else if (!thumbId.isEmpty()) {
-            contentHolder = lookupThumbnail(thumbId);
+            contentHolder = lookupThumbnail(thumbId, ranges);
         } else if (YaaccUpnpServerService.PROXY_PATH.equals(type)) {
-            contentHolder = lookupProxyContent(pathSegments.get(1));
+            contentHolder = lookupProxyContent(pathSegments.get(1), ranges);
         }
         if (contentHolder == null) {
             // tricky but works
@@ -194,7 +198,7 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
      * @param contentId the id of the content
      * @return the content description
      */
-    private ContentHolder lookupContent(String contentId) {
+    private ContentHolder lookupContent(String contentId, List<HttpRange> ranges) {
         ContentHolder result = null;
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(getContext());
         if (!preferences.getBoolean(getContext().getString(R.string.settings_local_server_chkbx), false)) {
@@ -229,7 +233,7 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
                     }
                     Log.d(getClass().getName(), "Content found: " + mimeType
                             + " Uri: " + dataUri);
-                    result = new ContentHolder(mimeType, dataUri);
+                    result = new ContentHolder(mimeType, dataUri, ranges);
                     mFilesCursor.moveToNext();
                 }
             } else {
@@ -247,10 +251,10 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
      * @param albumId the id of the album
      * @return the content description
      */
-    private ContentHolder lookupAlbumArt(String albumId) {
+    private ContentHolder lookupAlbumArt(String albumId, List<HttpRange> ranges) {
 
         ContentHolder result = new ContentHolder(MimeType.valueOf("image/png"),
-                getDefaultIcon());
+                getDefaultIcon(), ranges);
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(getContext());
         if (!preferences.getBoolean(getContext().getString(R.string.settings_local_server_chkbx), false)) {
             return result;
@@ -288,7 +292,7 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
                     if (dataUri != null) {
                         Log.d(getClass().getName(), "Content found: " + mimeType
                                 + " Uri: " + dataUri);
-                        result = new ContentHolder(mimeType, dataUri);
+                        result = new ContentHolder(mimeType, dataUri, ranges);
                     }
                     cursor.moveToNext();
                 }
@@ -305,10 +309,10 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
      * @param idStr the id of the thumbnail
      * @return the content description
      */
-    private ContentHolder lookupThumbnail(String idStr) {
+    private ContentHolder lookupThumbnail(String idStr, List<HttpRange> ranges) {
 
         ContentHolder result = new ContentHolder(MimeType.valueOf("image/png"),
-                getDefaultIcon());
+                getDefaultIcon(), ranges);
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(getContext());
         if (!preferences.getBoolean(getContext().getString(R.string.settings_local_server_chkbx), false)) {
             return result;
@@ -336,7 +340,7 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
 
             MimeType mimeType = MimeType.valueOf("image/png");
 
-            result = new ContentHolder(mimeType, byteArray);
+            result = new ContentHolder(mimeType, byteArray, ranges);
 
         } else {
             Log.d(getClass().getName(), "System media store is empty.");
@@ -344,7 +348,7 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
         return result;
     }
 
-    private ContentHolder lookupProxyContent(String contentKey) {
+    private ContentHolder lookupProxyContent(String contentKey, List<HttpRange> ranges) {
 
         String targetUri = PreferenceManager.getDefaultSharedPreferences(getContext()).getString(YaaccUpnpServerService.PROXY_LINK_KEY_PREFIX + contentKey, null);
         if (targetUri == null) {
@@ -355,7 +359,7 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
         if (targetMimetype != null) {
             mimeType = MimeType.valueOf(targetMimetype);
         }
-        return new ContentHolder(mimeType, targetUri);
+        return new ContentHolder(mimeType, targetUri, ranges);
     }
 
     private byte[] getDefaultIcon() {
@@ -380,15 +384,19 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
         private String uri;
         private byte[] content;
 
-        public ContentHolder(MimeType mimeType, String uri) {
+        private List<HttpRange> ranges;
+
+        public ContentHolder(MimeType mimeType, String uri, List<HttpRange> ranges) {
             this.uri = uri;
             this.mimeType = mimeType;
+            this.ranges = ranges;
 
         }
 
-        public ContentHolder(MimeType mimeType, byte[] content) {
+        public ContentHolder(MimeType mimeType, byte[] content, List<HttpRange> ranges) {
             this.content = content;
             this.mimeType = mimeType;
+            this.ranges = ranges;
 
         }
 
@@ -406,16 +414,58 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
             return mimeType;
         }
 
+        private byte[] readRangeFormFile(File file, List<HttpRange> ranges) throws IOException {
 
-        public AsyncEntityProducer getEntityProducer() {
+
+            try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
+                long fileSize = raf.length();
+                long startPosition;
+                long rangeLength;
+                if (ranges.size() > 1) {
+                    Log.d(getClass().getName(), "More than on ranges requested. Currently only one range is supported. Responding with the first range");
+                }
+                if (ranges.isEmpty()) {
+                    startPosition = 0;
+                    rangeLength = fileSize;
+                } else {
+                    HttpRange range = ranges.get(0);
+                    startPosition = range.getStart();
+                    if (range.getEnd() == 0) {
+                        rangeLength = fileSize;
+                    } else {
+                        rangeLength = range.getEnd() - range.getStart();
+                    }
+                    if (range.getSuffixLength() > 0) {
+                        startPosition = fileSize - range.getSuffixLength();
+                        rangeLength = range.getSuffixLength();
+                    }
+                }
+
+                // Read a range of bytes (e.g., bytes 100 to 200)
+                if (startPosition < 0 || startPosition + rangeLength > fileSize) {
+                    throw new IllegalArgumentException("Invalid range");
+                }
+
+                raf.seek(startPosition); // Move to the starting position
+                byte[] buffer = new byte[(int) rangeLength]; // Create a buffer
+                raf.read(buffer);
+                return buffer;
+            }
+
+        }
+
+        public AsyncEntityProducer getEntityProducer() throws IOException {
             AsyncEntityProducer result = null;
             if (getUri() != null && !getUri().isEmpty()) {
                 if (new File(getUri()).exists()) {
-
-                    File file = new File(getUri());
-                    result = AsyncEntityProducers.create(file, ContentType.parse(getMimeType().toString()));
-                    Log.d(getClass().getName(), "Return file-Uri: " + getUri()
-                            + "Mimetype: " + getMimeType());
+                    File file = new File(new File(getUri()), "r");
+                    if (ranges.isEmpty()) {
+                        result = AsyncEntityProducers.create(file, ContentType.parse(getMimeType().toString()));
+                        Log.d(getClass().getName(), "Return without range request file-Uri: " + getUri()
+                                + "Mimetype: " + getMimeType());
+                    } else {
+                        result = AsyncEntityProducers.create(readRangeFormFile(file, ranges), ContentType.parse(getMimeType().toString()));
+                    }
                 } else {
                     //file not found maybe external url
                     result = new AbstractBinAsyncEntityProducer(0, ContentType.parse(getMimeType().toString())) {
@@ -425,7 +475,9 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
                         AbstractBinAsyncEntityProducer init() {
                             try {
                                 if (input == null) {
+                                    //https://www.experts-exchange.com/questions/10171110/Reading-a-part-of-a-file-using-URLConnection.html
                                     URLConnection con = new URL(getUri()).openConnection();
+                                    con.setRequestProperty("Range", HttpRange.toHeaderString(ranges));
                                     input = con.getInputStream();
                                     length = con.getContentLength();
                                 }
@@ -472,7 +524,7 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
 
                         @Override
                         public boolean isRepeatable() {
-                            return false;
+                            return true;
                         }
 
                         @Override
