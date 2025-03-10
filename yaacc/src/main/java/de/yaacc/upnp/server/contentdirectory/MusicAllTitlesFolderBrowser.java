@@ -73,8 +73,6 @@ public class MusicAllTitlesFolderBrowser extends ContentBrowser {
     public Integer getSize(YaaccContentDirectory contentDirectory, String myId) {
 
         String[] projection = {MediaStore.Audio.Media._ID};
-        //String selection = "(" + makeLikeClause(MediaStore.Audio.Media.RELATIVE_PATH, getMediaPathes().size()) + ")";
-        //String[] selectionArgs = getMediaPathesForLikeClause().toArray(new String[0]);
         String selection = "";
         String[] selectionArgs = null;
         try (Cursor cursor = contentDirectory
@@ -123,8 +121,6 @@ public class MusicAllTitlesFolderBrowser extends ContentBrowser {
                     MediaStore.Audio.Media.ARTIST,
                     MediaStore.Audio.Media.DURATION};
         }
-        //String selection = "(" + makeLikeClause(MediaStore.Audio.Media.RELATIVE_PATH, getMediaPathes().size()) + ")";
-        //String[] selectionArgs = getMediaPathesForLikeClause().toArray(new String[0]);
         String selection = "";
         String[] selectionArgs = null;
         try (Cursor mediaCursor = contentDirectory

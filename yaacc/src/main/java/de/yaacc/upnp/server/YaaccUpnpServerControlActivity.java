@@ -23,6 +23,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.util.Log;
+import android.util.TypedValue;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.Button;
@@ -31,6 +32,11 @@ import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.preference.PreferenceManager;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+
+import java.util.ArrayList;
+import java.util.List;
 
 import de.yaacc.R;
 import de.yaacc.settings.SettingsActivity;
@@ -43,6 +49,7 @@ import de.yaacc.util.NotificationId;
  * @author Tobias Schoene (openbit)
  */
 public class YaaccUpnpServerControlActivity extends AppCompatActivity {
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -66,6 +73,75 @@ public class YaaccUpnpServerControlActivity extends AppCompatActivity {
         TextView localServerControlInterface = findViewById(R.id.localServerControlInterface);
         String[] ipConfig = YaaccUpnpServerService.getIfAndIpAddress(this);
         localServerControlInterface.setText(ipConfig[1] + "@" + ipConfig[0]);
+
+        RecyclerView recyclerView = findViewById(R.id.folders_recycler_view);
+        recyclerView.setLayoutManager(new LinearLayoutManager(this));
+        recyclerView.setNestedScrollingEnabled(false);
+        TypedValue typedValue = new TypedValue();
+        getTheme().resolveAttribute(android.R.attr.colorBackground, typedValue, true);
+        recyclerView.setBackgroundColor(typedValue.data);
+
+        TreeViewHolderFactory factory = (v, layout) -> new TreeViewHolder(v);
+
+        TreeViewAdapter treeViewAdapter = new TreeViewAdapter(factory);
+        recyclerView.setAdapter(treeViewAdapter);
+
+        TreeNode javaDirectory = new TreeNode("Java", R.layout.file_list_item);
+        javaDirectory.addChild(new TreeNode("FileJava1.java", R.layout.file_list_item));
+        javaDirectory.addChild(new TreeNode("FileJava2.java", R.layout.file_list_item));
+        javaDirectory.addChild(new TreeNode("FileJava3.java", R.layout.file_list_item));
+
+        TreeNode gradleDirectory = new TreeNode("Gradle", R.layout.file_list_item);
+        gradleDirectory.addChild(new TreeNode("FileGradle1.gradle", R.layout.file_list_item));
+        gradleDirectory.addChild(new TreeNode("FileGradle2.gradle", R.layout.file_list_item));
+        gradleDirectory.addChild(new TreeNode("FileGradle3.gradle", R.layout.file_list_item));
+
+        javaDirectory.addChild(gradleDirectory);
+
+        TreeNode lowLevelRoot = new TreeNode("LowLevel", R.layout.file_list_item);
+
+        TreeNode cDirectory = new TreeNode("C", R.layout.file_list_item);
+        cDirectory.addChild(new TreeNode("FileC1.c", R.layout.file_list_item));
+        cDirectory.addChild(new TreeNode("FileC2.c", R.layout.file_list_item));
+        cDirectory.addChild(new TreeNode("FileC3.c", R.layout.file_list_item));
+
+        TreeNode cppDirectory = new TreeNode("Cpp", R.layout.file_list_item);
+        cppDirectory.addChild(new TreeNode("FileCpp1.cpp", R.layout.file_list_item));
+        cppDirectory.addChild(new TreeNode("FileCpp2.cpp", R.layout.file_list_item));
+        cppDirectory.addChild(new TreeNode("FileCpp3.cpp", R.layout.file_list_item));
+
+        TreeNode goDirectory = new TreeNode("Go", R.layout.file_list_item);
+        goDirectory.addChild(new TreeNode("FileGo1.go", R.layout.file_list_item));
+        goDirectory.addChild(new TreeNode("FileGo2.go", R.layout.file_list_item));
+        goDirectory.addChild(new TreeNode("FileGo3.go", R.layout.file_list_item));
+
+        lowLevelRoot.addChild(cDirectory);
+        lowLevelRoot.addChild(cppDirectory);
+        lowLevelRoot.addChild(goDirectory);
+
+        TreeNode cSharpDirectory = new TreeNode("C#", R.layout.file_list_item);
+        cSharpDirectory.addChild(new TreeNode("FileCs1.cs", R.layout.file_list_item));
+        cSharpDirectory.addChild(new TreeNode("FileCs2.cs", R.layout.file_list_item));
+        cSharpDirectory.addChild(new TreeNode("FileCs3.cs", R.layout.file_list_item));
+
+        TreeNode gitFolder = new TreeNode(".git", R.layout.file_list_item);
+
+        List<TreeNode> fileRoots = new ArrayList<>();
+        fileRoots.add(javaDirectory);
+        fileRoots.add(lowLevelRoot);
+        fileRoots.add(cSharpDirectory);
+        fileRoots.add(gitFolder);
+
+        treeViewAdapter.updateTreeNodes(fileRoots);
+
+        treeViewAdapter.setTreeNodeClickListener((treeNode, nodeView) -> {
+            Log.d(getClass().getName(), "Click on TreeNode with value " + treeNode.getValue().toString());
+        });
+
+        treeViewAdapter.setTreeNodeLongClickListener((treeNode, nodeView) -> {
+            Log.d(getClass().getName(), "LongClick on TreeNode with value " + treeNode.getValue().toString());
+            return true;
+        });
 
 
     }

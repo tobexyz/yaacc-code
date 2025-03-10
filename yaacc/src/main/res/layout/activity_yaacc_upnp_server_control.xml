@@ -8,10 +8,10 @@
         android:id="@+id/localServerControlInterface"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_alignParentLeft="true"
+        android:layout_alignParentStart="true"
         android:layout_alignParentTop="true"
         android:layout_marginTop="26dp"
-        android:layout_marginLeft="5dp"
+        android:layout_marginStart="5dp"
         android:text="@string/all"
         android:textAppearance="@android:style/TextAppearance.Material.Medium"
         android:textColor="?android:attr/colorForeground" />
@@ -21,7 +21,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_below="@+id/localServerControlInterface"
-        android:layout_alignParentLeft="true"
+        android:layout_alignParentStart="true"
         android:enabled="false"
         android:text="@string/settings_local_server_provider_on" />
 
@@ -29,7 +29,7 @@
         android:id="@+id/receiverEnabled"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_alignParentLeft="true"
+        android:layout_alignParentStart="true"
         android:layout_below="@+id/providerEnabled"
         android:enabled="false"
         android:text="@string/settings_local_server_receiver_on" />
@@ -41,16 +41,13 @@
         android:layout_height="wrap_content"
         android:layout_below="@+id/receiverEnabled"
         android:layout_alignParentStart="true"
-        android:layout_alignParentLeft="true"
         android:layout_centerVertical="true"
-        android:layout_marginLeft="19dp"
         android:layout_marginStart="19dp"
         android:text="@string/yaacc_upnp_server_stop_server" />
 
     <Space
         android:id="@+id/Separator"
         android:layout_alignBaseline="@+id/stopServer"
-        android:layout_toRightOf="@+id/stopServer"
         android:layout_toEndOf="@+id/stopServer"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content" />
@@ -60,10 +57,21 @@
         android:layout_alignBaseline="@+id/stopServer"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_toRightOf="@+id/Separator"
         android:layout_toEndOf="@+id/Separator"
         android:layout_centerVertical="true"
-        android:layout_marginRight="31dp"
         android:layout_marginEnd="31dp"
         android:text="@string/yaacc_upnp_server_start_server" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/folders_recycler_view"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentStart="true"
+        android:layout_alignParentEnd="true"
+        android:layout_alignParentBottom="true"
+        android:layout_centerVertical="true"
+        android:layout_below="@+id/startServer"
+        android:scrollbarSize="5dp"
+        android:scrollbars="vertical" />
+
 </RelativeLayout>
