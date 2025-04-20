@@ -99,6 +99,13 @@ public class MultiContentPlayer extends AbstractPlayer {
 
     }
 
+    @Override
+    public long getCurrentPosition() {
+        Log.d(getClass().getName(), "CurrentPosition not implemented");
+
+        return 0;
+    }
+
 
     @Override
     public URI getAlbumArt() {

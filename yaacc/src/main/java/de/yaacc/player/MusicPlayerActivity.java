@@ -86,6 +86,8 @@ public class MusicPlayerActivity extends AppCompatActivity implements ServiceCon
         ImageButton btnPause = (ImageButton) findViewById(R.id.musicActivityControlPause);
         ImageButton btnPlaylist = (ImageButton) findViewById(R.id.musicActivityControlPlaylist);
         ImageButton btnExit = (ImageButton) findViewById(R.id.musicActivityControlExit);
+        ImageButton btnFf = (ImageButton) findViewById(R.id.musicActivityControlFastForward);
+        ImageButton btnFr = (ImageButton) findViewById(R.id.musicActivityControlFastRewind);
         if (player == null) {
             btnPrev.setActivated(false);
             btnNext.setActivated(false);
@@ -95,6 +97,8 @@ public class MusicPlayerActivity extends AppCompatActivity implements ServiceCon
             btnPause.setActivated(false);
             btnPlaylist.setActivated(false);
             btnExit.setActivated(false);
+            btnFf.setActivated(false);
+            btnFr.setActivated(false);
         } else {
             player.addPropertyChangeListener(event -> {
                 if (LocalBackgoundMusicPlayer.PROPERTY_ITEM.equals(event.getPropertyName())) {
@@ -111,39 +115,55 @@ public class MusicPlayerActivity extends AppCompatActivity implements ServiceCon
             btnPause.setActivated(true);
             btnPlaylist.setActivated(true);
             btnExit.setActivated(true);
+            btnFf.setActivated(true);
+            btnFr.setActivated(true);
         }
+        btnFf.setOnClickListener(v -> {
+            Player ply = getPlayer();
+            if (ply != null) {
+                ply.fastForward(10);
+            }
+        });
+
+        btnFr.setOnClickListener(v -> {
+            Player ply = getPlayer();
+            if (ply != null) {
+                ply.fastRewind(10);
+            }
+        });
+
         btnPrev.setOnClickListener(v -> {
-            Player player1 = getPlayer();
-            if (player1 != null) {
-                player1.previous();
+            Player ply = getPlayer();
+            if (ply != null) {
+                ply.previous();
             }
 
         });
         btnNext.setOnClickListener(v -> {
-            Player player12 = getPlayer();
-            if (player12 != null) {
-                player12.next();
+            Player ply = getPlayer();
+            if (ply != null) {
+                ply.next();
             }
 
         });
         btnPlay.setOnClickListener(v -> {
-            Player player13 = getPlayer();
-            if (player13 != null) {
-                player13.play();
+            Player ply = getPlayer();
+            if (ply != null) {
+                ply.play();
             }
 
         });
         btnPause.setOnClickListener(v -> {
-            Player player14 = getPlayer();
-            if (player14 != null) {
-                player14.pause();
+            Player ply = getPlayer();
+            if (ply != null) {
+                ply.pause();
             }
 
         });
         btnStop.setOnClickListener(v -> {
-            Player player15 = getPlayer();
-            if (player15 != null) {
-                player15.stop();
+            Player ply = getPlayer();
+            if (ply != null) {
+                ply.stop();
             }
 
         });
@@ -199,6 +219,7 @@ public class MusicPlayerActivity extends AppCompatActivity implements ServiceCon
         this.bindService(new Intent(this, PlayerService.class),
                 this, Context.BIND_AUTO_CREATE);
         updateTime = true;
+        setTrackInfo();
     }
 
     @Override
@@ -207,6 +228,7 @@ public class MusicPlayerActivity extends AppCompatActivity implements ServiceCon
         this.bindService(new Intent(this, PlayerService.class),
                 this, Context.BIND_AUTO_CREATE);
         updateTime = true;
+        setTrackInfo();
     }
 
     @Override
@@ -230,7 +252,7 @@ public class MusicPlayerActivity extends AppCompatActivity implements ServiceCon
     }
 
     private Player getPlayer() {
-        return playerService.getFirstCurrentPlayerOfType(LocalBackgoundMusicPlayer.class);
+        return playerService == null ? null : playerService.getFirstCurrentPlayerOfType(LocalBackgoundMusicPlayer.class);
     }
 
     @Override

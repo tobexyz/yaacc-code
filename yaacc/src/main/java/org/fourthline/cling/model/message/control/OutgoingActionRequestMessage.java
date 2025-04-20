@@ -66,7 +66,7 @@ public class OutgoingActionRequestMessage extends StreamRequestMessage implement
 
         SoapActionHeader soapActionHeader;
         if (action instanceof QueryStateVariableAction) {
-            Log.d(getClass().getName(), "Adding magic control SOAP action header for state variable query action");
+            Log.v(getClass().getName(), "Adding magic control SOAP action header for state variable query action");
             soapActionHeader = new SoapActionHeader(
                     new SoapActionType(
                             SoapActionType.MAGIC_CONTROL_NS, SoapActionType.MAGIC_CONTROL_TYPE, null, action.getName()
@@ -87,7 +87,7 @@ public class OutgoingActionRequestMessage extends StreamRequestMessage implement
         if (getOperation().getMethod().equals(UpnpRequest.Method.POST)) {
 
             getHeaders().add(UpnpHeader.Type.SOAPACTION, soapActionHeader);
-            Log.d(getClass().getName(), "Added SOAP action header: " + soapActionHeader);
+            Log.v(getClass().getName(), "Added SOAP action header: " + soapActionHeader);
 
         /* TODO: Finish the M-POST crap (or not)
         } else if (getOperation().getMethod().equals(UpnpRequest.Method.MPOST)) {

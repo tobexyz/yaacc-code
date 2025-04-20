@@ -85,7 +85,9 @@
     <string name="settings_browse_thumbnails_coverlookup_on">Verwendet Cover aus Bildern in Musikverzeichnissen </string>
     <string name="settings_browse_thumbnails_coverlookup_off">Bilder in Verzeichnissen werden nicht als Cover verwendet</string>
     <string name="settings_category_synchronization">Synchronistionseinstellung</string>
-    <string name="settings_default_playback_delay">Wartezeit vor dem Abspielen</string>
-    <string name="settings_device_playback_offset">Gerätespezifischer Abspielversatz</string>
-    <string name="settings_device_playback_offset_summ">Versatz in ms</string>
+    <string name="settings_browse_swipe_off">Tabwechsel nur mit Touch</string>
+    <string name="settings_browse_swipe_on">Tabwechsel mit Swipe und Touch</string>
+    <string name="settings_browse_swipe_title">"Swipe-Verhalten "</string>
+    <string name="settings_local_server_if_filter_names">Ignorierte Interfaces für die IP-Ermittlung</string>
+
 </resources>

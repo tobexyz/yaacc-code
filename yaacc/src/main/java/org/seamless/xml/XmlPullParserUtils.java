@@ -144,7 +144,7 @@
          }
 
          if (isFixed) {
-             Log.d(XmlPullParser.class.getName(), "fixed badly encoded entities in XML");
+             Log.v(XmlPullParser.class.getName(), "fixed badly encoded entities in XML");
          }
 
          return fixedXml.toString();

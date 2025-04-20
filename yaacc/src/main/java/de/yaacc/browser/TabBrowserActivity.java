@@ -18,6 +18,8 @@
 package de.yaacc.browser;
 
 import android.Manifest;
+import android.content.ActivityNotFoundException;
+import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
@@ -26,6 +28,8 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.PowerManager;
+import android.provider.Settings;
 import android.util.Log;
 import android.util.TypedValue;
 import android.view.ContextMenu;
@@ -54,6 +58,7 @@ import androidx.viewpager2.widget.ViewPager2;
 
 import com.google.android.material.tabs.TabLayout;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -87,9 +92,10 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
             Manifest.permission.CHANGE_WIFI_MULTICAST_STATE,
             Manifest.permission.READ_EXTERNAL_STORAGE,
             Manifest.permission.WRITE_EXTERNAL_STORAGE,
-            Manifest.permission.GET_TASKS,
             Manifest.permission.RECEIVE_BOOT_COMPLETED,
-            Manifest.permission.WAKE_LOCK
+            Manifest.permission.WAKE_LOCK,
+            Manifest.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
+
     };
     private static final String CURRENT_TAB_KEY = "currentTab";
     //FIXME dirty
@@ -139,6 +145,7 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
         tabLayout = findViewById(R.id.browserTabLayout);
         pagerAdapter = new TabBrowserFragmentStateAdapter(this);
         viewPager.setAdapter(pagerAdapter);
+        viewPager.setUserInputEnabled(getPreferences().getBoolean(getString(R.string.settings_swipe_chkbx), true));
         tabLayout.addOnTabSelectedListener(new TabLayout.OnTabSelectedListener() {
             @Override
             public void onTabSelected(TabLayout.Tab tab) {
@@ -168,13 +175,15 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
             Log.d(getClass().getName(), "All permissions granted");
         }
 
+        checkBatteryOptimizationEnabled();
+
         // local server startup
         upnpClient = ((Yaacc) getApplicationContext()).getUpnpClient();
         if (upnpClient == null) {
             Log.d(getClass().getName(), "Upnp client is null");
             return;
         }
-        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
+
         if (savedInstanceState != null) {
             setCurrentTab(BrowserTabs.valueOf(savedInstanceState.getInt(CURRENT_TAB_KEY, BrowserTabs.CONTENT.ordinal())));
         } else if (upnpClient.getProviderDevice() != null) {
@@ -184,6 +193,21 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
 
         checkIfReceivedShareIntent(null);
         Log.d(this.getClass().getName(), "on create took: " + (System.currentTimeMillis() - start));
+    }
+
+    private void checkBatteryOptimizationEnabled() {
+        Intent intent = new Intent();
+        String packageName = getPackageName();
+        PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+        if (!pm.isIgnoringBatteryOptimizations(packageName)) {
+            intent.setAction(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+            intent.setData(Uri.parse("package:" + packageName));
+        }
+        try {
+            startActivity(intent);
+        } catch (ActivityNotFoundException ex) {
+            Log.d(getClass().getName(), "Ignoring exception ActivityNotFoundException during check for battery optimization");
+        }
     }
 
     @Override
@@ -238,29 +262,33 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
                 Runnable execution = new Runnable() {
                     @Override
                     public void run() {
-                        if (upnpClient.getReceiverDevicesReadyCount() == 0) {
-                            runOnUiThread(new Runnable() {
+                        try {
+                            if (upnpClient.getReceiverDevicesReadyCount() == 0) {
+                                runOnUiThread(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        Toast.makeText(getApplicationContext(), "no receiver found using local device", Toast.LENGTH_LONG).show();
+                                    }
+                                });
+
+                                upnpClient.setReceiverDeviceIds(Set.of(UpnpClient.LOCAL_UID));
+                            }
+                            items.add(upnpClient.createPlayableItem(uri));
+
+                            handler.post(new Runnable() {
                                 @Override
                                 public void run() {
-                                    Toast.makeText(getApplicationContext(), "no receiver found using local device", Toast.LENGTH_LONG).show();
+
+                                    List<Player> players = upnpClient.initializePlayersWithPlayableItems(items);
+                                    for (Player player : players) {
+                                        player.play();
+                                    }
+                                    setCurrentTab(BrowserTabs.PLAYER);
                                 }
                             });
-
-                            upnpClient.setReceiverDeviceIds(Set.of(UpnpClient.LOCAL_UID));
+                        } catch (IOException ioException) {
+                            throw new RuntimeException(ioException);
                         }
-                        items.add(upnpClient.createPlayableItem(uri));
-
-                        handler.post(new Runnable() {
-                            @Override
-                            public void run() {
-
-                                List<Player> players = upnpClient.initializePlayersWithPlayableItems(items);
-                                for (Player player : players) {
-                                    player.play();
-                                }
-                                setCurrentTab(BrowserTabs.PLAYER);
-                            }
-                        });
                     }
                 };
 
@@ -301,6 +329,7 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
     public void onResume() {
         long start = System.currentTimeMillis();
         super.onResume();
+        viewPager.setUserInputEnabled(getPreferences().getBoolean(getString(R.string.settings_swipe_chkbx), true));
         setVolumeControlStream(-1000); //use an invalid audio stream to block controlling default streams
         boolean serverOn = getPreferences().getBoolean(
                 getString(R.string.settings_local_server_chkbx), false);

@@ -203,12 +203,12 @@ public class DeviceDetails implements Validatable {
         if (getUpc() != null) {
             // This is broken in more than half of the devices I've tested, so let's not even bother with a warning
             if (getUpc().length() != 12) {
-                Log.d(getClass().getName(), "UPnP specification violation, UPC must be 12 digits: " + getUpc());
+                Log.v(getClass().getName(), "UPnP specification violation, UPC must be 12 digits: " + getUpc());
             } else {
                 try {
                     Long.parseLong(getUpc());
                 } catch (NumberFormatException ex) {
-                    Log.d(getClass().getName(), "UPnP specification violation, UPC must be 12 digits all-numeric: " + getUpc());
+                    Log.v(getClass().getName(), "UPnP specification violation, UPC must be 12 digits all-numeric: " + getUpc());
                 }
             }
         }

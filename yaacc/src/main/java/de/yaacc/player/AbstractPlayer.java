@@ -18,6 +18,7 @@
 package de.yaacc.player;
 
 import android.app.Activity;
+import android.app.AlarmManager;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.ComponentName;
@@ -26,12 +27,13 @@ import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
-import android.os.Handler;
+import android.os.Build;
 import android.os.IBinder;
 import android.util.Log;
 import android.widget.Toast;
 
 import androidx.core.app.NotificationCompat;
+import androidx.core.content.ContextCompat;
 import androidx.preference.PreferenceManager;
 
 import java.beans.PropertyChangeListener;
@@ -39,17 +41,14 @@ import java.beans.PropertyChangeSupport;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Calendar;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
-import java.util.Locale;
 import java.util.Timer;
 import java.util.TimerTask;
 
 import de.yaacc.R;
 import de.yaacc.Yaacc;
-import de.yaacc.upnp.SynchronizationInfo;
 import de.yaacc.upnp.UpnpClient;
 
 /**
@@ -62,16 +61,15 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
     private final PropertyChangeSupport pcs = new PropertyChangeSupport(this);
     private final List<PlayableItem> items = new ArrayList<>();
     private final UpnpClient upnpClient;
-    private Handler playerTimer;
     private int previousIndex = 0;
     private int currentIndex = 0;
     private Timer execTimer;
+    private PendingIntent alarmIntent;
     private boolean isPlaying = false;
     private boolean isProcessingCommand = false;
     private PlayerService playerService;
     private String name;
     private String shortName;
-    private SynchronizationInfo syncInfo;
     private boolean paused;
     private Object loadedItem = null;
     private int currentLoadedIndex = -1;
@@ -199,7 +197,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
         cancelTimer();
         currentIndex--;
         if (currentIndex < 0) {
-            if (items.size() > 0) {
+            if (!items.isEmpty()) {
                 currentIndex = items.size() - 1;
             } else {
                 currentIndex = 0;
@@ -247,7 +245,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
                 doPause();
                 setProcessingCommand(false);
             }
-        }, getExecutionTime());
+        }, new Date(System.currentTimeMillis()));
     }
 
     /*
@@ -286,9 +284,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
                     setProcessingCommand(false);
                 }
             }
-        }, getExecutionTime());
-
-
+        }, new Date(System.currentTimeMillis()));
     }
 
 
@@ -318,14 +314,14 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
                         toast.show();
                     });
                 }
-                if (items.size() > 0) {
+                if (!items.isEmpty()) {
                     stopItem(items.get(currentIndex));
                 }
                 isPlaying = false;
                 paused = false;
                 setProcessingCommand(false);
             }
-        }, getExecutionTime());
+        }, new Date(System.currentTimeMillis()));
     }
 
     /**
@@ -349,8 +345,13 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
     }
 
     protected void cancelTimer() {
-        if (playerTimer != null) {
-            playerTimer.removeCallbacksAndMessages(null);
+
+        if (alarmIntent != null) {
+            AlarmManager alarmManager =
+                    (AlarmManager) getContext().getSystemService(Context.ALARM_SERVICE);
+            if (alarmManager != null) {
+                alarmManager.cancel(alarmIntent);
+            }
         }
     }
 
@@ -452,7 +453,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
     }
 
     protected void loadItem(int previousIndex, int nextIndex) {
-        if (items.size() == 0)
+        if (items.isEmpty())
             return;
         PlayableItem playableItem = items.get(nextIndex);
         Object loadedItem = loadItem(nextIndex);
@@ -539,15 +540,41 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
     public void startTimer(final long duration) {
         Log.d(getClass().getName(), "Start timer duration: " + duration);
         cancelTimer();
-        playerTimer = new Handler(playerService.getPlayerHandlerThread().getLooper());
-        playerTimer.postDelayed(new Runnable() {
+        Intent intent = new Intent();
+        intent.setAction(PlayerServiceBroadcastReceiver.ACTION_NEXT);
+        intent.putExtra(PLAYER_ID, getId());
+        ContextCompat.getMainExecutor(getContext()).execute(() -> {
+            AlarmManager alarmManager =
+                    (AlarmManager) getContext().getSystemService(Context.ALARM_SERVICE);
+            alarmIntent = PendingIntent.getBroadcast(getContext(), intent.hashCode(), intent,
+                    PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_ONE_SHOT);
 
-            @Override
-            public void run() {
-                Log.d(getClass().getName(), "TimerEvent for switching to next item" + this);
-                AbstractPlayer.this.next();
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (alarmManager.canScheduleExactAlarms()) {
+                    alarmManager.setExactAndAllowWhileIdle(
+                            AlarmManager.RTC_WAKEUP,
+                            System.currentTimeMillis() + duration,
+                            alarmIntent
+                    );
+                    Log.d(getClass().getName(), "ExactAndAllowWhileIdle alarm event in: " + (System.currentTimeMillis() + duration));
+                } else {
+                    alarmManager.setAndAllowWhileIdle(
+                            AlarmManager.RTC_WAKEUP,
+                            System.currentTimeMillis() + duration,
+                            alarmIntent
+                    );
+                    Log.d(getClass().getName(), "AndAllowWhileIdle alarm event in: " + (System.currentTimeMillis() + duration));
+                }
+            } else {
+                alarmManager.setExact(
+                        AlarmManager.RTC_WAKEUP,
+                        System.currentTimeMillis() + duration,
+                        alarmIntent
+                );
+                Log.d(getClass().getName(), "exact alarm event in: " + (System.currentTimeMillis() + duration));
             }
-        }, duration);
+        });
+
     }
 
     /*
@@ -620,11 +647,11 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
     /**
      * Cancels the notification.
      */
-    private void cancleNotification() {
+    private void cancelNotification() {
         NotificationManager mNotificationManager = (NotificationManager) getContext()
                 .getSystemService(Context.NOTIFICATION_SERVICE);
         // mId allows you to update the notification later on.
-        Log.d(getClass().getName(), "Cancle Notification with ID: " + getNotificationId());
+        Log.d(getClass().getName(), "Cancel Notification with ID: " + getNotificationId());
         mNotificationManager.cancel(getNotificationId());
         ((Yaacc) getContext().getApplicationContext()).cancelYaaccGroupNotification();
 
@@ -662,7 +689,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
     @Override
     public void onDestroy() {
         stop();
-        cancleNotification();
+        cancelNotification();
         items.clear();
         if (playerService != null) {
             try {
@@ -698,6 +725,9 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
         this.pcs.firePropertyChange(property, oldValue, newValue);
     }
 
+
+    public abstract long getCurrentPosition();
+
     @Override
     public String getDuration() {
         return "";
@@ -714,40 +744,6 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
         return null;
     }
 
-    @Override
-    public SynchronizationInfo getSyncInfo() {
-        return syncInfo;
-    }
-
-    @Override
-    public void setSyncInfo(SynchronizationInfo syncInfo) {
-        if (syncInfo == null) {
-            syncInfo = new SynchronizationInfo();
-        }
-        this.syncInfo = syncInfo;
-    }
-
-    protected Date getExecutionTime() {
-        Calendar execTime = Calendar.getInstance(Locale.getDefault());
-        if (getSyncInfo() != null) {
-            execTime.set(Calendar.HOUR_OF_DAY, getSyncInfo().getReferencedPresentationTimeOffset().getHour());
-            execTime.set(Calendar.MINUTE, getSyncInfo().getReferencedPresentationTimeOffset().getMinute());
-            execTime.set(Calendar.SECOND, getSyncInfo().getReferencedPresentationTimeOffset().getSecond());
-            execTime.set(Calendar.MILLISECOND, getSyncInfo().getReferencedPresentationTimeOffset().getMillis());
-            execTime.add(Calendar.HOUR, getSyncInfo().getOffset().getHour());
-            execTime.add(Calendar.MINUTE, getSyncInfo().getOffset().getMinute());
-            execTime.add(Calendar.SECOND, getSyncInfo().getOffset().getSecond());
-            execTime.add(Calendar.MILLISECOND, getSyncInfo().getOffset().getMillis());
-            Log.d(getClass().getName(), "ReferencedRepresentationTimeOffset: " + getSyncInfo().getReferencedPresentationTimeOffset());
-        }
-        Log.d(getClass().getName(), "current time: " + new Date() + " get execution time: " + execTime.getTime());
-        if (execTime.getTime().getTime() <= System.currentTimeMillis()) {
-            Log.d(getClass().getName(), "ExecutionTime is in past!! We will start immediately");
-            return null;
-
-        }
-        return execTime.getTime();
-    }
 
     protected void executeCommand(TimerTask command, Date executionTime) {
         if (execTimer != null) {
@@ -805,5 +801,15 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
         return true;
     }
 
+    @Override
+    public void fastForward(int i) {
+
+        seekTo(getCurrentPosition() + (i * 1000L));
+    }
+
+    @Override
+    public void fastRewind(int i) {
+        seekTo(getCurrentPosition() - (i * 1000L));
+    }
 
 }

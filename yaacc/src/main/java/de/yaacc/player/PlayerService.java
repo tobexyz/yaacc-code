@@ -24,6 +24,7 @@ import android.content.Intent;
 import android.os.Binder;
 import android.os.HandlerThread;
 import android.os.IBinder;
+import android.os.PowerManager;
 import android.util.Log;
 import android.widget.Toast;
 
@@ -42,7 +43,6 @@ import java.util.Map;
 import de.yaacc.R;
 import de.yaacc.Yaacc;
 import de.yaacc.browser.TabBrowserActivity;
-import de.yaacc.upnp.SynchronizationInfo;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.util.NotificationId;
 
@@ -52,8 +52,11 @@ import de.yaacc.util.NotificationId;
 public class PlayerService extends Service {
 
     private final IBinder binder = new PlayerServiceBinder();
+    private PlayerServiceBroadcastReceiver playerServiceBroadcastReceiver;
     private final Map<Integer, Player> currentActivePlayer = new HashMap<>();
     private HandlerThread playerHandlerThread;
+
+    private PowerManager.WakeLock wakeLock;
 
 
     public PlayerService() {
@@ -90,6 +93,10 @@ public class PlayerService extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         super.onStartCommand(intent, flags, startId);
         Log.d(this.getClass().getName(), "Received start id " + startId + ": " + intent);
+        if (playerServiceBroadcastReceiver == null) {
+            playerServiceBroadcastReceiver = new PlayerServiceBroadcastReceiver(this);
+            playerServiceBroadcastReceiver.registerReceiver();
+        }
         ((Yaacc) getApplicationContext()).createYaaccGroupNotification();
         Intent notificationIntent = new Intent(this, TabBrowserActivity.class);
         PendingIntent pendingIntent = PendingIntent.getActivity(this,
@@ -102,6 +109,7 @@ public class PlayerService extends Service {
                 .setSmallIcon(R.drawable.ic_notification_default)
                 .setContentIntent(pendingIntent)
                 .build();
+
         startForeground(NotificationId.PLAYER_SERVICE.getId(), notification);
         initialize();
 
@@ -118,9 +126,9 @@ public class PlayerService extends Service {
     }
 
     public Player getPlayer(int playerId) {
-        Log.d(this.getClass().getName(), "Get Player for id " + playerId);
+        Log.v(this.getClass().getName(), "Get Player for id " + playerId);
         if (currentActivePlayer.get(playerId) == null) {
-            Log.d(this.getClass().getName(), "Get Player not found");
+            Log.v(this.getClass().getName(), "Get Player not found");
         }
         return currentActivePlayer.get(playerId);
     }
@@ -134,8 +142,7 @@ public class PlayerService extends Service {
      * @param items      the items to be played
      * @return the player
      */
-    public List<Player> createPlayer(UpnpClient upnpClient,
-                                     SynchronizationInfo syncInfo, List<PlayableItem> items) {
+    public List<Player> createPlayer(UpnpClient upnpClient, List<PlayableItem> items) {
         Log.d(getClass().getName(), "create player...");
         List<Player> resultList = new ArrayList<>();
         if (items.isEmpty()) {
@@ -158,9 +165,9 @@ public class PlayerService extends Service {
             }
 
         }
-        Log.d(getClass().getName(), "video:" + video + " image: " + image + "audio:" + music);
+        Log.d(getClass().getName(), "video:" + video + " image: " + image + " audio:" + music);
         for (Device<?, ?, ?> device : upnpClient.getReceiverDevices()) {
-            result = createPlayer(upnpClient, device, video, image, music, syncInfo);
+            result = createPlayer(upnpClient, device, video, image, music);
             if (result != null) {
                 addPlayer(result);
                 result.setItems(items.toArray(new PlayableItem[0]));
@@ -169,6 +176,15 @@ public class PlayerService extends Service {
         }
         return resultList;
     }
+
+    @Override
+    public boolean onUnbind(Intent intent) {
+        if (playerServiceBroadcastReceiver != null) {
+            unregisterReceiver(playerServiceBroadcastReceiver);
+        }
+        return super.onUnbind(intent);
+    }
+
 
     /**
      * creates a player for the given device
@@ -181,7 +197,7 @@ public class PlayerService extends Service {
      * @return the player or null if no device is present
      */
     private Player createPlayer(UpnpClient upnpClient, Device receiverDevice,
-                                boolean video, boolean image, boolean music, SynchronizationInfo syncInfo) {
+                                boolean video, boolean image, boolean music) {
         if (receiverDevice == null) {
             Toast toast = Toast.makeText(upnpClient.getContext(), upnpClient.getContext().getString(R.string.error_no_receiver_device_found), Toast.LENGTH_SHORT);
             toast.show();
@@ -199,30 +215,17 @@ public class PlayerService extends Service {
             } else if (!video && !image && music) {
                 contentType = "music";
             }
-
-            if (receiverDevice.getType().getVersion() == 3) {
-                for (Player player : getCurrentPlayersOfType(SyncAVTransportPlayer.class)) {
-                    if (((SyncAVTransportPlayer) player).getDeviceId().equals(receiverDevice.getIdentity().getUdn().getIdentifierString())
-                            && ((SyncAVTransportPlayer) player).getContentType().equals(contentType)) {
-                        shutdown(player);
-                    }
+            for (Player player : getCurrentPlayersOfType(AVTransportPlayer.class)) {
+                if (((AVTransportPlayer) player).getDeviceId().equals(receiverDevice.getIdentity().getUdn().getIdentifierString())
+                        && ((AVTransportPlayer) player).getContentType().equals(contentType)) {
+                    shutdown(player);
                 }
-                result = new SyncAVTransportPlayer(upnpClient, receiverDevice, upnpClient.getContext()
-                        .getString(R.string.playerNameAvTransport)
-                        + "-" + contentType + "@"
-                        + deviceName, receiverDevice.getDetails().getFriendlyName(), contentType);
-            } else {
-                for (Player player : getCurrentPlayersOfType(AVTransportPlayer.class)) {
-                    if (((AVTransportPlayer) player).getDeviceId().equals(receiverDevice.getIdentity().getUdn().getIdentifierString())
-                            && ((AVTransportPlayer) player).getContentType().equals(contentType)) {
-                        shutdown(player);
-                    }
-                }
-                result = new AVTransportPlayer(upnpClient, receiverDevice, upnpClient.getContext()
-                        .getString(R.string.playerNameAvTransport)
-                        + "-" + contentType + "@"
-                        + deviceName, receiverDevice.getDetails().getFriendlyName(), contentType);
             }
+            result = new AVTransportPlayer(upnpClient, receiverDevice, upnpClient.getContext()
+                    .getString(R.string.playerNameAvTransport)
+                    + "-" + contentType + "@"
+                    + deviceName, receiverDevice.getDetails().getFriendlyName(), contentType);
+
         } else {
             if (video && !image && !music) {
 // use videoplayer
@@ -250,7 +253,6 @@ public class PlayerService extends Service {
                                 R.string.playerShortNameMultiContent));
             }
         }
-        result.setSyncInfo(syncInfo);
         return result;
     }
 
@@ -286,28 +288,19 @@ public class PlayerService extends Service {
         return Collections.unmodifiableCollection(currentActivePlayer.values());
     }
 
-    /**
-     * returns all current players of the given type.
-     *
-     * @param typeClazz the requested type
-     * @return the currentPlayer
-     */
-    public List<Player> getCurrentPlayersOfType(Class typeClazz, SynchronizationInfo syncInfo) {
+    public Player getCurrentPlayerById(Integer id) {
 
-        List<Player> players = getCurrentPlayersOfType(typeClazz);
-        for (Player player : players) {
-            player.setSyncInfo(syncInfo);
-        }
-        return players;
+        return currentActivePlayer.get(id);
     }
 
+
     /**
      * returns all current players of the given type.
      *
      * @param typeClazz the requested type
      * @return the currentPlayer
      */
-    public List<Player> getCurrentPlayersOfType(Class typeClazz) {
+    public List<Player> getCurrentPlayersOfType(Class<?> typeClazz) {
         List<Player> players = new ArrayList<>();
         for (Player player : getCurrentPlayers()) {
             if (typeClazz.isInstance(player)) {
@@ -372,6 +365,8 @@ public class PlayerService extends Service {
             stopForeground(true);
             ((Yaacc) getApplicationContext()).cancelYaaccGroupNotification();
         }
+
+
     }
 
     /**

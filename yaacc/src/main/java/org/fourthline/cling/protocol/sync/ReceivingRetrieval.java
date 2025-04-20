@@ -63,7 +63,7 @@ public class ReceivingRetrieval extends ReceivingSync<StreamRequestMessage, Stre
     protected StreamResponseMessage executeSync() throws RouterException {
 
         if (!getInputMessage().hasHostHeader()) {
-            Log.d(getClass().getName(), "Ignoring message, missing HOST header: " + getInputMessage());
+            Log.v(getClass().getName(), "Ignoring message, missing HOST header: " + getInputMessage());
             return new StreamResponseMessage(new UpnpResponse(UpnpResponse.Status.PRECONDITION_FAILED));
         }
 
@@ -74,7 +74,7 @@ public class ReceivingRetrieval extends ReceivingSync<StreamRequestMessage, Stre
         if (foundResource == null) {
             foundResource = onResourceNotFound(requestedURI);
             if (foundResource == null) {
-                Log.d(getClass().getName(), "No local resource found: " + getInputMessage());
+                Log.v(getClass().getName(), "No local resource found: " + getInputMessage());
                 return null;
             }
         }
@@ -90,7 +90,7 @@ public class ReceivingRetrieval extends ReceivingSync<StreamRequestMessage, Stre
 
             if (DeviceDescriptorResource.class.isAssignableFrom(resource.getClass())) {
 
-                Log.d(getClass().getName(), "Found local device matching relative request URI: " + requestedURI);
+                Log.v(getClass().getName(), "Found local device matching relative request URI: " + requestedURI);
                 LocalDevice device = (LocalDevice) resource.getModel();
 
                 DeviceDescriptorBinder deviceDescriptorBinder =
@@ -107,7 +107,7 @@ public class ReceivingRetrieval extends ReceivingSync<StreamRequestMessage, Stre
             } else if (ServiceDescriptorResource.class.isAssignableFrom(resource.getClass())) {
 
 
-                Log.d(getClass().getName(), "Found local service matching relative request URI: " + requestedURI);
+                Log.v(getClass().getName(), "Found local service matching relative request URI: " + requestedURI);
                 LocalService service = (LocalService) resource.getModel();
 
                 ServiceDescriptorBinder serviceDescriptorBinder =
@@ -120,13 +120,13 @@ public class ReceivingRetrieval extends ReceivingSync<StreamRequestMessage, Stre
 
             } else if (IconResource.class.isAssignableFrom(resource.getClass())) {
 
-                Log.d(getClass().getName(), "Found local icon matching relative request URI: " + requestedURI);
+                Log.v(getClass().getName(), "Found local icon matching relative request URI: " + requestedURI);
                 Icon icon = (Icon) resource.getModel();
                 response = new StreamResponseMessage(icon.getData(), icon.getMimeType());
 
             } else {
 
-                Log.d(getClass().getName(), "Ignoring GET for found local resource: " + resource);
+                Log.v(getClass().getName(), "Ignoring GET for found local resource: " + resource);
                 return null;
             }
 

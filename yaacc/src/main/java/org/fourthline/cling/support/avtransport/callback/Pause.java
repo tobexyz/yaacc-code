@@ -48,6 +48,6 @@ public abstract class Pause extends ActionCallback {
 
     @Override
     public void success(ActionInvocation invocation) {
-        Log.d(getClass().getName(), "Execution successful");
+        Log.v(getClass().getName(), "Execution successful");
     }
 }

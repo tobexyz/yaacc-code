@@ -32,7 +32,6 @@ import org.fourthline.cling.support.avtransport.callback.Previous;
 
 import de.yaacc.R;
 import de.yaacc.upnp.ActionState;
-import de.yaacc.upnp.SynchronizationInfo;
 import de.yaacc.upnp.UpnpClient;
 
 public class AVTransportController extends AVTransportPlayer {
@@ -48,7 +47,6 @@ public class AVTransportController extends AVTransportPlayer {
                 + "@" + deviceName;
         setName(deviceName);
         setShortName(receiverDevice.getDetails().getFriendlyName());
-        setSyncInfo(new SynchronizationInfo());
     }
 
     public void onServiceConnected(ComponentName className, IBinder binder) {

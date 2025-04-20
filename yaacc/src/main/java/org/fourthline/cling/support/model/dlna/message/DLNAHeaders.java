@@ -55,21 +55,21 @@ public class DLNAHeaders extends UpnpHeaders {
 
         // This runs as late as possible and only when necessary (getter called and map is dirty)
         parsedDLNAHeaders = new LinkedHashMap<>();
-        Log.d(getClass().getName(), String.format("Parsing all HTTP headers for known UPnP headers: {0}", size()));
+        Log.v(getClass().getName(), String.format("Parsing all HTTP headers for known UPnP headers: {0}", size()));
         for (Entry<String, List<String>> entry : entrySet()) {
 
             if (entry.getKey() == null) continue; // Oh yes, the JDK has 'null' HTTP headers
 
             DLNAHeader.Type type = DLNAHeader.Type.getByHttpName(entry.getKey());
             if (type == null) {
-                Log.d(getClass().getName(), String.format("Ignoring non-UPNP HTTP header: {0}", entry.getKey()));
+                Log.v(getClass().getName(), String.format("Ignoring non-UPNP HTTP header: {0}", entry.getKey()));
                 continue;
             }
 
             for (String value : entry.getValue()) {
                 UpnpHeader upnpHeader = DLNAHeader.newInstance(type, value);
                 if (upnpHeader == null || upnpHeader.getValue() == null) {
-                    Log.d(getClass().getName(), String.format("Ignoring known but non-parsable header (value violates the UDA specification?) '{0}': {1}", new Object[]{type.getHttpName(), value}));
+                    Log.v(getClass().getName(), String.format("Ignoring known but non-parsable header (value violates the UDA specification?) '{0}': {1}", new Object[]{type.getHttpName(), value}));
                 } else {
                     addParsedValue(type, upnpHeader);
                 }
@@ -78,7 +78,7 @@ public class DLNAHeaders extends UpnpHeaders {
     }
 
     protected void addParsedValue(DLNAHeader.Type type, UpnpHeader value) {
-        Log.d(getClass().getName(), String.format("Adding parsed header: {0}", value));
+        Log.v(getClass().getName(), String.format("Adding parsed header: {0}", value));
         List<UpnpHeader> list = parsedDLNAHeaders.get(type);
         if (list == null) {
             list = new LinkedList<>();
@@ -163,15 +163,15 @@ public class DLNAHeaders extends UpnpHeaders {
 
         super.log();
         if (parsedDLNAHeaders != null && parsedDLNAHeaders.size() > 0) {
-            Log.d(getClass().getName(), "########################## PARSED DLNA HEADERS ##########################");
+            Log.v(getClass().getName(), "########################## PARSED DLNA HEADERS ##########################");
             for (Map.Entry<DLNAHeader.Type, List<UpnpHeader>> entry : parsedDLNAHeaders.entrySet()) {
-                Log.d(getClass().getName(), String.format("=== TYPE: {0}", entry.getKey()));
+                Log.v(getClass().getName(), String.format("=== TYPE: {0}", entry.getKey()));
                 for (UpnpHeader upnpHeader : entry.getValue()) {
-                    Log.d(getClass().getName(), String.format("HEADER: {0}", upnpHeader));
+                    Log.v(getClass().getName(), String.format("HEADER: {0}", upnpHeader));
                 }
             }
         }
-        Log.d(getClass().getName(), "####################################################################");
+        Log.v(getClass().getName(), "####################################################################");
 
     }
 

@@ -158,7 +158,7 @@ public class Namespace {
         Set<Resource> resources = new HashSet<>();
         List<ValidationError> errors = new ArrayList<>();
 
-        Log.d(getClass().getName(), "Discovering local resources of device graph");
+        Log.v(getClass().getName(), "Discovering local resources of device graph");
         Resource[] discoveredResources = device.discoverResources(this);
         for (Resource resource : discoveredResources) {
             Log.v(getClass().getName(), "Discovered: " + resource);

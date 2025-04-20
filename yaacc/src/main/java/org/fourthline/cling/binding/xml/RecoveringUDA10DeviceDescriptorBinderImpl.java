@@ -176,18 +176,18 @@ public class RecoveringUDA10DeviceDescriptorBinderImpl extends UDA10DeviceDescri
         pattern = Pattern.compile("<root([^>]*)");
         matcher = pattern.matcher(descriptorXml);
         if (!matcher.find() || matcher.groupCount() != 1) {
-            Log.d(getClass().getName(), "Could not find <root> element attributes");
+            Log.v(getClass().getName(), "Could not find <root> element attributes");
             return null;
         }
 
         String rootAttributes = matcher.group(1);
-        Log.d(getClass().getName(), "Preserving existing <root> element attributes/namespace declarations: " + matcher.group(0));
+        Log.v(getClass().getName(), "Preserving existing <root> element attributes/namespace declarations: " + matcher.group(0));
 
         // Extract <root> body
         pattern = Pattern.compile("<root[^>]*>(.*)</root>", Pattern.DOTALL);
         matcher = pattern.matcher(descriptorXml);
         if (!matcher.find() || matcher.groupCount() != 1) {
-            Log.d(getClass().getName(), "Could not extract body of <root> element");
+            Log.v(getClass().getName(), "Could not extract body of <root> element");
             return null;
         }
 

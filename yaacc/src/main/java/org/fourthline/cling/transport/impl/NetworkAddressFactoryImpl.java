@@ -111,7 +111,7 @@ public class NetworkAddressFactoryImpl implements NetworkAddressFactory {
     public void logInterfaceInformation() {
         synchronized (networkInterfaces) {
             if (networkInterfaces.isEmpty()) {
-                Log.i(getClass().getName(), "No network interface to display!");
+                Log.v(getClass().getName(), "No network interface to display!");
                 return;
             }
             for (NetworkInterface networkInterface : networkInterfaces) {
@@ -301,7 +301,7 @@ public class NetworkAddressFactoryImpl implements NetworkAddressFactory {
 
                 Log.v(getClass().getName(), "Analyzing network interface: " + iface.getDisplayName());
                 if (isUsableNetworkInterface(iface)) {
-                    Log.d(getClass().getName(), "Discovered usable network interface: " + iface.getDisplayName());
+                    Log.v(getClass().getName(), "Discovered usable network interface: " + iface.getDisplayName());
                     synchronized (networkInterfaces) {
                         networkInterfaces.add(iface);
                     }
@@ -340,53 +340,53 @@ public class NetworkAddressFactoryImpl implements NetworkAddressFactory {
      */
     protected boolean isUsableNetworkInterface(NetworkInterface iface) throws Exception {
         if (!iface.isUp()) {
-            Log.i(getClass().getName(), "Skipping network interface (down): " + iface.getDisplayName());
+            Log.v(getClass().getName(), "Skipping network interface (down): " + iface.getDisplayName());
             return false;
         }
 
         if (getInetAddresses(iface).size() == 0) {
-            Log.i(getClass().getName(), "Skipping network interface without bound IP addresses: " + iface.getDisplayName());
+            Log.v(getClass().getName(), "Skipping network interface without bound IP addresses: " + iface.getDisplayName());
             return false;
         }
 
         if (iface.getName().toLowerCase(Locale.ROOT).startsWith("vmnet") ||
                 (iface.getDisplayName() != null && iface.getDisplayName().toLowerCase(Locale.ROOT).contains("vmnet"))) {
-            Log.i(getClass().getName(), "Skipping network interface (VMWare): " + iface.getDisplayName());
+            Log.v(getClass().getName(), "Skipping network interface (VMWare): " + iface.getDisplayName());
             return false;
         }
 
         if (iface.getName().toLowerCase(Locale.ROOT).startsWith("vnic")) {
-            Log.i(getClass().getName(), "Skipping network interface (Parallels): " + iface.getDisplayName());
+            Log.v(getClass().getName(), "Skipping network interface (Parallels): " + iface.getDisplayName());
             return false;
         }
 
         if (iface.getName().toLowerCase(Locale.ROOT).startsWith("vboxnet")) {
-            Log.i(getClass().getName(), "Skipping network interface (Virtual Box): " + iface.getDisplayName());
+            Log.v(getClass().getName(), "Skipping network interface (Virtual Box): " + iface.getDisplayName());
             return false;
         }
 
         if (iface.getName().toLowerCase(Locale.ROOT).contains("virtual")) {
-            Log.i(getClass().getName(), "Skipping network interface (named '*virtual*'): " + iface.getDisplayName());
+            Log.v(getClass().getName(), "Skipping network interface (named '*virtual*'): " + iface.getDisplayName());
             return false;
         }
 
         if (iface.getName().toLowerCase(Locale.ROOT).startsWith("ppp")) {
-            Log.i(getClass().getName(), "Skipping network interface (PPP): " + iface.getDisplayName());
+            Log.v(getClass().getName(), "Skipping network interface (PPP): " + iface.getDisplayName());
             return false;
         }
 
         if (iface.getName().toLowerCase(Locale.ROOT).startsWith("rmnet")) {
-            Log.i(getClass().getName(), "Skipping network interface (rmnet): " + iface.getDisplayName());
+            Log.v(getClass().getName(), "Skipping network interface (rmnet): " + iface.getDisplayName());
             return false;
         }
 
         if (iface.isLoopback()) {
-            Log.i(getClass().getName(), "Skipping network interface (ignoring loopback): " + iface.getDisplayName());
+            Log.v(getClass().getName(), "Skipping network interface (ignoring loopback): " + iface.getDisplayName());
             return false;
         }
 
         if (useInterfaces.size() > 0 && !useInterfaces.contains(iface.getName())) {
-            Log.d(getClass().getName(), "Skipping unwanted network interface (-D" + SYSTEM_PROPERTY_NET_IFACES + "): " + iface.getName());
+            Log.v(getClass().getName(), "Skipping unwanted network interface (-D" + SYSTEM_PROPERTY_NET_IFACES + "): " + iface.getName());
             return false;
         }
 
@@ -404,7 +404,7 @@ public class NetworkAddressFactoryImpl implements NetworkAddressFactory {
                 while (it.hasNext()) {
                     NetworkInterface networkInterface = it.next();
 
-                    Log.d(getClass().getName(), "Discovering addresses of interface: " + networkInterface.getDisplayName());
+                    Log.v(getClass().getName(), "Discovering addresses of interface: " + networkInterface.getDisplayName());
                     int usableAddresses = 0;
                     for (InetAddress inetAddress : getInetAddresses(networkInterface)) {
                         if (inetAddress == null) {
@@ -413,18 +413,18 @@ public class NetworkAddressFactoryImpl implements NetworkAddressFactory {
                         }
 
                         if (isUsableAddress(networkInterface, inetAddress)) {
-                            Log.d(getClass().getName(), "Discovered usable network interface address: " + inetAddress.getHostAddress());
+                            Log.v(getClass().getName(), "Discovered usable network interface address: " + inetAddress.getHostAddress());
                             usableAddresses++;
                             synchronized (bindAddresses) {
                                 bindAddresses.add(inetAddress);
                             }
                         } else {
-                            Log.d(getClass().getName(), "Ignoring non-usable network interface address: " + inetAddress.getHostAddress());
+                            Log.v(getClass().getName(), "Ignoring non-usable network interface address: " + inetAddress.getHostAddress());
                         }
                     }
 
                     if (usableAddresses == 0) {
-                        Log.d(getClass().getName(), "Network interface has no usable addresses, removing: " + networkInterface.getDisplayName());
+                        Log.v(getClass().getName(), "Network interface has no usable addresses, removing: " + networkInterface.getDisplayName());
                         it.remove();
                     }
                 }
@@ -472,47 +472,47 @@ public class NetworkAddressFactoryImpl implements NetworkAddressFactory {
     }
 
     protected void logInterfaceInformation(NetworkInterface networkInterface) throws SocketException {
-        Log.d(getClass().getName(), "---------------------------------------------------------------------------------");
-        Log.d(getClass().getName(), String.format("Interface display name: %s", networkInterface.getDisplayName()));
+        Log.v(getClass().getName(), "---------------------------------------------------------------------------------");
+        Log.v(getClass().getName(), String.format("Interface display name: %s", networkInterface.getDisplayName()));
         if (networkInterface.getParent() != null)
-            Log.d(getClass().getName(), String.format("Parent Info: %s", networkInterface.getParent()));
-        Log.d(getClass().getName(), String.format("Name: %s", networkInterface.getName()));
+            Log.v(getClass().getName(), String.format("Parent Info: %s", networkInterface.getParent()));
+        Log.v(getClass().getName(), String.format("Name: %s", networkInterface.getName()));
 
         Enumeration<InetAddress> inetAddresses = networkInterface.getInetAddresses();
 
         for (InetAddress inetAddress : Collections.list(inetAddresses)) {
-            Log.d(getClass().getName(), String.format("InetAddress: %s", inetAddress));
+            Log.v(getClass().getName(), String.format("InetAddress: %s", inetAddress));
         }
 
         List<InterfaceAddress> interfaceAddresses = networkInterface.getInterfaceAddresses();
 
         for (InterfaceAddress interfaceAddress : interfaceAddresses) {
             if (interfaceAddress == null) {
-                Log.d(getClass().getName(), "Skipping null InterfaceAddress!");
+                Log.v(getClass().getName(), "Skipping null InterfaceAddress!");
                 continue;
             }
-            Log.d(getClass().getName(), " Interface Address");
-            Log.d(getClass().getName(), "  Address: " + interfaceAddress.getAddress());
-            Log.d(getClass().getName(), "  Broadcast: " + interfaceAddress.getBroadcast());
-            Log.d(getClass().getName(), "  Prefix length: " + interfaceAddress.getNetworkPrefixLength());
+            Log.v(getClass().getName(), " Interface Address");
+            Log.v(getClass().getName(), "  Address: " + interfaceAddress.getAddress());
+            Log.v(getClass().getName(), "  Broadcast: " + interfaceAddress.getBroadcast());
+            Log.v(getClass().getName(), "  Prefix length: " + interfaceAddress.getNetworkPrefixLength());
         }
 
         Enumeration<NetworkInterface> subIfs = networkInterface.getSubInterfaces();
 
         for (NetworkInterface subIf : Collections.list(subIfs)) {
             if (subIf == null) {
-                Log.d(getClass().getName(), "Skipping null NetworkInterface sub-interface");
+                Log.v(getClass().getName(), "Skipping null NetworkInterface sub-interface");
                 continue;
             }
-            Log.d(getClass().getName(), String.format("\tSub Interface Display name: %s", subIf.getDisplayName()));
-            Log.d(getClass().getName(), String.format("\tSub Interface Name: %s", subIf.getName()));
+            Log.v(getClass().getName(), String.format("\tSub Interface Display name: %s", subIf.getDisplayName()));
+            Log.v(getClass().getName(), String.format("\tSub Interface Name: %s", subIf.getName()));
         }
-        Log.d(getClass().getName(), String.format("Up? %s", networkInterface.isUp()));
-        Log.d(getClass().getName(), String.format("Loopback? %s", networkInterface.isLoopback()));
-        Log.d(getClass().getName(), String.format("PointToPoint? %s", networkInterface.isPointToPoint()));
-        Log.d(getClass().getName(), String.format("Supports multicast? %s", networkInterface.supportsMulticast()));
-        Log.d(getClass().getName(), String.format("Virtual? %s", networkInterface.isVirtual()));
-        Log.d(getClass().getName(), String.format("Hardware address: %s", Arrays.toString(networkInterface.getHardwareAddress())));
-        Log.d(getClass().getName(), String.format("MTU: %s", networkInterface.getMTU()));
+        Log.v(getClass().getName(), String.format("Up? %s", networkInterface.isUp()));
+        Log.v(getClass().getName(), String.format("Loopback? %s", networkInterface.isLoopback()));
+        Log.v(getClass().getName(), String.format("PointToPoint? %s", networkInterface.isPointToPoint()));
+        Log.v(getClass().getName(), String.format("Supports multicast? %s", networkInterface.supportsMulticast()));
+        Log.v(getClass().getName(), String.format("Virtual? %s", networkInterface.isVirtual()));
+        Log.v(getClass().getName(), String.format("Hardware address: %s", Arrays.toString(networkInterface.getHardwareAddress())));
+        Log.v(getClass().getName(), String.format("MTU: %s", networkInterface.getMTU()));
     }
 }

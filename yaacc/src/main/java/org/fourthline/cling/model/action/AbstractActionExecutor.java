@@ -56,7 +56,7 @@ public abstract class AbstractActionExecutor implements ActionExecutor {
      */
     public void execute(final ActionInvocation<LocalService> actionInvocation) {
 
-        Log.d(getClass().getName(), "Invoking on local service: " + actionInvocation);
+        Log.v(getClass().getName(), "Invoking on local service: " + actionInvocation);
 
         final LocalService service = actionInvocation.getAction().getService();
 
@@ -82,19 +82,19 @@ public abstract class AbstractActionExecutor implements ActionExecutor {
 
         } catch (ActionException ex) {
 
-            Log.d(getClass().getName(), "ActionException thrown by service, wrapping in invocation and returning: " + ex);
-            Log.d(getClass().getName(), "Exception root cause: ", Exceptions.unwrap(ex));
+            Log.v(getClass().getName(), "ActionException thrown by service, wrapping in invocation and returning: " + ex);
+            Log.v(getClass().getName(), "Exception root cause: ", Exceptions.unwrap(ex));
 
             actionInvocation.setFailure(ex);
         } catch (InterruptedException ex) {
-            Log.d(getClass().getName(), "InterruptedException thrown by service, wrapping in invocation and returning: " + ex);
-            Log.d(getClass().getName(), "Exception root cause: ", Exceptions.unwrap(ex));
+            Log.v(getClass().getName(), "InterruptedException thrown by service, wrapping in invocation and returning: " + ex);
+            Log.v(getClass().getName(), "Exception root cause: ", Exceptions.unwrap(ex));
 
             actionInvocation.setFailure(new ActionCancelledException(ex));
         } catch (Throwable t) {
             Throwable rootCause = Exceptions.unwrap(t);
-            Log.d(getClass().getName(), "Execution has thrown, wrapping root cause in ActionException and returning: " + t);
-            Log.d(getClass().getName(), "Exception root cause: ", rootCause);
+            Log.v(getClass().getName(), "Execution has thrown, wrapping root cause in ActionException and returning: " + t);
+            Log.v(getClass().getName(), "Exception root cause: ", rootCause);
 
             actionInvocation.setFailure(
                     new ActionException(
@@ -119,7 +119,7 @@ public abstract class AbstractActionExecutor implements ActionExecutor {
      */
     protected Object readOutputArgumentValues(Action<LocalService> action, Object instance) throws Exception {
         Object[] results = new Object[action.getOutputArguments().length];
-        Log.d(getClass().getName(), "Attempting to retrieve output argument values using accessor: " + results.length);
+        Log.v(getClass().getName(), "Attempting to retrieve output argument values using accessor: " + results.length);
 
         int i = 0;
         for (ActionArgument outputArgument : action.getOutputArguments()) {
@@ -127,7 +127,7 @@ public abstract class AbstractActionExecutor implements ActionExecutor {
 
             StateVariableAccessor accessor = getOutputArgumentAccessors().get(outputArgument);
             if (accessor != null) {
-                Log.d(getClass().getName(), "Calling accessor to read output argument value: " + accessor);
+                Log.v(getClass().getName(), "Calling accessor to read output argument value: " + accessor);
                 results[i++] = accessor.read(instance);
             } else {
                 throw new IllegalStateException("No accessor bound for: " + outputArgument);
@@ -151,10 +151,10 @@ public abstract class AbstractActionExecutor implements ActionExecutor {
         if (result != null) {
             try {
                 if (service.isStringConvertibleType(result)) {
-                    Log.d(getClass().getName(), "Result of invocation matches convertible type, setting toString() single output argument value");
+                    Log.v(getClass().getName(), "Result of invocation matches convertible type, setting toString() single output argument value");
                     actionInvocation.setOutput(new ActionArgumentValue(argument, result.toString()));
                 } else {
-                    Log.d(getClass().getName(), "Result of invocation is Object, setting single output argument value");
+                    Log.v(getClass().getName(), "Result of invocation is Object, setting single output argument value");
                     actionInvocation.setOutput(new ActionArgumentValue(argument, result));
                 }
             } catch (InvalidValueException ex) {
@@ -166,7 +166,7 @@ public abstract class AbstractActionExecutor implements ActionExecutor {
             }
         } else {
 
-            Log.d(getClass().getName(), "Result of invocation is null, not setting any output argument value(s)");
+            Log.v(getClass().getName(), "Result of invocation is null, not setting any output argument value(s)");
         }
 
     }

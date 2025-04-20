@@ -269,9 +269,14 @@ public class LocalBackgoundMusicPlayer extends AbstractPlayer implements Service
 
     }
 
+    public long getCurrentPosition() {
+        if (!isMusicServiceBound()) return 0;
+        return getBackgroundService().getCurrentPosition();
+    }
+
     public String getElapsedTime() {
         if (!isMusicServiceBound()) return "";
-        return formatMillis(getBackgroundService().getCurrentPosition());
+        return formatMillis(getCurrentPosition());
     }
 
 

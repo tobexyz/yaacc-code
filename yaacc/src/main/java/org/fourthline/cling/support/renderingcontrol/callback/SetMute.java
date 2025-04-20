@@ -42,7 +42,7 @@ public abstract class SetMute extends ActionCallback {
 
     @Override
     public void success(ActionInvocation invocation) {
-        Log.d(getClass().getName(), "Executed successfully");
+        Log.v(getClass().getName(), "Executed successfully");
 
     }
 }

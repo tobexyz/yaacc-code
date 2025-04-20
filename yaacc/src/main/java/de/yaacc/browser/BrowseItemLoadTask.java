@@ -29,11 +29,14 @@ import de.yaacc.upnp.callback.contentdirectory.ContentDirectoryBrowseResult;
 public class BrowseItemLoadTask extends AsyncTask<Long, Integer, ContentDirectoryBrowseResult> {
     private final BrowseContentItemAdapter itemAdapter;
     private final Long chunkSize;
+    private final Integer scrollToPositionId;
 
 
-    public BrowseItemLoadTask(BrowseContentItemAdapter itemAdapter, Long chunkSize) {
+    public BrowseItemLoadTask(BrowseContentItemAdapter itemAdapter, Long chunkSize, Integer positionId) {
         this.itemAdapter = itemAdapter;
         this.chunkSize = chunkSize;
+        this.scrollToPositionId = positionId;
+
     }
 
     @Override
@@ -82,6 +85,7 @@ public class BrowseItemLoadTask extends AsyncTask<Long, Integer, ContentDirector
         }
         itemAdapter.removeTask(this);
         itemAdapter.setLoading(false);
+        itemAdapter.scrollToPositionId(scrollToPositionId);
 
     }
 }

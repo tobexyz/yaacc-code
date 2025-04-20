@@ -20,8 +20,6 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
 
-    
-
     <PreferenceCategory android:title="@string/settings_category_appearance">
         <CheckBoxPreference
             android:defaultValue="true"
@@ -38,6 +36,12 @@
     </PreferenceCategory>
 
     <PreferenceCategory android:title="@string/settings_category_browsing">
+        <CheckBoxPreference
+            android:defaultValue="true"
+            android:key="@string/settings_swipe_chkbx"
+            android:summaryOff="@string/settings_browse_swipe_off"
+            android:summaryOn="@string/settings_browse_swipe_on"
+            android:title="@string/settings_browse_swipe_title" />
         <CheckBoxPreference
             android:defaultValue="true"
             android:key="@string/settings_thumbnails_chkbx"
@@ -160,6 +164,10 @@
             android:key="@string/settings_local_server_name_key"
             android:title="@string/settings_local_server_name" />
         <EditTextPreference
+            android:key="@string/settings_local_server_if_filter_key"
+            android:title="@string/settings_local_server_if_filter_names"
+            android:defaultValue="rmnet,ccmni" />
+        <EditTextPreference
             android:enabled="false"
             app:isPreferenceVisible="false"
             android:inputType="text"
@@ -169,19 +177,5 @@
             app:isPreferenceVisible="false"
             android:inputType="text"
             android:key="@string/settings_local_server_receiver_uuid_key" />
-    </PreferenceCategory>
-    <PreferenceCategory android:title="@string/settings_category_synchronization">
-        <ListPreference
-            android:entries="@array/duration_entries"
-            android:entryValues="@array/duration_values"
-            android:key="@string/settings_default_playback_delay_key"
-            android:title="@string/settings_default_playback_delay" />
-        <EditTextPreference
-            android:defaultValue="0"
-            android:dialogTitle="@string/settings_device_playback_offset"
-            android:inputType="number"
-            android:key="@string/settings_device_playback_offset_key"
-            android:summary="@string/settings_device_playback_offset_summ"
-            android:title="@string/settings_device_playback_offset" />
     </PreferenceCategory>
 </PreferenceScreen>

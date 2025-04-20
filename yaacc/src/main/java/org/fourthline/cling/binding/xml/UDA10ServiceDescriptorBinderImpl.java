@@ -69,7 +69,7 @@ public class UDA10ServiceDescriptorBinderImpl implements ServiceDescriptorBinder
         }
 
         try {
-            Log.d(getClass().getName(), "Populating service from XML descriptor: " + undescribedService);
+            Log.v(getClass().getName(), "Populating service from XML descriptor: " + undescribedService);
 
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
             factory.setNamespaceAware(true);
@@ -94,7 +94,7 @@ public class UDA10ServiceDescriptorBinderImpl implements ServiceDescriptorBinder
 
     public <S extends Service> S describe(S undescribedService, Document dom) throws DescriptorBindingException, ValidationException {
         try {
-            Log.d(getClass().getName(), "Populating service from DOM: " + undescribedService);
+            Log.v(getClass().getName(), "Populating service from DOM: " + undescribedService);
 
             // Read the XML into a mutable descriptor graph
             MutableService descriptor = new MutableService();
@@ -350,7 +350,7 @@ public class UDA10ServiceDescriptorBinderImpl implements ServiceDescriptorBinder
 
     public String generate(Service service) throws DescriptorBindingException {
         try {
-            Log.d(getClass().getName(), "Generating XML descriptor from service model: " + service);
+            Log.v(getClass().getName(), "Generating XML descriptor from service model: " + service);
 
             return XMLUtil.documentToString(buildDOM(service));
 
@@ -362,7 +362,7 @@ public class UDA10ServiceDescriptorBinderImpl implements ServiceDescriptorBinder
     public Document buildDOM(Service service) throws DescriptorBindingException {
 
         try {
-            Log.d(getClass().getName(), "Generating XML descriptor from service model: " + service);
+            Log.v(getClass().getName(), "Generating XML descriptor from service model: " + service);
 
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
             factory.setNamespaceAware(true);

@@ -24,8 +24,6 @@ import java.beans.PropertyChangeListener;
 import java.net.URI;
 import java.util.List;
 
-import de.yaacc.upnp.SynchronizationInfo;
-
 
 /**
  * A Player is able to play stop a couple of MediaObjects
@@ -172,6 +170,13 @@ public interface Player {
     String getDuration();
 
     /**
+     * returns the current position of the current item in millis
+     *
+     * @return the position
+     */
+    long getCurrentPosition();
+
+    /**
      * returns the elapsed time of the current item
      *
      * @return the elapsed time
@@ -187,20 +192,7 @@ public interface Player {
 
     void setIcon(Bitmap icon);
 
-    /**
-     * Get the synchronization information
-     *
-     * @return the info object
-     */
-    SynchronizationInfo getSyncInfo();
-
-    /**
-     * Set the synchronization information
-     *
-     * @param syncInfo the info object
-     */
-    void setSyncInfo(SynchronizationInfo syncInfo);
-
+   
     boolean getMute();
 
 
@@ -230,4 +222,17 @@ public interface Player {
 
     List<PlayableItem> getItems();
 
+    /**
+     * fast forward seconds
+     *
+     * @param i seconds
+     */
+    void fastForward(int i);
+
+    /**
+     * fast rewind seconds
+     *
+     * @param i seconds
+     */
+    void fastRewind(int i);
 }

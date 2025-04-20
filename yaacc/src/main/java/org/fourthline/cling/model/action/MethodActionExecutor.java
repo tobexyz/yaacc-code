@@ -67,31 +67,31 @@ public class MethodActionExecutor extends AbstractActionExecutor {
 
         // Simple case: no output arguments
         if (!actionInvocation.getAction().hasOutputArguments()) {
-            Log.d(getClass().getName(), "Calling local service method with no output arguments: " + method);
+            Log.v(getClass().getName(), "Calling local service method with no output arguments: " + method);
             Reflections.invoke(method, serviceImpl, inputArgumentValues);
             return;
         }
 
         boolean isVoid = method.getReturnType().equals(Void.TYPE);
 
-        Log.d(getClass().getName(), "Calling local service method with output arguments: " + method);
+        Log.v(getClass().getName(), "Calling local service method with output arguments: " + method);
         Object result;
         boolean isArrayResultProcessed = true;
         if (isVoid) {
 
-            Log.d(getClass().getName(), "Action method is void, calling declared accessors(s) on service instance to retrieve ouput argument(s)");
+            Log.v(getClass().getName(), "Action method is void, calling declared accessors(s) on service instance to retrieve ouput argument(s)");
             Reflections.invoke(method, serviceImpl, inputArgumentValues);
             result = readOutputArgumentValues(actionInvocation.getAction(), serviceImpl);
 
         } else if (isUseOutputArgumentAccessors(actionInvocation)) {
 
-            Log.d(getClass().getName(), "Action method is not void, calling declared accessor(s) on returned instance to retrieve ouput argument(s)");
+            Log.v(getClass().getName(), "Action method is not void, calling declared accessor(s) on returned instance to retrieve ouput argument(s)");
             Object returnedInstance = Reflections.invoke(method, serviceImpl, inputArgumentValues);
             result = readOutputArgumentValues(actionInvocation.getAction(), returnedInstance);
 
         } else {
 
-            Log.d(getClass().getName(), "Action method is not void, using returned value as (single) output argument");
+            Log.v(getClass().getName(), "Action method is not void, using returned value as (single) output argument");
             result = Reflections.invoke(method, serviceImpl, inputArgumentValues);
             isArrayResultProcessed = false; // We never want to process e.g. byte[] as individual variable values
         }
@@ -100,7 +100,7 @@ public class MethodActionExecutor extends AbstractActionExecutor {
 
         if (isArrayResultProcessed && result instanceof Object[]) {
             Object[] results = (Object[]) result;
-            Log.d(getClass().getName(), "Accessors returned Object[], setting output argument values: " + results.length);
+            Log.v(getClass().getName(), "Accessors returned Object[], setting output argument values: " + results.length);
             for (int i = 0; i < outputArgs.length; i++) {
                 setOutputArgumentValue(actionInvocation, outputArgs[i], results[i]);
             }

@@ -30,11 +30,15 @@ public class Position implements Serializable {
     private final String deviceId;
     private final String objectName;
 
-    public Position(String objectId, String deviceId, String name) {
+    private final int positionId;
+
+
+    public Position(int positionId, String objectId, String deviceId, String name) {
 
         this.deviceId = deviceId;
         this.objectId = objectId;
         this.objectName = name;
+        this.positionId = positionId;
     }
 
 
@@ -50,6 +54,10 @@ public class Position implements Serializable {
         return deviceId;
     }
 
+    public int getPositionId() {
+        return positionId;
+    }
+
     /* (non-Javadoc)
      * @see java.lang.Object#toString()
      */
@@ -57,6 +65,7 @@ public class Position implements Serializable {
     @Override
     public String toString() {
         return "Position ["
+                + "positionId=" + positionId + ", "
                 + (objectId != null ? "objectId=" + objectId + ", " : "")
                 + (deviceId != null ? "device=" + deviceId : "") + "]";
     }

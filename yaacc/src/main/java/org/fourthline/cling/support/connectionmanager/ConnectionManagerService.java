@@ -121,7 +121,7 @@ public class ConnectionManagerService {
     })
     synchronized public ConnectionInfo getCurrentConnectionInfo(@UpnpInputArgument(name = "ConnectionID") int connectionId)
             throws ActionException {
-        Log.d(getClass().getName(), "Getting connection information of connection ID: " + connectionId);
+        Log.v(getClass().getName(), "Getting connection information of connection ID: " + connectionId);
         ConnectionInfo info;
         if ((info = activeConnections.get(connectionId)) == null) {
             throw new ConnectionManagerException(
@@ -140,7 +140,7 @@ public class ConnectionManagerService {
         for (Integer connectionID : activeConnections.keySet()) {
             csv.add(new UnsignedIntegerFourBytes(connectionID));
         }
-        Log.d(getClass().getName(), "Returning current connection IDs: " + csv.size());
+        Log.v(getClass().getName(), "Returning current connection IDs: " + csv.size());
         return csv;
     }
 

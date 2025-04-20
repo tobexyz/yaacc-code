@@ -256,7 +256,7 @@ public class DefaultUpnpServiceConfiguration implements UpnpServiceConfiguration
     }
 
     public void shutdown() {
-        Log.d(getClass().getName(), "Shutting down default executor service");
+        Log.v(getClass().getName(), "Shutting down default executor service");
         getDefaultExecutorService().shutdownNow();
     }
 
@@ -305,7 +305,7 @@ public class DefaultUpnpServiceConfiguration implements UpnpServiceConfiguration
                         @Override
                         public void rejectedExecution(Runnable runnable, ThreadPoolExecutor threadPoolExecutor) {
                             // Log and discard
-                            Log.i(getClass().getName(), "Thread pool rejected execution of " + runnable.getClass());
+                            Log.v(getClass().getName(), "Thread pool rejected execution of " + runnable.getClass());
                             super.rejectedExecution(runnable, threadPoolExecutor);
                         }
                     }

@@ -34,6 +34,7 @@ import java.beans.PropertyChangeListener;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -42,7 +43,6 @@ import de.yaacc.R;
 import de.yaacc.Yaacc;
 import de.yaacc.imageviewer.ImageViewerActivity;
 import de.yaacc.imageviewer.ImageViewerBroadcastReceiver;
-import de.yaacc.upnp.SynchronizationInfo;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.util.NotificationId;
 
@@ -58,7 +58,6 @@ public class LocalImagePlayer implements Player, ServiceConnection {
     private Timer commandExecutionTimer;
     private String name;
     private String shortName;
-    private SynchronizationInfo syncInfo;
     private PendingIntent notificationIntent;
     private PlayerService playerService;
     private boolean isPlaying;
@@ -190,7 +189,7 @@ public class LocalImagePlayer implements Player, ServiceConnection {
                 setPlaying(false);
 
             }
-        }, getExecutionTime());
+        }, new Date());
 
     }
 
@@ -218,7 +217,7 @@ public class LocalImagePlayer implements Player, ServiceConnection {
                 setPlaying(true);
 
             }
-        }, getExecutionTime());
+        }, new Date());
 
     }
 
@@ -245,7 +244,7 @@ public class LocalImagePlayer implements Player, ServiceConnection {
                 setPlaying(false);
 
             }
-        }, getExecutionTime());
+        }, new Date());
 
     }
 
@@ -476,6 +475,11 @@ public class LocalImagePlayer implements Player, ServiceConnection {
     }
 
     @Override
+    public long getCurrentPosition() {
+        return 0;
+    }
+
+    @Override
     public String getElapsedTime() {
         return "";
     }
@@ -495,22 +499,6 @@ public class LocalImagePlayer implements Player, ServiceConnection {
 
     }
 
-    @Override
-    public SynchronizationInfo getSyncInfo() {
-        return syncInfo;
-    }
-
-    @Override
-    public void setSyncInfo(SynchronizationInfo syncInfo) {
-        if (syncInfo == null) {
-            syncInfo = new SynchronizationInfo();
-        }
-        this.syncInfo = syncInfo;
-    }
-
-    private long getExecutionTime() {
-        return getSyncInfo().getOffset().toNanos() / 1000000 + 600L;
-    }
 
     //TODO Refactor not every player has a volume control
     public boolean getMute() {
@@ -568,5 +556,15 @@ public class LocalImagePlayer implements Player, ServiceConnection {
     @Override
     public List<PlayableItem> getItems() {
         return new ArrayList<>();
+    }
+
+    @Override
+    public void fastForward(int i) {
+        //Not implemented
+    }
+
+    @Override
+    public void fastRewind(int i) {
+        //Not implemented
     }
 }

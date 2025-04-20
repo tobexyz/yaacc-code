@@ -24,12 +24,6 @@ import org.fourthline.cling.support.avtransport.impl.state.AbstractState;
  */
 public interface YaaccState {
 
-    Class<? extends AbstractState<?>> syncPlay(String speed, String referencedPositionUnits, String referencedPosition, String referencedPresentationTime, String referencedClockId);
-
-    Class<? extends AbstractState<?>> syncPause(String referencedPresentationTime, String referencedClockId);
-
-    Class<? extends AbstractState<?>> syncStop(String referencedPresentationTime, String referencedClockId);
-
     Class<? extends AbstractState<?>> play(String speed);
 
     TransportAction[] getPossibleTransportActions();

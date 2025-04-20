@@ -42,7 +42,7 @@ public abstract class SetAVTransportURI extends ActionCallback {
 
     public SetAVTransportURI(UnsignedIntegerFourBytes instanceId, Service service, String uri, String metadata) {
         super(new ActionInvocation(service.getAction("SetAVTransportURI")));
-        Log.d(getClass().getName(), "Creating SetAVTransportURI action for URI: " + uri);
+        Log.v(getClass().getName(), "Creating SetAVTransportURI action for URI: " + uri);
         getActionInvocation().setInput("InstanceID", instanceId);
         getActionInvocation().setInput("CurrentURI", uri);
         getActionInvocation().setInput("CurrentURIMetaData", metadata);
@@ -50,6 +50,6 @@ public abstract class SetAVTransportURI extends ActionCallback {
 
     @Override
     public void success(ActionInvocation invocation) {
-        Log.d(getClass().getName(), "Execution successful");
+        Log.v(getClass().getName(), "Execution successful");
     }
 }

@@ -103,7 +103,7 @@ public class DatagramProcessorImpl implements DatagramProcessor {
             // TODO: Probably should look into escaping rules, too
             byte[] data = messageData.toString().getBytes("US-ASCII");
 
-            Log.d(getClass().getName(), "Writing new datagram packet with " + data.length + " bytes for: " + message);
+            Log.v(getClass().getName(), "Writing new datagram packet with " + data.length + " bytes for: " + message);
             return new DatagramPacket(data, data.length, message.getDestinationAddress(), message.getDestinationPort());
 
         } catch (UnsupportedEncodingException ex) {

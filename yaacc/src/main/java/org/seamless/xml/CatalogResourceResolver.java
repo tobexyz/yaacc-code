@@ -46,10 +46,10 @@
      }
 
      public LSInput resolveResource(String type, String namespaceURI, String publicId, String systemId, String baseURI) {
-         Log.i(getClass().getName(), "Trying to resolve system identifier URI in catalog: " + systemId);
+         Log.v(getClass().getName(), "Trying to resolve system identifier URI in catalog: " + systemId);
          URL systemURL;
          if ((systemURL = catalog.get(URI.create(systemId))) != null) {
-             Log.i(getClass().getName(), "Loading catalog resource: " + systemURL);
+             Log.v(getClass().getName(), "Loading catalog resource: " + systemURL);
              try {
                  Input i = new Input(systemURL.openStream());
                  i.setBaseURI(baseURI);
@@ -60,7 +60,7 @@
                  throw new RuntimeException(ex);
              }
          }
-         Log.i(getClass().getName(),
+         Log.v(getClass().getName(),
                  "System identifier not found in catalog, continuing with default resolution " +
                          "(this most likely means remote HTTP request!): " + systemId
          );

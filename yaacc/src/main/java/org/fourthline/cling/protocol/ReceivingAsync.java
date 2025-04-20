@@ -58,7 +58,7 @@ public abstract class ReceivingAsync<M extends UpnpMessage> implements Runnable 
         try {
             proceed = waitBeforeExecution();
         } catch (InterruptedException ex) {
-            Log.i(getClass().getName(), "Protocol wait before execution interrupted (on shutdown?): " + getClass().getSimpleName());
+            Log.v(getClass().getName(), "Protocol wait before execution interrupted (on shutdown?): " + getClass().getSimpleName());
             proceed = false;
         }
 
@@ -68,7 +68,7 @@ public abstract class ReceivingAsync<M extends UpnpMessage> implements Runnable 
             } catch (Exception ex) {
                 Throwable cause = Exceptions.unwrap(ex);
                 if (cause instanceof InterruptedException) {
-                    Log.i(getClass().getName(), "Interrupted protocol '" + getClass().getSimpleName() + "': " + ex, cause);
+                    Log.v(getClass().getName(), "Interrupted protocol '" + getClass().getSimpleName() + "': " + ex, cause);
                 } else {
                     throw new RuntimeException(
                             "Fatal error while executing protocol '" + getClass().getSimpleName() + "': " + ex, ex

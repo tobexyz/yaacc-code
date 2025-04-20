@@ -73,7 +73,7 @@ public abstract class LocalGENASubscription extends GENASubscription<LocalServic
 
         setSubscriptionDuration(requestedDurationSeconds);
 
-        Log.d(getClass().getName(), "Reading initial state of local service at subscription time");
+        Log.v(getClass().getName(), "Reading initial state of local service at subscription time");
         long currentTime = new Date().getTime();
         this.currentValues.clear();
 
@@ -134,7 +134,7 @@ public abstract class LocalGENASubscription extends GENASubscription<LocalServic
     synchronized public void propertyChange(PropertyChangeEvent e) {
         if (!e.getPropertyName().equals(ServiceManager.EVENTED_STATE_VARIABLES)) return;
 
-        Log.d(getClass().getName(), "Eventing triggered, getting state for subscription: " + getSubscriptionId());
+        Log.v(getClass().getName(), "Eventing triggered, getting state for subscription: " + getSubscriptionId());
 
         long currentTime = new Date().getTime();
 
@@ -145,7 +145,7 @@ public abstract class LocalGENASubscription extends GENASubscription<LocalServic
         for (StateVariableValue newValue : newValues) {
             String name = newValue.getStateVariable().getName();
             if (!excludedVariables.contains(name)) {
-                Log.d(getClass().getName(), "Adding state variable value to current values of event: " + newValue.getStateVariable() + " = " + newValue);
+                Log.v(getClass().getName(), "Adding state variable value to current values of event: " + newValue.getStateVariable() + " = " + newValue);
                 currentValues.put(newValue.getStateVariable().getName(), newValue);
 
                 // Preserve "last sent" state for future moderation
@@ -157,13 +157,13 @@ public abstract class LocalGENASubscription extends GENASubscription<LocalServic
         }
 
         if (currentValues.size() > 0) {
-            Log.d(getClass().getName(), "Propagating new state variable values to subscription: " + this);
+            Log.v(getClass().getName(), "Propagating new state variable values to subscription: " + this);
             // TODO: I'm not happy with this design, this dispatches to a separate thread which _then_
             // is supposed to lock and read the values off this instance. That obviously doesn't work
             // so it's currently a hack in SendingEvent.java
             eventReceived();
         } else {
-            Log.d(getClass().getName(), "No state variable values for event (all moderated out?), not triggering event");
+            Log.v(getClass().getName(), "No state variable values for event (all moderated out?), not triggering event");
         }
     }
 

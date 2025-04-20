@@ -37,7 +37,7 @@ public abstract class Playing<T extends AVTransport> extends AbstractState<T> {
     }
 
     public void onEntry() {
-        Log.d(getClass().getName(), "Setting transport state to PLAYING");
+        Log.v(getClass().getName(), "Setting transport state to PLAYING");
         getTransport().setTransportInfo(
                 new TransportInfo(
                         TransportState.PLAYING,
