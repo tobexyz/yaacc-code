@@ -1,0 +1,5 @@
+Version 4.3.2
+- fixed some typos, removed unnecessary toasts
+- show download location
+
+
