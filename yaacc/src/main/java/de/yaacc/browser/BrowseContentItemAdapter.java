@@ -188,6 +188,8 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
         holder.download.setOnClickListener((v) -> {
             try {
                 upnpClient.downloadItem(currentObject);
+                Toast toast = Toast.makeText(contentListFragment.getActivity(), R.string.downloaded_to_target, Toast.LENGTH_LONG);
+                toast.show();
             } catch (Exception ex) {
                 Toast toast = Toast.makeText(contentListFragment.getActivity(), "Can't download item: " + ex.getMessage(), Toast.LENGTH_SHORT);
                 toast.show();
