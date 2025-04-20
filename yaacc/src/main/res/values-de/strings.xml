@@ -122,6 +122,7 @@
     <string name="playlist">Playlist</string>
     <string name="fast_rewind">fast rewind</string>
     <string name="fast_forward">fast forward</string>
+    <string name="downloaded_to_target">gespeichert unter /Download/yaacc/</string>
 
 
 </resources>

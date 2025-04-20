@@ -51,7 +51,7 @@
     <string name="settings_browse_thumbnails_coverlookup_off">images in directories are not used as covers</string>
     <string name="settings_browse_thumbnails_coverlookup_chkbx" translatable="false">thumbnail_cover_lookup_chkbx</string>
     <string name="settings_browse_load_threads_key" translatable="false">settings_browse_load_threads_key</string>
-    <string name="settings_browse_load_threads">mumber of threads</string>
+    <string name="settings_browse_load_threads">number of threads</string>
     <string name="settings_browse_load_threads_summ">Configure the number of threads used for loading content from the UPnP server. More threads causes faster loading but increase the possibility of errors. Changes are effect after restart of yaacc.</string>
     <string name="settings_no_content_found">no content found for browsing</string>
     <string name="settings_audio_chkbx" translatable="false">audio_chkbx</string>

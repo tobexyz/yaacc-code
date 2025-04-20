@@ -176,4 +176,5 @@
     <string name="add_to_playlist">Adicionado item à lista de reprodução dos receptores atuais</string>
     <string name="playlist">lista de reprodução</string>
     <string name="fast_rewind">retrocesso rápido</string>
+    <string name="downloaded_to_target">salvo em /Download/yaacc/</string>
 </resources>

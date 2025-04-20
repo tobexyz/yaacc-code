@@ -103,4 +103,5 @@
     <string name="playlist">afspeellijst</string>
     <string name="fast_rewind">snel terugspoelen</string>
     <string name="fast_forward">snel vooruit</string>
+    <string name="downloaded_to_target">opgeslagen onder /Download/yaacc/</string>
 </resources>
