@@ -112,11 +112,14 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
 
         Uri requestUri = Uri.parse(request.getHead().getRequestUri());
         List<String> pathSegments = requestUri.getPathSegments();
-        if (pathSegments.size() < 2 || pathSegments.size() > 3) {
-            responseBuilder.setStatus(HttpStatus.SC_FORBIDDEN);
-            responseBuilder.setEntity(AsyncEntityProducers.create("<html><body><h1>Access denied</h1></body></html>", ContentType.TEXT_HTML));
+        if (pathSegments.size() == 1 && "health".equals(pathSegments.get(0))) {
+            responseBuilder.setStatus(HttpStatus.SC_OK);
+            responseBuilder.setEntity(AsyncEntityProducers.create("<html><body>I am alive</body></html>", ContentType.TEXT_HTML));
             responseTrigger.submitResponse(responseBuilder.build(), context);
-            Log.d(getClass().getName(), "end doService: Access denied");
+            return;
+        }
+        if (pathSegments.size() < 2 || pathSegments.size() > 3) {
+            createForbiddenResponse(responseTrigger, context, responseBuilder);
             return;
         }
 
@@ -130,10 +133,7 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
             try {
                 Long.parseLong(albumId);
             } catch (NumberFormatException nex) {
-                responseBuilder.setStatus(HttpStatus.SC_FORBIDDEN);
-                responseBuilder.setEntity(AsyncEntityProducers.create("<html><body><h1>Access denied</h1></body></html>", ContentType.TEXT_HTML));
-                responseTrigger.submitResponse(responseBuilder.build(), context);
-                Log.d(getClass().getName(), "end doService: Access denied");
+                createForbiddenResponse(responseTrigger, context, responseBuilder);
                 return;
             }
         } else if ("thumb".equals(type)) {
@@ -141,10 +141,7 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
             try {
                 Long.parseLong(thumbId);
             } catch (NumberFormatException nex) {
-                responseBuilder.setStatus(HttpStatus.SC_FORBIDDEN);
-                responseBuilder.setEntity(AsyncEntityProducers.create("<html><body><h1>Access denied</h1></body></html>", ContentType.TEXT_HTML));
-                responseTrigger.submitResponse(responseBuilder.build(), context);
-                Log.d(getClass().getName(), "end doService: Access denied");
+                createForbiddenResponse(responseTrigger, context, responseBuilder);
                 return;
             }
         } else if ("res".equals(type)) {
@@ -152,17 +149,14 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
             try {
                 Long.parseLong(contentId);
             } catch (NumberFormatException nex) {
-                responseBuilder.setStatus(HttpStatus.SC_FORBIDDEN);
-                responseBuilder.setEntity(AsyncEntityProducers.create("<html><body><h1>Access denied</h1></body></html>", ContentType.TEXT_HTML));
-                responseTrigger.submitResponse(responseBuilder.build(), context);
-                Log.d(getClass().getName(), "end doService: Access denied");
+                createForbiddenResponse(responseTrigger, context, responseBuilder);
                 return;
             }
         }
         Arrays.stream(request.getHead().getHeaders()).forEach(it -> Log.d(getClass().getName(), "HEADER " + it.getName() + ": " + it.getValue()));
         List<HttpRange> ranges = new ArrayList<>();
         if (request.getHead().getHeader(HttpHeaders.RANGE) != null) {
-            ranges = HttpRange.parseRangeHeader(request.getHead().getHeader(HttpHeaders.RANGE).toString());
+            ranges = HttpRange.parseRangeHeader(request.getHead().getHeader(HttpHeaders.RANGE).getValue().toString());
         }
         ContentHolder contentHolder = null;
         if (!contentId.isEmpty()) {
@@ -180,8 +174,8 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
                     + albumId + thumbId + pathSegments.get(1) + " not found");
             responseBuilder.setStatus(HttpStatus.SC_NOT_FOUND);
             String response =
-                    "<html><body><h1>Resource with id " + contentId + albumId
-                            + thumbId + pathSegments.get(1) + " not found</h1></body></html>";
+                    "<html><body>Resource with id " + contentId + albumId
+                            + thumbId + pathSegments.get(1) + " not found</body></html>";
             responseBuilder.setEntity(AsyncEntityProducers.create(response, ContentType.TEXT_HTML));
         } else {
 
@@ -191,6 +185,13 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
         responseBuilder.setHeader(HttpHeaders.ACCEPT_RANGES, "none");
         responseTrigger.submitResponse(responseBuilder.build(), context);
         Log.d(getClass().getName(), "end doService: ");
+    }
+
+    private void createForbiddenResponse(ResponseTrigger responseTrigger, HttpContext context, AsyncResponseBuilder responseBuilder) throws HttpException, IOException {
+        responseBuilder.setStatus(HttpStatus.SC_FORBIDDEN);
+        responseBuilder.setEntity(AsyncEntityProducers.create("<html><body>Access denied</body></html>", ContentType.TEXT_HTML));
+        responseTrigger.submitResponse(responseBuilder.build(), context);
+        Log.d(getClass().getName(), "end doService: Access denied");
     }
 
     private Context getContext() {
@@ -437,13 +438,13 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
                     rangeLength = fileSize;
                 } else {
                     HttpRange range = ranges.get(0);
-                    startPosition = range.getStart();
-                    if (range.getEnd() == 0) {
+                    startPosition = range.getStart() == null ? 0 : range.getStart();
+                    if (range.getEnd() == null || range.getEnd() == 0) {
                         rangeLength = fileSize;
                     } else {
-                        rangeLength = range.getEnd() - range.getStart();
+                        rangeLength = range.getEnd() - startPosition;
                     }
-                    if (range.getSuffixLength() > 0) {
+                    if (range.getSuffixLength() != null && range.getSuffixLength() > 0) {
                         startPosition = fileSize - range.getSuffixLength();
                         rangeLength = range.getSuffixLength();
                     }
@@ -451,7 +452,9 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
 
                 // Read a range of bytes (e.g., bytes 100 to 200)
                 if (startPosition < 0 || startPosition + rangeLength > fileSize) {
-                    throw new IllegalArgumentException("Invalid range");
+                    Log.d(getClass().getName(), "Invalid range startPosition: " + startPosition + " rangeLength: " + rangeLength + " fileSize: " + fileSize);
+                    rangeLength = fileSize - startPosition;
+                    Log.d(getClass().getName(), "Adjusted range startPosition: " + startPosition + " rangeLength: " + rangeLength + " fileSize: " + fileSize);
                 }
 
                 raf.seek(startPosition); // Move to the starting position

@@ -77,6 +77,7 @@ public class HttpRange {
         if (rangeHeader == null || rangeHeader.equals("")) {
             return ranges;
         }
+
         String byteRangeSetRegex = "(((?<byteRangeSpec>(?<firstBytePos>\\d+)-(?<lastBytePos>\\d+)?)|(?<suffixByteRangeSpec>-(?<suffixLength>\\d+)))(,|$))";
         String byteRangesSpecifierRegex = "bytes=(?<byteRangeSet>" + byteRangeSetRegex + "{1,})";
         Pattern byteRangeSetPattern = Pattern.compile(byteRangeSetRegex);

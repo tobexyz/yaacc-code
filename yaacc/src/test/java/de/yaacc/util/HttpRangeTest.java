@@ -61,5 +61,11 @@ public class HttpRangeTest {
         expected = new ArrayList<>();
         assertEquals(expected, calculated);
         assertEquals(null, HttpRange.toHeaderString(calculated));
+        input = "bytes=6154265-";
+        calculated = HttpRange.parseRangeHeader(input);
+        expected = new ArrayList<>();
+        expected.add(new HttpRange("bytes", 6154265, null, null));
+        assertEquals(expected, calculated);
+        assertEquals(input, HttpRange.toHeaderString(calculated));
     }
 }
