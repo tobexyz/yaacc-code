@@ -60,11 +60,13 @@ import java.io.RandomAccessFile;
 import java.net.URL;
 import java.net.URLConnection;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
 import de.yaacc.R;
+import de.yaacc.upnp.server.contentdirectory.ContentBrowser;
 import de.yaacc.util.HttpRange;
 
 /**
@@ -158,7 +160,10 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
             }
         }
         Arrays.stream(request.getHead().getHeaders()).forEach(it -> Log.d(getClass().getName(), "HEADER " + it.getName() + ": " + it.getValue()));
-        List<HttpRange> ranges = HttpRange.parseRangeHeader(request.getHead().getHeader(HttpHeaders.RANGE).toString());
+        List<HttpRange> ranges = new ArrayList<>();
+        if (request.getHead().getHeader(HttpHeaders.RANGE) != null) {
+            ranges = HttpRange.parseRangeHeader(request.getHead().getHeader(HttpHeaders.RANGE).toString());
+        }
         ContentHolder contentHolder = null;
         if (!contentId.isEmpty()) {
             contentHolder = lookupContent(contentId, ranges);
@@ -212,8 +217,11 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
         String[] projection = {MediaStore.Files.FileColumns._ID,
                 MediaStore.Files.FileColumns.MIME_TYPE,
                 MediaStore.Files.FileColumns.DATA};
-        String selection = MediaStore.Files.FileColumns._ID + "=?";
-        String[] selectionArgs = {contentId};
+        String selection = MediaStore.Files.FileColumns._ID + "=? and (" + ContentBrowser.makeLikeClause(MediaStore.Files.FileColumns.RELATIVE_PATH, ContentBrowser.getMediaPathes().size()) + ")";
+        List<String> selectionArgsList = new ArrayList<>();
+        selectionArgsList.add(contentId);
+        selectionArgsList.addAll(ContentBrowser.getMediaPathesForLikeClause());
+        String[] selectionArgs = selectionArgsList.toArray(new String[0]);
         try (Cursor mFilesCursor = getContext().getContentResolver().query(
                 MediaStore.Files.getContentUri("external"), projection,
                 selection, selectionArgs, null)) {
@@ -457,12 +465,12 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
         public AsyncEntityProducer getEntityProducer() throws IOException {
             AsyncEntityProducer result = null;
             if (getUri() != null && !getUri().isEmpty()) {
-                if (new File(getUri()).exists()) {
-                    File file = new File(new File(getUri()), "r");
+                File file = new File(getUri());
+                if (file.exists()) {
                     if (ranges.isEmpty()) {
                         result = AsyncEntityProducers.create(file, ContentType.parse(getMimeType().toString()));
                         Log.d(getClass().getName(), "Return without range request file-Uri: " + getUri()
-                                + "Mimetype: " + getMimeType());
+                                + " Mimetype: " + getMimeType());
                     } else {
                         result = AsyncEntityProducers.create(readRangeFormFile(file, ranges), ContentType.parse(getMimeType().toString()));
                     }
@@ -538,6 +546,10 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
                 }
             } else if (content != null) {
                 result = AsyncEntityProducers.create(content, ContentType.parse(getMimeType().toString()));
+            }
+            if (result == null) {
+                Log.d(getClass().getName(), "Resource is null");
+                return AsyncEntityProducers.create("<html><body><h1>Resource not found</h1></body></html>", ContentType.TEXT_HTML);
             }
             return result;
 

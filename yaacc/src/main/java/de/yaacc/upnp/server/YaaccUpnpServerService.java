@@ -40,7 +40,6 @@ import org.apache.hc.core5.function.Callback;
 import org.apache.hc.core5.http.ConnectionClosedException;
 import org.apache.hc.core5.http.URIScheme;
 import org.apache.hc.core5.http.impl.bootstrap.HttpAsyncServer;
-import org.apache.hc.core5.http.io.SocketConfig;
 import org.apache.hc.core5.http2.impl.nio.bootstrap.H2ServerBootstrap;
 import org.apache.hc.core5.reactor.IOReactorConfig;
 import org.apache.hc.core5.util.TimeValue;
@@ -68,6 +67,7 @@ import org.fourthline.cling.support.renderingcontrol.AbstractAudioRenderingContr
 import org.fourthline.cling.support.xmicrosoft.AbstractMediaReceiverRegistrarService;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.NetworkInterface;
@@ -121,7 +121,6 @@ public class YaaccUpnpServerService extends Service {
 
 
     private HttpAsyncServer httpServer;
-    private boolean initialized = false;
 
     /*
      * (non-Javadoc)
@@ -231,7 +230,6 @@ public class YaaccUpnpServerService extends Service {
      *
      */
     private void initialize() {
-        this.initialized = false;
         if (!getUpnpClient().isInitialized()) {
             getUpnpClient().initialize(getApplicationContext());
             watchdog = false;
@@ -258,8 +256,11 @@ public class YaaccUpnpServerService extends Service {
             }
             if (preferences.getBoolean(getApplicationContext().getString(R.string.settings_local_server_provider_chkbx), false)
                     || preferences.getBoolean(getApplicationContext().getString(R.string.settings_local_server_proxy_chkbx), false)) {
-
-                createHttpServer();
+                try {
+                    createHttpServer();
+                } catch (IOException e) {
+                    Log.e(getClass().getName(), "Error while creating http server", e);
+                }
             }
 
             if (preferences.getBoolean(getApplicationContext().getString(R.string.settings_local_server_receiver_chkbx), false)) {
@@ -268,7 +269,6 @@ public class YaaccUpnpServerService extends Service {
                 }
                 getUpnpClient().getRegistry().addDevice(localRenderer);
             }
-            this.initialized = true;
         } else {
             throw new IllegalStateException("UpnpClient is not initialized!");
         }
@@ -279,20 +279,14 @@ public class YaaccUpnpServerService extends Service {
     /**
      * creates a http request thread
      */
-    private void createHttpServer() {
+    private void createHttpServer() throws IOException {
         // Create a HttpService for providing content in the network.
-
-        //FIXME set correct timeout
-        SocketConfig socketConfig = SocketConfig.custom()
-                .setSoKeepAlive(true)
-                .setTcpNoDelay(false)
-                .build();
-        IOReactorConfig config = IOReactorConfig.custom()
-                .setSoKeepAlive(true)
-                .setTcpNoDelay(true)
-                .build();
         // Set up the HTTP service
         if (httpServer == null) {
+            IOReactorConfig config = IOReactorConfig.custom()
+                    .setSoKeepAlive(true)
+                    .setTcpNoDelay(true)
+                    .build();
             httpServer = H2ServerBootstrap.bootstrap()
                     .setIOReactorConfig(config)
                     .setExceptionCallback(new Callback<Exception>() {
@@ -315,6 +309,8 @@ public class YaaccUpnpServerService extends Service {
 
             httpServer.listen(new InetSocketAddress(PORT), URIScheme.HTTP);
             httpServer.start();
+        } else {
+            httpServer.resume();
         }
 
 

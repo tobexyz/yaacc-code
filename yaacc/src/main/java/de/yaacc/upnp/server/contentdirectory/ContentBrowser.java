@@ -144,7 +144,7 @@ public abstract class ContentBrowser {
     }
 
 
-    protected String makeLikeClause(String column, int len) {
+    public static String makeLikeClause(String column, int len) {
         StringBuilder sb = new StringBuilder();
         sb.append(column);
         sb.append(" like ?");
@@ -156,16 +156,16 @@ public abstract class ContentBrowser {
         return sb.toString();
     }
 
-    protected List<String> getMediaPathesForLikeClause() {
+    public static List<String> getMediaPathesForLikeClause() {
         return getMediaPathes().stream().map(it -> "%" + it + "%").collect(Collectors.toList());
     }
 
-    protected List<String> getMediaPathes() {
+    public static List<String> getMediaPathes() {
         List<String> result = new ArrayList<>();
-        result.add("DCIM/CAMERA");
+        //result.add("DCIM/CAMERA/");
         result.add("DOWNLOADS");
         result.add("MUSIC");
-        //result.add("PICTURES");
+        result.add("PICTURES");
         return result;
 
     }
