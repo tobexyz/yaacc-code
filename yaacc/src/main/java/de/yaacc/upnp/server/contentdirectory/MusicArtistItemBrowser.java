@@ -53,6 +53,7 @@ public class MusicArtistItemBrowser extends ContentBrowser {
         super(context);
     }
 
+    @SuppressLint("Range")
     @Override
     public DIDLObject browseMeta(YaaccContentDirectory contentDirectory,
                                  String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
@@ -60,6 +61,7 @@ public class MusicArtistItemBrowser extends ContentBrowser {
         String[] projection;
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
             projection = new String[]{MediaStore.Audio.Media._ID,
+                    MediaStore.Audio.Media.RELATIVE_PATH,
                     MediaStore.Audio.Media.DISPLAY_NAME,
                     MediaStore.Audio.Media.MIME_TYPE,
                     MediaStore.Audio.Media.SIZE,
@@ -73,6 +75,7 @@ public class MusicArtistItemBrowser extends ContentBrowser {
                     MediaStore.Audio.Media.GENRE};
         } else {
             projection = new String[]{MediaStore.Audio.Media._ID,
+                    MediaStore.Audio.Media.RELATIVE_PATH,
                     MediaStore.Audio.Media.DISPLAY_NAME,
                     MediaStore.Audio.Media.MIME_TYPE,
                     MediaStore.Audio.Media.SIZE,
@@ -83,18 +86,22 @@ public class MusicArtistItemBrowser extends ContentBrowser {
                     MediaStore.Audio.Media.ARTIST,
                     MediaStore.Audio.Media.DURATION};
         }
-        String selection = MediaStore.Audio.Media._ID + "=?";
-        String[] selectionArgs = new String[]{myId
+        String selection = MediaStore.Audio.Media._ID + "=? " + "and (" + makeLikeClause(MediaStore.Audio.Media.RELATIVE_PATH, getMediaPathes().size()) + ")";
+        List<String> selectionArgsList = new ArrayList<>();
+        selectionArgsList.add(myId
                 .substring(ContentDirectoryIDs.MUSIC_ARTIST_ITEM_PREFIX.getId()
-                .length())};
+                        .length()));
+        selectionArgsList.addAll(getMediaPathesForLikeClause());
+        String[] selectionArgs = selectionArgsList.toArray(new String[0]);
+
+
         try (Cursor mediaCursor = contentDirectory
                 .getContext()
                 .getContentResolver()
                 .query(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, projection,
                         selection, selectionArgs, null)) {
 
-            if (mediaCursor != null && mediaCursor.getCount() > 0) {
-                mediaCursor.moveToFirst();
+            if (mediaCursor != null && mediaCursor.getCount() > 0 && mediaCursor.moveToFirst()) {
                 @SuppressLint("Range") String id = mediaCursor.getString(mediaCursor
                         .getColumnIndex(MediaStore.Audio.Media._ID));
                 @SuppressLint("Range") String name = mediaCursor.getString(mediaCursor
@@ -121,9 +128,7 @@ public class MusicArtistItemBrowser extends ContentBrowser {
                 Log.d(getClass().getName(), "Mimetype: " + mimeTypeString);
                 @SuppressLint("Range") MimeType mimeType = MimeType.valueOf(mimeTypeString);
                 // file parameter only needed for media players which decide
-                // the
-                // ability of playing a file by the file extension
-
+                // the ability of playing a file by the file extension
                 String uri = getUriString(contentDirectory, id, mimeType);
                 URI albumArtUri = URI.create("http://"
                         + contentDirectory.getIpAddress() + ":"
@@ -149,7 +154,6 @@ public class MusicArtistItemBrowser extends ContentBrowser {
                 result = musicTrack;
                 Log.d(getClass().getName(), "MusicTrack: " + id + " Name: " + name
                         + " uri: " + uri);
-
 
             } else {
                 Log.d(getClass().getName(), "Item " + myId + "  not found.");
@@ -177,7 +181,6 @@ public class MusicArtistItemBrowser extends ContentBrowser {
         List<Item> result = new ArrayList<>();
         result.add((Item) browseMeta(contentDirectory, myId, 0, 1, null));
         return result;
-
     }
 
 }

@@ -164,11 +164,9 @@ public abstract class ContentBrowser {
         List<String> result = new ArrayList<>();
         result.add("DCIM/CAMERA/");
         result.add("DOWNLOADS");
-        result.add("MUSIC");
+        result.add("Music/Joe Cocker");
         //result.add("PICTURES");
         return result;
 
     }
-
-
 }

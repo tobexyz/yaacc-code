@@ -56,14 +56,6 @@ public class MusicAllTitlesFolderBrowser extends ContentBrowser {
     @Override
     public DIDLObject browseMeta(YaaccContentDirectory contentDirectory,
                                  String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
-        /*List<MusicTrack> items = browseItem(contentDirectory, myId, firstResult, maxResults, orderby);
-        return new MusicAlbum(
-                ContentDirectoryIDs.MUSIC_ALL_TITLES_FOLDER.getId(),
-                ContentDirectoryIDs.MUSIC_FOLDER.getId(), getContext().getString(R.string.all), "yaacc",
-                getSize(contentDirectory, myId), items);
-*/
-
-        Log.d(getClass().getName(), "Foo2: " + myId + " first: " + firstResult + " max: " + maxResults);
         return new StorageFolder(myId, ContentDirectoryIDs.MUSIC_FOLDER.getId(), getContext().getString(R.string.all), "yaacc", getSize(
                 contentDirectory, myId), null);
 
@@ -73,8 +65,10 @@ public class MusicAllTitlesFolderBrowser extends ContentBrowser {
     public Integer getSize(YaaccContentDirectory contentDirectory, String myId) {
 
         String[] projection = {MediaStore.Audio.Media._ID};
-        String selection = "";
-        String[] selectionArgs = null;
+
+        String selection = "(" + makeLikeClause(MediaStore.Audio.Media.RELATIVE_PATH, getMediaPathes().size()) + ")";
+        String[] selectionArgs = getMediaPathesForLikeClause().toArray(new String[0]);
+
         try (Cursor cursor = contentDirectory
                 .getContext()
                 .getContentResolver()
@@ -121,8 +115,9 @@ public class MusicAllTitlesFolderBrowser extends ContentBrowser {
                     MediaStore.Audio.Media.ARTIST,
                     MediaStore.Audio.Media.DURATION};
         }
-        String selection = "";
-        String[] selectionArgs = null;
+
+        String selection = "(" + makeLikeClause(MediaStore.Audio.Media.RELATIVE_PATH, getMediaPathes().size()) + ")";
+        String[] selectionArgs = getMediaPathesForLikeClause().toArray(new String[0]);
         try (Cursor mediaCursor = contentDirectory
                 .getContext()
                 .getContentResolver()
@@ -170,8 +165,7 @@ public class MusicAllTitlesFolderBrowser extends ContentBrowser {
                                         .getColumnIndex(MediaStore.Audio.Media.MIME_TYPE)));
 
                         // file parameter only needed for media players which decide
-                        // the
-                        // ability of playing a file by the file extension
+                        // the ability of playing a file by the file extension
                         String uri = getUriString(contentDirectory, id, mimeType);
                         URI albumArtUri = URI.create("http://"
                                 + contentDirectory.getIpAddress() + ":"

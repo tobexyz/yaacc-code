@@ -56,13 +56,6 @@ public class MusicArtistFolderBrowser extends ContentBrowser {
     public DIDLObject browseMeta(YaaccContentDirectory contentDirectory,
                                  String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
 
-        /*List<MusicTrack> items = browseItem(contentDirectory, myId, firstResult, maxResults, orderby);
-        return new MusicAlbum(myId,
-                ContentDirectoryIDs.MUSIC_ARTISTS_FOLDER.getId(), getName(
-                contentDirectory, myId), "yaacc", getSize(
-                contentDirectory, myId), items);
-*/
-
         return new StorageFolder(myId, ContentDirectoryIDs.MUSIC_ARTISTS_FOLDER.getId(), getName(
                 contentDirectory, myId), "yaacc", getSize(
                 contentDirectory, myId), null);
@@ -92,11 +85,15 @@ public class MusicArtistFolderBrowser extends ContentBrowser {
     @Override
     public Integer getSize(YaaccContentDirectory contentDirectory, String myId) {
 
+
         String[] projection = {MediaStore.Audio.Media.ARTIST_ID};
-        String selection = MediaStore.Audio.Media.ARTIST_ID + "=?";
-        String[] selectionArgs = new String[]{myId
+        String selection = MediaStore.Audio.Media.ARTIST_ID + "=? " + "and (" + makeLikeClause(MediaStore.Audio.Media.RELATIVE_PATH, getMediaPathes().size()) + ")";
+        List<String> selectionArgsList = new ArrayList<>();
+        selectionArgsList.add(myId
                 .substring(ContentDirectoryIDs.MUSIC_ARTIST_PREFIX.getId()
-                .length())};
+                        .length()));
+        selectionArgsList.addAll(getMediaPathesForLikeClause());
+        String[] selectionArgs = selectionArgsList.toArray(new String[0]);
         try (Cursor cursor = contentDirectory
                 .getContext()
                 .getContentResolver()
@@ -104,17 +101,12 @@ public class MusicArtistFolderBrowser extends ContentBrowser {
                         selection, selectionArgs, null)) {
             return cursor.getCount();
         }
-
     }
 
     @Override
     public List<Container> browseContainer(
             YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
 
-        /*List<Container> result = new ArrayList<>();
-        result.add((Container) browseMeta(contentDirectory,
-                myId, firstResult, maxResults, orderby));
-        return result;*/
         return new ArrayList<>();
     }
 
@@ -126,6 +118,7 @@ public class MusicArtistFolderBrowser extends ContentBrowser {
         String[] projection;
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
             projection = new String[]{MediaStore.Audio.Media._ID,
+                    MediaStore.Audio.Media.RELATIVE_PATH,
                     MediaStore.Audio.Media.DISPLAY_NAME,
                     MediaStore.Audio.Media.MIME_TYPE,
                     MediaStore.Audio.Media.SIZE,
@@ -139,6 +132,7 @@ public class MusicArtistFolderBrowser extends ContentBrowser {
                     MediaStore.Audio.Media.GENRE};
         } else {
             projection = new String[]{MediaStore.Audio.Media._ID,
+                    MediaStore.Audio.Media.RELATIVE_PATH,
                     MediaStore.Audio.Media.DISPLAY_NAME,
                     MediaStore.Audio.Media.MIME_TYPE,
                     MediaStore.Audio.Media.SIZE,
@@ -149,18 +143,22 @@ public class MusicArtistFolderBrowser extends ContentBrowser {
                     MediaStore.Audio.Media.ARTIST_ID,
                     MediaStore.Audio.Media.DURATION};
         }
-        String selection = MediaStore.Audio.Media.ARTIST_ID + "=?";
-        String[] selectionArgs = new String[]{myId
+
+        String selection = MediaStore.Audio.Media.ARTIST_ID + "=? " + "and (" + makeLikeClause(MediaStore.Audio.Media.RELATIVE_PATH, getMediaPathes().size()) + ")";
+        List<String> selectionArgsList = new ArrayList<>();
+        selectionArgsList.add(myId
                 .substring(ContentDirectoryIDs.MUSIC_ARTIST_PREFIX.getId()
-                .length())};
+                        .length()));
+        selectionArgsList.addAll(getMediaPathesForLikeClause());
+        String[] selectionArgs = selectionArgsList.toArray(new String[0]);
+
         try (Cursor mediaCursor = contentDirectory
                 .getContext()
                 .getContentResolver()
                 .query(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, projection,
                         selection, selectionArgs, MediaStore.Audio.Media.DISPLAY_NAME + " ASC")) {
 
-            if (mediaCursor != null && mediaCursor.getCount() > 0) {
-                mediaCursor.moveToFirst();
+            if (mediaCursor != null && mediaCursor.getCount() > 0 && mediaCursor.moveToFirst()) {
                 int currentIndex = 0;
                 int currentCount = 0;
                 while (!mediaCursor.isAfterLast() && currentCount < maxResults) {
@@ -194,8 +192,7 @@ public class MusicArtistFolderBrowser extends ContentBrowser {
                                 .valueOf(mediaCursor.getString(mediaCursor
                                         .getColumnIndex(MediaStore.Audio.Media.MIME_TYPE)));
                         // file parameter only needed for media players which decide
-                        // the
-                        // ability of playing a file by the file extension
+                        // the ability of playing a file by the file extension
 
                         String uri = getUriString(contentDirectory, id, mimeType);
                         URI albumArtUri = URI.create("http://"

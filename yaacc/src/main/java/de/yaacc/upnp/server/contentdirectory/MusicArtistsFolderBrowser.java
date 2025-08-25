@@ -57,28 +57,45 @@ public class MusicArtistsFolderBrowser extends ContentBrowser {
 
     }
 
+    @SuppressLint("Range")
     @Override
     public Integer getSize(YaaccContentDirectory contentDirectory, String myId) {
 
         String[] projection = {MediaStore.Audio.Artists._ID};
         String selection = "";
         String[] selectionArgs = null;
-        try (Cursor cursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Audio.Artists.EXTERNAL_CONTENT_URI, projection, selection,
+
+        int result = 0;
+        try (Cursor mediaCursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Audio.Artists.EXTERNAL_CONTENT_URI, projection, selection,
                 selectionArgs, null)) {
-            return cursor.getCount();
+            if (mediaCursor != null && mediaCursor.getCount() > 0 && mediaCursor.moveToFirst()) {
+                while (!mediaCursor.isAfterLast()) {
+                    if (getMusicTrackSize(contentDirectory, mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Audio.Artists._ID))) > 0) {
+                        result++;
+                    }
+                    mediaCursor.moveToNext();
+                }
+            }
         }
+        return result;
+
 
     }
 
 
     private Integer getMusicTrackSize(YaaccContentDirectory contentDirectory, String parentId) {
         String[] projection = {MediaStore.Audio.Media.ARTIST_ID};
-        String selection = MediaStore.Audio.Media.ARTIST_ID + "=?";
-        String[] selectionArgs = new String[]{parentId};
+
+        String selection = MediaStore.Audio.Media.ARTIST_ID + "=? " + "and (" + makeLikeClause(MediaStore.Audio.Media.RELATIVE_PATH, getMediaPathes().size()) + ")";
+        List<String> selectionArgsList = new ArrayList<>();
+        selectionArgsList.add(parentId);
+        selectionArgsList.addAll(getMediaPathesForLikeClause());
+        String[] selectionArgs = selectionArgsList.toArray(new String[0]);
         try (Cursor cursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, projection, selection,
                 selectionArgs, null)) {
             return cursor.getCount();
         }
+
     }
 
     @Override
@@ -91,14 +108,14 @@ public class MusicArtistsFolderBrowser extends ContentBrowser {
         try (Cursor mediaCursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Audio.Artists.EXTERNAL_CONTENT_URI, projection, selection,
                 selectionArgs, MediaStore.Audio.Artists.ARTIST + " ASC")) {
 
-            if (mediaCursor != null && mediaCursor.getCount() > 0) {
-                mediaCursor.moveToFirst();
+            if (mediaCursor != null && mediaCursor.getCount() > 0 && mediaCursor.moveToFirst()) {
+
                 int currentIndex = 0;
                 int currentCount = 0;
                 while (!mediaCursor.isAfterLast() && currentCount < maxResults) {
                     if (firstResult <= currentIndex) {
-                        @SuppressLint("Range") String id = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Audio.Albums._ID));
-                        @SuppressLint("Range") String name = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Audio.Albums.ARTIST));
+                        @SuppressLint("Range") String id = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Audio.Artists._ID));
+                        @SuppressLint("Range") String name = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Audio.Artists.ARTIST));
                         MusicAlbum musicAlbum = new MusicAlbum(ContentDirectoryIDs.MUSIC_ARTIST_PREFIX.getId() + id, ContentDirectoryIDs.MUSIC_ALBUMS_FOLDER.getId(), name, "", 0);
                         folderMap.put(id, musicAlbum);
                         Log.d(getClass().getName(), "Artists Folder: " + id + " Name: " + name);
@@ -109,8 +126,11 @@ public class MusicArtistsFolderBrowser extends ContentBrowser {
                 }
 
                 for (Map.Entry<String, MusicAlbum> entry : folderMap.entrySet()) {
-                    entry.getValue().setChildCount(getMusicTrackSize(contentDirectory, entry.getKey()));
-                    result.add(entry.getValue());
+                    int tracks = getMusicTrackSize(contentDirectory, entry.getKey());
+                    entry.getValue().setChildCount(tracks);
+                    if (tracks > 0) {
+                        result.add(entry.getValue());
+                    }
                 }
             } else {
                 Log.d(getClass().getName(), "System media store is empty.");

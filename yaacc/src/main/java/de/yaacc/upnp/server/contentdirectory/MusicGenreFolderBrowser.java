@@ -54,13 +54,6 @@ public class MusicGenreFolderBrowser extends ContentBrowser {
     @Override
     public DIDLObject browseMeta(YaaccContentDirectory contentDirectory,
                                  String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
-        /*List<MusicTrack> items = browseItem(contentDirectory, myId, firstResult, maxResults, orderby);
-        return new MusicAlbum(myId,
-                ContentDirectoryIDs.MUSIC_GENRES_FOLDER.getId(), getName(
-                contentDirectory, myId), "yaacc", getSize(
-                contentDirectory, myId), items);
-
-         */
         return new StorageFolder(myId, ContentDirectoryIDs.MUSIC_GENRES_FOLDER.getId(), getName(
                 contentDirectory, myId), "yaacc", getSize(
                 contentDirectory, myId), null);
@@ -94,10 +87,13 @@ public class MusicGenreFolderBrowser extends ContentBrowser {
     public Integer getSize(YaaccContentDirectory contentDirectory, String myId) {
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
             String[] projection = {MediaStore.Audio.Media._ID};
-            String selection = MediaStore.Audio.Media.GENRE_ID + "=?";
-            String[] selectionArgs = new String[]{myId
+            String selection = MediaStore.Audio.Media.GENRE_ID + "=? " + "and (" + makeLikeClause(MediaStore.Audio.Media.RELATIVE_PATH, getMediaPathes().size()) + ")";
+            List<String> selectionArgsList = new ArrayList<>();
+            selectionArgsList.add(myId
                     .substring(ContentDirectoryIDs.MUSIC_GENRE_PREFIX.getId()
-                    .length())};
+                            .length()));
+            selectionArgsList.addAll(getMediaPathesForLikeClause());
+            String[] selectionArgs = selectionArgsList.toArray(new String[0]);
             try (Cursor cursor = contentDirectory
                     .getContext()
                     .getContentResolver()
@@ -107,10 +103,13 @@ public class MusicGenreFolderBrowser extends ContentBrowser {
             }
         } else {
             String[] projection = {MediaStore.Audio.Genres.Members.AUDIO_ID};
-            String selection = MediaStore.Audio.Genres.Members.GENRE_ID + "=?";
-            String[] selectionArgs = new String[]{myId
+            String selection = MediaStore.Audio.Genres.Members.GENRE_ID + "=? " + "and (" + makeLikeClause(MediaStore.Audio.Genres.Members.RELATIVE_PATH, getMediaPathes().size()) + ")";
+            List<String> selectionArgsList = new ArrayList<>();
+            selectionArgsList.add(myId
                     .substring(ContentDirectoryIDs.MUSIC_GENRE_PREFIX.getId()
-                    .length())};
+                            .length()));
+            selectionArgsList.addAll(getMediaPathesForLikeClause());
+            String[] selectionArgs = selectionArgsList.toArray(new String[0]);
             try (Cursor cursor = contentDirectory
                     .getContext()
                     .getContentResolver()
@@ -149,17 +148,36 @@ public class MusicGenreFolderBrowser extends ContentBrowser {
                     MediaStore.Audio.Media.BITRATE,
                     MediaStore.Audio.Media.GENRE_ID,
                     MediaStore.Audio.Media.GENRE};
+            /*
             selection = MediaStore.Audio.Media.GENRE_ID + "=?";
             selectionArgs = new String[]{myId
                     .substring(ContentDirectoryIDs.MUSIC_GENRE_PREFIX.getId()
                     .length())};
+            */
+            selection = MediaStore.Audio.Media.GENRE_ID + "=? " + "and (" + makeLikeClause(MediaStore.Audio.Media.RELATIVE_PATH, getMediaPathes().size()) + ")";
+            List<String> selectionArgsList = new ArrayList<>();
+            selectionArgsList.add(myId
+                    .substring(ContentDirectoryIDs.MUSIC_GENRE_PREFIX.getId()
+                            .length()));
+            selectionArgsList.addAll(getMediaPathesForLikeClause());
+            selectionArgs = selectionArgsList.toArray(new String[0]);
         } else {
 
             String[] genreProjection = new String[]{MediaStore.Audio.Genres.Members.AUDIO_ID};
+            /*
             String genreSelection = MediaStore.Audio.Genres.Members.GENRE_ID + "=?";
             String[] genreSelectionArgs = new String[]{myId
                     .substring(ContentDirectoryIDs.MUSIC_GENRE_PREFIX.getId()
                     .length())};
+                    */
+
+            String genreSelection = MediaStore.Audio.Genres.Members.GENRE_ID + "=? " + "and (" + makeLikeClause(MediaStore.Audio.Genres.Members.RELATIVE_PATH, getMediaPathes().size()) + ")";
+            List<String> selectionArgsList = new ArrayList<>();
+            selectionArgsList.add(myId
+                    .substring(ContentDirectoryIDs.MUSIC_GENRE_PREFIX.getId()
+                            .length()));
+            selectionArgsList.addAll(getMediaPathesForLikeClause());
+            String[] genreSelectionArgs = selectionArgsList.toArray(new String[0]);
             List<String> audioIds = new ArrayList<>();
             try (Cursor genreCursor = contentDirectory
                     .getContext()
