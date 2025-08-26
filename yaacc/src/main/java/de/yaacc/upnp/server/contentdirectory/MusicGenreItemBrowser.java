@@ -105,7 +105,7 @@ public class MusicGenreItemBrowser extends ContentBrowser {
                 }
             }
         }
-        String selection = MediaStore.Audio.Media._ID + "=? " + "and (" + makeLikeClause(MediaStore.Audio.Media.RELATIVE_PATH, getMediaPathes().size()) + ")";
+        String selection = MediaStore.Audio.Media._ID + "=? " + "and (" + makeLikeClause(MediaStore.Audio.Media.DATA, getMediaPathes().size()) + ")";
         List<String> selectionArgsList = new ArrayList<>();
         selectionArgsList.add(myId
                 .substring(ContentDirectoryIDs.MUSIC_GENRE_ITEM_PREFIX.getId()

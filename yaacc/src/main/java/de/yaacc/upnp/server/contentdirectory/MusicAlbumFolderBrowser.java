@@ -88,7 +88,7 @@ public class MusicAlbumFolderBrowser extends ContentBrowser {
     @Override
     public Integer getSize(YaaccContentDirectory contentDirectory, String myId) {
         String[] projection = {MediaStore.Audio.Media.ALBUM_ID};
-        String selection = MediaStore.Audio.Media.ALBUM_ID + "=? " + "and (" + makeLikeClause(MediaStore.Audio.Media.RELATIVE_PATH, getMediaPathes().size()) + ")";
+        String selection = MediaStore.Audio.Media.ALBUM_ID + "=? " + "and (" + makeLikeClause(MediaStore.Audio.Media.DATA, getMediaPathes().size()) + ")";
         List<String> selectionArgsList = new ArrayList<>();
         selectionArgsList.add(myId
                 .substring(ContentDirectoryIDs.MUSIC_ALBUM_ITEM_PREFIX.getId()
@@ -143,7 +143,7 @@ public class MusicAlbumFolderBrowser extends ContentBrowser {
                     MediaStore.Audio.Media.DURATION};
         }
 
-        String selection = MediaStore.Audio.Media.ALBUM_ID + "=? " + "and (" + makeLikeClause(MediaStore.Audio.Media.RELATIVE_PATH, getMediaPathes().size()) + ")";
+        String selection = MediaStore.Audio.Media.ALBUM_ID + "=? " + "and (" + makeLikeClause(MediaStore.Audio.Media.DATA, getMediaPathes().size()) + ")";
         List<String> selectionArgsList = new ArrayList<>();
         selectionArgsList.add(myId
                 .substring(ContentDirectoryIDs.MUSIC_ALBUM_ITEM_PREFIX.getId()

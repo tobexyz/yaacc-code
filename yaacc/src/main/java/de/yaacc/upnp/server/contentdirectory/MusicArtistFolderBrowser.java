@@ -87,7 +87,7 @@ public class MusicArtistFolderBrowser extends ContentBrowser {
 
 
         String[] projection = {MediaStore.Audio.Media.ARTIST_ID};
-        String selection = MediaStore.Audio.Media.ARTIST_ID + "=? " + "and (" + makeLikeClause(MediaStore.Audio.Media.RELATIVE_PATH, getMediaPathes().size()) + ")";
+        String selection = MediaStore.Audio.Media.ARTIST_ID + "=? " + "and (" + makeLikeClause(MediaStore.Audio.Media.DATA, getMediaPathes().size()) + ")";
         List<String> selectionArgsList = new ArrayList<>();
         selectionArgsList.add(myId
                 .substring(ContentDirectoryIDs.MUSIC_ARTIST_PREFIX.getId()
@@ -118,7 +118,6 @@ public class MusicArtistFolderBrowser extends ContentBrowser {
         String[] projection;
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
             projection = new String[]{MediaStore.Audio.Media._ID,
-                    MediaStore.Audio.Media.RELATIVE_PATH,
                     MediaStore.Audio.Media.DISPLAY_NAME,
                     MediaStore.Audio.Media.MIME_TYPE,
                     MediaStore.Audio.Media.SIZE,
@@ -132,7 +131,6 @@ public class MusicArtistFolderBrowser extends ContentBrowser {
                     MediaStore.Audio.Media.GENRE};
         } else {
             projection = new String[]{MediaStore.Audio.Media._ID,
-                    MediaStore.Audio.Media.RELATIVE_PATH,
                     MediaStore.Audio.Media.DISPLAY_NAME,
                     MediaStore.Audio.Media.MIME_TYPE,
                     MediaStore.Audio.Media.SIZE,
@@ -144,7 +142,7 @@ public class MusicArtistFolderBrowser extends ContentBrowser {
                     MediaStore.Audio.Media.DURATION};
         }
 
-        String selection = MediaStore.Audio.Media.ARTIST_ID + "=? " + "and (" + makeLikeClause(MediaStore.Audio.Media.RELATIVE_PATH, getMediaPathes().size()) + ")";
+        String selection = MediaStore.Audio.Media.ARTIST_ID + "=? " + "and (" + makeLikeClause(MediaStore.Audio.Media.DATA, getMediaPathes().size()) + ")";
         List<String> selectionArgsList = new ArrayList<>();
         selectionArgsList.add(myId
                 .substring(ContentDirectoryIDs.MUSIC_ARTIST_PREFIX.getId()

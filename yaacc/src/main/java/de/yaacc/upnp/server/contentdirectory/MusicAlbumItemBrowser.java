@@ -82,7 +82,7 @@ public class MusicAlbumItemBrowser extends ContentBrowser {
                     MediaStore.Audio.Media.ARTIST,
                     MediaStore.Audio.Media.DURATION};
         }
-        String selection = MediaStore.Audio.Media._ID + "=? " + "and (" + makeLikeClause(MediaStore.Audio.Media.RELATIVE_PATH, getMediaPathes().size()) + ")";
+        String selection = MediaStore.Audio.Media._ID + "=? " + "and (" + makeLikeClause(MediaStore.Audio.Media.DATA, getMediaPathes().size()) + ")";
         List<String> selectionArgsList = new ArrayList<>();
         selectionArgsList.add(myId
                 .substring(ContentDirectoryIDs.MUSIC_ALBUM_ITEM_PREFIX.getId()

@@ -66,7 +66,7 @@ public class MusicAllTitlesFolderBrowser extends ContentBrowser {
 
         String[] projection = {MediaStore.Audio.Media._ID};
 
-        String selection = "(" + makeLikeClause(MediaStore.Audio.Media.RELATIVE_PATH, getMediaPathes().size()) + ")";
+        String selection = "(" + makeLikeClause(MediaStore.Audio.Media.DATA, getMediaPathes().size()) + ")";
         String[] selectionArgs = getMediaPathesForLikeClause().toArray(new String[0]);
 
         try (Cursor cursor = contentDirectory
@@ -102,7 +102,6 @@ public class MusicAllTitlesFolderBrowser extends ContentBrowser {
                     MediaStore.Audio.Media.ARTIST,
                     MediaStore.Audio.Media.DURATION,
                     MediaStore.Audio.Media.BITRATE,
-                    MediaStore.Audio.Media.RELATIVE_PATH,
                     MediaStore.Audio.Media.GENRE};
         } else {
             projection = new String[]{MediaStore.Audio.Media._ID,
@@ -116,7 +115,7 @@ public class MusicAllTitlesFolderBrowser extends ContentBrowser {
                     MediaStore.Audio.Media.DURATION};
         }
 
-        String selection = "(" + makeLikeClause(MediaStore.Audio.Media.RELATIVE_PATH, getMediaPathes().size()) + ")";
+        String selection = "(" + makeLikeClause(MediaStore.Audio.Media.DATA, getMediaPathes().size()) + ")";
         String[] selectionArgs = getMediaPathesForLikeClause().toArray(new String[0]);
         try (Cursor mediaCursor = contentDirectory
                 .getContext()
@@ -153,12 +152,6 @@ public class MusicAllTitlesFolderBrowser extends ContentBrowser {
                                 "Mimetype: "
                                         + mediaCursor.getString(mediaCursor
                                         .getColumnIndex(MediaStore.Audio.Media.MIME_TYPE)));
-
-                        Log.d(getClass().getName(),
-                                "PATH: "
-                                        + mediaCursor.getString(mediaCursor
-                                        .getColumnIndex(MediaStore.Audio.Media.RELATIVE_PATH)));
-
 
                         MimeType mimeType = MimeType
                                 .valueOf(mediaCursor.getString(mediaCursor

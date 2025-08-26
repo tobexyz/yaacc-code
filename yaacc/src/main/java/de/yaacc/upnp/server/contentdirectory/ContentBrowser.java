@@ -162,7 +162,7 @@ public abstract class ContentBrowser {
 
     public static List<String> getMediaPathes() {
         List<String> result = new ArrayList<>();
-        result.add("DCIM/CAMERA/");
+        result.add("DCIM");
         result.add("DOWNLOADS");
         result.add("Music/Joe Cocker");
         //result.add("PICTURES");

@@ -218,7 +218,7 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
         String[] projection = {MediaStore.Files.FileColumns._ID,
                 MediaStore.Files.FileColumns.MIME_TYPE,
                 MediaStore.Files.FileColumns.DATA};
-        String selection = MediaStore.Files.FileColumns._ID + "=? and (" + ContentBrowser.makeLikeClause(MediaStore.Files.FileColumns.RELATIVE_PATH, ContentBrowser.getMediaPathes().size()) + ")";
+        String selection = MediaStore.Files.FileColumns._ID + "=? and (" + ContentBrowser.makeLikeClause(MediaStore.Files.FileColumns.DATA, ContentBrowser.getMediaPathes().size()) + ")";
         List<String> selectionArgsList = new ArrayList<>();
         selectionArgsList.add(contentId);
         selectionArgsList.addAll(ContentBrowser.getMediaPathesForLikeClause());

@@ -86,7 +86,7 @@ public class MusicArtistsFolderBrowser extends ContentBrowser {
     private Integer getMusicTrackSize(YaaccContentDirectory contentDirectory, String parentId) {
         String[] projection = {MediaStore.Audio.Media.ARTIST_ID};
 
-        String selection = MediaStore.Audio.Media.ARTIST_ID + "=? " + "and (" + makeLikeClause(MediaStore.Audio.Media.RELATIVE_PATH, getMediaPathes().size()) + ")";
+        String selection = MediaStore.Audio.Media.ARTIST_ID + "=? " + "and (" + makeLikeClause(MediaStore.Audio.Media.DATA, getMediaPathes().size()) + ")";
         List<String> selectionArgsList = new ArrayList<>();
         selectionArgsList.add(parentId);
         selectionArgsList.addAll(getMediaPathesForLikeClause());

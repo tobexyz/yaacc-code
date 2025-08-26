@@ -64,7 +64,7 @@ public class ImagesAllFolderBrowser extends ContentBrowser {
     public Integer getSize(YaaccContentDirectory contentDirectory, String myId) {
 
         String[] projection = {MediaStore.Images.Media._ID};
-        String selection = "(" + makeLikeClause(MediaStore.Images.Media.RELATIVE_PATH, getMediaPathes().size()) + ")";
+        String selection = "(" + makeLikeClause(MediaStore.Images.Media.DATA, getMediaPathes().size()) + ")";
         String[] selectionArgs = getMediaPathesForLikeClause().toArray(new String[0]);
         try (Cursor cursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, projection, selection,
                 selectionArgs, null)) {
@@ -86,7 +86,7 @@ public class ImagesAllFolderBrowser extends ContentBrowser {
         // Query for all images on external storage
         String[] projection = {MediaStore.Images.Media._ID, MediaStore.Images.Media.DISPLAY_NAME, MediaStore.Images.Media.MIME_TYPE,
                 MediaStore.Images.Media.SIZE};
-        String selection = "(" + makeLikeClause(MediaStore.Images.Media.RELATIVE_PATH, getMediaPathes().size()) + ")";
+        String selection = "(" + makeLikeClause(MediaStore.Images.Media.DATA, getMediaPathes().size()) + ")";
         String[] selectionArgs = getMediaPathesForLikeClause().toArray(new String[0]);
         try (Cursor mImageCursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, projection, selection,
                 selectionArgs, MediaStore.Images.Media.DISPLAY_NAME + " ASC")) {

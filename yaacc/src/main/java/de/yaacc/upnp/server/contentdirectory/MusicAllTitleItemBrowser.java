@@ -81,7 +81,7 @@ public class MusicAllTitleItemBrowser extends ContentBrowser {
                     MediaStore.Audio.Media.ARTIST,
                     MediaStore.Audio.Media.DURATION};
         }
-        String selection = MediaStore.Audio.Media._ID + "=? " + "and (" + makeLikeClause(MediaStore.Audio.Media.RELATIVE_PATH, getMediaPathes().size()) + ")";
+        String selection = MediaStore.Audio.Media._ID + "=? " + "and (" + makeLikeClause(MediaStore.Audio.Media.DATA, getMediaPathes().size()) + ")";
         List<String> selectionArgsList = getMediaPathesForLikeClause();
         selectionArgsList.add(myId.substring(ContentDirectoryIDs.MUSIC_ALL_TITLES_ITEM_PREFIX.getId()
                 .length()));

@@ -62,7 +62,7 @@ public class VideosFolderBrowser extends ContentBrowser {
     @Override
     public Integer getSize(YaaccContentDirectory contentDirectory, String myId) {
         String[] projection = {MediaStore.Video.Media._ID};
-        String selection = "(" + makeLikeClause(MediaStore.Video.Media.RELATIVE_PATH, getMediaPathes().size()) + ")";
+        String selection = "(" + makeLikeClause(MediaStore.Video.Media.DATA, getMediaPathes().size()) + ")";
         String[] selectionArgs = getMediaPathesForLikeClause().toArray(new String[0]);
         try (Cursor cursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, projection, selection,
                 selectionArgs, null)) {
@@ -81,7 +81,7 @@ public class VideosFolderBrowser extends ContentBrowser {
         List<Item> result = new ArrayList<>();
         String[] projection = {MediaStore.Video.Media._ID, MediaStore.Video.Media.DISPLAY_NAME, MediaStore.Video.Media.MIME_TYPE,
                 MediaStore.Video.Media.SIZE, MediaStore.Video.Media.DURATION};
-        String selection = "(" + makeLikeClause(MediaStore.Video.Media.RELATIVE_PATH, getMediaPathes().size()) + ")";
+        String selection = "(" + makeLikeClause(MediaStore.Video.Media.DATA, getMediaPathes().size()) + ")";
         String[] selectionArgs = getMediaPathesForLikeClause().toArray(new String[0]);
         try (Cursor mediaCursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, projection, selection,
                 selectionArgs, MediaStore.Video.Media.DISPLAY_NAME + " ASC")) {

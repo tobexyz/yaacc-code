@@ -86,7 +86,7 @@ public class MusicGenresFolderBrowser extends ContentBrowser {
         Integer result = 0;
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
             String[] projection = {MediaStore.Audio.Media._ID};
-            String selection = MediaStore.Audio.Media.GENRE_ID + "=? " + "and (" + makeLikeClause(MediaStore.Audio.Media.RELATIVE_PATH, getMediaPathes().size()) + ")";
+            String selection = MediaStore.Audio.Media.GENRE_ID + "=? " + "and (" + makeLikeClause(MediaStore.Audio.Media.DATA, getMediaPathes().size()) + ")";
             List<String> selectionArgsList = new ArrayList<>();
             selectionArgsList.add(parentId);
             selectionArgsList.addAll(getMediaPathesForLikeClause());
@@ -97,7 +97,7 @@ public class MusicGenresFolderBrowser extends ContentBrowser {
             }
         } else {
             String[] projection = {MediaStore.Audio.Genres.Members.AUDIO_ID};
-            String selection = MediaStore.Audio.Genres.Members.GENRE_ID + "=? " + "and (" + makeLikeClause(MediaStore.Audio.Genres.Members.RELATIVE_PATH, getMediaPathes().size()) + ")";
+            String selection = MediaStore.Audio.Genres.Members.GENRE_ID + "=? " + "and (" + makeLikeClause(MediaStore.Audio.Genres.Members.DATA, getMediaPathes().size()) + ")";
             List<String> selectionArgsList = new ArrayList<>();
             selectionArgsList.add(parentId);
             selectionArgsList.addAll(getMediaPathesForLikeClause());
@@ -105,7 +105,7 @@ public class MusicGenresFolderBrowser extends ContentBrowser {
             try (Cursor cursor = contentDirectory
                     .getContext()
                     .getContentResolver()
-                    .query(null, projection,
+                    .query(MediaStore.Audio.Genres.Members.getContentUri("external", Long.valueOf(parentId)), projection,
                             selection, selectionArgs, null)) {
                 result = cursor.getCount();
             }

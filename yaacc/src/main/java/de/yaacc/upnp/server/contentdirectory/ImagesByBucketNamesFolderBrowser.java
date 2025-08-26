@@ -64,7 +64,7 @@ public class ImagesByBucketNamesFolderBrowser extends ContentBrowser {
     public Integer getSize(YaaccContentDirectory contentDirectory, String myId) {
 
         String[] projection = {MediaStore.Images.Media.BUCKET_ID};
-        String selection = "(" + makeLikeClause(MediaStore.Images.Media.RELATIVE_PATH, getMediaPathes().size()) + ")";
+        String selection = "(" + makeLikeClause(MediaStore.Images.Media.DATA, getMediaPathes().size()) + ")";
         String[] selectionArgs = getMediaPathesForLikeClause().toArray(new String[0]);
         Set<String> buckets = new HashSet<>();
         try (Cursor cursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, projection, selection,
@@ -96,7 +96,7 @@ public class ImagesByBucketNamesFolderBrowser extends ContentBrowser {
         List<Container> result = new ArrayList<>();
         Map<String, StorageFolder> folderMap = new HashMap<>();
         String[] projection = {MediaStore.Images.Media.BUCKET_ID, MediaStore.Images.Media.BUCKET_DISPLAY_NAME};
-        String selection = "(" + makeLikeClause(MediaStore.Images.Media.RELATIVE_PATH, getMediaPathes().size()) + ")";
+        String selection = "(" + makeLikeClause(MediaStore.Images.Media.DATA, getMediaPathes().size()) + ")";
         String[] selectionArgs = getMediaPathesForLikeClause().toArray(new String[0]);
         try (Cursor mediaCursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, projection, selection,
                 selectionArgs, MediaStore.Images.Media.BUCKET_DISPLAY_NAME + " ASC")) {
