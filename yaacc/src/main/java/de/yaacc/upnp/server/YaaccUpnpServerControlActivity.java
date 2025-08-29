@@ -22,6 +22,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
+import android.os.Environment;
 import android.util.Log;
 import android.util.TypedValue;
 import android.view.Menu;
@@ -35,6 +36,7 @@ import androidx.preference.PreferenceManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -50,6 +52,7 @@ import de.yaacc.util.NotificationId;
  */
 public class YaaccUpnpServerControlActivity extends AppCompatActivity {
 
+    private static final int MAX_TREE_DEPTH = 5; // Limit recursion depth
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -85,66 +88,89 @@ public class YaaccUpnpServerControlActivity extends AppCompatActivity {
 
         TreeViewAdapter treeViewAdapter = new TreeViewAdapter(factory);
         recyclerView.setAdapter(treeViewAdapter);
+        buildFileSystemTree(treeViewAdapter);
+    }
 
-        TreeNode javaDirectory = new TreeNode("Java", R.layout.file_list_item);
-        javaDirectory.addChild(new TreeNode("FileJava1.java", R.layout.file_list_item));
-        javaDirectory.addChild(new TreeNode("FileJava2.java", R.layout.file_list_item));
-        javaDirectory.addChild(new TreeNode("FileJava3.java", R.layout.file_list_item));
-
-        TreeNode gradleDirectory = new TreeNode("Gradle", R.layout.file_list_item);
-        gradleDirectory.addChild(new TreeNode("FileGradle1.gradle", R.layout.file_list_item));
-        gradleDirectory.addChild(new TreeNode("FileGradle2.gradle", R.layout.file_list_item));
-        gradleDirectory.addChild(new TreeNode("FileGradle3.gradle", R.layout.file_list_item));
-
-        javaDirectory.addChild(gradleDirectory);
-
-        TreeNode lowLevelRoot = new TreeNode("LowLevel", R.layout.file_list_item);
-
-        TreeNode cDirectory = new TreeNode("C", R.layout.file_list_item);
-        cDirectory.addChild(new TreeNode("FileC1.c", R.layout.file_list_item));
-        cDirectory.addChild(new TreeNode("FileC2.c", R.layout.file_list_item));
-        cDirectory.addChild(new TreeNode("FileC3.c", R.layout.file_list_item));
-
-        TreeNode cppDirectory = new TreeNode("Cpp", R.layout.file_list_item);
-        cppDirectory.addChild(new TreeNode("FileCpp1.cpp", R.layout.file_list_item));
-        cppDirectory.addChild(new TreeNode("FileCpp2.cpp", R.layout.file_list_item));
-        cppDirectory.addChild(new TreeNode("FileCpp3.cpp", R.layout.file_list_item));
-
-        TreeNode goDirectory = new TreeNode("Go", R.layout.file_list_item);
-        goDirectory.addChild(new TreeNode("FileGo1.go", R.layout.file_list_item));
-        goDirectory.addChild(new TreeNode("FileGo2.go", R.layout.file_list_item));
-        goDirectory.addChild(new TreeNode("FileGo3.go", R.layout.file_list_item));
-
-        lowLevelRoot.addChild(cDirectory);
-        lowLevelRoot.addChild(cppDirectory);
-        lowLevelRoot.addChild(goDirectory);
-
-        TreeNode cSharpDirectory = new TreeNode("C#", R.layout.file_list_item);
-        cSharpDirectory.addChild(new TreeNode("FileCs1.cs", R.layout.file_list_item));
-        cSharpDirectory.addChild(new TreeNode("FileCs2.cs", R.layout.file_list_item));
-        cSharpDirectory.addChild(new TreeNode("FileCs3.cs", R.layout.file_list_item));
-
-        TreeNode gitFolder = new TreeNode(".git", R.layout.file_list_item);
+    private void buildFileSystemTree(TreeViewAdapter treeViewAdapter) {
 
         List<TreeNode> fileRoots = new ArrayList<>();
-        fileRoots.add(javaDirectory);
-        fileRoots.add(lowLevelRoot);
-        fileRoots.add(cSharpDirectory);
-        fileRoots.add(gitFolder);
+        File externalStorageRoot = Environment.getExternalStorageDirectory(); // Or any other root path
+
+        // Check if external storage is readable
+        if (Environment.MEDIA_MOUNTED.equals(Environment.getExternalStorageState()) ||
+                Environment.MEDIA_MOUNTED_READ_ONLY.equals(Environment.getExternalStorageState())) {
+
+            if (externalStorageRoot.exists() && externalStorageRoot.isDirectory()) {
+                // Add top-level directories from the chosen root
+                File[] topLevelFiles = externalStorageRoot.listFiles();
+                if (topLevelFiles != null) {
+                    for (File file : topLevelFiles) {
+                        TreeNode node = buildFileSystemNode(file, R.layout.file_list_item);
+                        if (node != null) {
+                            fileRoots.add(node);
+                        }
+                    }
+                } else {
+                    Log.e(getClass().getName(), "Could not list files in root: " + externalStorageRoot.getAbsolutePath());
+                }
+            } else {
+                Log.e(getClass().getName(), "Root directory does not exist or is not a directory: " + externalStorageRoot.getAbsolutePath());
+            }
+        } else {
+            Log.e(getClass().getName(), "External storage not readable.");
+        }
+
+        if (fileRoots.isEmpty()) {
+            Log.w(getClass().getName(), "No file system roots found or storage unavailable. Adding a placeholder.");
+        }
 
         treeViewAdapter.updateTreeNodes(fileRoots);
 
+
         treeViewAdapter.setTreeNodeClickListener((treeNode, nodeView) -> {
             Log.d(getClass().getName(), "Click on TreeNode with value " + treeNode.getValue().toString());
+            File file = (File) treeNode.getValue();
+            if (file.isDirectory() && file.listFiles() != null && treeNode.getChildren().size() != file.listFiles().length) {
+                File[] children = file.listFiles();
+                if (children != null) {
+                    for (File childFile : children) {
+                        TreeNode childNode = buildFileSystemNode(childFile, treeNode.getLayoutId());
+                        if (childNode != null) {
+                            treeNode.addChild(childNode);
+                            treeViewAdapter.notifyItemInserted(treeNode.getChildren().size() - 1);
+                        }
+                    }
+                    treeNode.setExpanded(true);
+                    treeViewAdapter.expandNode(treeNode);
+
+                }
+            }
+            Log.d(getClass().getName(), "Clicked on file: " + file.getAbsolutePath());
+
         });
 
         treeViewAdapter.setTreeNodeLongClickListener((treeNode, nodeView) -> {
             Log.d(getClass().getName(), "LongClick on TreeNode with value " + treeNode.getValue().toString());
             return true;
         });
+    }
 
+    /**
+     * Recursively builds a TreeNode structure from the file system.
+     *
+     * @param file     The current file or directory.
+     * @param layoutId The layout resource ID for the TreeNode.
+     * @return A TreeNode representing the file/directory, or null if it should be skipped.
+     */
+    private TreeNode buildFileSystemNode(File file, int layoutId) {
+        if (file == null || !file.exists()) {
+            return null;
+        }
+
+        return new TreeNode(file, layoutId);
 
     }
+
 
     private void start() {
 
@@ -202,6 +228,4 @@ public class YaaccUpnpServerControlActivity extends AppCompatActivity {
         mNotificationManager.cancel(NotificationId.UPNP_SERVER.getId());
         finish();
     }
-
-
 }

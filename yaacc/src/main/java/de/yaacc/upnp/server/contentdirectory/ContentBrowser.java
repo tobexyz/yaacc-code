@@ -30,7 +30,6 @@ import org.seamless.util.MimeType;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import de.yaacc.upnp.server.YaaccUpnpServerService;
 
@@ -43,6 +42,7 @@ import de.yaacc.upnp.server.YaaccUpnpServerService;
 public abstract class ContentBrowser {
 
     Context context;
+
 
     protected ContentBrowser(Context context) {
         this.context = context;
@@ -144,29 +144,15 @@ public abstract class ContentBrowser {
     }
 
 
-    public static String makeLikeClause(String column, int len) {
-        StringBuilder sb = new StringBuilder();
-        sb.append(column);
-        sb.append(" like ?");
-        for (int i = 1; i < len; i++) {
-            sb.append(" or ");
-            sb.append(column);
-            sb.append(" like ? ");
-        }
-        return sb.toString();
+    public String makeLikeClause(String column, int len) {
+        return MediaPathFilter.makeLikeClause(column, len);
     }
 
-    public static List<String> getMediaPathesForLikeClause() {
-        return getMediaPathes().stream().map(it -> "%" + it + "%").collect(Collectors.toList());
+    public List<String> getMediaPathesForLikeClause() {
+        return MediaPathFilter.getMediaPathesForLikeClause(getContext());
     }
 
-    public static List<String> getMediaPathes() {
-        List<String> result = new ArrayList<>();
-        result.add("DCIM");
-        result.add("DOWNLOADS");
-        result.add("Music/Joe Cocker");
-        //result.add("PICTURES");
-        return result;
-
+    public List<String> getMediaPathes() {
+        return MediaPathFilter.getMediaPathes(getContext());
     }
 }

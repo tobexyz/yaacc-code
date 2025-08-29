@@ -40,11 +40,10 @@ public class TreeViewHolder extends RecyclerView.ViewHolder {
                 itemView.getPaddingRight(),
                 itemView.getPaddingBottom());
 
-        String fileNameStr = node.getValue().toString();
-        fileName.setText(fileNameStr);
 
-        int dotIndex = fileNameStr.indexOf('.');
-        if (dotIndex == -1) {
+        fileName.setText(node.getValue().getName());
+
+        if (node.getValue() != null && node.getValue().isDirectory()) {
             fileTypeIcon.setImageResource(R.drawable.ic_baseline_folder_open_48);
         } else {
             fileTypeIcon.setImageResource(R.drawable.ic_baseline_file_48);
@@ -63,13 +62,13 @@ public class TreeViewHolder extends RecyclerView.ViewHolder {
             itemView.getContext().getTheme().resolveAttribute(android.R.attr.colorForeground, typedValue, true);
             fileName.setTextColor(typedValue.data);
         }
-
-        if (node.getChildren().isEmpty()) {
-            fileStateIcon.setVisibility(View.INVISIBLE);
-        } else {
-            fileStateIcon.setVisibility(View.VISIBLE);
-            int stateIcon = node.isExpanded() ? R.drawable.ic_baseline_download_48 : R.drawable.ic_baseline_double_arrow_24;
-            fileStateIcon.setImageResource(stateIcon);
+        fileStateIcon.setVisibility(View.INVISIBLE);
+        if (node.getValue() != null && node.getValue().isDirectory()) {
+            if (node.getValue().listFiles().length > 0) {
+                fileStateIcon.setVisibility(View.VISIBLE);
+                int stateIcon = node.isExpanded() ? R.drawable.sharp_keyboard_arrow_down_24 : R.drawable.sharp_chevron_right_24;
+                fileStateIcon.setImageResource(stateIcon);
+            }
         }
     }
 

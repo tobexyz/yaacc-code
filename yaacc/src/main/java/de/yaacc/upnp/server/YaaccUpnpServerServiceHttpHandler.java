@@ -66,7 +66,7 @@ import java.util.List;
 import java.util.Locale;
 
 import de.yaacc.R;
-import de.yaacc.upnp.server.contentdirectory.ContentBrowser;
+import de.yaacc.upnp.server.contentdirectory.MediaPathFilter;
 import de.yaacc.util.HttpRange;
 
 /**
@@ -218,10 +218,10 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
         String[] projection = {MediaStore.Files.FileColumns._ID,
                 MediaStore.Files.FileColumns.MIME_TYPE,
                 MediaStore.Files.FileColumns.DATA};
-        String selection = MediaStore.Files.FileColumns._ID + "=? and (" + ContentBrowser.makeLikeClause(MediaStore.Files.FileColumns.DATA, ContentBrowser.getMediaPathes().size()) + ")";
+        String selection = MediaStore.Files.FileColumns._ID + "=? and (" + MediaPathFilter.makeLikeClause(MediaStore.Files.FileColumns.DATA, MediaPathFilter.getMediaPathes(getContext()).size()) + ")";
         List<String> selectionArgsList = new ArrayList<>();
         selectionArgsList.add(contentId);
-        selectionArgsList.addAll(ContentBrowser.getMediaPathesForLikeClause());
+        selectionArgsList.addAll(MediaPathFilter.getMediaPathesForLikeClause(getContext()));
         String[] selectionArgs = selectionArgsList.toArray(new String[0]);
         try (Cursor mFilesCursor = getContext().getContentResolver().query(
                 MediaStore.Files.getContentUri("external"), projection,
