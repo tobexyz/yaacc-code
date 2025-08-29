@@ -1,0 +1,106 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="horizontal"
+    android:baselineAligned="false">
+
+    <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+        xmlns:tools="http://schemas.android.com/tools"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        tools:context=".upnp.server.YaaccUpnpServerControlActivity">
+
+        <TextView
+            android:id="@+id/localServerControlInterface"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentStart="true"
+            android:layout_alignParentTop="true"
+            android:layout_marginTop="26dp"
+            android:layout_marginStart="5dp"
+            android:text="@string/all"
+            android:textAppearance="@android:style/TextAppearance.Material.Medium"
+            android:textColor="?android:attr/colorForeground" />
+
+        <CheckBox
+            android:id="@+id/providerEnabled"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_below="@+id/localServerControlInterface"
+            android:layout_alignParentStart="true"
+            android:text="@string/settings_local_server_provider_on" />
+
+        <CheckBox
+            android:id="@+id/receiverEnabled"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentStart="true"
+            android:layout_below="@+id/providerEnabled"
+            android:text="@string/settings_local_server_receiver_on" />
+
+        <CheckBox
+            android:id="@+id/proxyEnabled"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentStart="true"
+            android:layout_below="@+id/receiverEnabled"
+            android:text="@string/settings_local_server_proxy_on" />
+
+        <TextView
+            android:id="@+id/serverLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_below="@+id/proxyEnabled"
+            android:layout_alignParentStart="true"
+            android:layout_marginStart="10dp"
+            android:layout_marginTop="10dp"
+            android:layout_marginEnd="10dp"
+            android:layout_marginBottom="10dp"
+            android:text="@string/upnp_server"
+            android:textAppearance="@android:style/TextAppearance.Material.Medium"
+            android:textColor="?android:attr/colorForeground" />
+
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/serverOnOff"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_below="@+id/proxyEnabled"
+            android:layout_toEndOf="@id/serverLabel"
+            android:layout_marginBottom="10dp"
+            android:layout_marginLeft="10dp" />
+    </RelativeLayout>
+
+    <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+        xmlns:tools="http://schemas.android.com/tools"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="2"
+        tools:context=".upnp.server.YaaccUpnpServerControlActivity">
+
+        <TextView
+            android:id="@+id/sharedFolders"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/shared_folders"
+            android:layout_marginTop="24dp"
+            android:layout_marginBottom="12dp"
+            android:layout_marginStart="5dp"
+            android:textAppearance="@android:style/TextAppearance.Material.Medium"
+            android:textColor="?android:attr/colorForeground" />
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/folders_recycler_view"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="32dp"
+            android:layout_alignParentStart="true"
+            android:layout_alignParentEnd="true"
+            android:layout_alignParentBottom="true"
+            android:layout_centerVertical="true"
+            android:layout_below="@+id/sharedFolders"
+            android:scrollbarSize="5dp"
+            android:scrollbars="vertical" />
+
+    </RelativeLayout>
+</LinearLayout>

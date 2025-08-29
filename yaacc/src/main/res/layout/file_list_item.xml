@@ -11,12 +11,20 @@
         android:layout_centerVertical="true"
         android:src="@drawable/ic_baseline_play_arrow_24" />
 
+    <CheckBox
+        android:id="@+id/file_checkbox"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:layout_marginRight="5dp"
+        android:layout_toEndOf="@id/file_state_icon"
+        android:layout_centerVertical="true" />
+
     <ImageView
         android:id="@+id/file_type_icon"
         android:layout_width="24dp"
         android:layout_height="24dp"
         android:layout_centerVertical="true"
-        android:layout_toEndOf="@id/file_state_icon"
+        android:layout_toEndOf="@id/file_checkbox"
         android:src="@drawable/ic_baseline_folder_open_24" />
 
     <TextView

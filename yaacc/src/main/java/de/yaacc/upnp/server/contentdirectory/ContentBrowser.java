@@ -30,6 +30,7 @@ import org.seamless.util.MimeType;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import de.yaacc.upnp.server.YaaccUpnpServerService;
 
@@ -152,7 +153,7 @@ public abstract class ContentBrowser {
         return MediaPathFilter.getMediaPathesForLikeClause(getContext());
     }
 
-    public List<String> getMediaPathes() {
+    public Set<String> getMediaPathes() {
         return MediaPathFilter.getMediaPathes(getContext());
     }
 }

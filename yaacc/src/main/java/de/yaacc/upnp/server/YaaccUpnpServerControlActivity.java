@@ -27,7 +27,6 @@ import android.util.Log;
 import android.util.TypedValue;
 import android.view.Menu;
 import android.view.MenuItem;
-import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.TextView;
 
@@ -35,6 +34,8 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.preference.PreferenceManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+
+import com.google.android.material.switchmaterial.SwitchMaterial;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -52,27 +53,52 @@ import de.yaacc.util.NotificationId;
  */
 public class YaaccUpnpServerControlActivity extends AppCompatActivity {
 
-    private static final int MAX_TREE_DEPTH = 5; // Limit recursion depth
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_yaacc_upnp_server_control);
-        // initialize buttons
-        Button startButton = findViewById(R.id.startServer);
-        startButton.setOnClickListener(v -> start());
-        Button stopButton = findViewById(R.id.stopServer);
-        stopButton.setOnClickListener(v -> stop());
         SharedPreferences preferences = PreferenceManager
                 .getDefaultSharedPreferences(getApplicationContext());
         boolean receiverActive = preferences.getBoolean(getString(R.string.settings_local_server_receiver_chkbx), false);
-        Log.d(getClass().getName(), "receiverActive: " + receiverActive);
         CheckBox receiverCheckBox = findViewById(R.id.receiverEnabled);
         receiverCheckBox.setChecked(receiverActive);
+        receiverCheckBox.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            SharedPreferences.Editor editor = preferences.edit();
+            editor.putBoolean(getApplicationContext().getString(R.string.settings_local_server_receiver_chkbx), isChecked);
+            editor.apply();
+        });
         boolean providerActive = preferences.getBoolean(getString(R.string.settings_local_server_provider_chkbx), false);
-        Log.d(getClass().getName(), "providerActive: " + providerActive);
         CheckBox providerCheckBox = findViewById(R.id.providerEnabled);
         providerCheckBox.setChecked(providerActive);
+        providerCheckBox.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            SharedPreferences.Editor editor = preferences.edit();
+            editor.putBoolean(getApplicationContext().getString(R.string.settings_local_server_provider_chkbx), isChecked);
+            editor.apply();
+        });
+        boolean proxyActive = preferences.getBoolean(getString(R.string.settings_local_server_proxy_chkbx), false);
+        CheckBox proxyCheckBox = findViewById(R.id.proxyEnabled);
+        proxyCheckBox.setChecked(proxyActive);
+        proxyCheckBox.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            SharedPreferences.Editor editor = preferences.edit();
+            editor.putBoolean(getApplicationContext().getString(R.string.settings_local_server_proxy_chkbx), isChecked);
+            editor.apply();
+        });
+
+        SwitchMaterial localServerEnabledSwitch = (SwitchMaterial) findViewById(R.id.serverOnOff);
+        localServerEnabledSwitch.setChecked(preferences.getBoolean(getApplicationContext().getString(R.string.settings_local_server_chkbx), false));
+        localServerEnabledSwitch.setOnClickListener((v -> {
+            SharedPreferences.Editor editor = preferences.edit();
+            editor.putBoolean(v.getContext().getString(R.string.settings_local_server_chkbx), localServerEnabledSwitch.isChecked());
+            editor.apply();
+            if (localServerEnabledSwitch.isChecked()) {
+                start();
+            } else {
+                stop();
+            }
+        }));
+
+
         TextView localServerControlInterface = findViewById(R.id.localServerControlInterface);
         String[] ipConfig = YaaccUpnpServerService.getIfAndIpAddress(this);
         localServerControlInterface.setText(ipConfig[1] + "@" + ipConfig[0]);
@@ -137,12 +163,8 @@ public class YaaccUpnpServerControlActivity extends AppCompatActivity {
                         TreeNode childNode = buildFileSystemNode(childFile, treeNode.getLayoutId());
                         if (childNode != null) {
                             treeNode.addChild(childNode);
-                            treeViewAdapter.notifyItemInserted(treeNode.getChildren().size() - 1);
                         }
                     }
-                    treeNode.setExpanded(true);
-                    treeViewAdapter.expandNode(treeNode);
-
                 }
             }
             Log.d(getClass().getName(), "Clicked on file: " + file.getAbsolutePath());

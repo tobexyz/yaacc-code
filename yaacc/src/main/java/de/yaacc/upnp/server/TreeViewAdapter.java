@@ -1,5 +1,6 @@
 package de.yaacc.upnp.server;
 
+import android.annotation.SuppressLint;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -101,11 +102,15 @@ public class TreeViewAdapter extends RecyclerView.Adapter<TreeViewHolder> {
     }
 
     @Override
-    public void onBindViewHolder(@NonNull TreeViewHolder holder, int position) {
+    public void onBindViewHolder(@NonNull TreeViewHolder holder, @SuppressLint("RecyclerView") int position) {
         TreeNode newSelectedNode = treeNodeManager.get(position);
         holder.bindTreeNode(newSelectedNode);
 
         holder.itemView.setOnClickListener(v -> {
+            // Handle TreeNode click listener event
+            if (treeNodeClickListener != null) {
+                treeNodeClickListener.onTreeNodeClick(newSelectedNode, v);
+            }
             // Handle node selection
             if (newSelectedNode == currentSelectedNode) {
                 boolean isNodeSelected = !currentSelectedNode.isSelected();
@@ -133,6 +138,7 @@ public class TreeViewAdapter extends RecyclerView.Adapter<TreeViewHolder> {
                 currentSelectedNodePosition = position;
             }
 
+
             // Handle node expand and collapse event
             if (!newSelectedNode.getChildren().isEmpty()) {
                 boolean isNodeExpanded = newSelectedNode.isExpanded();
@@ -144,10 +150,7 @@ public class TreeViewAdapter extends RecyclerView.Adapter<TreeViewHolder> {
                 notifyItemRangeChanged(position, getItemCount() - position);
             }
 
-            // Handle TreeNode click listener event
-            if (treeNodeClickListener != null) {
-                treeNodeClickListener.onTreeNodeClick(newSelectedNode, v);
-            }
+
         });
 
         // Handle TreeNode long click listener event

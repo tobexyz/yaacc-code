@@ -104,6 +104,7 @@
     <string name="fast_rewind">rembobinage rapide</string>
     <string name="fast_forward">avance rapide</string>
     <string name="downloaded_to_target">enregistré sous /Download/yaacc/</string>
+    <string name="shared_folders">sélectionner les dossiers partagés</string>
 
 
 </resources>

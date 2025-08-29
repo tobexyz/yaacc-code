@@ -3,13 +3,17 @@ package de.yaacc.upnp.server;
 
 import android.util.TypedValue;
 import android.view.View;
+import android.widget.CheckBox;
 import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
+import java.util.Set;
+
 import de.yaacc.R;
+import de.yaacc.upnp.server.contentdirectory.MediaPathFilter;
 
 
 public class TreeViewHolder extends RecyclerView.ViewHolder {
@@ -23,12 +27,15 @@ public class TreeViewHolder extends RecyclerView.ViewHolder {
     private final ImageView fileStateIcon;
     private final ImageView fileTypeIcon;
 
+    private final CheckBox fileCheckbox;
+
     public TreeViewHolder(@NonNull View itemView) {
         super(itemView);
 
         this.fileName = itemView.findViewById(R.id.file_name);
         this.fileStateIcon = itemView.findViewById(R.id.file_state_icon);
         this.fileTypeIcon = itemView.findViewById(R.id.file_type_icon);
+        this.fileCheckbox = itemView.findViewById(R.id.file_checkbox);
     }
 
 
@@ -42,10 +49,21 @@ public class TreeViewHolder extends RecyclerView.ViewHolder {
 
 
         fileName.setText(node.getValue().getName());
-
+        fileCheckbox.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            Set<String> pathes = MediaPathFilter.getMediaPathes(fileCheckbox.getContext());
+            if (isChecked) {
+                pathes.add(node.getValue().getAbsolutePath());
+            } else {
+                pathes.remove(node.getValue().getAbsolutePath());
+            }
+            MediaPathFilter.saveMediaPaths(fileCheckbox.getContext(), pathes);
+        });
         if (node.getValue() != null && node.getValue().isDirectory()) {
             fileTypeIcon.setImageResource(R.drawable.ic_baseline_folder_open_48);
+            fileCheckbox.setChecked(MediaPathFilter.getMediaPathes(fileCheckbox.getContext()).contains(node.getValue().getAbsolutePath()));
+            fileCheckbox.setVisibility(View.VISIBLE);
         } else {
+            fileCheckbox.setVisibility(View.INVISIBLE);
             fileTypeIcon.setImageResource(R.drawable.ic_baseline_file_48);
         }
 
@@ -64,7 +82,7 @@ public class TreeViewHolder extends RecyclerView.ViewHolder {
         }
         fileStateIcon.setVisibility(View.INVISIBLE);
         if (node.getValue() != null && node.getValue().isDirectory()) {
-            if (node.getValue().listFiles().length > 0) {
+            if (node.getValue().listFiles() != null && node.getValue().listFiles().length > 0) {
                 fileStateIcon.setVisibility(View.VISIBLE);
                 int stateIcon = node.isExpanded() ? R.drawable.sharp_keyboard_arrow_down_24 : R.drawable.sharp_chevron_right_24;
                 fileStateIcon.setImageResource(stateIcon);

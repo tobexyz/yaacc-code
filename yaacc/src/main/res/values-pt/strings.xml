@@ -177,4 +177,5 @@
     <string name="playlist">lista de reprodução</string>
     <string name="fast_rewind">retrocesso rápido</string>
     <string name="downloaded_to_target">salvo em /Download/yaacc/</string>
+    <string name="shared_folders">selecione pastas partilhadas</string>
 </resources>

@@ -5,7 +5,6 @@ import android.content.SharedPreferences;
 
 import androidx.preference.PreferenceManager;
 
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -31,12 +30,12 @@ public class MediaPathFilter {
         return getMediaPathes(context).stream().map(it -> "%" + it + "%").collect(Collectors.toList());
     }
 
-    public static List<String> getMediaPathes(Context context) {
+    public static Set<String> getMediaPathes(Context context) {
         Set<String> paths = PreferenceManager.getDefaultSharedPreferences(context).getStringSet(context.getString(R.string.settings_media_paths_pref_key), new HashSet<>());
         if (paths == null) {
-            return new ArrayList<>();
+            return new HashSet<>();
         }
-        return new ArrayList<>(paths);
+        return new HashSet<>(paths);
     }
 
     public static void saveMediaPaths(Context context, Set<String> newPaths) {
