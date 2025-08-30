@@ -27,6 +27,8 @@ import android.webkit.MimeTypeMap;
 
 import org.fourthline.cling.support.model.DIDLObject;
 import org.fourthline.cling.support.model.DIDLObject.Property.UPNP;
+import org.fourthline.cling.support.model.Protocol;
+import org.fourthline.cling.support.model.ProtocolInfo;
 import org.fourthline.cling.support.model.Res;
 import org.fourthline.cling.support.model.SortCriterion;
 import org.fourthline.cling.support.model.container.Container;
@@ -86,7 +88,8 @@ public class ImageAllItemBrowser extends ContentBrowser {
                 // ability of playing a file by the file extension
                 String uri = "http://" + contentDirectory.getIpAddress() + ":"
                         + YaaccUpnpServerService.PORT + "/?id=" + id + "&f=file." + MimeTypeMap.getSingleton().getExtensionFromMimeType(mimeType.toString());
-                Res resource = new Res(mimeType, size, uri);
+                ProtocolInfo protocolInfo = new ProtocolInfo(Protocol.HTTP_GET, ProtocolInfo.WILDCARD, mimeType.toString(), getDLNAAttributes(mimeType));
+                Res resource = new Res(protocolInfo, size, uri);
                 result = new Photo(ContentDirectoryIDs.IMAGE_ALL_PREFIX.getId() + id,
                         ContentDirectoryIDs.IMAGES_FOLDER.getId(), name, "", "",
                         resource);
@@ -102,6 +105,12 @@ public class ImageAllItemBrowser extends ContentBrowser {
             }
         }
         return result;
+    }
+
+    @Override
+    public Integer getSize(YaaccContentDirectory contentDirectory, String myId) {
+
+        return 1;
     }
 
     @Override

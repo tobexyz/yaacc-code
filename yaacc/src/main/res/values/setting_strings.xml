@@ -114,5 +114,5 @@
     <string name="settings_browse_swipe_title">Swipe on browse</string>
     <string name="settings_local_server_if_filter_key" translatable="false">settings_local_server_if_filter_key</string>
     <string name="settings_local_server_if_filter_names">black listed interfaces for ip address retrieval</string>
-
+    <string name="settings_media_paths_pref_key" translatable="false">settings_media_paths_pref_key</string>
 </resources>

@@ -169,7 +169,7 @@ public class PullSOAPActionProcessorImpl extends SOAPActionProcessorImpl {
                         "Could not find argument '" + arg.getName() + "' node");
             }
 
-            Log.v(getClass().getName(), "Reading action argument: " + arg.getName());
+            Log.v(getClass().getName(), "Reading action argument: " + arg.getName() + " value: " + value);
             values[i] = createValue(arg, value);
         }
         return values;

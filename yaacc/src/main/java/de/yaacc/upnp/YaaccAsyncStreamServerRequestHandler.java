@@ -72,13 +72,14 @@ public class YaaccAsyncStreamServerRequestHandler extends UpnpStream implements 
 
         try {
             StreamRequestMessage requestMessage = readRequestMessage(message);
-            Log.v(getClass().getName(), "Processing new request message: " + requestMessage);
+            Log.v(getClass().getName(), "Processing new request message: " + requestMessage + " body: " + requestMessage.getBodyString());
+
 
             StreamResponseMessage responseMessage = process(requestMessage);
 
             if (responseMessage != null) {
 
-                Log.v(getClass().getName(), "Preparing HTTP response message: " + responseMessage);
+                Log.v(getClass().getName(), "Preparing HTTP response message: " + responseMessage + " body: " + responseMessage.getBodyString());
                 writeResponseMessage(responseMessage, responseBuilder);
             } else {
                 // If it's null, it's 404

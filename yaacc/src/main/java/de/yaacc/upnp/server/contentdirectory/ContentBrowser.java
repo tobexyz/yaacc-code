@@ -30,6 +30,7 @@ import org.seamless.util.MimeType;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import de.yaacc.upnp.server.YaaccUpnpServerService;
 
@@ -43,6 +44,7 @@ public abstract class ContentBrowser {
 
     Context context;
 
+
     protected ContentBrowser(Context context) {
         this.context = context;
     }
@@ -51,6 +53,8 @@ public abstract class ContentBrowser {
         return context;
     }
 
+
+    public abstract Integer getSize(YaaccContentDirectory contentDirectory, String myId);
 
     public abstract DIDLObject browseMeta(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby);
 
@@ -78,4 +82,78 @@ public abstract class ContentBrowser {
                 + YaaccUpnpServerService.PORT + "/res/" + id + "/file." + fileExtension;
     }
 
+    public String getDLNAAttributes(MimeType mimetype) {
+        String result = "DLNA.ORG_PN=";
+
+        if ("audio".equals(mimetype.getType())) {
+            if ("mpeg".equals(mimetype.getSubtype())) {
+                result = result + "MP3";
+            } else if ("L16".equals(mimetype.getSubtype())) {
+                result = result + "LPCM";
+            } else if ("x-ms-wma".equals(mimetype.getSubtype())) {
+                result = result + "WMABASE";
+            } else if ("vnd.dlna.adts".equals(mimetype.getSubtype())) {
+                result = result + "ADTS";
+            } else if ("mp4".equals(mimetype.getSubtype())) {
+                result = result + "AAC_ISO";
+            } else if ("vnd.dolby.dd-raw".equals(mimetype.getSubtype())) {
+                result = result + "AC3";
+            } else if ("3gpp".equals(mimetype.getSubtype())) {
+                result = result + "AMR_3GPP";
+            } else if ("x-sony-oma".equals(mimetype.getSubtype())) {
+                result = result + "ATRAC3plus";
+            } else {
+                result = result + "*";
+            }
+        } else if ("image".equals(mimetype.getType())) {
+            if ("jpeg".equals(mimetype.getSubtype())) {
+                result = result + "JPEG_LRG";
+            } else if ("png".equals(mimetype.getSubtype())) {
+                result = result + "PNG_LRG";
+            } else {
+                result = result + "*";
+            }
+        } else if ("video".equals(mimetype.getType())) {
+            if ("x-ms-wmv".equals(mimetype.getSubtype())) {
+                result = result + "WMVMED_BASE";
+            } else if ("avi".equals(mimetype.getSubtype())) {
+                result = result + "AVI";
+            } else if ("divx".equals(mimetype.getSubtype())) {
+                result = result + "AVI";
+            } else if ("mpeg".equals(mimetype.getSubtype())) {
+                result = result + "MPEG1";
+            } else if ("vnd.dlna.mpeg-tts".equals(mimetype.getSubtype())) {
+                result = result + "MPEG_TS_MP_LL_AAC";
+            } else if ("mp4".equals(mimetype.getSubtype())) {
+                result = result + "MPEG4_P2_MP4_SP_AAC";
+            } else if ("3gpp".equals(mimetype.getSubtype())) {
+                result = result + "MPEG4_H263_MP4_P0_L10_AAC";
+            } else if ("x-matroska".equals(mimetype.getSubtype())) {
+                result = result + "MATROSKA";
+            } else if ("mkv".equals(mimetype.getSubtype())) {
+                result = result + "MATROSKA";
+            } else if ("x-ms-asf".equals(mimetype.getSubtype())) {
+                result = result + "VC1_ASF_AP_L2_WMA";
+            } else if ("x-ms-mwv".equals(mimetype.getSubtype())) {
+                result = result + "VC1_ASF_AP_L2_WMA";
+            } else {
+                result = result + "*";
+            }
+        }
+        result = result + ";DLNA.ORG_OP=01";
+        return result;
+    }
+
+
+    public String makeLikeClause(String column, int len) {
+        return MediaPathFilter.makeLikeClause(column, len);
+    }
+
+    public List<String> getMediaPathesForLikeClause() {
+        return MediaPathFilter.getMediaPathesForLikeClause(getContext());
+    }
+
+    public Set<String> getMediaPathes() {
+        return MediaPathFilter.getMediaPathes(getContext());
+    }
 }

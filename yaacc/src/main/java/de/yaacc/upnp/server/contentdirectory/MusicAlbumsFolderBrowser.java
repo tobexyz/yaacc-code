@@ -32,7 +32,6 @@ import org.fourthline.cling.support.model.container.StorageFolder;
 import org.fourthline.cling.support.model.item.Item;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -57,24 +56,37 @@ public class MusicAlbumsFolderBrowser extends ContentBrowser {
 
     }
 
-    private Integer getSize(YaaccContentDirectory contentDirectory, String myId) {
+    @SuppressLint("Range")
+    @Override
+    public Integer getSize(YaaccContentDirectory contentDirectory, String myId) {
 
         String[] projection = {MediaStore.Audio.Albums._ID};
         String selection = "";
         String[] selectionArgs = null;
-        try (Cursor cursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI, projection, selection,
+        int result = 0;
+        try (Cursor mediaCursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI, projection, selection,
                 selectionArgs, null)) {
-            return cursor.getCount();
+            if (mediaCursor != null && mediaCursor.getCount() > 0 && mediaCursor.moveToFirst()) {
+                while (!mediaCursor.isAfterLast()) {
+                    if (getMusicTrackSize(contentDirectory, mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Audio.Albums._ID))) > 0) {
+                        result++;
+                    }
+                    mediaCursor.moveToNext();
+                }
+            }
         }
-
+        return result;
     }
 
 
     private Integer getMusicTrackSize(YaaccContentDirectory contentDirectory, String parentId) {
 
-        String[] projection = {MediaStore.Audio.Albums._ID};
-        String selection = MediaStore.Audio.Media.ALBUM_ID + "=?";
-        String[] selectionArgs = new String[]{parentId};
+        String[] projection = {MediaStore.Audio.Media._ID};
+        String selection = MediaStore.Audio.Media.ALBUM_ID + "=? " + "and (" + makeLikeClause(MediaStore.Audio.Media.DATA, getMediaPathes().size()) + ")";
+        List<String> selectionArgsList = new ArrayList<>();
+        selectionArgsList.add(parentId);
+        selectionArgsList.addAll(getMediaPathesForLikeClause());
+        String[] selectionArgs = selectionArgsList.toArray(new String[0]);
         try (Cursor cursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, projection, selection,
                 selectionArgs, null)) {
             return cursor.getCount();
@@ -109,18 +121,17 @@ public class MusicAlbumsFolderBrowser extends ContentBrowser {
                     mediaCursor.moveToNext();
                 }
 
-                //Fetch folder size
-
                 for (Map.Entry<String, MusicAlbum> entry : folderMap.entrySet()) {
-                    entry.getValue().setChildCount(getMusicTrackSize(contentDirectory, entry.getKey()));
-                    result.add(entry.getValue());
+                    int tracks = getMusicTrackSize(contentDirectory, entry.getKey());
+                    entry.getValue().setChildCount(tracks);
+                    if (tracks > 0) {
+                        result.add(entry.getValue());
+                    }
                 }
             } else {
                 Log.d(getClass().getName(), "System media store is empty.");
             }
         }
-        result.sort(Comparator.comparing(DIDLObject::getTitle));
-
         return result;
     }
 

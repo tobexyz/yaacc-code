@@ -67,7 +67,21 @@ public class BackgroundMusicService extends Service {
     public void onCreate() {
         super.onCreate();
         Log.d(this.getClass().getName(), "On Create");
+
+        // Start foreground immediately with a basic notification
+        Notification minimalNotification = new NotificationCompat.Builder(this, Yaacc.NOTIFICATION_CHANNEL_ID)
+                .setContentTitle("Background Music Service")
+                .setContentText("Initializing...")
+                .setSmallIcon(R.drawable.ic_notification_default)
+                .setGroup(Yaacc.NOTIFICATION_GROUP_KEY) // Ensure group is set for consistency
+                .setSilent(true) // Keep it silent initially
+                .build();
+        startForeground(NotificationId.BACKGROUND_MUSIC_SERVICE.getId(), minimalNotification);
+
+        // Perform potentially long-running initializations
         ((Yaacc) getApplicationContext()).createYaaccGroupNotification();
+
+        // Now create and set the final notification
         Intent notificationIntent = new Intent(this, TabBrowserActivity.class);
         PendingIntent pendingIntent = PendingIntent.getActivity(this,
                 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE);
@@ -79,6 +93,7 @@ public class BackgroundMusicService extends Service {
                 .setContentIntent(pendingIntent)
                 .setGroup(Yaacc.NOTIFICATION_GROUP_KEY)
                 .build();
+        // Update the notification by calling startForeground again
         startForeground(NotificationId.BACKGROUND_MUSIC_SERVICE.getId(), notification);
 
     }

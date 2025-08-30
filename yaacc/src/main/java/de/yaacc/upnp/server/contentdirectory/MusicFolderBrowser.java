@@ -45,8 +45,13 @@ public class MusicFolderBrowser extends ContentBrowser {
     @Override
     public DIDLObject browseMeta(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
 
-        return new StorageFolder(ContentDirectoryIDs.MUSIC_FOLDER.getId(), ContentDirectoryIDs.ROOT.getId(), getContext().getString(R.string.music), "yaacc", 4,
+        return new StorageFolder(ContentDirectoryIDs.MUSIC_FOLDER.getId(), ContentDirectoryIDs.ROOT.getId(), getContext().getString(R.string.music), "yaacc", getSize(contentDirectory, myId),
                 null);
+    }
+
+    @Override
+    public Integer getSize(YaaccContentDirectory contentDirectory, String myId) {
+        return 4;
     }
 
 

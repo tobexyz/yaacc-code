@@ -265,7 +265,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      */
     @Override
     public void remoteDeviceDiscoveryFailed(Registry registry, RemoteDevice remotedevice, Exception exception) {
-        Log.d(getClass().getName(), "remoteDeviceDiscoveryFailed: " + remotedevice.getDisplayString(), exception);
+        Log.v(getClass().getName(), "remoteDeviceDiscoveryFailed: " + remotedevice.getDisplayString(), exception);
     }
 
     /*
@@ -278,7 +278,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      */
     @Override
     public void remoteDeviceAdded(Registry registry, RemoteDevice remotedevice) {
-        Log.d(getClass().getName(), "remoteDeviceAdded: " + remotedevice.getDisplayString());
+        Log.v(getClass().getName(), "remoteDeviceAdded: " + remotedevice.getDisplayString());
         deviceAdded(remotedevice);
     }
 
@@ -292,7 +292,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      */
     @Override
     public void remoteDeviceUpdated(Registry registry, RemoteDevice remotedevice) {
-        Log.d(getClass().getName(), "remoteDeviceUpdated: " + remotedevice.getDisplayString());
+        Log.v(getClass().getName(), "remoteDeviceUpdated: " + remotedevice.getDisplayString());
         deviceUpdated(remotedevice);
     }
 
@@ -306,7 +306,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      */
     @Override
     public void remoteDeviceRemoved(Registry registry, RemoteDevice remotedevice) {
-        Log.d(getClass().getName(), "remoteDeviceRemoved: " + remotedevice.getDisplayString());
+        Log.v(getClass().getName(), "remoteDeviceRemoved: " + remotedevice.getDisplayString());
         deviceRemoved(remotedevice);
     }
 
@@ -319,7 +319,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      */
     @Override
     public void localDeviceAdded(Registry registry, LocalDevice localdevice) {
-        Log.d(getClass().getName(), "localDeviceAdded: " + localdevice.getDisplayString());
+        Log.v(getClass().getName(), "localDeviceAdded: " + localdevice.getDisplayString());
         this.getRegistry().addDevice(localdevice);
         this.deviceAdded(localdevice);
     }
@@ -336,7 +336,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     public void localDeviceRemoved(Registry registry, LocalDevice localdevice) {
         Registry currentRegistry = this.getRegistry();
         if (localdevice != null && currentRegistry != null) {
-            Log.d(getClass().getName(), "localDeviceRemoved: " + localdevice.getDisplayString());
+            Log.v(getClass().getName(), "localDeviceRemoved: " + localdevice.getDisplayString());
             this.deviceRemoved(localdevice);
             this.getRegistry().removeDevice(localdevice);
         }
@@ -351,7 +351,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      */
     @Override
     public void beforeShutdown(Registry registry) {
-        Log.d(getClass().getName(), "beforeShutdown: " + registry);
+        Log.v(getClass().getName(), "beforeShutdown: " + registry);
     }
 
     /*
@@ -361,7 +361,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      */
     @Override
     public void afterShutdown() {
-        Log.d(getClass().getName(), "afterShutdown ");
+        Log.v(getClass().getName(), "afterShutdown ");
     }
 
     // ****************************************************
