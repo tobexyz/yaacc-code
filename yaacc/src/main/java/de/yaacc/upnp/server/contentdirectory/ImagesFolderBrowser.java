@@ -45,15 +45,11 @@ public class ImagesFolderBrowser extends ContentBrowser {
     @Override
     public DIDLObject browseMeta(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
 
-        return new StorageFolder(ContentDirectoryIDs.IMAGES_FOLDER.getId(), ContentDirectoryIDs.ROOT.getId(), getContext().getString(R.string.images), "yaacc", getSize(contentDirectory, myId),
+        return new StorageFolder(ContentDirectoryIDs.IMAGES_FOLDER.getId(), ContentDirectoryIDs.ROOT.getId(), getContext().getString(R.string.images), "yaacc", 4,
                 null);
 
     }
 
-    @Override
-    public Integer getSize(YaaccContentDirectory contentDirectory, String myId) {
-        return 2;
-    }
 
     @Override
     public List<Container> browseContainer(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {

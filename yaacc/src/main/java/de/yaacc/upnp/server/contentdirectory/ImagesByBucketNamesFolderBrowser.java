@@ -31,11 +31,10 @@ import org.fourthline.cling.support.model.container.StorageFolder;
 import org.fourthline.cling.support.model.item.Item;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import de.yaacc.R;
 
@@ -59,23 +58,16 @@ public class ImagesByBucketNamesFolderBrowser extends ContentBrowser {
 
     }
 
-    @SuppressLint("Range")
-    @Override
-    public Integer getSize(YaaccContentDirectory contentDirectory, String myId) {
+    private Integer getSize(YaaccContentDirectory contentDirectory, String myId) {
 
         String[] projection = {MediaStore.Images.Media.BUCKET_ID};
-        String selection = "(" + makeLikeClause(MediaStore.Images.Media.DATA, getMediaPathes().size()) + ")";
-        String[] selectionArgs = getMediaPathesForLikeClause().toArray(new String[0]);
-        Set<String> buckets = new HashSet<>();
+        String selection = null;
+        String[] selectionArgs = null;
         try (Cursor cursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, projection, selection,
                 selectionArgs, null)) {
-            cursor.moveToFirst();
-            while (!cursor.isAfterLast()) {
-                buckets.add(cursor.getString(cursor.getColumnIndex(MediaStore.Images.Media.BUCKET_ID)));
-                cursor.moveToNext();
-            }
+            return cursor.getCount();
         }
-        return buckets.size();
+
     }
 
     private Integer getBucketNameFolderSize(YaaccContentDirectory contentDirectory, String id) {
@@ -96,8 +88,8 @@ public class ImagesByBucketNamesFolderBrowser extends ContentBrowser {
         List<Container> result = new ArrayList<>();
         Map<String, StorageFolder> folderMap = new HashMap<>();
         String[] projection = {MediaStore.Images.Media.BUCKET_ID, MediaStore.Images.Media.BUCKET_DISPLAY_NAME};
-        String selection = "(" + makeLikeClause(MediaStore.Images.Media.DATA, getMediaPathes().size()) + ")";
-        String[] selectionArgs = getMediaPathesForLikeClause().toArray(new String[0]);
+        String selection = null;
+        String[] selectionArgs = null;
         try (Cursor mediaCursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, projection, selection,
                 selectionArgs, MediaStore.Images.Media.BUCKET_DISPLAY_NAME + " ASC")) {
             if (mediaCursor != null && mediaCursor.getCount() > 0) {
@@ -125,6 +117,7 @@ public class ImagesByBucketNamesFolderBrowser extends ContentBrowser {
                 Log.d(getClass().getName(), "System media store is empty.");
             }
         }
+        result.sort(Comparator.comparing(DIDLObject::getTitle));
         return result;
     }
 

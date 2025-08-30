@@ -183,12 +183,23 @@ public class RetrieveImageTask extends AsyncTask<Uri, Void, Void> {
     private Bitmap decodeSampledBitmapFromStream(Uri imageUri, int reqWidth,
                                                  int reqHeight) throws IOException {
         InputStream is = getUriAsStream(imageUri);
+        int tmpWidth = reqWidth;
+        int tmpHeight = reqHeight;
+        if (reqHeight > 2048) {
+            tmpHeight = 2048;
+            tmpWidth = reqHeight * (2048 / reqWidth);
+        }
+        if (reqWidth > 2048) {
+            tmpWidth = 2048;
+            tmpHeight = reqWidth * (2048 / reqHeight);
+        }
+
         final BitmapFactory.Options options = new BitmapFactory.Options();
         options.inJustDecodeBounds = false;
-        options.outHeight = reqHeight;
-        options.outWidth = reqWidth;
+        options.outHeight = tmpHeight;
+        options.outWidth = tmpWidth;
         options.inDensity = DisplayMetrics.DENSITY_LOW;
-        options.inSampleSize = 2;
+        options.inTempStorage = new byte[7680016];
         Log.d(this.getClass().getName(),
                 "displaying image size width, height, inSampleSize "
                         + options.outWidth + "," + options.outHeight + ","

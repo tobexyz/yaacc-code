@@ -123,8 +123,6 @@
     <string name="fast_rewind">fast rewind</string>
     <string name="fast_forward">fast forward</string>
     <string name="downloaded_to_target">gespeichert unter /Download/yaacc/</string>
-    <string name="shared_folders">wähle freizugebende Ordner</string>
-    <string name="reset_shared_folders">freigegebene Ordner zurücksetzen</string>
 
 
 </resources>

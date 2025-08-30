@@ -39,7 +39,7 @@ public class PlayableItem {
     private Uri uri;
     private long duration;
 
-    private final UUID id;
+    private UUID id;
 
 
     public PlayableItem(Item item, int defaultDuration) {
@@ -50,7 +50,7 @@ public class PlayableItem {
         if (resource != null) {
             setUri(Uri.parse(resource.getValue()));
             String mimeType = resource.getProtocolInfo().getContentFormat();
-            if (mimeType == null || mimeType.isEmpty()) {
+            if (mimeType == null || mimeType.equals("")) {
                 String fileExtension = MimeTypeMap.getFileExtensionFromUrl(getUri().toString());
                 mimeType = MimeTypeMap.getSingleton().getMimeTypeFromExtension(fileExtension);
             }
@@ -59,7 +59,7 @@ public class PlayableItem {
             // calculate duration
 
             long millis = defaultDuration;
-            Log.v(getClass().getName(), "resource.getDuration(): " + resource.getDuration());
+            Log.d(getClass().getName(), "resource.getDuration(): " + resource.getDuration());
             if (resource.getDuration() != null) {
                 try {
                     String[] tokens = resource.getDuration().split(":");
@@ -72,7 +72,7 @@ public class PlayableItem {
                     if (tokens.length > 2) {
                         String seconds = tokens[2];
                         if (tokens[2].contains(".")) {
-                            Log.d(getClass().getName(), "tokens[2]: " + tokens[2] + "split: " + tokens[2].split("\\.").length);
+                            Log.d(getClass().getName(), "tokens[2]: " + tokens[2] + "spli: " + tokens[2].split("\\.").length);
                             seconds = tokens[2].split("\\.")[0];
                         }
                         millis += Long.parseLong(seconds);

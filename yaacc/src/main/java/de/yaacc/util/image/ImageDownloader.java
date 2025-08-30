@@ -48,7 +48,7 @@ public class ImageDownloader {
      */
     public Bitmap retrieveImageWithCertainSize(Uri imageUri, int imageWidth, int imageHeight) {
         Log.d(getClass().getName(), "retrieveImage size:" + imageWidth + "x" + imageHeight);
-        return decodeSampledBitmapFromStream(imageUri, imageWidth, imageHeight);
+        return decodeSampledBitmapFromStream(imageUri, imageWidth, imageHeight, true);
     }
 
 
@@ -61,20 +61,20 @@ public class ImageDownloader {
      * @return requested image
      */
     private Bitmap decodeSampledBitmapFromStream(Uri imageUri, int reqWidth,
-                                                 int reqHeight) {
+                                                 int reqHeight, boolean rescaleImage) {
 
         Bitmap bitmap = null;
 
         try {
             InputStream is = getUriAsStream(imageUri);
-            Log.d(this.getClass().getName(), "image uri to load: " + imageUri.toString());
+
+
             final BitmapFactory.Options options = new BitmapFactory.Options();
             options.inJustDecodeBounds = false;
             options.outWidth = reqWidth;
             options.outHeight = reqHeight;
             options.inDensity = DisplayMetrics.DENSITY_DEFAULT;
             options.inTempStorage = new byte[7680016];
-            options.inSampleSize = 1;
 
             Log.d(this.getClass().getName(),
                     "displaying image size width, height, inSampleSize "
@@ -86,12 +86,9 @@ public class ImageDownloader {
 
             bitmap = BitmapFactory.decodeStream(new FlushedInputStream(is),
                     null, options);
-            Log.d(this.getClass().getName(), "free memory after image load: "
-                    + Runtime.getRuntime().freeMemory());
-
 
             // if the image must be rescaled its ratio must be recalculated
-            if (bitmap != null) {
+            if (rescaleImage) {
                 int outWidth;
                 int outHeight;
                 int inWidth = bitmap.getWidth();
@@ -104,13 +101,11 @@ public class ImageDownloader {
                     outHeight = reqHeight;
                 }
                 bitmap = Bitmap.createScaledBitmap(bitmap, outWidth, outHeight, false);
-                Log.d(this.getClass().getName(), "free memory after image scaling: "
-                        + Runtime.getRuntime().freeMemory());
-
             }
-            if (bitmap == null) {
-                Log.w(this.getClass().getName(), "Bitmap is null !!!");
-            } else if (bitmap.getHeight() != reqHeight) {
+            Log.d(this.getClass().getName(), "free memory after image load: "
+                    + Runtime.getRuntime().freeMemory());
+
+            if (bitmap.getHeight() != reqHeight) {
                 Log.w(this.getClass().getName(), "Bitmap has wrong size !!! height: " + bitmap.getHeight() + " width: " + bitmap.getWidth());
             }
 

@@ -26,8 +26,6 @@ import android.util.Log;
 
 import org.fourthline.cling.support.model.DIDLObject;
 import org.fourthline.cling.support.model.DIDLObject.Property.UPNP;
-import org.fourthline.cling.support.model.Protocol;
-import org.fourthline.cling.support.model.ProtocolInfo;
 import org.fourthline.cling.support.model.Res;
 import org.fourthline.cling.support.model.SortCriterion;
 import org.fourthline.cling.support.model.container.Container;
@@ -60,12 +58,11 @@ public class ImagesAllFolderBrowser extends ContentBrowser {
         return new StorageFolder(ContentDirectoryIDs.IMAGES_ALL_FOLDER.getId(), ContentDirectoryIDs.IMAGES_FOLDER.getId(), getContext().getString(R.string.all_images), "yaacc", getSize(contentDirectory, myId), null);
     }
 
-    @Override
-    public Integer getSize(YaaccContentDirectory contentDirectory, String myId) {
+    private Integer getSize(YaaccContentDirectory contentDirectory, String myId) {
 
         String[] projection = {MediaStore.Images.Media._ID};
-        String selection = "(" + makeLikeClause(MediaStore.Images.Media.DATA, getMediaPathes().size()) + ")";
-        String[] selectionArgs = getMediaPathesForLikeClause().toArray(new String[0]);
+        String selection = "";
+        String[] selectionArgs = null;
         try (Cursor cursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, projection, selection,
                 selectionArgs, null)) {
             return cursor.getCount();
@@ -86,8 +83,8 @@ public class ImagesAllFolderBrowser extends ContentBrowser {
         // Query for all images on external storage
         String[] projection = {MediaStore.Images.Media._ID, MediaStore.Images.Media.DISPLAY_NAME, MediaStore.Images.Media.MIME_TYPE,
                 MediaStore.Images.Media.SIZE};
-        String selection = "(" + makeLikeClause(MediaStore.Images.Media.DATA, getMediaPathes().size()) + ")";
-        String[] selectionArgs = getMediaPathesForLikeClause().toArray(new String[0]);
+        String selection = "";
+        String[] selectionArgs = null;
         try (Cursor mImageCursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, projection, selection,
                 selectionArgs, MediaStore.Images.Media.DISPLAY_NAME + " ASC")) {
 
@@ -106,8 +103,7 @@ public class ImagesAllFolderBrowser extends ContentBrowser {
                         // file parameter only needed for media players which decide the
                         // ability of playing a file by the file extension
                         String uri = getUriString(contentDirectory, id, mimeType);
-                        ProtocolInfo protocolInfo = new ProtocolInfo(Protocol.HTTP_GET, ProtocolInfo.WILDCARD, mimeType.toString(), getDLNAAttributes(mimeType));
-                        Res resource = new Res(protocolInfo, size, uri);
+                        Res resource = new Res(mimeType, size, uri);
 
                         Photo photo = new Photo(ContentDirectoryIDs.IMAGE_ALL_PREFIX.getId() + id, ContentDirectoryIDs.IMAGES_ALL_FOLDER.getId(), name, "", "", resource);
                         URI albumArtUri = URI.create("http://"

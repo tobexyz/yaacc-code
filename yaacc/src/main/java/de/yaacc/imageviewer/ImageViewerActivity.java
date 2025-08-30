@@ -165,7 +165,7 @@ public class ImageViewerActivity extends AppCompatActivity implements SwipeRecei
             }
             pictureShowActive = intent.getBooleanExtra(AUTO_START_SHOW, false);
         }
-        if (imageUris != null && !imageUris.isEmpty()) {
+        if (imageUris.size() > 0) {
             loadImage();
         } else {
             runOnUiThread(() -> {
@@ -180,12 +180,12 @@ public class ImageViewerActivity extends AppCompatActivity implements SwipeRecei
 
     @Override
     protected void onDestroy() {
+        super.onDestroy();
         try {
             unbindService(this);
         } catch (IllegalArgumentException iae) {
             Log.d(getClass().getName(), "Ignore exception on unbind service while activity destroy");
         }
-        super.onDestroy();
     }
 
     /*
@@ -198,9 +198,9 @@ public class ImageViewerActivity extends AppCompatActivity implements SwipeRecei
 
         imageViewerBroadcastReceiver = new ImageViewerBroadcastReceiver(this);
         imageViewerBroadcastReceiver.registerReceiver();
+        super.onResume();
         this.bindService(new Intent(this, PlayerService.class),
                 this, Context.BIND_AUTO_CREATE);
-        super.onResume();
     }
 
     /*

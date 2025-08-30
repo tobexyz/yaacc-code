@@ -26,8 +26,6 @@ import android.util.Log;
 
 import org.fourthline.cling.support.model.DIDLObject;
 import org.fourthline.cling.support.model.DIDLObject.Property.UPNP;
-import org.fourthline.cling.support.model.Protocol;
-import org.fourthline.cling.support.model.ProtocolInfo;
 import org.fourthline.cling.support.model.Res;
 import org.fourthline.cling.support.model.SortCriterion;
 import org.fourthline.cling.support.model.container.Container;
@@ -58,7 +56,7 @@ public class ImageByBucketNameItemBrowser extends ContentBrowser {
         Item result = null;
         String[] projection = {MediaStore.Images.Media._ID,
                 MediaStore.Images.Media.DISPLAY_NAME,
-                MediaStore.Images.Media.MIME_TYPE, MediaStore.Images.Media.SIZE, MediaStore.Images.Media.BUCKET_ID, MediaStore.Images.Media.DATE_TAKEN};
+                MediaStore.Images.Media.MIME_TYPE, MediaStore.Images.Media.SIZE, MediaStore.Images.Media.DATE_TAKEN};
         String selection = MediaStore.Images.Media.BUCKET_ID + "=?";
         String[] selectionArgs = new String[]{myId.substring(ContentDirectoryIDs.IMAGE_BY_BUCKET_PREFIX.getId().length())};
         try (Cursor mImageCursor = contentDirectory
@@ -71,8 +69,6 @@ public class ImageByBucketNameItemBrowser extends ContentBrowser {
                 mImageCursor.moveToFirst();
                 @SuppressLint("Range") String id = mImageCursor.getString(mImageCursor
                         .getColumnIndex(MediaStore.Images.Media._ID));
-                @SuppressLint("Range") String bucketId = mImageCursor.getString(mImageCursor
-                        .getColumnIndex(MediaStore.Images.Media.BUCKET_ID));
                 @SuppressLint("Range") String name = mImageCursor
                         .getString(mImageCursor
                                 .getColumnIndex(MediaStore.Images.Media.DISPLAY_NAME));
@@ -89,10 +85,9 @@ public class ImageByBucketNameItemBrowser extends ContentBrowser {
                 // file parameter only needed for media players which decide the
                 // ability of playing a file by the file extension
                 String uri = getUriString(contentDirectory, id, mimeType);
-                ProtocolInfo protocolInfo = new ProtocolInfo(Protocol.HTTP_GET, ProtocolInfo.WILDCARD, mimeType.toString(), getDLNAAttributes(mimeType));
-                Res resource = new Res(protocolInfo, size, uri);
+                Res resource = new Res(mimeType, size, uri);
                 result = new Photo(ContentDirectoryIDs.IMAGE_BY_BUCKET_PREFIX.getId() + id,
-                        ContentDirectoryIDs.IMAGES_BY_BUCKET_NAME_PREFIX.getId() + bucketId, name, "", "",
+                        ContentDirectoryIDs.IMAGES_BY_BUCKET_NAME_PREFIX.getId() + dateTaken, name, "", "",
                         resource);
                 URI albumArtUri = URI.create("http://"
                         + contentDirectory.getIpAddress() + ":"
@@ -110,10 +105,6 @@ public class ImageByBucketNameItemBrowser extends ContentBrowser {
         return result;
     }
 
-    @Override
-    public Integer getSize(YaaccContentDirectory contentDirectory, String myId) {
-        return 1;
-    }
 
     @Override
     public List<Container> browseContainer(
@@ -121,7 +112,6 @@ public class ImageByBucketNameItemBrowser extends ContentBrowser {
 
         return new ArrayList<>();
     }
-
 
     @Override
     public List<Item> browseItem(YaaccContentDirectory contentDirectory,

@@ -26,8 +26,6 @@ import android.util.Log;
 
 import org.fourthline.cling.support.model.DIDLObject;
 import org.fourthline.cling.support.model.PersonWithRole;
-import org.fourthline.cling.support.model.Protocol;
-import org.fourthline.cling.support.model.ProtocolInfo;
 import org.fourthline.cling.support.model.Res;
 import org.fourthline.cling.support.model.SortCriterion;
 import org.fourthline.cling.support.model.container.Container;
@@ -37,6 +35,7 @@ import org.seamless.util.MimeType;
 
 import java.net.URI;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 import de.yaacc.upnp.server.YaaccUpnpServerService;
@@ -54,6 +53,13 @@ public class MusicGenreFolderBrowser extends ContentBrowser {
     @Override
     public DIDLObject browseMeta(YaaccContentDirectory contentDirectory,
                                  String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
+        /*List<MusicTrack> items = browseItem(contentDirectory, myId, firstResult, maxResults, orderby);
+        return new MusicAlbum(myId,
+                ContentDirectoryIDs.MUSIC_GENRES_FOLDER.getId(), getName(
+                contentDirectory, myId), "yaacc", getSize(
+                contentDirectory, myId), items);
+
+         */
         return new StorageFolder(myId, ContentDirectoryIDs.MUSIC_GENRES_FOLDER.getId(), getName(
                 contentDirectory, myId), "yaacc", getSize(
                 contentDirectory, myId), null);
@@ -83,17 +89,13 @@ public class MusicGenreFolderBrowser extends ContentBrowser {
         return result;
     }
 
-    @Override
-    public Integer getSize(YaaccContentDirectory contentDirectory, String myId) {
+    private Integer getSize(YaaccContentDirectory contentDirectory, String myId) {
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
             String[] projection = {MediaStore.Audio.Media._ID};
-            String selection = MediaStore.Audio.Media.GENRE_ID + "=? " + "and (" + makeLikeClause(MediaStore.Audio.Media.DATA, getMediaPathes().size()) + ")";
-            List<String> selectionArgsList = new ArrayList<>();
-            selectionArgsList.add(myId
+            String selection = MediaStore.Audio.Media.GENRE_ID + "=?";
+            String[] selectionArgs = new String[]{myId
                     .substring(ContentDirectoryIDs.MUSIC_GENRE_PREFIX.getId()
-                            .length()));
-            selectionArgsList.addAll(getMediaPathesForLikeClause());
-            String[] selectionArgs = selectionArgsList.toArray(new String[0]);
+                    .length())};
             try (Cursor cursor = contentDirectory
                     .getContext()
                     .getContentResolver()
@@ -103,16 +105,14 @@ public class MusicGenreFolderBrowser extends ContentBrowser {
             }
         } else {
             String[] projection = {MediaStore.Audio.Genres.Members.AUDIO_ID};
-            String selection = MediaStore.Audio.Genres.Members.GENRE_ID + "=? " + "and (" + makeLikeClause(MediaStore.Audio.Genres.Members.DATA, getMediaPathes().size()) + ")";
-            List<String> selectionArgsList = new ArrayList<>();
-            String genreId = myId.substring(ContentDirectoryIDs.MUSIC_GENRE_PREFIX.getId().length());
-            selectionArgsList.add(genreId);
-            selectionArgsList.addAll(getMediaPathesForLikeClause());
-            String[] selectionArgs = selectionArgsList.toArray(new String[0]);
+            String selection = MediaStore.Audio.Genres.Members.GENRE_ID + "=?";
+            String[] selectionArgs = new String[]{myId
+                    .substring(ContentDirectoryIDs.MUSIC_GENRE_PREFIX.getId()
+                    .length())};
             try (Cursor cursor = contentDirectory
                     .getContext()
                     .getContentResolver()
-                    .query(MediaStore.Audio.Genres.Members.getContentUri("external", Long.parseLong(genreId)), projection,
+                    .query(null, projection,
                             selection, selectionArgs, null)) {
                 return cursor.getCount();
             }
@@ -147,29 +147,22 @@ public class MusicGenreFolderBrowser extends ContentBrowser {
                     MediaStore.Audio.Media.BITRATE,
                     MediaStore.Audio.Media.GENRE_ID,
                     MediaStore.Audio.Media.GENRE};
-            selection = MediaStore.Audio.Media.GENRE_ID + "=? " + "and (" + makeLikeClause(MediaStore.Audio.Media.DATA, getMediaPathes().size()) + ")";
-            List<String> selectionArgsList = new ArrayList<>();
-            selectionArgsList.add(myId
+            selection = MediaStore.Audio.Media.GENRE_ID + "=?";
+            selectionArgs = new String[]{myId
                     .substring(ContentDirectoryIDs.MUSIC_GENRE_PREFIX.getId()
-                            .length()));
-            selectionArgsList.addAll(getMediaPathesForLikeClause());
-            selectionArgs = selectionArgsList.toArray(new String[0]);
+                    .length())};
         } else {
 
             String[] genreProjection = new String[]{MediaStore.Audio.Genres.Members.AUDIO_ID};
-            String genreSelection = MediaStore.Audio.Genres.Members.GENRE_ID + "=? " + "and (" + makeLikeClause(MediaStore.Audio.Genres.Members.DATA, getMediaPathes().size()) + ")";
-            List<String> selectionArgsList = new ArrayList<>();
-            String genreId = myId
+            String genreSelection = MediaStore.Audio.Genres.Members.GENRE_ID + "=?";
+            String[] genreSelectionArgs = new String[]{myId
                     .substring(ContentDirectoryIDs.MUSIC_GENRE_PREFIX.getId()
-                            .length());
-            selectionArgsList.add(genreId);
-            selectionArgsList.addAll(getMediaPathesForLikeClause());
-            String[] genreSelectionArgs = selectionArgsList.toArray(new String[0]);
+                    .length())};
             List<String> audioIds = new ArrayList<>();
             try (Cursor genreCursor = contentDirectory
                     .getContext()
                     .getContentResolver()
-                    .query(MediaStore.Audio.Genres.Members.getContentUri("external", Long.parseLong(genreId)), genreProjection,
+                    .query(null, genreProjection,
                             genreSelection, genreSelectionArgs, "")) {
                 if (genreCursor == null || genreCursor.getCount() == 0) {
                     return result;
@@ -198,15 +191,7 @@ public class MusicGenreFolderBrowser extends ContentBrowser {
                     MediaStore.Audio.Media.TITLE,
                     MediaStore.Audio.Media.ARTIST,
                     MediaStore.Audio.Media.DURATION};
-            StringBuilder selectionBuilder = new StringBuilder(MediaStore.Audio.Media._ID + " in (");
-            for (int i = 0; i < audioIds.size(); i++) {
-                selectionBuilder.append("?");
-                if (i < audioIds.size() - 1) {
-                    selectionBuilder.append(",");
-                }
-            }
-            selectionBuilder.append(")");
-            selection = selectionBuilder.toString();
+            selection = MediaStore.Audio.Media._ID + "=?";
             selectionArgs = audioIds.toArray(new String[0]);
         }
 
@@ -267,8 +252,7 @@ public class MusicGenreFolderBrowser extends ContentBrowser {
                                 + contentDirectory.getIpAddress() + ":"
                                 + YaaccUpnpServerService.PORT + "/album/" + albumId);
 
-                        ProtocolInfo protocolInfo = new ProtocolInfo(Protocol.HTTP_GET, ProtocolInfo.WILDCARD, mimeType.toString(), getDLNAAttributes(mimeType));
-                        Res resource = new Res(protocolInfo, size, uri);
+                        Res resource = new Res(mimeType, size, uri);
 
                         resource.setDuration(duration);
                         MusicTrack musicTrack = new MusicTrack(
@@ -302,7 +286,7 @@ public class MusicGenreFolderBrowser extends ContentBrowser {
                 Log.d(getClass().getName(), "System media store is empty.");
             }
         }
-
+        result.sort(Comparator.comparing(DIDLObject::getTitle));
         return result;
 
     }
