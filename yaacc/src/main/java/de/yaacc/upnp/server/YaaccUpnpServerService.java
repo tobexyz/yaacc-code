@@ -116,8 +116,6 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
     public String mediaServerUuid;
     public String mediaRendererUuid;
     protected IBinder binder = new YaaccUpnpServerServiceBinder();
-    // make preferences available for the whole service, since there might be
-    // more things to configure in the future
     SharedPreferences preferences;
     private LocalDevice localServer;
     private LocalDevice localRenderer;
@@ -331,12 +329,15 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
                     .setCanonicalHostName(getIpAddress(getApplicationContext()))
                     .register("*", new YaaccUpnpServerServiceHttpHandler(getApplicationContext()))
                     .create();
-
-            httpServer.listen(new InetSocketAddress(PORT), URIScheme.HTTP);
             httpServer.start();
         } else {
+
             httpServer.resume();
         }
+        httpServer.listen(new InetSocketAddress(PORT), URIScheme.HTTP);
+        Log.d(getClass().getName(), "Server status: " + httpServer.getStatus().name());
+        Log.d(getClass().getName(), "Server Endpoints: " + httpServer.getEndpoints().size());
+        httpServer.getEndpoints().forEach(endpoint -> Log.d(getClass().getName(), "Endpoint: " + endpoint.toString()));
         timer.schedule(new TimerTask() {
 
             @Override
@@ -369,7 +370,20 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
             }
         } catch (IOException e) {
             Log.e(getClass().getName(), "HttpServer is NOT responding to HTTP requests or is unreachable. Trying restart", e);
-            restartServerService();
+            //restartServerService();
+            if (httpServer != null) {
+                httpServer.listen(new InetSocketAddress(PORT), URIScheme.HTTP);
+                timer.schedule(new TimerTask() {
+
+                    @Override
+                    public void run() {
+                        Log.d(getClass().getName(), "Server Endpoints after restart listener: " + httpServer.getEndpoints().size());
+                        httpServer.getEndpoints().forEach(endpoint -> Log.d(getClass().getName(), "Endpoint: " + endpoint.toString()));
+                    }
+                }, 500L);
+
+            }
+
             return;
         }
     }

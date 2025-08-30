@@ -41,6 +41,8 @@ import org.fourthline.cling.model.meta.RemoteDevice;
 import java.net.URL;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Timer;
+import java.util.TimerTask;
 
 import de.yaacc.R;
 import de.yaacc.upnp.UpnpClient;
@@ -141,17 +143,24 @@ public class BrowseDeviceAdapter extends RecyclerView.Adapter<BrowseDeviceAdapte
         ImageButton configButton;
 
         Context context;
-
+        private Timer timer;
 
         public ViewHolder(View itemView, Context context) {
             super(itemView);
             this.context = context;
+            timer = new Timer();
             this.icon = itemView.findViewById(R.id.browseDeviceItemIcon);
             this.name = itemView.findViewById(R.id.browseDeviceItemName);
             this.scanButtonLabel = itemView.findViewById(R.id.browseDeviceItemMediaStoreScanLabel);
             this.scanButton = itemView.findViewById(R.id.browseDeviceItemRescan);
             scanButton.setOnClickListener((v) -> {
-                new MediaStoreScanner().scanMediaFiles(getActivity(v.getContext()));
+                timer.schedule(new TimerTask() {
+                    @Override
+                    public void run() {
+                        new MediaStoreScanner().scanMediaFiles(getActivity(v.getContext()));
+                    }
+                }, 10L);
+
             });
             this.configButton = itemView.findViewById(R.id.browseDeviceItemConfig);
             configButton.setOnClickListener((v) -> {

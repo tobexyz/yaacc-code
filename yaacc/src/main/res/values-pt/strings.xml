@@ -178,4 +178,5 @@
     <string name="fast_rewind">retrocesso rápido</string>
     <string name="downloaded_to_target">salvo em /Download/yaacc/</string>
     <string name="shared_folders">selecione pastas partilhadas</string>
+    <string name="reset_shared_folders">repor pastas partilhadas</string>
 </resources>

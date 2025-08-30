@@ -27,6 +27,7 @@ import android.util.Log;
 import android.util.TypedValue;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.TextView;
 
@@ -43,6 +44,7 @@ import java.util.List;
 
 import de.yaacc.R;
 import de.yaacc.settings.SettingsActivity;
+import de.yaacc.upnp.server.contentdirectory.MediaPathFilter;
 import de.yaacc.util.AboutActivity;
 import de.yaacc.util.NotificationId;
 
@@ -97,7 +99,10 @@ public class YaaccUpnpServerControlActivity extends AppCompatActivity {
                 stop();
             }
         }));
-
+        Button resetButton = findViewById(R.id.sharedFoldersReset);
+        resetButton.setOnClickListener(v -> {
+            MediaPathFilter.resetMediaPaths(getApplicationContext());
+        });
 
         TextView localServerControlInterface = findViewById(R.id.localServerControlInterface);
         String[] ipConfig = YaaccUpnpServerService.getIfAndIpAddress(this);

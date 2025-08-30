@@ -19,6 +19,7 @@
 package de.yaacc.upnp.server;
 
 import android.annotation.SuppressLint;
+import android.content.ContentUris;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.database.Cursor;
@@ -26,8 +27,10 @@ import android.graphics.Bitmap;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
+import android.os.Build;
 import android.provider.MediaStore;
 import android.util.Log;
+import android.util.Size;
 
 import androidx.core.content.res.ResourcesCompat;
 import androidx.preference.PreferenceManager;
@@ -54,6 +57,7 @@ import org.seamless.util.MimeType;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.RandomAccessFile;
@@ -271,43 +275,64 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
         if (albumId == null) {
             return result;
         }
-        Log.d(getClass().getName(), "System media store lookup album: "
-                + albumId);
-        String[] projection = {MediaStore.Audio.Albums._ID,
-                // FIXME what is the right mime type?
-                // MediaStore.Audio.Albums.MIME_TYPE,
-                MediaStore.Audio.Albums.ALBUM_ART};
-        String selection = MediaStore.Audio.Albums._ID + "=?";
-        String[] selectionArgs = {albumId};
-        try (Cursor cursor = getContext().getContentResolver().query(
-                MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI, projection,
-                selection, selectionArgs, null)) {
+        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
+            Log.d(getClass().getName(), "System media store lookup album: "
+                    + albumId);
+            String[] projection = {MediaStore.Audio.Albums._ID,
+                    // FIXME what is the right mime type?
+                    // MediaStore.Audio.Albums.MIME_TYPE,
+                    MediaStore.Audio.Albums.ALBUM_ART};
+            String selection = MediaStore.Audio.Albums._ID + "=?";
+            String[] selectionArgs = {albumId};
+            try (Cursor cursor = getContext().getContentResolver().query(
+                    MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI, projection,
+                    selection, selectionArgs, null)) {
 
-            if (cursor != null) {
-                cursor.moveToFirst();
-                while (!cursor.isAfterLast()) {
-                    @SuppressLint("Range") String dataUri = cursor.getString(cursor
-                            .getColumnIndex(MediaStore.Audio.Albums.ALBUM_ART));
+                if (cursor != null) {
+                    cursor.moveToFirst();
+                    while (!cursor.isAfterLast()) {
+                        @SuppressLint("Range") String dataUri = cursor.getString(cursor
+                                .getColumnIndex(MediaStore.Audio.Albums.ALBUM_ART));
 
-                    // String mimeTypeStr = null;
-                    // FIXME mime type resolving cursor
-                    // .getString(cursor
-                    // .getColumnIndex(MediaStore.Files.FileColumns.MIME_TYPE));
+                        // String mimeTypeStr = null;
+                        // FIXME mime type resolving cursor
+                        // .getString(cursor
+                        // .getColumnIndex(MediaStore.Files.FileColumns.MIME_TYPE));
 
-                    MimeType mimeType = MimeType.valueOf("image/png");
-                    // if (mimeTypeStr != null) {
-                    // mimeType = MimeType.valueOf(mimeTypeStr);
-                    // }
-                    if (dataUri != null) {
-                        Log.d(getClass().getName(), "Content found: " + mimeType
-                                + " Uri: " + dataUri);
-                        result = new ContentHolder(mimeType, dataUri, ranges);
+                        MimeType mimeType = MimeType.valueOf("image/png");
+                        // if (mimeTypeStr != null) {
+                        // mimeType = MimeType.valueOf(mimeTypeStr);
+                        // }
+                        if (dataUri != null) {
+                            Log.d(getClass().getName(), "Content found: " + mimeType
+                                    + " Uri: " + dataUri);
+                            result = new ContentHolder(mimeType, dataUri, ranges);
+                        }
+                        cursor.moveToNext();
                     }
-                    cursor.moveToNext();
+                } else {
+                    Log.d(getClass().getName(), "System media store is empty.");
                 }
-            } else {
-                Log.d(getClass().getName(), "System media store is empty.");
             }
+        } else {
+            Uri albumArtUri = ContentUris.withAppendedId(MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI, Long.parseLong(albumId));
+            MimeType mimeType = MimeType.valueOf("image/jpeg");
+            Log.d(getClass().getName(), "Content found: " + mimeType
+                    + " Uri: " + albumArtUri);
+            try {
+                Bitmap bitmap = context.getContentResolver().loadThumbnail(albumArtUri, new Size(1024, 1024), null);
+
+                File art = new File(context.getCacheDir(), "albumart" + albumId + ".jpg");
+                art.createNewFile();
+                FileOutputStream fos = new FileOutputStream(art);
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 90, fos);
+                fos.flush();
+                fos.close();
+                result = new ContentHolder(mimeType, art.getAbsolutePath(), ranges);
+            } catch (IOException e) {
+                Log.e(getClass().getName(), "Error loading album art", e);
+            }
+
         }
         return result;
     }

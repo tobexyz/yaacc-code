@@ -44,4 +44,11 @@ public class MediaPathFilter {
         editor.putStringSet(context.getString(R.string.settings_media_paths_pref_key), newPaths);
         editor.apply();
     }
+
+    public static void resetMediaPaths(Context context) {
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
+        SharedPreferences.Editor editor = prefs.edit();
+        editor.putStringSet(context.getString(R.string.settings_media_paths_pref_key), new HashSet<>());
+        editor.apply();
+    }
 }

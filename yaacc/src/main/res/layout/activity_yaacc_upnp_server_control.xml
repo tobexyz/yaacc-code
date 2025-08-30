@@ -5,46 +5,10 @@
     tools:context=".upnp.server.YaaccUpnpServerControlActivity">
 
     <TextView
-        android:id="@+id/localServerControlInterface"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_alignParentStart="true"
-        android:layout_alignParentTop="true"
-        android:layout_marginTop="26dp"
-        android:layout_marginStart="5dp"
-        android:text="@string/all"
-        android:textAppearance="@android:style/TextAppearance.Material.Medium"
-        android:textColor="?android:attr/colorForeground" />
-
-    <CheckBox
-        android:id="@+id/providerEnabled"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_below="@+id/localServerControlInterface"
-        android:layout_alignParentStart="true"
-        android:text="@string/settings_local_server_provider_on" />
-
-    <CheckBox
-        android:id="@+id/receiverEnabled"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_alignParentStart="true"
-        android:layout_below="@+id/providerEnabled"
-        android:text="@string/settings_local_server_receiver_on" />
-
-    <CheckBox
-        android:id="@+id/proxyEnabled"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_alignParentStart="true"
-        android:layout_below="@+id/receiverEnabled"
-        android:text="@string/settings_local_server_proxy_on" />
-
-    <TextView
         android:id="@+id/serverLabel"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_below="@+id/proxyEnabled"
+        android:layout_alignParentTop="true"
         android:layout_alignParentStart="true"
         android:layout_marginStart="10dp"
         android:layout_marginTop="10dp"
@@ -56,19 +20,68 @@
 
     <com.google.android.material.switchmaterial.SwitchMaterial
         android:id="@+id/serverOnOff"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_alignParentTop="true"
+        android:layout_toEndOf="@id/serverLabel"
+        android:layout_marginBottom="10dp"
+        android:textAppearance="@android:style/TextAppearance.Material.Medium"
+        android:layout_marginStart="10dp" />
+
+
+    <TextView
+        android:id="@+id/localServerControlInterface"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/serverLabel"
+        android:layout_alignParentStart="true"
+        android:layout_marginTop="26dp"
+        android:layout_marginStart="5dp"
+        android:text="@string/all"
+        android:textAppearance="@android:style/TextAppearance.Material.Medium"
+        android:textColor="?android:attr/colorForeground" />
+
+    <CheckBox
+        android:id="@+id/providerEnabled"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:layout_below="@+id/localServerControlInterface"
+        android:layout_alignParentStart="true"
+        android:textAppearance="@android:style/TextAppearance.Material.Medium"
+        android:text="@string/settings_local_server_provider_on" />
+
+    <CheckBox
+        android:id="@+id/receiverEnabled"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:layout_alignParentStart="true"
+        android:layout_below="@+id/providerEnabled"
+        android:textAppearance="@android:style/TextAppearance.Material.Medium"
+        android:text="@string/settings_local_server_receiver_on" />
+
+    <CheckBox
+        android:id="@+id/proxyEnabled"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:layout_alignParentStart="true"
+        android:layout_below="@+id/receiverEnabled"
+        android:textAppearance="@android:style/TextAppearance.Material.Medium"
+        android:text="@string/settings_local_server_proxy_on" />
+
+    <Button
+        android:id="@+id/sharedFoldersReset"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_alignBaseline="@id/serverLabel"
-        android:layout_toEndOf="@id/serverLabel"
+        android:layout_alignParentStart="true"
         android:layout_below="@+id/proxyEnabled"
-        android:layout_marginBottom="10dp"
-        android:layout_marginLeft="10dp" />
+        android:text="@string/reset_shared_folders"
+        android:textAppearance="@android:style/TextAppearance.Material.Medium" />
 
 
     <TextView
         android:id="@+id/sharedFolders"
-        android:layout_below="@+id/serverOnOff"
-        android:layout_width="wrap_content"
+        android:layout_below="@+id/sharedFoldersReset"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="@string/shared_folders"
         android:layout_marginTop="24dp"
@@ -79,13 +92,14 @@
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/folders_recycler_view"
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_alignParentStart="true"
         android:layout_alignParentEnd="true"
         android:layout_alignParentBottom="true"
         android:layout_centerVertical="true"
         android:layout_below="@+id/sharedFolders"
+        android:textAppearance="@android:style/TextAppearance.Material.Medium"
         android:scrollbarSize="5dp"
         android:scrollbars="vertical" />
 
