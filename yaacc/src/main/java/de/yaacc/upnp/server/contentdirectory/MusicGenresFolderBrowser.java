@@ -32,7 +32,6 @@ import org.fourthline.cling.support.model.container.StorageFolder;
 import org.fourthline.cling.support.model.item.Item;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -57,29 +56,61 @@ public class MusicGenresFolderBrowser extends ContentBrowser {
 
     }
 
-    private Integer getSize(YaaccContentDirectory contentDirectory, String myId) {
+    @SuppressLint("Range")
+    @Override
+    public Integer getSize(YaaccContentDirectory contentDirectory, String myId) {
 
         String[] projection = {MediaStore.Audio.Genres._ID};
         String selection = "";
         String[] selectionArgs = null;
-        try (Cursor cursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Audio.Genres.EXTERNAL_CONTENT_URI, projection, selection,
+        int result = 0;
+        try (Cursor mediaCursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Audio.Genres.EXTERNAL_CONTENT_URI, projection, selection,
                 selectionArgs, null)) {
-            return cursor.getCount();
+            if (mediaCursor != null && mediaCursor.getCount() > 0 && mediaCursor.moveToFirst()) {
+                while (!mediaCursor.isAfterLast()) {
+                    if (getMusicTrackSize(contentDirectory, mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Audio.Genres._ID))) > 0) {
+                        result++;
+                    }
+                    mediaCursor.moveToNext();
+                }
+            }
         }
-
+        return result;
     }
 
 
     private Integer getMusicTrackSize(YaaccContentDirectory contentDirectory, String parentId) {
-
-        String[] projection = {MediaStore.Audio.Media._ID};
-        String selection = MediaStore.Audio.Media.GENRE_ID + "=?";
-        String[] selectionArgs = new String[]{parentId};
-        try (Cursor cursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, projection, selection,
-                selectionArgs, null)) {
-            return cursor.getCount();
+        if (parentId == null) {
+            return 0;
         }
-
+        Integer result = 0;
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            String[] projection = {MediaStore.Audio.Media._ID};
+            String selection = MediaStore.Audio.Media.GENRE_ID + "=? " + "and (" + makeLikeClause(MediaStore.Audio.Media.DATA, getMediaPathes().size()) + ")";
+            List<String> selectionArgsList = new ArrayList<>();
+            selectionArgsList.add(parentId);
+            selectionArgsList.addAll(getMediaPathesForLikeClause());
+            String[] selectionArgs = selectionArgsList.toArray(new String[0]);
+            try (Cursor cursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, projection, selection,
+                    selectionArgs, null)) {
+                result = cursor.getCount();
+            }
+        } else {
+            String[] projection = {MediaStore.Audio.Genres.Members.AUDIO_ID};
+            String selection = MediaStore.Audio.Genres.Members.GENRE_ID + "=? " + "and (" + makeLikeClause(MediaStore.Audio.Genres.Members.DATA, getMediaPathes().size()) + ")";
+            List<String> selectionArgsList = new ArrayList<>();
+            selectionArgsList.add(parentId);
+            selectionArgsList.addAll(getMediaPathesForLikeClause());
+            String[] selectionArgs = selectionArgsList.toArray(new String[0]);
+            try (Cursor cursor = contentDirectory
+                    .getContext()
+                    .getContentResolver()
+                    .query(MediaStore.Audio.Genres.Members.getContentUri("external", Long.valueOf(parentId)), projection,
+                            selection, selectionArgs, null)) {
+                result = cursor.getCount();
+            }
+        }
+        return result;
     }
 
     @Override
@@ -113,14 +144,16 @@ public class MusicGenresFolderBrowser extends ContentBrowser {
                 }
 
                 for (Map.Entry<String, MusicAlbum> entry : folderMap.entrySet()) {
-                    entry.getValue().setChildCount(getMusicTrackSize(contentDirectory, entry.getKey()));
-                    result.add(entry.getValue());
+                    int tracks = getMusicTrackSize(contentDirectory, entry.getKey());
+                    entry.getValue().setChildCount(tracks);
+                    if (tracks > 0) {
+                        result.add(entry.getValue());
+                    }
                 }
             } else {
                 Log.d(getClass().getName(), "System media store is empty.");
             }
         }
-        result.sort(Comparator.comparing(DIDLObject::getTitle));
 
         return result;
     }

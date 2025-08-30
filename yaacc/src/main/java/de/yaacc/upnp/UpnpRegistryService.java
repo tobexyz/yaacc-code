@@ -50,7 +50,7 @@ public class UpnpRegistryService extends Service {
         long start = System.currentTimeMillis();
         super.onCreate();
 
-        upnpService = new UpnpServiceImpl(new YaaccUpnpServiceConfiguration()) {
+        upnpService = new UpnpServiceImpl(new YaaccUpnpServiceConfiguration(this)) {
 
             @Override
             protected Router createRouter(ProtocolFactory protocolFactory, Registry registry) {

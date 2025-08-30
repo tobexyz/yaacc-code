@@ -27,6 +27,8 @@ import android.util.Log;
 import org.fourthline.cling.support.model.DIDLObject;
 import org.fourthline.cling.support.model.DIDLObject.Property.UPNP;
 import org.fourthline.cling.support.model.PersonWithRole;
+import org.fourthline.cling.support.model.Protocol;
+import org.fourthline.cling.support.model.ProtocolInfo;
 import org.fourthline.cling.support.model.Res;
 import org.fourthline.cling.support.model.SortCriterion;
 import org.fourthline.cling.support.model.container.Container;
@@ -36,7 +38,6 @@ import org.seamless.util.MimeType;
 
 import java.net.URI;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 
 import de.yaacc.upnp.server.YaaccUpnpServerService;
@@ -84,12 +85,16 @@ public class MusicAlbumFolderBrowser extends ContentBrowser {
         return result;
     }
 
-    private Integer getSize(YaaccContentDirectory contentDirectory, String myId) {
+    @Override
+    public Integer getSize(YaaccContentDirectory contentDirectory, String myId) {
         String[] projection = {MediaStore.Audio.Media.ALBUM_ID};
-        String selection = MediaStore.Audio.Media.ALBUM_ID + "=?";
-        String[] selectionArgs = new String[]{myId
-                .substring(ContentDirectoryIDs.MUSIC_ALBUM_PREFIX.getId()
-                .length())};
+        String selection = MediaStore.Audio.Media.ALBUM_ID + "=? " + "and (" + makeLikeClause(MediaStore.Audio.Media.DATA, getMediaPathes().size()) + ")";
+        List<String> selectionArgsList = new ArrayList<>();
+        selectionArgsList.add(myId
+                .substring(ContentDirectoryIDs.MUSIC_ALBUM_ITEM_PREFIX.getId()
+                        .length()));
+        selectionArgsList.addAll(getMediaPathesForLikeClause());
+        String[] selectionArgs = selectionArgsList.toArray(new String[0]);
         try (Cursor cursor = contentDirectory
                 .getContext()
                 .getContentResolver()
@@ -137,10 +142,14 @@ public class MusicAlbumFolderBrowser extends ContentBrowser {
                     MediaStore.Audio.Media.ARTIST,
                     MediaStore.Audio.Media.DURATION};
         }
-        String selection = MediaStore.Audio.Media.ALBUM_ID + "=?";
-        String[] selectionArgs = new String[]{myId
-                .substring(ContentDirectoryIDs.MUSIC_ALBUM_PREFIX.getId()
-                .length())};
+
+        String selection = MediaStore.Audio.Media.ALBUM_ID + "=? " + "and (" + makeLikeClause(MediaStore.Audio.Media.DATA, getMediaPathes().size()) + ")";
+        List<String> selectionArgsList = new ArrayList<>();
+        selectionArgsList.add(myId
+                .substring(ContentDirectoryIDs.MUSIC_ALBUM_ITEM_PREFIX.getId()
+                        .length()));
+        selectionArgsList.addAll(getMediaPathesForLikeClause());
+        String[] selectionArgs = selectionArgsList.toArray(new String[0]);
         try (Cursor mediaCursor = contentDirectory
                 .getContext()
                 .getContentResolver()
@@ -180,13 +189,13 @@ public class MusicAlbumFolderBrowser extends ContentBrowser {
                                 .valueOf(mediaCursor.getString(mediaCursor
                                         .getColumnIndex(MediaStore.Audio.Media.MIME_TYPE)));
                         // file parameter only needed for media players which decide
-                        // the
-                        // ability of playing a file by the file extension
+                        // the ability of playing a file by the file extension
                         String uri = getUriString(contentDirectory, id, mimeType);
                         URI albumArtUri = URI.create("http://"
                                 + contentDirectory.getIpAddress() + ":"
                                 + YaaccUpnpServerService.PORT + "/album/" + albumId);
-                        Res resource = new Res(mimeType, size, uri);
+                        ProtocolInfo protocolInfo = new ProtocolInfo(Protocol.HTTP_GET, ProtocolInfo.WILDCARD, mimeType.toString(), getDLNAAttributes(mimeType));
+                        Res resource = new Res(protocolInfo, size, uri);
                         resource.setDuration(duration);
 
                         MusicTrack musicTrack = new MusicTrack(
@@ -220,10 +229,7 @@ public class MusicAlbumFolderBrowser extends ContentBrowser {
                 Log.d(getClass().getName(), "System media store is empty.");
             }
         }
-        result.sort(Comparator.comparing(DIDLObject::getTitle));
-
         return result;
 
     }
-
 }

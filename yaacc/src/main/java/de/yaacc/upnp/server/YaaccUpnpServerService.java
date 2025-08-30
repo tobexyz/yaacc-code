@@ -36,14 +36,19 @@ import androidx.core.app.NotificationCompat;
 import androidx.core.content.res.ResourcesCompat;
 import androidx.preference.PreferenceManager;
 
+import org.apache.hc.client5.http.classic.methods.HttpHead;
+import org.apache.hc.client5.http.config.RequestConfig;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
+import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.core5.function.Callback;
 import org.apache.hc.core5.http.ConnectionClosedException;
 import org.apache.hc.core5.http.URIScheme;
 import org.apache.hc.core5.http.impl.bootstrap.HttpAsyncServer;
-import org.apache.hc.core5.http.io.SocketConfig;
 import org.apache.hc.core5.http2.impl.nio.bootstrap.H2ServerBootstrap;
 import org.apache.hc.core5.reactor.IOReactorConfig;
 import org.apache.hc.core5.util.TimeValue;
+import org.apache.hc.core5.util.Timeout;
 import org.fourthline.cling.binding.annotations.AnnotationLocalServiceBinder;
 import org.fourthline.cling.model.DefaultServiceManager;
 import org.fourthline.cling.model.ValidationError;
@@ -68,6 +73,7 @@ import org.fourthline.cling.support.renderingcontrol.AbstractAudioRenderingContr
 import org.fourthline.cling.support.xmicrosoft.AbstractMediaReceiverRegistrarService;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.NetworkInterface;
@@ -97,7 +103,7 @@ import de.yaacc.util.NotificationId;
  *
  * @author Tobias Schoene (openbit)
  */
-public class YaaccUpnpServerService extends Service {
+public class YaaccUpnpServerService extends Service implements SharedPreferences.OnSharedPreferenceChangeListener {
 
     public static final String PROXY_LINK_KEY_PREFIX = "proxy_link_";
     public static final String PROXY_LINK_MIME_TYPE_KEY_PREFIX = "proxy_link_mime_type";
@@ -110,8 +116,6 @@ public class YaaccUpnpServerService extends Service {
     public String mediaServerUuid;
     public String mediaRendererUuid;
     protected IBinder binder = new YaaccUpnpServerServiceBinder();
-    // make preferences available for the whole service, since there might be
-    // more things to configure in the future
     SharedPreferences preferences;
     private LocalDevice localServer;
     private LocalDevice localRenderer;
@@ -121,7 +125,7 @@ public class YaaccUpnpServerService extends Service {
 
 
     private HttpAsyncServer httpServer;
-    private boolean initialized = false;
+    private Timer timer;
 
     /*
      * (non-Javadoc)
@@ -135,6 +139,16 @@ public class YaaccUpnpServerService extends Service {
         return binder;
     }
 
+    @Override
+    public void onCreate() {
+        super.onCreate();
+        // when the service starts, the preferences are initialized
+        preferences = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
+        preferences.registerOnSharedPreferenceChangeListener(this);
+        timer = new Timer();
+    }
+
+
     /*
      * (non-Javadoc)
      *
@@ -144,8 +158,6 @@ public class YaaccUpnpServerService extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         long start = System.currentTimeMillis();
 
-        // when the service starts, the preferences are initialized
-        preferences = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
         mediaServerUuid = preferences.getString(getApplicationContext().getString(R.string.settings_local_server_provider_uuid_key), null);
         if (mediaServerUuid == null) {
             mediaServerUuid = UUID.randomUUID().toString();
@@ -174,6 +186,10 @@ public class YaaccUpnpServerService extends Service {
     @Override
     public void onDestroy() {
         Log.d(this.getClass().getName(), "Destroying the service");
+        if (preferences != null) {
+            preferences.unregisterOnSharedPreferenceChangeListener(this);
+        }
+
         if (getUpnpClient() != null) {
             if (localServer != null) {
                 getUpnpClient().localDeviceRemoved(getUpnpClient().getRegistry(), localServer);
@@ -231,7 +247,6 @@ public class YaaccUpnpServerService extends Service {
      *
      */
     private void initialize() {
-        this.initialized = false;
         if (!getUpnpClient().isInitialized()) {
             getUpnpClient().initialize(getApplicationContext());
             watchdog = false;
@@ -258,8 +273,11 @@ public class YaaccUpnpServerService extends Service {
             }
             if (preferences.getBoolean(getApplicationContext().getString(R.string.settings_local_server_provider_chkbx), false)
                     || preferences.getBoolean(getApplicationContext().getString(R.string.settings_local_server_proxy_chkbx), false)) {
-
-                createHttpServer();
+                try {
+                    createHttpServer();
+                } catch (IOException e) {
+                    Log.e(getClass().getName(), "Error while creating http server", e);
+                }
             }
 
             if (preferences.getBoolean(getApplicationContext().getString(R.string.settings_local_server_receiver_chkbx), false)) {
@@ -268,7 +286,6 @@ public class YaaccUpnpServerService extends Service {
                 }
                 getUpnpClient().getRegistry().addDevice(localRenderer);
             }
-            this.initialized = true;
         } else {
             throw new IllegalStateException("UpnpClient is not initialized!");
         }
@@ -276,23 +293,23 @@ public class YaaccUpnpServerService extends Service {
         startUpnpAliveNotifications();
     }
 
+    public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
+        Log.d(this.getClass().getName(), "Preference changed reinitialize the service");
+        Thread initializationThread = new Thread(this::initialize);
+        initializationThread.start();
+    }
+
     /**
      * creates a http request thread
      */
-    private void createHttpServer() {
+    private void createHttpServer() throws IOException {
         // Create a HttpService for providing content in the network.
-
-        //FIXME set correct timeout
-        SocketConfig socketConfig = SocketConfig.custom()
-                .setSoKeepAlive(true)
-                .setTcpNoDelay(false)
-                .build();
-        IOReactorConfig config = IOReactorConfig.custom()
-                .setSoKeepAlive(true)
-                .setTcpNoDelay(true)
-                .build();
         // Set up the HTTP service
         if (httpServer == null) {
+            IOReactorConfig config = IOReactorConfig.custom()
+                    .setSoKeepAlive(true)
+                    .setTcpNoDelay(true)
+                    .build();
             httpServer = H2ServerBootstrap.bootstrap()
                     .setIOReactorConfig(config)
                     .setExceptionCallback(new Callback<Exception>() {
@@ -312,11 +329,86 @@ public class YaaccUpnpServerService extends Service {
                     .setCanonicalHostName(getIpAddress(getApplicationContext()))
                     .register("*", new YaaccUpnpServerServiceHttpHandler(getApplicationContext()))
                     .create();
-
-            httpServer.listen(new InetSocketAddress(PORT), URIScheme.HTTP);
             httpServer.start();
-        }
+        } else {
 
+            httpServer.resume();
+        }
+        httpServer.listen(new InetSocketAddress(PORT), URIScheme.HTTP);
+        Log.d(getClass().getName(), "Server status: " + httpServer.getStatus().name());
+        Log.d(getClass().getName(), "Server Endpoints: " + httpServer.getEndpoints().size());
+        httpServer.getEndpoints().forEach(endpoint -> Log.d(getClass().getName(), "Endpoint: " + endpoint.toString()));
+        timer.schedule(new TimerTask() {
+
+            @Override
+            public void run() {
+                checkIfHttpServerIsRunning();
+            }
+        }, 6000L);
+
+
+    }
+
+
+    private void checkIfHttpServerIsRunning() {
+        try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
+            HttpHead httpHead = new HttpHead("http://" + getIpAddress(getApplicationContext()) + ":" + PORT + "/health");
+            RequestConfig requestConfig = RequestConfig.custom()
+                    .setConnectionRequestTimeout(Timeout.ofSeconds(5))
+                    .setConnectTimeout(Timeout.ofSeconds(5))
+                    .setResponseTimeout(Timeout.ofSeconds(5))
+                    .build();
+            httpHead.setConfig(requestConfig);
+
+            try (CloseableHttpResponse response = httpClient.execute(httpHead)) {
+                int statusCode = response.getCode();
+                if (statusCode >= 200 && statusCode < 300) {
+                    Log.i(getClass().getName(), "HttpServer responded with HTTP " + statusCode + ". It is operational.");
+                } else {
+                    Log.w(getClass().getName(), "HttpServer responded with HTTP " + statusCode + ". It might be listening but not fully operational.");
+                }
+            }
+        } catch (IOException e) {
+            Log.e(getClass().getName(), "HttpServer is NOT responding to HTTP requests or is unreachable. Trying restart", e);
+            //restartServerService();
+            if (httpServer != null) {
+                httpServer.listen(new InetSocketAddress(PORT), URIScheme.HTTP);
+                timer.schedule(new TimerTask() {
+
+                    @Override
+                    public void run() {
+                        Log.d(getClass().getName(), "Server Endpoints after restart listener: " + httpServer.getEndpoints().size());
+                        httpServer.getEndpoints().forEach(endpoint -> Log.d(getClass().getName(), "Endpoint: " + endpoint.toString()));
+                    }
+                }, 500L);
+
+            }
+
+            return;
+        }
+    }
+
+    private void restartServerService() {
+        if (httpServer != null) {
+            httpServer.initiateShutdown();
+            try {
+                httpServer.awaitShutdown(TimeValue.ofSeconds(3));
+            } catch (InterruptedException e) {
+                Log.w(getClass().getName(), "got exception on stream server stop ", e);
+            }
+        }
+        httpServer = null;
+        timer.schedule(new TimerTask() {
+
+            @Override
+            public void run() {
+                try {
+                    createHttpServer();
+                } catch (IOException e) {
+                    Log.w(getClass().getName(), "got exception on stream server stop ", e);
+                }
+            }
+        }, 600L);
 
     }
 
@@ -329,7 +421,7 @@ public class YaaccUpnpServerService extends Service {
             new Timer().schedule(new TimerTask() {
                 @Override
                 public void run() {
-                    Log.d(YaaccUpnpServerService.this.getClass().getName(), "Sending upnp alive notivication");
+                    Log.v(YaaccUpnpServerService.this.getClass().getName(), "Sending upnp alive notivication");
                     SendingNotificationAlive sendingNotificationAlive;
                     if (localServer != null) {
                         sendingNotificationAlive = new SendingNotificationAlive(getUpnpClient().getRegistry().getUpnpService(), localServer);
@@ -833,19 +925,6 @@ public class YaaccUpnpServerService extends Service {
         this.upnpClient = upnpClient;
     }
 
-    // private boolean isYaaccUpnpServerServiceRunning() {
-    // ActivityManager manager = (ActivityManager)
-    // getSystemService(Context.ACTIVITY_SERVICE);
-    // for (RunningServiceInfo service :
-    // manager.getRunningServices(Integer.MAX_VALUE)) {
-    // if (this.getClass().getName().equals(service.service.getClassName())) {
-    // return true;
-    // }
-    // }
-    // return false;
-    // }
-
-
     /**
      * get the ip address of the device
      *
@@ -855,18 +934,24 @@ public class YaaccUpnpServerService extends Service {
         return getIfAndIpAddress(context)[0];
     }
 
+    public static String getIfName(Context context) {
+        return getIfAndIpAddress(context)[1];
+    }
+
+
     public static String[] getIfAndIpAddress(Context context) {
         String hostAddress = null;
         String[] result = new String[2];
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
-        List<String> interfaces = List.of(preferences.getString(context.getString(R.string.settings_local_server_if_filter_key), "").split(","));
+        List<String> interfaces = new ArrayList<>(List.of(preferences.getString(context.getString(R.string.settings_local_server_if_filter_key), "lo,dummy,rmnet,ccmni").split(",")));
+        interfaces.remove(""); //remove empty string, if there, otherwise we got into trouble finding an network interface in code  below
         try {
             for (Enumeration<NetworkInterface> networkInterfaces = NetworkInterface
                     .getNetworkInterfaces(); networkInterfaces
                          .hasMoreElements(); ) {
                 NetworkInterface networkInterface = networkInterfaces
                         .nextElement();
-                if (interfaces.stream().filter(i -> networkInterface.getName().startsWith(i)).collect(Collectors.toList()).isEmpty()) {
+                if (interfaces.stream().filter(i -> networkInterface.getName().startsWith(i.trim())).collect(Collectors.toList()).isEmpty()) {
                     for (Enumeration<InetAddress> inetAddresses = networkInterface
                             .getInetAddresses(); inetAddresses.hasMoreElements(); ) {
                         InetAddress inetAddress = inetAddresses.nextElement();
@@ -874,11 +959,9 @@ public class YaaccUpnpServerService extends Service {
                                 .getHostAddress() != null
                                 && IPV4_PATTERN.matcher(inetAddress
                                 .getHostAddress()).matches()) {
-
                             hostAddress = inetAddress.getHostAddress();
                             result[1] = networkInterface.getName();
                         }
-
                     }
                 }
             }

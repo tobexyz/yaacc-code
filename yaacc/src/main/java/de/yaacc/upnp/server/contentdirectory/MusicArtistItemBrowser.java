@@ -27,6 +27,8 @@ import android.util.Log;
 import org.fourthline.cling.support.model.DIDLObject;
 import org.fourthline.cling.support.model.DIDLObject.Property.UPNP;
 import org.fourthline.cling.support.model.PersonWithRole;
+import org.fourthline.cling.support.model.Protocol;
+import org.fourthline.cling.support.model.ProtocolInfo;
 import org.fourthline.cling.support.model.Res;
 import org.fourthline.cling.support.model.SortCriterion;
 import org.fourthline.cling.support.model.container.Container;
@@ -51,6 +53,7 @@ public class MusicArtistItemBrowser extends ContentBrowser {
         super(context);
     }
 
+    @SuppressLint("Range")
     @Override
     public DIDLObject browseMeta(YaaccContentDirectory contentDirectory,
                                  String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
@@ -81,18 +84,22 @@ public class MusicArtistItemBrowser extends ContentBrowser {
                     MediaStore.Audio.Media.ARTIST,
                     MediaStore.Audio.Media.DURATION};
         }
-        String selection = MediaStore.Audio.Media._ID + "=?";
-        String[] selectionArgs = new String[]{myId
+        String selection = MediaStore.Audio.Media._ID + "=? " + "and (" + makeLikeClause(MediaStore.Audio.Media.DATA, getMediaPathes().size()) + ")";
+        List<String> selectionArgsList = new ArrayList<>();
+        selectionArgsList.add(myId
                 .substring(ContentDirectoryIDs.MUSIC_ARTIST_ITEM_PREFIX.getId()
-                .length())};
+                        .length()));
+        selectionArgsList.addAll(getMediaPathesForLikeClause());
+        String[] selectionArgs = selectionArgsList.toArray(new String[0]);
+
+
         try (Cursor mediaCursor = contentDirectory
                 .getContext()
                 .getContentResolver()
                 .query(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, projection,
                         selection, selectionArgs, null)) {
 
-            if (mediaCursor != null && mediaCursor.getCount() > 0) {
-                mediaCursor.moveToFirst();
+            if (mediaCursor != null && mediaCursor.getCount() > 0 && mediaCursor.moveToFirst()) {
                 @SuppressLint("Range") String id = mediaCursor.getString(mediaCursor
                         .getColumnIndex(MediaStore.Audio.Media._ID));
                 @SuppressLint("Range") String name = mediaCursor.getString(mediaCursor
@@ -119,14 +126,13 @@ public class MusicArtistItemBrowser extends ContentBrowser {
                 Log.d(getClass().getName(), "Mimetype: " + mimeTypeString);
                 @SuppressLint("Range") MimeType mimeType = MimeType.valueOf(mimeTypeString);
                 // file parameter only needed for media players which decide
-                // the
-                // ability of playing a file by the file extension
-
+                // the ability of playing a file by the file extension
                 String uri = getUriString(contentDirectory, id, mimeType);
                 URI albumArtUri = URI.create("http://"
                         + contentDirectory.getIpAddress() + ":"
                         + YaaccUpnpServerService.PORT + "/album/" + albumId);
-                Res resource = new Res(mimeType, size, uri);
+                ProtocolInfo protocolInfo = new ProtocolInfo(Protocol.HTTP_GET, ProtocolInfo.WILDCARD, mimeType.toString(), getDLNAAttributes(mimeType));
+                Res resource = new Res(protocolInfo, size, uri);
                 resource.setDuration(duration);
                 MusicTrack musicTrack = new MusicTrack(
                         ContentDirectoryIDs.MUSIC_ARTIST_ITEM_PREFIX.getId() + id,
@@ -147,12 +153,17 @@ public class MusicArtistItemBrowser extends ContentBrowser {
                 Log.d(getClass().getName(), "MusicTrack: " + id + " Name: " + name
                         + " uri: " + uri);
 
-
             } else {
                 Log.d(getClass().getName(), "Item " + myId + "  not found.");
             }
         }
         return result;
+    }
+
+    @Override
+    public Integer getSize(YaaccContentDirectory contentDirectory, String myId) {
+
+        return 1;
     }
 
     @Override
@@ -168,7 +179,6 @@ public class MusicArtistItemBrowser extends ContentBrowser {
         List<Item> result = new ArrayList<>();
         result.add((Item) browseMeta(contentDirectory, myId, 0, 1, null));
         return result;
-
     }
 
 }
