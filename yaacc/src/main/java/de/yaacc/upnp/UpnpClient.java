@@ -28,6 +28,7 @@ import android.content.SharedPreferences.Editor;
 import android.media.AudioManager;
 import android.media.MediaMetadataRetriever;
 import android.net.Uri;
+import android.os.CountDownTimer;
 import android.os.IBinder;
 import android.util.Log;
 import android.webkit.MimeTypeMap;
@@ -101,6 +102,7 @@ import java.util.stream.Collectors;
 import de.yaacc.R;
 import de.yaacc.Yaacc;
 import de.yaacc.browser.Position;
+import de.yaacc.browser.ServerListFragment;
 import de.yaacc.browser.TabBrowserActivity;
 import de.yaacc.musicplayer.BackgroundMusicService;
 import de.yaacc.player.PlayableItem;
@@ -128,6 +130,8 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
 
     private PlayerService playerService;
     private Device<?, ?, ?> localDummyDevice;
+    private CountDownTimer shutdownTimer;
+
 
     public UpnpClient() {
     }
@@ -671,37 +675,6 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         callbackResult.setResult(cont);
 
     }
-
-
-    /*
-     * Browse ContenDirctory asynchronous
-     *
-     * @param device      the device to be browsed
-     * @param objectID    the browsing root
-     * @param flag        kind of browsing @see {@link BrowseFlag}
-     * @param filter      a filter
-     * @param firstResult first result
-     * @param maxResults  max result count
-     * @param orderBy     sorting criteria @see {@link SortCriterion}
-     * @return the browsing result
-     *
-     //FIXME needed?
-    private ContentDirectoryBrowseResult browseAsync(Device<?, ?, ?> device, String objectID, BrowseFlag flag, String filter, long firstResult,
-                                                     Long maxResults, SortCriterion... orderBy) {
-        Service service = device.findService(new UDAServiceId("ContentDirectory"));
-        ContentDirectoryBrowseResult result = new ContentDirectoryBrowseResult();
-        ContentDirectoryBrowseActionCallback actionCallback = null;
-        if (service != null) {
-            Log.d(getClass().getName(), "#####Service found: " + service.getServiceId() + " Type: " + service.getServiceType());
-            actionCallback = new ContentDirectoryBrowseActionCallback(service, objectID, flag, filter, firstResult, maxResults, result, orderBy);
-            getControlPoint().execute(actionCallback);
-        }
-        if (preferences.getBoolean(getContext().getString(R.string.settings_browse_thumbnails_coverlookup_chkbx), false)) {
-            result = enrichWithCover(result);
-        }
-        return result;
-    }
-    */
 
     /**
      * Search asynchronously for all devices.
@@ -1462,6 +1435,30 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         return getCurrentPlayers().stream().filter(p -> p.getId() == id).findFirst();
     }
 
+    public void startShutdownTimer(ServerListFragment view, long duration) {
+        stopShutdownTimer();
+        shutdownTimer = new CountDownTimer(duration, 1000L) {
+            @Override
+            public void onTick(long millisUntilFinished) {
+                Log.d(getClass().getName(), "Shutdown in: " + millisUntilFinished + " millis");
+                view.setShutdownTimerRemainingTime(parseMillisToTimeStringTo(millisUntilFinished));
+            }
+
+            @Override
+            public void onFinish() {
+                Log.v(getClass().getName(), "Shutdown timer finished shutting down now!");
+                ((Yaacc) getContext().getApplicationContext()).exit();
+            }
+        };
+        shutdownTimer.start();
+    }
+
+    public void stopShutdownTimer() {
+        if (shutdownTimer != null) {
+            shutdownTimer.cancel();
+        }
+    }
+
 
     @SuppressWarnings({"unchecked", "rawtypes"})
     public static class LocalDummyDevice extends Device {
@@ -1625,7 +1622,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     }
 
     @SuppressLint("DefaultLocale")
-    private String parseMillisToTimeStringTo(long millis) {
+    public String parseMillisToTimeStringTo(long millis) {
         Duration duration = Duration.ofMillis(millis);
         long durationSeconds = duration.getSeconds();
         long hours = durationSeconds / 3600;

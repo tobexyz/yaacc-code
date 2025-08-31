@@ -17,6 +17,7 @@
  */
 package de.yaacc.browser;
 
+import android.app.TimePickerDialog;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.util.Log;
@@ -25,6 +26,8 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageButton;
 import android.widget.ImageView;
+import android.widget.TextView;
+import android.widget.TimePicker;
 import android.widget.Toast;
 
 import androidx.fragment.app.Fragment;
@@ -176,7 +179,7 @@ public class ServerListFragment extends Fragment implements
         setLocalServerState(view);
         SwitchMaterial localServerEnabledSwitch = (SwitchMaterial) view.findViewById(R.id.serverListLocalServerEnabled);
         localServerEnabledSwitch.setOnClickListener((v -> {
-            PreferenceManager.getDefaultSharedPreferences(v.getContext()).edit().putBoolean(v.getContext().getString(R.string.settings_local_server_chkbx), localServerEnabledSwitch.isChecked()).commit();
+            PreferenceManager.getDefaultSharedPreferences(v.getContext()).edit().putBoolean(v.getContext().getString(R.string.settings_local_server_chkbx), localServerEnabledSwitch.isChecked()).apply();
             if (v.getContext() instanceof TabBrowserActivity) {
                 if (localServerEnabledSwitch.isChecked()) {
                     v.getContext().getApplicationContext().startForegroundService(((TabBrowserActivity) v.getContext()).getYaaccUpnpServerService());
@@ -185,9 +188,45 @@ public class ServerListFragment extends Fragment implements
                 }
                 setLocalServerState(view);
             }
-
-
         }));
+        TextView shutdowwnRemainingTextView = view.findViewById(R.id.serverListShutdownTimerRemaining);
+        long duration = PreferenceManager.getDefaultSharedPreferences(getContext()).getLong(getContext().getString(R.string.settings_shutdown_timer), 0L);
+        shutdowwnRemainingTextView.setText(upnpClient.parseMillisToTimeStringTo(duration));
+        ImageView shutdowwnSettingsImageView = view.findViewById(R.id.serverListSetShutdownTimer);
+        shutdowwnSettingsImageView.setOnClickListener(v -> {
+            long d = PreferenceManager.getDefaultSharedPreferences(getContext()).getLong(getContext().getString(R.string.settings_shutdown_timer), 0L);
+            String durationString = upnpClient.parseMillisToTimeStringTo(d);
+            String[] splitted = durationString.split(":");
+            int hours = Integer.parseInt(splitted[0]);
+            int minutes = Integer.parseInt(splitted[1]);
+            TimePickerDialog picker = new TimePickerDialog(
+                    getContext(),
+                    new TimePickerDialog.OnTimeSetListener() {
+                        @Override
+                        public void onTimeSet(TimePicker view, int hourOfDay, int minute) {
+                            long millis = (hourOfDay * 3600L + minute * 60L) * 1000L;
+                            Log.d(getClass().getName(), "time set: " + hourOfDay + ":" + minute + " millis: " + millis);
+                            PreferenceManager.getDefaultSharedPreferences(getContext()).edit().putLong(getContext().getString(R.string.settings_shutdown_timer), millis).apply();
+                            shutdowwnRemainingTextView.setText(upnpClient.parseMillisToTimeStringTo(millis));
+                        }
+                    },
+                    hours, minutes, true
+            );
+            picker.show();
+
+
+        });
+
+        SwitchMaterial shutdownTimerSwitch = (SwitchMaterial) view.findViewById(R.id.serverListShutdownTimerEnabled);
+        shutdownTimerSwitch.setOnClickListener(v -> {
+            long d = PreferenceManager.getDefaultSharedPreferences(getContext()).getLong(getContext().getString(R.string.settings_shutdown_timer), 0L);
+            if (shutdownTimerSwitch.isChecked()) {
+                upnpClient.startShutdownTimer(this, d);
+            } else {
+                shutdowwnRemainingTextView.setText(upnpClient.parseMillisToTimeStringTo(d));
+                upnpClient.stopShutdownTimer();
+            }
+        });
         // add ourself as listener
         upnpClient.addUpnpClientListener(this);
         Thread thread = new Thread(this::populateDeviceList);
@@ -230,4 +269,10 @@ public class ServerListFragment extends Fragment implements
         init(savedInstanceState, view);
     }
 
+    public void setShutdownTimerRemainingTime(String s) {
+        if (getView() != null) {
+            TextView shutdowwnRemainingTextView = getView().findViewById(R.id.serverListShutdownTimerRemaining);
+            shutdowwnRemainingTextView.setText(s);
+        }
+    }
 }
