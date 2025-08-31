@@ -32,7 +32,7 @@ import org.fourthline.cling.support.model.ProtocolInfo;
 import org.fourthline.cling.support.model.Res;
 import org.fourthline.cling.support.model.SortCriterion;
 import org.fourthline.cling.support.model.container.Container;
-import org.fourthline.cling.support.model.container.StorageFolder;
+import org.fourthline.cling.support.model.container.MusicAlbum;
 import org.fourthline.cling.support.model.item.MusicTrack;
 import org.seamless.util.MimeType;
 
@@ -56,11 +56,12 @@ public class MusicAlbumFolderBrowser extends ContentBrowser {
     @Override
     public DIDLObject browseMeta(YaaccContentDirectory contentDirectory,
                                  String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
-        return new StorageFolder(myId,
+        return new MusicAlbum(myId,
                 ContentDirectoryIDs.MUSIC_ALBUMS_FOLDER.getId(), getName(
                 contentDirectory, myId), "yaacc", getSize(
                 contentDirectory, myId),
-                null);
+                browseItem(contentDirectory, myId, firstResult, maxResults, orderby));
+
     }
 
     private String getName(YaaccContentDirectory contentDirectory, String myId) {
@@ -229,6 +230,7 @@ public class MusicAlbumFolderBrowser extends ContentBrowser {
                 Log.d(getClass().getName(), "System media store is empty.");
             }
         }
+
         return result;
 
     }

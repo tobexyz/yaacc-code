@@ -51,8 +51,10 @@ public class MusicGenresFolderBrowser extends ContentBrowser {
     @Override
     public DIDLObject browseMeta(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
 
-        return new StorageFolder(ContentDirectoryIDs.MUSIC_GENRES_FOLDER.getId(), ContentDirectoryIDs.MUSIC_FOLDER.getId(), getContext().getString(R.string.genres), "yaacc", getSize(contentDirectory, myId),
+        StorageFolder result = new StorageFolder(ContentDirectoryIDs.MUSIC_GENRES_FOLDER.getId(), ContentDirectoryIDs.MUSIC_FOLDER.getId(), getContext().getString(R.string.genres), "yaacc", getSize(contentDirectory, myId),
                 null);
+        result.setContainers(browseContainer(contentDirectory, myId, firstResult, maxResults, orderby));
+        return result;
 
     }
 
@@ -125,21 +127,15 @@ public class MusicGenresFolderBrowser extends ContentBrowser {
 
             if (mediaCursor != null && mediaCursor.getCount() > 0) {
                 mediaCursor.moveToFirst();
-                int currentIndex = 0;
-                int currentCount = 0;
-                while (!mediaCursor.isAfterLast() && currentCount < maxResults) {
-                    if (firstResult <= currentIndex) {
-                        @SuppressLint("Range") String id = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Audio.Genres._ID));
-                        @SuppressLint("Range") String name = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Audio.Genres.NAME));
-                        MusicAlbum musicAlbum = new MusicAlbum(ContentDirectoryIDs.MUSIC_GENRE_PREFIX.getId() + id, ContentDirectoryIDs.MUSIC_GENRES_FOLDER.getId(), name, "", 0);
-                        if (id != null) {
-                            folderMap.put(id, musicAlbum);
-                            Log.d(getClass().getName(), "Genre Folder: " + id + " Name: " + name);
-                        }
-                        currentCount++;
+                while (!mediaCursor.isAfterLast()) {
 
+                    @SuppressLint("Range") String id = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Audio.Genres._ID));
+                    @SuppressLint("Range") String name = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Audio.Genres.NAME));
+                    MusicAlbum musicAlbum = new MusicAlbum(ContentDirectoryIDs.MUSIC_GENRE_PREFIX.getId() + id, ContentDirectoryIDs.MUSIC_GENRES_FOLDER.getId(), name, "", 0);
+                    if (id != null) {
+                        folderMap.put(id, musicAlbum);
                     }
-                    currentIndex++;
+
                     mediaCursor.moveToNext();
                 }
 
@@ -147,6 +143,7 @@ public class MusicGenresFolderBrowser extends ContentBrowser {
                     int tracks = getMusicTrackSize(contentDirectory, entry.getKey());
                     entry.getValue().setChildCount(tracks);
                     if (tracks > 0) {
+                        Log.d(getClass().getName(), "Genre Folder: " + entry.getValue().getId() + " Name: " + entry.getValue().getTitle());
                         result.add(entry.getValue());
                     }
                 }
@@ -154,8 +151,15 @@ public class MusicGenresFolderBrowser extends ContentBrowser {
                 Log.d(getClass().getName(), "System media store is empty.");
             }
         }
-
-        return result;
+        int start = firstResult > 0 ? (int) firstResult : 0;
+        if (firstResult >= (result.size() - 1)) {
+            start = result.size() - 1;
+        }
+        int end = start + (int) maxResults;
+        if (maxResults > result.size() - 1) {
+            end = result.size();
+        }
+        return result.subList(start, end);
     }
 
     @Override

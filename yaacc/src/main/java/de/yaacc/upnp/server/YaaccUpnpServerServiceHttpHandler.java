@@ -24,6 +24,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
@@ -307,6 +308,21 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
                             Log.d(getClass().getName(), "Content found: " + mimeType
                                     + " Uri: " + dataUri);
                             result = new ContentHolder(mimeType, dataUri, ranges);
+                        } else {
+                            Log.d(getClass().getName(), "Album art not found in media store. Fallback to default");
+                            Bitmap bitmap = BitmapFactory.decodeResource(context.getResources(), R.drawable.yaacc192_32);
+
+                            try {
+                                File art = new File(context.getCacheDir(), "albumart" + albumId + ".jpg");
+                                art.createNewFile();
+                                FileOutputStream fos = new FileOutputStream(art);
+                                bitmap.compress(Bitmap.CompressFormat.JPEG, 90, fos);
+                                fos.flush();
+                                fos.close();
+                                result = new ContentHolder(mimeType, art.getAbsolutePath(), ranges);
+                            } catch (IOException e) {
+                                Log.e(getClass().getName(), "Error loading album art from file", e);
+                            }
                         }
                         cursor.moveToNext();
                     }
@@ -319,9 +335,14 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
             MimeType mimeType = MimeType.valueOf("image/jpeg");
             Log.d(getClass().getName(), "Content found: " + mimeType
                     + " Uri: " + albumArtUri);
+            Bitmap bitmap;
             try {
-                Bitmap bitmap = context.getContentResolver().loadThumbnail(albumArtUri, new Size(1024, 1024), null);
-
+                bitmap = context.getContentResolver().loadThumbnail(albumArtUri, new Size(1024, 1024), null);
+            } catch (IOException io) {
+                Log.d(getClass().getName(), "Album art not found in media store. Fallback to default");
+                bitmap = BitmapFactory.decodeResource(context.getResources(), R.drawable.yaacc192_32);
+            }
+            try {
                 File art = new File(context.getCacheDir(), "albumart" + albumId + ".jpg");
                 art.createNewFile();
                 FileOutputStream fos = new FileOutputStream(art);
@@ -330,7 +351,7 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
                 fos.close();
                 result = new ContentHolder(mimeType, art.getAbsolutePath(), ranges);
             } catch (IOException e) {
-                Log.e(getClass().getName(), "Error loading album art", e);
+                Log.e(getClass().getName(), "Error loading album art from file", e);
             }
 
         }

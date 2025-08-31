@@ -147,7 +147,9 @@ public class ImagesByBucketNameFolderBrowser extends ContentBrowser {
                 Log.d(getClass().getName(), "System media store is empty.");
             }
         }
+
         return result;
+
 
     }
 

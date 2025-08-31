@@ -414,7 +414,7 @@ public class YaaccContentDirectory {
     }
 
     private ContentBrowser findBrowserFor(String objectID) {
-        ContentBrowser result = null;
+        ContentBrowser result;
         if (objectID == null || objectID.equals("") || ContentDirectoryIDs.ROOT.getId().equals(objectID)) {
             result = new RootFolderBrowser(getContext());
         } else if (ContentDirectoryIDs.IMAGES_FOLDER.getId().equals(objectID)) {
@@ -457,6 +457,9 @@ public class YaaccContentDirectory {
             result = new ImageByBucketNameItemBrowser(getContext());
         } else if (objectID.startsWith(ContentDirectoryIDs.VIDEO_PREFIX.getId())) {
             result = new VideoItemBrowser(getContext());
+        } else {
+            Log.d(getClass().getName(), "unknown object id: " + objectID);
+            result = new RootFolderBrowser(getContext());
         }
 
         return result;
