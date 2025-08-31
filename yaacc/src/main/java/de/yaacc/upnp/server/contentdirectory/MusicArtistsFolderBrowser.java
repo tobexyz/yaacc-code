@@ -52,9 +52,10 @@ public class MusicArtistsFolderBrowser extends ContentBrowser {
     @Override
     public DIDLObject browseMeta(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
 
-        return new StorageFolder(ContentDirectoryIDs.MUSIC_ARTISTS_FOLDER.getId(), ContentDirectoryIDs.MUSIC_FOLDER.getId(), getContext().getString(R.string.artists), "yaacc", getSize(contentDirectory, myId),
+        StorageFolder result = new StorageFolder(ContentDirectoryIDs.MUSIC_ARTISTS_FOLDER.getId(), ContentDirectoryIDs.MUSIC_FOLDER.getId(), getContext().getString(R.string.artists), "yaacc", getSize(contentDirectory, myId),
                 null);
-
+        result.setContainers(browseContainer(contentDirectory, myId, firstResult, maxResults, orderby));
+        return result;
     }
 
     @SuppressLint("Range")
@@ -110,18 +111,13 @@ public class MusicArtistsFolderBrowser extends ContentBrowser {
 
             if (mediaCursor != null && mediaCursor.getCount() > 0 && mediaCursor.moveToFirst()) {
 
-                int currentIndex = 0;
-                int currentCount = 0;
-                while (!mediaCursor.isAfterLast() && currentCount < maxResults) {
-                    if (firstResult <= currentIndex) {
-                        @SuppressLint("Range") String id = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Audio.Artists._ID));
-                        @SuppressLint("Range") String name = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Audio.Artists.ARTIST));
-                        MusicAlbum musicAlbum = new MusicAlbum(ContentDirectoryIDs.MUSIC_ARTIST_PREFIX.getId() + id, ContentDirectoryIDs.MUSIC_ALBUMS_FOLDER.getId(), name, "", 0);
-                        folderMap.put(id, musicAlbum);
-                        Log.d(getClass().getName(), "Artists Folder: " + id + " Name: " + name);
-                        currentCount++;
-                    }
-                    currentIndex++;
+                while (!mediaCursor.isAfterLast()) {
+
+                    @SuppressLint("Range") String id = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Audio.Artists._ID));
+                    @SuppressLint("Range") String name = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Audio.Artists.ARTIST));
+                    MusicAlbum musicAlbum = new MusicAlbum(ContentDirectoryIDs.MUSIC_ARTIST_PREFIX.getId() + id, ContentDirectoryIDs.MUSIC_ALBUMS_FOLDER.getId(), name, "", 0);
+                    folderMap.put(id, musicAlbum);
+
                     mediaCursor.moveToNext();
                 }
 
@@ -129,6 +125,7 @@ public class MusicArtistsFolderBrowser extends ContentBrowser {
                     int tracks = getMusicTrackSize(contentDirectory, entry.getKey());
                     entry.getValue().setChildCount(tracks);
                     if (tracks > 0) {
+                        Log.d(getClass().getName(), "Artists Folder: " + entry.getValue().getId() + " Name: " + entry.getValue().getTitle());
                         result.add(entry.getValue());
                     }
                 }
@@ -136,8 +133,16 @@ public class MusicArtistsFolderBrowser extends ContentBrowser {
                 Log.d(getClass().getName(), "System media store is empty.");
             }
         }
-        Log.d(getClass().getName(), "Returning " + result.size() + " MusicAlbum Containers");
-        return result;
+        int start = firstResult > 0 ? (int) firstResult : 0;
+        if (firstResult >= (result.size() - 1)) {
+            start = result.size() - 1;
+        }
+        int end = start + (int) maxResults;
+        if (maxResults > result.size() - 1) {
+            end = result.size();
+        }
+        return result.subList(start, end);
+
     }
 
     @Override

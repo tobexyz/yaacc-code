@@ -118,8 +118,8 @@ public class VideosFolderBrowser extends ContentBrowser {
                 Log.d(getClass().getName(), "System media store is empty.");
             }
         }
-        return result;
 
+        return result;
     }
 
 }

@@ -31,12 +31,14 @@ import org.fourthline.cling.support.model.container.MusicAlbum;
 import org.fourthline.cling.support.model.container.StorageFolder;
 import org.fourthline.cling.support.model.item.Item;
 
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import de.yaacc.R;
+import de.yaacc.upnp.server.YaaccUpnpServerService;
 
 /**
  * Browser  for the music albums folder.
@@ -53,7 +55,6 @@ public class MusicAlbumsFolderBrowser extends ContentBrowser {
 
         return new StorageFolder(ContentDirectoryIDs.MUSIC_ALBUMS_FOLDER.getId(), ContentDirectoryIDs.MUSIC_FOLDER.getId(), getContext().getString(R.string.albums), "yaacc", getSize(contentDirectory, myId),
                 null);
-
     }
 
     @SuppressLint("Range")
@@ -106,18 +107,16 @@ public class MusicAlbumsFolderBrowser extends ContentBrowser {
 
             if (mediaCursor != null && mediaCursor.getCount() > 0) {
                 mediaCursor.moveToFirst();
-                int currentIndex = 0;
-                int currentCount = 0;
-                while (!mediaCursor.isAfterLast() && currentCount < maxResults) {
-                    if (firstResult <= currentIndex) {
-                        @SuppressLint("Range") String id = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Audio.Albums._ID));
-                        @SuppressLint("Range") String name = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Audio.Albums.ALBUM));
-                        MusicAlbum musicAlbum = new MusicAlbum(ContentDirectoryIDs.MUSIC_ALBUM_PREFIX.getId() + id, ContentDirectoryIDs.MUSIC_ALBUMS_FOLDER.getId(), name, "", 0);
-                        folderMap.put(id, musicAlbum);
-                        Log.d(getClass().getName(), "Album Folder: " + id + " Name: " + name);
-                        currentCount++;
-                    }
-                    currentIndex++;
+                while (!mediaCursor.isAfterLast()) {
+
+                    @SuppressLint("Range") String id = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Audio.Albums._ID));
+                    @SuppressLint("Range") String name = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Audio.Albums.ALBUM));
+                    MusicAlbum musicAlbum = new MusicAlbum(ContentDirectoryIDs.MUSIC_ALBUM_PREFIX.getId() + id, ContentDirectoryIDs.MUSIC_ALBUMS_FOLDER.getId(), name, "", 0);
+                    URI albumArtUri = URI.create("http://"
+                            + contentDirectory.getIpAddress() + ":"
+                            + YaaccUpnpServerService.PORT + "/album/" + id);
+                    musicAlbum.setAlbumArtURIs(new URI[]{albumArtUri});
+                    folderMap.put(id, musicAlbum);
                     mediaCursor.moveToNext();
                 }
 
@@ -125,6 +124,7 @@ public class MusicAlbumsFolderBrowser extends ContentBrowser {
                     int tracks = getMusicTrackSize(contentDirectory, entry.getKey());
                     entry.getValue().setChildCount(tracks);
                     if (tracks > 0) {
+                        Log.d(getClass().getName(), "Album Folder: " + entry.getValue().getId() + " Name: " + entry.getValue().getTitle());
                         result.add(entry.getValue());
                     }
                 }
@@ -132,7 +132,16 @@ public class MusicAlbumsFolderBrowser extends ContentBrowser {
                 Log.d(getClass().getName(), "System media store is empty.");
             }
         }
-        return result;
+        int start = firstResult > 0 ? (int) firstResult : 0;
+        if (firstResult >= (result.size() - 1)) {
+            start = result.size() - 1;
+        }
+        int end = start + (int) maxResults;
+        if (maxResults > result.size() - 1) {
+            end = result.size();
+        }
+        return result.subList(start, end);
+
     }
 
     @Override

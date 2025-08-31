@@ -72,17 +72,24 @@ public class RootFolderBrowser extends ContentBrowser {
     public List<Container> browseContainer(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
         List<Container> result = new ArrayList<>();
         if (isServingMusic()) {
-            result.add((Container) new MusicFolderBrowser(getContext()).browseMeta(contentDirectory, ContentDirectoryIDs.MUSIC_FOLDER.getId(), firstResult, maxResults, orderby
+            result.add((Container) new MusicFolderBrowser(getContext()).browseMeta(contentDirectory, ContentDirectoryIDs.MUSIC_FOLDER.getId(), 0, 1, orderby
             ));
         }
         if (isServingImages()) {
-            result.add((Container) new ImagesFolderBrowser(getContext()).browseMeta(contentDirectory, ContentDirectoryIDs.IMAGES_FOLDER.getId(), firstResult, maxResults, orderby));
+            result.add((Container) new ImagesFolderBrowser(getContext()).browseMeta(contentDirectory, ContentDirectoryIDs.IMAGES_FOLDER.getId(), 0, 1, orderby));
         }
         if (isServingVideos()) {
-            result.add((Container) new VideosFolderBrowser(getContext()).browseMeta(contentDirectory, ContentDirectoryIDs.VIDEOS_FOLDER.getId(), firstResult, maxResults, orderby));
+            result.add((Container) new VideosFolderBrowser(getContext()).browseMeta(contentDirectory, ContentDirectoryIDs.VIDEOS_FOLDER.getId(), 0, 1, orderby));
         }
-
-        return result;
+        int start = firstResult > 0 ? (int) firstResult : 0;
+        if (firstResult >= (result.size() - 1)) {
+            start = result.size() - 1;
+        }
+        int end = start + (int) maxResults;
+        if (maxResults > result.size() - 1) {
+            end = result.size();
+        }
+        return result.subList(start, end);
     }
 
     @Override

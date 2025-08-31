@@ -60,7 +60,15 @@ public class ImagesFolderBrowser extends ContentBrowser {
         List<Container> result = new ArrayList<>();
         result.add((Container) new ImagesAllFolderBrowser(getContext()).browseMeta(contentDirectory, ContentDirectoryIDs.IMAGES_ALL_FOLDER.getId(), firstResult, maxResults, orderby));
         result.add((Container) new ImagesByBucketNamesFolderBrowser(getContext()).browseMeta(contentDirectory, ContentDirectoryIDs.IMAGES_BY_BUCKET_NAMES_FOLDER.getId(), firstResult, maxResults, orderby));
-        return result;
+        int start = firstResult > 0 ? (int) firstResult : 0;
+        if (firstResult >= (result.size() - 1)) {
+            start = result.size() - 1;
+        }
+        int end = start + (int) maxResults;
+        if (maxResults > result.size() - 1) {
+            end = result.size();
+        }
+        return result.subList(start, end);
     }
 
     @Override

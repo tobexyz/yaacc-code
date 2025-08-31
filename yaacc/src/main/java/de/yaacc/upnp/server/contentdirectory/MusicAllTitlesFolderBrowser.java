@@ -32,7 +32,7 @@ import org.fourthline.cling.support.model.ProtocolInfo;
 import org.fourthline.cling.support.model.Res;
 import org.fourthline.cling.support.model.SortCriterion;
 import org.fourthline.cling.support.model.container.Container;
-import org.fourthline.cling.support.model.container.StorageFolder;
+import org.fourthline.cling.support.model.container.MusicAlbum;
 import org.fourthline.cling.support.model.item.MusicTrack;
 import org.seamless.util.MimeType;
 
@@ -56,9 +56,9 @@ public class MusicAllTitlesFolderBrowser extends ContentBrowser {
     @Override
     public DIDLObject browseMeta(YaaccContentDirectory contentDirectory,
                                  String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
-        return new StorageFolder(myId, ContentDirectoryIDs.MUSIC_FOLDER.getId(), getContext().getString(R.string.all), "yaacc", getSize(
-                contentDirectory, myId), null);
-
+        MusicAlbum result = new MusicAlbum(myId, ContentDirectoryIDs.MUSIC_FOLDER.getId(), getContext().getString(R.string.all), "yaacc", getSize(
+                contentDirectory, myId), browseItem(contentDirectory, myId, firstResult, maxResults, orderby));
+        return result;
     }
 
     @Override
@@ -74,6 +74,7 @@ public class MusicAllTitlesFolderBrowser extends ContentBrowser {
                 .getContentResolver()
                 .query(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, projection,
                         selection, selectionArgs, null)) {
+            Log.d(getClass().getName(), "browseFlag Folder size: " + cursor.getCount());
             return cursor.getCount();
         }
     }
@@ -195,6 +196,7 @@ public class MusicAllTitlesFolderBrowser extends ContentBrowser {
                 Log.d(getClass().getName(), "System media store is empty.");
             }
         }
+        Log.d(getClass().getName(), "browseFlag result size: " + result.size());
         return result;
 
     }
