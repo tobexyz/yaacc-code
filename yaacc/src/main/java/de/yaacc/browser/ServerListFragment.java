@@ -17,8 +17,10 @@
  */
 package de.yaacc.browser;
 
-import android.app.TimePickerDialog;
+import static com.google.android.material.timepicker.MaterialTimePicker.INPUT_MODE_KEYBOARD;
+
 import android.content.SharedPreferences;
+import android.graphics.drawable.Drawable;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -27,15 +29,17 @@ import android.view.ViewGroup;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.TextView;
-import android.widget.TimePicker;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
 import androidx.fragment.app.Fragment;
 import androidx.preference.PreferenceManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.switchmaterial.SwitchMaterial;
+import com.google.android.material.timepicker.MaterialTimePicker;
+import com.google.android.material.timepicker.TimeFormat;
 
 import org.fourthline.cling.model.meta.Device;
 
@@ -46,6 +50,9 @@ import de.yaacc.R;
 import de.yaacc.Yaacc;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.UpnpClientListener;
+import de.yaacc.util.FormatHelper;
+import de.yaacc.util.ShutdownTimerListener;
+import de.yaacc.util.ThemeHelper;
 
 /**
  * Activity for browsing devices and folders. Represents the entrypoint for the whole application.
@@ -53,7 +60,8 @@ import de.yaacc.upnp.UpnpClientListener;
  * @author @author Tobias Schoene (the openbit)
  */
 public class ServerListFragment extends Fragment implements
-        UpnpClientListener, OnBackPressedListener {
+        UpnpClientListener, OnBackPressedListener, ShutdownTimerListener {
+    private static final String SHUTDOWN_TIMER_REMAINING_TIME = "SHUTDOWN_TIMER_REMAINING_TIME";
     private UpnpClient upnpClient = null;
     private RecyclerView contentList;
     private BrowseDeviceAdapter bDeviceAdapter;
@@ -159,8 +167,13 @@ public class ServerListFragment extends Fragment implements
         setLocalServerState(getView());
     }
 
-    private void init(Bundle savedInstanceState, View view) {
+    @Override
+    public void onSaveInstanceState(@NonNull Bundle outState) {
+        super.onSaveInstanceState(outState);
+        outState.putSerializable(SHUTDOWN_TIMER_REMAINING_TIME, ((TextView) getView().findViewById(R.id.serverListShutdownTimerRemaining)).getText().toString());
+    }
 
+    private void init(Bundle savedInstanceState, View view) {
         // local server startup
         upnpClient = ((Yaacc) requireActivity().getApplicationContext()).getUpnpClient();
 
@@ -168,6 +181,8 @@ public class ServerListFragment extends Fragment implements
         contentList = view.findViewById(R.id.serverList);
         contentList.setLayoutManager(new LinearLayoutManager(getActivity()));
         ImageButton refresh = view.findViewById(R.id.serverListRefreshButton);
+        Drawable icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_refresh_32, getContext().getTheme()), getContext().getTheme());
+        refresh.setImageDrawable(icon);
         refresh.setOnClickListener((v) -> {
             if (getActivity() != null) {
                 getActivity().runOnUiThread(() -> {
@@ -177,9 +192,9 @@ public class ServerListFragment extends Fragment implements
             upnpClient.searchDevices();
         });
         setLocalServerState(view);
-        SwitchMaterial localServerEnabledSwitch = (SwitchMaterial) view.findViewById(R.id.serverListLocalServerEnabled);
+        SwitchMaterial localServerEnabledSwitch = view.findViewById(R.id.serverListLocalServerEnabled);
         localServerEnabledSwitch.setOnClickListener((v -> {
-            PreferenceManager.getDefaultSharedPreferences(v.getContext()).edit().putBoolean(v.getContext().getString(R.string.settings_local_server_chkbx), localServerEnabledSwitch.isChecked()).apply();
+            getPreferences().edit().putBoolean(v.getContext().getString(R.string.settings_local_server_chkbx), localServerEnabledSwitch.isChecked()).apply();
             if (v.getContext() instanceof TabBrowserActivity) {
                 if (localServerEnabledSwitch.isChecked()) {
                     v.getContext().getApplicationContext().startForegroundService(((TabBrowserActivity) v.getContext()).getYaaccUpnpServerService());
@@ -190,43 +205,58 @@ public class ServerListFragment extends Fragment implements
             }
         }));
         TextView shutdowwnRemainingTextView = view.findViewById(R.id.serverListShutdownTimerRemaining);
-        long duration = PreferenceManager.getDefaultSharedPreferences(getContext()).getLong(getContext().getString(R.string.settings_shutdown_timer), 0L);
-        shutdowwnRemainingTextView.setText(upnpClient.parseMillisToTimeStringTo(duration));
-        ImageView shutdowwnSettingsImageView = view.findViewById(R.id.serverListSetShutdownTimer);
-        shutdowwnSettingsImageView.setOnClickListener(v -> {
-            long d = PreferenceManager.getDefaultSharedPreferences(getContext()).getLong(getContext().getString(R.string.settings_shutdown_timer), 0L);
-            String durationString = upnpClient.parseMillisToTimeStringTo(d);
-            String[] splitted = durationString.split(":");
-            int hours = Integer.parseInt(splitted[0]);
-            int minutes = Integer.parseInt(splitted[1]);
-            TimePickerDialog picker = new TimePickerDialog(
-                    getContext(),
-                    new TimePickerDialog.OnTimeSetListener() {
-                        @Override
-                        public void onTimeSet(TimePicker view, int hourOfDay, int minute) {
-                            long millis = (hourOfDay * 3600L + minute * 60L) * 1000L;
-                            Log.d(getClass().getName(), "time set: " + hourOfDay + ":" + minute + " millis: " + millis);
-                            PreferenceManager.getDefaultSharedPreferences(getContext()).edit().putLong(getContext().getString(R.string.settings_shutdown_timer), millis).apply();
-                            shutdowwnRemainingTextView.setText(upnpClient.parseMillisToTimeStringTo(millis));
-                        }
-                    },
-                    hours, minutes, true
-            );
-            picker.show();
-
-
-        });
+        if (savedInstanceState != null && savedInstanceState.containsKey(SHUTDOWN_TIMER_REMAINING_TIME)) {
+            shutdowwnRemainingTextView.setText(savedInstanceState.getString(SHUTDOWN_TIMER_REMAINING_TIME));
+            ((Yaacc) getContext().getApplicationContext()).setShutdownTimerListener(this);
+        } else {
+            long duration = getPreferences().getLong(getContext().getString(R.string.settings_shutdown_timer), 0L);
+            shutdowwnRemainingTextView.setText(FormatHelper.parseMillisToTimeStringTo(duration));
+        }
 
         SwitchMaterial shutdownTimerSwitch = (SwitchMaterial) view.findViewById(R.id.serverListShutdownTimerEnabled);
         shutdownTimerSwitch.setOnClickListener(v -> {
-            long d = PreferenceManager.getDefaultSharedPreferences(getContext()).getLong(getContext().getString(R.string.settings_shutdown_timer), 0L);
+            long d = getPreferences().getLong(getContext().getString(R.string.settings_shutdown_timer), 0L);
             if (shutdownTimerSwitch.isChecked()) {
-                upnpClient.startShutdownTimer(this, d);
+                ((Yaacc) getContext().getApplicationContext()).setShutdownTimerListener(this);
+                ((Yaacc) getContext().getApplicationContext()).startShutdownTimer(d);
             } else {
-                shutdowwnRemainingTextView.setText(upnpClient.parseMillisToTimeStringTo(d));
-                upnpClient.stopShutdownTimer();
+                shutdowwnRemainingTextView.setText(FormatHelper.parseMillisToTimeStringTo(d));
+                ((Yaacc) getContext().getApplicationContext()).stopShutdownTimer();
             }
         });
+        ImageView shutdowwnSettingsImageView = view.findViewById(R.id.serverListSetShutdownTimer);
+        icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_settings_32, getContext().getTheme()), getContext().getTheme());
+        shutdowwnSettingsImageView.setImageDrawable(icon);
+        shutdowwnSettingsImageView.setOnClickListener(v -> {
+            long d = getPreferences().getLong(getContext().getString(R.string.settings_shutdown_timer), 0L);
+            String durationString = FormatHelper.parseMillisToTimeStringTo(d);
+            String[] splitted = durationString.split(":");
+            int hours = Integer.parseInt(splitted[0]);
+            int minutes = Integer.parseInt(splitted[1]);
+            MaterialTimePicker.Builder builder = new MaterialTimePicker.Builder();
+            MaterialTimePicker picker = builder.setTimeFormat(TimeFormat.CLOCK_24H)
+                    .setHour(hours)
+                    .setMinute(minutes)
+                    .setTitleText(getContext().getString(R.string.shutdown_timer))
+                    .setInputMode(INPUT_MODE_KEYBOARD).build();
+            picker.addOnPositiveButtonClickListener(dialog -> {
+
+                long millis = (picker.getHour() * 3600L + picker.getMinute() * 60L) * 1000L;
+                Log.d(getClass().getName(), "time set: " + picker.getHour() + ":" + picker.getMinute() + " millis: " + millis);
+                getPreferences().edit().putLong(getContext().getString(R.string.settings_shutdown_timer), millis).apply();
+                if (shutdownTimerSwitch.isChecked()) {
+                    ((Yaacc) getContext().getApplicationContext()).stopShutdownTimer();
+                    shutdowwnRemainingTextView.setText(FormatHelper.parseMillisToTimeStringTo(millis));
+                    ((Yaacc) getContext().getApplicationContext()).startShutdownTimer(millis);
+                } else {
+                    shutdowwnRemainingTextView.setText(FormatHelper.parseMillisToTimeStringTo(millis));
+                }
+            });
+            picker.show(requireActivity().getSupportFragmentManager(), "CountdownTimer");
+
+        });
+
+
         // add ourself as listener
         upnpClient.addUpnpClientListener(this);
         Thread thread = new Thread(this::populateDeviceList);
@@ -234,25 +264,31 @@ public class ServerListFragment extends Fragment implements
     }
 
     private void setLocalServerState(View view) {
-        SwitchMaterial localServerEnabledSwitch = (SwitchMaterial) view.findViewById(R.id.serverListLocalServerEnabled);
+        SwitchMaterial localServerEnabledSwitch = view.findViewById(R.id.serverListLocalServerEnabled);
         localServerEnabledSwitch.setChecked(PreferenceManager.getDefaultSharedPreferences(getContext()).getBoolean(getContext().getString(R.string.settings_local_server_chkbx), false));
-        ImageView providerImageView = (ImageView) view.findViewById(R.id.serverListProviderEnabled);
-        if (PreferenceManager.getDefaultSharedPreferences(getContext()).getBoolean(getContext().getString(R.string.settings_local_server_provider_chkbx), false)) {
-            providerImageView.setImageDrawable(getContext().getDrawable(R.drawable.ic_baseline_sensors_32));
+        ImageView providerImageView = view.findViewById(R.id.serverListProviderEnabled);
+        if (getPreferences().getBoolean(getContext().getString(R.string.settings_local_server_provider_chkbx), false)) {
+            Drawable icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_sensors_32, getContext().getTheme()), getContext().getTheme());
+            providerImageView.setImageDrawable(icon);
         } else {
-            providerImageView.setImageDrawable(getContext().getDrawable(R.drawable.ic_baseline_sensors_off_32));
+            Drawable icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_sensors_off_32, getContext().getTheme()), getContext().getTheme());
+            providerImageView.setImageDrawable(icon);
         }
-        ImageView receiverImageView = (ImageView) view.findViewById(R.id.serverListReceiverEnabled);
-        if (PreferenceManager.getDefaultSharedPreferences(getContext()).getBoolean(getContext().getString(R.string.settings_local_server_receiver_chkbx), false)) {
-            receiverImageView.setImageDrawable(getContext().getDrawable(R.drawable.ic_baseline_devices_24));
+        ImageView receiverImageView = view.findViewById(R.id.serverListReceiverEnabled);
+        if (getPreferences().getBoolean(getContext().getString(R.string.settings_local_server_receiver_chkbx), false)) {
+            Drawable icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_devices_24, getContext().getTheme()), getContext().getTheme());
+            receiverImageView.setImageDrawable(icon);
         } else {
-            receiverImageView.setImageDrawable(getContext().getDrawable(R.drawable.ic_baseline_desktop_access_disabled_32));
+            Drawable icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_desktop_access_disabled_32, getContext().getTheme()), getContext().getTheme());
+            receiverImageView.setImageDrawable(icon);
         }
-        ImageView proxyImageView = (ImageView) view.findViewById(R.id.serverListProxyEnabled);
-        if (PreferenceManager.getDefaultSharedPreferences(getContext()).getBoolean(getContext().getString(R.string.settings_local_server_proxy_chkbx), false)) {
-            proxyImageView.setImageDrawable(getContext().getDrawable(R.drawable.ic_baseline_import_export_24));
+        ImageView proxyImageView = view.findViewById(R.id.serverListProxyEnabled);
+        if (getPreferences().getBoolean(getContext().getString(R.string.settings_local_server_proxy_chkbx), false)) {
+            Drawable icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_import_export_24, getContext().getTheme()), getContext().getTheme());
+            proxyImageView.setImageDrawable(icon);
         } else {
-            proxyImageView.setImageDrawable(getContext().getDrawable(R.drawable.ic_baseline_mobiledata_off_24));
+            Drawable icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_mobiledata_off_24, getContext().getTheme()), getContext().getTheme());
+            proxyImageView.setImageDrawable(icon);
         }
     }
 
@@ -274,5 +310,10 @@ public class ServerListFragment extends Fragment implements
             TextView shutdowwnRemainingTextView = getView().findViewById(R.id.serverListShutdownTimerRemaining);
             shutdowwnRemainingTextView.setText(s);
         }
+    }
+
+    @Override
+    public void onTick(long millisUntilFinished) {
+        setShutdownTimerRemainingTime(FormatHelper.parseMillisToTimeStringTo(millisUntilFinished));
     }
 }

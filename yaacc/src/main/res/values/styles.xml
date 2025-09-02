@@ -18,7 +18,9 @@
  -->
 <resources>
 
-    <style name="AppTheme" parent="Theme.MaterialComponents.DayNight.Bridge" />
+    <style name="AppTheme" parent="Theme.MaterialComponents.DayNight.Bridge">
+        <item name="materialTimePickerTheme">@style/ThemeOverlay.App.TimePicker</item>
+    </style>
 
     <style name="Widget.App.Button.OutlinedButton.IconOnly" parent="Widget.MaterialComponents.Button.OutlinedButton">
         <item name="iconPadding">0dp</item>
@@ -37,4 +39,5 @@
         <item name="android:windowExitAnimation">@anim/slide_down</item>
     </style>
 
+    <style name="ThemeOverlay.App.TimePicker" parent="@style/ThemeOverlay.MaterialComponents.TimePicker" />
 </resources>

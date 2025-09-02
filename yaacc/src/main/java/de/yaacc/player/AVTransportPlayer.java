@@ -50,7 +50,6 @@ import java.util.TimerTask;
 import java.util.UUID;
 
 import de.yaacc.R;
-import de.yaacc.Yaacc;
 import de.yaacc.upnp.ActionState;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.util.image.ImageDownloader;
@@ -542,7 +541,6 @@ public class AVTransportPlayer extends AbstractPlayer {
     @Override
     public void startTimer(final long duration) {
         super.startTimer(duration);
-        Yaacc yaacc = (Yaacc) getContext().getApplicationContext();
     }
 
     @Override
@@ -552,7 +550,6 @@ public class AVTransportPlayer extends AbstractPlayer {
     }
 
     private void doExit() {
-        ((Yaacc) getContext().getApplicationContext()).releaseWakeLock(getWakeLockTag());
         stop();
         final ActionState actionState = new ActionState();
         actionState.actionFinished = false;
@@ -573,11 +570,6 @@ public class AVTransportPlayer extends AbstractPlayer {
         doExit();
         super.exit();
     }
-
-    private String getWakeLockTag() {
-        return "de.yaacc.wakelock.player:" + getId();
-    }
-
 
     private void setDeviceIcon(Device<?, ?, ?> device) {
         if (device instanceof RemoteDevice && device.hasIcons()) {

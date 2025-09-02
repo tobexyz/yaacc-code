@@ -117,9 +117,11 @@ public class BrowseDeviceAdapter extends RecyclerView.Adapter<BrowseDeviceAdapte
         } else if (device instanceof LocalDevice) {
             //We know our icon
             holder.scanButton.setVisibility(View.VISIBLE);
+            holder.scanButton.setImageDrawable(ThemeHelper.tintDrawable(context.getResources().getDrawable(R.drawable.ic_baseline_refresh_48, context.getTheme()), context.getTheme()));
             holder.scanButtonLabel.setVisibility(View.VISIBLE);
             holder.icon.setImageResource(R.drawable.yaacc48_24_png);
             holder.configButton.setVisibility(View.VISIBLE);
+            holder.configButton.setImageDrawable(ThemeHelper.tintDrawable(context.getResources().getDrawable(R.drawable.ic_baseline_settings_32, context.getTheme()), context.getTheme()));
         }
 
         holder.name.setText(device.getDetails().getFriendlyName());

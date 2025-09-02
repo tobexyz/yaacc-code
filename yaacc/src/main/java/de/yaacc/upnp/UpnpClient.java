@@ -18,7 +18,6 @@
  */
 package de.yaacc.upnp;
 
-import android.annotation.SuppressLint;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -28,7 +27,6 @@ import android.content.SharedPreferences.Editor;
 import android.media.AudioManager;
 import android.media.MediaMetadataRetriever;
 import android.net.Uri;
-import android.os.CountDownTimer;
 import android.os.IBinder;
 import android.util.Log;
 import android.webkit.MimeTypeMap;
@@ -86,7 +84,6 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -102,7 +99,6 @@ import java.util.stream.Collectors;
 import de.yaacc.R;
 import de.yaacc.Yaacc;
 import de.yaacc.browser.Position;
-import de.yaacc.browser.ServerListFragment;
 import de.yaacc.browser.TabBrowserActivity;
 import de.yaacc.musicplayer.BackgroundMusicService;
 import de.yaacc.player.PlayableItem;
@@ -113,6 +109,7 @@ import de.yaacc.upnp.callback.contentdirectory.ContentDirectoryBrowseResult;
 import de.yaacc.upnp.server.YaaccUpnpServerService;
 import de.yaacc.upnp.server.avtransport.AvTransport;
 import de.yaacc.util.FileDownloader;
+import de.yaacc.util.FormatHelper;
 import de.yaacc.util.Watchdog;
 
 /**
@@ -130,7 +127,6 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
 
     private PlayerService playerService;
     private Device<?, ?, ?> localDummyDevice;
-    private CountDownTimer shutdownTimer;
 
 
     public UpnpClient() {
@@ -1435,30 +1431,6 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         return getCurrentPlayers().stream().filter(p -> p.getId() == id).findFirst();
     }
 
-    public void startShutdownTimer(ServerListFragment view, long duration) {
-        stopShutdownTimer();
-        shutdownTimer = new CountDownTimer(duration, 1000L) {
-            @Override
-            public void onTick(long millisUntilFinished) {
-                Log.d(getClass().getName(), "Shutdown in: " + millisUntilFinished + " millis");
-                view.setShutdownTimerRemainingTime(parseMillisToTimeStringTo(millisUntilFinished));
-            }
-
-            @Override
-            public void onFinish() {
-                Log.v(getClass().getName(), "Shutdown timer finished shutting down now!");
-                ((Yaacc) getContext().getApplicationContext()).exit();
-            }
-        };
-        shutdownTimer.start();
-    }
-
-    public void stopShutdownTimer() {
-        if (shutdownTimer != null) {
-            shutdownTimer.cancel();
-        }
-    }
-
 
     @SuppressWarnings({"unchecked", "rawtypes"})
     public static class LocalDummyDevice extends Device {
@@ -1571,7 +1543,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
                 item.setMimeType(metaRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_MIMETYPE));
                 long bitrate = Long.parseLong(metaRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE));
                 long size = (bitrate / 8 * duration / 1000 / 1000);
-                res = new Res(MimeType.valueOf(item.getMimeType()), size, parseMillisToTimeStringTo(duration), bitrate, uriString);
+                res = new Res(MimeType.valueOf(item.getMimeType()), size, FormatHelper.parseMillisToTimeStringTo(duration), bitrate, uriString);
                 if (item.getMimeType().startsWith("audio/")) {
                     item.setItem(new MusicTrack("1", "2", title, "", "", "", res));
                 } else if (item.getMimeType().startsWith("video/")) {
@@ -1621,15 +1593,6 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         }
     }
 
-    @SuppressLint("DefaultLocale")
-    public String parseMillisToTimeStringTo(long millis) {
-        Duration duration = Duration.ofMillis(millis);
-        long durationSeconds = duration.getSeconds();
-        long hours = durationSeconds / 3600;
-        long minutes = (durationSeconds % 3600) / 60;
-        long seconds = durationSeconds % 60;
-        return String.format("%02d:%02d:%02d", hours, minutes, seconds);
-    }
 
     private SharedPreferences getPreferences() {
         return PreferenceManager

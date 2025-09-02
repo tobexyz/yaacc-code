@@ -463,9 +463,9 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
         TypedValue typedValue = new TypedValue();
         getTheme().resolveAttribute(android.R.attr.colorBackground, typedValue, true);
         layout.setBackgroundColor(typedValue.data);
-        ImageView imageView = (ImageView) layout.findViewById(R.id.customToastImageView);
+        ImageView imageView = layout.findViewById(R.id.customToastImageView);
         imageView.setImageDrawable(icon);
-        TextView text = (TextView) layout.findViewById(R.id.customToastTextView);
+        TextView text = layout.findViewById(R.id.customToastTextView);
         text.setText("");
         Toast toast = new Toast(getApplicationContext());
         toast.setGravity(Gravity.CENTER_VERTICAL, 0, 0);
