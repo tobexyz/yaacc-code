@@ -10,11 +10,27 @@ permalink: screenshots/
 
 # Screenshot gallary of YAACC
 
+- [Version 4.4.x](#4.4.x)
 - [Version 4.2.x](#4.2.x)
 - [Version 4.1.x](#4.1.x)
 - [Version 4.0.x](#4.0.x)
 - [Version 3.x.x](#3.x.x)
 - [Version 2.x.x](#2.x.x)
+
+<div id='4.4.x'/>
+## Version 4.4.x
+
+![browse_servers](./4.4.x/browse_servers.png){:height="30%" width="30%"}
+![browse_content_folder](./4.4.x/browse_content_folder.png){:height="30%" width="30%"}
+![browse_image_folder](./4.4.x/browse_image_folder.png){:height="30%" width="30%"}
+![browse_music_folder](./4.4.x/browse_music_folder.png){:height="30%" width="30%"}
+![browse_receiver](./4.4.x/browse_receiver.png){:height="30%" width="30%"}
+![music_player](./4.4.x/music_player.png){:height="30%" width="30%"}
+![browse_player](./4.4.x/browse_player.png){:height="30%" width="30%"}
+![image_player](./4.4.x/image_player.png){:height="30%" width="30%"}
+![image_player_show_menu](./4.4.x/image_player_show_menu.png){:height="30%" width="30%"}
+![server_control](./4.4.x/server_control.png){:height="30%" width="30%"}
+![shutdown_timer](./4.4.x/shutdown_timer.png){:height="30%" width="30%"}
 
 <div id='4.2.x'/>
 ## Version 4.2.x

@@ -18,7 +18,6 @@
  */
 package de.yaacc.upnp;
 
-import android.annotation.SuppressLint;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -85,7 +84,6 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -111,6 +109,7 @@ import de.yaacc.upnp.callback.contentdirectory.ContentDirectoryBrowseResult;
 import de.yaacc.upnp.server.YaaccUpnpServerService;
 import de.yaacc.upnp.server.avtransport.AvTransport;
 import de.yaacc.util.FileDownloader;
+import de.yaacc.util.FormatHelper;
 import de.yaacc.util.Watchdog;
 
 /**
@@ -128,6 +127,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
 
     private PlayerService playerService;
     private Device<?, ?, ?> localDummyDevice;
+
 
     public UpnpClient() {
     }
@@ -671,37 +671,6 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         callbackResult.setResult(cont);
 
     }
-
-
-    /*
-     * Browse ContenDirctory asynchronous
-     *
-     * @param device      the device to be browsed
-     * @param objectID    the browsing root
-     * @param flag        kind of browsing @see {@link BrowseFlag}
-     * @param filter      a filter
-     * @param firstResult first result
-     * @param maxResults  max result count
-     * @param orderBy     sorting criteria @see {@link SortCriterion}
-     * @return the browsing result
-     *
-     //FIXME needed?
-    private ContentDirectoryBrowseResult browseAsync(Device<?, ?, ?> device, String objectID, BrowseFlag flag, String filter, long firstResult,
-                                                     Long maxResults, SortCriterion... orderBy) {
-        Service service = device.findService(new UDAServiceId("ContentDirectory"));
-        ContentDirectoryBrowseResult result = new ContentDirectoryBrowseResult();
-        ContentDirectoryBrowseActionCallback actionCallback = null;
-        if (service != null) {
-            Log.d(getClass().getName(), "#####Service found: " + service.getServiceId() + " Type: " + service.getServiceType());
-            actionCallback = new ContentDirectoryBrowseActionCallback(service, objectID, flag, filter, firstResult, maxResults, result, orderBy);
-            getControlPoint().execute(actionCallback);
-        }
-        if (preferences.getBoolean(getContext().getString(R.string.settings_browse_thumbnails_coverlookup_chkbx), false)) {
-            result = enrichWithCover(result);
-        }
-        return result;
-    }
-    */
 
     /**
      * Search asynchronously for all devices.
@@ -1574,7 +1543,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
                 item.setMimeType(metaRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_MIMETYPE));
                 long bitrate = Long.parseLong(metaRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE));
                 long size = (bitrate / 8 * duration / 1000 / 1000);
-                res = new Res(MimeType.valueOf(item.getMimeType()), size, parseMillisToTimeStringTo(duration), bitrate, uriString);
+                res = new Res(MimeType.valueOf(item.getMimeType()), size, FormatHelper.parseMillisToTimeStringTo(duration), bitrate, uriString);
                 if (item.getMimeType().startsWith("audio/")) {
                     item.setItem(new MusicTrack("1", "2", title, "", "", "", res));
                 } else if (item.getMimeType().startsWith("video/")) {
@@ -1624,15 +1593,6 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         }
     }
 
-    @SuppressLint("DefaultLocale")
-    private String parseMillisToTimeStringTo(long millis) {
-        Duration duration = Duration.ofMillis(millis);
-        long durationSeconds = duration.getSeconds();
-        long hours = durationSeconds / 3600;
-        long minutes = (durationSeconds % 3600) / 60;
-        long seconds = durationSeconds % 60;
-        return String.format("%02d:%02d:%02d", hours, minutes, seconds);
-    }
 
     private SharedPreferences getPreferences() {
         return PreferenceManager

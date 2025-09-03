@@ -131,6 +131,7 @@
     <string name="downloaded_to_target">downloaded to /Download/yaacc/</string>
     <string name="shared_folders">select shared folders</string>
     <string name="reset_shared_folders">reset shared folders</string>
+    <string name="shutdown_timer">Shutdown timer</string>
 
 
 </resources>

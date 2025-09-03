@@ -18,6 +18,7 @@
 package de.yaacc.browser;
 
 import android.content.SharedPreferences;
+import android.graphics.drawable.Drawable;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -39,6 +40,7 @@ import de.yaacc.R;
 import de.yaacc.Yaacc;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.UpnpClientListener;
+import de.yaacc.util.ThemeHelper;
 import de.yaacc.util.image.IconDownloadCacheHandler;
 
 /**
@@ -74,6 +76,8 @@ public class ReceiverListFragment extends Fragment implements
         contentList.setLayoutManager(new LinearLayoutManager(getActivity()));
         upnpClient.addUpnpClientListener(this);
         ImageButton refresh = view.findViewById(R.id.receiverListRefreshButton);
+        Drawable icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_refresh_32, getContext().getTheme()), getContext().getTheme());
+        refresh.setImageDrawable(icon);
         refresh.setOnClickListener((v) -> {
             if (getActivity() != null) {
                 getActivity().runOnUiThread(() -> {

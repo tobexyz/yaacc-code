@@ -1,6 +1,7 @@
 package de.yaacc.upnp.server;
 
 
+import android.graphics.drawable.Drawable;
 import android.util.TypedValue;
 import android.view.View;
 import android.widget.CheckBox;
@@ -14,6 +15,7 @@ import java.util.Set;
 
 import de.yaacc.R;
 import de.yaacc.upnp.server.contentdirectory.MediaPathFilter;
+import de.yaacc.util.ThemeHelper;
 
 
 public class TreeViewHolder extends RecyclerView.ViewHolder {
@@ -59,12 +61,14 @@ public class TreeViewHolder extends RecyclerView.ViewHolder {
             MediaPathFilter.saveMediaPaths(fileCheckbox.getContext(), pathes);
         });
         if (node.getValue() != null && node.getValue().isDirectory()) {
-            fileTypeIcon.setImageResource(R.drawable.ic_baseline_folder_open_48);
+            Drawable icon = ThemeHelper.tintDrawable(fileTypeIcon.getContext().getDrawable(R.drawable.ic_baseline_folder_open_48), fileTypeIcon.getContext().getTheme());
+            fileTypeIcon.setImageDrawable(icon);
             fileCheckbox.setChecked(MediaPathFilter.getMediaPathes(fileCheckbox.getContext()).contains(node.getValue().getAbsolutePath()));
             fileCheckbox.setVisibility(View.VISIBLE);
         } else {
             fileCheckbox.setVisibility(View.INVISIBLE);
-            fileTypeIcon.setImageResource(R.drawable.ic_baseline_file_48);
+            Drawable icon = ThemeHelper.tintDrawable(fileTypeIcon.getContext().getDrawable(R.drawable.ic_baseline_file_48), fileTypeIcon.getContext().getTheme());
+            fileTypeIcon.setImageDrawable(icon);
         }
 
         if (node.isSelected()) {
@@ -84,8 +88,10 @@ public class TreeViewHolder extends RecyclerView.ViewHolder {
         if (node.getValue() != null && node.getValue().isDirectory()) {
             if (node.getValue().listFiles() != null && node.getValue().listFiles().length > 0) {
                 fileStateIcon.setVisibility(View.VISIBLE);
+
                 int stateIcon = node.isExpanded() ? R.drawable.sharp_keyboard_arrow_down_24 : R.drawable.sharp_chevron_right_24;
-                fileStateIcon.setImageResource(stateIcon);
+                Drawable icon = ThemeHelper.tintDrawable(fileStateIcon.getContext().getDrawable(stateIcon), fileStateIcon.getContext().getTheme());
+                fileStateIcon.setImageDrawable(icon);
             }
         }
     }

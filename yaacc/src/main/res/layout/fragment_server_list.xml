@@ -19,9 +19,7 @@
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
-
-    >
+    android:layout_height="wrap_content">
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/serverList"
@@ -31,6 +29,58 @@
         android:layout_alignParentTop="true"
         android:layout_alignParentEnd="true"
         android:layout_above="@id/serverListLocalServerLabel" />
+
+    <TextView
+        android:id="@+id/serverListShutdownTimerLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentStart="true"
+        android:layout_alignParentBottom="false"
+        android:layout_marginStart="10dp"
+        android:layout_marginEnd="10dp"
+        android:layout_marginBottom="10dp"
+        android:text="@string/shutdown_timer"
+        android:layout_alignBottom="@id/serverList"
+        android:textAppearance="@android:style/TextAppearance.Material.Medium"
+        android:textColor="?android:attr/colorForeground" />
+
+
+    <com.google.android.material.switchmaterial.SwitchMaterial
+        android:id="@+id/serverListShutdownTimerEnabled"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignBottom="@id/serverList"
+        android:layout_toEndOf="@id/serverListShutdownTimerLabel"
+        android:layout_alignParentBottom="false"
+        android:layout_marginBottom="10dp"
+        android:layout_marginStart="10dp" />
+
+    <ImageView
+        android:id="@+id/serverListSetShutdownTimer"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:layout_marginStart="10dp"
+        android:layout_marginBottom="10dp"
+        android:layout_toEndOf="@id/serverListShutdownTimerEnabled"
+        android:layout_alignBottom="@id/serverList"
+        android:layout_alignParentBottom="false"
+        android:contentDescription="@string/settings"
+        app:srcCompat="@drawable/ic_baseline_settings_42" />
+
+    <TextView
+        android:id="@+id/serverListShutdownTimerRemaining"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="false"
+        android:layout_toEndOf="@id/serverListSetShutdownTimer"
+        android:layout_marginStart="10dp"
+        android:layout_marginEnd="10dp"
+        android:layout_marginBottom="10dp"
+        android:text="@string/all"
+        android:layout_alignBottom="@id/serverList"
+        android:textAppearance="@android:style/TextAppearance.Material.Medium"
+        android:textColor="?android:attr/colorForeground" />
+
 
     <TextView
         android:id="@+id/serverListLocalServerLabel"
@@ -52,16 +102,16 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_toEndOf="@id/serverListLocalServerLabel"
+        android:layout_alignStart="@id/serverListShutdownTimerEnabled"
         android:layout_alignParentBottom="true"
-        android:layout_marginBottom="10dp"
-        android:layout_marginLeft="10dp" />
+        android:layout_marginBottom="10dp" />
 
 
     <ImageView
         android:id="@+id/serverListProviderEnabled"
         android:layout_width="32dp"
         android:layout_height="32dp"
-        android:layout_marginLeft="10dp"
+        android:layout_marginStart="10dp"
         android:layout_marginBottom="10dp"
         android:layout_toEndOf="@id/serverListLocalServerEnabled"
         android:layout_alignParentBottom="true"
@@ -72,7 +122,7 @@
         android:id="@+id/serverListReceiverEnabled"
         android:layout_width="32dp"
         android:layout_height="32dp"
-        android:layout_marginLeft="10dp"
+        android:layout_marginStart="10dp"
         android:layout_marginBottom="10dp"
         android:layout_toEndOf="@id/serverListProviderEnabled"
         android:layout_alignParentBottom="true"
@@ -83,7 +133,7 @@
         android:id="@+id/serverListProxyEnabled"
         android:layout_width="32dp"
         android:layout_height="32dp"
-        android:layout_marginLeft="10dp"
+        android:layout_marginStart="10dp"
         android:layout_marginBottom="10dp"
         android:layout_toEndOf="@id/serverListReceiverEnabled"
         android:layout_alignParentBottom="true"

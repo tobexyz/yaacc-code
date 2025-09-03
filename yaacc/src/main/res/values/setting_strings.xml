@@ -115,4 +115,5 @@
     <string name="settings_local_server_if_filter_key" translatable="false">settings_local_server_if_filter_key</string>
     <string name="settings_local_server_if_filter_names">black listed interfaces for ip address retrieval</string>
     <string name="settings_media_paths_pref_key" translatable="false">settings_media_paths_pref_key</string>
+    <string name="settings_shutdown_timer" translatable="false">settings_local_server_shutdown_timer_chkbx</string>
 </resources>

@@ -40,9 +40,10 @@ public class MediaStoreScanner {
 
     public void scanMediaFiles(Activity context) {
         checkPermissions(context);
-        Toast.makeText(context,
+        context.runOnUiThread(() -> Toast.makeText(context,
                 context.getString(R.string.media_store_scanner_scan_triggered),
-                Toast.LENGTH_SHORT).show();
+                Toast.LENGTH_LONG).show());
+       
 
         Collection<File> dirsToScan = new ArrayList<>();
         dirsToScan.add(Environment.getExternalStorageDirectory());

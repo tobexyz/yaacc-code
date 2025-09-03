@@ -28,6 +28,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.os.BatteryManager;
+import android.os.CountDownTimer;
 import android.os.PowerManager;
 import android.util.Log;
 
@@ -49,6 +50,7 @@ import de.yaacc.upnp.UpnpRegistryService;
 import de.yaacc.upnp.server.YaaccAudioRenderingControlService;
 import de.yaacc.upnp.server.YaaccUpnpServerService;
 import de.yaacc.util.NotificationId;
+import de.yaacc.util.ShutdownTimerListener;
 
 /**
  * application which holds the global state
@@ -61,6 +63,8 @@ public class Yaacc extends Application {
     private final HashMap<String, PowerManager.WakeLock> wakeLocks = new HashMap<>();
     private UpnpClient upnpClient;
     private Executor contentLoadThreadPool;
+    private CountDownTimer shutdownTimer;
+    private ShutdownTimerListener shutdownTimerListener;
 
 
     @Override
@@ -102,40 +106,6 @@ public class Yaacc extends Application {
         return !(plugged == BatteryManager.BATTERY_PLUGGED_AC ||
                 plugged == BatteryManager.BATTERY_PLUGGED_USB ||
                 unplugged);
-
-    }
-
-    public void acquireWakeLock(long timeout, String tag) {
-
-        if (!wakeLocks.containsKey(tag)) {
-            PowerManager powerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
-            wakeLocks.put(tag, powerManager.newWakeLock(PowerManager.FULL_WAKE_LOCK, tag));
-        }
-        PowerManager.WakeLock wakeLock = wakeLocks.get(tag);
-        if (wakeLock != null) {
-            if (wakeLock.isHeld()) {
-                releaseWakeLock(tag);
-            }
-            while (!wakeLock.isHeld()) {
-                wakeLock.acquire(timeout);
-            }
-            Log.d(getClass().getName(), "WakeLock aquired Tag:" + tag + " timeout: " + timeout);
-        }
-
-
-    }
-
-    public void releaseWakeLock(String tag) {
-        PowerManager.WakeLock wakeLock = wakeLocks.get(tag);
-        if (wakeLock != null && wakeLock.isHeld()) {
-            try {
-                wakeLock.release();
-                Log.d(getClass().getName(), "WakeLock released: " + tag);
-            } catch (Throwable th) {
-                // ignoring this exception, probably wakeLock was already released
-                Log.d(getClass().getName(), "Ignoring exception on WakeLock (" + tag + ") release maybe no wakelock?");
-            }
-        }
 
     }
 
@@ -202,7 +172,40 @@ public class Yaacc extends Application {
         if (mNotificationManager.getActiveNotifications().length == 1) {
             mNotificationManager.cancel(NotificationId.YAACC.getId());
         }
+    }
 
+    public void startShutdownTimer(long duration) {
+        stopShutdownTimer();
+        shutdownTimer = new CountDownTimer(duration, 1000L) {
+            @Override
+            public void onTick(long millisUntilFinished) {
+                Log.d(getClass().getName(), "Shutdown in: " + millisUntilFinished + " millis");
+                if (getShutdownTimerListener() != null) {
+                    getShutdownTimerListener().onTick(millisUntilFinished);
+                }
 
+            }
+
+            @Override
+            public void onFinish() {
+                Log.v(getClass().getName(), "Shutdown timer finished shutting down now!");
+                exit();
+            }
+        };
+        shutdownTimer.start();
+    }
+
+    public void stopShutdownTimer() {
+        if (shutdownTimer != null) {
+            shutdownTimer.cancel();
+        }
+    }
+
+    public ShutdownTimerListener getShutdownTimerListener() {
+        return shutdownTimerListener;
+    }
+
+    public void setShutdownTimerListener(ShutdownTimerListener shutdownTimerListener) {
+        this.shutdownTimerListener = shutdownTimerListener;
     }
 }

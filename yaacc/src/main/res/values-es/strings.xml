@@ -107,4 +107,5 @@
     <string name="downloaded_to_target">guardado bajo /Download/yaacc/</string>
     <string name="shared_folders">seleccionar carpetas compartidas</string>
     <string name="reset_shared_folders">réinitialiser les dossiers partagés</string>
+    <string name="shutdown_timer">Temporizador de apagado</string>
 </resources>
