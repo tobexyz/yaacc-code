@@ -160,6 +160,31 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
                 .inflate(R.layout.browse_content_item, parent, false);
         ContentListClickListener bItemClickListener = new ContentListClickListener(upnpClient, contentListFragment, contentList, this);
         view.setOnClickListener(bItemClickListener);
+        view.setOnKeyListener((v, keyCode, event) -> {
+            if (event.getAction() != android.view.KeyEvent.ACTION_DOWN) return false;
+            int position = contentList.getChildAdapterPosition(v);
+            if (position == RecyclerView.NO_POSITION) return false;
+            Object item = getItem(position);
+            switch (keyCode) {
+                case android.view.KeyEvent.KEYCODE_DPAD_CENTER:
+                case android.view.KeyEvent.KEYCODE_ENTER:
+                    // Trigger normal click
+                    v.performClick();
+                    return true;
+                case android.view.KeyEvent.KEYCODE_DPAD_RIGHT:
+                    // Focus first visible action button
+                    BrowseContentItemAdapter.ViewHolder holder = (BrowseContentItemAdapter.ViewHolder) contentList.getChildViewHolder(v);
+                    if (holder.play.getVisibility() == View.VISIBLE) {
+                        holder.play.requestFocus();
+                        return true;
+                    }
+                    return false;
+                case android.view.KeyEvent.KEYCODE_DPAD_LEFT:
+                    // Let parent handle; if we are on first column maybe switch tabs later
+                    return false;
+            }
+            return false;
+        });
         return new BrowseContentItemAdapter.ViewHolder(view);
     }
 
@@ -377,6 +402,25 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
             playAll = itemView.findViewById(R.id.browseContentItemPlayAll);
             download = itemView.findViewById(R.id.browseContentItemDownload);
             playlistAdd = itemView.findViewById(R.id.browseContentItemPlaylistAdd);
+            // Ensure buttons are reachable via DPAD when focused from row
+            View.OnKeyListener actionKeyListener = (v, keyCode, event) -> {
+                if (event.getAction() != android.view.KeyEvent.ACTION_DOWN) return false;
+                switch (keyCode) {
+                    case android.view.KeyEvent.KEYCODE_DPAD_LEFT:
+                        // Move focus back to row root
+                        itemView.requestFocus();
+                        return true;
+                    case android.view.KeyEvent.KEYCODE_DPAD_DOWN:
+                    case android.view.KeyEvent.KEYCODE_DPAD_UP:
+                        // Let RecyclerView handle vertical navigation
+                        return false;
+                }
+                return false;
+            };
+            play.setOnKeyListener(actionKeyListener);
+            playAll.setOnKeyListener(actionKeyListener);
+            download.setOnKeyListener(actionKeyListener);
+            playlistAdd.setOnKeyListener(actionKeyListener);
         }
     }
 }

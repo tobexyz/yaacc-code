@@ -20,7 +20,11 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="vertical">
+    android:orientation="vertical"
+    android:focusable="true"
+    android:focusableInTouchMode="true"
+    android:clickable="true"
+    android:foreground="?attr/selectableItemBackground">
 
     <androidx.cardview.widget.CardView
         android:layout_width="match_parent"
@@ -66,6 +70,8 @@
                 android:layout_marginStart="2dp"
                 android:layout_toStartOf="@id/browseContentItemDownload"
                 android:contentDescription="@string/browse_context_playlist_add"
+                android:focusable="false"
+                android:focusableInTouchMode="false"
                 android:scaleType="center"
                 app:srcCompat="@drawable/ic_baseline_playlist_add_32" />
 
@@ -77,6 +83,8 @@
                 android:layout_marginStart="2dp"
                 android:layout_toStartOf="@id/browseContentItemPlay"
                 android:contentDescription="@string/browse_context_download"
+                android:focusable="false"
+                android:focusableInTouchMode="false"
                 android:scaleType="center"
                 app:srcCompat="@drawable/ic_baseline_download_32" />
 
@@ -89,6 +97,8 @@
                 android:layout_marginStart="2dp"
                 android:layout_toStartOf="@id/browseContentItemPlayAll"
                 android:contentDescription="@string/browse_context_play"
+                android:focusable="false"
+                android:focusableInTouchMode="false"
                 app:srcCompat="@drawable/ic_baseline_play_arrow_32" />
 
             <ImageButton
@@ -99,6 +109,8 @@
                 android:layout_alignParentEnd="true"
                 android:layout_marginStart="2dp"
                 android:contentDescription="@string/browse_context_play_all"
+                android:focusable="false"
+                android:focusableInTouchMode="false"
                 app:srcCompat="@drawable/ic_baseline_double_arrow_32" />
 
         </RelativeLayout>
