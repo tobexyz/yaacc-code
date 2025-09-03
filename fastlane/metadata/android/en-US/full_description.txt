@@ -10,4 +10,5 @@ YAACC (Yet Another Android Client Controller) allows you to play media from UPNP
 * Control multiple media renderer
 * Allow download files from a media server to the device
 * Allow sharing of urls with the app and sending them to the current media renderers
+* Shutdown timer for app
 
