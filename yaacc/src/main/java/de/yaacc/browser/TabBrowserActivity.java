@@ -42,7 +42,6 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.View.OnClickListener;
-import android.view.ViewGroup;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -62,7 +61,6 @@ import com.google.android.material.tabs.TabLayout;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -176,10 +174,7 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
     public void onCreate(Bundle savedInstanceState) {
         long start = System.currentTimeMillis();
         super.onCreate(savedInstanceState);
-
         setContentView(R.layout.activity_tab_browse);
-
-
         viewPager = findViewById(R.id.browserTabPager);
         tabLayout = findViewById(R.id.browserTabLayout);
         pagerAdapter = new TabBrowserFragmentStateAdapter(this);
@@ -205,7 +200,9 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
             @Override
             public void onPageSelected(int position) {
                 super.onPageSelected(position);
-                Objects.requireNonNull(tabLayout.getTabAt(position)).select();
+                if (tabLayout.getTabAt(position) != null) {
+                    tabLayout.getTabAt(position).select();
+                }
             }
         });
         if (!checkIfAlreadyhavePermission()) {
@@ -298,36 +295,25 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
                 ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
                 Handler handler = new Handler(Looper.getMainLooper());
                 final Uri uri = contentUri;
-                Runnable execution = new Runnable() {
-                    @Override
-                    public void run() {
-                        try {
-                            if (upnpClient.getReceiverDevicesReadyCount() == 0) {
-                                runOnUiThread(new Runnable() {
-                                    @Override
-                                    public void run() {
-                                        Toast.makeText(getApplicationContext(), "no receiver found using local device", Toast.LENGTH_LONG).show();
-                                    }
-                                });
+                Runnable execution = () -> {
+                    try {
+                        if (upnpClient.getReceiverDevicesReadyCount() == 0) {
+                            runOnUiThread(() -> Toast.makeText(getApplicationContext(), "no receiver found using local device", Toast.LENGTH_LONG).show());
 
-                                upnpClient.setReceiverDeviceIds(Set.of(UpnpClient.LOCAL_UID));
-                            }
-                            items.add(upnpClient.createPlayableItem(uri));
-
-                            handler.post(new Runnable() {
-                                @Override
-                                public void run() {
-
-                                    List<Player> players = upnpClient.initializePlayersWithPlayableItems(items);
-                                    for (Player player : players) {
-                                        player.play();
-                                    }
-                                    setCurrentTab(BrowserTabs.PLAYER);
-                                }
-                            });
-                        } catch (IOException ioException) {
-                            throw new RuntimeException(ioException);
+                            upnpClient.setReceiverDeviceIds(Set.of(UpnpClient.LOCAL_UID));
                         }
+                        items.add(upnpClient.createPlayableItem(uri));
+
+                        handler.post(() -> {
+
+                            List<Player> players = upnpClient.initializePlayersWithPlayableItems(items);
+                            for (Player player : players) {
+                                player.play();
+                            }
+                            setCurrentTab(BrowserTabs.PLAYER);
+                        });
+                    } catch (IOException ioException) {
+                        throw new RuntimeException(ioException);
                     }
                 };
 
@@ -459,7 +445,7 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
 
     private Toast createVolumeToast(Drawable icon) {
         LayoutInflater inflater = getLayoutInflater();
-        View layout = inflater.inflate(R.layout.custom_toast, (ViewGroup) findViewById(R.id.toast_custom));
+        View layout = inflater.inflate(R.layout.custom_toast, findViewById(R.id.toast_custom));
         TypedValue typedValue = new TypedValue();
         getTheme().resolveAttribute(android.R.attr.colorBackground, typedValue, true);
         layout.setBackgroundColor(typedValue.data);
@@ -503,7 +489,7 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
             if (viewPager != null && tabLayout != null && tabLayout.getSelectedTabPosition() == BrowserTabs.RECEIVER.ordinal() && tabLayout.getTabAt(tabLayout.getSelectedTabPosition()).view != null) {
                 List<Fragment> fragments = getSupportFragmentManager().getFragments();
                 if (fragments.size() > viewPager.getCurrentItem()) {
-                    RecyclerView view = ((RecyclerView) fragments.get(viewPager.getCurrentItem()).getView().findViewById(R.id.receiverList));
+                    RecyclerView view = fragments.get(viewPager.getCurrentItem()).getView().findViewById(R.id.receiverList);
                     if (view != null && view.getAdapter() != null) {
                         view.getAdapter().notifyDataSetChanged();
                     }
