@@ -90,6 +90,30 @@ public class BrowseDeviceAdapter extends RecyclerView.Adapter<BrowseDeviceAdapte
         View view = LayoutInflater.from(parent.getContext())
                 .inflate(R.layout.browse_device_item, parent, false);
         view.setOnClickListener(new ServerListClickListener(deviceList, this, upnpClient, context));
+        view.setOnKeyListener((v, keyCode, event) -> {
+            if (event.getAction() != android.view.KeyEvent.ACTION_DOWN) return false;
+            int position = deviceList.getChildAdapterPosition(v);
+            if (position == RecyclerView.NO_POSITION) return false;
+            switch (keyCode) {
+                case android.view.KeyEvent.KEYCODE_DPAD_CENTER:
+                case android.view.KeyEvent.KEYCODE_ENTER:
+                    // Trigger normal click
+                    v.performClick();
+                    return true;
+                case android.view.KeyEvent.KEYCODE_DPAD_RIGHT:
+                    // Focus first visible action button
+                    BrowseDeviceAdapter.ViewHolder holder = (BrowseDeviceAdapter.ViewHolder) deviceList.getChildViewHolder(v);
+                    if (holder.configButton.getVisibility() == View.VISIBLE) {
+                        holder.configButton.requestFocus();
+                        return true;
+                    }
+                    return false;
+                case android.view.KeyEvent.KEYCODE_DPAD_LEFT:
+                    // Let parent handle; if we are on first column maybe switch tabs later
+                    return false;
+            }
+            return false;
+        });
         return new ViewHolder(view, context);
     }
 
@@ -99,6 +123,8 @@ public class BrowseDeviceAdapter extends RecyclerView.Adapter<BrowseDeviceAdapte
         if (device instanceof RemoteDevice) {
             holder.scanButton.setVisibility(View.GONE);
             holder.scanButtonLabel.setVisibility(View.GONE);
+            holder.configButton.setVisibility(View.GONE);
+            holder.scanButton.setFocusable(false);
             if (device.hasIcons()) {
                 Icon[] icons = device.getIcons();
                 for (Icon icon : icons) {
@@ -117,10 +143,12 @@ public class BrowseDeviceAdapter extends RecyclerView.Adapter<BrowseDeviceAdapte
         } else if (device instanceof LocalDevice) {
             //We know our icon
             holder.scanButton.setVisibility(View.VISIBLE);
+            holder.scanButton.setFocusable(true);
             holder.scanButton.setImageDrawable(ThemeHelper.tintDrawable(context.getResources().getDrawable(R.drawable.ic_baseline_refresh_48, context.getTheme()), context.getTheme()));
             holder.scanButtonLabel.setVisibility(View.VISIBLE);
             holder.icon.setImageResource(R.drawable.yaacc48_24_png);
             holder.configButton.setVisibility(View.VISIBLE);
+            holder.configButton.setFocusable(true);
             holder.configButton.setImageDrawable(ThemeHelper.tintDrawable(context.getResources().getDrawable(R.drawable.ic_baseline_settings_32, context.getTheme()), context.getTheme()));
         }
 

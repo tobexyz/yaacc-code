@@ -20,13 +20,17 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
+    android:focusable="true"
+    android:focusableInTouchMode="false"
+    android:descendantFocusability="beforeDescendants"
+    android:clickable="true"
     android:orientation="vertical">
 
     <androidx.cardview.widget.CardView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         app:cardCornerRadius="6dp"
-
+        android:focusable="true"
         app:cardUseCompatPadding="true"
         app:contentPadding="5dp">
 
@@ -45,10 +49,10 @@
                 android:id="@+id/browseReceiverDeviceItemName"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginLeft="5dp"
+                android:layout_marginStart="5dp"
                 android:layout_toStartOf="@id/browseReceiverDeviceItemCheckbox"
                 android:layout_toEndOf="@id/browseReceiverDeviceItemIcon"
-                android:gravity="left"
+                android:gravity="start"
                 android:text="@string/all"
                 android:textAppearance="@android:style/TextAppearance.Material.Medium"
                 android:textColor="?android:attr/colorForeground" />

@@ -88,7 +88,27 @@ public class BrowseReceiverDeviceAdapter extends RecyclerView.Adapter<BrowseRece
                                                                      int viewType) {
         View view = LayoutInflater.from(parent.getContext())
                 .inflate(R.layout.browse_receiver_device_item, parent, false);
-
+        view.setOnKeyListener((v, keyCode, event) -> {
+            if (event.getAction() != android.view.KeyEvent.ACTION_DOWN) return false;
+            int position = devicesListView.getChildAdapterPosition(v);
+            if (position == RecyclerView.NO_POSITION) return false;
+            switch (keyCode) {
+                case android.view.KeyEvent.KEYCODE_DPAD_CENTER:
+                case android.view.KeyEvent.KEYCODE_ENTER:
+                    // Trigger normal click
+                    v.performClick();
+                    return true;
+                case android.view.KeyEvent.KEYCODE_DPAD_RIGHT:
+                    // Focus first visible action button
+                    BrowseReceiverDeviceAdapter.ViewHolder holder = (BrowseReceiverDeviceAdapter.ViewHolder) devicesListView.getChildViewHolder(v);
+                    holder.checkBox.requestFocus();
+                    return true;
+                case android.view.KeyEvent.KEYCODE_DPAD_LEFT:
+                    // Let parent handle; if we are on first column maybe switch tabs later
+                    return false;
+            }
+            return false;
+        });
         return new ViewHolder(view);
     }
 

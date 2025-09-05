@@ -100,6 +100,9 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         topSeperator = contentlistView.findViewById(R.id.contentListTopSeperator);
         contentList = contentlistView.findViewById(R.id.contentList);
         contentList.setLayoutManager(new LinearLayoutManager(getActivity()));
+        contentList.setFocusable(true);
+        contentList.setFocusableInTouchMode(false); // Good for D-Pad primary interaction
+        contentList.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
         upnpClient.addUpnpClientListener(this);
         if (getActivity() != null) {
             getActivity().runOnUiThread(() -> {

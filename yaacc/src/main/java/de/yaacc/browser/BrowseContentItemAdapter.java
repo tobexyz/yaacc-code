@@ -22,6 +22,7 @@ import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.util.Log;
+import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -161,10 +162,17 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
         ContentListClickListener bItemClickListener = new ContentListClickListener(upnpClient, contentListFragment, contentList, this);
         view.setOnClickListener(bItemClickListener);
         view.setOnKeyListener((v, keyCode, event) -> {
-            if (event.getAction() != android.view.KeyEvent.ACTION_DOWN) return false;
+            Log.d(getClass().getName(), "Left 1" + event.getAction());
+            if (!((event.getAction() == android.view.KeyEvent.ACTION_UP && keyCode == KeyEvent.KEYCODE_DPAD_LEFT)
+                    || (event.getAction() == android.view.KeyEvent.ACTION_DOWN))) {
+                return false;
+            }
+
             int position = contentList.getChildAdapterPosition(v);
+            Log.d(getClass().getName(), "Left 2");
             if (position == RecyclerView.NO_POSITION) return false;
-            Object item = getItem(position);
+            Log.d(getClass().getName(), "Left 3");
+            BrowseContentItemAdapter.ViewHolder holder = null;
             switch (keyCode) {
                 case android.view.KeyEvent.KEYCODE_DPAD_CENTER:
                 case android.view.KeyEvent.KEYCODE_ENTER:
@@ -173,13 +181,31 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
                     return true;
                 case android.view.KeyEvent.KEYCODE_DPAD_RIGHT:
                     // Focus first visible action button
-                    BrowseContentItemAdapter.ViewHolder holder = (BrowseContentItemAdapter.ViewHolder) contentList.getChildViewHolder(v);
+                    holder = (BrowseContentItemAdapter.ViewHolder) contentList.getChildViewHolder(v);
+                    if (holder.playlistAdd.getVisibility() == View.VISIBLE) {
+                        holder.playlistAdd.requestFocus();
+                        return true;
+                    }
                     if (holder.play.getVisibility() == View.VISIBLE) {
                         holder.play.requestFocus();
                         return true;
                     }
                     return false;
                 case android.view.KeyEvent.KEYCODE_DPAD_LEFT:
+                    holder = (BrowseContentItemAdapter.ViewHolder) contentList.getChildViewHolder(v);
+
+                    if (holder.playAll.hasFocus()) {
+                        holder.play.requestFocus();
+                        return true;
+                    }
+                    if (holder.play.hasFocus() && holder.download.getVisibility() == View.VISIBLE) {
+                        holder.download.requestFocus();
+                        return true;
+                    }
+                    if (holder.download.hasFocus() && holder.playlistAdd.getVisibility() == View.VISIBLE) {
+                        holder.playlistAdd.requestFocus();
+                        return true;
+                    }
                     // Let parent handle; if we are on first column maybe switch tabs later
                     return false;
             }

@@ -74,6 +74,9 @@ public class ReceiverListFragment extends Fragment implements
         upnpClient = ((Yaacc) getActivity().getApplicationContext()).getUpnpClient();
         contentList = view.findViewById(R.id.receiverList);
         contentList.setLayoutManager(new LinearLayoutManager(getActivity()));
+        contentList.setFocusable(true);
+        contentList.setFocusableInTouchMode(false); // Good for D-Pad primary interaction
+        contentList.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
         upnpClient.addUpnpClientListener(this);
         ImageButton refresh = view.findViewById(R.id.receiverListRefreshButton);
         Drawable icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_refresh_32, getContext().getTheme()), getContext().getTheme());

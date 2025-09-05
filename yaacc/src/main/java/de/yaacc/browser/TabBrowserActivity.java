@@ -179,6 +179,8 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
         tabLayout = findViewById(R.id.browserTabLayout);
         pagerAdapter = new TabBrowserFragmentStateAdapter(this);
         viewPager.setAdapter(pagerAdapter);
+        ((RecyclerView) viewPager.getChildAt(0)).setFocusable(false);
+        //disable swipe if set in preferences
         viewPager.setUserInputEnabled(getPreferences().getBoolean(getString(R.string.settings_swipe_chkbx), true));
         tabLayout.addOnTabSelectedListener(new TabLayout.OnTabSelectedListener() {
             @Override
