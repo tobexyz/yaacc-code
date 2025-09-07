@@ -487,13 +487,13 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
                 }
                 volumeToast = createVolumeToast(icon);
                 volumeToast.show();
-            }
-            if (viewPager != null && tabLayout != null && tabLayout.getSelectedTabPosition() == BrowserTabs.RECEIVER.ordinal() && tabLayout.getTabAt(tabLayout.getSelectedTabPosition()).view != null) {
-                List<Fragment> fragments = getSupportFragmentManager().getFragments();
-                if (fragments.size() > viewPager.getCurrentItem()) {
-                    RecyclerView view = fragments.get(viewPager.getCurrentItem()).getView().findViewById(R.id.receiverList);
-                    if (view != null && view.getAdapter() != null) {
-                        view.getAdapter().notifyDataSetChanged();
+                if (viewPager != null && tabLayout != null && tabLayout.getSelectedTabPosition() == BrowserTabs.RECEIVER.ordinal() && tabLayout.getTabAt(tabLayout.getSelectedTabPosition()).view != null) {
+                    List<Fragment> fragments = getSupportFragmentManager().getFragments();
+                    if (fragments.size() > viewPager.getCurrentItem()) {
+                        RecyclerView view = fragments.get(viewPager.getCurrentItem()).getView().findViewById(R.id.receiverList);
+                        if (view != null && view.getAdapter() != null) {
+                            view.getAdapter().notifyDataSetChanged();
+                        }
                     }
                 }
             }

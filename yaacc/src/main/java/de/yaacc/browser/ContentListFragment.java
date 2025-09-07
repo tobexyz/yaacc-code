@@ -252,8 +252,6 @@ public class ContentListFragment extends Fragment implements OnClickListener,
                             });
                         }
                     }
-
-
                 }
             });
         }

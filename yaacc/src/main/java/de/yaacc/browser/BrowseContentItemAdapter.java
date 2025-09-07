@@ -22,7 +22,6 @@ import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.util.Log;
-import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -162,16 +161,10 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
         ContentListClickListener bItemClickListener = new ContentListClickListener(upnpClient, contentListFragment, contentList, this);
         view.setOnClickListener(bItemClickListener);
         view.setOnKeyListener((v, keyCode, event) -> {
-            Log.d(getClass().getName(), "Left 1" + event.getAction());
-            if (!((event.getAction() == android.view.KeyEvent.ACTION_UP && keyCode == KeyEvent.KEYCODE_DPAD_LEFT)
-                    || (event.getAction() == android.view.KeyEvent.ACTION_DOWN))) {
-                return false;
-            }
-
+            if (event.getAction() != android.view.KeyEvent.ACTION_DOWN) return false;
             int position = contentList.getChildAdapterPosition(v);
-            Log.d(getClass().getName(), "Left 2");
+
             if (position == RecyclerView.NO_POSITION) return false;
-            Log.d(getClass().getName(), "Left 3");
             BrowseContentItemAdapter.ViewHolder holder = null;
             switch (keyCode) {
                 case android.view.KeyEvent.KEYCODE_DPAD_CENTER:
@@ -207,7 +200,7 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
                         return true;
                     }
                     // Let parent handle; if we are on first column maybe switch tabs later
-                    return false;
+                    return true;
             }
             return false;
         });

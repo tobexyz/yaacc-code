@@ -17,7 +17,6 @@
  */
 package de.yaacc.browser;
 
-import android.content.SharedPreferences;
 import android.graphics.drawable.Drawable;
 import android.os.Bundle;
 import android.util.Log;
@@ -28,7 +27,6 @@ import android.widget.ImageButton;
 import android.widget.Toast;
 
 import androidx.fragment.app.Fragment;
-import androidx.preference.PreferenceManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -50,7 +48,6 @@ import de.yaacc.util.image.IconDownloadCacheHandler;
  */
 public class ReceiverListFragment extends Fragment implements
         UpnpClientListener, OnBackPressedListener {
-    private static final String RECEIVER_LIST_NAVIGATOR = "RECEIVER_LIST_NAVIGATOR";
     protected RecyclerView contentList;
     private UpnpClient upnpClient = null;
     private BrowseReceiverDeviceAdapter bDeviceAdapter;
@@ -95,16 +92,6 @@ public class ReceiverListFragment extends Fragment implements
         thread.start();
     }
 
-    /**
-     * load app preferences
-     *
-     * @return app preferences
-     */
-    private SharedPreferences getPreferences() {
-        return PreferenceManager
-                .getDefaultSharedPreferences(getActivity().getApplicationContext());
-
-    }
 
     @Override
     public void onCreate(Bundle savedInstanceState) {

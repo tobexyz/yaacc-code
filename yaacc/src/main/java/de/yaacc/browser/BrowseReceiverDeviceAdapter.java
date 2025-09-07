@@ -90,6 +90,7 @@ public class BrowseReceiverDeviceAdapter extends RecyclerView.Adapter<BrowseRece
                 .inflate(R.layout.browse_receiver_device_item, parent, false);
         view.setOnKeyListener((v, keyCode, event) -> {
             if (event.getAction() != android.view.KeyEvent.ACTION_DOWN) return false;
+
             int position = devicesListView.getChildAdapterPosition(v);
             if (position == RecyclerView.NO_POSITION) return false;
             switch (keyCode) {

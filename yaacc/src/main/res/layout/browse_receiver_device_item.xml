@@ -18,6 +18,7 @@
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/browseReceiverDeviceItem"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:focusable="true"
@@ -30,7 +31,6 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         app:cardCornerRadius="6dp"
-        android:focusable="true"
         app:cardUseCompatPadding="true"
         app:contentPadding="5dp">
 
@@ -64,10 +64,8 @@
                 android:layout_alignTop="@id/browseReceiverDeviceItemIcon"
                 android:layout_alignBottom="@id/browseReceiverDeviceItemIcon"
                 android:layout_alignParentEnd="true"
-                android:checkMark="?android:attr/listChoiceIndicatorMultiple"
-                android:clickable="false"
-                android:duplicateParentState="true"
-                android:focusable="false"
+                android:nextFocusLeft="@id/browseReceiverDeviceItem"
+                android:nextFocusRight="@id/browseReceiverDeviceItemMute"
                 android:gravity="center_vertical"
                 android:textAppearance="@android:style/TextAppearance.Material.Medium" />
 
@@ -78,6 +76,7 @@
                 android:layout_below="@id/browseReceiverDeviceItemName"
                 android:layout_alignStart="@id/browseReceiverDeviceItemName"
                 android:layout_marginTop="5dp"
+                android:nextFocusLeft="@id/browseReceiverDeviceItemCheckbox"
                 android:button="@drawable/sl_mute_32" />
 
             <SeekBar
