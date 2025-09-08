@@ -29,11 +29,13 @@ import android.os.AsyncTask.Status;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.util.Log;
+import android.view.KeyEvent;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
+import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.RelativeLayout;
 import android.widget.Toast;
@@ -58,6 +60,7 @@ import de.yaacc.settings.SettingsActivity;
 import de.yaacc.util.AboutActivity;
 import de.yaacc.util.ActivitySwipeDetector;
 import de.yaacc.util.SwipeReceiver;
+import de.yaacc.util.ThemeHelper;
 import de.yaacc.util.YaaccLogActivity;
 
 /**
@@ -86,6 +89,7 @@ public class ImageViewerActivity extends AppCompatActivity implements SwipeRecei
     private Timer pictureShowTimer;
     private ImageViewerBroadcastReceiver imageViewerBroadcastReceiver;
     private PlayerService playerService;
+    private Menu menu;
 
     public void onServiceConnected(ComponentName className, IBinder binder) {
         if (binder instanceof PlayerService.PlayerServiceBinder) {
@@ -136,6 +140,22 @@ public class ImageViewerActivity extends AppCompatActivity implements SwipeRecei
                 this);
         RelativeLayout layout = findViewById(R.id.layout);
         layout.setOnTouchListener(activitySwipeDetector);
+        layout.setFocusable(true);
+        layout.setFocusableInTouchMode(false);
+        layout.setOnKeyListener((v, keyCode, event) -> {
+            if (event.getAction() != android.view.KeyEvent.ACTION_DOWN) return false;
+            switch (keyCode) {
+                case android.view.KeyEvent.KEYCODE_DPAD_CENTER:
+                case android.view.KeyEvent.KEYCODE_ENTER:
+                    // Trigger normal click
+                    runOnUiThread(this::menuBarsShow);
+                    startMenuHideTimer();
+                    return true;
+
+            }
+            return false;
+        });
+        layout.requestLayout();
         currentImageIndex = 0;
         imageUris = new ArrayList<>();
         if (savedInstanceState != null) {
@@ -223,6 +243,108 @@ public class ImageViewerActivity extends AppCompatActivity implements SwipeRecei
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         getMenuInflater().inflate(R.menu.activity_image_viewer, menu);
+        this.menu = menu;
+        MenuItem pauseItem = menu.findItem(R.id.menu_pause);
+        ImageButton pauseButton = new ImageButton(this);
+        Drawable icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_pause_32, getTheme()), getTheme());
+        pauseButton.setImageDrawable(icon);
+        pauseButton.setFocusable(true);
+        pauseButton.setFocusableInTouchMode(true);
+        pauseButton.setOnClickListener(v -> pause());
+        pauseButton.setOnKeyListener((v, keyCode, event) -> {
+            if (event.getAction() == KeyEvent.ACTION_DOWN &&
+                    (keyCode == KeyEvent.KEYCODE_ENTER || keyCode == KeyEvent.KEYCODE_DPAD_CENTER)) {
+                pause();
+                return true;
+            }
+            return false;
+        });
+        pauseItem.setActionView(pauseButton);
+        MenuItem playItem = menu.findItem(R.id.menu_play);
+        ImageButton playButton = new ImageButton(this);
+        icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_play_arrow_32, getTheme()), getTheme());
+        playButton.setImageDrawable(icon);
+        playButton.setFocusable(true);
+        playButton.setFocusableInTouchMode(true);
+        playButton.setOnClickListener(v -> play());
+        playButton.setOnKeyListener((v, keyCode, event) -> {
+            if (event.getAction() == KeyEvent.ACTION_DOWN &&
+                    (keyCode == KeyEvent.KEYCODE_ENTER || keyCode == KeyEvent.KEYCODE_DPAD_CENTER)) {
+                play();
+                return true;
+            }
+            return false;
+        });
+        playItem.setActionView(playButton);
+        MenuItem stopItem = menu.findItem(R.id.menu_stop);
+        ImageButton stopButton = new ImageButton(this);
+        icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_stop_32, getTheme()), getTheme());
+        stopButton.setImageDrawable(icon);
+        stopButton.setFocusable(true);
+        stopButton.setFocusableInTouchMode(true);
+        stopButton.setFocusableInTouchMode(true);
+        stopButton.setOnClickListener(v -> stop());
+        stopButton.setOnKeyListener((v, keyCode, event) -> {
+            if (event.getAction() == KeyEvent.ACTION_DOWN &&
+                    (keyCode == KeyEvent.KEYCODE_ENTER || keyCode == KeyEvent.KEYCODE_DPAD_CENTER)) {
+                stop();
+                return true;
+            }
+            return false;
+        });
+        stopItem.setActionView(stopButton);
+        MenuItem nextItem = menu.findItem(R.id.menu_next);
+        ImageButton nextButton = new ImageButton(this);
+        icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_skip_next_32, getTheme()), getTheme());
+        nextButton.setImageDrawable(icon);
+        nextButton.setFocusable(true);
+        nextButton.setFocusableInTouchMode(true);
+        nextButton.setFocusableInTouchMode(true);
+        nextButton.setOnClickListener(v -> previous());
+        nextButton.setOnKeyListener((v, keyCode, event) -> {
+            if (event.getAction() == KeyEvent.ACTION_DOWN &&
+                    (keyCode == KeyEvent.KEYCODE_ENTER || keyCode == KeyEvent.KEYCODE_DPAD_CENTER)) {
+                next();
+                return true;
+            }
+            return false;
+        });
+        nextItem.setActionView(nextButton);
+        MenuItem previousItem = menu.findItem(R.id.menu_previous);
+        ImageButton previousButton = new ImageButton(this);
+        icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_skip_previous_32, getTheme()), getTheme());
+        previousButton.setImageDrawable(icon);
+        previousButton.setFocusable(true);
+        previousButton.setFocusableInTouchMode(true);
+        previousButton.setFocusableInTouchMode(true);
+        previousButton.setOnClickListener(v -> previous());
+        previousButton.setOnKeyListener((v, keyCode, event) -> {
+            if (event.getAction() == KeyEvent.ACTION_DOWN &&
+                    (keyCode == KeyEvent.KEYCODE_ENTER || keyCode == KeyEvent.KEYCODE_DPAD_CENTER)) {
+                previous();
+                return true;
+            }
+            return false;
+        });
+        previousItem.setActionView(previousButton);
+        MenuItem exitItem = menu.findItem(R.id.menu_exit);
+        ImageButton exitButton = new ImageButton(this);
+        icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_cancel_32, getTheme()), getTheme());
+        exitButton.setImageDrawable(icon);
+        exitButton.setFocusable(true);
+        exitButton.setFocusableInTouchMode(true);
+        exitButton.setFocusableInTouchMode(true);
+        exitButton.setOnClickListener(v -> exit());
+        exitButton.setOnKeyListener((v, keyCode, event) -> {
+            if (event.getAction() == KeyEvent.ACTION_DOWN &&
+                    (keyCode == KeyEvent.KEYCODE_ENTER || keyCode == KeyEvent.KEYCODE_DPAD_CENTER)) {
+                exit();
+                return true;
+            }
+            return false;
+        });
+        exitItem.setActionView(exitButton);
+
         return true;
     }
 
@@ -500,7 +622,7 @@ public class ImageViewerActivity extends AppCompatActivity implements SwipeRecei
             public void run() {
                 runOnUiThread(() -> menuBarsHide());
             }
-        }, 5000);
+        }, 10000);
     }
 
     public boolean isPictureShowActive() {
@@ -545,11 +667,25 @@ public class ImageViewerActivity extends AppCompatActivity implements SwipeRecei
         getWindow().getDecorView().setSystemUiVisibility(
                 View.SYSTEM_UI_FLAG_VISIBLE);
         actionBar.show();
+        focusPauseButton();
     }
 
     @Override
     public void onBackPressed() {
         super.onBackPressed();
         exit();
+    }
+
+    private void focusPauseButton() {
+        if (menu != null) {
+            final MenuItem pauseItem = menu.findItem(R.id.menu_pause);
+
+            if (pauseItem != null) {
+                final View pauseView = findViewById(pauseItem.getItemId());
+                if (pauseView != null) {
+                    pauseView.requestFocus();
+                }
+            }
+        }
     }
 }

@@ -179,6 +179,10 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
                         holder.playlistAdd.requestFocus();
                         return true;
                     }
+                    if (holder.download.getVisibility() == View.VISIBLE) {
+                        holder.download.requestFocus();
+                        return true;
+                    }
                     if (holder.play.getVisibility() == View.VISIBLE) {
                         holder.play.requestFocus();
                         return true;
@@ -186,7 +190,7 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
                     return false;
                 case android.view.KeyEvent.KEYCODE_DPAD_LEFT:
                     holder = (BrowseContentItemAdapter.ViewHolder) contentList.getChildViewHolder(v);
-
+                    View focus = v.findFocus();
                     if (holder.playAll.hasFocus()) {
                         holder.play.requestFocus();
                         return true;

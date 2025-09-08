@@ -83,7 +83,6 @@ public class ContentListClickListener implements View.OnClickListener {
                     task.execute(ContentItemPlayTask.PLAY_ALL);
                 }
 
-
             }
         }
     }
