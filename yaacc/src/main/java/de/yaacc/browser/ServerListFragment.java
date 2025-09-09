@@ -106,7 +106,6 @@ public class ServerListFragment extends Fragment implements
                 } else {
                     bDeviceAdapter.setDevices(new LinkedList<>(upnpClient.getDevicesProvidingContentDirectoryService()));
                 }
-
             });
 
         }
@@ -180,6 +179,9 @@ public class ServerListFragment extends Fragment implements
         // Define where to show the folder contents for media
         contentList = view.findViewById(R.id.serverList);
         contentList.setLayoutManager(new LinearLayoutManager(getActivity()));
+        contentList.setFocusable(true);
+        contentList.setFocusableInTouchMode(false); // Good for D-Pad primary interaction
+        contentList.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
         ImageButton refresh = view.findViewById(R.id.serverListRefreshButton);
         Drawable icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_refresh_32, getContext().getTheme()), getContext().getTheme());
         refresh.setImageDrawable(icon);
@@ -224,7 +226,7 @@ public class ServerListFragment extends Fragment implements
                 ((Yaacc) getContext().getApplicationContext()).stopShutdownTimer();
             }
         });
-        ImageView shutdowwnSettingsImageView = view.findViewById(R.id.serverListSetShutdownTimer);
+        ImageButton shutdowwnSettingsImageView = view.findViewById(R.id.serverListSetShutdownTimer);
         icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_settings_32, getContext().getTheme()), getContext().getTheme());
         shutdowwnSettingsImageView.setImageDrawable(icon);
         shutdowwnSettingsImageView.setOnClickListener(v -> {

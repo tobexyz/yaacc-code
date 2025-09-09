@@ -160,6 +160,54 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
                 .inflate(R.layout.browse_content_item, parent, false);
         ContentListClickListener bItemClickListener = new ContentListClickListener(upnpClient, contentListFragment, contentList, this);
         view.setOnClickListener(bItemClickListener);
+        view.setOnKeyListener((v, keyCode, event) -> {
+            if (event.getAction() != android.view.KeyEvent.ACTION_DOWN) return false;
+            int position = contentList.getChildAdapterPosition(v);
+
+            if (position == RecyclerView.NO_POSITION) return false;
+            BrowseContentItemAdapter.ViewHolder holder = null;
+            switch (keyCode) {
+                case android.view.KeyEvent.KEYCODE_DPAD_CENTER:
+                case android.view.KeyEvent.KEYCODE_ENTER:
+                    // Trigger normal click
+                    v.performClick();
+                    return true;
+                case android.view.KeyEvent.KEYCODE_DPAD_RIGHT:
+                    // Focus first visible action button
+                    holder = (BrowseContentItemAdapter.ViewHolder) contentList.getChildViewHolder(v);
+                    if (holder.playlistAdd.getVisibility() == View.VISIBLE) {
+                        holder.playlistAdd.requestFocus();
+                        return true;
+                    }
+                    if (holder.download.getVisibility() == View.VISIBLE) {
+                        holder.download.requestFocus();
+                        return true;
+                    }
+                    if (holder.play.getVisibility() == View.VISIBLE) {
+                        holder.play.requestFocus();
+                        return true;
+                    }
+                    return false;
+                case android.view.KeyEvent.KEYCODE_DPAD_LEFT:
+                    holder = (BrowseContentItemAdapter.ViewHolder) contentList.getChildViewHolder(v);
+                    View focus = v.findFocus();
+                    if (holder.playAll.hasFocus()) {
+                        holder.play.requestFocus();
+                        return true;
+                    }
+                    if (holder.play.hasFocus() && holder.download.getVisibility() == View.VISIBLE) {
+                        holder.download.requestFocus();
+                        return true;
+                    }
+                    if (holder.download.hasFocus() && holder.playlistAdd.getVisibility() == View.VISIBLE) {
+                        holder.playlistAdd.requestFocus();
+                        return true;
+                    }
+                    // Let parent handle; if we are on first column maybe switch tabs later
+                    return true;
+            }
+            return false;
+        });
         return new BrowseContentItemAdapter.ViewHolder(view);
     }
 
@@ -377,6 +425,25 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
             playAll = itemView.findViewById(R.id.browseContentItemPlayAll);
             download = itemView.findViewById(R.id.browseContentItemDownload);
             playlistAdd = itemView.findViewById(R.id.browseContentItemPlaylistAdd);
+            // Ensure buttons are reachable via DPAD when focused from row
+            View.OnKeyListener actionKeyListener = (v, keyCode, event) -> {
+                if (event.getAction() != android.view.KeyEvent.ACTION_DOWN) return false;
+                switch (keyCode) {
+                    case android.view.KeyEvent.KEYCODE_DPAD_LEFT:
+                        // Move focus back to row root
+                        itemView.requestFocus();
+                        return true;
+                    case android.view.KeyEvent.KEYCODE_DPAD_DOWN:
+                    case android.view.KeyEvent.KEYCODE_DPAD_UP:
+                        // Let RecyclerView handle vertical navigation
+                        return false;
+                }
+                return false;
+            };
+            play.setOnKeyListener(actionKeyListener);
+            playAll.setOnKeyListener(actionKeyListener);
+            download.setOnKeyListener(actionKeyListener);
+            playlistAdd.setOnKeyListener(actionKeyListener);
         }
     }
 }

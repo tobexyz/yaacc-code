@@ -179,6 +179,8 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
         tabLayout = findViewById(R.id.browserTabLayout);
         pagerAdapter = new TabBrowserFragmentStateAdapter(this);
         viewPager.setAdapter(pagerAdapter);
+        ((RecyclerView) viewPager.getChildAt(0)).setFocusable(false);
+        //disable swipe if set in preferences
         viewPager.setUserInputEnabled(getPreferences().getBoolean(getString(R.string.settings_swipe_chkbx), true));
         tabLayout.addOnTabSelectedListener(new TabLayout.OnTabSelectedListener() {
             @Override
@@ -485,13 +487,13 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
                 }
                 volumeToast = createVolumeToast(icon);
                 volumeToast.show();
-            }
-            if (viewPager != null && tabLayout != null && tabLayout.getSelectedTabPosition() == BrowserTabs.RECEIVER.ordinal() && tabLayout.getTabAt(tabLayout.getSelectedTabPosition()).view != null) {
-                List<Fragment> fragments = getSupportFragmentManager().getFragments();
-                if (fragments.size() > viewPager.getCurrentItem()) {
-                    RecyclerView view = fragments.get(viewPager.getCurrentItem()).getView().findViewById(R.id.receiverList);
-                    if (view != null && view.getAdapter() != null) {
-                        view.getAdapter().notifyDataSetChanged();
+                if (viewPager != null && tabLayout != null && tabLayout.getSelectedTabPosition() == BrowserTabs.RECEIVER.ordinal() && tabLayout.getTabAt(tabLayout.getSelectedTabPosition()).view != null) {
+                    List<Fragment> fragments = getSupportFragmentManager().getFragments();
+                    if (fragments.size() > viewPager.getCurrentItem()) {
+                        RecyclerView view = fragments.get(viewPager.getCurrentItem()).getView().findViewById(R.id.receiverList);
+                        if (view != null && view.getAdapter() != null) {
+                            view.getAdapter().notifyDataSetChanged();
+                        }
                     }
                 }
             }

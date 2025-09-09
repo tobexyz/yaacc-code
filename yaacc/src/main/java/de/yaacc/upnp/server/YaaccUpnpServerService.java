@@ -47,6 +47,7 @@ import org.apache.hc.core5.http.URIScheme;
 import org.apache.hc.core5.http.impl.bootstrap.HttpAsyncServer;
 import org.apache.hc.core5.http2.impl.nio.bootstrap.H2ServerBootstrap;
 import org.apache.hc.core5.reactor.IOReactorConfig;
+import org.apache.hc.core5.reactor.IOReactorStatus;
 import org.apache.hc.core5.util.TimeValue;
 import org.apache.hc.core5.util.Timeout;
 import org.fourthline.cling.binding.annotations.AnnotationLocalServiceBinder;
@@ -338,14 +339,15 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         Log.d(getClass().getName(), "Server status: " + httpServer.getStatus().name());
         Log.d(getClass().getName(), "Server Endpoints: " + httpServer.getEndpoints().size());
         httpServer.getEndpoints().forEach(endpoint -> Log.d(getClass().getName(), "Endpoint: " + endpoint.toString()));
+/*
         timer.schedule(new TimerTask() {
 
             @Override
             public void run() {
-                checkIfHttpServerIsRunning();
+                 checkIfHttpServerIsRunning();
             }
         }, 6000L);
-
+*/
 
     }
 
@@ -371,7 +373,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         } catch (IOException e) {
             Log.e(getClass().getName(), "HttpServer is NOT responding to HTTP requests or is unreachable. Trying restart", e);
             //restartServerService();
-            if (httpServer != null) {
+            if (httpServer != null && httpServer.getStatus() == IOReactorStatus.ACTIVE) {
                 httpServer.listen(new InetSocketAddress(PORT), URIScheme.HTTP);
                 timer.schedule(new TimerTask() {
 
@@ -381,7 +383,8 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
                         httpServer.getEndpoints().forEach(endpoint -> Log.d(getClass().getName(), "Endpoint: " + endpoint.toString()));
                     }
                 }, 500L);
-
+            } else {
+                restartServerService();
             }
 
             return;

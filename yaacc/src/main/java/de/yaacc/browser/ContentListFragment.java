@@ -17,6 +17,7 @@
  */
 package de.yaacc.browser;
 
+import android.graphics.drawable.Drawable;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -47,6 +48,7 @@ import de.yaacc.player.Player;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.UpnpClientListener;
 import de.yaacc.upnp.callback.contentdirectory.ContentDirectoryBrowseResult;
+import de.yaacc.util.ThemeHelper;
 
 /**
  * Activity for browsing devices and folders. Represents the entrypoint for the whole application.
@@ -91,6 +93,8 @@ public class ContentListFragment extends Fragment implements OnClickListener,
     private void init(Bundle savedInstanceState, View contentlistView) {
         upnpClient = ((Yaacc) requireActivity().getApplicationContext()).getUpnpClient();
         backButton = contentlistView.findViewById(R.id.contentListBackButton);
+        Drawable icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_arrow_back_24, getContext().getTheme()), getContext().getTheme());
+        backButton.setImageDrawable(icon);
         backButton.setOnClickListener((v) -> {
             onBackPressed();
         });
@@ -100,6 +104,9 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         topSeperator = contentlistView.findViewById(R.id.contentListTopSeperator);
         contentList = contentlistView.findViewById(R.id.contentList);
         contentList.setLayoutManager(new LinearLayoutManager(getActivity()));
+        contentList.setFocusable(true);
+        contentList.setFocusableInTouchMode(false); // Good for D-Pad primary interaction
+        contentList.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
         upnpClient.addUpnpClientListener(this);
         if (getActivity() != null) {
             getActivity().runOnUiThread(() -> {
@@ -239,8 +246,6 @@ public class ContentListFragment extends Fragment implements OnClickListener,
                 public void onScrolled(@NonNull RecyclerView recyclerView, int dx, int dy) {
                     super.onScrolled(recyclerView, dx, dy);
                     LinearLayoutManager linearLayoutManager = (LinearLayoutManager) recyclerView.getLayoutManager();
-
-
                     if (linearLayoutManager != null && linearLayoutManager.findLastCompletelyVisibleItemPosition() == bItemAdapter.getItemCount() - 1) {
                         if (getActivity() != null) {
                             getActivity().runOnUiThread(() -> {
@@ -249,8 +254,6 @@ public class ContentListFragment extends Fragment implements OnClickListener,
                             });
                         }
                     }
-
-
                 }
             });
         }
@@ -372,9 +375,9 @@ public class ContentListFragment extends Fragment implements OnClickListener,
             return;
         }
         ContentDirectoryBrowseResult result = upnpClient.browseSync(new Position(0, item.getParentID(), upnpClient.getProviderDevice().getIdentity().getUdn().getIdentifierString(), item.getTitle()));
-        if (result == null || (result.getResult() != null && result.getResult().getItems().size() == 0)) {
+        if (result == null || (result.getResult() != null && result.getResult().getItems().isEmpty())) {
             Log.d(getClass().getName(), "Browse result of parent no direct items found...");
-            if (result != null && result.getResult() != null && result.getResult().getContainers().size() > 0) {
+            if (result != null && result.getResult() != null && !result.getResult().getContainers().isEmpty()) {
                 play(upnpClient.initializePlayers(upnpClient.toItemList(result.getResult())));
             } else {
                 play(upnpClient.initializePlayers(item));

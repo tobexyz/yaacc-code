@@ -18,9 +18,15 @@
  -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/browseContentItem"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="vertical">
+    android:orientation="vertical"
+    android:focusable="true"
+    android:focusableInTouchMode="false"
+    android:descendantFocusability="beforeDescendants"
+    android:clickable="true"
+    android:foreground="?attr/selectableItemBackground">
 
     <androidx.cardview.widget.CardView
         android:layout_width="match_parent"
@@ -40,6 +46,7 @@
                 android:id="@+id/browseContentItemIcon"
                 android:layout_width="48dp"
                 android:layout_height="48dp"
+                android:focusable="false"
                 android:layout_alignParentStart="true"
                 android:contentDescription="@string/icon" />
 
@@ -55,6 +62,7 @@
                 android:ellipsize="end"
                 android:maxLines="2"
                 android:text="@string/all"
+                android:focusable="false"
                 android:textAppearance="@android:style/TextAppearance.Material.Medium"
                 android:textColor="?android:attr/colorForeground" />
 
@@ -62,22 +70,22 @@
                 android:id="@+id/browseContentItemPlaylistAdd"
                 style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
                 android:layout_width="32dp"
-                android:layout_height="32dp"
+                android:layout_height="48dp"
                 android:layout_marginStart="2dp"
+                android:nextFocusLeft="@id/browseContentItem"
                 android:layout_toStartOf="@id/browseContentItemDownload"
                 android:contentDescription="@string/browse_context_playlist_add"
-                android:scaleType="center"
                 app:srcCompat="@drawable/ic_baseline_playlist_add_32" />
 
             <ImageButton
                 android:id="@+id/browseContentItemDownload"
                 style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
                 android:layout_width="32dp"
-                android:layout_height="32dp"
+                android:layout_height="48dp"
                 android:layout_marginStart="2dp"
                 android:layout_toStartOf="@id/browseContentItemPlay"
                 android:contentDescription="@string/browse_context_download"
-                android:scaleType="center"
+                android:nextFocusLeft="@id/browseContentItemPlaylistAdd"
                 app:srcCompat="@drawable/ic_baseline_download_32" />
 
 
@@ -85,9 +93,10 @@
                 android:id="@+id/browseContentItemPlay"
                 style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
                 android:layout_width="32dp"
-                android:layout_height="32dp"
+                android:layout_height="48dp"
                 android:layout_marginStart="2dp"
                 android:layout_toStartOf="@id/browseContentItemPlayAll"
+                android:nextFocusLeft="@id/browseContentItemDownload"
                 android:contentDescription="@string/browse_context_play"
                 app:srcCompat="@drawable/ic_baseline_play_arrow_32" />
 
@@ -95,8 +104,9 @@
                 android:id="@+id/browseContentItemPlayAll"
                 style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
                 android:layout_width="32dp"
-                android:layout_height="32dp"
+                android:layout_height="48dp"
                 android:layout_alignParentEnd="true"
+                android:nextFocusLeft="@id/browseContentItemPlay"
                 android:layout_marginStart="2dp"
                 android:contentDescription="@string/browse_context_play_all"
                 app:srcCompat="@drawable/ic_baseline_double_arrow_32" />

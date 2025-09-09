@@ -51,6 +51,9 @@ public class PlayerListFragment extends Fragment implements
         upnpClient = ((Yaacc) requireActivity().getApplicationContext()).getUpnpClient();
         contentList = view.findViewById(R.id.playerList);
         contentList.setLayoutManager(new LinearLayoutManager(getActivity()));
+        contentList.setFocusable(true);
+        contentList.setFocusableInTouchMode(false); // Good for D-Pad primary interaction
+        contentList.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
         upnpClient.addUpnpClientListener(this);
         Thread thread = new Thread(this::populatePlayerList);
         thread.start();
