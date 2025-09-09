@@ -15,8 +15,8 @@ tobexyz
 alt="Get it on F-Droid"
 height="80">](https://f-droid.org/packages/de.yaacc/)
 
-<img src="./docs/screenshots/4.2.x/browse_servers.png" alt= “” width="30%" height="30%"> <img src="./docs/screenshots/4.2.x/browse_image_folder.png" alt= “” width="30%" height="30%"> <img src="./docs/screenshots/4.2.x/browse_receiver.png" alt= “” width="30%" height="30%">
-<img src="./docs/screenshots/4.2.x/music_player.png" alt= “” width="30%" height="30%"> <img src="./docs/screenshots/4.2.x/playlist_fully_editable.png" alt= “” width="30%" height="30%"> <img src="./docs/screenshots/4.2.x/image_player_show_menu.png" alt= “” width="30%" height="30%">
+<img src="./docs/screenshots/4.4.x/browse_servers.png" alt= “” width="30%" height="30%"> <img src="./docs/screenshots/4.4.x/browse_image_folder.png" alt= “” width="30%" height="30%"> <img src="./docs/screenshots/4.4.x/browse_receiver.png" alt= “” width="30%" height="30%">
+<img src="./docs/screenshots/4.2.x/music_player.png" alt= “” width="30%" height="30%"> <img src="./docs/screenshots/4.4.x/playlist_fully_editable.png" alt= “” width="30%" height="30%"> <img src="./docs/screenshots/4.4.x/image_player_show_menu.png" alt= “” width="30%" height="30%">
 
 ## Description
 

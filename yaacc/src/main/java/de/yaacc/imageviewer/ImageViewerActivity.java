@@ -250,6 +250,12 @@ public class ImageViewerActivity extends AppCompatActivity implements SwipeRecei
         pauseButton.setImageDrawable(icon);
         pauseButton.setFocusable(true);
         pauseButton.setFocusableInTouchMode(true);
+        pauseButton.setOnTouchListener((v, event) -> {
+            if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                pause();
+            }
+            return false;
+        });
         pauseButton.setOnClickListener(v -> pause());
         pauseButton.setOnKeyListener((v, keyCode, event) -> {
             if (event.getAction() == KeyEvent.ACTION_DOWN &&
@@ -266,6 +272,12 @@ public class ImageViewerActivity extends AppCompatActivity implements SwipeRecei
         playButton.setImageDrawable(icon);
         playButton.setFocusable(true);
         playButton.setFocusableInTouchMode(true);
+        playButton.setOnTouchListener((v, event) -> {
+            if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                play();
+            }
+            return false;
+        });
         playButton.setOnClickListener(v -> play());
         playButton.setOnKeyListener((v, keyCode, event) -> {
             if (event.getAction() == KeyEvent.ACTION_DOWN &&
@@ -283,6 +295,12 @@ public class ImageViewerActivity extends AppCompatActivity implements SwipeRecei
         stopButton.setFocusable(true);
         stopButton.setFocusableInTouchMode(true);
         stopButton.setFocusableInTouchMode(true);
+        stopButton.setOnTouchListener((v, event) -> {
+            if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                stop();
+            }
+            return false;
+        });
         stopButton.setOnClickListener(v -> stop());
         stopButton.setOnKeyListener((v, keyCode, event) -> {
             if (event.getAction() == KeyEvent.ACTION_DOWN &&
@@ -300,6 +318,12 @@ public class ImageViewerActivity extends AppCompatActivity implements SwipeRecei
         nextButton.setFocusable(true);
         nextButton.setFocusableInTouchMode(true);
         nextButton.setFocusableInTouchMode(true);
+        nextButton.setOnTouchListener((v, event) -> {
+            if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                next();
+            }
+            return false;
+        });
         nextButton.setOnClickListener(v -> previous());
         nextButton.setOnKeyListener((v, keyCode, event) -> {
             if (event.getAction() == KeyEvent.ACTION_DOWN &&
@@ -317,6 +341,12 @@ public class ImageViewerActivity extends AppCompatActivity implements SwipeRecei
         previousButton.setFocusable(true);
         previousButton.setFocusableInTouchMode(true);
         previousButton.setFocusableInTouchMode(true);
+        previousButton.setOnTouchListener((v, event) -> {
+            if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                previous();
+            }
+            return false;
+        });
         previousButton.setOnClickListener(v -> previous());
         previousButton.setOnKeyListener((v, keyCode, event) -> {
             if (event.getAction() == KeyEvent.ACTION_DOWN &&
@@ -334,6 +364,12 @@ public class ImageViewerActivity extends AppCompatActivity implements SwipeRecei
         exitButton.setFocusable(true);
         exitButton.setFocusableInTouchMode(true);
         exitButton.setFocusableInTouchMode(true);
+        exitButton.setOnTouchListener((v, event) -> {
+            if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                exit();
+            }
+            return false;
+        });
         exitButton.setOnClickListener(v -> exit());
         exitButton.setOnKeyListener((v, keyCode, event) -> {
             if (event.getAction() == KeyEvent.ACTION_DOWN &&
