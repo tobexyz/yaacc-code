@@ -376,15 +376,13 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         }
         ContentDirectoryBrowseResult result = upnpClient.browseSync(new Position(0, item.getParentID(), upnpClient.getProviderDevice().getIdentity().getUdn().getIdentifierString(), item.getTitle()));
         if (result == null || (result.getResult() != null && result.getResult().getItems().isEmpty())) {
-            Log.d(getClass().getName(), "Browse result of parent no direct items found...");
             if (result != null && result.getResult() != null && !result.getResult().getContainers().isEmpty()) {
-                play(upnpClient.initializePlayers(upnpClient.toItemList(result.getResult())));
+                play(upnpClient.initializePlayers(upnpClient.toItemList(result.getResult(), 3)));
             } else {
                 play(upnpClient.initializePlayers(item));
             }
         } else {
             List<Item> items = result.getResult() == null ? new ArrayList<>() : result.getResult().getItems();
-            Log.d(getClass().getName(), "Browse result items: " + items.size());
             int index = items.indexOf(item);
             if (index > 0) {
                 //sort selected item to the beginning

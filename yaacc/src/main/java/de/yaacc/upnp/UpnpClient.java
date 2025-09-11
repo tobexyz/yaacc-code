@@ -613,8 +613,15 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
             getControlPoint().execute(actionCallback);
             while (actionCallback.getStatus() == Status.LOADING && actionCallback.getUpnpFailure() == null) {
                 //FIXME implement maybe async model?
+                try {
+                    TimeUnit.MILLISECONDS.sleep(100);
+                } catch (InterruptedException e) {
+                    Log.e(getClass().getName(), "InterruptedException", e);
+                }
             }
-
+            if (actionCallback.getUpnpFailure() != null) {
+                Log.e(getClass().getName(), "UPnP failure: " + actionCallback.getUpnpFailure());
+            }
         }
 
         if (preferences.getBoolean(getContext().getString(R.string.settings_browse_thumbnails_coverlookup_chkbx), false)) {
@@ -688,7 +695,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      * @return the player
      */
     public List<Player> initializePlayers(DIDLObject didlObject) {
-        return initializePlayers(toItemList(didlObject));
+        return initializePlayers(toItemList(didlObject, 3));
     }
 
     /**
@@ -879,14 +886,17 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      * @param didlContent the content
      * @return all items included in the content
      **/
-    public List<Item> toItemList(DIDLContent didlContent) {
+    public List<Item> toItemList(DIDLContent didlContent, int depth) {
         List<Item> items = new ArrayList<>();
         if (didlContent == null) {
             return items;
         }
         items.addAll(didlContent.getItems());
+        if (depth == 0) {
+            return items;
+        }
         for (Container c : didlContent.getContainers()) {
-            items.addAll(toItemList(c));
+            items.addAll(toItemList(c, depth - 1));
         }
         return items;
     }
@@ -897,14 +907,14 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      * @param didlObject the content
      * @return the list of cling items
      */
-    public List<Item> toItemList(DIDLObject didlObject) {
+    public List<Item> toItemList(DIDLObject didlObject, int depth) {
         List<Item> items = new ArrayList<>();
-        if (didlObject instanceof Container) {
+        if (didlObject instanceof Container && depth != 0) {
             DIDLContent content = loadContainer((Container) didlObject);
             if (content != null) {
                 items.addAll(content.getItems());
                 for (Container includedContainer : content.getContainers()) {
-                    items.addAll(toItemList(includedContainer));
+                    items.addAll(toItemList(includedContainer, depth - 1));
                 }
             }
         } else if (didlObject instanceof Item) {
@@ -1510,7 +1520,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     }
 
     public void addToPlaylist(DIDLObject item) {
-        List<Item> itemList = toItemList(item);
+        List<Item> itemList = toItemList(item, 3);
 
         if (getCurrentPlayers().stream().noneMatch(p -> getReceiverDevices().stream()
                 .map(d -> d.getIdentity().getUdn().getIdentifierString())

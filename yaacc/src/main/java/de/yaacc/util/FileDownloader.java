@@ -69,7 +69,7 @@ public class FileDownloader extends AsyncTask<DIDLObject, Void, Void> {
                 }
             }
             createNotification(storageDir.getAbsolutePath());
-            List<Item> items = upnpClient.toItemList(didlObjects[0]);
+            List<Item> items = upnpClient.toItemList(didlObjects[0], 3);
             for (Item item : items) {
                 PlayableItem playableItem = new PlayableItem(item, 0);
                 String filename = playableItem.getTitle().replace(" ", "");
