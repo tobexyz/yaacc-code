@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?><!--
+*
+* Copyright (C) 2025 www.yaacc.de
+*
+* This program is free software; you can redistribute it and/or
+* modify it under the terms of the GNU General Public License
+* as published by the Free Software Foundation; either version 3
+* of the License, or (at your option) any later version.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with this program; if not, write to the Free Software
+* Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+-->
+<resources>
+    <string name="settings_category_send_rec">envio e recebimento</string>
+    <string name="settings_category_browsing">comportamento de navegação de mídia</string>
+    <string name="settings_selected_provider_title">provedor de mídia atual</string>
+    <string name="settings_change_provider">aba para alterar o provedor atual</string>
+    <string name="settings_selected_receivers_title">receptores de mídia atuais</string>
+    <string name="settings_change_receiver">aba para alterar o receptor atual</string>
+    <string name="settings_audio_app">reprodução de áudio</string>
+    <string name="settings_video_app">reprodução de vídeo</string>
+    <string name="settings_image_app">reprodução de imagem</string>
+    <string name="settings_default_duration">duração padrão do item</string>
+    <string name="settings_silence_duration">duração do silêncio</string>
+    <string name="settings_image_app_on">a reprodução de imagem local diretamente no YAACC está ativada</string>
+    <string name="settings_image_app_off">a reprodução de imagem local abre um aplicativo de terceiros</string>
+    <string name="settings_video_app_on">a reprodução de vídeo local diretamente no YAACC está ativada</string>
+    <string name="settings_video_app_off">a reprodução de vídeo local abre um aplicativo de terceiros</string>
+    <string name="settings_browse_chunk_size">tamanho do pedaço ao navegar</string>
+    <string name="settings_browse_chunk_size_summ">quantidade de itens obtidos do servidor em uma solicitação</string>
+    <string name="settings_category_appearance">Aparência</string>
+    <string name="settings_dark_mode_title">Modo escuro</string>
+    <string name="settings_dark_mode_off">cantar configurações do sistema</string>
+    <string name="settings_dark_mode_on">Modo escuro ativo</string>
+    <string name="settings_log_level">Nível de registro</string>
+    <string name="settings_browse_audio_on">mostrar arquivos de áudio</string>
+    <string name="settings_browse_audio_off">não mostrar arquivos de áudio</string>
+    <string name="settings_browse_video_on">mostrar arquivos de vídeo</string>
+    <string name="settings_browse_video_off">não mostrar arquivos de vídeo</string>
+    <string name="settings_browse_image_on">mostrar arquivos de imagem</string>
+    <string name="settings_browse_image_off">não mostrar arquivos de imagem</string>
+    <string name="settings_browse_thumbnails_title">miniaturas</string>
+    <string name="settings_browse_thumbnails_on">mostrar miniaturas de imagem</string>
+    <string name="settings_browse_thumbnails_off">não mostrar miniaturas de imagem</string>
+    <string name="settings_browse_thumbnails_coverlookup_title">imagens de capa</string>
+    <string name="settings_browse_thumbnails_coverlookup_on">imagens em diretórios são usadas como capas de música</string>
+    <string name="settings_browse_thumbnails_coverlookup_off">imagens em diretórios não são usadas como capas</string>
+    <string name="settings_browse_max_results_summ">quantidade total de itens obtidos do servidor</string>
+    <string name="settings_browse_max_results_title">tamanho do conjunto de resultados</string>
+    <string name="settings_browse_load_threads">número de threads</string>
+    <string name="settings_browse_load_threads_summ">Configure o número de threads usados para carregar conteúdo do servidor UPnP. Mais threads causam um carregamento mais rápido, mas aumentam a possibilidade de erros. As alterações entram em vigor após a reinicialização do yaacc.</string>
+    <string name="settings_no_content_found">nenhum conteúdo encontrado para navegar</string>
+    <string name="settings_local_server_title">configuração do servidor local</string>
+    <string name="settings_local_server_activation_title">estado do servidor local</string>
+    <string name="settings_local_server_started">o servidor local está iniciado</string>
+    <string name="settings_local_server_stopped">o servidor local está parado</string>
+    <string name="settings_local_server_receiver_title">serviço de receptor de mídia</string>
+    <string name="settings_local_server_receiver_off">o receptor de mídia está desativado</string>
+    <string name="settings_local_server_receiver_on">o receptor de mídia está ativado</string>
+    <string name="settings_local_server_provider_title">serviço de provedor de mídia</string>
+    <string name="settings_local_server_provider_off">o diretório de conteúdo está desativado</string>
+    <string name="settings_local_server_provider_on">o diretório de conteúdo está ativado</string>
+    <string name="settings_local_server_proxy_title">serviço de proxy de mídia</string>
+    <string name="settings_local_server_proxy_off">proxy de mídia desativado</string>
+    <string name="settings_local_server_proxy_on">proxy de mídia ativado</string>
+    <string name="settings_local_server_testcontent">servidor local usando conteúdo de teste</string>
+    <string name="settings_local_server_provider_source_title">fonte do provedor de mídia</string>
+    <string name="settings_local_server_mediastore">servidor local usando mediastore</string>
+    <string name="settings_local_server_serve_images_title">servir imagens</string>
+    <string name="settings_local_server_serve_images_off">servir imagens está desativado</string>
+    <string name="settings_local_server_serve_images_on">servir imagens está ativado</string>
+    <string name="settings_local_server_serve_music_title">servir música</string>
+    <string name="settings_local_server_serve_music_off">servir música está desativado</string>
+    <string name="settings_local_server_serve_music_on">servir música está ativado</string>
+    <string name="settings_local_server_serve_video_title">servir vídeos</string>
+    <string name="settings_local_server_serve_video_off">servir vídeo está desativado</string>
+    <string name="settings_local_server_serve_video_on">servir vídeo está ativado</string>
+    <string name="settings_local_server_name">nome da rede para o servidor local</string>
+    <string name="settings_local_server_autostart_title">iniciar o servidor automaticamente na inicialização</string>
+    <string name="settings_local_server_autostart_deactivated">o servidor não iniciará após a inicialização</string>
+    <string name="settings_local_server_autostart_activated">o servidor iniciará após a inicialização</string>
+    <string name="settings_sending_upnp_alive_interval">enviando notificações UPnP alive</string>
+    <string name="settings_category_playing">comportamento de reprodução de mídia</string>
+    <string name="settings_replay_title">repetir lista de reprodução</string>
+    <string name="settings_replay_playlist_on">repetir lista de reprodução</string>
+    <string name="settings_replay_playlist_off">não repetir a lista de reprodução</string>
+    <string name="settings_music_player_shuffle_title">reprodução aleatória de música</string>
+    <string name="settings_music_player_shuffle_on">reprodução de música aleatória</string>
+    <string name="settings_music_player_shuffle_off">reprodução de música ordenada</string>
+    <string name="settings_category_synchronization">configurações de sincronização</string>
+    <string name="settings_browse_swipe_off">Alterar guias com o toque</string>
+    <string name="settings_browse_swipe_on">Alterar guias ao deslizar e tocar</string>
+    <string name="settings_browse_swipe_title">Deslizar na navegação</string>
+    <string name="settings_local_server_if_filter_names">interfaces na lista negra para recuperação de endereço IP</string>
+</resources>

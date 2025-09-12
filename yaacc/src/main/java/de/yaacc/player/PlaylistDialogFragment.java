@@ -33,7 +33,6 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
-import java.util.Collections;
 
 import de.yaacc.R;
 import de.yaacc.Yaacc;
@@ -104,14 +103,7 @@ public class PlaylistDialogFragment extends DialogFragment {
                 public boolean onMove(@NonNull RecyclerView recyclerView, @NonNull RecyclerView.ViewHolder viewHolder, @NonNull RecyclerView.ViewHolder target) {
                     int fromPosition = viewHolder.getAdapterPosition();
                     int toPosition = target.getAdapterPosition();
-                    if (player.isPlaying() && (viewHolder.getAdapterPosition() <= player.getCurrentItemIndex()
-                            || target.getAdapterPosition() <= player.getCurrentItemIndex())) {
-                        //do not allow to drag current playing item
-                        return false;
-                    }
-                    Collections.swap(player.getItems(), fromPosition, toPosition);
-                    recyclerView.getAdapter().notifyItemMoved(fromPosition, toPosition);
-                    return true;
+                    return playlistItemAdapter.moveItem(fromPosition, toPosition);
                 }
 
                 @Override

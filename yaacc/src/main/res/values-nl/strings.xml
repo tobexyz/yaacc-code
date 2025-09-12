@@ -1,3 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?><!--
+ *
+ * Copyright (C) 2025 www.yaacc.de
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 3
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ -->
 <resources>
     <string name="app_name">YAACC</string>
     <string name="menu_settings">Instellingen</string>
@@ -82,13 +100,6 @@
     <string name="playerNameImageShort">Afbeeldingen</string>
     <string name="playerShortNameMusic">Muziek</string>
     <string name="playerShortNameMultiContent">multi</string>
-    <string name="settings_browse_chunk_size">brokgrootte tijdens het browsen</string>
-    <string name="settings_browse_chunk_size_summ">hoeveelheid items die in één verzoek van de server zijn opgehaald</string>
-    <string name="settings_category_appearance">Verschijning</string>
-    <string name="settings_dark_mode_title">Donkere modus</string>
-    <string name="settings_dark_mode_off">Systeeminstellingen gebruiken</string>
-    <string name="settings_dark_mode_on">Donkere modus actief</string>
-    <string name="settings_log_level">Logniveau</string>
     <string name="media_store_scanner_scan_triggered">scan van mediawinkel geactiveerd</string>
     <string name="media_store_scanner_scan_finished">Scan van mediawinkel voltooid</string>
     <string name="media_store_scan">scannen</string>

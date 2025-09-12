@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?><!--
  *
- * Copyright (C) 2013 www.yaacc.de
+ * Copyright (C) 2025 www.yaacc.de
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -78,6 +78,15 @@
     <string name="settings_music_player_shuffle_title">Gemischte Musikabspielung</string>
     <string name="settings_music_player_shuffle_on">Musikabspielung gemischt</string>
     <string name="settings_music_player_shuffle_off">Musikabspielung geordnet</string>
+    <string name="settings_browse_chunk_size">Abfragegröße</string>
+    <string name="settings_browse_chunk_size_summ">Anzahl der abzufragenden Einträge je Anfrage</string>
+    <string name="settings_category_appearance">Erscheinungsbild</string>
+    <string name="settings_dark_mode_title">Dunkles Design</string>
+    <string name="settings_dark_mode_off">Verwende Systemeinstellungen</string>
+    <string name="settings_dark_mode_on">Dunkles Design aktiv</string>
+    <string name="settings_log_level">Log level</string>
+    <string name="settings_browse_max_results_summ">Maximale Größe des Suchergebnisses</string>
+    <string name="settings_browse_max_results_title">Ergebnismengengröße</string>
     <string name="settings_browse_thumbnails_title">Vorschaubilder</string>
     <string name="settings_browse_thumbnails_on">Zeige Vorschaubilder</string>
     <string name="settings_browse_thumbnails_off">Zeige keine Vorschaubilder</string>
@@ -89,5 +98,4 @@
     <string name="settings_browse_swipe_on">Tabwechsel mit Swipe und Touch</string>
     <string name="settings_browse_swipe_title">"Swipe-Verhalten "</string>
     <string name="settings_local_server_if_filter_names">Ignorierte Interfaces für die IP-Ermittlung</string>
-
 </resources>

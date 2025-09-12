@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?><!--
  *
- * Copyright (C) 2013 www.yaacc.de 
+ * Copyright (C) 2025 www.yaacc.de
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -17,7 +17,6 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  -->
 <resources>
-
     <string name="app_name">YAACC</string>
     <string name="menu_settings">Einstellungen</string>
     <string name="browse_main_folder">Zeige Hauptverzeichnis</string>
@@ -101,13 +100,6 @@
     <string name="playerNameImageShort">Bilder</string>
     <string name="playerShortNameMusic">Musik</string>
     <string name="playerShortNameMultiContent">Multi</string>
-    <string name="settings_browse_chunk_size">Abfragegröße</string>
-    <string name="settings_browse_chunk_size_summ">Anzahl der abzufragenden Einträge je Anfrage</string>
-    <string name="settings_category_appearance">Erscheinungsbild</string>
-    <string name="settings_dark_mode_title">Dunkles Design</string>
-    <string name="settings_dark_mode_off">Verwende Systemeinstellungen</string>
-    <string name="settings_dark_mode_on">Dunkles Design aktiv</string>
-    <string name="settings_log_level">Log level</string>
     <string name="media_store_scanner_scan_triggered">Aktualisierung der Mediendatenbank gestartet</string>
     <string name="media_store_scanner_scan_finished">Aktualisierung der Mediendatenbank beendet</string>
     <string name="media_store_scan">Scan</string>
@@ -126,6 +118,4 @@
     <string name="shared_folders">wähle freizugebende Ordner</string>
     <string name="reset_shared_folders">freigegebene Ordner zurücksetzen</string>
     <string name="shutdown_timer">Ausschalttimer</string>
-
-
 </resources>

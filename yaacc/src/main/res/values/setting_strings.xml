@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?><!--
 *
-* Copyright (C) 2013 www.yaacc.de
+* Copyright (C) 2025 www.yaacc.de
 *
 * This program is free software; you can redistribute it and/or
 * modify it under the terms of the GNU General Public License
@@ -17,8 +17,6 @@
 * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 -->
 <resources>
-
-
     <string name="settings_category_send_rec">sending and receiving</string>
     <string name="settings_category_browsing">media browsing behavior</string>
     <string name="settings_selected_provider_title">current media provider</string>
@@ -43,6 +41,18 @@
     <string name="settings_browse_image_on">show image files</string>
     <string name="settings_browse_image_off">show no image files</string>
     <string name="settings_thumbnails_chkbx" translatable="false">thumbnails_chkbx</string>
+    <string name="settings_browse_chunk_size">chunk size when browsing</string>
+    <string name="settings_browse_chunk_size_key" translatable="false">browse_chunk_size_key</string>
+    <string name="settings_browse_chunk_size_summ">amount of items fetched from server in one request</string>
+    <string name="settings_category_appearance">Appearance</string>
+    <string name="settings_dark_mode_key" translatable="false">settings_dark_mode_key</string>
+    <string name="settings_dark_mode_title">Dark mode</string>
+    <string name="settings_dark_mode_off">Using system settings</string>
+    <string name="settings_dark_mode_on">Dark mode active</string>
+    <string name="settings_log_level_key" translatable="false">settings_log_level_key</string>
+    <string name="settings_log_level">Log level</string>
+    <string name="settings_local_server_provider_uuid_key" translatable="false">settings_local_server_provider_uuid_key</string>
+    <string name="settings_local_server_receiver_uuid_key" translatable="false">settings_local_server_receiver_uuid_key</string>
     <string name="settings_browse_thumbnails_title">thumbnails</string>
     <string name="settings_browse_thumbnails_on">show image thumbnails</string>
     <string name="settings_browse_thumbnails_off">show no image thumbnails</string>
@@ -50,6 +60,9 @@
     <string name="settings_browse_thumbnails_coverlookup_on">images in directories are used as music covers</string>
     <string name="settings_browse_thumbnails_coverlookup_off">images in directories are not used as covers</string>
     <string name="settings_browse_thumbnails_coverlookup_chkbx" translatable="false">thumbnail_cover_lookup_chkbx</string>
+    <string name="settings_browse_max_results_key" translatable="false">settings_browse_max_results_key</string>
+    <string name="settings_browse_max_results_summ">amount of items fetched from server in total</string>
+    <string name="settings_browse_max_results_title">result set size</string>
     <string name="settings_browse_load_threads_key" translatable="false">settings_browse_load_threads_key</string>
     <string name="settings_browse_load_threads">number of threads</string>
     <string name="settings_browse_load_threads_summ">Configure the number of threads used for loading content from the UPnP server. More threads causes faster loading but increase the possibility of errors. Changes are effect after restart of yaacc.</string>
