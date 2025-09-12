@@ -69,6 +69,13 @@
             android:key="@string/settings_browse_chunk_size_key"
             android:summary="@string/settings_browse_chunk_size_summ"
             android:title="@string/settings_browse_chunk_size" />
+        <EditTextPreference
+            android:defaultValue="1000"
+            android:dialogTitle="@string/settings_browse_max_results_title"
+            android:inputType="number"
+            android:key="@string/settings_browse_max_results_key"
+            android:summary="@string/settings_browse_max_results_summ"
+            android:title="@string/settings_browse_max_results_title" />
     </PreferenceCategory>
     <PreferenceCategory android:title="@string/settings_category_playing">
         <ListPreference

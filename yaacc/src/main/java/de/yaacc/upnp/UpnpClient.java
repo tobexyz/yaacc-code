@@ -695,7 +695,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      * @return the player
      */
     public List<Player> initializePlayers(DIDLObject didlObject) {
-        return initializePlayers(toItemList(didlObject, 3));
+        return initializePlayers(toItemList(didlObject));
     }
 
     /**
@@ -886,17 +886,18 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      * @param didlContent the content
      * @return all items included in the content
      **/
-    public List<Item> toItemList(DIDLContent didlContent, int depth) {
-        List<Item> items = new ArrayList<>();
+    public List<Item> toItemList(DIDLContent didlContent) {
+
         if (didlContent == null) {
-            return items;
+            return new ArrayList<>();
         }
+        List<Item> items = new ArrayList<>();
         items.addAll(didlContent.getItems());
-        if (depth == 0) {
-            return items;
-        }
+        int itemCount = items.size();
         for (Container c : didlContent.getContainers()) {
-            items.addAll(toItemList(c, depth - 1));
+            List<Item> containerItems = toItemList(c, itemCount);
+            itemCount += containerItems.size();
+            items.addAll(containerItems);
         }
         return items;
     }
@@ -907,14 +908,27 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      * @param didlObject the content
      * @return the list of cling items
      */
-    public List<Item> toItemList(DIDLObject didlObject, int depth) {
+    public List<Item> toItemList(DIDLObject didlObject) {
+        return toItemList(didlObject, 0);
+    }
+
+    private List<Item> toItemList(DIDLObject didlObject, int currentResultSize) {
+        if (currentResultSize >= Integer.parseInt(getPreferences().getString(getContext().getString(R.string.settings_browse_max_results_key), "1000"))) {
+            return new ArrayList<>();
+        }
         List<Item> items = new ArrayList<>();
-        if (didlObject instanceof Container && depth != 0) {
+        if (didlObject instanceof Container) {
             DIDLContent content = loadContainer((Container) didlObject);
             if (content != null) {
                 items.addAll(content.getItems());
+                int itemCount = currentResultSize + items.size();
+                if (itemCount >= Integer.parseInt(getPreferences().getString(getContext().getString(R.string.settings_browse_max_results_key), "1000"))) {
+                    return items;
+                }
                 for (Container includedContainer : content.getContainers()) {
-                    items.addAll(toItemList(includedContainer, depth - 1));
+                    List<Item> containerItems = toItemList(includedContainer, itemCount);
+                    itemCount += containerItems.size();
+                    items.addAll(containerItems);
                 }
             }
         } else if (didlObject instanceof Item) {

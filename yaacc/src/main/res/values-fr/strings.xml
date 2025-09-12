@@ -1,3 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?><!--
+ *
+ * Copyright (C) 2025 www.yaacc.de
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 3
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ -->
 <resources>
     <string name="app_name">YAACC</string>
     <string name="menu_settings">Paramètres</string>
@@ -82,13 +100,6 @@
     <string name="playerNameImageShort">Images</string>
     <string name="playerShortNameMusic">Musique</string>
     <string name="playerShortNameMultiContent">multi</string>
-    <string name="settings_browse_chunk_size">taille du morceau lors de la navigation</string>
-    <string name="settings_browse_chunk_size_summ">quantité d\'éléments récupérés du serveur en une seule requête</string>
-    <string name="settings_category_appearance">Apparence</string>
-    <string name="settings_dark_mode_title">Mode sombre</string>
-    <string name="settings_dark_mode_off">Utilisation des paramètres système</string>
-    <string name="settings_dark_mode_on">Mode sombre actif</string>
-    <string name="settings_log_level">Niveau de journalisation</string>
     <string name="media_store_scanner_scan_triggered">analyse du magasin multimédia déclenchée</string>
     <string name="media_store_scanner_scan_finished">analyse du magasin multimédia terminée</string>
     <string name="media_store_scan">balayage</string>
@@ -107,6 +118,4 @@
     <string name="shared_folders">sélectionner les dossiers partagés</string>
     <string name="reset_shared_folders">reset shared folders</string>
     <string name="shutdown_timer">Minuterie d\'arrêt</string>
-
-
 </resources>

@@ -377,7 +377,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         ContentDirectoryBrowseResult result = upnpClient.browseSync(new Position(0, item.getParentID(), upnpClient.getProviderDevice().getIdentity().getUdn().getIdentifierString(), item.getTitle()));
         if (result == null || (result.getResult() != null && result.getResult().getItems().isEmpty())) {
             if (result != null && result.getResult() != null && !result.getResult().getContainers().isEmpty()) {
-                play(upnpClient.initializePlayers(upnpClient.toItemList(result.getResult(), 3)));
+                play(upnpClient.initializePlayers(upnpClient.toItemList(result.getResult())));
             } else {
                 play(upnpClient.initializePlayers(item));
             }

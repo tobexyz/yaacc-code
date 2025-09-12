@@ -1,79 +1,24 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?><!--
+*
+* Copyright (C) 2025 www.yaacc.de
+*
+* This program is free software; you can redistribute it and/or
+* modify it under the terms of the GNU General Public License
+* as published by the Free Software Foundation; either version 3
+* of the License, or (at your option) any later version.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with this program; if not, write to the Free Software
+* Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+-->
 <resources>
     <string name="app_name">YAACC</string>
-    <string name="settings_category_send_rec">enviando e recebendo</string>
-    <string name="settings_category_browsing">comportamento de navegação na mídia</string>
-    <string name="settings_selected_provider_title">provedor de mídia atual</string>
-    <string name="settings_change_provider">guia para alterar o provedor atual</string>
-    <string name="settings_selected_receivers_title">receptores de mídia atuais</string>
-    <string name="settings_change_receiver">guia para alterar o receptor atual</string>
-    <string name="settings_audio_app">reprodução de áudio</string>
-    <string name="settings_video_app">reprodução de vídeo</string>
-    <string name="settings_image_app">reprodução de imagem</string>
-    <string name="settings_default_duration">duração padrão do item</string>
-    <string name="settings_silence_duration">duração do silêncio</string>
-    <string name="settings_image_app_on">a reprodução local de imagens diretamente no YAACC está habilitada</string>
-    <string name="settings_image_app_off">a reprodução local de imagens abre um aplicativo de terceiros</string>
-    <string name="settings_video_app_on">a reprodução de vídeo local diretamente no YAACC está habilitada</string>
-    <string name="settings_video_app_off">a reprodução de vídeo local abre um aplicativo de terceiros</string>
-    <string name="settings_browse_audio_on">mostrar arquivos de áudio</string>
-    <string name="settings_browse_audio_off">não mostrar arquivos de áudio</string>
-    <string name="settings_browse_video_on">mostrar arquivos de vídeo</string>
-    <string name="settings_browse_video_off">não mostrar arquivos de vídeo</string>
-    <string name="settings_browse_image_on">mostrar arquivos de imagem</string>
-    <string name="settings_browse_image_off">não mostrar nenhuma imagem</string>
-    <string name="settings_browse_thumbnails_title">miniaturas</string>
-    <string name="settings_browse_thumbnails_on">mostrar miniaturas de imagens</string>
-    <string name="settings_browse_thumbnails_off">não mostrar miniaturas de imagens</string>
-    <string name="settings_browse_thumbnails_coverlookup_title">imagens de capa</string>
-    <string name="settings_browse_thumbnails_coverlookup_on">imagens em diretórios são usadas como capas de músicas</string>
-    <string name="settings_browse_thumbnails_coverlookup_off">imagens em diretórios não são usadas como capas</string>
-    <string name="settings_browse_load_threads">número de tópicos</string>
-    <string name="settings_browse_load_threads_summ">Configure o número de threads usados ​​para carregar conteúdo do servidor UPnP. Mais threads causam carregamento mais rápido, mas aumentam a possibilidade de erros. As alterações entram em vigor após a reinicialização do yaacc.</string>
     <string name="fast_forward">avanço rápido</string>
-    <string name="settings_no_content_found">nenhum conteúdo encontrado para navegação</string>
-    <string name="settings_local_server_title">configuração do servidor local</string>
-    <string name="settings_local_server_activation_title">estado do servidor local</string>
-    <string name="settings_local_server_started">servidor local é iniciado</string>
-    <string name="settings_local_server_stopped">servidor local está parado</string>
-    <string name="settings_local_server_receiver_title">serviço de receptor de mídia</string>
-    <string name="settings_local_server_receiver_off">receptor de mídia está desativado</string>
-    <string name="settings_local_server_receiver_on">receptor de mídia está ativado</string>
-    <string name="settings_local_server_provider_title">serviço de provedor de mídia</string>
-    <string name="settings_local_server_provider_off">diretório de conteúdo está desabilitado</string>
-    <string name="settings_local_server_provider_on">diretório de conteúdo está ativado</string>
-    <string name="settings_local_server_proxy_title">serviço de proxy de mídia</string>
-    <string name="settings_local_server_proxy_off">proxy de mídia desativado</string>
-    <string name="settings_local_server_proxy_on">proxy de mídia ativado</string>
-    <string name="settings_local_server_testcontent">servidor local usando conteúdo de teste</string>
-    <string name="settings_local_server_provider_source_title">fonte do provedor de mídia</string>
-    <string name="settings_local_server_mediastore">servidor local usando mediastore</string>
-    <string name="settings_local_server_serve_images_title">veicular imagens</string>
-    <string name="settings_local_server_serve_images_off">veicular imagens está desabilitado</string>
-    <string name="settings_local_server_serve_images_on">serve images is enabled</string>
-    <string name="settings_local_server_serve_music_title">servir música</string>
-    <string name="settings_local_server_serve_music_off">servir música está desativado</string>
-    <string name="settings_local_server_serve_music_on">servir música está ativado</string>
-    <string name="settings_local_server_serve_video_title">veicular vídeos</string>
-    <string name="settings_local_server_serve_video_off">veicular vídeo está desativado</string>
-    <string name="settings_local_server_serve_video_on">veicular vídeo está ativado</string>
-    <string name="settings_local_server_name">nome de rede para servidor local</string>
-    <string name="settings_local_server_autostart_title">servidor de inicialização automática na inicialização</string>
-    <string name="settings_local_server_autostart_deactivated">o servidor não iniciará após a inicialização</string>
-    <string name="settings_local_server_autostart_activated">o servidor será iniciado após a inicialização</string>
-    <string name="settings_sending_upnp_alive_interval">enviando notificações UPnP vivas</string>
-    <string name="settings_category_playing">comportamento de reprodução de mídia</string>
-    <string name="settings_replay_title">reproduzir lista de reprodução</string>
-    <string name="settings_replay_playlist_on">reproduzir lista de reprodução</string>
-    <string name="settings_replay_playlist_off">não reproduza a lista de reprodução</string>
-    <string name="settings_music_player_shuffle_title">música aleatória</string>
-    <string name="settings_music_player_shuffle_on">reprodução de música embaralhada</string>
-    <string name="settings_music_player_shuffle_off">ordem de reprodução de música</string>
-    <string name="settings_category_synchronization">configurações de sincronização</string>
-    <string name="settings_browse_swipe_off">Alterar guias ao tocar</string>
-    <string name="settings_browse_swipe_on">Alterar guias deslizando e tocando</string>
-    <string name="settings_browse_swipe_title">Deslize para navegar</string>
-    <string name="settings_local_server_if_filter_names">interfaces listadas em preto para recuperação de endereço IP</string>
     <string name="menu_settings">Configurações</string>
     <string name="browse_main_folder">Navegar na pasta principal</string>
     <string name="browse_context_title">Ações disponíveis</string>
@@ -156,13 +101,6 @@
     <string name="playerNameImageShort">Images</string>
     <string name="playerShortNameMusic">Música</string>
     <string name="playerShortNameMultiContent">multi</string>
-    <string name="settings_browse_chunk_size">tamanho do pedaço ao navegar</string>
-    <string name="settings_browse_chunk_size_summ">quantidade de itens buscados do servidor em uma solicitação</string>
-    <string name="settings_category_appearance">Aparência</string>
-    <string name="settings_dark_mode_title">Modo escuro</string>
-    <string name="settings_dark_mode_off">Usando as configurações do sistema</string>
-    <string name="settings_dark_mode_on">Modo escuro ativo</string>
-    <string name="settings_log_level">Nível de registro</string>
     <string name="media_store_scanner_scan_triggered">verificação do armazenamento de mídia acionada</string>
     <string name="media_store_scanner_scan_finished">verificação do armazenamento de mídia concluída</string>
     <string name="media_store_scan">digitalizar</string>
