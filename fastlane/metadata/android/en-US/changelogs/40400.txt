@@ -1,5 +1,5 @@
 Version 4.4.0
-- fixed navigation using keys
+- added keyboard support
 - improved stability of media server
 - added shutdown timer 
 - allow configuration of folders shared by the server
