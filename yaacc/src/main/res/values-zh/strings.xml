@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="utf-8"?><!--
+*
+* Copyright (C) 2025 www.yaacc.de
+*
+* This program is free software; you can redistribute it and/or
+* modify it under the terms of the GNU General Public License
+* as published by the Free Software Foundation; either version 3
+* of the License, or (at your option) any later version.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with this program; if not, write to the Free Software
+* Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+-->
+<resources>
+    <string name="app_name">YAACC</string>
+    <string name="menu_settings">设置</string>
+    <string name="browse_main_folder">浏览主文件夹</string>
+    <string name="browse_context_title">可用操作</string>
+    <string name="browse_context_play">播放项目</string>
+    <string name="browse_context_download">下载项目</string>
+    <string name="browse_context_add_to_playplist">添加项目到播放列表</string>
+    <string name="browse_no_content_found">未找到数据</string>
+    <string name="browse_button_devices">发送设备</string>
+    <string name="browse_button_prev">上一个项目</string>
+    <string name="browse_button_stop">停止播放</string>
+    <string name="browse_button_next">下一个项目</string>
+    <string name="title_activity_main">YAACC</string>
+    <string name="title_activity_upnp_browser">Upnp浏览器活动</string>
+    <string name="title_activity_image_viewer">图片浏览器活动</string>
+    <string name="title_activity_settings">设置</string>
+    <string name="title_activity_image_viewer_settings">图片查看器设置</string>
+    <string name="title_activity_generic_browse">一般浏览活动</string>
+    <string name="error_upnp_generic">浏览时发生未知错误</string>
+    <string name="error_upnp_specific">出现下列错误：</string>
+    <string name="error_no_receiver_device_found">未找到接收设备</string>
+    <string name="error_no_activity_found">未找到播放 mimetype \'%1$s\' 的活动</string>
+    <string name="image_viewer_settings_duration">图片停留时长</string>
+    <string name="image_viewer_settings_duration_key" translatable="false">image_viewer_settings_duration_key</string>
+    <string name="yaacc_menu_settings">YAACC 设置</string>
+    <string name="yaacc_about">关于</string>
+    <string name="no_valid_uri_data_found_to_display">未找到显示的有效 uri 数据</string>
+    <string name="play">播放</string>
+    <string name="stop">停止</string>
+    <string name="pause">暂停</string>
+    <string name="previous">上一个</string>
+    <string name="next">下一个</string>
+    <string name="exit">退出</string>
+    <string name="title_activity_music_player">YAACC 音乐播放器</string>
+    <string name="musicActivityImageView">封面</string>
+    <string name="avtransportPlayerActivityImageView">设备</string>
+    <string name="playerNameMusic">音乐</string>
+    <string name="playerNameImage">图片</string>
+    <string name="playerNameMultiContent">多个</string>
+    <string name="playerNameAvTransport">远程</string>
+    <string name="multiContentPlayerActivityImageView">多个内容</string>
+    <string name="title_activity_avtransport_player">YAACC 远程播放器</string>
+    <string name="title_activity_multi_content_player">YAACC 默认播放器</string>
+    <string name="can_not_start_activity">"无法启动应用！原因： "</string>
+    <string name="app_descrip">用安卓把本地网络的 UPnP 设备聚合到一处。 <a href="http://www.yaacc.de">www.yaacc.de</a>  YAACC 在 GPLv3 许可证下开发。请随意使用和分享，没有任何担保。许可证详情位于 (www.gnu.org/licenses/gpl-3.0)  。进一步许可证：UPnP 实现基于 Cling (https://github.com/4thline/cling) 使用了 Material 设计图标和符号 (https://github.com/google/material-design-icons) 。Android 是 Google Inc 的商标 (developer.android.com/about/index.html )</string>
+    <string name="title_activity_yaacc_upnp_server_control">YAACC UPnP 服务器控制</string>
+    <string name="yaacc_upnp_server_stop_server">停止服务器</string>
+    <string name="yaacc_upnp_server_start_server">启动服务器</string>
+    <string name="playerCurrentItem">当前项</string>
+    <string name="musicActivityNextLabel">"下一首："</string>
+    <string name="playerNextItem">下个项目</string>
+    <string name="playerPosition">位置</string>
+    <string name="playerTiming">时间：</string>
+    <string name="playerTimeDuration">时长</string>
+    <string name="playerTimeSeparator" translatable="false"> / </string>
+    <string name="playerTimeElapsed">已播放时间</string>
+    <string name="bucket_names">图库</string>
+    <string name="all_images">所有图片</string>
+    <string name="images">图片</string>
+    <string name="albums">专辑</string>
+    <string name="all">所有</string>
+    <string name="artists">艺术家</string>
+    <string name="genres">流派</string>
+    <string name="videos">视频</string>
+    <string name="music">音乐</string>
+    <string name="title_activity_yaacc_log">查看日志</string>
+    <string name="logContent">系统日志内容应该显示在这里</string>
+    <string name="activity_remote_player_mute">静音</string>
+    <string name="activity_remote_player_volume">音量</string>
+    <string name="title_activity_server_list">服务器</string>
+    <string name="title_activity_content_list">内容</string>
+    <string name="title_activity_receiver_list">接收设备</string>
+    <string name="title_activity_player_list">播放器</string>
+    <string name="browse_context_play_all">播放所有项目</string>
+    <string name="open">打开</string>
+    <string name="exitActivity">停止</string>
+    <string name="icon">图标</string>
+    <string name="not_yet_implemented">还未实现</string>
+    <string name="avtransportPlayerActivityNextLabel">下一个：</string>
+    <string name="browse_context_control_device">控制设备</string>
+    <string name="channel_name">YAACC</string>
+    <string name="channel_description">YAACC 通知</string>
+    <string name="playerNameImageShort">图片</string>
+    <string name="playerShortNameMusic">音乐</string>
+    <string name="playerShortNameMultiContent">多个项目</string>
+    <string name="media_store_scanner_scan_triggered">触发了媒体存储扫描</string>
+    <string name="media_store_scanner_scan_finished">完成了媒体存储扫描</string>
+    <string name="media_store_scan">扫描</string>
+    <string name="media_store_label">媒体存储</string>
+    <string name="search_devices">正搜索 UPnP 设备</string>
+    <string name="this_device">这台设备</string>
+    <string name="stop_not_supported">"第三方应用不支持停止 "</string>
+    <string name="settings">设置</string>
+    <string name="upnp_server">UPnP 服务器</string>
+    <string name="browse_context_playlist_add">添加到播放列表</string>
+    <string name="add_to_playlist">添加项目到当前接收设备的播放列表</string>
+    <string name="playlist">播放列表</string>
+    <string name="fast_rewind">快退</string>
+    <string name="fast_forward">快进</string>
+    <string name="downloaded_to_target">已下载到  /Download/yaacc/</string>
+    <string name="shared_folders">选择共享文件夹</string>
+    <string name="reset_shared_folders">重置共享文件夹</string>
+    <string name="shutdown_timer">关闭定时器</string>
+</resources>
