@@ -20,15 +20,15 @@
     <string name="settings_category_send_rec">发送和接收</string>
     <string name="settings_category_browsing">媒体浏览行为</string>
     <string name="settings_selected_provider_title">当前媒体提供方</string>
-    <string name="settings_change_provider">更改当前提供方的标签页</string>
+    <string name="settings_change_provider">tab 键更改当前提供方</string>
     <string name="settings_selected_receivers_title">当前媒体接收方</string>
-    <string name="settings_change_receiver">更改当前接收方的标签页</string>
+    <string name="settings_change_receiver">tab 键更改当前接收方</string>
     <string name="settings_audio_app">音频播放</string>
     <string name="settings_video_app">视频播放</string>
     <string name="settings_image_app">图片播放</string>
     <string name="settings_default_duration">默认的项目时长</string>
     <string name="settings_default_duration_key" translatable="false">settings_default_duration_key</string>
-    <string name="settings_silence_duration">从头至尾静音</string>
+    <string name="settings_silence_duration">静音时长</string>
     <string name="settings_silence_duration_key" translatable="false">settings_silence_duration_key</string>
     <string name="settings_image_app_on">启用直接在 YAACC 内播放本地图片</string>
     <string name="settings_image_app_off">本地图片播放打开第三方应用</string>
