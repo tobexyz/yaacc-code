@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?><!--
+*
+* Copyright (C) 2025 www.yaacc.de
+*
+* This program is free software; you can redistribute it and/or
+* modify it under the terms of the GNU General Public License
+* as published by the Free Software Foundation; either version 3
+* of the License, or (at your option) any later version.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with this program; if not, write to the Free Software
+* Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+-->
+<resources>
+    <string name="settings_category_send_rec">发送和接收</string>
+    <string name="settings_category_browsing">媒体浏览行为</string>
+    <string name="settings_selected_provider_title">当前媒体提供方</string>
+    <string name="settings_change_provider">tab 键更改当前提供方</string>
+    <string name="settings_selected_receivers_title">当前媒体接收方</string>
+    <string name="settings_change_receiver">tab 键更改当前接收方</string>
+    <string name="settings_audio_app">音频播放</string>
+    <string name="settings_video_app">视频播放</string>
+    <string name="settings_image_app">图片播放</string>
+    <string name="settings_default_duration">默认的项目时长</string>
+    <string name="settings_silence_duration">静音时长</string>
+    <string name="settings_image_app_on">启用直接在 YAACC 内播放本地图片</string>
+    <string name="settings_image_app_off">本地图片播放打开第三方应用</string>
+    <string name="settings_video_app_on">启用直接在 YAACC 内播放本地视频</string>
+    <string name="settings_video_app_off">本地视频播放打开第三方应用</string>
+    <string name="settings_browse_audio_on">显示音频文件</string>
+    <string name="settings_browse_audio_off">不显示音频文件</string>
+    <string name="settings_browse_video_on">显示视频文件</string>
+    <string name="settings_browse_video_off">不显示视频文件</string>
+    <string name="settings_browse_image_on">显示图片文件</string>
+    <string name="settings_browse_image_off">不显示图片文件</string>
+    <string name="settings_browse_chunk_size">分块浏览</string>
+    <string name="settings_browse_chunk_size_summ">一次请求从服务器取回多少项目</string>
+    <string name="settings_category_appearance">外观</string>
+    <string name="settings_dark_mode_title">深色模式</string>
+    <string name="settings_dark_mode_off">使用系统设置</string>
+    <string name="settings_dark_mode_on">正使用深色模式</string>
+    <string name="settings_log_level">日志级别</string>
+    <string name="settings_browse_thumbnails_title">缩略图</string>
+    <string name="settings_browse_thumbnails_on">显示图片缩略图</string>
+    <string name="settings_browse_thumbnails_off">不显示图片缩略图</string>
+    <string name="settings_browse_thumbnails_coverlookup_title">封面图</string>
+    <string name="settings_browse_thumbnails_coverlookup_on">目录内图片用作封面图</string>
+    <string name="settings_browse_thumbnails_coverlookup_off">目录内图片不用作封面图</string>
+    <string name="settings_browse_max_results_summ">从服务器获取的项目总数</string>
+    <string name="settings_browse_max_results_title">结果集大小</string>
+    <string name="settings_browse_load_threads">线程数</string>
+    <string name="settings_browse_load_threads_summ">配置用于加载来自 UPnP 服务器内容的线程数。线程数多加载速度快，但增加错误的可能性。重启 yaacc 后更改生效。</string>
+    <string name="settings_no_content_found">未找到浏览内容</string>
+    <string name="settings_local_server_title">本地服务器配置</string>
+    <string name="settings_local_server_activation_title">本地服务器状态</string>
+    <string name="settings_local_server_started">已启动本地服务器</string>
+    <string name="settings_local_server_stopped">本地服务器已停止</string>
+    <string name="settings_local_server_receiver_title">媒体接收方服务</string>
+    <string name="settings_local_server_receiver_off">禁用了媒体接收方</string>
+    <string name="settings_local_server_receiver_on">启用了媒体接收方</string>
+    <string name="settings_local_server_provider_title">媒体提供方服务</string>
+    <string name="settings_local_server_provider_off">禁用了内容目录</string>
+    <string name="settings_local_server_provider_on">启用了内容目录</string>
+    <string name="settings_local_server_proxy_title">媒体代理服务</string>
+    <string name="settings_local_server_proxy_off">停用了媒体代理</string>
+    <string name="settings_local_server_proxy_on">激活了媒体代理</string>
+    <string name="settings_local_server_testcontent">本地服务器使用测试内容</string>
+    <string name="settings_local_server_provider_source_title">媒体提供方来源</string>
+    <string name="settings_local_server_mediastore">本地服务器使用媒体存储</string>
+    <string name="settings_local_server_serve_images_title">提供图片</string>
+    <string name="settings_local_server_serve_images_off">不提供图片</string>
+    <string name="settings_local_server_serve_images_on">提供图片</string>
+    <string name="settings_local_server_serve_music_title">提供音乐</string>
+    <string name="settings_local_server_serve_music_off">不提供音乐</string>
+    <string name="settings_local_server_serve_music_on">提供音乐</string>
+    <string name="settings_local_server_serve_video_title">提供视频</string>
+    <string name="settings_local_server_serve_video_off">不提供视频</string>
+    <string name="settings_local_server_serve_video_on">提供视频</string>
+    <string name="settings_local_server_name">本地服务器的网络名</string>
+    <string name="settings_local_server_autostart_title">开机时自动启动服务器</string>
+    <string name="settings_local_server_autostart_deactivated">开机后不启动服务器</string>
+    <string name="settings_local_server_autostart_activated">开机后启动服务器</string>
+    <string name="settings_sending_upnp_alive_interval">发送 UPnP alive 通知</string>
+    <string name="settings_category_playing">媒体播放行为</string>
+    <string name="settings_replay_title">重新播放播放列表</string>
+    <string name="settings_replay_playlist_on">重新播放播放列表</string>
+    <string name="settings_replay_playlist_off">不重新播放播放列表</string>
+    <string name="settings_music_player_shuffle_title">随机播放</string>
+    <string name="settings_music_player_shuffle_on">随机播放音乐</string>
+    <string name="settings_music_player_shuffle_off">顺序播放音乐</string>
+    <string name="settings_category_synchronization">同步设置</string>
+    <string name="settings_browse_swipe_off">触摸时更改标签页</string>
+    <string name="settings_browse_swipe_on">滑动和触摸时更改标签页</string>
+    <string name="settings_browse_swipe_title">浏览时滑动</string>
+    <string name="settings_local_server_if_filter_names">ip 地址检索的黑名单接口</string>
+</resources>
