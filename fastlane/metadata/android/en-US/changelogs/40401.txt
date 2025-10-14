@@ -1,5 +1,5 @@
 Version 4.4.1
-- added Chinese translations
+- added Chinese translation
 - allow disabling of media store filtering
 - minor bug fixes
 
