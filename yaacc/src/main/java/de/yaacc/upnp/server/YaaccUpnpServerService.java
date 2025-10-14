@@ -248,6 +248,9 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
      *
      */
     private void initialize() {
+        if (getUpnpClient() == null) {
+            setUpnpClient(new UpnpClient());
+        }
         if (!getUpnpClient().isInitialized()) {
             getUpnpClient().initialize(getApplicationContext());
             watchdog = false;
@@ -264,7 +267,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
             }
 
         }
-        if (getUpnpClient().isInitialized()) {
+        if (getUpnpClient() != null && getUpnpClient().isInitialized()) {
             if (preferences.getBoolean(getApplicationContext().getString(R.string.settings_local_server_provider_chkbx), false)) {
                 if (localServer == null) {
                     localServer = createMediaServerDevice();
@@ -426,11 +429,11 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
                 public void run() {
                     Log.v(YaaccUpnpServerService.this.getClass().getName(), "Sending upnp alive notivication");
                     SendingNotificationAlive sendingNotificationAlive;
-                    if (localServer != null) {
+                    if (localServer != null && getUpnpClient() != null) {
                         sendingNotificationAlive = new SendingNotificationAlive(getUpnpClient().getRegistry().getUpnpService(), localServer);
                         sendingNotificationAlive.run();
                     }
-                    if (localRenderer != null) {
+                    if (localRenderer != null && getUpnpClient() != null) {
                         sendingNotificationAlive = new SendingNotificationAlive(getUpnpClient().getRegistry().getUpnpService(), localRenderer);
                         sendingNotificationAlive.run();
                     }
@@ -448,6 +451,9 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
      * @return the time
      */
     private int getUpnpNotificationFrequency() {
+        if (getUpnpClient() == null) {
+            return -1;
+        }
         return Integer.parseInt(preferences.getString(getUpnpClient().getContext().getString(R.string.settings_sending_upnp_alive_interval_key), "5000"));
     }
 

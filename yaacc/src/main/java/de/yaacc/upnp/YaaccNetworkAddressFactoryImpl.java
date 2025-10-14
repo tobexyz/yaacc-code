@@ -89,9 +89,14 @@ public class YaaccNetworkAddressFactoryImpl implements NetworkAddressFactory {
         List<InetAddress> result = new ArrayList<>();
         if (YaaccUpnpServerService.getIfName(context) != null) {
             try {
-                Enumeration<InetAddress> iter = NetworkInterface.getByName(YaaccUpnpServerService.getIfName(context)).getInetAddresses();
-                while (iter.hasMoreElements()) {
-                    result.add(iter.nextElement());
+                if (NetworkInterface.getByName(YaaccUpnpServerService.getIfName(context)) != null) {
+                    Enumeration<InetAddress> iter = NetworkInterface.getByName(YaaccUpnpServerService.getIfName(context)).getInetAddresses();
+                    while (iter.hasMoreElements()) {
+                        result.add(iter.nextElement());
+                    }
+                } else {
+                    Log.d(getClass().getName(),
+                            "network interface not found by name, maybe device is offline");
                 }
             } catch (
                     SocketException se) {
