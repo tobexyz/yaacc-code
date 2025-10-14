@@ -54,6 +54,9 @@
     <string name="settings_local_server_proxy_title">Medienproxyservice</string>
     <string name="settings_local_server_proxy_off">Medienproxy deaktiviert</string>
     <string name="settings_local_server_proxy_on">Medienproxy aktiviert</string>
+    <string name="settings_local_server_media_filter_title">Filtern der Inhalte des MediaStores</string>
+    <string name="settings_local_server_media_filter_off">Filtern der Inhalte des MediaStores deaktiviert</string>
+    <string name="settings_local_server_media_filter_on">Filtern der Inhalte des MediaStores aktiviert</string>
     <string name="settings_local_server_provider_source_title">Medienquelle</string>
     <string name="settings_local_server_testcontent">Lokaler Server verwendet Testinhalte</string>
     <string name="settings_local_server_mediastore">Lokaler Server verwendet den MediaStore</string>

@@ -47,6 +47,7 @@ import de.yaacc.settings.SettingsActivity;
 import de.yaacc.upnp.server.contentdirectory.MediaPathFilter;
 import de.yaacc.util.AboutActivity;
 import de.yaacc.util.NotificationId;
+import de.yaacc.util.YaaccLogActivity;
 
 /**
  * Control activity for the yaacc upnp server
@@ -87,7 +88,17 @@ public class YaaccUpnpServerControlActivity extends AppCompatActivity {
             editor.apply();
         });
 
-        SwitchMaterial localServerEnabledSwitch = (SwitchMaterial) findViewById(R.id.serverOnOff);
+        boolean filterActive = preferences.getBoolean(getString(R.string.settings_local_server_media_filter_chkbx), true);
+        CheckBox mediaFilterCheckBox = findViewById(R.id.filterEnabled);
+        mediaFilterCheckBox.setChecked(filterActive);
+        mediaFilterCheckBox.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            SharedPreferences.Editor editor = preferences.edit();
+            editor.putBoolean(getApplicationContext().getString(R.string.settings_local_server_media_filter_chkbx), isChecked);
+            editor.apply();
+        });
+
+
+        SwitchMaterial localServerEnabledSwitch = findViewById(R.id.serverOnOff);
         localServerEnabledSwitch.setChecked(preferences.getBoolean(getApplicationContext().getString(R.string.settings_local_server_chkbx), false));
         localServerEnabledSwitch.setOnClickListener((v -> {
             SharedPreferences.Editor editor = preferences.edit();
@@ -100,13 +111,12 @@ public class YaaccUpnpServerControlActivity extends AppCompatActivity {
             }
         }));
         Button resetButton = findViewById(R.id.sharedFoldersReset);
-        resetButton.setOnClickListener(v -> {
-            MediaPathFilter.resetMediaPaths(getApplicationContext());
-        });
+        resetButton.setOnClickListener(v -> MediaPathFilter.resetMediaPaths(getApplicationContext()));
 
         TextView localServerControlInterface = findViewById(R.id.localServerControlInterface);
         String[] ipConfig = YaaccUpnpServerService.getIfAndIpAddress(this);
         localServerControlInterface.setText(ipConfig[1] + "@" + ipConfig[0]);
+
 
         RecyclerView recyclerView = findViewById(R.id.folders_recycler_view);
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
@@ -116,17 +126,15 @@ public class YaaccUpnpServerControlActivity extends AppCompatActivity {
         recyclerView.setBackgroundColor(typedValue.data);
 
         TreeViewHolderFactory factory = (v, layout) -> new TreeViewHolder(v);
-
         TreeViewAdapter treeViewAdapter = new TreeViewAdapter(factory);
         recyclerView.setAdapter(treeViewAdapter);
         buildFileSystemTree(treeViewAdapter);
     }
 
-    private void buildFileSystemTree(TreeViewAdapter treeViewAdapter) {
 
+    private void buildFileSystemTree(TreeViewAdapter treeViewAdapter) {
         List<TreeNode> fileRoots = new ArrayList<>();
         File externalStorageRoot = Environment.getExternalStorageDirectory(); // Or any other root path
-
         // Check if external storage is readable
         if (Environment.MEDIA_MOUNTED.equals(Environment.getExternalStorageState()) ||
                 Environment.MEDIA_MOUNTED_READ_ONLY.equals(Environment.getExternalStorageState())) {
@@ -160,7 +168,7 @@ public class YaaccUpnpServerControlActivity extends AppCompatActivity {
 
         treeViewAdapter.setTreeNodeClickListener((treeNode, nodeView) -> {
             Log.d(getClass().getName(), "Click on TreeNode with value " + treeNode.getValue().toString());
-            File file = (File) treeNode.getValue();
+            File file = treeNode.getValue();
             if (file.isDirectory() && file.listFiles() != null && treeNode.getChildren().size() != file.listFiles().length) {
                 File[] children = file.listFiles();
                 if (children != null) {
@@ -239,6 +247,9 @@ public class YaaccUpnpServerControlActivity extends AppCompatActivity {
         } else if (item.getItemId() == R.id.menu_settings) {
             Intent i = new Intent(this, SettingsActivity.class);
             startActivity(i);
+            return true;
+        } else if (item.getItemId() == R.id.yaacc_log) {
+            YaaccLogActivity.showLog(this);
             return true;
         } else if (item.getItemId() == R.id.yaacc_about) {
             AboutActivity.showAbout(this);

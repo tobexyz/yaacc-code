@@ -68,12 +68,21 @@
         android:textAppearance="@android:style/TextAppearance.Material.Medium"
         android:text="@string/settings_local_server_proxy_on" />
 
+    <CheckBox
+        android:id="@+id/filterEnabled"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:layout_alignParentStart="true"
+        android:layout_below="@+id/proxyEnabled"
+        android:textAppearance="@android:style/TextAppearance.Material.Medium"
+        android:text="@string/settings_local_server_media_filter_on" />
+
     <Button
         android:id="@+id/sharedFoldersReset"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_alignParentStart="true"
-        android:layout_below="@+id/proxyEnabled"
+        android:layout_below="@+id/filterEnabled"
         android:text="@string/reset_shared_folders"
         android:textAppearance="@android:style/TextAppearance.Material.Medium" />
 

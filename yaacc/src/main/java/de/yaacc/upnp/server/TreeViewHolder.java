@@ -70,7 +70,7 @@ public class TreeViewHolder extends RecyclerView.ViewHolder {
 
         fileName.setText(node.getValue().getName());
         fileCheckbox.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            Set<String> pathes = MediaPathFilter.getMediaPathes(fileCheckbox.getContext());
+            Set<String> pathes = MediaPathFilter.getMediaPathesRaw(fileCheckbox.getContext());
             if (isChecked) {
                 pathes.add(node.getValue().getAbsolutePath());
             } else {
@@ -81,7 +81,7 @@ public class TreeViewHolder extends RecyclerView.ViewHolder {
         if (node.getValue() != null && node.getValue().isDirectory()) {
             Drawable icon = ThemeHelper.tintDrawable(fileTypeIcon.getContext().getDrawable(R.drawable.ic_baseline_folder_open_48), fileTypeIcon.getContext().getTheme());
             fileTypeIcon.setImageDrawable(icon);
-            fileCheckbox.setChecked(MediaPathFilter.getMediaPathes(fileCheckbox.getContext()).contains(node.getValue().getAbsolutePath()));
+            fileCheckbox.setChecked(MediaPathFilter.getMediaPathesRaw(fileCheckbox.getContext()).contains(node.getValue().getAbsolutePath()));
             fileCheckbox.setVisibility(View.VISIBLE);
         } else {
             fileCheckbox.setVisibility(View.INVISIBLE);
