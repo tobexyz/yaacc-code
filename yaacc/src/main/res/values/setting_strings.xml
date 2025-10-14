@@ -87,9 +87,13 @@
     <string name="settings_local_server_proxy_off">media proxy deactivated</string>
     <string name="settings_local_server_proxy_on">media proxy activated</string>
     <string name="settings_local_server_proxy_chkbx" translatable="false">local_server_proxy_chkbx</string>
+    <string name="settings_local_server_media_filter_title">media store filtering</string>
+    <string name="settings_local_server_media_filter_off">media store filtering deactivated</string>
+    <string name="settings_local_server_media_filter_on">media store filtering activated</string>
+    <string name="settings_local_server_media_filter_chkbx" translatable="false">local_server_media_filter_chkbx</string>
     <string name="settings_local_server_testcontent">local server using test content</string>
     <string name="settings_local_server_provider_source_title">media provider source</string>
-    <string name="settings_local_server_mediastore">local server using mediastore</string>
+    <string name="settings_local_server_mediastore">local server using media store</string>
     <string name="settings_local_server_testcontent_chkbx" translatable="false">local_server_testcontent_chkbx</string>
     <string name="settings_local_server_serve_images_title">serve images</string>
     <string name="settings_local_server_serve_images_off">serve images is disabled</string>

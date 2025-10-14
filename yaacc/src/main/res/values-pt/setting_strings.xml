@@ -69,6 +69,9 @@
     <string name="settings_local_server_proxy_title">serviço de proxy de mídia</string>
     <string name="settings_local_server_proxy_off">proxy de mídia desativado</string>
     <string name="settings_local_server_proxy_on">proxy de mídia ativado</string>
+    <string name="settings_local_server_media_filter_title">filtrowanie magazynu multimediów</string>
+    <string name="settings_local_server_media_filter_off">filtrowanie magazynu multimediów wyłączone</string>
+    <string name="settings_local_server_media_filter_on">aktywowano filtrowanie magazynu multimediów</string>
     <string name="settings_local_server_testcontent">servidor local usando conteúdo de teste</string>
     <string name="settings_local_server_provider_source_title">fonte do provedor de mídia</string>
     <string name="settings_local_server_mediastore">servidor local usando mediastore</string>

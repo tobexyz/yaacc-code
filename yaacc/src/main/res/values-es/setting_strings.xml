@@ -69,6 +69,9 @@
     <string name="settings_local_server_proxy_title">servicio de proxy de medios</string>
     <string name="settings_local_server_proxy_off">proxy de medios desactivado</string>
     <string name="settings_local_server_proxy_on">proxy de medios activado</string>
+    <string name="settings_local_server_media_filter_title">filtrado de tienda de medios</string>
+    <string name="settings_local_server_media_filter_off">filtrado de la tienda de medios desactivado</string>
+    <string name="settings_local_server_media_filter_on">filtrado de la tienda de medios activado</string>
     <string name="settings_local_server_testcontent">servidor local usando contenido de prueba</string>
     <string name="settings_local_server_provider_source_title">fuente del proveedor de medios</string>
     <string name="settings_local_server_mediastore">servidor local usando mediastore</string>

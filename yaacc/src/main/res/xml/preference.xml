@@ -144,6 +144,12 @@
             android:summaryOff="@string/settings_local_server_mediastore"
             android:summaryOn="@string/settings_local_server_testcontent" />
         <CheckBoxPreference
+            android:key="@string/settings_local_server_media_filter_chkbx"
+            android:title="@string/settings_local_server_media_filter_title"
+            android:summaryOff="@string/settings_local_server_media_filter_off"
+            android:summaryOn="@string/settings_local_server_media_filter_on"
+            android:defaultValue="true"/>
+        <CheckBoxPreference
             android:defaultValue="true"
             android:key="@string/settings_local_server_serve_images_chkbx"
             android:title="@string/settings_local_server_serve_images_title"

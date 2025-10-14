@@ -31,6 +31,16 @@ public class MediaPathFilter {
     }
 
     public static Set<String> getMediaPathes(Context context) {
+        boolean filterActive = PreferenceManager.getDefaultSharedPreferences(context).getBoolean(context.getString(R.string.settings_local_server_media_filter_chkbx), true);
+        if (!filterActive) {
+            Set<String> result = new HashSet<>();
+            result.add("");
+            return result;
+        }
+        return getMediaPathesRaw(context);
+    }
+
+    public static Set<String> getMediaPathesRaw(Context context) {
         Set<String> paths = PreferenceManager.getDefaultSharedPreferences(context).getStringSet(context.getString(R.string.settings_media_paths_pref_key), new HashSet<>());
         if (paths == null) {
             return new HashSet<>();

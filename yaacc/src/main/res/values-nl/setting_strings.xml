@@ -69,6 +69,9 @@
     <string name="settings_local_server_proxy_title">mediaproxy-service</string>
     <string name="settings_local_server_proxy_off">mediaproxy gedeactiveerd</string>
     <string name="settings_local_server_proxy_on">mediaproxy geactiveerd</string>
+    <string name="settings_local_server_media_filter_title">filteren van media store</string>
+    <string name="settings_local_server_media_filter_off">media store filtering gedeactiveerd</string>
+    <string name="settings_local_server_media_filter_on">media store filtering geactiveerd</string>
     <string name="settings_local_server_testcontent">lokale server die testinhoud gebruikt</string>
     <string name="settings_local_server_provider_source_title">bron van mediaprovider</string>
     <string name="settings_local_server_mediastore">lokale server met behulp van mediastore</string>

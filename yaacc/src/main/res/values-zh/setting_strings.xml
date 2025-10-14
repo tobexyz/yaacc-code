@@ -69,6 +69,9 @@
     <string name="settings_local_server_proxy_title">媒体代理服务</string>
     <string name="settings_local_server_proxy_off">停用了媒体代理</string>
     <string name="settings_local_server_proxy_on">激活了媒体代理</string>
+    <string name="settings_local_server_media_filter_title">媒体存储过滤</string>
+    <string name="settings_local_server_media_filter_off">媒体商店过滤已停用</string>
+    <string name="settings_local_server_media_filter_on">媒体存储过滤已激活</string>
     <string name="settings_local_server_testcontent">本地服务器使用测试内容</string>
     <string name="settings_local_server_provider_source_title">媒体提供方来源</string>
     <string name="settings_local_server_mediastore">本地服务器使用媒体存储</string>
