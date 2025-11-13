@@ -21,6 +21,7 @@ import android.app.NotificationManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
 import android.util.Log;
@@ -32,6 +33,7 @@ import android.widget.CheckBox;
 import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.documentfile.provider.DocumentFile;
 import androidx.preference.PreferenceManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -40,7 +42,9 @@ import com.google.android.material.switchmaterial.SwitchMaterial;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import de.yaacc.R;
 import de.yaacc.settings.SettingsActivity;
@@ -56,6 +60,8 @@ import de.yaacc.util.YaaccLogActivity;
  */
 public class YaaccUpnpServerControlActivity extends AppCompatActivity {
 
+    private static final int REQUEST_CODE_OPEN_DOCUMENT_TREE = 1001;
+    private TreeViewAdapter treeViewAdapter;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -126,7 +132,7 @@ public class YaaccUpnpServerControlActivity extends AppCompatActivity {
         recyclerView.setBackgroundColor(typedValue.data);
 
         TreeViewHolderFactory factory = (v, layout) -> new TreeViewHolder(v);
-        TreeViewAdapter treeViewAdapter = new TreeViewAdapter(factory);
+        treeViewAdapter = new TreeViewAdapter(factory);
         recyclerView.setAdapter(treeViewAdapter);
         buildFileSystemTree(treeViewAdapter);
     }
@@ -162,26 +168,73 @@ public class YaaccUpnpServerControlActivity extends AppCompatActivity {
         if (fileRoots.isEmpty()) {
             Log.w(getClass().getName(), "No file system roots found or storage unavailable. Adding a placeholder.");
         }
+// --- SAF: lade persistierte Tree URIs aus SharedPreferences und füge als DocumentFile Wurzeln hinzu ---
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
+        Set<String> safUris = prefs.getStringSet("saf_tree_uris", new HashSet<>());
+        if (safUris != null) {
+            for (String uriString : safUris) {
+                try {
+                    Uri uri = Uri.parse(uriString);
+                    DocumentFile docRoot = DocumentFile.fromTreeUri(this, uri);
+                    if (docRoot != null && docRoot.exists()) {
+                        TreeNode node = buildFileSystemNode(docRoot, R.layout.file_list_item);
+                        if (node != null) {
+                            fileRoots.add(node);
+                        }
+                    } else {
+                        Log.w(getClass().getName(), "SAF root not accessible: " + uriString);
+                    }
+                } catch (Exception e) {
+                    Log.e(getClass().getName(), "Error restoring SAF uri: " + uriString, e);
+                }
+            }
+        }
 
+        // Wenn keine Wurzeln gefunden wurden, starte SAF-Picker, damit Benutzer USB/externen Pfad wählen kann
+        if (fileRoots.isEmpty()) {
+            Log.w(getClass().getName(), "No file system roots found or storage unavailable. Starting SAF picker.");
+            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    | Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                    | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+            startActivityForResult(intent, REQUEST_CODE_OPEN_DOCUMENT_TREE);
+        }
         treeViewAdapter.updateTreeNodes(fileRoots);
 
 
         treeViewAdapter.setTreeNodeClickListener((treeNode, nodeView) -> {
             Log.d(getClass().getName(), "Click on TreeNode with value " + treeNode.getValue().toString());
-            File file = treeNode.getValue();
-            if (file.isDirectory() && file.listFiles() != null && treeNode.getChildren().size() != file.listFiles().length) {
-                File[] children = file.listFiles();
-                if (children != null) {
-                    for (File childFile : children) {
-                        TreeNode childNode = buildFileSystemNode(childFile, treeNode.getLayoutId());
-                        if (childNode != null) {
-                            treeNode.addChild(childNode);
+            Object value = treeNode.getValue();
+            if (value instanceof File) {
+                File file = (File) value;
+
+                if (file.isDirectory() && file.listFiles() != null && treeNode.getChildren().size() != file.listFiles().length) {
+                    File[] children = file.listFiles();
+                    if (children != null) {
+                        for (File childFile : children) {
+                            TreeNode childNode = buildFileSystemNode(childFile, treeNode.getLayoutId());
+                            if (childNode != null) {
+                                treeNode.addChild(childNode);
+                            }
                         }
                     }
                 }
+                Log.d(getClass().getName(), "Clicked on file: " + file.getAbsolutePath());
+            } else if (value instanceof DocumentFile) {
+                DocumentFile doc = (DocumentFile) value;
+                if (doc.isDirectory()) {
+                    DocumentFile[] children = doc.listFiles();
+                    if (children != null && treeNode.getChildren().size() != children.length) {
+                        for (DocumentFile childDoc : children) {
+                            TreeNode childNode = buildFileSystemNode(childDoc, treeNode.getLayoutId());
+                            if (childNode != null) {
+                                treeNode.addChild(childNode);
+                            }
+                        }
+                    }
+                }
+                Log.d(getClass().getName(), "Clicked on document file: " + doc.getUri());
             }
-            Log.d(getClass().getName(), "Clicked on file: " + file.getAbsolutePath());
-
         });
 
         treeViewAdapter.setTreeNodeLongClickListener((treeNode, nodeView) -> {
@@ -191,19 +244,32 @@ public class YaaccUpnpServerControlActivity extends AppCompatActivity {
     }
 
     /**
-     * Recursively builds a TreeNode structure from the file system.
+     * Recursively builds a TreeNode structure from the file system or a DocumentFile.
      *
-     * @param file     The current file or directory.
+     * @param fileObj  The current File or DocumentFile.
      * @param layoutId The layout resource ID for the TreeNode.
      * @return A TreeNode representing the file/directory, or null if it should be skipped.
      */
-    private TreeNode buildFileSystemNode(File file, int layoutId) {
-        if (file == null || !file.exists()) {
+    private TreeNode buildFileSystemNode(Object fileObj, int layoutId) {
+        if (fileObj == null) {
             return null;
         }
 
-        return new TreeNode(file, layoutId);
+        if (fileObj instanceof File) {
+            File file = (File) fileObj;
+            if (!file.exists()) {
+                return null;
+            }
+            return new TreeNode(file, layoutId);
+        } else if (fileObj instanceof DocumentFile) {
+            DocumentFile doc = (DocumentFile) fileObj;
+            if (!doc.exists()) {
+                return null;
+            }
+            return new TreeNode(doc, layoutId);
+        }
 
+        return null;
     }
 
 
@@ -228,6 +294,38 @@ public class YaaccUpnpServerControlActivity extends AppCompatActivity {
         SharedPreferences.Editor editor = preferences.edit();
         editor.putBoolean(getString(R.string.settings_local_server_chkbx), false);
         editor.apply();
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQUEST_CODE_OPEN_DOCUMENT_TREE && resultCode == RESULT_OK) {
+            if (data != null) {
+                Uri treeUri = data.getData();
+                if (treeUri != null) {
+                    try {
+                        final int takeFlags = data.getFlags() & (Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+                        getContentResolver().takePersistableUriPermission(treeUri, takeFlags);
+                    } catch (Exception e) {
+                        Log.w(getClass().getName(), "Could not take persistable uri permission", e);
+                    }
+                    SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
+                    Set<String> uriSet = prefs.getStringSet("saf_tree_uris", new HashSet<>());
+                    if (uriSet == null) {
+                        uriSet = new HashSet<>();
+                    } else {
+                        uriSet = new HashSet<>(uriSet);
+                    }
+                    uriSet.add(treeUri.toString());
+                    SharedPreferences.Editor editor = prefs.edit();
+                    editor.putStringSet("saf_tree_uris", uriSet);
+                    editor.apply();
+
+                    // rebuild tree with newly added SAF root
+                    buildFileSystemTree(treeViewAdapter);
+                }
+            }
+        }
     }
 
 

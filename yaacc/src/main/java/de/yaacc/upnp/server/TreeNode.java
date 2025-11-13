@@ -19,7 +19,6 @@
 package de.yaacc.upnp.server;
 
 
-import java.io.File;
 import java.util.LinkedList;
 
 /**
@@ -27,7 +26,7 @@ import java.util.LinkedList;
  */
 public class TreeNode {
 
-    private File value;
+    private Object value;
     private TreeNode parent;
     private LinkedList<TreeNode> children;
     private int layoutId;
@@ -35,7 +34,7 @@ public class TreeNode {
     private boolean isExpanded;
     private boolean isSelected;
 
-    public TreeNode(File value, int layoutId) {
+    public TreeNode(Object value, int layoutId) {
         this.value = value;
         this.parent = null;
         this.children = new LinkedList<>();
@@ -52,11 +51,11 @@ public class TreeNode {
         updateNodeChildrenDepth(child);
     }
 
-    public void setValue(File value) {
+    public void setValue(Object value) {
         this.value = value;
     }
 
-    public File getValue() {
+    public Object getValue() {
         return value;
     }
 
