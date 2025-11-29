@@ -120,4 +120,5 @@
     <string name="shared_folders">选择共享文件夹</string>
     <string name="reset_shared_folders">重置共享文件夹</string>
     <string name="shutdown_timer">关闭定时器</string>
+    <string name="add_saf_content">添加源</string>
 </resources>

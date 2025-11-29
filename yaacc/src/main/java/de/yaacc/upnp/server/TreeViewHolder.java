@@ -27,6 +27,7 @@ import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.documentfile.provider.DocumentFile;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -69,24 +70,34 @@ public class TreeViewHolder extends RecyclerView.ViewHolder {
                 itemView.getPaddingRight(),
                 itemView.getPaddingBottom());
 
-        String name = node.getValue() instanceof File ? ((File) node.getValue()).getName() : ((DocumentFile) node.getValue()).getName();
+        String name = getName(node);
         fileName.setText(name);
         fileCheckbox.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            Set<String> pathes = MediaPathFilter.getMediaPathesRaw(fileCheckbox.getContext());
-            String absolutePath = node.getValue() instanceof File ? ((File) node.getValue()).getAbsolutePath() : ((DocumentFile) node.getValue()).getUri().toString();
+            Set<String> pathes;
+            String absolutePath = getAbsolutePath(node);
+            if (isSafNode(node)) {
+                pathes = MediaPathFilter.getSelectedSafPathes(fileCheckbox.getContext());
+            } else {
+                pathes = MediaPathFilter.getMediaPathesRaw(fileCheckbox.getContext());
+            }
             if (isChecked) {
                 pathes.add(absolutePath);
             } else {
                 pathes.remove(absolutePath);
             }
-            MediaPathFilter.saveMediaPaths(fileCheckbox.getContext(), pathes);
+            if (isSafNode(node)) {
+                MediaPathFilter.saveSelectedSafPathes(fileCheckbox.getContext(), pathes);
+            } else {
+                MediaPathFilter.saveMediaPaths(fileCheckbox.getContext(), pathes);
+            }
         });
-        //FIXME
-        if (node.getValue() != null && node.getValue() instanceof File && ((File) node.getValue()).isDirectory()) {
-            Drawable icon = ThemeHelper.tintDrawable(fileTypeIcon.getContext().getDrawable(R.drawable.ic_baseline_folder_open_48), fileTypeIcon.getContext().getTheme());
+
+        if (isDirectory(node)) {
+            Drawable icon = isSafNode(node) ? fileTypeIcon.getContext().getDrawable(R.drawable.ic_baseline_bookmark_48) : fileTypeIcon.getContext().getDrawable(R.drawable.ic_baseline_folder_open_48);
+            icon = ThemeHelper.tintDrawable(icon, fileTypeIcon.getContext().getTheme());
             fileTypeIcon.setImageDrawable(icon);
-            String absolutePath = node.getValue() instanceof File ? ((File) node.getValue()).getAbsolutePath() : ((DocumentFile) node.getValue()).getUri().toString();
-            fileCheckbox.setChecked(MediaPathFilter.getMediaPathesRaw(fileCheckbox.getContext()).contains(absolutePath));
+            String absolutePath = getAbsolutePath(node);
+            fileCheckbox.setChecked(isSelected(absolutePath));
             fileCheckbox.setVisibility(View.VISIBLE);
         } else {
             fileCheckbox.setVisibility(View.INVISIBLE);
@@ -108,17 +119,65 @@ public class TreeViewHolder extends RecyclerView.ViewHolder {
             fileName.setTextColor(typedValue.data);
         }
         fileStateIcon.setVisibility(View.INVISIBLE);
-        //FIXME
-        if (node.getValue() != null && node.getValue() instanceof File && ((File) node.getValue()).isDirectory()) {
-            File file = (File) node.getValue();
-            if (file.listFiles() != null && file.listFiles().length > 0) {
-                fileStateIcon.setVisibility(View.VISIBLE);
 
+        if (isDirectory(node)) {
+            if (isDirectoryNotEmpty(node)) {
+                fileStateIcon.setVisibility(View.VISIBLE);
                 int stateIcon = node.isExpanded() ? R.drawable.sharp_keyboard_arrow_down_24 : R.drawable.sharp_chevron_right_24;
                 Drawable icon = ThemeHelper.tintDrawable(fileStateIcon.getContext().getDrawable(stateIcon), fileStateIcon.getContext().getTheme());
                 fileStateIcon.setImageDrawable(icon);
             }
         }
+    }
+
+    private static boolean isSafNode(TreeNode node) {
+        return node.getValue() instanceof DocumentFile;
+    }
+
+    private boolean isSelected(String absolutePath) {
+        return MediaPathFilter.getMediaPathesRaw(fileCheckbox.getContext()).contains(absolutePath)
+                || MediaPathFilter.getSelectedSafPathes(fileCheckbox.getContext()).contains(absolutePath);
+    }
+
+    @NonNull
+    private static String getAbsolutePath(TreeNode node) {
+        return node.getValue() instanceof File ? ((File) node.getValue()).getAbsolutePath() : ((DocumentFile) node.getValue()).getUri().toString();
+    }
+
+    private static boolean isDirectoryNotEmpty(TreeNode node) {
+        if (node.getValue() != null) {
+            if (node.getValue() instanceof File) {
+                File[] elements = ((File) node.getValue()).listFiles();
+                return elements != null && elements.length > 0;
+            } else if (node.getValue() instanceof DocumentFile) {
+                DocumentFile[] elements = ((DocumentFile) node.getValue()).listFiles();
+                return elements.length > 0;
+            }
+        }
+        return true;
+    }
+
+    private static boolean isDirectory(TreeNode node) {
+        if (node.getValue() != null) {
+            if (node.getValue() instanceof File) {
+                return ((File) node.getValue()).isDirectory();
+            } else if (node.getValue() instanceof DocumentFile) {
+                return ((DocumentFile) node.getValue()).isDirectory();
+            }
+        }
+        return false;
+    }
+
+    @Nullable
+    private static String getName(TreeNode node) {
+        if (isSafNode(node)) {
+            String result = ((DocumentFile) node.getValue()).getName();
+            if (result == null) {
+                result = ((DocumentFile) node.getValue()).getUri().toString();
+            }
+            return result;
+        }
+        return ((File) node.getValue()).getName();
     }
 
 }

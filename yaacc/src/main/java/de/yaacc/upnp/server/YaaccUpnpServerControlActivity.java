@@ -117,7 +117,15 @@ public class YaaccUpnpServerControlActivity extends AppCompatActivity {
             }
         }));
         Button resetButton = findViewById(R.id.sharedFoldersReset);
-        resetButton.setOnClickListener(v -> MediaPathFilter.resetMediaPaths(getApplicationContext()));
+        resetButton.setOnClickListener(v -> {
+                    MediaPathFilter.resetMediaPaths(getApplicationContext());
+                    MediaPathFilter.resetSelectedSafPathes(getApplicationContext());
+                    buildFileSystemTree(treeViewAdapter);
+                }
+        );
+
+        Button safButton = findViewById(R.id.sharedFoldersAddSaf);
+        safButton.setOnClickListener(v -> selectSafContent());
 
         TextView localServerControlInterface = findViewById(R.id.localServerControlInterface);
         String[] ipConfig = YaaccUpnpServerService.getIfAndIpAddress(this);
@@ -137,6 +145,14 @@ public class YaaccUpnpServerControlActivity extends AppCompatActivity {
         buildFileSystemTree(treeViewAdapter);
     }
 
+    private void selectSafContent() {
+        Log.w(getClass().getName(), "No file system roots found or storage unavailable. Starting SAF picker.");
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
+                | Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+        startActivityForResult(intent, REQUEST_CODE_OPEN_DOCUMENT_TREE);
+    }
 
     private void buildFileSystemTree(TreeViewAdapter treeViewAdapter) {
         List<TreeNode> fileRoots = new ArrayList<>();
@@ -168,9 +184,8 @@ public class YaaccUpnpServerControlActivity extends AppCompatActivity {
         if (fileRoots.isEmpty()) {
             Log.w(getClass().getName(), "No file system roots found or storage unavailable. Adding a placeholder.");
         }
-// --- SAF: lade persistierte Tree URIs aus SharedPreferences und füge als DocumentFile Wurzeln hinzu ---
-        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
-        Set<String> safUris = prefs.getStringSet("saf_tree_uris", new HashSet<>());
+
+        Set<String> safUris = MediaPathFilter.getSafPathes(getApplicationContext());
         if (safUris != null) {
             for (String uriString : safUris) {
                 try {
@@ -189,16 +204,6 @@ public class YaaccUpnpServerControlActivity extends AppCompatActivity {
                 }
             }
         }
-
-        // Wenn keine Wurzeln gefunden wurden, starte SAF-Picker, damit Benutzer USB/externen Pfad wählen kann
-        if (fileRoots.isEmpty()) {
-            Log.w(getClass().getName(), "No file system roots found or storage unavailable. Starting SAF picker.");
-            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
-            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
-                    | Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-                    | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
-            startActivityForResult(intent, REQUEST_CODE_OPEN_DOCUMENT_TREE);
-        }
         treeViewAdapter.updateTreeNodes(fileRoots);
 
 
@@ -206,41 +211,43 @@ public class YaaccUpnpServerControlActivity extends AppCompatActivity {
             Log.d(getClass().getName(), "Click on TreeNode with value " + treeNode.getValue().toString());
             Object value = treeNode.getValue();
             if (value instanceof File) {
-                File file = (File) value;
-
-                if (file.isDirectory() && file.listFiles() != null && treeNode.getChildren().size() != file.listFiles().length) {
-                    File[] children = file.listFiles();
-                    if (children != null) {
-                        for (File childFile : children) {
-                            TreeNode childNode = buildFileSystemNode(childFile, treeNode.getLayoutId());
-                            if (childNode != null) {
-                                treeNode.addChild(childNode);
-                            }
-                        }
-                    }
-                }
-                Log.d(getClass().getName(), "Clicked on file: " + file.getAbsolutePath());
+                clickedOnFile(treeNode, (File) value);
             } else if (value instanceof DocumentFile) {
-                DocumentFile doc = (DocumentFile) value;
-                if (doc.isDirectory()) {
-                    DocumentFile[] children = doc.listFiles();
-                    if (children != null && treeNode.getChildren().size() != children.length) {
-                        for (DocumentFile childDoc : children) {
-                            TreeNode childNode = buildFileSystemNode(childDoc, treeNode.getLayoutId());
-                            if (childNode != null) {
-                                treeNode.addChild(childNode);
-                            }
-                        }
-                    }
-                }
-                Log.d(getClass().getName(), "Clicked on document file: " + doc.getUri());
+                clickedOnDocument(treeNode, (DocumentFile) value);
             }
         });
+    }
 
-        treeViewAdapter.setTreeNodeLongClickListener((treeNode, nodeView) -> {
-            Log.d(getClass().getName(), "LongClick on TreeNode with value " + treeNode.getValue().toString());
-            return true;
-        });
+    private void clickedOnDocument(TreeNode treeNode, DocumentFile value) {
+        DocumentFile doc = value;
+        if (doc.isDirectory()) {
+            DocumentFile[] children = doc.listFiles();
+            if (children != null && treeNode.getChildren().size() != children.length) {
+                for (DocumentFile childDoc : children) {
+                    TreeNode childNode = buildFileSystemNode(childDoc, treeNode.getLayoutId());
+                    if (childNode != null) {
+                        treeNode.addChild(childNode);
+                    }
+                }
+            }
+        }
+        Log.d(getClass().getName(), "Clicked on document file: " + doc.getUri());
+    }
+
+    private void clickedOnFile(TreeNode treeNode, File value) {
+        File file = value;
+        if (file.isDirectory() && file.listFiles() != null && treeNode.getChildren().size() != file.listFiles().length) {
+            File[] children = file.listFiles();
+            if (children != null) {
+                for (File childFile : children) {
+                    TreeNode childNode = buildFileSystemNode(childFile, treeNode.getLayoutId());
+                    if (childNode != null) {
+                        treeNode.addChild(childNode);
+                    }
+                }
+            }
+        }
+        Log.d(getClass().getName(), "Clicked on file: " + file.getAbsolutePath());
     }
 
     /**
@@ -304,22 +311,20 @@ public class YaaccUpnpServerControlActivity extends AppCompatActivity {
                 Uri treeUri = data.getData();
                 if (treeUri != null) {
                     try {
-                        final int takeFlags = data.getFlags() & (Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+                        final int takeFlags = data.getFlags() & (Intent.FLAG_GRANT_READ_URI_PERMISSION);
                         getContentResolver().takePersistableUriPermission(treeUri, takeFlags);
                     } catch (Exception e) {
                         Log.w(getClass().getName(), "Could not take persistable uri permission", e);
                     }
-                    SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
-                    Set<String> uriSet = prefs.getStringSet("saf_tree_uris", new HashSet<>());
+
+                    Set<String> uriSet = MediaPathFilter.getSafPathes(getApplicationContext());
                     if (uriSet == null) {
                         uriSet = new HashSet<>();
                     } else {
                         uriSet = new HashSet<>(uriSet);
                     }
                     uriSet.add(treeUri.toString());
-                    SharedPreferences.Editor editor = prefs.edit();
-                    editor.putStringSet("saf_tree_uris", uriSet);
-                    editor.apply();
+                    MediaPathFilter.saveSafPathes(getApplicationContext(), uriSet);
 
                     // rebuild tree with newly added SAF root
                     buildFileSystemTree(treeViewAdapter);

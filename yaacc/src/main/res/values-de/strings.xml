@@ -118,4 +118,5 @@
     <string name="shared_folders">wähle freizugebende Ordner</string>
     <string name="reset_shared_folders">freigegebene Ordner zurücksetzen</string>
     <string name="shutdown_timer">Ausschalttimer</string>
+    <string name="add_saf_content">Quelle hinzufügen</string>
 </resources>

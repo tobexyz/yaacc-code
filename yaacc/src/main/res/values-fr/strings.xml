@@ -118,4 +118,5 @@
     <string name="shared_folders">sélectionner les dossiers partagés</string>
     <string name="reset_shared_folders">reset shared folders</string>
     <string name="shutdown_timer">Minuterie d\'arrêt</string>
+    <string name="add_saf_content">ajouter une source</string>
 </resources>
