@@ -23,6 +23,7 @@ import android.graphics.drawable.Drawable;
 import android.util.TypedValue;
 import android.view.View;
 import android.widget.CheckBox;
+import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.TextView;
 
@@ -49,8 +50,10 @@ public class TreeViewHolder extends RecyclerView.ViewHolder {
     private final TextView fileName;
     private final ImageView fileStateIcon;
     private final ImageView fileTypeIcon;
-
+    private final ImageButton fileRemoveButton;
     private final CheckBox fileCheckbox;
+
+    protected TreeViewAdapter adapter;
 
     public TreeViewHolder(@NonNull View itemView) {
         super(itemView);
@@ -59,6 +62,7 @@ public class TreeViewHolder extends RecyclerView.ViewHolder {
         this.fileStateIcon = itemView.findViewById(R.id.file_state_icon);
         this.fileTypeIcon = itemView.findViewById(R.id.file_type_icon);
         this.fileCheckbox = itemView.findViewById(R.id.file_checkbox);
+        this.fileRemoveButton = itemView.findViewById(R.id.file_remove);
     }
 
 
@@ -92,6 +96,26 @@ public class TreeViewHolder extends RecyclerView.ViewHolder {
             }
         });
 
+        if (isSafNode(node)) {
+            String absolutePath = getAbsolutePath(node);
+            Drawable icon = fileRemoveButton.getContext().getDrawable(R.drawable.ic_baseline_delete_outline_32);
+            icon = ThemeHelper.tintDrawable(icon, fileRemoveButton.getContext().getTheme());
+            fileRemoveButton.setVisibility(View.VISIBLE);
+            fileRemoveButton.setImageDrawable(icon);
+            fileRemoveButton.setOnClickListener(v -> {
+                Set<String> selectedPathes;
+                Set<String> safPathes;
+                selectedPathes = MediaPathFilter.getSelectedSafPathes(fileRemoveButton.getContext());
+                safPathes = MediaPathFilter.getSafPathes(fileRemoveButton.getContext());
+                selectedPathes.remove(absolutePath);
+                safPathes.remove(absolutePath);
+                MediaPathFilter.saveSelectedSafPathes(fileRemoveButton.getContext(), selectedPathes);
+                MediaPathFilter.saveSafPathes(fileRemoveButton.getContext(), safPathes);
+                adapter.notifyDataSetChanged();
+            });
+        } else {
+            fileRemoveButton.setVisibility(View.INVISIBLE);
+        }
         if (isDirectory(node)) {
             Drawable icon = isSafNode(node) ? fileTypeIcon.getContext().getDrawable(R.drawable.ic_baseline_bookmark_48) : fileTypeIcon.getContext().getDrawable(R.drawable.ic_baseline_folder_open_48);
             icon = ThemeHelper.tintDrawable(icon, fileTypeIcon.getContext().getTheme());

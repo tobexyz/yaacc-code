@@ -123,7 +123,7 @@ public class TreeViewAdapter extends RecyclerView.Adapter<TreeViewHolder> {
     public void onBindViewHolder(@NonNull TreeViewHolder holder, @SuppressLint("RecyclerView") int position) {
         TreeNode newSelectedNode = treeNodeManager.get(position);
         holder.bindTreeNode(newSelectedNode);
-
+        holder.adapter = this;
         holder.itemView.setOnClickListener(v -> {
             // Handle TreeNode click listener event
             if (treeNodeClickListener != null) {
@@ -214,62 +214,6 @@ public class TreeViewAdapter extends RecyclerView.Adapter<TreeViewHolder> {
         }
     }
 
-    /**
-     * Collapsing full node branches
-     *
-     * @param node The node to collapse it
-     */
-    public void collapseNodeBranch(TreeNode node) {
-        treeNodeManager.collapseNodeBranch(node);
-        notifyDataSetChanged();
-    }
-
-    /**
-     * Expanding node full branches
-     *
-     * @param node The node to expand it
-     */
-    public void expandNodeBranch(TreeNode node) {
-        treeNodeManager.expandNodeBranch(node);
-        notifyDataSetChanged();
-    }
-
-    /**
-     * Expanding one node branch to until specific level
-     *
-     * @param node  to expand branch of it until level
-     * @param level to expand node branches to it
-     */
-    public void expandNodeToLevel(TreeNode node, int level) {
-        treeNodeManager.expandNodeToLevel(node, level);
-        notifyDataSetChanged();
-    }
-
-    /**
-     * Expanding all tree nodes branches to until specific level
-     *
-     * @param level to expand all nodes branches to it
-     */
-    public void expandNodesAtLevel(int level) {
-        treeNodeManager.expandNodesAtLevel(level);
-        notifyDataSetChanged();
-    }
-
-    /**
-     * Collapsing all nodes in the tree with their children
-     */
-    public void collapseAll() {
-        treeNodeManager.collapseAll();
-        notifyDataSetChanged();
-    }
-
-    /**
-     * Expanding all nodes in the tree with their children
-     */
-    public void expandAll() {
-        treeNodeManager.expandAll();
-        notifyDataSetChanged();
-    }
 
     /**
      * Update the list of tree nodes
@@ -281,14 +225,6 @@ public class TreeViewAdapter extends RecyclerView.Adapter<TreeViewHolder> {
         notifyDataSetChanged();
     }
 
-    /**
-     * Delete all tree nodes
-     */
-    public void clearTreeNodes() {
-        int size = treeNodeManager.size();
-        treeNodeManager.clearNodes();
-        notifyItemRangeRemoved(0, size);
-    }
 
     /**
      * Register a callback to be invoked when this TreeNode is clicked
@@ -299,38 +235,4 @@ public class TreeViewAdapter extends RecyclerView.Adapter<TreeViewHolder> {
         this.treeNodeClickListener = listener;
     }
 
-    /**
-     * Register a callback to be invoked when this TreeNode is clicked and held
-     *
-     * @param listener The callback that will run
-     */
-    public void setTreeNodeLongClickListener(OnTreeNodeLongClickListener listener) {
-        this.treeNodeLongClickListener = listener;
-    }
-
-    /**
-     * Set the current visible tree nodes and notify adapter data
-     *
-     * @param treeNodes New tree nodes
-     */
-    public void setTreeNodes(List<TreeNode> treeNodes) {
-        treeNodeManager.setTreeNodes(treeNodes);
-        notifyDataSetChanged();
-    }
-
-    /**
-     * Get the Current visible Tree nodes
-     *
-     * @return The visible Tree nodes main
-     */
-    public List<TreeNode> getTreeNodes() {
-        return treeNodeManager.getTreeNodes();
-    }
-
-    /**
-     * @return The current selected TreeNode, or null if no node selected
-     */
-    public TreeNode getSelectedNode() {
-        return currentSelectedNode;
-    }
 }

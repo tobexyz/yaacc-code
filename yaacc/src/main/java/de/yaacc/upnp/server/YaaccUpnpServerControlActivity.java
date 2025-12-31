@@ -21,6 +21,7 @@ import android.app.NotificationManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
@@ -28,8 +29,8 @@ import android.util.Log;
 import android.util.TypedValue;
 import android.view.Menu;
 import android.view.MenuItem;
-import android.widget.Button;
 import android.widget.CheckBox;
+import android.widget.ImageButton;
 import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
@@ -51,6 +52,7 @@ import de.yaacc.settings.SettingsActivity;
 import de.yaacc.upnp.server.contentdirectory.MediaPathFilter;
 import de.yaacc.util.AboutActivity;
 import de.yaacc.util.NotificationId;
+import de.yaacc.util.ThemeHelper;
 import de.yaacc.util.YaaccLogActivity;
 
 /**
@@ -116,7 +118,9 @@ public class YaaccUpnpServerControlActivity extends AppCompatActivity {
                 stop();
             }
         }));
-        Button resetButton = findViewById(R.id.sharedFoldersReset);
+        ImageButton resetButton = findViewById(R.id.sharedFoldersReset);
+        Drawable icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.outline_database_off_32, getTheme()), getTheme());
+        resetButton.setImageDrawable(icon);
         resetButton.setOnClickListener(v -> {
                     MediaPathFilter.resetMediaPaths(getApplicationContext());
                     MediaPathFilter.resetSelectedSafPathes(getApplicationContext());
@@ -124,7 +128,9 @@ public class YaaccUpnpServerControlActivity extends AppCompatActivity {
                 }
         );
 
-        Button safButton = findViewById(R.id.sharedFoldersAddSaf);
+        ImageButton safButton = findViewById(R.id.sharedFoldersAddSaf);
+        icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.outline_database_search_32, getTheme()), getTheme());
+        safButton.setImageDrawable(icon);
         safButton.setOnClickListener(v -> selectSafContent());
 
         TextView localServerControlInterface = findViewById(R.id.localServerControlInterface);
@@ -323,7 +329,10 @@ public class YaaccUpnpServerControlActivity extends AppCompatActivity {
                     } else {
                         uriSet = new HashSet<>(uriSet);
                     }
-                    uriSet.add(treeUri.toString());
+                    DocumentFile doc = DocumentFile.fromTreeUri(this, treeUri);
+                    if (doc != null) {
+                        uriSet.add(doc.getUri().toString());
+                    }
                     MediaPathFilter.saveSafPathes(getApplicationContext(), uriSet);
 
                     // rebuild tree with newly added SAF root
