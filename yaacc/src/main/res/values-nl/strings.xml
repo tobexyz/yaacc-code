@@ -119,4 +119,5 @@
     <string name="reset_shared_folders">gedeelde mappen opnieuw instellen</string>
     <string name="shutdown_timer">Uitschakeltimer</string>
     <string name="add_saf_content">bron toevoegen</string>
+    <string name="saf_content">SAF</string>
 </resources>

@@ -101,4 +101,7 @@
     <string name="settings_browse_swipe_on">Wijzig tabbladen door te vegen en aan te raken</string>
     <string name="settings_browse_swipe_title">Veeg op bladeren</string>
     <string name="settings_local_server_if_filter_names">interfaces op de zwarte lijst voor het ophalen van IP-adressen</string>
+    <string name="settings_local_server_serve_saf_title">SAF-inhoud serveren</string>
+    <string name="settings_local_server_serve_saf_off">Het weergeven van SAF-content is uitgeschakeld.</string>
+    <string name="settings_local_server_serve_saf_on">Het weergeven van SAF-inhoud is ingeschakeld.</string>
 </resources>

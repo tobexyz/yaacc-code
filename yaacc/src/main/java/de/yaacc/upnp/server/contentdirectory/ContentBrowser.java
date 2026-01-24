@@ -156,4 +156,9 @@ public abstract class ContentBrowser {
     public Set<String> getMediaPathes() {
         return MediaPathFilter.getMediaPathes(getContext());
     }
+
+    public Set<String> getSelectedSafPathes() {
+        return MediaPathFilter.getSelectedSafPathes(getContext());
+    }
+
 }

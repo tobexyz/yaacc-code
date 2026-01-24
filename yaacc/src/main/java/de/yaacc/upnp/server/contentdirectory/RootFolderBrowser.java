@@ -64,6 +64,9 @@ public class RootFolderBrowser extends ContentBrowser {
         if (isServingVideos()) {
             result++;
         }
+        if (isServingSaf()) {
+            result++;
+        }
         return result;
     }
 
@@ -80,6 +83,9 @@ public class RootFolderBrowser extends ContentBrowser {
         }
         if (isServingVideos()) {
             result.add((Container) new VideosFolderBrowser(getContext()).browseMeta(contentDirectory, ContentDirectoryIDs.VIDEOS_FOLDER.getId(), 0, 1, orderby));
+        }
+        if (isServingSaf()) {
+            result.add((Container) new SafFolderBrowser(getContext()).browseMeta(contentDirectory, ContentDirectoryIDs.SAF_FOLDER.getId(), 0, 1, orderby));
         }
         int start = firstResult > 0 ? (int) firstResult : 0;
         if (firstResult >= (result.size() - 1)) {
@@ -123,6 +129,14 @@ public class RootFolderBrowser extends ContentBrowser {
         return preferences.getBoolean(
                 getContext().getString(
                         R.string.settings_local_server_serve_music_chkbx),
+                false);
+    }
+
+    private boolean isServingSaf() {
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(getContext());
+        return preferences.getBoolean(
+                getContext().getString(
+                        R.string.settings_local_server_serve_saf_chkbx),
                 false);
     }
 }

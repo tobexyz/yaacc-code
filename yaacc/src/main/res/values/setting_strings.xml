@@ -107,6 +107,10 @@
     <string name="settings_local_server_serve_video_off">serve video is disabled</string>
     <string name="settings_local_server_serve_video_on">serve video is enabled</string>
     <string name="settings_local_server_serve_video_chkbx" translatable="false">local_server_serve_video_chkbx</string>
+    <string name="settings_local_server_serve_saf_title">serve SAF content</string>
+    <string name="settings_local_server_serve_saf_off">serve SAF content is disabled</string>
+    <string name="settings_local_server_serve_saf_on">serve SAF content is enabled</string>
+    <string name="settings_local_server_serve_saf_chkbx" translatable="false">local_server_serve_saf_chkbx</string>
     <string name="settings_local_server_name">network name for local server</string>
     <string name="settings_local_server_name_key" translatable="false">settings_local_server_name_key</string>
     <string name="settings_local_server_autostart_title">autostart server on boot</string>

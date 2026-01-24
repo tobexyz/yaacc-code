@@ -119,4 +119,5 @@
     <string name="reset_shared_folders">reset shared folders</string>
     <string name="shutdown_timer">Minuterie d\'arrêt</string>
     <string name="add_saf_content">ajouter une source</string>
+    <string name="saf_content">SAF</string>
 </resources>

@@ -101,4 +101,7 @@
     <string name="settings_browse_swipe_on">Tabwechsel mit Swipe und Touch</string>
     <string name="settings_browse_swipe_title">"Swipe-Verhalten "</string>
     <string name="settings_local_server_if_filter_names">Ignorierte Interfaces für die IP-Ermittlung</string>
+    <string name="settings_local_server_serve_saf_title">Bereitstellung von SAF-Inhalten</string>
+    <string name="settings_local_server_serve_saf_off">Die Bereitstellung von SAF-Inhalten ist deaktiviert.</string>
+    <string name="settings_local_server_serve_saf_on">Die Bereitstellung von SAF-Inhalten ist aktiviert.</string>
 </resources>

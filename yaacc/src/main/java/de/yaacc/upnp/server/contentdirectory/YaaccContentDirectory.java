@@ -457,6 +457,8 @@ public class YaaccContentDirectory {
             result = new ImageByBucketNameItemBrowser(getContext());
         } else if (objectID.startsWith(ContentDirectoryIDs.VIDEO_PREFIX.getId())) {
             result = new VideoItemBrowser(getContext());
+        } else if (objectID.startsWith(ContentDirectoryIDs.SAF_FOLDER.getId()) || objectID.startsWith(ContentDirectoryIDs.SAF_PREFIX.getId())) {
+            result = new SafFolderBrowser(getContext());
         } else {
             Log.d(getClass().getName(), "unknown object id: " + objectID);
             result = new RootFolderBrowser(getContext());

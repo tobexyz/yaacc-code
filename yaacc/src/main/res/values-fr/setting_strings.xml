@@ -101,4 +101,7 @@
     <string name="settings_browse_swipe_on">Changer d\'onglet par glissement et toucher</string>
     <string name="settings_browse_swipe_title">Glisser lors de la navigation</string>
     <string name="settings_local_server_if_filter_names">interfaces sur liste noire pour la récupération d\'adresse IP</string>
+    <string name="settings_local_server_serve_saf_title">diffuser du contenu SAF</string>
+    <string name="settings_local_server_serve_saf_off">Le contenu SAF est désactivé.</string>
+    <string name="settings_local_server_serve_saf_on">Le contenu SAF est activé.</string>
 </resources>
