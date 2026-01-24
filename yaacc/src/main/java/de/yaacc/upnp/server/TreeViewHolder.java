@@ -19,6 +19,7 @@
 package de.yaacc.upnp.server;
 
 
+import android.graphics.Color;
 import android.graphics.drawable.Drawable;
 import android.util.TypedValue;
 import android.view.View;
@@ -100,7 +101,11 @@ public class TreeViewHolder extends RecyclerView.ViewHolder {
             String absolutePath = getAbsolutePath(node);
             Drawable icon = fileRemoveButton.getContext().getDrawable(R.drawable.ic_baseline_delete_outline_32);
             icon = ThemeHelper.tintDrawable(icon, fileRemoveButton.getContext().getTheme());
-            fileRemoveButton.setVisibility(View.VISIBLE);
+            if (MediaPathFilter.getSafPathes(fileRemoveButton.getContext()).contains(absolutePath)) {
+                fileRemoveButton.setVisibility(View.VISIBLE);
+            } else {
+                fileRemoveButton.setVisibility(View.INVISIBLE);
+            }
             fileRemoveButton.setImageDrawable(icon);
             fileRemoveButton.setOnClickListener(v -> {
                 Set<String> selectedPathes;
@@ -111,7 +116,7 @@ public class TreeViewHolder extends RecyclerView.ViewHolder {
                 safPathes.remove(absolutePath);
                 MediaPathFilter.saveSelectedSafPathes(fileRemoveButton.getContext(), selectedPathes);
                 MediaPathFilter.saveSafPathes(fileRemoveButton.getContext(), safPathes);
-                adapter.notifyDataSetChanged();
+                adapter.removeNode(node);
             });
         } else {
             fileRemoveButton.setVisibility(View.INVISIBLE);
@@ -130,9 +135,8 @@ public class TreeViewHolder extends RecyclerView.ViewHolder {
         }
 
         if (node.isSelected()) {
+            itemView.setBackgroundColor(Color.LTGRAY);
             TypedValue typedValue = new TypedValue();
-            itemView.getContext().getTheme().resolveAttribute(android.R.attr.colorActivatedHighlight, typedValue, true);
-            itemView.setBackgroundColor(typedValue.data);
             itemView.getContext().getTheme().resolveAttribute(android.R.attr.colorPrimaryDark, typedValue, true);
             fileName.setTextColor(typedValue.data);
         } else {

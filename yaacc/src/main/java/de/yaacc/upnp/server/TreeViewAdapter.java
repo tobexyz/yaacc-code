@@ -122,8 +122,8 @@ public class TreeViewAdapter extends RecyclerView.Adapter<TreeViewHolder> {
     @Override
     public void onBindViewHolder(@NonNull TreeViewHolder holder, @SuppressLint("RecyclerView") int position) {
         TreeNode newSelectedNode = treeNodeManager.get(position);
-        holder.bindTreeNode(newSelectedNode);
         holder.adapter = this;
+        holder.bindTreeNode(newSelectedNode);
         holder.itemView.setOnClickListener(v -> {
             // Handle TreeNode click listener event
             if (treeNodeClickListener != null) {
@@ -235,4 +235,14 @@ public class TreeViewAdapter extends RecyclerView.Adapter<TreeViewHolder> {
         this.treeNodeClickListener = listener;
     }
 
+    /**
+     * Remove a node and its children from the tree
+     * @param node The node to remove
+     */
+    public void removeNode(TreeNode node) {
+        treeNodeManager.collapseNode(node);
+        if (treeNodeManager.removeNode(node)) {
+            notifyDataSetChanged();
+        }
+    }
 }
