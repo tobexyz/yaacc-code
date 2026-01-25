@@ -30,10 +30,12 @@ import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Build;
 import android.provider.MediaStore;
+import android.util.Base64;
 import android.util.Log;
 import android.util.Size;
 
 import androidx.core.content.res.ResourcesCompat;
+import androidx.documentfile.provider.DocumentFile;
 import androidx.preference.PreferenceManager;
 
 import org.apache.hc.core5.http.ContentType;
@@ -71,6 +73,7 @@ import java.util.List;
 import java.util.Locale;
 
 import de.yaacc.R;
+import de.yaacc.upnp.server.contentdirectory.ContentDirectoryIDs;
 import de.yaacc.upnp.server.contentdirectory.MediaPathFilter;
 import de.yaacc.util.HttpRange;
 
@@ -88,9 +91,9 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
 
     }
 
-
     @Override
-    public AsyncRequestConsumer<Message<HttpRequest, byte[]>> prepare(HttpRequest request, EntityDetails entityDetails, HttpContext context) {
+    public AsyncRequestConsumer<Message<HttpRequest, byte[]>> prepare(HttpRequest request, EntityDetails entityDetails,
+                                                                      HttpContext context) {
         return new BasicRequestConsumer<>(entityDetails != null ? new BasicAsyncEntityConsumer() : null);
     }
 
@@ -119,7 +122,8 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
         List<String> pathSegments = requestUri.getPathSegments();
         if (pathSegments.size() == 1 && "health".equals(pathSegments.get(0))) {
             responseBuilder.setStatus(HttpStatus.SC_OK);
-            responseBuilder.setEntity(AsyncEntityProducers.create("<html><body>I am alive</body></html>", ContentType.TEXT_HTML));
+            responseBuilder.setEntity(
+                    AsyncEntityProducers.create("<html><body>I am alive</body></html>", ContentType.TEXT_HTML));
             responseTrigger.submitResponse(responseBuilder.build(), context);
             return;
         }
@@ -127,7 +131,6 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
             createForbiddenResponse(responseTrigger, context, responseBuilder);
             return;
         }
-
 
         String type = pathSegments.get(0);
         String albumId = "";
@@ -158,7 +161,8 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
                 return;
             }
         }
-        Arrays.stream(request.getHead().getHeaders()).forEach(it -> Log.d(getClass().getName(), "HEADER " + it.getName() + ": " + it.getValue()));
+        Arrays.stream(request.getHead().getHeaders())
+                .forEach(it -> Log.d(getClass().getName(), "HEADER " + it.getName() + ": " + it.getValue()));
         List<HttpRange> ranges = new ArrayList<>();
         if (request.getHead().getHeader(HttpHeaders.RANGE) != null) {
             ranges = HttpRange.parseRangeHeader(request.getHead().getHeader(HttpHeaders.RANGE).getValue().toString());
@@ -172,15 +176,17 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
             contentHolder = lookupThumbnail(thumbId, ranges);
         } else if (YaaccUpnpServerService.PROXY_PATH.equals(type)) {
             contentHolder = lookupProxyContent(pathSegments.get(1), ranges);
+        } else if (YaaccUpnpServerService.SAF_PATH.equals(type)) {
+            contentHolder = lookupSafContent(pathSegments.get(1), pathSegments.get(2), ranges);
         }
+
         if (contentHolder == null) {
             // tricky but works
             Log.d(getClass().getName(), "Resource with id " + contentId
                     + albumId + thumbId + pathSegments.get(1) + " not found");
             responseBuilder.setStatus(HttpStatus.SC_NOT_FOUND);
-            String response =
-                    "<html><body>Resource with id " + contentId + albumId
-                            + thumbId + pathSegments.get(1) + " not found</body></html>";
+            String response = "<html><body>Resource with id " + contentId + albumId
+                    + thumbId + pathSegments.get(1) + " not found</body></html>";
             responseBuilder.setEntity(AsyncEntityProducers.create(response, ContentType.TEXT_HTML));
         } else {
 
@@ -192,9 +198,11 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
         Log.d(getClass().getName(), "end doService: ");
     }
 
-    private void createForbiddenResponse(ResponseTrigger responseTrigger, HttpContext context, AsyncResponseBuilder responseBuilder) throws HttpException, IOException {
+    private void createForbiddenResponse(ResponseTrigger responseTrigger, HttpContext context,
+                                         AsyncResponseBuilder responseBuilder) throws HttpException, IOException {
         responseBuilder.setStatus(HttpStatus.SC_FORBIDDEN);
-        responseBuilder.setEntity(AsyncEntityProducers.create("<html><body>Access denied</body></html>", ContentType.TEXT_HTML));
+        responseBuilder.setEntity(
+                AsyncEntityProducers.create("<html><body>Access denied</body></html>", ContentType.TEXT_HTML));
         responseTrigger.submitResponse(responseBuilder.build(), context);
         Log.d(getClass().getName(), "end doService: Access denied");
     }
@@ -223,7 +231,8 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
         String[] projection = {MediaStore.Files.FileColumns._ID,
                 MediaStore.Files.FileColumns.MIME_TYPE,
                 MediaStore.Files.FileColumns.DATA};
-        String selection = MediaStore.Files.FileColumns._ID + "=? and (" + MediaPathFilter.makeLikeClause(MediaStore.Files.FileColumns.DATA, MediaPathFilter.getMediaPathes(getContext()).size()) + ")";
+        String selection = MediaStore.Files.FileColumns._ID + "=? and (" + MediaPathFilter.makeLikeClause(
+                MediaStore.Files.FileColumns.DATA, MediaPathFilter.getMediaPathes(getContext()).size()) + ")";
         List<String> selectionArgsList = new ArrayList<>();
         selectionArgsList.add(contentId);
         selectionArgsList.addAll(MediaPathFilter.getMediaPathesForLikeClause(getContext()));
@@ -235,10 +244,12 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
             if (mFilesCursor != null) {
                 mFilesCursor.moveToFirst();
                 while (!mFilesCursor.isAfterLast()) {
-                    @SuppressLint("Range") String dataUri = mFilesCursor.getString(mFilesCursor
+                    @SuppressLint("Range")
+                    String dataUri = mFilesCursor.getString(mFilesCursor
                             .getColumnIndex(MediaStore.Files.FileColumns.DATA));
 
-                    @SuppressLint("Range") String mimeTypeStr = mFilesCursor
+                    @SuppressLint("Range")
+                    String mimeTypeStr = mFilesCursor
                             .getString(mFilesCursor
                                     .getColumnIndex(MediaStore.Files.FileColumns.MIME_TYPE));
                     MimeType mimeType = MimeType.valueOf("*/*");
@@ -247,7 +258,7 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
                     }
                     Log.d(getClass().getName(), "Content found: " + mimeType
                             + " Uri: " + dataUri);
-                    result = new ContentHolder(mimeType, dataUri, ranges);
+                    result = new ContentHolder(mimeType, dataUri, ranges, context);
                     mFilesCursor.moveToNext();
                 }
             } else {
@@ -268,7 +279,7 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
     private ContentHolder lookupAlbumArt(String albumId, List<HttpRange> ranges) {
 
         ContentHolder result = new ContentHolder(MimeType.valueOf("image/png"),
-                getDefaultIcon(), ranges);
+                getDefaultIcon(), ranges, context);
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(getContext());
         if (!preferences.getBoolean(getContext().getString(R.string.settings_local_server_chkbx), false)) {
             return result;
@@ -292,7 +303,8 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
                 if (cursor != null) {
                     cursor.moveToFirst();
                     while (!cursor.isAfterLast()) {
-                        @SuppressLint("Range") String dataUri = cursor.getString(cursor
+                        @SuppressLint("Range")
+                        String dataUri = cursor.getString(cursor
                                 .getColumnIndex(MediaStore.Audio.Albums.ALBUM_ART));
 
                         // String mimeTypeStr = null;
@@ -307,10 +319,11 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
                         if (dataUri != null) {
                             Log.d(getClass().getName(), "Content found: " + mimeType
                                     + " Uri: " + dataUri);
-                            result = new ContentHolder(mimeType, dataUri, ranges);
+                            result = new ContentHolder(mimeType, dataUri, ranges, context);
                         } else {
                             Log.d(getClass().getName(), "Album art not found in media store. Fallback to default");
-                            Bitmap bitmap = BitmapFactory.decodeResource(context.getResources(), R.drawable.yaacc192_32);
+                            Bitmap bitmap = BitmapFactory.decodeResource(context.getResources(),
+                                    R.drawable.yaacc192_32);
 
                             try {
                                 File art = new File(context.getCacheDir(), "albumart" + albumId + ".jpg");
@@ -319,7 +332,7 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
                                 bitmap.compress(Bitmap.CompressFormat.JPEG, 90, fos);
                                 fos.flush();
                                 fos.close();
-                                result = new ContentHolder(mimeType, art.getAbsolutePath(), ranges);
+                                result = new ContentHolder(mimeType, art.getAbsolutePath(), ranges, context);
                             } catch (IOException e) {
                                 Log.e(getClass().getName(), "Error loading album art from file", e);
                             }
@@ -331,7 +344,8 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
                 }
             }
         } else {
-            Uri albumArtUri = ContentUris.withAppendedId(MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI, Long.parseLong(albumId));
+            Uri albumArtUri = ContentUris.withAppendedId(MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI,
+                    Long.parseLong(albumId));
             MimeType mimeType = MimeType.valueOf("image/jpeg");
             Log.d(getClass().getName(), "Content found: " + mimeType
                     + " Uri: " + albumArtUri);
@@ -349,7 +363,7 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
                 bitmap.compress(Bitmap.CompressFormat.JPEG, 90, fos);
                 fos.flush();
                 fos.close();
-                result = new ContentHolder(mimeType, art.getAbsolutePath(), ranges);
+                result = new ContentHolder(mimeType, art.getAbsolutePath(), ranges, context);
             } catch (IOException e) {
                 Log.e(getClass().getName(), "Error loading album art from file", e);
             }
@@ -367,7 +381,7 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
     private ContentHolder lookupThumbnail(String idStr, List<HttpRange> ranges) {
 
         ContentHolder result = new ContentHolder(MimeType.valueOf("image/png"),
-                getDefaultIcon(), ranges);
+                getDefaultIcon(), ranges, context);
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(getContext());
         if (!preferences.getBoolean(getContext().getString(R.string.settings_local_server_chkbx), false)) {
             return result;
@@ -395,7 +409,7 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
 
             MimeType mimeType = MimeType.valueOf("image/png");
 
-            result = new ContentHolder(mimeType, byteArray, ranges);
+            result = new ContentHolder(mimeType, byteArray, ranges, context);
 
         } else {
             Log.d(getClass().getName(), "System media store is empty.");
@@ -405,16 +419,85 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
 
     private ContentHolder lookupProxyContent(String contentKey, List<HttpRange> ranges) {
 
-        String targetUri = PreferenceManager.getDefaultSharedPreferences(getContext()).getString(YaaccUpnpServerService.PROXY_LINK_KEY_PREFIX + contentKey, null);
+        String targetUri = PreferenceManager.getDefaultSharedPreferences(getContext())
+                .getString(YaaccUpnpServerService.PROXY_LINK_KEY_PREFIX + contentKey, null);
         if (targetUri == null) {
             return null;
         }
-        String targetMimetype = PreferenceManager.getDefaultSharedPreferences(getContext()).getString(YaaccUpnpServerService.PROXY_LINK_MIME_TYPE_KEY_PREFIX + contentKey, null);
+        String targetMimetype = PreferenceManager.getDefaultSharedPreferences(getContext())
+                .getString(YaaccUpnpServerService.PROXY_LINK_MIME_TYPE_KEY_PREFIX + contentKey, null);
         MimeType mimeType = MimeType.valueOf("*/*");
         if (targetMimetype != null) {
             mimeType = MimeType.valueOf(targetMimetype);
         }
-        return new ContentHolder(mimeType, targetUri, ranges);
+        return new ContentHolder(mimeType, targetUri, ranges, context);
+    }
+
+    private ContentHolder lookupSafContent(String contentKey, String contentEnc, List<HttpRange> ranges) {
+        if (!contentKey.startsWith(ContentDirectoryIDs.SAF_PREFIX.getId())) {
+            Log.d(getClass().getName(), "SAF content id is unknown: " + contentKey);
+            return null;
+        }
+        String contentId = contentKey.substring(ContentDirectoryIDs.SAF_PREFIX.getId().length());
+        if (contentEnc.indexOf(".") == -1) {
+            Log.d(getClass().getName(), "SAF content id is invalid: " + contentEnc);
+            return null;
+        }
+        String contentUri = new String(
+                Base64.decode(contentEnc.substring(0, contentEnc.indexOf(".")).getBytes(), Base64.NO_WRAP));
+        if (!contentId.equals("" + contentUri.hashCode())) {
+            Log.d(getClass().getName(), "SAF content id is invalid: " + contentId);
+            return null;
+        }
+        DocumentFile file = DocumentFile.fromTreeUri(getContext(), Uri.parse(contentUri));
+        if (file == null || !file.exists()) {
+            Log.d(getClass().getName(), "SAF content uri is unknown: " + contentUri);
+            return null;
+        }
+
+        String mimeTypeStr = file.getType();
+
+        MimeType mimeType = MimeType.valueOf("*/*");
+        if (mimeTypeStr != null) {
+            mimeType = MimeType.valueOf(mimeTypeStr);
+        } else {
+            // Fallback: try to determine MIME type from file extension
+            //String fileName = file.getName();
+            String fileName = contentEnc;
+            Log.d(getClass().getName(), "File name: " + fileName);
+            if (fileName != null) {
+                String fileExtension = android.webkit.MimeTypeMap.getFileExtensionFromUrl(fileName);
+                if (fileExtension != null && !fileExtension.isEmpty()) {
+                    String fallbackMimeType = android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(fileExtension);
+                    if (fallbackMimeType != null) {
+                        mimeType = MimeType.valueOf(fallbackMimeType);
+                    }
+                }
+            }
+        }
+
+        // Check if contentUri or its parents are included in selectedSafPathes
+        // FIXME
+        /*
+         * Set<String> selectedSafPathes =
+         * MediaPathFilter.getSelectedSafPathes(getContext());
+         * boolean isPathAllowed = false;
+         *
+         * for (String selectedPath : selectedSafPathes) {
+         * if (contentUri.startsWith(selectedPath)) {
+         * isPathAllowed = true;
+         * break;
+         * }
+         * }
+         *
+         * if (!isPathAllowed) {
+         * Log.d(getClass().getName(), "SAF content URI not in selected paths: " +
+         * contentUri);
+         * return null;
+         * }
+         */
+        String targetUri = contentUri;
+        return new ContentHolder(mimeType, targetUri, ranges, context);
     }
 
     private byte[] getDefaultIcon() {
@@ -430,7 +513,6 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
         return result;
     }
 
-
     /**
      * ValueHolder for media content.
      */
@@ -438,20 +520,23 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
         private final MimeType mimeType;
         private String uri;
         private byte[] content;
+        private final Context context;
 
         private List<HttpRange> ranges;
 
-        public ContentHolder(MimeType mimeType, String uri, List<HttpRange> ranges) {
+        public ContentHolder(MimeType mimeType, String uri, List<HttpRange> ranges, Context context) {
             this.uri = uri;
             this.mimeType = mimeType;
             this.ranges = ranges;
+            this.context = context;
 
         }
 
-        public ContentHolder(MimeType mimeType, byte[] content, List<HttpRange> ranges) {
+        public ContentHolder(MimeType mimeType, byte[] content, List<HttpRange> ranges, Context context) {
             this.content = content;
             this.mimeType = mimeType;
             this.ranges = ranges;
+            this.context = context;
 
         }
 
@@ -471,13 +556,13 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
 
         private byte[] readRangeFormFile(File file, List<HttpRange> ranges) throws IOException {
 
-
             try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
                 long fileSize = raf.length();
                 long startPosition;
                 long rangeLength;
                 if (ranges.size() > 1) {
-                    Log.d(getClass().getName(), "More than on ranges requested. Currently only one range is supported. Responding with the first range");
+                    Log.d(getClass().getName(),
+                            "More than on ranges requested. Currently only one range is supported. Responding with the first range");
                 }
                 if (ranges.isEmpty()) {
                     startPosition = 0;
@@ -498,9 +583,11 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
 
                 // Read a range of bytes (e.g., bytes 100 to 200)
                 if (startPosition < 0 || startPosition + rangeLength > fileSize) {
-                    Log.d(getClass().getName(), "Invalid range startPosition: " + startPosition + " rangeLength: " + rangeLength + " fileSize: " + fileSize);
+                    Log.d(getClass().getName(), "Invalid range startPosition: " + startPosition + " rangeLength: "
+                            + rangeLength + " fileSize: " + fileSize);
                     rangeLength = fileSize - startPosition;
-                    Log.d(getClass().getName(), "Adjusted range startPosition: " + startPosition + " rangeLength: " + rangeLength + " fileSize: " + fileSize);
+                    Log.d(getClass().getName(), "Adjusted range startPosition: " + startPosition + " rangeLength: "
+                            + rangeLength + " fileSize: " + fileSize);
                 }
 
                 raf.seek(startPosition); // Move to the starting position
@@ -521,84 +608,156 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
                         Log.d(getClass().getName(), "Return without range request file-Uri: " + getUri()
                                 + " Mimetype: " + getMimeType());
                     } else {
-                        result = AsyncEntityProducers.create(readRangeFormFile(file, ranges), ContentType.parse(getMimeType().toString()));
+                        result = AsyncEntityProducers.create(readRangeFormFile(file, ranges),
+                                ContentType.parse(getMimeType().toString()));
                     }
                 } else {
-                    //file not found maybe external url
-                    result = new AbstractBinAsyncEntityProducer(0, ContentType.parse(getMimeType().toString())) {
-                        private InputStream input;
-                        private long length = -1;
+                    // DocumentFile handling - need to read content through InputStream
+                    try {
+                        Uri uri = Uri.parse(getUri());
+                        // For DocumentFile, we need to handle it differently since AsyncEntityProducers doesn't support it directly
+                        // We'll read the content as bytes and create from that
+                        if (ranges.isEmpty()) {
+                            // DocumentFile handling using ContentResolver
+                            result = new AbstractBinAsyncEntityProducer(0, ContentType.parse(getMimeType().toString())) {
+                                private InputStream input;
+                                private long length = -1;
 
-                        AbstractBinAsyncEntityProducer init() {
-                            try {
-                                if (input == null) {
-                                    //https://www.experts-exchange.com/questions/10171110/Reading-a-part-of-a-file-using-URLConnection.html
-                                    URLConnection con = new URL(getUri()).openConnection();
-                                    con.setRequestProperty("Range", HttpRange.toHeaderString(ranges));
-                                    input = con.getInputStream();
-                                    length = con.getContentLength();
+                                AbstractBinAsyncEntityProducer init() {
+                                    try {
+                                        input = context.getContentResolver().openInputStream(uri);
+                                        DocumentFile docFile = DocumentFile.fromSingleUri(context, uri);
+                                        if (docFile != null) {
+                                            length = docFile.length();
+                                        }
+                                    } catch (IOException e) {
+                                        Log.e(getClass().getName(), "Error opening DocumentFile", e);
+                                    }
+                                    return this;
                                 }
-                            } catch (IOException e) {
-                                Log.e(getClass().getName(), "Error opening external content", e);
+
+                                @Override
+                                public long getContentLength() {
+                                    return length;
+                                }
+
+                                @Override
+                                protected int availableData() {
+                                    try {
+                                        return input != null ? input.available() : 0;
+                                    } catch (IOException e) {
+                                        return 0;
+                                    }
+                                }
+
+                                @Override
+                                protected void produceData(final StreamChannel<ByteBuffer> channel) throws IOException {
+                                    if (input != null) {
+                                        byte[] buffer = new byte[8192];
+                                        int bytesRead = input.read(buffer);
+                                        if (bytesRead > 0) {
+                                            channel.write(ByteBuffer.wrap(buffer, 0, bytesRead));
+                                        } else {
+                                            input.close();
+                                            channel.endStream();
+                                        }
+                                    } else {
+                                        channel.endStream();
+                                    }
+                                }
+
+                                @Override
+                                public boolean isRepeatable() {
+                                    return true;
+                                }
+
+                                @Override
+                                public void failed(final Exception cause) {
+                                }
+                            }.init();
+                        } else {
+                            // Range requests for DocumentFile not implemented yet
+                            result = AsyncEntityProducers.create("DocumentFile range requests not implemented".getBytes(),
+                                    ContentType.parse(getMimeType().toString()));
+                        }
+                    } catch (Exception e) {
+                        Log.e(getClass().getName(), "Error handling DocumentFile", e);
+                        // Fall back to external URL handling
+                        result = new AbstractBinAsyncEntityProducer(0, ContentType.parse(getMimeType().toString())) {
+                            private InputStream input;
+                            private long length = -1;
+
+                            AbstractBinAsyncEntityProducer init() {
+                                try {
+                                    if (input == null) {
+                                        // https://www.experts-exchange.com/questions/10171110/Reading-a-part-of-a-file-using-URLConnection.html
+                                        URLConnection con = new URL(getUri()).openConnection();
+                                        con.setRequestProperty("Range", HttpRange.toHeaderString(ranges));
+                                        input = con.getInputStream();
+                                        length = con.getContentLength();
+                                    }
+                                } catch (IOException e) {
+                                    Log.e(getClass().getName(), "Error opening external content", e);
+                                }
+                                return this;
                             }
-                            return this;
-                        }
 
-                        @Override
-                        public long getContentLength() {
-                            return length;
-                        }
-
-                        @Override
-                        protected int availableData() {
-                            return Integer.MAX_VALUE;
-                        }
-
-                        @Override
-                        protected void produceData(final StreamChannel<ByteBuffer> channel) throws IOException {
-                            try {
-                                if (input == null) {
-                                    //retry opening external content if it hasn't been opened yet
-                                    URLConnection con = new URL(getUri()).openConnection();
-                                    input = con.getInputStream();
-                                    length = con.getContentLength();
-                                }
-                                byte[] tempBuffer = new byte[1024];
-                                int bytesRead;
-                                if (-1 != (bytesRead = input.read(tempBuffer))) {
-                                    channel.write(ByteBuffer.wrap(tempBuffer, 0, bytesRead));
-                                }
-                                if (bytesRead == -1) {
-                                    channel.endStream();
-                                }
-
-                            } catch (IOException e) {
-                                Log.e(getClass().getName(), "Error reading external content", e);
-                                throw e;
+                            @Override
+                            public long getContentLength() {
+                                return length;
                             }
-                        }
 
+                            @Override
+                            protected int availableData() {
+                                return Integer.MAX_VALUE;
+                            }
 
-                        @Override
-                        public boolean isRepeatable() {
-                            return true;
-                        }
+                            @Override
+                            protected void produceData(final StreamChannel<ByteBuffer> channel) throws IOException {
+                                try {
+                                    if (input == null) {
+                                        // retry opening external content if it hasn't been opened yet
+                                        URLConnection con = new URL(getUri()).openConnection();
+                                        input = con.getInputStream();
+                                        length = con.getContentLength();
+                                    }
+                                    byte[] tempBuffer = new byte[1024];
+                                    int bytesRead;
+                                    if (-1 != (bytesRead = input.read(tempBuffer))) {
+                                        channel.write(ByteBuffer.wrap(tempBuffer, 0, bytesRead));
+                                    }
+                                    if (bytesRead == -1) {
+                                        channel.endStream();
+                                    }
 
-                        @Override
-                        public void failed(final Exception cause) {
-                        }
+                                } catch (IOException e) {
+                                    Log.e(getClass().getName(), "Error reading external content", e);
+                                    throw e;
+                                }
+                            }
 
-                    }.init();
+                            @Override
+                            public boolean isRepeatable() {
+                                return true;
+                            }
 
-                    Log.d(getClass().getName(), "Return external-Uri: " + getUri()
-                            + "Mimetype: " + getMimeType());
+                            @Override
+                            public void failed(final Exception cause) {
+                            }
+
+                        }.init();
+
+                        Log.d(getClass().getName(), "Return external-Uri: " + getUri()
+                                + "Mimetype: " + getMimeType());
+                    }
                 }
             } else if (content != null) {
                 result = AsyncEntityProducers.create(content, ContentType.parse(getMimeType().toString()));
             }
             if (result == null) {
                 Log.d(getClass().getName(), "Resource is null");
-                return AsyncEntityProducers.create("<html><body><h1>Resource not found</h1></body></html>", ContentType.TEXT_HTML);
+                return AsyncEntityProducers.create("<html><body><h1>Resource not found</h1></body></html>",
+                        ContentType.TEXT_HTML);
             }
             return result;
 

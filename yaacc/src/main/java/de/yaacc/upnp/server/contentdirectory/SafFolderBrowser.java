@@ -20,6 +20,8 @@ package de.yaacc.upnp.server.contentdirectory;
 
 import android.content.Context;
 import android.net.Uri;
+import android.util.Base64;
+import android.util.Log;
 
 import androidx.documentfile.provider.DocumentFile;
 
@@ -60,10 +62,20 @@ public class SafFolderBrowser extends ContentBrowser {
                     null);
         } else {
             // Meta for a subfolder
-            String path = myId.substring(ContentDirectoryIDs.SAF_PREFIX.getId().length());
+            String pathEnc = myId.substring(ContentDirectoryIDs.SAF_PREFIX.getId().length());
+            String path = new String(Base64.decode(pathEnc.getBytes(), Base64.NO_WRAP));
             DocumentFile file = DocumentFile.fromTreeUri(getContext(), Uri.parse(path));
             String title = (file != null && file.getName() != null) ? file.getName() : path;
-            return new StorageFolder(myId, ContentDirectoryIDs.SAF_PREFIX.getId(), title, "yaacc", getSize(contentDirectory, myId), null);
+
+            // Determine parent ID - if this is a direct child of SAF root, parent is SAF_FOLDER
+            // Otherwise, find the parent folder
+            String parentId = ContentDirectoryIDs.SAF_FOLDER.getId();
+            DocumentFile parent = file != null ? file.getParentFile() : null;
+            if (parent != null && !getSelectedSafPathes().contains(parent.getUri().toString())) {
+                parentId = ContentDirectoryIDs.SAF_PREFIX.getId() + parent.getUri().toString();
+            }
+
+            return new StorageFolder(myId, parentId, title, "yaacc", getSize(contentDirectory, myId), null);
         }
     }
 
@@ -72,7 +84,8 @@ public class SafFolderBrowser extends ContentBrowser {
         if (myId.equals(ContentDirectoryIDs.SAF_FOLDER.getId())) {
             return getSelectedSafPathes().size();
         } else {
-            String path = myId.substring(ContentDirectoryIDs.SAF_PREFIX.getId().length());
+            String pathEnc = myId.substring(ContentDirectoryIDs.SAF_PREFIX.getId().length());
+            String path = new String(Base64.decode(pathEnc.getBytes(), Base64.NO_WRAP));
             DocumentFile file = DocumentFile.fromTreeUri(getContext(), Uri.parse(path));
             if (file != null && file.isDirectory()) {
                 return file.listFiles().length;
@@ -96,22 +109,28 @@ public class SafFolderBrowser extends ContentBrowser {
                 DocumentFile file = DocumentFile.fromTreeUri(getContext(), Uri.parse(path));
                 if (file != null && file.isDirectory()) {
                     String title = file.getName() != null ? file.getName() : path;
-                    StorageFolder folder = new StorageFolder(ContentDirectoryIDs.SAF_PREFIX.getId() + path, ContentDirectoryIDs.SAF_FOLDER.getId(), title, "yaacc", 0, null);
+                    String base64Str = Base64.encodeToString(file.getUri().toString().getBytes(), Base64.NO_WRAP);
+                    StorageFolder folder = new StorageFolder(ContentDirectoryIDs.SAF_PREFIX.getId() + base64Str, ContentDirectoryIDs.SAF_FOLDER.getId(), title, "yaacc", 0, null);
                     result.add(folder);
                 }
             }
         } else {
             // Browse subfolder
-            String path = myId.substring(ContentDirectoryIDs.SAF_PREFIX.getId().length());
+            String pathEnc = myId.substring(ContentDirectoryIDs.SAF_PREFIX.getId().length());
+            String path = new String(Base64.decode(pathEnc.getBytes(), Base64.NO_WRAP));
             DocumentFile root = DocumentFile.fromTreeUri(getContext(), Uri.parse(path));
             if (root != null && root.isDirectory()) {
                 DocumentFile[] files = root.listFiles();
                 int start = (int) Math.max(0, firstResult);
                 int end = (int) Math.min(files.length, start + maxResults);
+                Log.d(this.getClass().toString(), "Parent: " + myId);
                 for (int i = start; i < end; i++) {
                     DocumentFile file = files[i];
                     if (file.isDirectory()) {
-                        StorageFolder folder = new StorageFolder(ContentDirectoryIDs.SAF_PREFIX.getId() + file.getUri().toString(), myId, file.getName(), "yaacc", 0, null);
+                        Log.d(this.getClass().toString(), "Child: " + file.getUri().toString());
+                        String title = file.getName() != null ? file.getName() : path;
+                        String base64Str = Base64.encodeToString(file.getUri().toString().getBytes(), Base64.NO_WRAP);
+                        StorageFolder folder = new StorageFolder(ContentDirectoryIDs.SAF_PREFIX.getId() + base64Str, myId, title, "yaacc", 0, null);
                         result.add(folder);
                     }
                 }
@@ -139,7 +158,8 @@ public class SafFolderBrowser extends ContentBrowser {
             }
         } else {
             // Browse subfolder items
-            String path = myId.substring(ContentDirectoryIDs.SAF_PREFIX.getId().length());
+            String pathEnc = myId.substring(ContentDirectoryIDs.SAF_PREFIX.getId().length());
+            String path = new String(Base64.decode(pathEnc.getBytes(), Base64.NO_WRAP));
             DocumentFile root = DocumentFile.fromTreeUri(getContext(), Uri.parse(path));
             if (root != null && root.isDirectory()) {
                 DocumentFile[] files = root.listFiles();
@@ -160,11 +180,11 @@ public class SafFolderBrowser extends ContentBrowser {
         String mimeTypeStr = file.getType();
         if (mimeTypeStr != null) {
             MimeType mimeType = MimeType.valueOf(mimeTypeStr);
-            String id = ContentDirectoryIDs.SAF_PREFIX.getId() + path;
+            String id = ContentDirectoryIDs.SAF_PREFIX.getId() + path.hashCode();
             String title = file.getName() != null ? file.getName() : path;
 
             // The actual URI for streaming from this server
-            String uri = getUriString(contentDirectory, id, mimeType);
+            String uri = getUriString(contentDirectory, id, mimeType, path);
 
             // Create correct ProtocolInfo with DLNA attributes
             ProtocolInfo protocolInfo = new ProtocolInfo(Protocol.HTTP_GET, ProtocolInfo.WILDCARD, mimeType.toString(), getDLNAAttributes(mimeType));
