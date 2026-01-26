@@ -160,26 +160,31 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
     public int onStartCommand(Intent intent, int flags, int startId) {
         long start = System.currentTimeMillis();
 
-        mediaServerUuid = preferences.getString(getApplicationContext().getString(R.string.settings_local_server_provider_uuid_key), null);
-        if (mediaServerUuid == null) {
-            mediaServerUuid = UUID.randomUUID().toString();
-            preferences.edit().putString(getApplicationContext().getString(R.string.settings_local_server_provider_uuid_key), mediaServerUuid).commit();
+        try {
+            mediaServerUuid = preferences.getString(getApplicationContext().getString(R.string.settings_local_server_provider_uuid_key), null);
+            if (mediaServerUuid == null) {
+                mediaServerUuid = UUID.randomUUID().toString();
+                preferences.edit().putString(getApplicationContext().getString(R.string.settings_local_server_provider_uuid_key), mediaServerUuid).commit();
+            }
+            mediaRendererUuid = preferences.getString(getApplicationContext().getString(R.string.settings_local_server_receiver_uuid_key), null);
+            if (mediaRendererUuid == null) {
+                mediaRendererUuid = UUID.randomUUID().toString();
+                preferences.edit().putString(getApplicationContext().getString(R.string.settings_local_server_receiver_uuid_key), mediaRendererUuid).commit();
+            }
+            if (getUpnpClient() == null) {
+                setUpnpClient(new UpnpClient());
+            }
+            // the footprint of the onStart() method must be small
+            // otherwise android will kill the service
+            // in order of this circumstance we have to initialize the service
+            // asynchronous
+            Thread initializationThread = new Thread(this::initialize);
+            initializationThread.start();
+            showNotification();
+        } catch (Exception e) {
+            Log.e(getClass().getName(), "Error in onStartCommand", e);
+            return START_NOT_STICKY;
         }
-        mediaRendererUuid = preferences.getString(getApplicationContext().getString(R.string.settings_local_server_receiver_uuid_key), null);
-        if (mediaRendererUuid == null) {
-            mediaRendererUuid = UUID.randomUUID().toString();
-            preferences.edit().putString(getApplicationContext().getString(R.string.settings_local_server_receiver_uuid_key), mediaRendererUuid).commit();
-        }
-        if (getUpnpClient() == null) {
-            setUpnpClient(new UpnpClient());
-        }
-        // the footprint of the onStart() method must be small
-        // otherwise android will kill the service
-        // in order of this circumstance we have to initialize the service
-        // asynchronous
-        Thread initializationThread = new Thread(this::initialize);
-        initializationThread.start();
-        showNotification();
         Log.d(this.getClass().getName(), "End On Start");
         Log.d(this.getClass().getName(), "on start took: " + (System.currentTimeMillis() - start));
         return START_STICKY;
@@ -193,24 +198,31 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         }
 
         if (getUpnpClient() != null) {
-            if (localServer != null) {
-                getUpnpClient().localDeviceRemoved(getUpnpClient().getRegistry(), localServer);
-                localServer = null;
+            try {
+                if (localServer != null) {
+                    getUpnpClient().localDeviceRemoved(getUpnpClient().getRegistry(), localServer);
+                    localServer = null;
+                }
+                if (localRenderer != null) {
+                    getUpnpClient().localDeviceRemoved(getUpnpClient().getRegistry(), localRenderer);
+                    localRenderer = null;
+                }
+            } catch (Exception e) {
+                Log.e(getClass().getName(), "Error removing UPnP devices", e);
             }
-            if (localRenderer != null) {
-                getUpnpClient().localDeviceRemoved(getUpnpClient().getRegistry(), localRenderer);
-                localRenderer = null;
-            }
-
         }
         if (httpServer != null) {
-            httpServer.initiateShutdown();
             try {
+                httpServer.initiateShutdown();
                 httpServer.awaitShutdown(TimeValue.ofSeconds(3));
             } catch (InterruptedException e) {
-                Log.w(getClass().getName(), "got exception on stream server stop ", e);
+                Log.w(getClass().getName(), "HTTP server shutdown interrupted", e);
+                Thread.currentThread().interrupt();
+            } catch (Exception e) {
+                Log.e(getClass().getName(), "Error shutting down HTTP server", e);
+            } finally {
+                httpServer = null;
             }
-
         }
         cancleNotification();
         super.onDestroy();

@@ -102,6 +102,12 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
                        final ResponseTrigger responseTrigger,
                        final HttpContext context) throws HttpException, IOException {
 
+        if (request == null || request.getHead() == null) {
+            Log.e(getClass().getName(), "Invalid HTTP request received");
+            responseTrigger.submitResponse(AsyncResponseBuilder.create(HttpStatus.SC_BAD_REQUEST).build(), context);
+            return;
+        }
+
         Log.d(getClass().getName(), "Processing HTTP request: "
                 + request.getHead().getRequestUri());
         final AsyncResponseBuilder responseBuilder = AsyncResponseBuilder.create(HttpStatus.SC_OK);

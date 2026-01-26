@@ -88,9 +88,20 @@ public class SafFolderBrowser extends ContentBrowser {
         } else {
             String pathEnc = myId.substring(ContentDirectoryIDs.SAF_PREFIX.getId().length());
             String path = new String(Base64.decode(pathEnc.getBytes(), Base64.NO_WRAP));
-            DocumentFile file = DocumentFile.fromTreeUri(getContext(), Uri.parse(path));
+            DocumentFile file = null;
+            try {
+                file = DocumentFile.fromTreeUri(getContext(), Uri.parse(path));
+            } catch (Exception e) {
+                Log.e("SafFolderBrowser", "Error accessing DocumentFile: " + path, e);
+                return 0;
+            }
             if (file != null && file.isDirectory()) {
-                return file.listFiles().length;
+                try {
+                    DocumentFile[] files = file.listFiles();
+                    return files != null ? files.length : 0;
+                } catch (Exception e) {
+                    Log.e("SafFolderBrowser", "Error listing files: " + path, e);
+                }
             }
         }
         return 0;
@@ -110,14 +121,18 @@ public class SafFolderBrowser extends ContentBrowser {
 
             for (int i = start; i < end; i++) {
                 String path = sortedPathes.get(i);
-                DocumentFile file = DocumentFile.fromTreeUri(getContext(), Uri.parse(path));
-                if (file != null && file.isDirectory()) {
-                    String title = file.getName() != null ? file.getName() : path;
-                    String base64Str = Base64.encodeToString(file.getUri().toString().getBytes(), Base64.NO_WRAP);
-                    String folderId = ContentDirectoryIDs.SAF_PREFIX.getId() + base64Str;
-                    Log.d("SafFolderBrowser", "Creating root folder: " + title + " with ID: " + folderId);
-                    StorageFolder folder = new StorageFolder(folderId, ContentDirectoryIDs.SAF_FOLDER.getId(), title, "yaacc", 0, null);
-                    result.add(folder);
+                try {
+                    DocumentFile file = DocumentFile.fromTreeUri(getContext(), Uri.parse(path));
+                    if (file != null && file.isDirectory()) {
+                        String title = file.getName() != null ? file.getName() : path;
+                        String base64Str = Base64.encodeToString(file.getUri().toString().getBytes(), Base64.NO_WRAP);
+                        String folderId = ContentDirectoryIDs.SAF_PREFIX.getId() + base64Str;
+                        Log.d("SafFolderBrowser", "Creating root folder: " + title + " with ID: " + folderId);
+                        StorageFolder folder = new StorageFolder(folderId, ContentDirectoryIDs.SAF_FOLDER.getId(), title, "yaacc", 0, null);
+                        result.add(folder);
+                    }
+                } catch (Exception e) {
+                    Log.e("SafFolderBrowser", "Error processing SAF path: " + path, e);
                 }
             }
         } else {
