@@ -20,6 +20,7 @@ package de.yaacc.upnp.server.contentdirectory;
 
 import android.content.Context;
 import android.net.Uri;
+import android.provider.DocumentsContract;
 import android.util.Base64;
 import android.util.Log;
 
@@ -72,7 +73,8 @@ public class SafFolderBrowser extends ContentBrowser {
             String parentId = ContentDirectoryIDs.SAF_FOLDER.getId();
             DocumentFile parent = file != null ? file.getParentFile() : null;
             if (parent != null && !getSelectedSafPathes().contains(parent.getUri().toString())) {
-                parentId = ContentDirectoryIDs.SAF_PREFIX.getId() + parent.getUri().toString();
+                String parentBase64 = Base64.encodeToString(parent.getUri().toString().getBytes(), Base64.NO_WRAP);
+                parentId = ContentDirectoryIDs.SAF_PREFIX.getId() + parentBase64;
             }
 
             return new StorageFolder(myId, parentId, title, "yaacc", getSize(contentDirectory, myId), null);
@@ -96,8 +98,10 @@ public class SafFolderBrowser extends ContentBrowser {
 
     @Override
     public List<Container> browseContainer(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
+        Log.d("SafFolderBrowser", "browseContainer called with myId: " + myId);
         List<Container> result = new ArrayList<>();
         if (myId.equals(ContentDirectoryIDs.SAF_FOLDER.getId())) {
+            Log.d("SafFolderBrowser", "Browsing root SAF folder");
             List<String> sortedPathes = new ArrayList<>(getSelectedSafPathes());
             Collections.sort(sortedPathes);
 
@@ -110,32 +114,77 @@ public class SafFolderBrowser extends ContentBrowser {
                 if (file != null && file.isDirectory()) {
                     String title = file.getName() != null ? file.getName() : path;
                     String base64Str = Base64.encodeToString(file.getUri().toString().getBytes(), Base64.NO_WRAP);
-                    StorageFolder folder = new StorageFolder(ContentDirectoryIDs.SAF_PREFIX.getId() + base64Str, ContentDirectoryIDs.SAF_FOLDER.getId(), title, "yaacc", 0, null);
+                    String folderId = ContentDirectoryIDs.SAF_PREFIX.getId() + base64Str;
+                    Log.d("SafFolderBrowser", "Creating root folder: " + title + " with ID: " + folderId);
+                    StorageFolder folder = new StorageFolder(folderId, ContentDirectoryIDs.SAF_FOLDER.getId(), title, "yaacc", 0, null);
                     result.add(folder);
                 }
             }
         } else {
             // Browse subfolder
+            Log.d("SafFolderBrowser", "Browsing subfolder with ID: " + myId);
             String pathEnc = myId.substring(ContentDirectoryIDs.SAF_PREFIX.getId().length());
+            Log.d("SafFolderBrowser", "Encoded path: " + pathEnc);
             String path = new String(Base64.decode(pathEnc.getBytes(), Base64.NO_WRAP));
-            DocumentFile root = DocumentFile.fromTreeUri(getContext(), Uri.parse(path));
+            Log.d("SafFolderBrowser", "Decoded path: " + path);
+
+            Uri uri = Uri.parse(path);
+            DocumentFile root = null;
+
+            // Check if this is a tree URI or document URI
+            if (path.contains("/tree/")) {
+                // This is a tree URI, use it directly
+                root = DocumentFile.fromTreeUri(getContext(), uri);
+                Log.d("SafFolderBrowser", "Using tree URI: " + path);
+            } else {
+                // This is a document URI, we need to find it within its parent tree
+                Log.d("SafFolderBrowser", "Document URI detected, finding parent tree: " + path);
+                // For now, skip these problematic folders to avoid showing parent content
+                Log.w("SafFolderBrowser", "Skipping document URI folder to avoid parent content");
+                return result;
+            }
+
             if (root != null && root.isDirectory()) {
                 DocumentFile[] files = root.listFiles();
+                Log.d("SafFolderBrowser", "Found " + files.length + " files in subfolder");
                 int start = (int) Math.max(0, firstResult);
                 int end = (int) Math.min(files.length, start + maxResults);
-                Log.d(this.getClass().toString(), "Parent: " + myId);
+                Log.d("SafFolderBrowser", "Parent: " + myId);
                 for (int i = start; i < end; i++) {
                     DocumentFile file = files[i];
                     if (file.isDirectory()) {
-                        Log.d(this.getClass().toString(), "Child: " + file.getUri().toString());
-                        String title = file.getName() != null ? file.getName() : path;
-                        String base64Str = Base64.encodeToString(file.getUri().toString().getBytes(), Base64.NO_WRAP);
-                        StorageFolder folder = new StorageFolder(ContentDirectoryIDs.SAF_PREFIX.getId() + base64Str, myId, title, "yaacc", 0, null);
-                        result.add(folder);
+                        Log.d("SafFolderBrowser", "Child: " + file.getUri().toString());
+                        String title = file.getName() != null ? file.getName() : file.getUri().toString();
+
+                        // Create tree URI for the child folder so it can be browsed properly
+                        try {
+                            String authority = file.getUri().getAuthority();
+                            String documentId = DocumentsContract.getDocumentId(file.getUri());
+                            Uri childTreeUri = DocumentsContract.buildTreeDocumentUri(authority, documentId);
+                            Log.d("SafFolderBrowser", "Child tree URI: " + childTreeUri);
+
+                            // Test if we can access this tree URI
+                            DocumentFile testAccess = DocumentFile.fromTreeUri(getContext(), childTreeUri);
+                            if (testAccess != null && testAccess.canRead()) {
+                                String base64Str = Base64.encodeToString(childTreeUri.toString().getBytes(), Base64.NO_WRAP);
+                                String childId = ContentDirectoryIDs.SAF_PREFIX.getId() + base64Str;
+                                Log.d("SafFolderBrowser", "Creating child folder: " + title + " with ID: " + childId);
+                                StorageFolder folder = new StorageFolder(childId, myId, title, "yaacc", 0, null);
+                                result.add(folder);
+                            } else {
+
+                                Log.w("SafFolderBrowser", "Cannot access child tree URI, skipping folder: " + title);
+                            }
+                        } catch (Exception e) {
+                            Log.e("SafFolderBrowser", "Error creating tree URI for child, skipping folder: " + title, e);
+                        }
                     }
                 }
+            } else {
+                Log.e("SafFolderBrowser", "Root DocumentFile is null or not a directory for path: " + path);
             }
         }
+        Log.d("SafFolderBrowser", "Returning " + result.size() + " containers");
         return result;
     }
 

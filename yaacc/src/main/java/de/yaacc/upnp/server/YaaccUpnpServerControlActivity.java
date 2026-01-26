@@ -155,7 +155,6 @@ public class YaaccUpnpServerControlActivity extends AppCompatActivity {
         Log.w(getClass().getName(), "No file system roots found or storage unavailable. Starting SAF picker.");
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
-                | Intent.FLAG_GRANT_WRITE_URI_PERMISSION
                 | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
         startActivityForResult(intent, REQUEST_CODE_OPEN_DOCUMENT_TREE);
     }
@@ -331,9 +330,27 @@ public class YaaccUpnpServerControlActivity extends AppCompatActivity {
                     }
                     DocumentFile doc = DocumentFile.fromTreeUri(this, treeUri);
                     if (doc != null) {
-                        uriSet.add(doc.getUri().toString());
+                        String newUri = doc.getUri().toString();
+                        // Remove any existing parent URIs that are now redundant
+                        uriSet.removeIf(existingUri -> newUri.startsWith(existingUri));
+                        // Remove any existing child URIs that are now redundant
+                        uriSet.removeIf(existingUri -> existingUri.startsWith(newUri));
+                        uriSet.add(newUri);
                     }
                     MediaPathFilter.saveSafPathes(getApplicationContext(), uriSet);
+                    
+                    // Also add to selected paths for content directory
+                    Set<String> selectedUriSet = MediaPathFilter.getSelectedSafPathes(getApplicationContext());
+                    if (selectedUriSet == null) {
+                        selectedUriSet = new HashSet<>();
+                    } else {
+                        selectedUriSet = new HashSet<>(selectedUriSet);
+                    }
+                    String newUri = doc.getUri().toString();
+                    selectedUriSet.removeIf(existingUri -> newUri.startsWith(existingUri));
+                    selectedUriSet.removeIf(existingUri -> existingUri.startsWith(newUri));
+                    selectedUriSet.add(newUri);
+                    MediaPathFilter.saveSelectedSafPathes(getApplicationContext(), selectedUriSet);
 
                     // rebuild tree with newly added SAF root
                     buildFileSystemTree(treeViewAdapter);
