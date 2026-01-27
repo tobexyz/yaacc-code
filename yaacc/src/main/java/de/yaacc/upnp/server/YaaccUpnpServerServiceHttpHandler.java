@@ -540,73 +540,106 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
         @Override
         public AsyncEntityProducer getEntityProducer() throws IOException {
             if (documentFile != null && documentFile.exists() && !documentFile.isDirectory()) {
-                if (ranges.isEmpty()) {
-                    return new AbstractBinAsyncEntityProducer(8192, ContentType.parse(getMimeType().toString())) {
-                        private InputStream input;
-                        private long totalBytesRead = 0;
-                        private final long fileLength = documentFile.length();
+                return new AbstractBinAsyncEntityProducer(8192, ContentType.parse(getMimeType().toString())) {
+                    private InputStream input;
+                    private long totalBytesRead = 0;
+                    private final long fileLength = documentFile.length();
+                    private long startPosition = 0;
+                    private long rangeLength = fileLength;
 
-                        @Override
-                        public long getContentLength() {
-                            return fileLength;
-                        }
-
-                        @Override
-                        protected int availableData() {
-                            return input != null ? 1 : 0;
-                        }
-
-                        @Override
-                        protected void produceData(final StreamChannel<ByteBuffer> channel) throws IOException {
-                            if (input == null) {
-                                try {
-                                    input = context.getContentResolver().openInputStream(documentFile.getUri());
-                                    Log.d(getClass().getName(), "Opened SAF input stream for: " + documentFile.getUri());
-                                } catch (Exception e) {
-                                    Log.e(getClass().getName(), "Error opening SAF input stream", e);
-                                    channel.endStream();
-                                    return;
-                                }
-                            }
-                            
-                            if (input != null) {
-                                byte[] buffer = new byte[8192];
-                                try {
-                                    int bytesRead = input.read(buffer);
-                                    if (bytesRead > 0) {
-                                        totalBytesRead += bytesRead;
-                                        channel.write(ByteBuffer.wrap(buffer, 0, bytesRead));
-                                    } else {
-                                        Log.d(getClass().getName(), "End of SAF stream reached. Total bytes: " + totalBytesRead);
-                                        input.close();
-                                        channel.endStream();
-                                    }
-                                } catch (IOException e) {
-                                    Log.e(getClass().getName(), "Error reading from SAF stream", e);
-                                    if (input != null) {
-                                        try { input.close(); } catch (IOException ignored) {}
-                                    }
-                                    channel.endStream();
-                                }
+                    {
+                        // Calculate range if specified
+                        if (!ranges.isEmpty()) {
+                            HttpRange range = ranges.get(0);
+                            startPosition = range.getStart() == null ? 0 : range.getStart();
+                            if (range.getEnd() != null && range.getEnd() > 0) {
+                                rangeLength = range.getEnd() - startPosition + 1;
                             } else {
+                                rangeLength = fileLength - startPosition;
+                            }
+                            if (range.getSuffixLength() != null && range.getSuffixLength() > 0) {
+                                startPosition = Math.max(0, fileLength - range.getSuffixLength());
+                                rangeLength = range.getSuffixLength();
+                            }
+                            // Ensure range is valid
+                            if (startPosition >= fileLength) {
+                                startPosition = 0;
+                                rangeLength = fileLength;
+                            }
+                            if (startPosition + rangeLength > fileLength) {
+                                rangeLength = fileLength - startPosition;
+                            }
+                        }
+                    }
+
+                    @Override
+                    public long getContentLength() {
+                        return rangeLength;
+                    }
+
+                    @Override
+                    protected int availableData() {
+                        return input != null ? 1 : 0;
+                    }
+
+                    @Override
+                    protected void produceData(final StreamChannel<ByteBuffer> channel) throws IOException {
+                        if (input == null) {
+                            try {
+                                input = context.getContentResolver().openInputStream(documentFile.getUri());
+                                if (startPosition > 0) {
+                                    input.skip(startPosition);
+                                }
+                                Log.d(getClass().getName(), "Opened SAF input stream for: " + documentFile.getUri() + 
+                                      " range: " + startPosition + "-" + (startPosition + rangeLength - 1));
+                            } catch (Exception e) {
+                                Log.e(getClass().getName(), "Error opening SAF input stream", e);
+                                channel.endStream();
+                                return;
+                            }
+                        }
+                        
+                        if (input != null && totalBytesRead < rangeLength) {
+                            byte[] buffer = new byte[8192];
+                            int maxRead = (int) Math.min(buffer.length, rangeLength - totalBytesRead);
+                            try {
+                                int bytesRead = input.read(buffer, 0, maxRead);
+                                if (bytesRead > 0) {
+                                    totalBytesRead += bytesRead;
+                                    channel.write(ByteBuffer.wrap(buffer, 0, bytesRead));
+                                } else {
+                                    Log.d(getClass().getName(), "End of SAF stream reached. Total bytes: " + totalBytesRead);
+                                    input.close();
+                                    channel.endStream();
+                                }
+                            } catch (IOException e) {
+                                Log.e(getClass().getName(), "Error reading from SAF stream", e);
+                                if (input != null) {
+                                    try { input.close(); } catch (IOException ignored) {}
+                                }
                                 channel.endStream();
                             }
-                        }
-
-                        @Override
-                        public boolean isRepeatable() {
-                            return false;
-                        }
-
-                        @Override
-                        public void failed(final Exception cause) {
-                            Log.e(getClass().getName(), "SAF streaming failed", cause);
+                        } else {
                             if (input != null) {
                                 try { input.close(); } catch (IOException ignored) {}
                             }
+                            channel.endStream();
                         }
-                    };
-                }
+                    }
+
+                    @Override
+                    public boolean isRepeatable() {
+                        return false;
+                    }
+
+                    @Override
+                    public void failed(final Exception cause) {
+                        Log.e(getClass().getName(), "SAF streaming failed", cause);
+                        if (input != null) {
+                            try { input.close(); } catch (IOException ignored) {}
+                        }
+                    }
+                };
             }
             Log.e(getClass().getName(), "DocumentFile is null, doesn't exist, or is a directory");
             return super.getEntityProducer();
