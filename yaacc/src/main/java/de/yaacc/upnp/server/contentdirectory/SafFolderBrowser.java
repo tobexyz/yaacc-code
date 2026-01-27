@@ -19,6 +19,7 @@
 package de.yaacc.upnp.server.contentdirectory;
 
 import android.content.Context;
+import android.media.MediaMetadataRetriever;
 import android.net.Uri;
 import android.provider.DocumentsContract;
 import android.util.Base64;
@@ -44,6 +45,7 @@ import java.util.Collections;
 import java.util.List;
 
 import de.yaacc.R;
+import de.yaacc.util.FormatHelper;
 
 /**
  * Browser for saf folder.
@@ -238,7 +240,13 @@ public class SafFolderBrowser extends ContentBrowser {
             // Create correct ProtocolInfo with DLNA attributes
             ProtocolInfo protocolInfo = new ProtocolInfo(Protocol.HTTP_GET, ProtocolInfo.WILDCARD, mimeType.toString(), getDLNAAttributes(mimeType));
 
-            Res res = new Res(protocolInfo, file.length(), uri);
+            // Get actual duration for audio/video files
+            String duration = null;
+            if (mimeType.getType().equals("audio") || mimeType.getType().equals("video")) {
+                duration = extractDuration(file);
+            }
+
+            Res res = new Res(protocolInfo, file.length(), duration, null, uri);
 
             Item item = null;
             if (mimeType.getType().equals("audio")) {
@@ -253,5 +261,31 @@ public class SafFolderBrowser extends ContentBrowser {
                 result.add(item);
             }
         }
+    }
+
+    private String extractDuration(DocumentFile file) {
+        MediaMetadataRetriever retriever = null;
+        try {
+            retriever = new MediaMetadataRetriever();
+            retriever.setDataSource(getContext(), file.getUri());
+            String durationStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION);
+            
+            if (durationStr != null) {
+                long durationMs = Long.parseLong(durationStr);
+                return FormatHelper.parseMillisToTimeStringTo(durationMs);
+            }
+        } catch (Exception e) {
+            Log.w("SafFolderBrowser", "Could not extract duration from: " + file.getUri(), e);
+        } finally {
+            if (retriever != null) {
+                try {
+                    retriever.release();
+                } catch (Exception e) {
+                    Log.w("SafFolderBrowser", "Error releasing MediaMetadataRetriever", e);
+                }
+            }
+        }
+        // Return null if extraction fails - let UPnP handle unknown duration
+        return null;
     }
 }

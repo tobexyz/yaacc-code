@@ -452,10 +452,22 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
 
         DocumentFile file = null;
         try {
-            // Use a timeout to prevent blocking
-            file = DocumentFile.fromTreeUri(getContext(), Uri.parse(contentUri));
+            Uri uri = Uri.parse(contentUri);
+            // Use fromSingleUri for document URIs, fromTreeUri for tree URIs
+            if (contentUri.contains("/document/")) {
+                file = DocumentFile.fromSingleUri(getContext(), uri);
+            } else {
+                file = DocumentFile.fromTreeUri(getContext(), uri);
+            }
+            
             if (file == null || !file.exists()) {
                 Log.d(getClass().getName(), "SAF content uri is unknown: " + contentUri);
+                return null;
+            }
+            
+            // Check if it's a directory - directories cannot be streamed
+            if (file.isDirectory()) {
+                Log.d(getClass().getName(), "SAF content is a directory, cannot stream: " + contentUri);
                 return null;
             }
         } catch (Exception e) {
@@ -527,44 +539,21 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
 
         @Override
         public AsyncEntityProducer getEntityProducer() throws IOException {
-            if (documentFile != null && documentFile.exists()) {
+            if (documentFile != null && documentFile.exists() && !documentFile.isDirectory()) {
                 if (ranges.isEmpty()) {
-                    // Get content length upfront to avoid issues
-                    long contentLength = -1;
-                    try {
-                        contentLength = documentFile.length();
-                        Log.d(getClass().getName(), "SAF file length: " + contentLength);
-                    } catch (Exception e) {
-                        Log.e(getClass().getName(), "Error getting SAF file length", e);
-                        contentLength = -1;
-                    }
-                    
-                    final long finalLength = contentLength;
-                    return new AbstractBinAsyncEntityProducer((int) Math.min(finalLength, Integer.MAX_VALUE), ContentType.parse(getMimeType().toString())) {
+                    return new AbstractBinAsyncEntityProducer(8192, ContentType.parse(getMimeType().toString())) {
                         private InputStream input;
+                        private long totalBytesRead = 0;
+                        private final long fileLength = documentFile.length();
 
                         @Override
                         public long getContentLength() {
-                            return finalLength;
+                            return fileLength;
                         }
 
                         @Override
                         protected int availableData() {
-                            if (input == null) {
-                                try {
-                                    input = context.getContentResolver().openInputStream(documentFile.getUri());
-                                    Log.d(getClass().getName(), "Opened SAF input stream for: " + documentFile.getUri());
-                                } catch (Exception e) {
-                                    Log.e(getClass().getName(), "Error opening SAF input stream", e);
-                                    return 0;
-                                }
-                            }
-                            try {
-                                return input != null ? Math.max(1, input.available()) : 0;
-                            } catch (IOException e) {
-                                Log.e(getClass().getName(), "Error checking available data", e);
-                                return 0;
-                            }
+                            return input != null ? 1 : 0;
                         }
 
                         @Override
@@ -572,9 +561,9 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
                             if (input == null) {
                                 try {
                                     input = context.getContentResolver().openInputStream(documentFile.getUri());
-                                    Log.d(getClass().getName(), "Opened SAF input stream in produceData for: " + documentFile.getUri());
+                                    Log.d(getClass().getName(), "Opened SAF input stream for: " + documentFile.getUri());
                                 } catch (Exception e) {
-                                    Log.e(getClass().getName(), "Error opening SAF input stream in produceData", e);
+                                    Log.e(getClass().getName(), "Error opening SAF input stream", e);
                                     channel.endStream();
                                     return;
                                 }
@@ -582,16 +571,24 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
                             
                             if (input != null) {
                                 byte[] buffer = new byte[8192];
-                                int bytesRead = input.read(buffer);
-                                if (bytesRead > 0) {
-                                    channel.write(ByteBuffer.wrap(buffer, 0, bytesRead));
-                                } else {
-                                    Log.d(getClass().getName(), "End of SAF stream reached");
-                                    input.close();
+                                try {
+                                    int bytesRead = input.read(buffer);
+                                    if (bytesRead > 0) {
+                                        totalBytesRead += bytesRead;
+                                        channel.write(ByteBuffer.wrap(buffer, 0, bytesRead));
+                                    } else {
+                                        Log.d(getClass().getName(), "End of SAF stream reached. Total bytes: " + totalBytesRead);
+                                        input.close();
+                                        channel.endStream();
+                                    }
+                                } catch (IOException e) {
+                                    Log.e(getClass().getName(), "Error reading from SAF stream", e);
+                                    if (input != null) {
+                                        try { input.close(); } catch (IOException ignored) {}
+                                    }
                                     channel.endStream();
                                 }
                             } else {
-                                Log.e(getClass().getName(), "Input stream is still null in produceData");
                                 channel.endStream();
                             }
                         }
@@ -605,17 +602,13 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
                         public void failed(final Exception cause) {
                             Log.e(getClass().getName(), "SAF streaming failed", cause);
                             if (input != null) {
-                                try {
-                                    input.close();
-                                } catch (IOException e) {
-                                    // Ignore
-                                }
+                                try { input.close(); } catch (IOException ignored) {}
                             }
                         }
                     };
                 }
             }
-            Log.e(getClass().getName(), "DocumentFile is null or doesn't exist");
+            Log.e(getClass().getName(), "DocumentFile is null, doesn't exist, or is a directory");
             return super.getEntityProducer();
         }
     }

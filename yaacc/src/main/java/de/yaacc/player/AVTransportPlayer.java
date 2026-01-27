@@ -261,7 +261,7 @@ public class AVTransportPlayer extends AbstractPlayer {
                 //work around byte code optimization
                 i++;
                 if (i == 100000) {
-                    Log.d(getClass().getName(), "wait for action finished ");
+                    // Log.d(getClass().getName(), "wait for action finished ");
                     i = 0;
                 }
             }
