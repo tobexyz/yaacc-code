@@ -449,13 +449,26 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
             Log.d(getClass().getName(), "SAF content id is invalid: " + contentId);
             return null;
         }
-        DocumentFile file = DocumentFile.fromTreeUri(getContext(), Uri.parse(contentUri));
-        if (file == null || !file.exists()) {
-            Log.d(getClass().getName(), "SAF content uri is unknown: " + contentUri);
+
+        DocumentFile file = null;
+        try {
+            // Use a timeout to prevent blocking
+            file = DocumentFile.fromTreeUri(getContext(), Uri.parse(contentUri));
+            if (file == null || !file.exists()) {
+                Log.d(getClass().getName(), "SAF content uri is unknown: " + contentUri);
+                return null;
+            }
+        } catch (Exception e) {
+            Log.e(getClass().getName(), "Error accessing SAF content: " + contentUri, e);
             return null;
         }
 
-        String mimeTypeStr = file.getType();
+        String mimeTypeStr = null;
+        try {
+            mimeTypeStr = file.getType();
+        } catch (Exception e) {
+            Log.w(getClass().getName(), "Error getting MIME type for SAF content", e);
+        }
 
         MimeType mimeType = MimeType.valueOf("*/*");
         if (mimeTypeStr != null) {
@@ -497,7 +510,114 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
          * }
          */
         String targetUri = contentUri;
-        return new ContentHolder(mimeType, targetUri, ranges, context);
+        // Pass the DocumentFile instance to avoid re-creating it during streaming
+        return new SafContentHolder(mimeType, targetUri, ranges, context, file);
+    }
+
+    /**
+     * Special ContentHolder for SAF content that avoids blocking DocumentFile operations
+     */
+    static class SafContentHolder extends ContentHolder {
+        private final DocumentFile documentFile;
+
+        public SafContentHolder(MimeType mimeType, String uri, List<HttpRange> ranges, Context context, DocumentFile documentFile) {
+            super(mimeType, uri, ranges, context);
+            this.documentFile = documentFile;
+        }
+
+        @Override
+        public AsyncEntityProducer getEntityProducer() throws IOException {
+            if (documentFile != null && documentFile.exists()) {
+                if (ranges.isEmpty()) {
+                    // Get content length upfront to avoid issues
+                    long contentLength = -1;
+                    try {
+                        contentLength = documentFile.length();
+                        Log.d(getClass().getName(), "SAF file length: " + contentLength);
+                    } catch (Exception e) {
+                        Log.e(getClass().getName(), "Error getting SAF file length", e);
+                        contentLength = -1;
+                    }
+                    
+                    final long finalLength = contentLength;
+                    return new AbstractBinAsyncEntityProducer((int) Math.min(finalLength, Integer.MAX_VALUE), ContentType.parse(getMimeType().toString())) {
+                        private InputStream input;
+
+                        @Override
+                        public long getContentLength() {
+                            return finalLength;
+                        }
+
+                        @Override
+                        protected int availableData() {
+                            if (input == null) {
+                                try {
+                                    input = context.getContentResolver().openInputStream(documentFile.getUri());
+                                    Log.d(getClass().getName(), "Opened SAF input stream for: " + documentFile.getUri());
+                                } catch (Exception e) {
+                                    Log.e(getClass().getName(), "Error opening SAF input stream", e);
+                                    return 0;
+                                }
+                            }
+                            try {
+                                return input != null ? Math.max(1, input.available()) : 0;
+                            } catch (IOException e) {
+                                Log.e(getClass().getName(), "Error checking available data", e);
+                                return 0;
+                            }
+                        }
+
+                        @Override
+                        protected void produceData(final StreamChannel<ByteBuffer> channel) throws IOException {
+                            if (input == null) {
+                                try {
+                                    input = context.getContentResolver().openInputStream(documentFile.getUri());
+                                    Log.d(getClass().getName(), "Opened SAF input stream in produceData for: " + documentFile.getUri());
+                                } catch (Exception e) {
+                                    Log.e(getClass().getName(), "Error opening SAF input stream in produceData", e);
+                                    channel.endStream();
+                                    return;
+                                }
+                            }
+                            
+                            if (input != null) {
+                                byte[] buffer = new byte[8192];
+                                int bytesRead = input.read(buffer);
+                                if (bytesRead > 0) {
+                                    channel.write(ByteBuffer.wrap(buffer, 0, bytesRead));
+                                } else {
+                                    Log.d(getClass().getName(), "End of SAF stream reached");
+                                    input.close();
+                                    channel.endStream();
+                                }
+                            } else {
+                                Log.e(getClass().getName(), "Input stream is still null in produceData");
+                                channel.endStream();
+                            }
+                        }
+
+                        @Override
+                        public boolean isRepeatable() {
+                            return false;
+                        }
+
+                        @Override
+                        public void failed(final Exception cause) {
+                            Log.e(getClass().getName(), "SAF streaming failed", cause);
+                            if (input != null) {
+                                try {
+                                    input.close();
+                                } catch (IOException e) {
+                                    // Ignore
+                                }
+                            }
+                        }
+                    };
+                }
+            }
+            Log.e(getClass().getName(), "DocumentFile is null or doesn't exist");
+            return super.getEntityProducer();
+        }
     }
 
     private byte[] getDefaultIcon() {
@@ -517,12 +637,11 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
      * ValueHolder for media content.
      */
     static class ContentHolder {
-        private final MimeType mimeType;
-        private String uri;
-        private byte[] content;
-        private final Context context;
-
-        private List<HttpRange> ranges;
+        protected final MimeType mimeType;
+        protected String uri;
+        protected byte[] content;
+        protected final Context context;
+        protected List<HttpRange> ranges;
 
         public ContentHolder(MimeType mimeType, String uri, List<HttpRange> ranges, Context context) {
             this.uri = uri;

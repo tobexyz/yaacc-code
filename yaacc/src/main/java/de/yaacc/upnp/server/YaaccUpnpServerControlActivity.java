@@ -50,6 +50,7 @@ import java.util.Set;
 import de.yaacc.R;
 import de.yaacc.settings.SettingsActivity;
 import de.yaacc.upnp.server.contentdirectory.MediaPathFilter;
+import de.yaacc.upnp.server.contentdirectory.SafPermissionManager;
 import de.yaacc.util.AboutActivity;
 import de.yaacc.util.NotificationId;
 import de.yaacc.util.ThemeHelper;
@@ -152,7 +153,14 @@ public class YaaccUpnpServerControlActivity extends AppCompatActivity {
     }
 
     private void selectSafContent() {
-        Log.w(getClass().getName(), "No file system roots found or storage unavailable. Starting SAF picker.");
+        if (!SafPermissionManager.canAddMorePermissions(this)) {
+            Log.w(getClass().getName(), "Cannot add more SAF permissions. Limit reached: " + 
+                  SafPermissionManager.getPermissionCount(this));
+            // TODO: Show user dialog about limit
+            return;
+        }
+        
+        Log.w(getClass().getName(), "Starting SAF picker.");
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
                 | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
