@@ -15,37 +15,49 @@ public class SafPermissionManager {
 
     public static void validateAndCleanupPermissions(Context context) {
         Set<String> storedUris = MediaPathFilter.getSafPathes(context);
-        Set<String> selectedUris = MediaPathFilter.getSelectedSafPathes(context);
         List<UriPermission> grantedPermissions = context.getContentResolver().getPersistedUriPermissions();
         
-        Set<String> validUris = new HashSet<>();
-        Set<String> validSelectedUris = new HashSet<>();
+        Log.i(TAG, "Checking " + storedUris.size() + " stored SAF URIs, " + 
+              grantedPermissions.size() + " total permissions");
         
-        // Check each stored URI
+        // Check each stored URI to see if we still have permission
         for (String uriString : storedUris) {
-            if (isUriAccessible(context, uriString, grantedPermissions)) {
-                validUris.add(uriString);
-                if (selectedUris.contains(uriString)) {
-                    validSelectedUris.add(uriString);
+            try {
+                Uri uri = Uri.parse(uriString);
+                boolean hasPermission = grantedPermissions.stream()
+                    .anyMatch(perm -> perm.getUri().equals(uri) && perm.isReadPermission());
+                
+                if (!hasPermission) {
+                    Log.w(TAG, "Lost permission for SAF URI: " + uriString);
+                } else {
+                    Log.d(TAG, "Permission OK for SAF URI: " + uriString);
                 }
-            } else {
-                Log.w(TAG, "Removing inaccessible SAF URI: " + uriString);
+            } catch (Exception e) {
+                Log.w(TAG, "Error checking permission for URI: " + uriString, e);
             }
         }
         
-        // Update stored URIs if any were removed
-        if (validUris.size() != storedUris.size()) {
-            MediaPathFilter.saveSafPathes(context, validUris);
-        }
-        if (validSelectedUris.size() != selectedUris.size()) {
-            MediaPathFilter.saveSelectedSafPathes(context, validSelectedUris);
+        // Clean up orphaned permissions if we're approaching the limit
+        if (grantedPermissions.size() >= 110) {
+            Set<String> storedUriSet = new HashSet<>(storedUris);
+            
+            for (UriPermission permission : grantedPermissions) {
+                String uriString = permission.getUri().toString();
+                if (!storedUriSet.contains(uriString)) {
+                    try {
+                        context.getContentResolver().releasePersistableUriPermission(
+                            permission.getUri(), 
+                            android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+                        );
+                        Log.i(TAG, "Released orphaned permission: " + uriString);
+                    } catch (Exception e) {
+                        Log.w(TAG, "Failed to release permission: " + uriString, e);
+                    }
+                }
+            }
         }
         
-        // Clean up orphaned permissions
-        cleanupOrphanedPermissions(context, validUris, grantedPermissions);
-        
-        Log.i(TAG, "SAF validation complete. Valid URIs: " + validUris.size() + 
-              ", Granted permissions: " + grantedPermissions.size());
+        Log.i(TAG, "SAF permission check complete");
     }
     
     private static boolean isUriAccessible(Context context, String uriString, List<UriPermission> grantedPermissions) {
@@ -57,12 +69,23 @@ public class SafPermissionManager {
                 .anyMatch(perm -> perm.getUri().equals(uri) && perm.isReadPermission());
             
             if (!hasPermission) {
+                Log.w(TAG, "No persistent permission found for URI: " + uriString);
                 return false;
             }
             
-            // Test actual access
-            DocumentFile doc = DocumentFile.fromTreeUri(context, uri);
-            return doc != null && doc.exists() && doc.canRead();
+            // Test actual access - be more lenient
+            try {
+                DocumentFile doc = DocumentFile.fromTreeUri(context, uri);
+                boolean accessible = doc != null && doc.exists();
+                if (!accessible) {
+                    Log.w(TAG, "DocumentFile not accessible for URI: " + uriString);
+                }
+                return accessible;
+            } catch (Exception e) {
+                Log.w(TAG, "Error testing DocumentFile access for URI: " + uriString, e);
+                // Don't fail just because of access test - permission exists
+                return true;
+            }
             
         } catch (Exception e) {
             Log.w(TAG, "Error checking URI accessibility: " + uriString, e);
