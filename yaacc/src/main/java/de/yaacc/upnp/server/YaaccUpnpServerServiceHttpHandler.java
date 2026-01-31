@@ -64,6 +64,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.RandomAccessFile;
+import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLConnection;
 import java.nio.ByteBuffer;
@@ -716,19 +717,39 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
             if (content != null) {
                 return content.length;
             } else if (uri != null) {
-                File file = new File(uri);
-                if (file.exists()) {
-                    return file.length();
-                } else {
-                    // Handle SAF content
+                // Check if it's an external URL
+                if (uri.startsWith("http://") || uri.startsWith("https://")) {
                     try {
-                        Uri contentUri = Uri.parse(uri);
-                        DocumentFile docFile = DocumentFile.fromSingleUri(context, contentUri);
-                        if (docFile != null) {
-                            return docFile.length();
+                        HttpURLConnection con = (HttpURLConnection) new URL(uri).openConnection();
+                        con.setRequestMethod("HEAD");
+                        con.setConnectTimeout(5000); // 5 second timeout
+                        con.setReadTimeout(5000); // 5 second timeout
+                        long length = con.getContentLengthLong();
+                        con.disconnect();
+                        if (length > 0) {
+                            return length;
                         }
+                        return -1; // Unknown length for external URLs
                     } catch (Exception e) {
-                        Log.e(getClass().getName(), "Error getting SAF content length", e);
+                        Log.e(getClass().getName(), "Error getting external content length", e);
+                        return -1;
+                    }
+                } else {
+                    // Handle local files
+                    File file = new File(uri);
+                    if (file.exists()) {
+                        return file.length();
+                    } else {
+                        // Handle SAF content
+                        try {
+                            Uri contentUri = Uri.parse(uri);
+                            DocumentFile docFile = DocumentFile.fromSingleUri(context, contentUri);
+                            if (docFile != null) {
+                                return docFile.length();
+                            }
+                        } catch (Exception e) {
+                            Log.e(getClass().getName(), "Error getting SAF content length", e);
+                        }
                     }
                 }
             }
@@ -788,16 +809,21 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
                     result = new AbstractBinAsyncEntityProducer(0, ContentType.parse(getMimeType().toString())) {
                         private InputStream input;
                         private long length = -1;
+                        private long bytesRead = 0;
 
                         AbstractBinAsyncEntityProducer init() {
                             try {
                                 if (input == null) {
-                                    URLConnection con = new URL(getUri()).openConnection();
+                                    HttpURLConnection con = (HttpURLConnection) new URL(getUri()).openConnection();
                                     if (!ranges.isEmpty()) {
                                         con.setRequestProperty("Range", HttpRange.toHeaderString(ranges));
                                     }
+                                    con.connect();
                                     input = con.getInputStream();
-                                    length = con.getContentLength();
+                                    length = con.getContentLengthLong();
+                                    if (length <= 0) {
+                                        length = con.getContentLength();
+                                    }
                                 }
                             } catch (IOException e) {
                                 Log.e(getClass().getName(), "Error opening external content", e);
@@ -812,7 +838,11 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
 
                         @Override
                         protected int availableData() {
-                            return Integer.MAX_VALUE;
+                            try {
+                                return input != null ? input.available() : 0;
+                            } catch (IOException e) {
+                                return 0;
+                            }
                         }
 
                         @Override
@@ -823,9 +853,10 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
                                 }
                                 if (input != null) {
                                     byte[] buffer = new byte[8192];
-                                    int bytesRead = input.read(buffer);
-                                    if (bytesRead > 0) {
-                                        channel.write(ByteBuffer.wrap(buffer, 0, bytesRead));
+                                    int read = input.read(buffer);
+                                    if (read > 0) {
+                                        bytesRead += read;
+                                        channel.write(ByteBuffer.wrap(buffer, 0, read));
                                     } else {
                                         input.close();
                                         channel.endStream();
@@ -835,18 +866,24 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
                                 }
                             } catch (IOException e) {
                                 Log.e(getClass().getName(), "Error reading external content", e);
+                                if (input != null) {
+                                    try { input.close(); } catch (IOException ignored) {}
+                                }
                                 channel.endStream();
                             }
                         }
 
                         @Override
                         public boolean isRepeatable() {
-                            return true;
+                            return true; // Keep as repeatable for compatibility with renderers
                         }
 
                         @Override
                         public void failed(final Exception cause) {
                             Log.e(getClass().getName(), "External content streaming failed", cause);
+                            if (input != null) {
+                                try { input.close(); } catch (IOException ignored) {}
+                            }
                         }
                     }.init();
                 } else {

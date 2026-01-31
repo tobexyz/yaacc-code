@@ -185,21 +185,68 @@ public class AVTransportPlayer extends AbstractPlayer {
     }
 
     private void checkTransportStateForStart(PlayableItem playableItem, Service<?, ?> service) {
-        // Always send Stop first to ensure clean state, then proceed with SetURI
-        Log.d(getClass().getName(), "Sending Stop command to ensure clean state");
-        executeCommand(new TimerTask() {
+        // Check current transport state first
+        GetTransportInfo stateCheck = new GetTransportInfo(service) {
             @Override
-            public void run() {
-                stop();
-                // Wait a bit then proceed with SetURI
+            public void received(ActionInvocation actioninvocation, TransportInfo transportInfo) {
+                TransportState state = transportInfo.getCurrentTransportState();
+                Log.d(getClass().getName(), "Current state before Play: " + state);
+
+                if (state == TransportState.PAUSED_PLAYBACK) {
+                    Log.d(getClass().getName(), "Resuming from pause, sending Play only");
+                    // For paused content, just send Play command without SetAVTransportURI
+                    Play playCallback = new Play(service) {
+                        @Override
+                        public void failure(ActionInvocation actioninvocation, UpnpResponse upnpresponse, String s) {
+                            Log.d(getClass().getName(), "Resume Play failed: " + s);
+                            setProcessingCommand(false);
+                        }
+
+                        @Override
+                        public void success(ActionInvocation invocation) {
+                            Log.d(getClass().getName(), "Resume Play succeeded");
+                            setProcessingCommand(false);
+                        }
+                    };
+                    getUpnpClient().getControlPoint().execute(playCallback);
+                } else {
+                    // For stopped or playing state, do full restart
+                    Log.d(getClass().getName(), "Sending Stop command to ensure clean state");
+                    executeCommand(new TimerTask() {
+                        @Override
+                        public void run() {
+                            stop();
+                            // Wait a bit then proceed with SetURI
+                            executeCommand(new TimerTask() {
+                                @Override
+                                public void run() {
+                                    proceedWithSetURI(playableItem, service);
+                                }
+                            }, new Date(System.currentTimeMillis() + 200));
+                        }
+                    }, new Date());
+                }
+            }
+
+            @Override
+            public void failure(ActionInvocation actioninvocation, UpnpResponse upnpresponse, String s) {
+                Log.d(getClass().getName(), "GetTransportInfo failed, proceeding with full restart");
+                // If we can't get state, do full restart
                 executeCommand(new TimerTask() {
                     @Override
                     public void run() {
-                        proceedWithSetURI(playableItem, service);
+                        stop();
+                        executeCommand(new TimerTask() {
+                            @Override
+                            public void run() {
+                                proceedWithSetURI(playableItem, service);
+                            }
+                        }, new Date(System.currentTimeMillis() + 200));
                     }
-                }, new Date(System.currentTimeMillis() + 200));
+                }, new Date());
             }
-        }, new Date());
+        };
+        getUpnpClient().getControlPoint().execute(stateCheck);
     }
 
     private void proceedWithSetURI(PlayableItem playableItem, Service<?, ?> service) {
@@ -261,9 +308,26 @@ public class AVTransportPlayer extends AbstractPlayer {
                         TransportState state = transportInfo.getCurrentTransportState();
                         Log.d(getClass().getName(), "Current state before Play: " + state);
 
-                        if (state == TransportState.STOPPED || state == TransportState.PAUSED_PLAYBACK) {
+                        if (state == TransportState.STOPPED) {
                             Log.d(getClass().getName(), "Valid state for Play command, proceeding");
                             startPlayAction(service, actionState);
+                        } else if (state == TransportState.PAUSED_PLAYBACK) {
+                            Log.d(getClass().getName(), "Resuming from pause, sending Play only");
+                            // For paused content, just send Play command without SetAVTransportURI
+                            Play playCallback = new Play(service) {
+                                @Override
+                                public void failure(ActionInvocation actioninvocation, UpnpResponse upnpresponse, String s) {
+                                    Log.d(getClass().getName(), "Resume Play failed: " + s);
+                                    setProcessingCommand(false);
+                                }
+
+                                @Override
+                                public void success(ActionInvocation invocation) {
+                                    Log.d(getClass().getName(), "Resume Play succeeded");
+                                    setProcessingCommand(false);
+                                }
+                            };
+                            getUpnpClient().getControlPoint().execute(playCallback);
                         } else if (state == TransportState.PLAYING) {
                             Log.d(getClass().getName(), "Already playing, sending Stop first then Play");
                             Stop stopCallback = new Stop(service) {
@@ -309,12 +373,14 @@ public class AVTransportPlayer extends AbstractPlayer {
                                 + upnpresponse.getResponseDetails() : "");
                 Log.d(getClass().getName(), "s: " + s);
                 actionState.actionFinished = true;
+                setProcessingCommand(false);
             }
 
             @Override
             public void success(ActionInvocation actioninvocation) {
                 super.success(actioninvocation);
                 actionState.actionFinished = true;
+                setProcessingCommand(false);
 
                 // Check transport state after Play command
                 executeCommand(new TimerTask() {
@@ -396,11 +462,15 @@ public class AVTransportPlayer extends AbstractPlayer {
 
     @Override
     public void pause() {
-        super.pause();
+        if (isProcessingCommand())
+            return;
+        setProcessingCommand(true);
+        
         if (getDevice() == null) {
             Log.d(getClass().getName(),
                     "No receiver device found: "
                             + deviceId);
+            setProcessingCommand(false);
             return;
         }
         Service<?, ?> service = getUpnpClient().getAVTransportService(getDevice());
@@ -408,6 +478,7 @@ public class AVTransportPlayer extends AbstractPlayer {
             Log.d(getClass().getName(),
                     "No AVTransport-Service found on Device: "
                             + getDevice().getDisplayString());
+            setProcessingCommand(false);
             return;
         }
         Log.d(getClass().getName(), "Action Pause ");
@@ -424,12 +495,14 @@ public class AVTransportPlayer extends AbstractPlayer {
                                 + upnpresponse.getResponseDetails() : "");
                 Log.d(getClass().getName(), "s: " + s);
                 actionState.actionFinished = true;
+                setProcessingCommand(false);
             }
 
             @Override
             public void success(ActionInvocation actioninvocation) {
                 super.success(actioninvocation);
                 actionState.actionFinished = true;
+                setProcessingCommand(false);
             }
         };
         getUpnpClient().getControlPoint().execute(actionCallback);
