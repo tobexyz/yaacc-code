@@ -189,11 +189,21 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
                     + thumbId + pathSegments.get(1) + " not found</body></html>";
             responseBuilder.setEntity(AsyncEntityProducers.create(response, ContentType.TEXT_HTML));
         } else {
-
-            responseBuilder.setStatus(HttpStatus.SC_OK);
+            if (!ranges.isEmpty()) {
+                responseBuilder.setStatus(HttpStatus.SC_PARTIAL_CONTENT);
+                // Add Content-Range header for partial content
+                HttpRange range = ranges.get(0);
+                long fileSize = contentHolder.getContentLength();
+                long start = range.getStart() != null ? range.getStart() : 0;
+                long end = range.getEnd() != null ? range.getEnd() : fileSize - 1;
+                responseBuilder.setHeader(HttpHeaders.CONTENT_RANGE, 
+                    "bytes " + start + "-" + end + "/" + fileSize);
+            } else {
+                responseBuilder.setStatus(HttpStatus.SC_OK);
+            }
             responseBuilder.setEntity(contentHolder.getEntityProducer());
         }
-        responseBuilder.setHeader(HttpHeaders.ACCEPT_RANGES, "none");
+        responseBuilder.setHeader(HttpHeaders.ACCEPT_RANGES, "bytes");
         responseTrigger.submitResponse(responseBuilder.build(), context);
         Log.d(getClass().getName(), "end doService: ");
     }
@@ -697,6 +707,32 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
          */
         public MimeType getMimeType() {
             return mimeType;
+        }
+
+        /**
+         * @return the content length
+         */
+        public long getContentLength() {
+            if (content != null) {
+                return content.length;
+            } else if (uri != null) {
+                File file = new File(uri);
+                if (file.exists()) {
+                    return file.length();
+                } else {
+                    // Handle SAF content
+                    try {
+                        Uri contentUri = Uri.parse(uri);
+                        DocumentFile docFile = DocumentFile.fromSingleUri(context, contentUri);
+                        if (docFile != null) {
+                            return docFile.length();
+                        }
+                    } catch (Exception e) {
+                        Log.e(getClass().getName(), "Error getting SAF content length", e);
+                    }
+                }
+            }
+            return -1;
         }
 
         private byte[] readRangeFormFile(File file, List<HttpRange> ranges) throws IOException {

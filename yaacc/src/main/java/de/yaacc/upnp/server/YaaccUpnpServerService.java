@@ -48,6 +48,7 @@ import org.apache.hc.core5.http.impl.bootstrap.HttpAsyncServer;
 import org.apache.hc.core5.http2.impl.nio.bootstrap.H2ServerBootstrap;
 import org.apache.hc.core5.reactor.IOReactorConfig;
 import org.apache.hc.core5.reactor.IOReactorStatus;
+import org.apache.hc.core5.util.Timeout;
 import org.apache.hc.core5.util.TimeValue;
 import org.apache.hc.core5.util.Timeout;
 import org.fourthline.cling.binding.annotations.AnnotationLocalServiceBinder;
@@ -315,6 +316,8 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
                 IOReactorConfig config = IOReactorConfig.custom()
                         .setSoKeepAlive(true)
                         .setTcpNoDelay(true)
+                        .setSoTimeout(Timeout.ofSeconds(30))
+                        .setIoThreadCount(8)
                         .build();
                 httpServer = H2ServerBootstrap.bootstrap()
                         .setIOReactorConfig(config)
