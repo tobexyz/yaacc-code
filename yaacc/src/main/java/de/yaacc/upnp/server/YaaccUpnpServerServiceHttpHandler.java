@@ -782,8 +782,77 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
         public AsyncEntityProducer getEntityProducer() throws IOException {
             AsyncEntityProducer result = null;
             if (getUri() != null && !getUri().isEmpty()) {
-                File file = new File(getUri());
-                if (file.exists()) {
+                // Check if it's an external URL (http/https)
+                if (getUri().startsWith("http://") || getUri().startsWith("https://")) {
+                    // Handle external URL directly
+                    result = new AbstractBinAsyncEntityProducer(0, ContentType.parse(getMimeType().toString())) {
+                        private InputStream input;
+                        private long length = -1;
+
+                        AbstractBinAsyncEntityProducer init() {
+                            try {
+                                if (input == null) {
+                                    URLConnection con = new URL(getUri()).openConnection();
+                                    if (!ranges.isEmpty()) {
+                                        con.setRequestProperty("Range", HttpRange.toHeaderString(ranges));
+                                    }
+                                    input = con.getInputStream();
+                                    length = con.getContentLength();
+                                }
+                            } catch (IOException e) {
+                                Log.e(getClass().getName(), "Error opening external content", e);
+                            }
+                            return this;
+                        }
+
+                        @Override
+                        public long getContentLength() {
+                            return length;
+                        }
+
+                        @Override
+                        protected int availableData() {
+                            return Integer.MAX_VALUE;
+                        }
+
+                        @Override
+                        protected void produceData(final StreamChannel<ByteBuffer> channel) throws IOException {
+                            try {
+                                if (input == null) {
+                                    init(); // retry opening if needed
+                                }
+                                if (input != null) {
+                                    byte[] buffer = new byte[8192];
+                                    int bytesRead = input.read(buffer);
+                                    if (bytesRead > 0) {
+                                        channel.write(ByteBuffer.wrap(buffer, 0, bytesRead));
+                                    } else {
+                                        input.close();
+                                        channel.endStream();
+                                    }
+                                } else {
+                                    channel.endStream();
+                                }
+                            } catch (IOException e) {
+                                Log.e(getClass().getName(), "Error reading external content", e);
+                                channel.endStream();
+                            }
+                        }
+
+                        @Override
+                        public boolean isRepeatable() {
+                            return true;
+                        }
+
+                        @Override
+                        public void failed(final Exception cause) {
+                            Log.e(getClass().getName(), "External content streaming failed", cause);
+                        }
+                    }.init();
+                } else {
+                    // Handle local files and SAF content
+                    File file = new File(getUri());
+                    if (file.exists()) {
                     if (ranges.isEmpty()) {
                         result = AsyncEntityProducers.create(file, ContentType.parse(getMimeType().toString()));
                         Log.d(getClass().getName(), "Return without range request file-Uri: " + getUri()
@@ -792,156 +861,90 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
                         result = AsyncEntityProducers.create(readRangeFormFile(file, ranges),
                                 ContentType.parse(getMimeType().toString()));
                     }
-                } else {
-                    // DocumentFile handling - need to read content through InputStream
-                    try {
-                        Uri uri = Uri.parse(getUri());
-                        // For DocumentFile, we need to handle it differently since AsyncEntityProducers doesn't support it directly
-                        // We'll read the content as bytes and create from that
-                        if (ranges.isEmpty()) {
-                            // DocumentFile handling using ContentResolver
-                            result = new AbstractBinAsyncEntityProducer(0, ContentType.parse(getMimeType().toString())) {
-                                private InputStream input;
-                                private long length = -1;
+                    } else {
+                        // DocumentFile handling - need to read content through InputStream
+                        try {
+                            Uri uri = Uri.parse(getUri());
+                            // For DocumentFile, we need to handle it differently since AsyncEntityProducers doesn't support it directly
+                            // We'll read the content as bytes and create from that
+                            if (ranges.isEmpty()) {
+                                // DocumentFile handling using ContentResolver
+                                result = new AbstractBinAsyncEntityProducer(0, ContentType.parse(getMimeType().toString())) {
+                                    private InputStream input;
+                                    private long length = -1;
 
-                                AbstractBinAsyncEntityProducer init() {
-                                    try {
-                                        input = context.getContentResolver().openInputStream(uri);
-                                        DocumentFile docFile = DocumentFile.fromSingleUri(context, uri);
-                                        if (docFile != null) {
-                                            length = docFile.length();
+                                    AbstractBinAsyncEntityProducer init() {
+                                        try {
+                                            input = context.getContentResolver().openInputStream(uri);
+                                            DocumentFile docFile = DocumentFile.fromSingleUri(context, uri);
+                                            if (docFile != null) {
+                                                length = docFile.length();
+                                            }
+                                        } catch (IOException e) {
+                                            Log.e(getClass().getName(), "Error opening DocumentFile", e);
                                         }
-                                    } catch (IOException e) {
-                                        Log.e(getClass().getName(), "Error opening DocumentFile", e);
+                                        return this;
                                     }
-                                    return this;
-                                }
 
-                                @Override
-                                public long getContentLength() {
-                                    return length;
-                                }
-
-                                @Override
-                                protected int availableData() {
-                                    try {
-                                        return input != null ? input.available() : 0;
-                                    } catch (IOException e) {
-                                        return 0;
+                                    @Override
+                                    public long getContentLength() {
+                                        return length;
                                     }
-                                }
 
-                                @Override
-                                protected void produceData(final StreamChannel<ByteBuffer> channel) throws IOException {
-                                    if (input != null) {
-                                        byte[] buffer = new byte[8192];
-                                        int bytesRead = input.read(buffer);
-                                        if (bytesRead > 0) {
-                                            channel.write(ByteBuffer.wrap(buffer, 0, bytesRead));
+                                    @Override
+                                    protected int availableData() {
+                                        try {
+                                            return input != null ? input.available() : 0;
+                                        } catch (IOException e) {
+                                            return 0;
+                                        }
+                                    }
+
+                                    @Override
+                                    protected void produceData(final StreamChannel<ByteBuffer> channel) throws IOException {
+                                        if (input != null) {
+                                            byte[] buffer = new byte[8192];
+                                            int bytesRead = input.read(buffer);
+                                            if (bytesRead > 0) {
+                                                channel.write(ByteBuffer.wrap(buffer, 0, bytesRead));
+                                            } else {
+                                                input.close();
+                                                channel.endStream();
+                                            }
                                         } else {
-                                            input.close();
                                             channel.endStream();
                                         }
-                                    } else {
-                                        channel.endStream();
                                     }
-                                }
 
-                                @Override
-                                public boolean isRepeatable() {
-                                    return true;
-                                }
+                                    @Override
+                                    public boolean isRepeatable() {
+                                        return true;
+                                    }
 
-                                @Override
-                                public void failed(final Exception cause) {
-                                }
-                            }.init();
-                        } else {
-                            // Range requests for DocumentFile not implemented yet
-                            result = AsyncEntityProducers.create("DocumentFile range requests not implemented".getBytes(),
-                                    ContentType.parse(getMimeType().toString()));
+                                    @Override
+                                    public void failed(final Exception cause) {
+                                    }
+                                }.init();
+                            } else {
+                                // Range requests for DocumentFile not implemented yet
+                                result = AsyncEntityProducers.create("DocumentFile range requests not implemented".getBytes(),
+                                        ContentType.parse(getMimeType().toString()));
+                            }
+                        } catch (Exception e) {
+                            Log.e(getClass().getName(), "Error handling DocumentFile", e);
                         }
-                    } catch (Exception e) {
-                        Log.e(getClass().getName(), "Error handling DocumentFile", e);
-                        // Fall back to external URL handling
-                        result = new AbstractBinAsyncEntityProducer(0, ContentType.parse(getMimeType().toString())) {
-                            private InputStream input;
-                            private long length = -1;
-
-                            AbstractBinAsyncEntityProducer init() {
-                                try {
-                                    if (input == null) {
-                                        // https://www.experts-exchange.com/questions/10171110/Reading-a-part-of-a-file-using-URLConnection.html
-                                        URLConnection con = new URL(getUri()).openConnection();
-                                        con.setRequestProperty("Range", HttpRange.toHeaderString(ranges));
-                                        input = con.getInputStream();
-                                        length = con.getContentLength();
-                                    }
-                                } catch (IOException e) {
-                                    Log.e(getClass().getName(), "Error opening external content", e);
-                                }
-                                return this;
-                            }
-
-                            @Override
-                            public long getContentLength() {
-                                return length;
-                            }
-
-                            @Override
-                            protected int availableData() {
-                                return Integer.MAX_VALUE;
-                            }
-
-                            @Override
-                            protected void produceData(final StreamChannel<ByteBuffer> channel) throws IOException {
-                                try {
-                                    if (input == null) {
-                                        // retry opening external content if it hasn't been opened yet
-                                        URLConnection con = new URL(getUri()).openConnection();
-                                        input = con.getInputStream();
-                                        length = con.getContentLength();
-                                    }
-                                    byte[] tempBuffer = new byte[1024];
-                                    int bytesRead;
-                                    if (-1 != (bytesRead = input.read(tempBuffer))) {
-                                        channel.write(ByteBuffer.wrap(tempBuffer, 0, bytesRead));
-                                    }
-                                    if (bytesRead == -1) {
-                                        channel.endStream();
-                                    }
-
-                                } catch (IOException e) {
-                                    Log.e(getClass().getName(), "Error reading external content", e);
-                                    throw e;
-                                }
-                            }
-
-                            @Override
-                            public boolean isRepeatable() {
-                                return true;
-                            }
-
-                            @Override
-                            public void failed(final Exception cause) {
-                            }
-
-                        }.init();
-
-                        Log.d(getClass().getName(), "Return external-Uri: " + getUri()
-                                + "Mimetype: " + getMimeType());
                     }
                 }
             } else if (content != null) {
                 result = AsyncEntityProducers.create(content, ContentType.parse(getMimeType().toString()));
             }
+            
             if (result == null) {
                 Log.d(getClass().getName(), "Resource is null");
                 return AsyncEntityProducers.create("<html><body><h1>Resource not found</h1></body></html>",
                         ContentType.TEXT_HTML);
             }
             return result;
-
         }
     }
 }
