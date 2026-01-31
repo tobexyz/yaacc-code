@@ -113,8 +113,43 @@ public class AVTransportPlayer extends AbstractPlayer {
      */
     @Override
     protected void stopItem(PlayableItem playableItem) {
-        Log.d(getClass().getName(), "Skipping Stop command to avoid renderer issues");
-        // Skip stop command entirely - let SetAVTransportURI handle the transition
+        if (getDevice() == null) {
+            Log.d(getClass().getName(),
+                    "No receiver device found: "
+                            + deviceId);
+            return;
+        }
+        Service<?, ?> service = getUpnpClient().getAVTransportService(getDevice());
+        if (service == null) {
+            Log.d(getClass().getName(),
+                    "No AVTransport-Service found on Device: "
+                            + getDevice().getDisplayString());
+            return;
+        }
+        final ActionState actionState = new ActionState();
+// Now start Stopping
+        Log.d(getClass().getName(), "Action Stop");
+        actionState.actionFinished = false;
+        Stop actionCallback = new Stop(service) {
+            @Override
+            public void failure(ActionInvocation actioninvocation,
+                                UpnpResponse upnpresponse, String s) {
+                Log.d(getClass().getName(), "Failure UpnpResponse: "
+                        + upnpresponse);
+                Log.d(getClass().getName(),
+                        upnpresponse != null ? "UpnpResponse: "
+                                + upnpresponse.getResponseDetails() : "");
+                Log.d(getClass().getName(), "s: " + s);
+                actionState.actionFinished = true;
+            }
+
+            @Override
+            public void success(ActionInvocation actioninvocation) {
+                super.success(actioninvocation);
+                actionState.actionFinished = true;
+            }
+        };
+        getUpnpClient().getControlPoint().execute(actionCallback);
     }
 
     /* (non-Javadoc)
@@ -144,6 +179,30 @@ public class AVTransportPlayer extends AbstractPlayer {
                             + getDevice().getDisplayString());
             return;
         }
+
+        // Check transport state first and handle accordingly
+        checkTransportStateForStart(playableItem, service);
+    }
+
+    private void checkTransportStateForStart(PlayableItem playableItem, Service<?, ?> service) {
+        // Always send Stop first to ensure clean state, then proceed with SetURI
+        Log.d(getClass().getName(), "Sending Stop command to ensure clean state");
+        executeCommand(new TimerTask() {
+            @Override
+            public void run() {
+                stop();
+                // Wait a bit then proceed with SetURI
+                executeCommand(new TimerTask() {
+                    @Override
+                    public void run() {
+                        proceedWithSetURI(playableItem, service);
+                    }
+                }, new Date(System.currentTimeMillis() + 200));
+            }
+        }, new Date());
+    }
+
+    private void proceedWithSetURI(PlayableItem playableItem, Service<?, ?> service) {
         Log.d(getClass().getName(), "Action SetAVTransportURI ");
         final ActionState actionState = new ActionState();
         actionState.actionFinished = false;
@@ -184,16 +243,59 @@ public class AVTransportPlayer extends AbstractPlayer {
         Log.d(getClass().getName(), "Action Play");
         lastRemainingTime = -1; // Reset to ensure timer gets set for new track
         playRetryCount = 0; // Reset retry counter for new track
-        
+
         // Add small delay before Play command to let renderer process URI
         executeCommand(new TimerTask() {
             @Override
             public void run() {
-                startPlayAction(service, actionState);
+                // Check current state before sending Play
+                GetTransportInfo stateCheck = new GetTransportInfo(service) {
+                    @Override
+                    public void failure(ActionInvocation actioninvocation, UpnpResponse upnpresponse, String s) {
+                        Log.d(getClass().getName(), "Failed to get transport state, sending Play anyway");
+                        startPlayAction(service, actionState);
+                    }
+
+                    @Override
+                    public void received(ActionInvocation actioninvocation, TransportInfo transportInfo) {
+                        TransportState state = transportInfo.getCurrentTransportState();
+                        Log.d(getClass().getName(), "Current state before Play: " + state);
+
+                        if (state == TransportState.STOPPED || state == TransportState.PAUSED_PLAYBACK) {
+                            Log.d(getClass().getName(), "Valid state for Play command, proceeding");
+                            startPlayAction(service, actionState);
+                        } else if (state == TransportState.PLAYING) {
+                            Log.d(getClass().getName(), "Already playing, sending Stop first then Play");
+                            Stop stopCallback = new Stop(service) {
+                                @Override
+                                public void failure(ActionInvocation actioninvocation, UpnpResponse upnpresponse, String s) {
+                                    Log.d(getClass().getName(), "Stop before Play failed: " + s);
+                                    startPlayAction(service, actionState);
+                                }
+
+                                @Override
+                                public void success(ActionInvocation invocation) {
+                                    Log.d(getClass().getName(), "Stop succeeded, now sending Play");
+                                    executeCommand(new TimerTask() {
+                                        @Override
+                                        public void run() {
+                                            startPlayAction(service, actionState);
+                                        }
+                                    }, new Date(System.currentTimeMillis() + 200));
+                                }
+                            };
+                            getUpnpClient().getControlPoint().execute(stopCallback);
+                        } else {
+                            Log.d(getClass().getName(), "Unknown state: " + state + ", sending Play anyway");
+                            startPlayAction(service, actionState);
+                        }
+                    }
+                };
+                getUpnpClient().getControlPoint().execute(stateCheck);
             }
-        }, new Date(System.currentTimeMillis() + 200)); // 200ms delay
+        }, new Date(System.currentTimeMillis() + 200));
     }
-    
+
     private void startPlayAction(Service<?, ?> service, final ActionState actionState) {
         actionState.actionFinished = false;
         Play actionCallback = new Play(service) {
@@ -213,14 +315,14 @@ public class AVTransportPlayer extends AbstractPlayer {
             public void success(ActionInvocation actioninvocation) {
                 super.success(actioninvocation);
                 actionState.actionFinished = true;
-                
-                // Check transport state immediately after Play command
+
+                // Check transport state after Play command
                 executeCommand(new TimerTask() {
                     @Override
                     public void run() {
                         getTransportInfo();
                     }
-                }, new Date(System.currentTimeMillis() + 500)); // Check state after 500ms
+                }, new Date(System.currentTimeMillis() + 500));
             }
         };
         getUpnpClient().getControlPoint().execute(actionCallback);
@@ -391,7 +493,7 @@ public class AVTransportPlayer extends AbstractPlayer {
             Log.d(getClass().getName(), "No AVTransport-Service found for transport info");
             return;
         }
-        
+
         Log.d(getClass().getName(), "GetTransportInfo");
         GetTransportInfo actionCallback = new GetTransportInfo(service) {
             @Override
@@ -402,7 +504,7 @@ public class AVTransportPlayer extends AbstractPlayer {
             @Override
             public void received(ActionInvocation actioninvocation, TransportInfo info) {
                 Log.d(getClass().getName(), "Transport State: " + info.getCurrentTransportState());
-                
+
                 // If not playing and we haven't exceeded retry limit, try Play command again
                 if (info.getCurrentTransportState() != TransportState.PLAYING && playRetryCount < MAX_PLAY_RETRIES) {
                     playRetryCount++;
@@ -432,7 +534,7 @@ public class AVTransportPlayer extends AbstractPlayer {
             Log.d(getClass().getName(), "No AVTransport-Service found for Play command");
             return;
         }
-        
+
         Log.d(getClass().getName(), "Sending additional Play command");
         Play actionCallback = new Play(service) {
             @Override
@@ -445,7 +547,7 @@ public class AVTransportPlayer extends AbstractPlayer {
             public void success(ActionInvocation actioninvocation) {
                 super.success(actioninvocation);
                 Log.d(getClass().getName(), "Additional Play command succeeded");
-                
+
                 // Check transport state again after second Play command
                 executeCommand(new TimerTask() {
                     @Override
@@ -506,7 +608,7 @@ public class AVTransportPlayer extends AbstractPlayer {
                 Log.d(getClass().getName(), "received Positioninfo= RelTime: " + positionInfo.getRelTime() + " remaining time: " + positionInfo.getTrackRemainingSeconds());
 
                 long currentRemainingTime = positionInfo.getTrackRemainingSeconds();
-                
+
                 // Set timer on first position info OR when remaining time changes significantly
                 if (lastRemainingTime == -1 && currentRemainingTime > 1) {
                     // First position check - set timer only if we have valid remaining time
