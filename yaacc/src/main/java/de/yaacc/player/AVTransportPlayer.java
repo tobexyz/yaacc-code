@@ -17,10 +17,13 @@
  */
 package de.yaacc.player;
 
+import android.app.Activity;
 import android.app.PendingIntent;
+import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
 import android.util.Log;
+import android.widget.Toast;
 
 import org.fourthline.cling.model.action.ActionInvocation;
 import org.fourthline.cling.model.message.UpnpResponse;
@@ -29,6 +32,7 @@ import org.fourthline.cling.model.meta.Icon;
 import org.fourthline.cling.model.meta.RemoteDevice;
 import org.fourthline.cling.model.meta.Service;
 import org.fourthline.cling.support.avtransport.callback.GetPositionInfo;
+import org.fourthline.cling.support.avtransport.callback.GetTransportInfo;
 import org.fourthline.cling.support.avtransport.callback.Pause;
 import org.fourthline.cling.support.avtransport.callback.Play;
 import org.fourthline.cling.support.avtransport.callback.Seek;
@@ -38,6 +42,8 @@ import org.fourthline.cling.support.contentdirectory.DIDLParser;
 import org.fourthline.cling.support.model.DIDLContent;
 import org.fourthline.cling.support.model.DIDLObject;
 import org.fourthline.cling.support.model.PositionInfo;
+import org.fourthline.cling.support.model.TransportInfo;
+import org.fourthline.cling.support.model.TransportState;
 import org.fourthline.cling.support.model.item.Item;
 
 import java.net.URI;
@@ -107,43 +113,8 @@ public class AVTransportPlayer extends AbstractPlayer {
      */
     @Override
     protected void stopItem(PlayableItem playableItem) {
-        if (getDevice() == null) {
-            Log.d(getClass().getName(),
-                    "No receiver device found: "
-                            + deviceId);
-            return;
-        }
-        Service<?, ?> service = getUpnpClient().getAVTransportService(getDevice());
-        if (service == null) {
-            Log.d(getClass().getName(),
-                    "No AVTransport-Service found on Device: "
-                            + getDevice().getDisplayString());
-            return;
-        }
-        final ActionState actionState = new ActionState();
-// Now start Stopping
-        Log.d(getClass().getName(), "Action Stop");
-        actionState.actionFinished = false;
-        Stop actionCallback = new Stop(service) {
-            @Override
-            public void failure(ActionInvocation actioninvocation,
-                                UpnpResponse upnpresponse, String s) {
-                Log.d(getClass().getName(), "Failure UpnpResponse: "
-                        + upnpresponse);
-                Log.d(getClass().getName(),
-                        upnpresponse != null ? "UpnpResponse: "
-                                + upnpresponse.getResponseDetails() : "");
-                Log.d(getClass().getName(), "s: " + s);
-                actionState.actionFinished = true;
-            }
-
-            @Override
-            public void success(ActionInvocation actioninvocation) {
-                super.success(actioninvocation);
-                actionState.actionFinished = true;
-            }
-        };
-        getUpnpClient().getControlPoint().execute(actionCallback);
+        Log.d(getClass().getName(), "Skipping Stop command to avoid renderer issues");
+        // Skip stop command entirely - let SetAVTransportURI handle the transition
     }
 
     /* (non-Javadoc)
@@ -211,6 +182,19 @@ public class AVTransportPlayer extends AbstractPlayer {
         }
 // Now start Playing
         Log.d(getClass().getName(), "Action Play");
+        lastRemainingTime = -1; // Reset to ensure timer gets set for new track
+        playRetryCount = 0; // Reset retry counter for new track
+        
+        // Add small delay before Play command to let renderer process URI
+        executeCommand(new TimerTask() {
+            @Override
+            public void run() {
+                startPlayAction(service, actionState);
+            }
+        }, new Date(System.currentTimeMillis() + 200)); // 200ms delay
+    }
+    
+    private void startPlayAction(Service<?, ?> service, final ActionState actionState) {
         actionState.actionFinished = false;
         Play actionCallback = new Play(service) {
             @Override
@@ -229,6 +213,14 @@ public class AVTransportPlayer extends AbstractPlayer {
             public void success(ActionInvocation actioninvocation) {
                 super.success(actioninvocation);
                 actionState.actionFinished = true;
+                
+                // Check transport state immediately after Play command
+                executeCommand(new TimerTask() {
+                    @Override
+                    public void run() {
+                        getTransportInfo();
+                    }
+                }, new Date(System.currentTimeMillis() + 500)); // Check state after 500ms
             }
         };
         getUpnpClient().getControlPoint().execute(actionCallback);
@@ -386,6 +378,85 @@ public class AVTransportPlayer extends AbstractPlayer {
         getUpnpClient().setVolume(getDevice(), volume);
     }
 
+    private int playRetryCount = 0;
+    private static final int MAX_PLAY_RETRIES = 3;
+
+    private void getTransportInfo() {
+        if (getDevice() == null) {
+            Log.d(getClass().getName(), "No receiver device found for transport info: " + deviceId);
+            return;
+        }
+        Service<?, ?> service = getUpnpClient().getAVTransportService(getDevice());
+        if (service == null) {
+            Log.d(getClass().getName(), "No AVTransport-Service found for transport info");
+            return;
+        }
+        
+        Log.d(getClass().getName(), "GetTransportInfo");
+        GetTransportInfo actionCallback = new GetTransportInfo(service) {
+            @Override
+            public void failure(ActionInvocation actioninvocation, UpnpResponse upnpresponse, String s) {
+                Log.d(getClass().getName(), "GetTransportInfo failure: " + s);
+            }
+
+            @Override
+            public void received(ActionInvocation actioninvocation, TransportInfo info) {
+                Log.d(getClass().getName(), "Transport State: " + info.getCurrentTransportState());
+                
+                // If not playing and we haven't exceeded retry limit, try Play command again
+                if (info.getCurrentTransportState() != TransportState.PLAYING && playRetryCount < MAX_PLAY_RETRIES) {
+                    playRetryCount++;
+                    Log.d(getClass().getName(), "Renderer not playing, sending Play command again (attempt " + playRetryCount + ")");
+                    executeCommand(new TimerTask() {
+                        @Override
+                        public void run() {
+                            sendPlayCommand();
+                        }
+                    }, new Date(System.currentTimeMillis() + 500));
+                } else {
+                    Log.d(getClass().getName(), "Checking position (retries: " + playRetryCount + ")");
+                    getPositionInfo();
+                }
+            }
+        };
+        getUpnpClient().getControlPoint().execute(actionCallback);
+    }
+
+    private void sendPlayCommand() {
+        if (getDevice() == null) {
+            Log.d(getClass().getName(), "No receiver device found for Play command: " + deviceId);
+            return;
+        }
+        Service<?, ?> service = getUpnpClient().getAVTransportService(getDevice());
+        if (service == null) {
+            Log.d(getClass().getName(), "No AVTransport-Service found for Play command");
+            return;
+        }
+        
+        Log.d(getClass().getName(), "Sending additional Play command");
+        Play actionCallback = new Play(service) {
+            @Override
+            public void failure(ActionInvocation actioninvocation, UpnpResponse upnpresponse, String s) {
+                Log.d(getClass().getName(), "Additional Play command failed: " + s);
+                getPositionInfo(); // Check position anyway
+            }
+
+            @Override
+            public void success(ActionInvocation actioninvocation) {
+                super.success(actioninvocation);
+                Log.d(getClass().getName(), "Additional Play command succeeded");
+                
+                // Check transport state again after second Play command
+                executeCommand(new TimerTask() {
+                    @Override
+                    public void run() {
+                        getTransportInfo();
+                    }
+                }, new Date(System.currentTimeMillis() + 1000)); // Wait 1 second then check state
+            }
+        };
+        getUpnpClient().getControlPoint().execute(actionCallback);
+    }
 
     protected void getPositionInfo() {
         if (positionActionState != null && !positionActionState.actionFinished) {
@@ -433,9 +504,17 @@ public class AVTransportPlayer extends AbstractPlayer {
                 positionActionState.result = positionInfo;
                 currentPositionInfo = positionInfo;
                 Log.d(getClass().getName(), "received Positioninfo= RelTime: " + positionInfo.getRelTime() + " remaining time: " + positionInfo.getTrackRemainingSeconds());
+
+                long currentRemainingTime = positionInfo.getTrackRemainingSeconds();
                 
-                // Only update timer if we have valid remaining time (> 1 second) to prevent rapid track jumping
-                if (positionInfo.getTrackRemainingSeconds() > 1) {
+                // Set timer on first position info OR when remaining time changes significantly
+                if (lastRemainingTime == -1 && currentRemainingTime > 1) {
+                    // First position check - set timer only if we have valid remaining time
+                    lastRemainingTime = currentRemainingTime;
+                    updateTimer();
+                } else if (currentRemainingTime > 1 && Math.abs(currentRemainingTime - lastRemainingTime) > 5) {
+                    // Subsequent updates - only if remaining time changed significantly
+                    lastRemainingTime = currentRemainingTime;
                     updateTimer();
                 }
             }
@@ -453,6 +532,7 @@ public class AVTransportPlayer extends AbstractPlayer {
 
 
     private long lastPositionUpdate = 0;
+    private long lastRemainingTime = -1;
     private static final long POSITION_UPDATE_INTERVAL = 1000; // 1 second for better track completion detection
 
 
@@ -485,6 +565,18 @@ public class AVTransportPlayer extends AbstractPlayer {
                             + getDevice().getDisplayString());
             return;
         }
+        // Check if the service supports seek action
+        if (service.getAction("Seek") == null) {
+            Log.w(getClass().getName(), "Player does not support Seek action");
+            Context context = getUpnpClient().getContext();
+            if (context instanceof Activity) {
+                ((Activity) context).runOnUiThread(() -> {
+                    Toast.makeText(context, "Seek not supported by this player", Toast.LENGTH_SHORT).show();
+                });
+            }
+            return;
+        }
+
         Log.d(getClass().getName(), "Action seek ");
         final ActionState actionState = new ActionState();
         actionState.actionFinished = false;
@@ -496,18 +588,22 @@ public class AVTransportPlayer extends AbstractPlayer {
             public void success(ActionInvocation invocation) {
                 //super.success(invocation);
                 Log.d(getClass().getName(), "success seek" + invocation);
-                executeCommand(new TimerTask() {
-                    @Override
-                    public void run() {
-                        updateTimer();
-                    }
-                }, new Date(System.currentTimeMillis() + 2000)); //wait two seconds before reading time from renderer
-
+                // Don't schedule position check - let normal position polling handle it
             }
 
             @Override
             public void failure(ActionInvocation arg0, UpnpResponse arg1, String arg2) {
-                Log.d(getClass().getName(), "fail seek");
+                Log.w(getClass().getName(), "Seek failed - Player may not support seeking");
+                Log.w(getClass().getName(), "UpnpResponse: " + (arg1 != null ? arg1.getResponseDetails() : "null"));
+                Log.w(getClass().getName(), "Error: " + arg2);
+
+                // Some players don't support seeking, just log and continue
+                Context context = getUpnpClient().getContext();
+                if (context instanceof Activity) {
+                    ((Activity) context).runOnUiThread(() -> {
+                        Toast.makeText(context, "Seek not supported by this player", Toast.LENGTH_SHORT).show();
+                    });
+                }
             }
         };
         getUpnpClient().getControlPoint().execute(seekAction);
