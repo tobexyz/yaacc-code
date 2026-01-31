@@ -433,7 +433,11 @@ public class AVTransportPlayer extends AbstractPlayer {
                 positionActionState.result = positionInfo;
                 currentPositionInfo = positionInfo;
                 Log.d(getClass().getName(), "received Positioninfo= RelTime: " + positionInfo.getRelTime() + " remaining time: " + positionInfo.getTrackRemainingSeconds());
-
+                
+                // Only update timer if we have valid remaining time (> 1 second) to prevent rapid track jumping
+                if (positionInfo.getTrackRemainingSeconds() > 1) {
+                    updateTimer();
+                }
             }
         };
 
@@ -448,9 +452,15 @@ public class AVTransportPlayer extends AbstractPlayer {
     }
 
 
+    private long lastPositionUpdate = 0;
+    private static final long POSITION_UPDATE_INTERVAL = 1000; // 1 second for better track completion detection
+
+
     public long getCurrentPosition() {
-        if (currentPositionInfo == null) {
+        long currentTime = System.currentTimeMillis();
+        if (currentPositionInfo == null || (currentTime - lastPositionUpdate) > POSITION_UPDATE_INTERVAL) {
             getPositionInfo();
+            lastPositionUpdate = currentTime;
         }
         if (currentPositionInfo != null) {
             Log.v(getClass().getName(), "Elapsed time: " + currentPositionInfo.getTrackElapsedSeconds() + " in millis: " + currentPositionInfo.getTrackRemainingSeconds() * 1000);

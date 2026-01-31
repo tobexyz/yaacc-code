@@ -69,6 +69,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import de.yaacc.R;
+import de.yaacc.upnp.server.YaaccUpnpServerService;
 
 /**
  * a content directory which uses the content of the MediaStore in order to
@@ -103,9 +104,8 @@ public class YaaccContentDirectory {
     @UpnpStateVariable(defaultValue = "0", eventMaximumRateMilliseconds = 200)
     private final UnsignedIntegerFourBytes systemUpdateID = new UnsignedIntegerFourBytes(
             0);
-    private final String ipAddress;
 
-    public YaaccContentDirectory(Context context, String ipAddress) {
+    public YaaccContentDirectory(Context context) {
         this.context = context;
         preferences = PreferenceManager.getDefaultSharedPreferences(context);
 
@@ -114,7 +114,6 @@ public class YaaccContentDirectory {
         }
         this.searchCapabilities = new CSVString();
         this.sortCapabilities = new CSVString();
-        this.ipAddress = ipAddress;
     }
 
     private boolean isUsingTestContent() {
@@ -491,7 +490,7 @@ public class YaaccContentDirectory {
     }
 
     public String getIpAddress() {
-        return ipAddress;
+        return YaaccUpnpServerService.getIpAddress(context);
     }
 
 }

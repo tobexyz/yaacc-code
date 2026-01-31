@@ -627,7 +627,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
 
             @Override
             protected YaaccContentDirectory createServiceInstance() {
-                return new YaaccContentDirectory(getApplicationContext(), getIpAddress(getApplicationContext()));
+                return new YaaccContentDirectory(getApplicationContext());
             }
         });
         return contentDirectoryService;
