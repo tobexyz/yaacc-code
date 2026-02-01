@@ -129,6 +129,7 @@
     <string name="settings_music_player_shuffle_on">shuffled music play</string>
     <string name="settings_music_player_shuffle_off">ordered music play</string>
     <string name="settings_category_synchronization">synchronization settings</string>
+    <string name="settings_category_renderer_settings">Renderer Settings</string>
     <string name="settings_swipe_chkbx" translatable="false">settings_swipe_chkbx</string>
     <string name="settings_browse_swipe_off">Change tabs on touch</string>
     <string name="settings_browse_swipe_on">Change tabs on swipe and touch</string>

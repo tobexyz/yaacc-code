@@ -104,4 +104,5 @@
     <string name="settings_local_server_serve_saf_title">Bereitstellung von SAF-Inhalten</string>
     <string name="settings_local_server_serve_saf_off">Die Bereitstellung von SAF-Inhalten ist deaktiviert.</string>
     <string name="settings_local_server_serve_saf_on">Die Bereitstellung von SAF-Inhalten ist aktiviert.</string>
+    <string name="settings_category_renderer_settings">Renderer-Einstellungen</string>
 </resources>

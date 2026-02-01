@@ -104,4 +104,5 @@
     <string name="settings_local_server_serve_saf_title">提供 SAF 内容</string>
     <string name="settings_local_server_serve_saf_off">已禁用 SAF 内容服务</string>
     <string name="settings_local_server_serve_saf_on">已启用 SAF 内容服务</string>
+    <string name="settings_category_renderer_settings">渲染器设置</string>
 </resources>

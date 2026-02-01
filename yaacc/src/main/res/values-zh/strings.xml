@@ -70,7 +70,6 @@
     <string name="playerPosition">位置</string>
     <string name="playerTiming">时间：</string>
     <string name="playerTimeDuration">时长</string>
-    <string name="playerTimeSeparator" translatable="false"> / </string>
     <string name="playerTimeElapsed">已播放时间</string>
     <string name="bucket_names">图库</string>
     <string name="all_images">所有图片</string>
@@ -121,4 +120,5 @@
     <string name="shutdown_timer">关闭定时器</string>
     <string name="add_saf_content">添加源</string>
     <string name="saf_content">SAF</string>
+    <string name="enable_server_side_seeking_for_external_urls">在代理模式下启用服务器端时间范围管理</string>
 </resources>

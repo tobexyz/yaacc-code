@@ -197,4 +197,11 @@
             android:inputType="text"
             android:key="@string/settings_local_server_receiver_uuid_key" />
     </PreferenceCategory>
+    
+    <PreferenceCategory 
+        android:key="renderer_settings_category"
+        android:title="@string/settings_category_renderer_settings">
+        <!-- Dynamic renderer preferences will be added here -->
+    </PreferenceCategory>
+    
 </PreferenceScreen>

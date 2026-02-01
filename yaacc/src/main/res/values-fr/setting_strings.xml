@@ -104,4 +104,5 @@
     <string name="settings_local_server_serve_saf_title">diffuser du contenu SAF</string>
     <string name="settings_local_server_serve_saf_off">Le contenu SAF est désactivé.</string>
     <string name="settings_local_server_serve_saf_on">Le contenu SAF est activé.</string>
+    <string name="settings_category_renderer_settings">Paramètres du moteur de rendu</string>
 </resources>

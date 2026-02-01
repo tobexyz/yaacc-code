@@ -104,4 +104,5 @@
     <string name="settings_local_server_serve_saf_title">veicular conteúdo SAF</string>
     <string name="settings_local_server_serve_saf_off">O conteúdo SAF está desativado.</string>
     <string name="settings_local_server_serve_saf_on">O conteúdo SAF está ativado.</string>
+    <string name="settings_category_renderer_settings">Configurações de renderização</string>
 </resources>

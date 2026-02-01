@@ -120,4 +120,5 @@
     <string name="shutdown_timer">Temporizador de apagado</string>
     <string name="add_saf_content">agregar fuente</string>
     <string name="saf_content">SAF</string>
+    <string name="enable_server_side_seeking_for_external_urls">Habilitar la administración del rango de tiempo del lado del servidor en modo proxy</string>
 </resources>
