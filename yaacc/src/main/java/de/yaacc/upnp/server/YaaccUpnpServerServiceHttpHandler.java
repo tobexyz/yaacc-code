@@ -1147,8 +1147,21 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
                             Log.d(getClass().getName(), "Return without range request file-Uri: " + getUri()
                                     + " Mimetype: " + getMimeType());
                         } else {
-                            result = AsyncEntityProducers.create(readRangeFormFile(file, ranges),
-                                    ContentType.parse(getMimeType().toString()));
+                            // For large files (>50MB), use streaming instead of loading into memory
+                            long fileSize = file.length();
+                            HttpRange range = ranges.get(0);
+                            long rangeSize = fileSize;
+                            if (range.getEnd() != null && range.getEnd() > 0) {
+                                rangeSize = range.getEnd() - (range.getStart() != null ? range.getStart() : 0) + 1;
+                            }
+                            
+                            if (fileSize > 50 * 1024 * 1024 || rangeSize > 50 * 1024 * 1024) { // 50MB threshold
+                                Log.d(getClass().getName(), "Using streaming for large file: " + fileSize + " bytes, range: " + rangeSize + " bytes");
+                                result = createStreamingEntityProducer(file, ranges);
+                            } else {
+                                result = AsyncEntityProducers.create(readRangeFormFile(file, ranges),
+                                        ContentType.parse(getMimeType().toString()));
+                            }
                         }
                     } else {
                         // DocumentFile handling - need to read content through InputStream
@@ -1234,6 +1247,89 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
                         ContentType.TEXT_HTML);
             }
             return result;
+        }
+
+        private AsyncEntityProducer createStreamingEntityProducer(File file, List<HttpRange> ranges) {
+            return new AbstractBinAsyncEntityProducer(8192, ContentType.parse(getMimeType().toString())) {
+                private RandomAccessFile raf;
+                private long startPosition = 0;
+                private long rangeLength;
+                private long bytesRead = 0;
+
+                {
+                    try {
+                        raf = new RandomAccessFile(file, "r");
+                        long fileSize = raf.length();
+                        
+                        if (!ranges.isEmpty()) {
+                            HttpRange range = ranges.get(0);
+                            startPosition = range.getStart() == null ? 0 : range.getStart();
+                            if (range.getEnd() == null || range.getEnd() == 0) {
+                                rangeLength = fileSize - startPosition;
+                            } else {
+                                rangeLength = range.getEnd() - startPosition + 1;
+                            }
+                            if (range.getSuffixLength() != null && range.getSuffixLength() > 0) {
+                                startPosition = fileSize - range.getSuffixLength();
+                                rangeLength = range.getSuffixLength();
+                            }
+                        } else {
+                            rangeLength = fileSize;
+                        }
+                        
+                        raf.seek(startPosition);
+                    } catch (IOException e) {
+                        Log.e(getClass().getName(), "Error initializing streaming producer", e);
+                    }
+                }
+
+                @Override
+                public long getContentLength() {
+                    return rangeLength;
+                }
+
+                @Override
+                protected int availableData() {
+                    return (bytesRead < rangeLength) ? 8192 : 0;
+                }
+
+                @Override
+                protected void produceData(final StreamChannel<ByteBuffer> channel) throws IOException {
+                    if (raf != null && bytesRead < rangeLength) {
+                        byte[] buffer = new byte[8192];
+                        int toRead = (int) Math.min(buffer.length, rangeLength - bytesRead);
+                        int read = raf.read(buffer, 0, toRead);
+                        if (read > 0) {
+                            bytesRead += read;
+                            channel.write(ByteBuffer.wrap(buffer, 0, read));
+                        } else {
+                            raf.close();
+                            channel.endStream();
+                        }
+                    } else {
+                        if (raf != null) {
+                            raf.close();
+                        }
+                        channel.endStream();
+                    }
+                }
+
+                @Override
+                public void failed(final Exception cause) {
+                    Log.e(getClass().getName(), "Streaming failed", cause);
+                    if (raf != null) {
+                        try {
+                            raf.close();
+                        } catch (IOException ignored) {
+                        }
+                    }
+                }
+
+                @Override
+                public boolean isRepeatable() {
+                    return false; // File streaming is not repeatable
+                }
+            };
         }
     }
 }
