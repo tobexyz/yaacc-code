@@ -456,9 +456,9 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
             currentLoadedIndex = toLoadIndex;
 
             PlayableItem playableItem = items.get(toLoadIndex);
-            
-            Log.d(getClass().getName(), "Checking item restriction: " + playableItem.getItem().getTitle() + " restricted=" + playableItem.getItem().isRestricted());
 
+            Log.d(getClass().getName(), "Checking item restriction: " + playableItem.getItem().getTitle() + " restricted=" + playableItem.getItem().isRestricted());
+            /*
             // If item is restricted, show toast and wait
             if (playableItem.getItem().isRestricted()) {
                 Log.d(getClass().getName(), "Item is restricted, showing toast and waiting");
@@ -487,7 +487,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
                     return null;
                 }
             }
-
+            */
             loadedItem = loadItem(playableItem);
             return loadedItem;
         }
