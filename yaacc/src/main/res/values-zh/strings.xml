@@ -40,7 +40,6 @@
     <string name="error_no_receiver_device_found">未找到接收设备</string>
     <string name="error_no_activity_found">未找到播放 mimetype \'%1$s\' 的活动</string>
     <string name="image_viewer_settings_duration">图片停留时长</string>
-    <string name="image_viewer_settings_duration_key" translatable="false">image_viewer_settings_duration_key</string>
     <string name="yaacc_menu_settings">YAACC 设置</string>
     <string name="yaacc_about">关于</string>
     <string name="no_valid_uri_data_found_to_display">未找到显示的有效 uri 数据</string>
@@ -71,7 +70,6 @@
     <string name="playerPosition">位置</string>
     <string name="playerTiming">时间：</string>
     <string name="playerTimeDuration">时长</string>
-    <string name="playerTimeSeparator" translatable="false"> / </string>
     <string name="playerTimeElapsed">已播放时间</string>
     <string name="bucket_names">图库</string>
     <string name="all_images">所有图片</string>
@@ -120,4 +118,7 @@
     <string name="shared_folders">选择共享文件夹</string>
     <string name="reset_shared_folders">重置共享文件夹</string>
     <string name="shutdown_timer">关闭定时器</string>
+    <string name="add_saf_content">添加源</string>
+    <string name="saf_content">SAF</string>
+    <string name="enable_server_side_seeking_for_external_urls">在代理模式下启用服务器端时间范围管理</string>
 </resources>

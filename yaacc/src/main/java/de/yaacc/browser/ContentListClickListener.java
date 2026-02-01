@@ -72,20 +72,13 @@ public class ContentListClickListener implements View.OnClickListener {
             navigator.pushPosition(new Position(position, newObjectId, upnpClient.getProviderDeviceId(), currentObject.getTitle()));
             contentListFragment.populateItemList(true);
         } else if (currentObject instanceof Item) {
-            if (currentObject == BrowseContentItemAdapter.LOAD_MORE_FAKE_ITEM) {
-                adapter.loadMore();
+            PlayableItem playableItem = new PlayableItem((Item) currentObject, 0);
+            ContentItemPlayTask task = new ContentItemPlayTask(contentListFragment, currentObject);
+            if (playableItem.getMimeType() != null && playableItem.getMimeType().startsWith("video")) {
+                task.execute(ContentItemPlayTask.PLAY_CURRENT);
             } else {
-                PlayableItem playableItem = new PlayableItem((Item) currentObject, 0);
-                ContentItemPlayTask task = new ContentItemPlayTask(contentListFragment, currentObject);
-                if (playableItem.getMimeType() != null && playableItem.getMimeType().startsWith("video")) {
-                    task.execute(ContentItemPlayTask.PLAY_CURRENT);
-                } else {
-                    task.execute(ContentItemPlayTask.PLAY_ALL);
-                }
-
+                task.execute(ContentItemPlayTask.PLAY_ALL);
             }
         }
     }
-
-
 } 

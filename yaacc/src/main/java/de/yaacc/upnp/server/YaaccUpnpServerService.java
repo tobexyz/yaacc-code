@@ -48,6 +48,7 @@ import org.apache.hc.core5.http.impl.bootstrap.HttpAsyncServer;
 import org.apache.hc.core5.http2.impl.nio.bootstrap.H2ServerBootstrap;
 import org.apache.hc.core5.reactor.IOReactorConfig;
 import org.apache.hc.core5.reactor.IOReactorStatus;
+import org.apache.hc.core5.util.Timeout;
 import org.apache.hc.core5.util.TimeValue;
 import org.apache.hc.core5.util.Timeout;
 import org.fourthline.cling.binding.annotations.AnnotationLocalServiceBinder;
@@ -109,6 +110,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
     public static final String PROXY_LINK_KEY_PREFIX = "proxy_link_";
     public static final String PROXY_LINK_MIME_TYPE_KEY_PREFIX = "proxy_link_mime_type";
     public static final String PROXY_PATH = "proxy";
+    public static final String SAF_PATH = "saf";
     public static final int LOCK_TIMEOUT = 5000;
     private static final Pattern IPV4_PATTERN =
             Pattern.compile(
@@ -310,37 +312,63 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         // Create a HttpService for providing content in the network.
         // Set up the HTTP service
         if (httpServer == null) {
-            IOReactorConfig config = IOReactorConfig.custom()
-                    .setSoKeepAlive(true)
-                    .setTcpNoDelay(true)
-                    .build();
-            httpServer = H2ServerBootstrap.bootstrap()
-                    .setIOReactorConfig(config)
-                    .setExceptionCallback(new Callback<Exception>() {
+            try {
+                IOReactorConfig config = IOReactorConfig.custom()
+                        .setSoKeepAlive(true)
+                        .setTcpNoDelay(true)
+                        .setSoTimeout(Timeout.ofSeconds(30))
+                        .setIoThreadCount(8)
+                        .build();
+                httpServer = H2ServerBootstrap.bootstrap()
+                        .setIOReactorConfig(config)
+                        .setExceptionCallback(new Callback<Exception>() {
 
-                        @Override
-                        public void execute(Exception ex) {
-                            if (ex instanceof SocketTimeoutException) {
-                                Log.e(getClass().getName(), "connection timeout:", ex);
-                            } else if (ex instanceof ConnectionClosedException) {
-                                Log.e(getClass().getName(), "connection closed:", ex);
-                            } else {
-                                Log.e(getClass().getName(), "connection error:", ex);
+                            @Override
+                            public void execute(Exception ex) {
+                                if (ex instanceof SocketTimeoutException) {
+                                    Log.e(getClass().getName(), "connection timeout:", ex);
+                                } else if (ex instanceof ConnectionClosedException) {
+                                    Log.e(getClass().getName(), "connection closed:", ex);
+                                } else {
+                                    Log.e(getClass().getName(), "connection error:", ex);
+                                }
                             }
-                        }
 
-                    })
-                    .setCanonicalHostName(getIpAddress(getApplicationContext()))
-                    .register("*", new YaaccUpnpServerServiceHttpHandler(getApplicationContext()))
-                    .create();
-            httpServer.start();
+                        })
+                        .setCanonicalHostName(getIpAddress(getApplicationContext()))
+                        .register("*", new YaaccUpnpServerServiceHttpHandler(getApplicationContext()))
+                        .create();
+                httpServer.start();
+                Log.d(getClass().getName(), "HTTP server created and started successfully");
+            } catch (Exception e) {
+                Log.e(getClass().getName(), "Failed to create HTTP server", e);
+                httpServer = null;
+                throw new IOException("Failed to create HTTP server", e);
+            }
         } else {
-
-            httpServer.resume();
+            try {
+                httpServer.resume();
+                Log.d(getClass().getName(), "HTTP server resumed");
+            } catch (Exception e) {
+                Log.e(getClass().getName(), "Failed to resume HTTP server", e);
+                httpServer = null;
+                throw new IOException("Failed to resume HTTP server", e);
+            }
         }
-        httpServer.listen(new InetSocketAddress(PORT), URIScheme.HTTP);
-        Log.d(getClass().getName(), "Server status: " + httpServer.getStatus().name());
-        Log.d(getClass().getName(), "Server Endpoints: " + httpServer.getEndpoints().size());
+        
+        try {
+            httpServer.listen(new InetSocketAddress(PORT), URIScheme.HTTP);
+            Log.d(getClass().getName(), "Server listening on port " + PORT);
+            Log.d(getClass().getName(), "Server status: " + httpServer.getStatus().name());
+            Log.d(getClass().getName(), "Server Endpoints: " + httpServer.getEndpoints().size());
+        } catch (Exception e) {
+            Log.e(getClass().getName(), "Failed to bind HTTP server to port " + PORT, e);
+            if (httpServer != null) {
+                httpServer.close();
+                httpServer = null;
+            }
+            throw new IOException("Failed to bind HTTP server to port " + PORT, e);
+        }
         httpServer.getEndpoints().forEach(endpoint -> Log.d(getClass().getName(), "Endpoint: " + endpoint.toString()));
 /*
         timer.schedule(new TimerTask() {
@@ -602,7 +630,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
 
             @Override
             protected YaaccContentDirectory createServiceInstance() {
-                return new YaaccContentDirectory(getApplicationContext(), getIpAddress(getApplicationContext()));
+                return new YaaccContentDirectory(getApplicationContext());
             }
         });
         return contentDirectoryService;

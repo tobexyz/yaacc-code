@@ -101,4 +101,8 @@
     <string name="settings_browse_swipe_on">滑动和触摸时更改标签页</string>
     <string name="settings_browse_swipe_title">浏览时滑动</string>
     <string name="settings_local_server_if_filter_names">ip 地址检索的黑名单接口</string>
+    <string name="settings_local_server_serve_saf_title">提供 SAF 内容</string>
+    <string name="settings_local_server_serve_saf_off">已禁用 SAF 内容服务</string>
+    <string name="settings_local_server_serve_saf_on">已启用 SAF 内容服务</string>
+    <string name="settings_category_renderer_settings">渲染器设置</string>
 </resources>

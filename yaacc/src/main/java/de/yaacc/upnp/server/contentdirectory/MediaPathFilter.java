@@ -61,4 +61,50 @@ public class MediaPathFilter {
         editor.putStringSet(context.getString(R.string.settings_media_paths_pref_key), new HashSet<>());
         editor.apply();
     }
+
+    public static Set<String> getSafPathes(Context context) {
+        Set<String> paths = PreferenceManager.getDefaultSharedPreferences(context).getStringSet(context.getString(R.string.settings_saf_tree_uris_pref_key), new HashSet<>());
+        if (paths == null) {
+            return new HashSet<>();
+        }
+        return new HashSet<>(paths);
+    }
+
+    public static void saveSafPathes(Context context, Set<String> newPathes) {
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
+        SharedPreferences.Editor editor = prefs.edit();
+        editor.putStringSet(context.getString(R.string.settings_saf_tree_uris_pref_key), newPathes);
+        editor.apply();
+    }
+
+
+    public static void resetSafPathes(Context context) {
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
+        SharedPreferences.Editor editor = prefs.edit();
+        editor.putStringSet(context.getString(R.string.settings_saf_tree_uris_pref_key), new HashSet<>());
+        editor.apply();
+    }
+
+    public static Set<String> getSelectedSafPathes(Context context) {
+        Set<String> paths = PreferenceManager.getDefaultSharedPreferences(context).getStringSet(context.getString(R.string.settings_saf_tree_uris_selected_pref_key), new HashSet<>());
+        if (paths == null) {
+            return new HashSet<>();
+        }
+        return new HashSet<>(paths);
+    }
+
+    public static void saveSelectedSafPathes(Context context, Set<String> newPaths) {
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
+        SharedPreferences.Editor editor = prefs.edit();
+        editor.putStringSet(context.getString(R.string.settings_saf_tree_uris_selected_pref_key), newPaths);
+        editor.apply();
+    }
+
+
+    public static void resetSelectedSafPathes(Context context) {
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
+        SharedPreferences.Editor editor = prefs.edit();
+        editor.putStringSet(context.getString(R.string.settings_saf_tree_uris_selected_pref_key), new HashSet<>());
+        editor.apply();
+    }
 }

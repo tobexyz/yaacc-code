@@ -118,4 +118,7 @@
     <string name="shared_folders">selecione pastas partilhadas</string>
     <string name="reset_shared_folders">repor pastas partilhadas</string>
     <string name="shutdown_timer">Temporizador de desligamento</string>
+    <string name="add_saf_content">adicionar fonte</string>
+    <string name="saf_content">SAF</string>
+    <string name="enable_server_side_seeking_for_external_urls">Ative a gestão do intervalo de tempo no servidor no modo proxy.</string>
 </resources>

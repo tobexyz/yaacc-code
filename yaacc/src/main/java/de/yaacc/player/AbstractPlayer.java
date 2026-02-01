@@ -259,12 +259,20 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
             return;
         setProcessingCommand(true);
         int possibleNextIndex = currentIndex;
-        if (possibleNextIndex >= 0 && possibleNextIndex < items.size()) {
-            loadItem(possibleNextIndex);
-        }
+
         executeCommand(new TimerTask() {
             @Override
             public void run() {
+                // Load item asynchronously in background thread
+                if (possibleNextIndex >= 0 && possibleNextIndex < items.size()) {
+                    Object item = loadItem(possibleNextIndex);
+                    if (item == null) {
+                        // Item not ready yet, stop processing
+                        setProcessingCommand(false);
+                        return;
+                    }
+                }
+
                 if (currentIndex < items.size()) {
                     Context context = getUpnpClient().getContext();
                     if (context instanceof Activity) {
@@ -446,7 +454,41 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
         if (toLoadIndex >= 0 && toLoadIndex <= items.size()) {
             Log.d(getClass().getName(), "loaded item");
             currentLoadedIndex = toLoadIndex;
-            loadedItem = loadItem(items.get(toLoadIndex));
+
+            PlayableItem playableItem = items.get(toLoadIndex);
+
+            Log.d(getClass().getName(), "Checking item restriction: " + playableItem.getItem().getTitle() + " restricted=" + playableItem.getItem().isRestricted());
+            /*
+            // If item is restricted, show toast and wait
+            if (playableItem.getItem().isRestricted()) {
+                Log.d(getClass().getName(), "Item is restricted, showing toast and waiting");
+                Context context = getUpnpClient().getContext();
+                if (context instanceof Activity) {
+                    ((Activity) context).runOnUiThread(() -> {
+                        Toast.makeText(context, "Loading item information...", Toast.LENGTH_LONG).show();
+                    });
+                }
+
+                // Wait for item to become ready (we're in background thread now)
+                int maxWaitSeconds = 10; // Reduced timeout since items become ready quickly
+                int waitedSeconds = 0;
+                while (playableItem.getItem().isRestricted() && waitedSeconds < maxWaitSeconds) {
+                    try {
+                        Thread.sleep(500);
+                        waitedSeconds++;
+                        Log.d(getClass().getName(), "Still waiting for item: " + playableItem.getItem().getTitle() + " (waited " + (waitedSeconds * 0.5) + "s)");
+                    } catch (InterruptedException e) {
+                        break;
+                    }
+                }
+
+                if (playableItem.getItem().isRestricted()) {
+                    Log.w(getClass().getName(), "Item still restricted after timeout");
+                    return null;
+                }
+            }
+            */
+            loadedItem = loadItem(playableItem);
             return loadedItem;
         }
         return null;

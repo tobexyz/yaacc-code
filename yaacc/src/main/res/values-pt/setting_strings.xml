@@ -101,4 +101,8 @@
     <string name="settings_browse_swipe_on">Alterar guias ao deslizar e tocar</string>
     <string name="settings_browse_swipe_title">Deslizar na navegação</string>
     <string name="settings_local_server_if_filter_names">interfaces na lista negra para recuperação de endereço IP</string>
+    <string name="settings_local_server_serve_saf_title">veicular conteúdo SAF</string>
+    <string name="settings_local_server_serve_saf_off">O conteúdo SAF está desativado.</string>
+    <string name="settings_local_server_serve_saf_on">O conteúdo SAF está ativado.</string>
+    <string name="settings_category_renderer_settings">Configurações de renderização</string>
 </resources>

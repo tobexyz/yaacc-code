@@ -9,7 +9,7 @@
         android:layout_width="48dp"
         android:layout_height="48dp"
         android:layout_centerVertical="true"
-        android:src="@drawable/ic_baseline_play_arrow_24" />
+        android:src="@drawable/sharp_chevron_right_24" />
 
     <CheckBox
         android:id="@+id/file_checkbox"
@@ -25,14 +25,24 @@
         android:layout_height="48dp"
         android:layout_centerVertical="true"
         android:layout_toEndOf="@id/file_checkbox"
-        android:src="@drawable/ic_baseline_folder_open_24" />
+        android:src="@drawable/ic_baseline_folder_open_48" />
 
     <TextView
         android:id="@+id/file_name"
-        android:layout_width="match_parent"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_centerVertical="true"
+        android:layout_toStartOf="@+id/file_remove"
         android:layout_toEndOf="@id/file_type_icon"
         android:padding="5dp"
         android:textAppearance="@android:style/TextAppearance.Material.Medium"
         tools:text="Directory" />
+
+    <ImageButton
+        android:id="@+id/file_remove"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_centerVertical="true"
+        android:layout_alignParentEnd="true"
+        android:src="@drawable/ic_baseline_delete_outline_48" />
 </RelativeLayout>

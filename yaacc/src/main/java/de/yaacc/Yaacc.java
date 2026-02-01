@@ -49,6 +49,7 @@ import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.UpnpRegistryService;
 import de.yaacc.upnp.server.YaaccAudioRenderingControlService;
 import de.yaacc.upnp.server.YaaccUpnpServerService;
+import de.yaacc.upnp.server.contentdirectory.SafPermissionManager;
 import de.yaacc.util.NotificationId;
 import de.yaacc.util.ShutdownTimerListener;
 
@@ -87,6 +88,9 @@ public class Yaacc extends Application {
             numThreads = 10;
         }
         contentLoadThreadPool = Executors.newFixedThreadPool(numThreads);
+
+        // Validate and cleanup SAF permissions on app startup
+        SafPermissionManager.validateAndCleanupPermissions(this);
 
     }
 

@@ -19,6 +19,7 @@
 package de.yaacc.upnp.server.contentdirectory;
 
 import android.content.Context;
+import android.util.Base64;
 import android.util.Log;
 import android.webkit.MimeTypeMap;
 
@@ -71,12 +72,22 @@ public abstract class ContentBrowser {
     }
 
     public String getUriString(YaaccContentDirectory contentDirectory, String id, MimeType mimeType) {
+        return getUriString(contentDirectory, id, mimeType, null);
+    }
+
+    public String getUriString(YaaccContentDirectory contentDirectory, String id, MimeType mimeType, String contentUri) {
         String fileExtension = MimeTypeMap.getSingleton().getExtensionFromMimeType(mimeType.toString());
         if (fileExtension == null) {
             Log.d(getClass().getName(), "Can't lookup file extension from mimetype: " + mimeType);
             //try subtype
             fileExtension = mimeType.getSubtype();
 
+        }
+
+        if (contentUri != null) {
+            String base64enc = new String(Base64.encode(contentUri.getBytes(), Base64.NO_WRAP));
+            return "http://" + contentDirectory.getIpAddress() + ":"
+                    + YaaccUpnpServerService.PORT + "/saf/" + id + "/" + base64enc + "." + fileExtension;
         }
         return "http://" + contentDirectory.getIpAddress() + ":"
                 + YaaccUpnpServerService.PORT + "/res/" + id + "/file." + fileExtension;
@@ -156,4 +167,9 @@ public abstract class ContentBrowser {
     public Set<String> getMediaPathes() {
         return MediaPathFilter.getMediaPathes(getContext());
     }
+
+    public Set<String> getSelectedSafPathes() {
+        return MediaPathFilter.getSelectedSafPathes(getContext());
+    }
+
 }

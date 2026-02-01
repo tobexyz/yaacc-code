@@ -107,6 +107,10 @@
     <string name="settings_local_server_serve_video_off">serve video is disabled</string>
     <string name="settings_local_server_serve_video_on">serve video is enabled</string>
     <string name="settings_local_server_serve_video_chkbx" translatable="false">local_server_serve_video_chkbx</string>
+    <string name="settings_local_server_serve_saf_title">serve SAF content</string>
+    <string name="settings_local_server_serve_saf_off">serve SAF content is disabled</string>
+    <string name="settings_local_server_serve_saf_on">serve SAF content is enabled</string>
+    <string name="settings_local_server_serve_saf_chkbx" translatable="false">local_server_serve_saf_chkbx</string>
     <string name="settings_local_server_name">network name for local server</string>
     <string name="settings_local_server_name_key" translatable="false">settings_local_server_name_key</string>
     <string name="settings_local_server_autostart_title">autostart server on boot</string>
@@ -125,6 +129,7 @@
     <string name="settings_music_player_shuffle_on">shuffled music play</string>
     <string name="settings_music_player_shuffle_off">ordered music play</string>
     <string name="settings_category_synchronization">synchronization settings</string>
+    <string name="settings_category_renderer_settings">Renderer Settings</string>
     <string name="settings_swipe_chkbx" translatable="false">settings_swipe_chkbx</string>
     <string name="settings_browse_swipe_off">Change tabs on touch</string>
     <string name="settings_browse_swipe_on">Change tabs on swipe and touch</string>
@@ -133,4 +138,6 @@
     <string name="settings_local_server_if_filter_names">black listed interfaces for ip address retrieval</string>
     <string name="settings_media_paths_pref_key" translatable="false">settings_media_paths_pref_key</string>
     <string name="settings_shutdown_timer" translatable="false">settings_local_server_shutdown_timer_chkbx</string>
+    <string name="settings_saf_tree_uris_pref_key" translatable="false">settings_saf_tree_uris_pref_key</string>
+    <string name="settings_saf_tree_uris_selected_pref_key" translatable="false">settings_saf_tree_uris_selected_pref_key</string>
 </resources>
