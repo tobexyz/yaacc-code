@@ -222,7 +222,6 @@ public class SafFolderBrowser extends ContentBrowser {
                 int end = (int) Math.min(files.length, start + maxResults);
                 for (int i = start; i < end; i++) {
                     DocumentFile file = files[i];
-                    Log.d("SafFolderBrowser", "Processing file: " + file.getName() + ", isDirectory: " + file.isDirectory() + ", type: " + file.getType());
                     if (!file.isDirectory()) {
                         addItem(contentDirectory, result, file.getUri().toString(), file, myId);
                     }
@@ -237,10 +236,10 @@ public class SafFolderBrowser extends ContentBrowser {
 
     private void addItem(YaaccContentDirectory contentDirectory, List<Item> result, String path, DocumentFile file, String parentId) {
         String mimeTypeStr = file.getType();
-        Log.d("SafFolderBrowser", "addItem called for: " + file.getName() + ", mimeType: " + mimeTypeStr);
 
         if (mimeTypeStr != null) {
             MimeType mimeType = MimeType.valueOf(mimeTypeStr);
+            String mimeTypeMain = mimeType.getType();
             String id = ContentDirectoryIDs.SAF_PREFIX.getId() + path.hashCode();
             String title = file.getName() != null ? file.getName() : path;
 
@@ -250,39 +249,59 @@ public class SafFolderBrowser extends ContentBrowser {
             // Create correct ProtocolInfo with DLNA attributes
             ProtocolInfo protocolInfo = new ProtocolInfo(Protocol.HTTP_GET, ProtocolInfo.WILDCARD, mimeType.toString(), getDLNAAttributes(mimeType));
 
-            // Get actual duration for audio files only (skip video for performance)
-            String duration = null;
-            if (mimeType.getType().equals("audio")) {
-                duration = extractDuration(file);
-            }
-
+            // Create resource without duration first for audio files
+            String duration = extractDuration(file);
             Res res = new Res(protocolInfo, file.length(), duration, null, uri);
 
             Item item = null;
-            if (mimeType.getType().equals("audio")) {
+            if (mimeTypeMain.equals("audio")) {
                 item = new AudioItem(id, parentId, title, "yaacc", res);
-                Log.d("SafFolderBrowser", "Created AudioItem: " + title);
-            } else if (mimeType.getType().equals("video")) {
+                // Load duration asynchronously
+                //loadDurationAsync(file, item, res);
+            } else if (mimeTypeMain.equals("video")) {
                 item = new VideoItem(id, parentId, title, "yaacc", res);
-                Log.d("SafFolderBrowser", "Created VideoItem: " + title);
-            } else if (mimeType.getType().equals("image")) {
+            } else if (mimeTypeMain.equals("image")) {
                 item = new ImageItem(id, parentId, title, "yaacc", res);
-                Log.d("SafFolderBrowser", "Created ImageItem: " + title);
-            } else {
-                Log.w("SafFolderBrowser", "Unknown media type for file: " + title + ", mimeType: " + mimeType);
             }
 
             if (item != null) {
                 result.add(item);
-                Log.d("SafFolderBrowser", "Added item to result: " + title);
             }
-        } else {
-            Log.w("SafFolderBrowser", "File has null MIME type, skipping: " + file.getName());
         }
     }
 
+    /*
+        private void loadDurationAsync(DocumentFile file, Item item, Res res) {
+
+            // Use AsyncTask for proper Android background processing
+            new android.os.AsyncTask<Void, Void, String>() {
+                @Override
+                protected String doInBackground(Void... voids) {
+                    return extractDuration(file);
+                }
+
+                @Override
+                protected void onPostExecute(String duration) {
+                    if (duration != null) {
+                        // Update the resource with duration
+                        try {
+                            // Create new resource with duration
+                            Res newRes = new Res(res.getProtocolInfo(), res.getSize(), duration, res.getBitrate(), res.getValue());
+                            // Replace the resource in the item
+                            item.getResources().clear();
+                            item.addResource(newRes);
+                            Log.d("SafFolderBrowser", "Updated duration for: " + item.getTitle() + " -> " + duration);
+                        } catch (Exception e) {
+                            Log.w("SafFolderBrowser", "Failed to update duration for: " + item.getTitle(), e);
+                        }
+                    }
+                    Log.d("SafFolderBrowser", "Item ready for playback: " + item.getTitle());
+                }
+            }.execute();
+        }
+    */
     private String extractDuration(DocumentFile file) {
-  
+
         MediaMetadataRetriever retriever = null;
         try {
             retriever = new MediaMetadataRetriever();
