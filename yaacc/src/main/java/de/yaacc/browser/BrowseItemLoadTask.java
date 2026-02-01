@@ -56,7 +56,6 @@ public class BrowseItemLoadTask extends AsyncTask<Long, Integer, ContentDirector
         Log.d(getClass().getName(), "Ended AsyncTask for loading:" + result);
         if (result == null)
             return;
-        itemAdapter.removeLoadMoreItem();
         int previousItemCount = itemAdapter.getItemCount();
         DIDLContent content = result.getResult();
         if (content != null) {
@@ -65,10 +64,6 @@ public class BrowseItemLoadTask extends AsyncTask<Long, Integer, ContentDirector
             itemAdapter.addAll(content.getItems());
             boolean allItemsFetched = chunkSize != (itemAdapter.getItemCount() - previousItemCount);
             itemAdapter.setAllItemsFetched(allItemsFetched);
-            if (!allItemsFetched) {
-                itemAdapter.addLoadMoreItem();
-            }
-
         } else {
             // If result is null it may be an empty result
             // only in case of an UpnpFailure in the result it is really an

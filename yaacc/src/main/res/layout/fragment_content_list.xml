@@ -63,6 +63,14 @@
         android:layout_above="@id/contentListBottomSeperator"
         android:layout_below="@+id/contentListTopSeperator" />
 
+    <ProgressBar
+        android:id="@+id/contentListProgressBar"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_centerInParent="true"
+        android:visibility="gone"
+        android:indeterminate="true" />
+
     <View
         android:id="@+id/contentListBottomSeperator"
         android:layout_width="match_parent"

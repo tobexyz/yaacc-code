@@ -18,6 +18,7 @@
 package de.yaacc.browser;
 
 import android.graphics.drawable.Drawable;
+import android.widget.ProgressBar;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -67,6 +68,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
     private TextView currentFolderNameView;
     private View topSeperator;
     private TextView currentProvider;
+    private ProgressBar progressBar;
 
 
     @Override
@@ -103,6 +105,8 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         currentProvider = contentlistView.findViewById(R.id.contentListCurrentProvider);
         topSeperator = contentlistView.findViewById(R.id.contentListTopSeperator);
         contentList = contentlistView.findViewById(R.id.contentList);
+        progressBar = contentlistView.findViewById(R.id.contentListProgressBar);
+        Log.d("ContentListFragment", "ProgressBar found: " + (progressBar != null));
         contentList.setLayoutManager(new LinearLayoutManager(getActivity()));
         contentList.setFocusable(true);
         contentList.setFocusableInTouchMode(false); // Good for D-Pad primary interaction
@@ -239,7 +243,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
             if (getContext() == null) {
                 return;
             }
-            bItemAdapter = new BrowseContentItemAdapter(this, itemList, upnpClient);
+            bItemAdapter = new BrowseContentItemAdapter(this, itemList, upnpClient, progressBar);
             itemList.setAdapter(bItemAdapter);
             itemList.addOnScrollListener(new RecyclerView.OnScrollListener() {
                 @Override

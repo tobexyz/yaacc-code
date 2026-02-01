@@ -18,6 +18,8 @@
 package de.yaacc.browser;
 
 import android.content.Context;
+import android.view.View;
+import android.widget.ProgressBar;
 import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.AsyncTask;
@@ -62,9 +64,6 @@ import de.yaacc.util.image.IconDownloadTask;
  * @author Christoph Haehnel (eyeless)
  */
 public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContentItemAdapter.ViewHolder> {
-    public static final Item LOAD_MORE_FAKE_ITEM = new Item("LoadMoreFakeItem", (String) null, "...", "", (DIDLObject.Class) null);
-
-    private static final Item LOADING_FAKE_ITEM = new Item("LoadingFakeItem", (String) null, "Loading...", "", (DIDLObject.Class) null);
     private boolean loading = false;
 
 
@@ -75,12 +74,14 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
     private UpnpClient upnpClient;
     private ContentListFragment contentListFragment;
     private RecyclerView contentList;
+    private ProgressBar progressBar;
 
 
-    public BrowseContentItemAdapter(ContentListFragment contentListFragment, RecyclerView contentList, UpnpClient upnpClient) {
+    public BrowseContentItemAdapter(ContentListFragment contentListFragment, RecyclerView contentList, UpnpClient upnpClient, ProgressBar progressBar) {
         context = contentListFragment.getContext();
         this.contentListFragment = contentListFragment;
         this.contentList = contentList;
+        this.progressBar = progressBar;
         asyncTasks = new ArrayList<>();
         allItemsFetched = false;
         this.upnpClient = upnpClient;
@@ -110,12 +111,14 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
     }
 
     public void setLoading(boolean loading) {
-        if (loading) {
-            addLoadingItem();
-        } else {
-            removeLoadingItem();
-        }
         this.loading = loading;
+        // Show/hide progress bar
+        if (progressBar != null) {
+            progressBar.setVisibility(loading ? View.VISIBLE : View.GONE);
+            Log.d("BrowseContentItemAdapter", "Progress bar visibility set to: " + (loading ? "VISIBLE" : "GONE"));
+        } else {
+            Log.e("BrowseContentItemAdapter", "Progress bar is null!");
+        }
     }
 
     @Override
@@ -123,21 +126,15 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
         if (objects == null) {
             return 0;
         }
-        int result = objects.size();
-        if (objects.contains(LOAD_MORE_FAKE_ITEM)) {
-            result--;
-        }
-        if (objects.contains(LOADING_FAKE_ITEM)) {
-            result--;
-        }
-        return result;
+        return objects.size();
     }
 
     public void addAll(Collection<? extends DIDLObject> newObjects) {
         Log.d(getClass().getName(), "added objects; " + newObjects);
-        int start = objects.size() - 1;
-        objects.addAll(newObjects.stream().filter(it -> !objects.contains(it)).collect(Collectors.toList()));
-        notifyItemRangeInserted(start, objects.size());
+        int start = objects.size();
+        List<DIDLObject> filteredObjects = newObjects.stream().filter(it -> !objects.contains(it)).collect(Collectors.toList());
+        objects.addAll(filteredObjects);
+        notifyItemRangeInserted(start, filteredObjects.size());
     }
 
     public void clear() {
@@ -308,19 +305,8 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
             holder.play.setVisibility(View.GONE);
             holder.download.setVisibility(View.GONE);
             holder.playlistAdd.setVisibility(View.GONE);
-        } else if (currentObject == LOAD_MORE_FAKE_ITEM) {
-            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_refresh_48, getContext().getTheme()), getContext().getTheme()));
-            holder.playAll.setVisibility(View.GONE);
-            holder.play.setVisibility(View.GONE);
-            holder.download.setVisibility(View.GONE);
-            holder.playlistAdd.setVisibility(View.GONE);
-        } else if (currentObject == LOADING_FAKE_ITEM) {
-            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_download_48, getContext().getTheme()), getContext().getTheme()));
-            holder.playAll.setVisibility(View.GONE);
-            holder.play.setVisibility(View.GONE);
-            holder.download.setVisibility(View.GONE);
-            holder.playlistAdd.setVisibility(View.GONE);
         } else {
+            holder.icon.clearAnimation(); // Clear any previous animation
             holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_question_mark_48, getContext().getTheme()), getContext().getTheme()));
             holder.playAll.setVisibility(View.GONE);
             holder.play.setVisibility(View.GONE);
@@ -342,38 +328,6 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
     public void removeTask(AsyncTask task) {
         if (asyncTasks != null && task != null) {
             asyncTasks.remove(task);
-        }
-    }
-
-    public void addLoadMoreItem() {
-        if (!objects.contains(LOAD_MORE_FAKE_ITEM)) {
-            objects.add(LOAD_MORE_FAKE_ITEM);
-            notifyItemInserted(objects.size() - 1);
-        }
-
-    }
-
-    public void addLoadingItem() {
-        if (!objects.contains(LOADING_FAKE_ITEM)) {
-            objects.add(LOADING_FAKE_ITEM);
-            notifyItemInserted(objects.size() - 1);
-        }
-
-    }
-
-    public void removeLoadMoreItem() {
-        int idx = objects.indexOf(LOAD_MORE_FAKE_ITEM);
-        if (idx > -1) {
-            objects.remove(LOAD_MORE_FAKE_ITEM);
-            notifyItemRemoved(idx);
-        }
-    }
-
-    public void removeLoadingItem() {
-        int idx = objects.indexOf(LOADING_FAKE_ITEM);
-        if (idx > -1) {
-            objects.remove(LOADING_FAKE_ITEM);
-            notifyItemRemoved(idx);
         }
     }
 
