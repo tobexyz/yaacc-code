@@ -195,13 +195,23 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
                 // Add Content-Range header for partial content
                 HttpRange range = ranges.get(0);
                 long fileSize = contentHolder.getContentLength();
-                long start = range.getStart() != null ? range.getStart() : 0;
-                long end = range.getEnd() != null ? range.getEnd() : fileSize - 1;
-                responseBuilder.setHeader(HttpHeaders.CONTENT_RANGE, 
-                    "bytes " + start + "-" + end + "/" + fileSize);
+                
+                // For external URLs with unknown length, don't send Content-Range header
+                if (fileSize > 0) {
+                    long start = range.getStart() != null ? range.getStart() : 0;
+                    long end = range.getEnd() != null ? range.getEnd() : fileSize - 1;
+                    responseBuilder.setHeader(HttpHeaders.CONTENT_RANGE, 
+                        "bytes " + start + "-" + end + "/" + fileSize);
+                }
             } else {
                 responseBuilder.setStatus(HttpStatus.SC_OK);
             }
+            
+            // Add essential streaming headers for UPnP renderers
+            responseBuilder.setHeader(HttpHeaders.CONNECTION, "close");
+            responseBuilder.setHeader("transferMode.dlna.org", "Streaming");
+            responseBuilder.setHeader("contentFeatures.dlna.org", "DLNA.ORG_OP=01;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=01700000000000000000000000000000");
+            
             responseBuilder.setEntity(contentHolder.getEntityProducer());
         }
         responseBuilder.setHeader(HttpHeaders.ACCEPT_RANGES, "bytes");
@@ -429,18 +439,26 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
     }
 
     private ContentHolder lookupProxyContent(String contentKey, List<HttpRange> ranges) {
-
+        Log.d(getClass().getName(), "Looking up proxy content for key: " + contentKey);
+        
         String targetUri = PreferenceManager.getDefaultSharedPreferences(getContext())
                 .getString(YaaccUpnpServerService.PROXY_LINK_KEY_PREFIX + contentKey, null);
+        Log.d(getClass().getName(), "Target URI from preferences: " + targetUri);
+        
         if (targetUri == null) {
+            Log.e(getClass().getName(), "No target URI found for proxy key: " + contentKey);
             return null;
         }
         String targetMimetype = PreferenceManager.getDefaultSharedPreferences(getContext())
                 .getString(YaaccUpnpServerService.PROXY_LINK_MIME_TYPE_KEY_PREFIX + contentKey, null);
+        Log.d(getClass().getName(), "Target MIME type: " + targetMimetype);
+        
         MimeType mimeType = MimeType.valueOf("*/*");
         if (targetMimetype != null) {
             mimeType = MimeType.valueOf(targetMimetype);
         }
+        
+        Log.d(getClass().getName(), "Creating ContentHolder for proxy: " + targetUri + " with MIME: " + mimeType + ", ranges: " + ranges.size());
         return new ContentHolder(mimeType, targetUri, ranges, context);
     }
 
@@ -806,7 +824,7 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
                 // Check if it's an external URL (http/https)
                 if (getUri().startsWith("http://") || getUri().startsWith("https://")) {
                     // Handle external URL directly
-                    result = new AbstractBinAsyncEntityProducer(0, ContentType.parse(getMimeType().toString())) {
+                    result = new AbstractBinAsyncEntityProducer(8192, ContentType.parse(getMimeType().toString())) {
                         private InputStream input;
                         private long length = -1;
                         private long bytesRead = 0;
@@ -814,15 +832,45 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
                         AbstractBinAsyncEntityProducer init() {
                             try {
                                 if (input == null) {
-                                    HttpURLConnection con = (HttpURLConnection) new URL(getUri()).openConnection();
-                                    if (!ranges.isEmpty()) {
-                                        con.setRequestProperty("Range", HttpRange.toHeaderString(ranges));
+                                    int retries = 3;
+                                    Exception lastException = null;
+                                    
+                                    for (int i = 0; i < retries; i++) {
+                                        try {
+                                            HttpURLConnection con = (HttpURLConnection) new URL(getUri()).openConnection();
+                                            con.setConnectTimeout(15000); // Increased to 15 seconds
+                                            con.setReadTimeout(60000); // Increased to 60 seconds for UPnP renderers
+                                            con.setRequestProperty("User-Agent", "YAACC/1.0 (Android UPnP Proxy)");
+                                            con.setRequestProperty("Connection", "keep-alive"); // Try to keep connection alive
+                                            // Apply range request to external connection
+                                            if (!ranges.isEmpty()) {
+                                                con.setRequestProperty("Range", HttpRange.toHeaderString(ranges));
+                                                Log.d(getClass().getName(), "Applying range request to external URL: " + HttpRange.toHeaderString(ranges));
+                                            }
+                                            con.connect();
+                                            
+                                            // Check if we got a partial content response
+                                            int responseCode = con.getResponseCode();
+                                            Log.d(getClass().getName(), "External server response code: " + responseCode);
+                                            
+                                            input = con.getInputStream();
+                                            length = con.getContentLengthLong();
+                                            if (length <= 0) {
+                                                length = con.getContentLength();
+                                            }
+                                            Log.d(getClass().getName(), "External connection established on attempt " + (i + 1) + ", content length: " + length);
+                                            break; // Success, exit retry loop
+                                        } catch (Exception e) {
+                                            lastException = e;
+                                            Log.w(getClass().getName(), "Connection attempt " + (i + 1) + " failed: " + e.getMessage());
+                                            if (i < retries - 1) {
+                                                try { Thread.sleep(1000); } catch (InterruptedException ignored) {}
+                                            }
+                                        }
                                     }
-                                    con.connect();
-                                    input = con.getInputStream();
-                                    length = con.getContentLengthLong();
-                                    if (length <= 0) {
-                                        length = con.getContentLength();
+                                    
+                                    if (input == null && lastException != null) {
+                                        throw new IOException("Failed to connect after " + retries + " attempts", lastException);
                                     }
                                 }
                             } catch (IOException e) {
@@ -838,19 +886,14 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
 
                         @Override
                         protected int availableData() {
-                            try {
-                                return input != null ? input.available() : 0;
-                            } catch (IOException e) {
-                                return 0;
-                            }
+                            // For external URLs, always indicate data is available if stream is open
+                            // input.available() is unreliable for HTTP streams
+                            return input != null ? 8192 : 0;
                         }
 
                         @Override
                         protected void produceData(final StreamChannel<ByteBuffer> channel) throws IOException {
                             try {
-                                if (input == null) {
-                                    init(); // retry opening if needed
-                                }
                                 if (input != null) {
                                     byte[] buffer = new byte[8192];
                                     int read = input.read(buffer);
@@ -862,6 +905,7 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
                                         channel.endStream();
                                     }
                                 } else {
+                                    Log.w(getClass().getName(), "Input stream is null, ending stream");
                                     channel.endStream();
                                 }
                             } catch (IOException e) {
@@ -906,7 +950,7 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
                             // We'll read the content as bytes and create from that
                             if (ranges.isEmpty()) {
                                 // DocumentFile handling using ContentResolver
-                                result = new AbstractBinAsyncEntityProducer(0, ContentType.parse(getMimeType().toString())) {
+                                result = new AbstractBinAsyncEntityProducer(8192, ContentType.parse(getMimeType().toString())) {
                                     private InputStream input;
                                     private long length = -1;
 
