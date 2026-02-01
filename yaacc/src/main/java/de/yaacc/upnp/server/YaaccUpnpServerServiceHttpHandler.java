@@ -27,7 +27,6 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
-import android.media.MediaMetadataRetriever;
 import android.net.Uri;
 import android.os.Build;
 import android.provider.MediaStore;
@@ -153,7 +152,7 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
             con.setReadTimeout(5000);
             long fileSize = con.getContentLengthLong();
             con.disconnect();
-            
+
             if (fileSize > 0) {
                 // Estimate duration for MP3 files based on file size
                 // Assume average bitrate of 128 kbps for MP3 files
@@ -599,7 +598,7 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
                 if (bytePosition > 0) {
                     // Override the renderer's incorrect range request
                     ranges.clear();
-                    ranges.add(new HttpRange("bytes", (int) bytePosition, null, null));
+                    ranges.add(new HttpRange("bytes", bytePosition, null, null));
                     Log.d(getClass().getName(), "Overriding range request with server-managed position: bytes=" + bytePosition + "- (paused=" + state.isPaused + ")");
                 }
             } else {
@@ -615,21 +614,21 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
                 newState.lastBytePosition = 0;
                 rendererStates.put(rendererKey, newState);
                 Log.d(getClass().getName(), "Initialized renderer state for: " + rendererKey + " with position: " + serverPosition + "ms");
-                
+
                 // Calculate byte position for the current server position
                 if (serverPosition > 0) {
                     Log.d(getClass().getName(), "Attempting to get duration for URL: " + targetUri);
                     // Get the total duration dynamically from the media file
                     long totalDuration = getDurationFromUrl(targetUri);
                     Log.d(getClass().getName(), "Retrieved duration: " + totalDuration + "ms for position: " + serverPosition + "ms");
-                    
+
                     if (totalDuration > 0) {
                         long bytePosition = calculateBytePositionFromTime(targetUri, serverPosition, totalDuration);
                         Log.d(getClass().getName(), "Calculated byte position: " + bytePosition + " for time: " + serverPosition + "ms");
                         if (bytePosition > 0) {
                             // Override the renderer's range request
                             ranges.clear();
-                            ranges.add(new HttpRange("bytes", (int) bytePosition, null, null));
+                            ranges.add(new HttpRange("bytes", bytePosition, null, null));
                             Log.d(getClass().getName(), "Overriding range request with server-managed position: bytes=" + bytePosition + "- (time=" + serverPosition + "ms, duration=" + totalDuration + "ms)");
                         } else {
                             Log.w(getClass().getName(), "Byte position calculation returned 0 or negative: " + bytePosition);
@@ -1154,7 +1153,7 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
                             if (range.getEnd() != null && range.getEnd() > 0) {
                                 rangeSize = range.getEnd() - (range.getStart() != null ? range.getStart() : 0) + 1;
                             }
-                            
+
                             if (fileSize > 50 * 1024 * 1024 || rangeSize > 50 * 1024 * 1024) { // 50MB threshold
                                 Log.d(getClass().getName(), "Using streaming for large file: " + fileSize + " bytes, range: " + rangeSize + " bytes");
                                 result = createStreamingEntityProducer(file, ranges);
@@ -1260,7 +1259,7 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
                     try {
                         raf = new RandomAccessFile(file, "r");
                         long fileSize = raf.length();
-                        
+
                         if (!ranges.isEmpty()) {
                             HttpRange range = ranges.get(0);
                             startPosition = range.getStart() == null ? 0 : range.getStart();
@@ -1276,7 +1275,7 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
                         } else {
                             rangeLength = fileSize;
                         }
-                        
+
                         raf.seek(startPosition);
                     } catch (IOException e) {
                         Log.e(getClass().getName(), "Error initializing streaming producer", e);
