@@ -192,6 +192,7 @@ public class SafFolderBrowser extends ContentBrowser {
 
     @Override
     public List<Item> browseItem(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
+        Log.d("SafFolderBrowser", "browseItem called with myId: " + myId);
         List<Item> result = new ArrayList<>();
         if (myId.equals(ContentDirectoryIDs.SAF_FOLDER.getId())) {
             List<String> sortedPathes = new ArrayList<>(getSelectedSafPathes());
@@ -209,26 +210,35 @@ public class SafFolderBrowser extends ContentBrowser {
             }
         } else {
             // Browse subfolder items
+            Log.d("SafFolderBrowser", "Browsing subfolder items for: " + myId);
             String pathEnc = myId.substring(ContentDirectoryIDs.SAF_PREFIX.getId().length());
             String path = new String(Base64.decode(pathEnc.getBytes(), Base64.NO_WRAP));
+            Log.d("SafFolderBrowser", "Decoded path: " + path);
             DocumentFile root = DocumentFile.fromTreeUri(getContext(), Uri.parse(path));
             if (root != null && root.isDirectory()) {
                 DocumentFile[] files = root.listFiles();
+                Log.d("SafFolderBrowser", "Found " + files.length + " files in folder");
                 int start = (int) Math.max(0, firstResult);
                 int end = (int) Math.min(files.length, start + maxResults);
                 for (int i = start; i < end; i++) {
                     DocumentFile file = files[i];
+                    Log.d("SafFolderBrowser", "Processing file: " + file.getName() + ", isDirectory: " + file.isDirectory() + ", type: " + file.getType());
                     if (!file.isDirectory()) {
                         addItem(contentDirectory, result, file.getUri().toString(), file, myId);
                     }
                 }
+            } else {
+                Log.e("SafFolderBrowser", "Root DocumentFile is null or not a directory for path: " + path);
             }
         }
+        Log.d("SafFolderBrowser", "Returning " + result.size() + " items");
         return result;
     }
 
     private void addItem(YaaccContentDirectory contentDirectory, List<Item> result, String path, DocumentFile file, String parentId) {
         String mimeTypeStr = file.getType();
+        Log.d("SafFolderBrowser", "addItem called for: " + file.getName() + ", mimeType: " + mimeTypeStr);
+
         if (mimeTypeStr != null) {
             MimeType mimeType = MimeType.valueOf(mimeTypeStr);
             String id = ContentDirectoryIDs.SAF_PREFIX.getId() + path.hashCode();
@@ -240,9 +250,9 @@ public class SafFolderBrowser extends ContentBrowser {
             // Create correct ProtocolInfo with DLNA attributes
             ProtocolInfo protocolInfo = new ProtocolInfo(Protocol.HTTP_GET, ProtocolInfo.WILDCARD, mimeType.toString(), getDLNAAttributes(mimeType));
 
-            // Get actual duration for audio/video files
+            // Get actual duration for audio files only (skip video for performance)
             String duration = null;
-            if (mimeType.getType().equals("audio") || mimeType.getType().equals("video")) {
+            if (mimeType.getType().equals("audio")) {
                 duration = extractDuration(file);
             }
 
@@ -251,25 +261,34 @@ public class SafFolderBrowser extends ContentBrowser {
             Item item = null;
             if (mimeType.getType().equals("audio")) {
                 item = new AudioItem(id, parentId, title, "yaacc", res);
+                Log.d("SafFolderBrowser", "Created AudioItem: " + title);
             } else if (mimeType.getType().equals("video")) {
                 item = new VideoItem(id, parentId, title, "yaacc", res);
+                Log.d("SafFolderBrowser", "Created VideoItem: " + title);
             } else if (mimeType.getType().equals("image")) {
                 item = new ImageItem(id, parentId, title, "yaacc", res);
+                Log.d("SafFolderBrowser", "Created ImageItem: " + title);
+            } else {
+                Log.w("SafFolderBrowser", "Unknown media type for file: " + title + ", mimeType: " + mimeType);
             }
 
             if (item != null) {
                 result.add(item);
+                Log.d("SafFolderBrowser", "Added item to result: " + title);
             }
+        } else {
+            Log.w("SafFolderBrowser", "File has null MIME type, skipping: " + file.getName());
         }
     }
 
     private String extractDuration(DocumentFile file) {
+  
         MediaMetadataRetriever retriever = null;
         try {
             retriever = new MediaMetadataRetriever();
             retriever.setDataSource(getContext(), file.getUri());
             String durationStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION);
-            
+
             if (durationStr != null) {
                 long durationMs = Long.parseLong(durationStr);
                 return FormatHelper.parseMillisToTimeStringTo(durationMs);
