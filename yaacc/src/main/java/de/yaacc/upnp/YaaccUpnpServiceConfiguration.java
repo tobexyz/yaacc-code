@@ -28,18 +28,18 @@ import org.fourthline.cling.binding.xml.UDA10ServiceDescriptorBinderSAXImpl;
 import org.fourthline.cling.model.Namespace;
 import org.fourthline.cling.model.types.ServiceType;
 import org.fourthline.cling.model.types.UDAServiceType;
-import org.fourthline.cling.protocol.ProtocolFactory;
 import org.fourthline.cling.transport.impl.RecoveringGENAEventProcessorImpl;
 import org.fourthline.cling.transport.impl.RecoveringSOAPActionProcessorImpl;
 import org.fourthline.cling.transport.spi.GENAEventProcessor;
 import org.fourthline.cling.transport.spi.NetworkAddressFactory;
 import org.fourthline.cling.transport.spi.SOAPActionProcessor;
 import org.fourthline.cling.transport.spi.StreamClient;
-import org.fourthline.cling.transport.spi.StreamServer;
+
+import de.yaacc.upnp.server.YaaccUpnpServerService;
 
 public class YaaccUpnpServiceConfiguration extends DefaultUpnpServiceConfiguration {
 
-    private static final int PORT = 49154;
+    private static final int PORT = YaaccUpnpServerService.PORT;  //49154
     private final Context context;
 
 
@@ -82,13 +82,6 @@ public class YaaccUpnpServiceConfiguration extends DefaultUpnpServiceConfigurati
         );
     }
 
-    @Override
-    public StreamServer<YaaccAsyncStreamServerConfigurationImpl> createStreamServer(ProtocolFactory protocolFactory, NetworkAddressFactory networkAddressFactory) {
-
-        return new YaaccAsyncStreamServerImpl(protocolFactory,
-                new YaaccAsyncStreamServerConfigurationImpl(networkAddressFactory.getStreamListenPort())
-        );
-    }
 
     @Override
     protected DeviceDescriptorBinder createDeviceDescriptorBinderUDA10() {

@@ -15,7 +15,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
-package de.yaacc.upnp.server;
+package de.yaacc.upnp.server.configuration;
 
 import android.app.NotificationManager;
 import android.content.Context;
@@ -49,8 +49,10 @@ import java.util.Set;
 
 import de.yaacc.R;
 import de.yaacc.settings.SettingsActivity;
+import de.yaacc.upnp.server.YaaccUpnpServerService;
 import de.yaacc.upnp.server.contentdirectory.MediaPathFilter;
 import de.yaacc.util.AboutActivity;
+import de.yaacc.util.InterfaceResolutionHelper;
 import de.yaacc.util.NotificationId;
 import de.yaacc.util.SafPermissionManager;
 import de.yaacc.util.ThemeHelper;
@@ -135,7 +137,7 @@ public class YaaccUpnpServerControlActivity extends AppCompatActivity {
         safButton.setOnClickListener(v -> selectSafContent());
 
         TextView localServerControlInterface = findViewById(R.id.localServerControlInterface);
-        String[] ipConfig = YaaccUpnpServerService.getIfAndIpAddress(this);
+        String[] ipConfig = InterfaceResolutionHelper.getIfAndIpAddress(this);
         localServerControlInterface.setText(ipConfig[1] + "@" + ipConfig[0]);
 
 

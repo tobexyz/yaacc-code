@@ -16,7 +16,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
-package de.yaacc.upnp.server;
+package de.yaacc.upnp.server.configuration;
 
 import android.annotation.SuppressLint;
 import android.view.LayoutInflater;
@@ -237,6 +237,7 @@ public class TreeViewAdapter extends RecyclerView.Adapter<TreeViewHolder> {
 
     /**
      * Remove a node and its children from the tree
+     *
      * @param node The node to remove
      */
     public void removeNode(TreeNode node) {

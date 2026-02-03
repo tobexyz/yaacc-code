@@ -106,10 +106,12 @@ import de.yaacc.player.Player;
 import de.yaacc.player.PlayerService;
 import de.yaacc.upnp.callback.contentdirectory.ContentDirectoryBrowseActionCallback;
 import de.yaacc.upnp.callback.contentdirectory.ContentDirectoryBrowseResult;
+import de.yaacc.upnp.registry.UpnpRegistryService;
 import de.yaacc.upnp.server.YaaccUpnpServerService;
 import de.yaacc.upnp.server.avtransport.AvTransport;
 import de.yaacc.util.FileDownloader;
 import de.yaacc.util.FormatHelper;
+import de.yaacc.util.InterfaceResolutionHelper;
 import de.yaacc.util.Watchdog;
 
 /**
@@ -1586,7 +1588,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
             item.setUri(uri);
             if (this.getPreferences().getBoolean(getContext().getString(R.string.settings_local_server_proxy_chkbx), false)) {
                 String contentKey = sha256(uriString);
-                String proxyUrl = "http://" + YaaccUpnpServerService.getIpAddress(getContext()) + ":" + YaaccUpnpServerService.PORT + "/" + YaaccUpnpServerService.PROXY_PATH + "/" + contentKey;
+                String proxyUrl = "http://" + InterfaceResolutionHelper.getIpAddress(getContext()) + ":" + YaaccUpnpServerService.PORT + "/" + YaaccUpnpServerService.PROXY_PATH + "/" + contentKey;
                 this.getPreferences().edit().putString(YaaccUpnpServerService.PROXY_LINK_KEY_PREFIX + contentKey, uriString).apply();
                 this.getPreferences().edit().putString(YaaccUpnpServerService.PROXY_LINK_MIME_TYPE_KEY_PREFIX + contentKey, item.getMimeType()).apply();
                 item.setUri(Uri.parse(proxyUrl));

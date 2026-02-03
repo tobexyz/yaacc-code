@@ -48,7 +48,6 @@ import org.apache.hc.core5.http.impl.bootstrap.HttpAsyncServer;
 import org.apache.hc.core5.http2.impl.nio.bootstrap.H2ServerBootstrap;
 import org.apache.hc.core5.reactor.IOReactorConfig;
 import org.apache.hc.core5.reactor.IOReactorStatus;
-import org.apache.hc.core5.util.Timeout;
 import org.apache.hc.core5.util.TimeValue;
 import org.apache.hc.core5.util.Timeout;
 import org.fourthline.cling.binding.annotations.AnnotationLocalServiceBinder;
@@ -64,9 +63,11 @@ import org.fourthline.cling.model.meta.ManufacturerDetails;
 import org.fourthline.cling.model.meta.ModelDetails;
 import org.fourthline.cling.model.types.DLNACaps;
 import org.fourthline.cling.model.types.DLNADoc;
+import org.fourthline.cling.model.types.ServiceType;
 import org.fourthline.cling.model.types.UDADeviceType;
+import org.fourthline.cling.model.types.UDAServiceType;
 import org.fourthline.cling.model.types.UDN;
-import org.fourthline.cling.protocol.async.SendingNotificationAlive;
+import org.fourthline.cling.registry.Registry;
 import org.fourthline.cling.support.connectionmanager.ConnectionManagerService;
 import org.fourthline.cling.support.model.Protocol;
 import org.fourthline.cling.support.model.ProtocolInfo;
@@ -76,26 +77,27 @@ import org.fourthline.cling.support.xmicrosoft.AbstractMediaReceiverRegistrarSer
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.net.NetworkInterface;
-import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.util.ArrayList;
-import java.util.Enumeration;
 import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.UUID;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 import de.yaacc.R;
 import de.yaacc.Yaacc;
 import de.yaacc.upnp.UpnpClient;
+import de.yaacc.upnp.protocol.UpnpProtocolHandler;
+import de.yaacc.upnp.protocol.async.SendingNotificationAlive;
+import de.yaacc.upnp.registry.RegistryImpl;
 import de.yaacc.upnp.server.avtransport.YaaccAVTransportService;
+import de.yaacc.upnp.server.configuration.YaaccUpnpServerControlActivity;
 import de.yaacc.upnp.server.contentdirectory.YaaccContentDirectory;
+import de.yaacc.upnp.server.http.YaaccUpnpServerContentHttpHandler;
+import de.yaacc.upnp.server.http.YaaccUpnpServerProtocolRequestHandler;
+import de.yaacc.util.InterfaceResolutionHelper;
 import de.yaacc.util.NotificationId;
 
 /**
@@ -112,10 +114,15 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
     public static final String PROXY_PATH = "proxy";
     public static final String SAF_PATH = "saf";
     public static final int LOCK_TIMEOUT = 5000;
-    private static final Pattern IPV4_PATTERN =
-            Pattern.compile(
-                    "^(25[0-5]|2[0-4]\\d|[0-1]?\\d?\\d)(\\.(25[0-5]|2[0-4]\\d|[0-1]?\\d?\\d)){3}$");
+
     public static int PORT = 49157;
+    public static ServiceType[] EXCLUSIVE_SERVER_TYPES = new ServiceType[]{
+            new UDAServiceType("AVTransport"),
+            new UDAServiceType("ContentDirectory"),
+            new UDAServiceType("ConnectionManager"),
+            new UDAServiceType("RenderingControl"),
+            new UDAServiceType("X_MS_MediaReceiverRegistrar")};
+
     public String mediaServerUuid;
     public String mediaRendererUuid;
     protected IBinder binder = new YaaccUpnpServerServiceBinder();
@@ -125,7 +132,9 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
     private UpnpClient upnpClient;
     private LocalService<YaaccContentDirectory> contentDirectoryService;
     private boolean watchdog;
+    private NetworkDeviceListener networkDeviceListener;
 
+    private Registry registry;
 
     private HttpAsyncServer httpServer;
     private Timer timer;
@@ -160,7 +169,8 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         long start = System.currentTimeMillis();
-
+        registry = new RegistryImpl();
+        networkDeviceListener = new NetworkDeviceListener(getApplicationContext(), registry);
         mediaServerUuid = preferences.getString(getApplicationContext().getString(R.string.settings_local_server_provider_uuid_key), null);
         if (mediaServerUuid == null) {
             mediaServerUuid = UUID.randomUUID().toString();
@@ -202,8 +212,8 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
                 getUpnpClient().localDeviceRemoved(getUpnpClient().getRegistry(), localRenderer);
                 localRenderer = null;
             }
-
         }
+        networkDeviceListener.disable();
         if (httpServer != null) {
             httpServer.initiateShutdown();
             try {
@@ -270,6 +280,12 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
 
         }
         if (getUpnpClient() != null && getUpnpClient().isInitialized()) {
+            try {
+                createHttpServer();
+            } catch (IOException e) {
+                Log.e(getClass().getName(), "Error while creating http server", e);
+            }
+
             if (preferences.getBoolean(getApplicationContext().getString(R.string.settings_local_server_provider_chkbx), false)) {
                 if (localServer == null) {
                     localServer = createMediaServerDevice();
@@ -277,15 +293,6 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
                 getUpnpClient().getRegistry().addDevice(localServer);
 
             }
-            if (preferences.getBoolean(getApplicationContext().getString(R.string.settings_local_server_provider_chkbx), false)
-                    || preferences.getBoolean(getApplicationContext().getString(R.string.settings_local_server_proxy_chkbx), false)) {
-                try {
-                    createHttpServer();
-                } catch (IOException e) {
-                    Log.e(getClass().getName(), "Error while creating http server", e);
-                }
-            }
-
             if (preferences.getBoolean(getApplicationContext().getString(R.string.settings_local_server_receiver_chkbx), false)) {
                 if (localRenderer == null) {
                     localRenderer = createMediaRendererDevice();
@@ -300,9 +307,25 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
     }
 
     public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
-        Log.d(this.getClass().getName(), "Preference changed reinitialize the service");
-        Thread initializationThread = new Thread(this::initialize);
-        initializationThread.start();
+        Log.d(this.getClass().getName(), "Preference changed apply change");
+        if (getApplicationContext().getString(R.string.settings_local_server_provider_chkbx).equals(key)) {
+            if (preferences.getBoolean(getApplicationContext().getString(R.string.settings_local_server_provider_chkbx), false)) {
+                localServer = createMediaServerDevice();
+                getUpnpClient().getRegistry().addDevice(localServer);
+            } else {
+                getUpnpClient().getRegistry().removeDevice(localServer);
+                localServer = null;
+            }
+        }
+        if (preferences.getBoolean(getApplicationContext().getString(R.string.settings_local_server_receiver_chkbx), false)) {
+            if (preferences.getBoolean(getApplicationContext().getString(R.string.settings_local_server_receiver_chkbx), false)) {
+                localRenderer = createMediaRendererDevice();
+                getUpnpClient().getRegistry().addDevice(localRenderer);
+            } else {
+                getUpnpClient().getRegistry().removeDevice(localRenderer);
+                localRenderer = null;
+            }
+        }
     }
 
     /**
@@ -335,8 +358,9 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
                             }
 
                         })
-                        .setCanonicalHostName(getIpAddress(getApplicationContext()))
-                        .register("*", new YaaccUpnpServerServiceHttpHandler(getApplicationContext()))
+                        .setCanonicalHostName(InterfaceResolutionHelper.getIpAddress(getApplicationContext()))
+                        .register("*", new YaaccUpnpServerContentHttpHandler(getApplicationContext()))
+                        .register(UpnpProtocolHandler.NAMESPACE.getBasePath().getPath() + "/*", new YaaccUpnpServerProtocolRequestHandler(getUpnpClient().getRegistry().getProtocolFactory()))
                         .create();
                 httpServer.start();
                 Log.d(getClass().getName(), "HTTP server created and started successfully");
@@ -355,7 +379,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
                 throw new IOException("Failed to resume HTTP server", e);
             }
         }
-        
+
         try {
             httpServer.listen(new InetSocketAddress(PORT), URIScheme.HTTP);
             Log.d(getClass().getName(), "Server listening on port " + PORT);
@@ -385,7 +409,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
 
     private void checkIfHttpServerIsRunning() {
         try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
-            HttpHead httpHead = new HttpHead("http://" + getIpAddress(getApplicationContext()) + ":" + PORT + "/health");
+            HttpHead httpHead = new HttpHead("http://" + InterfaceResolutionHelper.getIpAddress(getApplicationContext()) + ":" + PORT + "/health");
             RequestConfig requestConfig = RequestConfig.custom()
                     .setConnectionRequestTimeout(Timeout.ofSeconds(5))
                     .setConnectTimeout(Timeout.ofSeconds(5))
@@ -458,11 +482,11 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
                     Log.v(YaaccUpnpServerService.this.getClass().getName(), "Sending upnp alive notivication");
                     SendingNotificationAlive sendingNotificationAlive;
                     if (localServer != null && getUpnpClient() != null) {
-                        sendingNotificationAlive = new SendingNotificationAlive(getUpnpClient().getRegistry().getUpnpService(), localServer);
+                        sendingNotificationAlive = new SendingNotificationAlive(getApplicationContext(), networkDeviceListener.getUdpTransiver(), localServer);
                         sendingNotificationAlive.run();
                     }
                     if (localRenderer != null && getUpnpClient() != null) {
-                        sendingNotificationAlive = new SendingNotificationAlive(getUpnpClient().getRegistry().getUpnpService(), localRenderer);
+                        sendingNotificationAlive = new SendingNotificationAlive(getApplicationContext(), networkDeviceListener.getUdpTransiver(), localRenderer);
                         sendingNotificationAlive.run();
                     }
                     startUpnpAliveNotifications();
@@ -546,7 +570,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
             DeviceDetails yaaccDetails = new DeviceDetails(
                     "YAACC - MediaServer(" + getLocalServerName() + ")", new ManufacturerDetails("yaacc.de",
                     "http://www.yaacc.de"), new ModelDetails(getLocalServerName() + "-MediaServer", "Free Android UPnP AV MediaServer, GNU GPL",
-                    versionName), URI.create("http://" + getIpAddress(getApplicationContext()) + ":" + PORT));
+                    versionName), URI.create("http://" + InterfaceResolutionHelper.getIpAddress(getApplicationContext()) + ":" + PORT));
 
 
             DeviceIdentity identity = new DeviceIdentity(new UDN(mediaServerUuid));
@@ -962,55 +986,6 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         this.upnpClient = upnpClient;
     }
 
-    /**
-     * get the ip address of the device
-     *
-     * @return the address or null if anything went wrong
-     */
-    public static String getIpAddress(Context context) {
-        return getIfAndIpAddress(context)[0];
-    }
-
-    public static String getIfName(Context context) {
-        return getIfAndIpAddress(context)[1];
-    }
-
-
-    public static String[] getIfAndIpAddress(Context context) {
-        String hostAddress = null;
-        String[] result = new String[2];
-        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
-        List<String> interfaces = new ArrayList<>(List.of(preferences.getString(context.getString(R.string.settings_local_server_if_filter_key), "lo,dummy,rmnet,ccmni").split(",")));
-        interfaces.remove(""); //remove empty string, if there, otherwise we got into trouble finding an network interface in code  below
-        try {
-            for (Enumeration<NetworkInterface> networkInterfaces = NetworkInterface
-                    .getNetworkInterfaces(); networkInterfaces
-                         .hasMoreElements(); ) {
-                NetworkInterface networkInterface = networkInterfaces
-                        .nextElement();
-                if (interfaces.stream().filter(i -> networkInterface.getName().startsWith(i.trim())).collect(Collectors.toList()).isEmpty()) {
-                    for (Enumeration<InetAddress> inetAddresses = networkInterface
-                            .getInetAddresses(); inetAddresses.hasMoreElements(); ) {
-                        InetAddress inetAddress = inetAddresses.nextElement();
-                        if (!inetAddress.isLoopbackAddress() && inetAddress
-                                .getHostAddress() != null
-                                && IPV4_PATTERN.matcher(inetAddress
-                                .getHostAddress()).matches()) {
-                            hostAddress = inetAddress.getHostAddress();
-                            result[1] = networkInterface.getName();
-                        }
-                    }
-                }
-            }
-        } catch (SocketException se) {
-            Log.d(YaaccUpnpServerService.class.getName(),
-                    "Error while retrieving network interfaces", se);
-        }
-        // maybe wifi is off we have to use the loopback device
-        hostAddress = hostAddress == null ? "0.0.0.0" : hostAddress;
-        result[0] = hostAddress;
-        return result;
-    }
 
     public class YaaccUpnpServerServiceBinder extends Binder {
         public YaaccUpnpServerService getService() {

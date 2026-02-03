@@ -14,8 +14,10 @@
  */
 package example.controlpoint;
 
-import example.binarylight.BinaryLightSampleData;
-import example.binarylight.SwitchPower;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 import org.fourthline.cling.controlpoint.SubscriptionCallback;
 import org.fourthline.cling.mock.MockRouter;
@@ -34,14 +36,15 @@ import org.fourthline.cling.model.meta.LocalService;
 import org.fourthline.cling.model.state.StateVariableValue;
 import org.fourthline.cling.model.types.BooleanDatatype;
 import org.fourthline.cling.model.types.Datatype;
-import org.seamless.util.Reflections;
 import org.junit.Test;
+import org.seamless.util.Reflections;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import static org.junit.Assert.*;
+import example.binarylight.BinaryLightSampleData;
+import example.binarylight.SwitchPower;
 
 /**
  * Receiving events from services

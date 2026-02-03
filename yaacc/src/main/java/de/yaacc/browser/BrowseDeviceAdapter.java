@@ -46,7 +46,7 @@ import java.util.TimerTask;
 
 import de.yaacc.R;
 import de.yaacc.upnp.UpnpClient;
-import de.yaacc.upnp.server.YaaccUpnpServerControlActivity;
+import de.yaacc.upnp.server.configuration.YaaccUpnpServerControlActivity;
 import de.yaacc.util.MediaStoreScanner;
 import de.yaacc.util.ThemeHelper;
 import de.yaacc.util.image.IconDownloadTask;

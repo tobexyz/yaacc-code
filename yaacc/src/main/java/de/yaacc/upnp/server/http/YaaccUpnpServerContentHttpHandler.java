@@ -16,7 +16,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
-package de.yaacc.upnp.server;
+package de.yaacc.upnp.server.http;
 
 import android.annotation.SuppressLint;
 import android.content.ContentUris;
@@ -75,6 +75,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import de.yaacc.R;
+import de.yaacc.upnp.server.YaaccUpnpServerService;
 import de.yaacc.upnp.server.contentdirectory.ContentDirectoryIDs;
 import de.yaacc.upnp.server.contentdirectory.MediaPathFilter;
 import de.yaacc.util.HttpRange;
@@ -84,11 +85,13 @@ import de.yaacc.util.HttpRange;
  *
  * @author Tobias Schoene (tobexyz)
  */
-public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHandler<Message<HttpRequest, byte[]>> {
+public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHandler<Message<HttpRequest, byte[]>> {
 
     private final Context context;
     // Server-side position management for renderers
     private static final Map<String, RendererState> rendererStates = new ConcurrentHashMap<>();
+
+    SharedPreferences preferences;
 
     static class RendererState {
         long currentTimePosition = 0; // milliseconds
@@ -99,8 +102,9 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
         long lastBytePosition = 0; // Store last calculated byte position for pause
     }
 
-    public YaaccUpnpServerServiceHttpHandler(Context context) {
+    public YaaccUpnpServerContentHttpHandler(Context context) {
         this.context = context;
+        preferences = PreferenceManager.getDefaultSharedPreferences(context);
     }
 
     private long calculateBytePositionFromTime(String url, long timeMs, long totalDurationMs) {
@@ -221,12 +225,17 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
             createForbiddenResponse(responseTrigger, context, responseBuilder);
             return;
         }
-
+        boolean contentServerEnabled = preferences.getBoolean(getContext().getString(R.string.settings_local_server_provider_chkbx), false);
+        boolean contentProxyEnabled = preferences.getBoolean(getContext().getString(R.string.settings_local_server_proxy_chkbx), false);
+        if (!contentServerEnabled && !contentProxyEnabled) {
+            createForbiddenResponse(responseTrigger, context, responseBuilder);
+            return;
+        }
         String type = pathSegments.get(0);
         String albumId = "";
         String thumbId = "";
         String contentId = "";
-        if ("album".equals(type)) {
+        if (contentServerEnabled && "album".equals(type)) {
             albumId = pathSegments.get(1);
             try {
                 Long.parseLong(albumId);
@@ -234,7 +243,7 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
                 createForbiddenResponse(responseTrigger, context, responseBuilder);
                 return;
             }
-        } else if ("thumb".equals(type)) {
+        } else if (contentServerEnabled && "thumb".equals(type)) {
             thumbId = pathSegments.get(1);
             try {
                 Long.parseLong(thumbId);
@@ -242,7 +251,7 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
                 createForbiddenResponse(responseTrigger, context, responseBuilder);
                 return;
             }
-        } else if ("res".equals(type)) {
+        } else if (contentServerEnabled && "res".equals(type)) {
             contentId = pathSegments.get(1);
             try {
                 Long.parseLong(contentId);
@@ -264,7 +273,7 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
             contentHolder = lookupAlbumArt(albumId, ranges);
         } else if (!thumbId.isEmpty()) {
             contentHolder = lookupThumbnail(thumbId, ranges);
-        } else if (YaaccUpnpServerService.PROXY_PATH.equals(type)) {
+        } else if (contentProxyEnabled && YaaccUpnpServerService.PROXY_PATH.equals(type)) {
             Log.d(getClass().getName(), "Processing proxy request: " + requestUri);
             // Handle both old and new proxy URL formats
             if (pathSegments.size() >= 3) {
@@ -277,7 +286,7 @@ public class YaaccUpnpServerServiceHttpHandler implements AsyncServerRequestHand
                 // Old format: /proxy/contentKey (fallback)
                 contentHolder = lookupProxyContent(pathSegments.get(1), ranges, null);
             }
-        } else if (YaaccUpnpServerService.SAF_PATH.equals(type)) {
+        } else if (contentServerEnabled && YaaccUpnpServerService.SAF_PATH.equals(type)) {
             contentHolder = lookupSafContent(pathSegments.get(1), pathSegments.get(2), ranges);
         }
 

@@ -46,7 +46,7 @@ import de.yaacc.browser.TabBrowserActivity;
 import de.yaacc.musicplayer.BackgroundMusicService;
 import de.yaacc.player.PlayerService;
 import de.yaacc.upnp.UpnpClient;
-import de.yaacc.upnp.UpnpRegistryService;
+import de.yaacc.upnp.registry.UpnpRegistryService;
 import de.yaacc.upnp.server.YaaccAudioRenderingControlService;
 import de.yaacc.upnp.server.YaaccUpnpServerService;
 import de.yaacc.util.NotificationId;

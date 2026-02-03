@@ -62,7 +62,7 @@
         </activity>
 
         <service
-            android:name=".upnp.UpnpRegistryService"
+            android:name=".upnp.registry.UpnpRegistryService"
             android:enabled="true" />
         <service
             android:name=".player.PlayerService"
@@ -150,7 +150,7 @@
             </intent-filter>
         </activity>
         <activity
-            android:name=".upnp.server.YaaccUpnpServerControlActivity"
+            android:name=".upnp.server.configuration.YaaccUpnpServerControlActivity"
             android:exported="true"
             android:label="@string/title_activity_yaacc_upnp_server_control">
             <intent-filter>

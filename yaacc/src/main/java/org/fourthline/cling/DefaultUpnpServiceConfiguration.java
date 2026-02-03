@@ -27,7 +27,6 @@ import org.fourthline.cling.model.message.UpnpHeaders;
 import org.fourthline.cling.model.meta.RemoteDeviceIdentity;
 import org.fourthline.cling.model.meta.RemoteService;
 import org.fourthline.cling.model.types.ServiceType;
-import org.fourthline.cling.protocol.ProtocolFactory;
 import org.fourthline.cling.transport.impl.DatagramIOConfigurationImpl;
 import org.fourthline.cling.transport.impl.DatagramIOImpl;
 import org.fourthline.cling.transport.impl.DatagramProcessorImpl;
@@ -43,7 +42,6 @@ import org.fourthline.cling.transport.spi.MulticastReceiver;
 import org.fourthline.cling.transport.spi.NetworkAddressFactory;
 import org.fourthline.cling.transport.spi.SOAPActionProcessor;
 import org.fourthline.cling.transport.spi.StreamClient;
-import org.fourthline.cling.transport.spi.StreamServer;
 import org.seamless.util.Exceptions;
 
 import java.util.concurrent.Executor;
@@ -147,11 +145,6 @@ public class DefaultUpnpServiceConfiguration implements UpnpServiceConfiguration
 
 
     public StreamClient createStreamClient() {
-        /*return new StreamClientImpl(
-                new StreamClientConfigurationImpl(
-                        getSyncProtocolExecutorService()
-                )
-        );*/
         return null;
     }
 
@@ -167,12 +160,6 @@ public class DefaultUpnpServiceConfiguration implements UpnpServiceConfiguration
     public DatagramIO createDatagramIO(NetworkAddressFactory networkAddressFactory) {
         return new DatagramIOImpl(new DatagramIOConfigurationImpl());
     }
-
-    @Override
-    public StreamServer createStreamServer(ProtocolFactory protocolFactory, NetworkAddressFactory networkAddressFactory) {
-        return null;
-    }
-
 
     public Executor getMulticastReceiverExecutor() {
         return getDefaultExecutorService();

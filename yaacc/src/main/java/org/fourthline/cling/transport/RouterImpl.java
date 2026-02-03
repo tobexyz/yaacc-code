@@ -36,7 +36,6 @@ import org.fourthline.cling.transport.spi.StreamServer;
 import org.fourthline.cling.transport.spi.UpnpStream;
 import org.seamless.util.Exceptions;
 
-import java.net.BindException;
 import java.net.DatagramPacket;
 import java.net.Inet4Address;
 import java.net.InetAddress;
@@ -422,30 +421,6 @@ public class RouterImpl implements Router {
             if (!(address instanceof Inet4Address)) {
                 continue;
             }
-            // HTTP servers
-            StreamServer streamServer = getConfiguration().createStreamServer(protocolFactory, networkAddressFactory);
-            if (streamServer == null) {
-                Log.v(getClass().getName(), "Configuration did not create a StreamServer for: " + address);
-            } else {
-                try {
-
-                    Log.v(getClass().getName(), "Init stream server on address: " + address);
-                    streamServer.init(address, this);
-                    streamServers.put(address, streamServer);
-                } catch (InitializationException ex) {
-                    // Try to recover
-                    Throwable cause = Exceptions.unwrap(ex);
-                    if (cause instanceof BindException) {
-                        Log.w(getClass().getName(), "Failed to init StreamServer: " + cause);
-                        Log.v(getClass().getName(), "Initialization exception root cause", cause);
-                        Log.w(getClass().getName(), "Removing unusable address: " + address);
-                        addresses.remove();
-                        continue; // Don't try anything else with this address
-                    }
-                    throw ex;
-                }
-            }
-
             // Datagram I/O
             DatagramIO datagramIO = getConfiguration().createDatagramIO(networkAddressFactory);
             if (datagramIO == null) {

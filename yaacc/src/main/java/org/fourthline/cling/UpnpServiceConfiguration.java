@@ -22,7 +22,6 @@ import org.fourthline.cling.model.message.UpnpHeaders;
 import org.fourthline.cling.model.meta.RemoteDeviceIdentity;
 import org.fourthline.cling.model.meta.RemoteService;
 import org.fourthline.cling.model.types.ServiceType;
-import org.fourthline.cling.protocol.ProtocolFactory;
 import org.fourthline.cling.transport.spi.DatagramIO;
 import org.fourthline.cling.transport.spi.DatagramProcessor;
 import org.fourthline.cling.transport.spi.GENAEventProcessor;
@@ -30,7 +29,6 @@ import org.fourthline.cling.transport.spi.MulticastReceiver;
 import org.fourthline.cling.transport.spi.NetworkAddressFactory;
 import org.fourthline.cling.transport.spi.SOAPActionProcessor;
 import org.fourthline.cling.transport.spi.StreamClient;
-import org.fourthline.cling.transport.spi.StreamServer;
 
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -87,12 +85,6 @@ public interface UpnpServiceConfiguration {
      * @return A new instance of the {@link org.fourthline.cling.transport.spi.DatagramIO} interface.
      */
     public DatagramIO createDatagramIO(NetworkAddressFactory networkAddressFactory);
-
-    /**
-     * @param networkAddressFactory The configured {@link org.fourthline.cling.transport.spi.NetworkAddressFactory}.
-     * @return A new instance of the {@link org.fourthline.cling.transport.spi.StreamServer} interface.
-     */
-    public StreamServer createStreamServer(ProtocolFactory protocolFactory, NetworkAddressFactory networkAddressFactory);
 
     /**
      * @return The executor which runs the listening background threads for multicast datagrams.

@@ -62,7 +62,8 @@ import de.yaacc.R;
 import de.yaacc.settings.SettingsFragment;
 import de.yaacc.upnp.ActionState;
 import de.yaacc.upnp.UpnpClient;
-import de.yaacc.upnp.server.YaaccUpnpServerService;
+import de.yaacc.upnp.server.http.YaaccUpnpServerContentHttpHandler;
+import de.yaacc.util.InterfaceResolutionHelper;
 import de.yaacc.util.image.ImageDownloader;
 
 /**
@@ -758,7 +759,7 @@ public class AVTransportPlayer extends AbstractPlayer {
                                     // Check if position is stuck (paused)
                                     boolean isPaused = (lastRemainingTime != -1 && currentRemainingTime == lastRemainingTime);
 
-                                    de.yaacc.upnp.server.YaaccUpnpServerServiceHttpHandler.updateRendererPosition(
+                                    YaaccUpnpServerContentHttpHandler.updateRendererPosition(
                                             "test_renderer_" + contentKey, timeMs, isPaused);
                                 }
                             } catch (Exception e) {
@@ -860,7 +861,7 @@ public class AVTransportPlayer extends AbstractPlayer {
                     if (isExternalUrl) {
                         String contentKey = itemUri.substring(itemUri.lastIndexOf("/") + 1);
                         String deviceId = getDevice().getIdentity().getUdn().getIdentifierString();
-                        de.yaacc.upnp.server.YaaccUpnpServerServiceHttpHandler.updateRendererPosition(
+                        YaaccUpnpServerContentHttpHandler.updateRendererPosition(
                                 deviceId + "_" + contentKey, millisecondsFromStart, false);
 
                         // Also save to preferences for HTTP handler
@@ -915,7 +916,7 @@ public class AVTransportPlayer extends AbstractPlayer {
                 String urlHost = url.getHost();
 
                 // Get local server IP using YAACC method
-                String[] ifAndIp = YaaccUpnpServerService.getIfAndIpAddress(getUpnpClient().getContext());
+                String[] ifAndIp = InterfaceResolutionHelper.getIfAndIpAddress(getUpnpClient().getContext());
                 String localIP = ifAndIp != null && ifAndIp.length > 0 ? ifAndIp[0] : null;
 
                 Log.d(getClass().getName(), "URL host: '" + urlHost + "', Local IP: '" + localIP + "'");

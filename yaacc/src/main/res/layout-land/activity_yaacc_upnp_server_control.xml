@@ -9,7 +9,7 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="1"
-        tools:context=".upnp.server.YaaccUpnpServerControlActivity">
+        tools:context=".upnp.server.configuration.YaaccUpnpServerControlActivity">
 
         <TextView
             android:id="@+id/serverLabel"
@@ -112,7 +112,7 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="2"
-        tools:context=".upnp.server.YaaccUpnpServerControlActivity">
+        tools:context=".upnp.server.configuration.YaaccUpnpServerControlActivity">
 
         <TextView
             android:id="@+id/sharedFolders"

@@ -16,7 +16,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
-package de.yaacc.upnp;
+package de.yaacc.upnp.server.http;
 
 import android.util.Log;
 
@@ -48,10 +48,10 @@ import java.net.URI;
 import java.util.List;
 import java.util.Map;
 
-public class YaaccAsyncStreamServerRequestHandler extends UpnpStream implements AsyncServerRequestHandler<Message<HttpRequest, byte[]>> {
+public class YaaccUpnpServerProtocolRequestHandler extends UpnpStream implements AsyncServerRequestHandler<Message<HttpRequest, byte[]>> {
 
 
-    protected YaaccAsyncStreamServerRequestHandler(ProtocolFactory protocolFactory) {
+    public YaaccUpnpServerProtocolRequestHandler(ProtocolFactory protocolFactory) {
         super(protocolFactory);
     }
 

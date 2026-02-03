@@ -16,7 +16,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
-package de.yaacc.upnp;
+package de.yaacc.upnp.registry;
 
 import android.app.Service;
 import android.content.Intent;
@@ -29,6 +29,7 @@ import org.fourthline.cling.protocol.ProtocolFactory;
 import org.fourthline.cling.registry.Registry;
 import org.fourthline.cling.transport.Router;
 
+import de.yaacc.upnp.YaaccUpnpServiceConfiguration;
 import de.yaacc.upnp.server.YaaccRouter;
 
 /**
@@ -39,6 +40,7 @@ import de.yaacc.upnp.server.YaaccRouter;
 public class UpnpRegistryService extends Service {
 
     protected UpnpService upnpService;
+
     protected IBinder binder = new UpnpRegistryServiceBinder();
 
 
@@ -66,6 +68,7 @@ public class UpnpRegistryService extends Service {
             }
         };
 
+
         Log.d(this.getClass().getName(), "on start took: " + (System.currentTimeMillis() - start));
     }
 
@@ -89,7 +92,7 @@ public class UpnpRegistryService extends Service {
         super.onDestroy();
     }
 
-    protected class UpnpRegistryServiceBinder extends android.os.Binder {
+    public class UpnpRegistryServiceBinder extends android.os.Binder {
 
         public UpnpRegistryService getService() {
             return UpnpRegistryService.this;

@@ -33,7 +33,7 @@ import java.util.Enumeration;
 import java.util.Iterator;
 import java.util.List;
 
-import de.yaacc.upnp.server.YaaccUpnpServerService;
+import de.yaacc.util.InterfaceResolutionHelper;
 
 public class YaaccNetworkAddressFactoryImpl implements NetworkAddressFactory {
 
@@ -68,9 +68,9 @@ public class YaaccNetworkAddressFactoryImpl implements NetworkAddressFactory {
     @Override
     public Iterator<NetworkInterface> getNetworkInterfaces() {
         List<NetworkInterface> ifList = new ArrayList<>();
-        if (YaaccUpnpServerService.getIfName(context) != null) {
+        if (InterfaceResolutionHelper.getIfName(context) != null) {
             try {
-                ifList.add(NetworkInterface.getByName(YaaccUpnpServerService.getIfName(context)));
+                ifList.add(NetworkInterface.getByName(InterfaceResolutionHelper.getIfName(context)));
             } catch (
                     SocketException se) {
                 Log.d(getClass().getName(),
@@ -87,10 +87,10 @@ public class YaaccNetworkAddressFactoryImpl implements NetworkAddressFactory {
     @Override
     public Iterator<InetAddress> getBindAddresses() {
         List<InetAddress> result = new ArrayList<>();
-        if (YaaccUpnpServerService.getIfName(context) != null) {
+        if (InterfaceResolutionHelper.getIfName(context) != null) {
             try {
-                if (NetworkInterface.getByName(YaaccUpnpServerService.getIfName(context)) != null) {
-                    Enumeration<InetAddress> iter = NetworkInterface.getByName(YaaccUpnpServerService.getIfName(context)).getInetAddresses();
+                if (NetworkInterface.getByName(InterfaceResolutionHelper.getIfName(context)) != null) {
+                    Enumeration<InetAddress> iter = NetworkInterface.getByName(InterfaceResolutionHelper.getIfName(context)).getInetAddresses();
                     while (iter.hasMoreElements()) {
                         result.add(iter.nextElement());
                     }
@@ -112,7 +112,7 @@ public class YaaccNetworkAddressFactoryImpl implements NetworkAddressFactory {
 
     @Override
     public boolean hasUsableNetwork() {
-        return !"0.0.0.0".equals(YaaccUpnpServerService.getIpAddress(context));
+        return !"0.0.0.0".equals(InterfaceResolutionHelper.getIpAddress(context));
     }
 
     @Override

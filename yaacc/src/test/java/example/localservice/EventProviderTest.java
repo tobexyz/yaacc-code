@@ -14,8 +14,10 @@
  */
 package example.localservice;
 
-import example.binarylight.BinaryLightSampleData;
-import example.controlpoint.EventSubscriptionTest;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 import org.fourthline.cling.controlpoint.SubscriptionCallback;
 import org.fourthline.cling.mock.MockRouter;
@@ -27,13 +29,14 @@ import org.fourthline.cling.model.message.UpnpResponse;
 import org.fourthline.cling.model.meta.LocalDevice;
 import org.fourthline.cling.model.meta.LocalService;
 import org.fourthline.cling.test.data.SampleData;
-import org.seamless.util.Reflections;
 import org.junit.Test;
+import org.seamless.util.Reflections;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.junit.Assert.*;
+import example.binarylight.BinaryLightSampleData;
+import example.controlpoint.EventSubscriptionTest;
 
 /**
  * Providing events on service state changes

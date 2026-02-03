@@ -69,7 +69,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import de.yaacc.R;
-import de.yaacc.upnp.server.YaaccUpnpServerService;
+import de.yaacc.util.InterfaceResolutionHelper;
 
 /**
  * a content directory which uses the content of the MediaStore in order to
@@ -490,7 +490,7 @@ public class YaaccContentDirectory {
     }
 
     public String getIpAddress() {
-        return YaaccUpnpServerService.getIpAddress(context);
+        return InterfaceResolutionHelper.getIpAddress(context);
     }
 
 }
