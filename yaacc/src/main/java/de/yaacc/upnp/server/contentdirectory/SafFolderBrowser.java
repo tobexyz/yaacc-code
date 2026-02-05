@@ -80,8 +80,13 @@ public class SafFolderBrowser extends ContentBrowser {
                 String parentBase64 = Base64.encodeToString(parent.getUri().toString().getBytes(), Base64.NO_WRAP);
                 parentId = ContentDirectoryIDs.SAF_PREFIX.getId() + parentBase64;
             }
-
-            return new StorageFolder(myId, parentId, title, "yaacc", getSize(contentDirectory, myId), null);
+            DIDLObject result = null;
+            if (file.isDirectory()) {
+                result = new StorageFolder(myId, parentId, title, "yaacc", getSize(contentDirectory, myId), null);
+            } else {
+                result = createItem(contentDirectory, file.getUri().toString(), file, myId, !file.canRead());
+            }
+            return result;
         }
     }
 
@@ -91,10 +96,15 @@ public class SafFolderBrowser extends ContentBrowser {
             return getSelectedSafPathes().size();
         } else {
             String pathEnc = myId.substring(ContentDirectoryIDs.SAF_PREFIX.getId().length());
-            String path = new String(Base64.decode(pathEnc.getBytes(), Base64.NO_WRAP));
-            DocumentFile file = DocumentFile.fromTreeUri(getContext(), Uri.parse(path));
-            if (file != null && file.isDirectory()) {
-                return file.listFiles().length;
+            try {
+                String path = new String(Base64.decode(pathEnc.getBytes(), Base64.NO_WRAP));
+                DocumentFile file = DocumentFile.fromTreeUri(getContext(), Uri.parse(path));
+                if (file != null && file.isDirectory()) {
+                    return file.listFiles().length;
+                }
+            } catch (IllegalArgumentException e) {
+                Log.w(getClass().getName(), "Can not decode path from id: " + myId + " returning size 0", e);
+                return 0;
             }
         }
         return 0;
@@ -207,7 +217,7 @@ public class SafFolderBrowser extends ContentBrowser {
                 String path = sortedPathes.get(i);
                 DocumentFile file = DocumentFile.fromSingleUri(getContext(), Uri.parse(path));
                 if (file != null && !file.isDirectory()) {
-                    addItem(contentDirectory, result, path, file, myId, !file.canRead());
+                    result.add(createItem(contentDirectory, path, file, myId, !file.canRead()));
                 }
             }
         } else {
@@ -226,7 +236,7 @@ public class SafFolderBrowser extends ContentBrowser {
                     for (int i = start; i < end; i++) {
                         DocumentFile file = files[i];
                         if (!file.isDirectory()) {
-                            addItem(contentDirectory, result, file.getUri().toString(), file, myId, !file.canRead());
+                            result.add(createItem(contentDirectory, file.getUri().toString(), file, myId, !file.canRead()));
                         }
                     }
                 } else {
@@ -240,18 +250,19 @@ public class SafFolderBrowser extends ContentBrowser {
         return result;
     }
 
-    private void addItem(YaaccContentDirectory contentDirectory, List<Item> result, String path, DocumentFile file, String parentId, boolean restricted) {
+    private Item createItem(YaaccContentDirectory contentDirectory, String path, DocumentFile file, String parentId, boolean restricted) {
         String mimeTypeStr = file.getType();
         long currentTime = System.currentTimeMillis();
-        Log.d(getClass().getName(), "Adding item for: " + path + " with mime type: " + mimeTypeStr);
+        Log.d(getClass().getName(), "Created item for: " + path + " with mime type: " + mimeTypeStr);
         if (file.getName().endsWith("m3u")) {
             Log.d(getClass().getName(), "Ignoring m3u file");
-            return;
+            return null;
         }
         if (mimeTypeStr != null) {
             MimeType mimeType = MimeType.valueOf(mimeTypeStr);
             String mimeTypeMain = mimeType.getType();
-            String id = ContentDirectoryIDs.SAF_PREFIX.getId() + path.hashCode();
+            String base64enc = new String(Base64.encode(path.getBytes(), Base64.NO_WRAP));
+            String id = ContentDirectoryIDs.SAF_PREFIX.getId() + base64enc;
             String title = file.getName() != null ? file.getName() : path;
 
             // The actual URI for streaming from this server
@@ -281,10 +292,12 @@ public class SafFolderBrowser extends ContentBrowser {
 
             if (item != null) {
                 item.setRestricted(restricted);
-                result.add(item);
             }
+            Log.d(getClass().getName(), "Created item for: " + path + "took: " + (System.currentTimeMillis() - currentTime) + "ms");
+            return item;
+
         }
-        Log.d(getClass().getName(), "Added item for: " + path + "took: " + (System.currentTimeMillis() - currentTime) + "ms");
+        return null;
     }
 
     /*

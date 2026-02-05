@@ -59,7 +59,7 @@ public class ImageByBucketNameItemBrowser extends ContentBrowser {
         String[] projection = {MediaStore.Images.Media._ID,
                 MediaStore.Images.Media.DISPLAY_NAME,
                 MediaStore.Images.Media.MIME_TYPE, MediaStore.Images.Media.SIZE, MediaStore.Images.Media.BUCKET_ID, MediaStore.Images.Media.DATE_TAKEN};
-        String selection = MediaStore.Images.Media.BUCKET_ID + "=?";
+        String selection = MediaStore.Images.Media._ID + "=?";
         String[] selectionArgs = new String[]{myId.substring(ContentDirectoryIDs.IMAGE_BY_BUCKET_PREFIX.getId().length())};
         try (Cursor mImageCursor = contentDirectory
                 .getContext()
@@ -78,8 +78,8 @@ public class ImageByBucketNameItemBrowser extends ContentBrowser {
                                 .getColumnIndex(MediaStore.Images.Media.DISPLAY_NAME));
                 @SuppressLint("Range") Long size = Long.valueOf(mImageCursor.getString(mImageCursor
                         .getColumnIndex(MediaStore.Images.Media.SIZE)));
-                @SuppressLint("Range") Long dateTaken = Long.valueOf(mImageCursor.getString(mImageCursor
-                        .getColumnIndex(MediaStore.Images.Media.DATE_TAKEN)));
+                String dateTakenStr = mImageCursor.getString(mImageCursor.getColumnIndex(MediaStore.Images.Media.DATE_TAKEN));
+                @SuppressLint("Range") Long dateTaken = dateTakenStr != null ? Long.valueOf(dateTakenStr) : 0L;
                 @SuppressLint("Range") String mimeTypeString = mImageCursor.getString(mImageCursor
                         .getColumnIndex(MediaStore.Images.Media.MIME_TYPE));
                 Log.d(getClass().getName(),
