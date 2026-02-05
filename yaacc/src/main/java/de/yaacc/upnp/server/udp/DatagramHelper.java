@@ -19,25 +19,29 @@ import java.util.Locale;
 
 public class DatagramHelper {
     public static IncomingDatagramMessage read(InetAddress receivedOnAddress, DatagramPacket datagram) throws UnsupportedDataException {
+        return read(receivedOnAddress, datagram.getData(), datagram.getAddress(), datagram.getPort());
+    }
+
+    public static IncomingDatagramMessage read(InetAddress receivedOnAddress, byte[] datagramData, InetAddress address, int port) throws UnsupportedDataException {
 
         try {
 
             Log.v(DatagramHelper.class.getName(), "===================================== DATAGRAM BEGIN ============================================");
-            Log.v(DatagramHelper.class.getName(), new String(datagram.getData(), "UTF-8"));
+            Log.v(DatagramHelper.class.getName(), new String(datagramData, "UTF-8"));
             Log.v(DatagramHelper.class.getName(), "-===================================== DATAGRAM END =============================================");
 
 
-            ByteArrayInputStream is = new ByteArrayInputStream(datagram.getData());
+            ByteArrayInputStream is = new ByteArrayInputStream(datagramData);
 
             String[] startLine = Headers.readLine(is).split(" ");
             if (startLine[0].startsWith("HTTP/1.")) {
-                return readResponseMessage(receivedOnAddress, datagram, is, Integer.valueOf(startLine[1]), startLine[2], startLine[0]);
+                return readResponseMessage(receivedOnAddress, address, port, is, Integer.valueOf(startLine[1]), startLine[2], startLine[0]);
             } else {
-                return readRequestMessage(receivedOnAddress, datagram, is, startLine[0], startLine[2]);
+                return readRequestMessage(receivedOnAddress, address, port, is, startLine[0], startLine[2]);
             }
 
         } catch (Exception ex) {
-            throw new UnsupportedDataException("Could not parse headers: " + ex, ex, datagram.getData());
+            throw new UnsupportedDataException("Could not parse headers: " + ex, ex, datagramData);
         }
     }
 
@@ -92,7 +96,8 @@ public class DatagramHelper {
     }
 
     private static IncomingDatagramMessage readRequestMessage(InetAddress receivedOnAddress,
-                                                              DatagramPacket datagram,
+                                                              InetAddress address,
+                                                              int port,
                                                               ByteArrayInputStream is,
                                                               String requestMethod,
                                                               String httpProtocol) throws Exception {
@@ -104,7 +109,7 @@ public class DatagramHelper {
         IncomingDatagramMessage requestMessage;
         UpnpRequest upnpRequest = new UpnpRequest(UpnpRequest.Method.getByHttpName(requestMethod));
         upnpRequest.setHttpMinorVersion(httpProtocol.toUpperCase(Locale.ROOT).equals("HTTP/1.1") ? 1 : 0);
-        requestMessage = new IncomingDatagramMessage(upnpRequest, datagram.getAddress(), datagram.getPort(), receivedOnAddress);
+        requestMessage = new IncomingDatagramMessage(upnpRequest, address, port, receivedOnAddress);
 
         requestMessage.setHeaders(headers);
 
@@ -112,7 +117,7 @@ public class DatagramHelper {
     }
 
     private static IncomingDatagramMessage readResponseMessage(InetAddress receivedOnAddress,
-                                                               DatagramPacket datagram,
+                                                               InetAddress address, int port,
                                                                ByteArrayInputStream is,
                                                                int statusCode,
                                                                String statusMessage,
@@ -125,7 +130,7 @@ public class DatagramHelper {
         IncomingDatagramMessage responseMessage;
         UpnpResponse upnpResponse = new UpnpResponse(statusCode, statusMessage);
         upnpResponse.setHttpMinorVersion(httpProtocol.toUpperCase(Locale.ROOT).equals("HTTP/1.1") ? 1 : 0);
-        responseMessage = new IncomingDatagramMessage(upnpResponse, datagram.getAddress(), datagram.getPort(), receivedOnAddress);
+        responseMessage = new IncomingDatagramMessage(upnpResponse, address, port, receivedOnAddress);
 
         responseMessage.setHeaders(headers);
 

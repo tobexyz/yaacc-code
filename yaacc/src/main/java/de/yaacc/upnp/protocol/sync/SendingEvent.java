@@ -21,7 +21,7 @@ import org.fourthline.cling.model.gena.LocalGENASubscription;
 import org.fourthline.cling.model.message.StreamResponseMessage;
 import org.fourthline.cling.model.message.gena.OutgoingEventRequestMessage;
 import org.fourthline.cling.model.types.UnsignedIntegerFourBytes;
-import org.fourthline.cling.transport.RouterException;
+import java.io.IOException;
 import org.fourthline.cling.transport.impl.GENAEventProcessorImpl;
 
 import java.io.IOException;
@@ -71,7 +71,7 @@ public class SendingEvent extends SendingSync<OutgoingEventRequestMessage, Strea
         subscription.incrementSequence();
     }
 
-    protected StreamResponseMessage executeSync() throws RouterException {
+    protected StreamResponseMessage executeSync() throws IOException {
 
         Log.v(getClass().getName(), "Sending event for subscription: " + subscriptionId);
 
@@ -90,7 +90,7 @@ public class SendingEvent extends SendingSync<OutgoingEventRequestMessage, Strea
             try {
                 lastResponse = httpRequestSender.send(requestMessage);
             } catch (IOException e) {
-                throw new RouterException(e);
+                throw new IOException(e);
             }
             Log.v(getClass().getName(), "Received event callback response: " + lastResponse);
 

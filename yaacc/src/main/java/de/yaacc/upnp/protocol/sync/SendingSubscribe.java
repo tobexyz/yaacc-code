@@ -22,11 +22,12 @@ import org.fourthline.cling.model.gena.RemoteGENASubscription;
 import org.fourthline.cling.model.message.StreamResponseMessage;
 import org.fourthline.cling.model.message.gena.IncomingSubscribeResponseMessage;
 import org.fourthline.cling.model.message.gena.OutgoingSubscribeRequestMessage;
-import org.fourthline.cling.registry.Registry;
-import org.fourthline.cling.transport.RouterException;
+import de.yaacc.upnp.registry.Registry;
+import java.io.IOException;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import de.yaacc.upnp.protocol.SendingSync;
@@ -55,6 +56,7 @@ public class SendingSubscribe extends SendingSync<OutgoingSubscribeRequestMessag
     final protected RemoteGENASubscription subscription;
     private final HttpRequestSender httpRequestSender;
     private final Registry registry;
+    private final ExecutorService executorService;
 
     public SendingSubscribe(Registry registry, HttpRequestSender httpRequestSender,
                             RemoteGENASubscription subscription,
@@ -72,13 +74,15 @@ public class SendingSubscribe extends SendingSync<OutgoingSubscribeRequestMessag
         this.subscription = subscription;
         this.httpRequestSender = httpRequestSender;
         this.registry = registry;
+        executorService = Executors.newFixedThreadPool(20);
+
     }
 
-    protected IncomingSubscribeResponseMessage executeSync() throws RouterException {
+    protected IncomingSubscribeResponseMessage executeSync() throws IOException {
 
         if (!getInputMessage().hasCallbackURLs()) {
             Log.v(getClass().getName(), "Subscription failed, no active local callback URLs available (network disabled?)");
-            Executors.newSingleThreadExecutor().execute(
+            executorService.execute(
                     new Runnable() {
                         public void run() {
                             subscription.fail(null);
@@ -112,7 +116,7 @@ public class SendingSubscribe extends SendingSync<OutgoingSubscribeRequestMessag
 
             if (response.getOperation().isFailed()) {
                 Log.v(getClass().getName(), "Subscription failed, response was: " + responseMessage);
-                Executors.newSingleThreadExecutor().execute(
+                executorService.execute(
                         new Runnable() {
                             public void run() {
                                 subscription.fail(responseMessage.getOperation());
@@ -121,7 +125,7 @@ public class SendingSubscribe extends SendingSync<OutgoingSubscribeRequestMessag
                 );
             } else if (!responseMessage.isValidHeaders()) {
                 Log.v(getClass().getName(), "Subscription failed, invalid or missing (SID, Timeout) response headers");
-                Executors.newSingleThreadExecutor().execute(
+                executorService.execute(
                         new Runnable() {
                             public void run() {
                                 subscription.fail(responseMessage.getOperation());
@@ -136,7 +140,7 @@ public class SendingSubscribe extends SendingSync<OutgoingSubscribeRequestMessag
 
                 registry.addRemoteSubscription(subscription);
 
-                Executors.newSingleThreadExecutor().execute(
+                executorService.execute(
                         new Runnable() {
                             public void run() {
                                 subscription.establish();
@@ -153,7 +157,7 @@ public class SendingSubscribe extends SendingSync<OutgoingSubscribeRequestMessag
 
     protected void onSubscriptionFailure() {
         Log.v(getClass().getName(), "Subscription failed");
-        Executors.newSingleThreadExecutor().execute(
+        executorService.execute(
                 new Runnable() {
                     public void run() {
                         subscription.fail(null);

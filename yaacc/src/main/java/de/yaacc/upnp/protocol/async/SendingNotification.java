@@ -27,7 +27,7 @@ import org.fourthline.cling.model.message.discovery.OutgoingNotificationRequestU
 import org.fourthline.cling.model.meta.LocalDevice;
 import org.fourthline.cling.model.types.NotificationSubtype;
 import org.fourthline.cling.model.types.ServiceType;
-import org.fourthline.cling.transport.RouterException;
+import java.io.IOException;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -63,7 +63,7 @@ public abstract class SendingNotification extends SendingAsync {
         return device;
     }
 
-    protected void execute() throws RouterException {
+    protected void execute() throws IOException {
 
 
         // Prepare it once, it's the same for each repetition
@@ -101,7 +101,7 @@ public abstract class SendingNotification extends SendingAsync {
         return 150;
     }
 
-    public void sendMessages(Location descriptorLocation) throws RouterException {
+    public void sendMessages(Location descriptorLocation) throws IOException {
         Log.v(getClass().getName(), "Sending root device messages: " + getDevice());
         List<OutgoingNotificationRequest> rootDeviceMsgs =
                 createDeviceMessages(getDevice(), descriptorLocation);

@@ -22,13 +22,12 @@ import org.fourthline.cling.model.resource.Resource;
 import org.fourthline.cling.model.types.DeviceType;
 import org.fourthline.cling.model.types.ServiceType;
 import org.fourthline.cling.model.types.UDN;
-import org.fourthline.cling.registry.RegistrationException;
+import de.yaacc.upnp.registry.RegistrationException;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.concurrent.CopyOnWriteArraySet;
 
 import de.yaacc.upnp.protocol.UpnpProtocolHandler;
 
@@ -41,8 +40,8 @@ abstract class RegistryItems<D extends Device, S extends GENASubscription> {
 
     protected final RegistryImpl registry;
 
-    protected final Set<RegistryItem<UDN, D>> deviceItems = new CopyOnWriteArraySet<>();
-    protected final Set<RegistryItem<String, S>> subscriptionItems = new CopyOnWriteArraySet<>();
+    protected final Set<RegistryItem<UDN, D>> deviceItems = new HashSet<>();
+    protected final Set<RegistryItem<String, S>> subscriptionItems = new HashSet<>();
 
     RegistryItems(RegistryImpl registry) {
         this.registry = registry;

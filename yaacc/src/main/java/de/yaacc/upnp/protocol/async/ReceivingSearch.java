@@ -41,8 +41,8 @@ import org.fourthline.cling.model.meta.LocalDevice;
 import org.fourthline.cling.model.types.DeviceType;
 import org.fourthline.cling.model.types.ServiceType;
 import org.fourthline.cling.model.types.UDN;
-import org.fourthline.cling.registry.Registry;
-import org.fourthline.cling.transport.RouterException;
+import de.yaacc.upnp.registry.Registry;
+import java.io.IOException;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -84,7 +84,7 @@ public class ReceivingSearch extends ReceivingAsync<IncomingSearchRequest> {
         this.udpTransiver = udpTransiver;
     }
 
-    protected void execute() throws RouterException {
+    protected void execute() throws IOException {
         Log.v(getClass().getName(), "execute receiving search");
 
         if (!getInputMessage().isMANSSDPDiscover()) {
@@ -127,7 +127,7 @@ public class ReceivingSearch extends ReceivingAsync<IncomingSearchRequest> {
         return true;
     }
 
-    protected void sendResponses(UpnpHeader searchTarget) throws RouterException {
+    protected void sendResponses(UpnpHeader searchTarget) throws IOException {
         NetworkAddress currentNetworkAddress = InterfaceResolutionHelper.getNetworkAddress(context);
         if (searchTarget instanceof STAllHeader) {
 
@@ -154,7 +154,7 @@ public class ReceivingSearch extends ReceivingAsync<IncomingSearchRequest> {
         }
     }
 
-    protected void sendSearchResponseAll(NetworkAddress activeStreamServer) throws RouterException {
+    protected void sendSearchResponseAll(NetworkAddress activeStreamServer) throws IOException {
         Log.v(getClass().getName(), "Responding to 'all' search with advertisement messages for all local devices");
 
         for (LocalDevice localDevice : registry.getLocalDevices()) {
@@ -255,7 +255,7 @@ public class ReceivingSearch extends ReceivingAsync<IncomingSearchRequest> {
         return msgs;
     }
 
-    protected void sendSearchResponseRootDevices(NetworkAddress activeStreamServer) throws RouterException {
+    protected void sendSearchResponseRootDevices(NetworkAddress activeStreamServer) throws IOException {
         Log.v(getClass().getName(), "Responding to root device search with advertisement messages for all local root devices");
         for (LocalDevice device : registry.getLocalDevices()) {
 
@@ -273,7 +273,7 @@ public class ReceivingSearch extends ReceivingAsync<IncomingSearchRequest> {
         }
     }
 
-    protected void sendSearchResponseUDN(UDN udn, NetworkAddress activeStreamServer) throws RouterException {
+    protected void sendSearchResponseUDN(UDN udn, NetworkAddress activeStreamServer) throws IOException {
         Device device = registry.getDevice(udn, false);
         if (device != null && device instanceof LocalDevice) {
 
@@ -292,7 +292,7 @@ public class ReceivingSearch extends ReceivingAsync<IncomingSearchRequest> {
         }
     }
 
-    protected void sendSearchResponseDeviceType(DeviceType deviceType, NetworkAddress activeStreamServer) throws RouterException {
+    protected void sendSearchResponseDeviceType(DeviceType deviceType, NetworkAddress activeStreamServer) throws IOException {
         Log.v(getClass().getName(), "Responding to device type search: " + deviceType);
         Collection<Device<?, ?, ?>> devices = registry.getDevices(deviceType);
         for (Device device : devices) {
@@ -314,7 +314,7 @@ public class ReceivingSearch extends ReceivingAsync<IncomingSearchRequest> {
         }
     }
 
-    protected void sendSearchResponseServiceType(ServiceType serviceType, NetworkAddress activeStreamServer) throws RouterException {
+    protected void sendSearchResponseServiceType(ServiceType serviceType, NetworkAddress activeStreamServer) throws IOException {
         Log.v(getClass().getName(), "Responding to service type search: " + serviceType);
         Collection<Device<?, ?, ?>> devices = registry.getDevices(serviceType);
         for (Device device : devices) {

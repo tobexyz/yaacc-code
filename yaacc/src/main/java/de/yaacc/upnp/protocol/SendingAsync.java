@@ -17,13 +17,13 @@ package de.yaacc.upnp.protocol;
 
 import android.util.Log;
 
-import org.fourthline.cling.transport.RouterException;
+import java.io.IOException;
 
 /**
  * Supertype for all synchronously executing protocols, sending UPnP messages.
  *
  * <p>
- * A {@link RouterException} during execution will be wrapped in a fatal <code>RuntimeException</code>,
+ * A {@link IOException} during execution will be wrapped in a fatal <code>RuntimeException</code>,
  * unless its cause is an <code>InterruptedException</code>, in which case an INFO message will be logged.
  * </p>
  *
@@ -54,7 +54,7 @@ public abstract class SendingAsync implements Runnable {
         }
     }
 
-    protected abstract void execute() throws RouterException;
+    protected abstract void execute() throws IOException;
 
     @Override
     public String toString() {

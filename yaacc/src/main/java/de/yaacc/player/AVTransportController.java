@@ -26,9 +26,12 @@ import org.fourthline.cling.model.action.ActionInvocation;
 import org.fourthline.cling.model.message.UpnpResponse;
 import org.fourthline.cling.model.meta.Device;
 import org.fourthline.cling.model.meta.Service;
-import org.fourthline.cling.support.avtransport.callback.Next;
-import org.fourthline.cling.support.avtransport.callback.Play;
-import org.fourthline.cling.support.avtransport.callback.Previous;
+import de.yaacc.upnp.callback.avtransport.Next;
+import de.yaacc.upnp.callback.avtransport.Play;
+import de.yaacc.upnp.callback.avtransport.Previous;
+
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import de.yaacc.R;
 import de.yaacc.upnp.ActionState;
@@ -37,10 +40,12 @@ import de.yaacc.upnp.UpnpClient;
 public class AVTransportController extends AVTransportPlayer {
 
     public static final String DEVICE_ID = "DEVICE_ID";
+    private final ExecutorService executorService;
 
     public AVTransportController(UpnpClient upnpClient, Device<?, ?, ?> receiverDevice) {
 
         super(upnpClient, receiverDevice, "", "", null);
+        executorService = Executors.newFixedThreadPool(20);
         String deviceName = receiverDevice.getDetails().getFriendlyName() + " - " + receiverDevice.getDisplayString();
         deviceName = upnpClient.getContext()
                 .getString(R.string.playerNameAvTransport)
@@ -89,7 +94,7 @@ public class AVTransportController extends AVTransportPlayer {
         Log.d(getClass().getName(), "Action Next");
         final ActionState actionState = new ActionState();
         actionState.actionFinished = false;
-        Next actionCallback = new Next(service) {
+        Next actionCallback = new Next(service, getHttpRequestSender()) {
             @Override
             public void failure(ActionInvocation actioninvocation,
                                 UpnpResponse upnpresponse, String s) {
@@ -108,7 +113,7 @@ public class AVTransportController extends AVTransportPlayer {
                 actionState.actionFinished = true;
             }
         };
-        getUpnpClient().getControlPoint().execute(actionCallback);
+        executorService.execute(actionCallback);
     }
 
     @Override
@@ -126,7 +131,7 @@ public class AVTransportController extends AVTransportPlayer {
         Log.d(getClass().getName(), "Action Previous");
         final ActionState actionState = new ActionState();
         actionState.actionFinished = false;
-        Previous actionCallback = new Previous(service) {
+        Previous actionCallback = new Previous(service, getHttpRequestSender()) {
             @Override
             public void failure(ActionInvocation actioninvocation,
                                 UpnpResponse upnpresponse, String s) {
@@ -145,7 +150,7 @@ public class AVTransportController extends AVTransportPlayer {
                 actionState.actionFinished = true;
             }
         };
-        getUpnpClient().getControlPoint().execute(actionCallback);
+        executorService.execute(actionCallback);
     }
 
     @Override
@@ -163,7 +168,7 @@ public class AVTransportController extends AVTransportPlayer {
         Log.d(getClass().getName(), "Action Play");
         final ActionState actionState = new ActionState();
         actionState.actionFinished = false;
-        Play actionCallback = new Play(service) {
+        Play actionCallback = new Play(service, getHttpRequestSender()) {
             @Override
             public void failure(ActionInvocation actioninvocation,
                                 UpnpResponse upnpresponse, String s) {
@@ -182,6 +187,6 @@ public class AVTransportController extends AVTransportPlayer {
                 actionState.actionFinished = true;
             }
         };
-        getUpnpClient().getControlPoint().execute(actionCallback);
+        executorService.execute(actionCallback);
     }
 }

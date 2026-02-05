@@ -23,13 +23,13 @@ import android.util.Log;
 import org.fourthline.cling.model.action.ActionInvocation;
 import org.fourthline.cling.model.message.UpnpResponse;
 import org.fourthline.cling.model.meta.Service;
-import org.fourthline.cling.support.contentdirectory.callback.Browse;
 import org.fourthline.cling.support.model.BrowseFlag;
 import org.fourthline.cling.support.model.BrowseResult;
 import org.fourthline.cling.support.model.DIDLContent;
 import org.fourthline.cling.support.model.SortCriterion;
 
 import de.yaacc.upnp.UpnpFailure;
+import de.yaacc.upnp.server.http.HttpRequestSender;
 
 /**
  * ActionCallback for content directory browsing.
@@ -44,8 +44,8 @@ public class ContentDirectoryBrowseActionCallback extends Browse {
 
     public ContentDirectoryBrowseActionCallback(Service<?, ?> service, String objectID,
                                                 BrowseFlag flag, String filter, long firstResult, Long maxResults, ContentDirectoryBrowseResult browsingResult,
-                                                SortCriterion... orderBy) {
-        super(service, objectID, flag, filter, firstResult, maxResults, orderBy);
+                                                HttpRequestSender httpRequestSender, SortCriterion... orderBy) {
+        super(service, objectID, flag, filter, firstResult, maxResults, httpRequestSender, orderBy);
         this.browsingResult = browsingResult;
 
     }

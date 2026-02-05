@@ -14,22 +14,17 @@
  */
 
 package de.yaacc.upnp.protocol;
+import de.yaacc.util.Exceptions;
 
 import android.util.Log;
 
 import org.fourthline.cling.model.message.UpnpMessage;
 import org.fourthline.cling.model.message.header.UpnpHeader;
-import org.fourthline.cling.protocol.ProtocolFactory;
-import org.fourthline.cling.transport.RouterException;
-import org.seamless.util.Exceptions;
+
+import java.io.IOException;
 
 /**
  * Supertype for all asynchronously executing protocols, handling reception of UPnP messages.
- * <p>
- * After instantiation by the {@link ProtocolFactory}, this protocol <code>run()</code>s and
- * calls its own {@link #waitBeforeExecution()} method. By default, the protocol does not wait
- * before then proceeding with {@link #execute()}.
- * </p>
  *
  * @param <M> The type of UPnP message handled by this protocol.
  * @author Christian Bauer
@@ -83,7 +78,7 @@ public abstract class ReceivingAsync<M extends UpnpMessage> implements Runnable 
         return true;
     }
 
-    protected abstract void execute() throws RouterException;
+    protected abstract void execute() throws IOException;
 
     protected <H extends UpnpHeader> H getFirstHeader(UpnpHeader.Type headerType, Class<H> subtype) {
         return getInputMessage().getHeaders().getFirstHeader(headerType, subtype);

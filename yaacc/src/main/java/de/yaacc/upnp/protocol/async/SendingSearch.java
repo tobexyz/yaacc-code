@@ -21,7 +21,7 @@ import org.fourthline.cling.model.message.discovery.OutgoingSearchRequest;
 import org.fourthline.cling.model.message.header.MXHeader;
 import org.fourthline.cling.model.message.header.STAllHeader;
 import org.fourthline.cling.model.message.header.UpnpHeader;
-import org.fourthline.cling.transport.RouterException;
+import java.io.IOException;
 
 import de.yaacc.upnp.protocol.SendingAsync;
 import de.yaacc.upnp.server.udp.UdpTransiver;
@@ -80,7 +80,7 @@ public class SendingSearch extends SendingAsync {
         return mxSeconds;
     }
 
-    protected void execute() throws RouterException {
+    protected void execute() throws IOException {
 
         Log.v(getClass().getName(), "Executing search for target: " + searchTarget.getString() + " with MX seconds: " + getMxSeconds());
 

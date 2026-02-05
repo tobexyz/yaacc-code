@@ -22,10 +22,11 @@ import org.fourthline.cling.model.gena.RemoteGENASubscription;
 import org.fourthline.cling.model.message.StreamResponseMessage;
 import org.fourthline.cling.model.message.gena.IncomingSubscribeResponseMessage;
 import org.fourthline.cling.model.message.gena.OutgoingRenewalRequestMessage;
-import org.fourthline.cling.registry.Registry;
-import org.fourthline.cling.transport.RouterException;
+import de.yaacc.upnp.registry.Registry;
+import java.io.IOException;
 
 import java.io.IOException;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import de.yaacc.upnp.protocol.SendingSync;
@@ -50,16 +51,18 @@ public class SendingRenewal extends SendingSync<OutgoingRenewalRequestMessage, I
     final protected RemoteGENASubscription subscription;
     private final HttpRequestSender httpRequestSender;
     private final Registry registry;
+    private final ExecutorService executorService;
 
     public SendingRenewal(Registry registry, HttpRequestSender httpRequestSender, RemoteGENASubscription subscription) {
         super(new OutgoingRenewalRequestMessage(subscription, null));
         this.subscription = subscription;
         this.registry = registry;
+        executorService = Executors.newFixedThreadPool(20);
         this.httpRequestSender = httpRequestSender;
 
     }
 
-    protected IncomingSubscribeResponseMessage executeSync() throws RouterException {
+    protected IncomingSubscribeResponseMessage executeSync() throws IOException {
         Log.v(getClass().getName(), "Sending subscription renewal request: " + getInputMessage());
 
         StreamResponseMessage response;
@@ -67,7 +70,7 @@ public class SendingRenewal extends SendingSync<OutgoingRenewalRequestMessage, I
             response = httpRequestSender.send(getInputMessage());
         } catch (IOException ex) {
             onRenewalFailure();
-            throw new RouterException(ex);
+            throw new IOException(ex);
         }
 
         if (response == null) {
@@ -80,7 +83,7 @@ public class SendingRenewal extends SendingSync<OutgoingRenewalRequestMessage, I
         if (response.getOperation().isFailed()) {
             Log.v(getClass().getName(), "Subscription renewal failed, response was: " + response);
             registry.removeRemoteSubscription(subscription);
-            Executors.newSingleThreadExecutor().execute(
+            executorService.execute(
                     new Runnable() {
                         public void run() {
                             subscription.end(CancelReason.RENEWAL_FAILED, responseMessage.getOperation());
@@ -89,7 +92,7 @@ public class SendingRenewal extends SendingSync<OutgoingRenewalRequestMessage, I
             );
         } else if (!responseMessage.isValidHeaders()) {
             Log.v(getClass().getName(), "Subscription renewal failed, invalid or missing (SID, Timeout) response headers");
-            Executors.newSingleThreadExecutor().execute(
+            executorService.execute(
                     new Runnable() {
                         public void run() {
                             subscription.end(CancelReason.RENEWAL_FAILED, responseMessage.getOperation());
@@ -108,7 +111,7 @@ public class SendingRenewal extends SendingSync<OutgoingRenewalRequestMessage, I
     protected void onRenewalFailure() {
         Log.v(getClass().getName(), "Subscription renewal failed, removing subscription from registry");
         registry.removeRemoteSubscription(subscription);
-        Executors.newSingleThreadExecutor().execute(
+        executorService.execute(
                 new Runnable() {
                     public void run() {
                         subscription.end(CancelReason.RENEWAL_FAILED, null);

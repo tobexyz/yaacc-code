@@ -198,11 +198,6 @@ public class ServerListFragment extends Fragment implements
         localServerEnabledSwitch.setOnClickListener((v -> {
             getPreferences().edit().putBoolean(v.getContext().getString(R.string.settings_local_server_chkbx), localServerEnabledSwitch.isChecked()).apply();
             if (v.getContext() instanceof TabBrowserActivity) {
-                if (localServerEnabledSwitch.isChecked()) {
-                    v.getContext().getApplicationContext().startForegroundService(((TabBrowserActivity) v.getContext()).getYaaccUpnpServerService());
-                } else {
-                    v.getContext().getApplicationContext().stopService(((TabBrowserActivity) v.getContext()).getYaaccUpnpServerService());
-                }
                 setLocalServerState(view);
             }
         }));

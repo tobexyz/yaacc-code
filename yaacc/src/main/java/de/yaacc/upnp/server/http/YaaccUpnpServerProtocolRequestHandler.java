@@ -39,20 +39,24 @@ import org.fourthline.cling.model.message.StreamResponseMessage;
 import org.fourthline.cling.model.message.UpnpHeaders;
 import org.fourthline.cling.model.message.UpnpMessage;
 import org.fourthline.cling.model.message.UpnpRequest;
-import org.fourthline.cling.protocol.ProtocolFactory;
-import org.fourthline.cling.transport.spi.UpnpStream;
-import org.seamless.util.Exceptions;
+import org.fourthline.cling.model.message.UpnpResponse;
 
 import java.io.IOException;
 import java.net.URI;
 import java.util.List;
 import java.util.Map;
 
-public class YaaccUpnpServerProtocolRequestHandler extends UpnpStream implements AsyncServerRequestHandler<Message<HttpRequest, byte[]>> {
+import de.yaacc.upnp.protocol.ProtocolCreationException;
+import de.yaacc.upnp.protocol.ReceivingSync;
+import de.yaacc.upnp.protocol.UpnpProtocolHandler;
 
+public class YaaccUpnpServerProtocolRequestHandler implements AsyncServerRequestHandler<Message<HttpRequest, byte[]>> {
 
-    public YaaccUpnpServerProtocolRequestHandler(ProtocolFactory protocolFactory) {
-        super(protocolFactory);
+    protected ReceivingSync syncProtocol;
+    private final UpnpProtocolHandler upnpProtocolHandler;
+
+    public YaaccUpnpServerProtocolRequestHandler(UpnpProtocolHandler upnpProtocolHandler) {
+        this.upnpProtocolHandler = upnpProtocolHandler;
     }
 
     @Override
@@ -90,7 +94,7 @@ public class YaaccUpnpServerProtocolRequestHandler extends UpnpStream implements
 
         } catch (Throwable t) {
             Log.i(getClass().getName(), "Exception occurred during UPnP stream processing: " + t);
-            Log.d(getClass().getName(), "Cause: " + Exceptions.unwrap(t), Exceptions.unwrap(t));
+            Log.d(getClass().getName(), "Cause: " + unwrap(t), unwrap(t));
             Log.v(getClass().getName(), "returning INTERNAL SERVER ERROR to client");
             responseBuilder.setStatus(HttpStatus.SC_INTERNAL_SERVER_ERROR);
             responseTrigger.submitResponse(responseBuilder.build(), context);
@@ -182,8 +186,78 @@ public class YaaccUpnpServerProtocolRequestHandler extends UpnpStream implements
         }
     }
 
+
+    /**
+     * Selects a UPnP protocol, runs it within the calling thread, returns the response.
+     * <p>
+     * This method will return <code>null</code> if the UPnP protocol returned <code>null</code>.
+     * The HTTP response in this case is always <em>404 NOT FOUND</em>. Any other (HTTP) error
+     * condition will be encapsulated in the returned response message and has to be
+     * passed to the HTTP client as it is.
+     * </p>
+     *
+     * @param requestMsg The TCP (HTTP) stream request message.
+     * @return The TCP (HTTP) stream response message, or <code>null</code> if a 404 should be send to the client.
+     */
+    public StreamResponseMessage process(StreamRequestMessage requestMsg) {
+        Log.v(getClass().getName(), "Processing stream request message: " + requestMsg);
+
+        try {
+            // Try to get a protocol implementation that matches the request message
+            syncProtocol = upnpProtocolHandler.createReceivingSync(requestMsg);
+        } catch (ProtocolCreationException ex) {
+            Log.w(getClass().getName(), "Processing stream request failed - " + unwrap(ex).toString());
+            return new StreamResponseMessage(UpnpResponse.Status.NOT_IMPLEMENTED);
+        }
+
+        // Run it
+        Log.v(getClass().getName(), "Running protocol for synchronous message processing: " + syncProtocol);
+        syncProtocol.run();
+
+        // ... then grab the response
+        StreamResponseMessage responseMsg = syncProtocol.getOutputMessage();
+
+        if (responseMsg == null) {
+            // That's ok, the caller is supposed to handle this properly (e.g. convert it to HTTP 404)
+            Log.v(getClass().getName(), "Protocol did not return any response message");
+            return null;
+        }
+        Log.v(getClass().getName(), "Protocol returned response: " + responseMsg);
+        return responseMsg;
+    }
+
+    /**
+     * Must be called by a subclass after the response has been successfully sent to the client.
+     *
+     * @param responseMessage The response message successfully sent to the client.
+     */
+    protected void responseSent(StreamResponseMessage responseMessage) {
+        if (syncProtocol != null)
+            syncProtocol.responseSent(responseMessage);
+    }
+
+    /**
+     * Must be called by a subclass if the response was not delivered to the client.
+     *
+     * @param t The reason why the response wasn't delivered.
+     */
+    protected void responseException(Throwable t) {
+        if (syncProtocol != null)
+            syncProtocol.responseException(t);
+    }
+
     @Override
-    public void run() {
-        //FIXME why this has to be a runnable?
+    public String toString() {
+        return "(" + getClass().getSimpleName() + ")";
+    }
+
+    public static Throwable unwrap(Throwable throwable) throws IllegalArgumentException {
+        if (throwable == null) {
+            throw new IllegalArgumentException("Cannot unwrap null throwable");
+        }
+        for (Throwable current = throwable; current != null; current = current.getCause()) {
+            throwable = current;
+        }
+        return throwable;
     }
 }

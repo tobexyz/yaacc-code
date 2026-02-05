@@ -33,13 +33,13 @@ import org.fourthline.cling.model.meta.Device;
 import org.fourthline.cling.model.meta.Icon;
 import org.fourthline.cling.model.meta.RemoteDevice;
 import org.fourthline.cling.model.meta.Service;
-import org.fourthline.cling.support.avtransport.callback.GetPositionInfo;
-import org.fourthline.cling.support.avtransport.callback.GetTransportInfo;
-import org.fourthline.cling.support.avtransport.callback.Pause;
-import org.fourthline.cling.support.avtransport.callback.Play;
-import org.fourthline.cling.support.avtransport.callback.Seek;
-import org.fourthline.cling.support.avtransport.callback.SetAVTransportURI;
-import org.fourthline.cling.support.avtransport.callback.Stop;
+import de.yaacc.upnp.callback.avtransport.GetPositionInfo;
+import de.yaacc.upnp.callback.avtransport.GetTransportInfo;
+import de.yaacc.upnp.callback.avtransport.Pause;
+import de.yaacc.upnp.callback.avtransport.Play;
+import de.yaacc.upnp.callback.avtransport.Seek;
+import de.yaacc.upnp.callback.avtransport.SetAVTransportURI;
+import de.yaacc.upnp.callback.avtransport.Stop;
 import org.fourthline.cling.support.contentdirectory.DIDLParser;
 import org.fourthline.cling.support.model.DIDLContent;
 import org.fourthline.cling.support.model.DIDLObject;
@@ -57,6 +57,8 @@ import java.util.TimeZone;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import de.yaacc.R;
 import de.yaacc.settings.SettingsFragment;
@@ -74,6 +76,7 @@ import de.yaacc.util.image.ImageDownloader;
 public class AVTransportPlayer extends AbstractPlayer {
 
 
+    private final ExecutorService executorService;
     private String deviceId = "";
     private int id;
     private String contentType;
@@ -101,6 +104,7 @@ public class AVTransportPlayer extends AbstractPlayer {
      */
     public AVTransportPlayer(UpnpClient upnpClient) {
         super(upnpClient);
+        executorService = Executors.newFixedThreadPool(20);
     }
 
     protected Device<?, ?, ?> getDevice() {
@@ -113,6 +117,10 @@ public class AVTransportPlayer extends AbstractPlayer {
 
     public String getContentType() {
         return contentType;
+    }
+
+    protected de.yaacc.upnp.server.http.HttpRequestSender getHttpRequestSender() {
+        return getUpnpClient().getYaaccUpnpServerService().getNetworkDeviceListener().getHttpRequestSender();
     }
 
     /* (non-Javadoc)
@@ -137,7 +145,7 @@ public class AVTransportPlayer extends AbstractPlayer {
 // Now start Stopping
         Log.d(getClass().getName(), "Action Stop");
         actionState.actionFinished = false;
-        Stop actionCallback = new Stop(service) {
+        Stop actionCallback = new Stop(service, getHttpRequestSender()) {
             @Override
             public void failure(ActionInvocation actioninvocation,
                                 UpnpResponse upnpresponse, String s) {
@@ -156,7 +164,7 @@ public class AVTransportPlayer extends AbstractPlayer {
                 actionState.actionFinished = true;
             }
         };
-        getUpnpClient().getControlPoint().execute(actionCallback);
+        executorService.execute(actionCallback);
     }
 
     /* (non-Javadoc)
@@ -193,7 +201,7 @@ public class AVTransportPlayer extends AbstractPlayer {
 
     private void checkTransportStateForStart(PlayableItem playableItem, Service<?, ?> service) {
         // Check current transport state first
-        GetTransportInfo stateCheck = new GetTransportInfo(service) {
+        GetTransportInfo stateCheck = new GetTransportInfo(service, getHttpRequestSender()) {
             @Override
             public void received(ActionInvocation actioninvocation, TransportInfo transportInfo) {
                 TransportState state = transportInfo.getCurrentTransportState();
@@ -202,7 +210,7 @@ public class AVTransportPlayer extends AbstractPlayer {
                 if (state == TransportState.PAUSED_PLAYBACK) {
                     Log.d(getClass().getName(), "Resuming from pause, sending Play only");
                     // For paused content, just send Play command without SetAVTransportURI
-                    Play playCallback = new Play(service) {
+                    Play playCallback = new Play(service, getHttpRequestSender()) {
                         @Override
                         public void failure(ActionInvocation actioninvocation, UpnpResponse upnpresponse, String s) {
                             Log.d(getClass().getName(), "Resume Play failed: " + s);
@@ -215,7 +223,7 @@ public class AVTransportPlayer extends AbstractPlayer {
                             setProcessingCommand(false);
                         }
                     };
-                    getUpnpClient().getControlPoint().execute(playCallback);
+                    executorService.execute(playCallback);
                 } else {
                     // For stopped or playing state, do full restart
                     Log.d(getClass().getName(), "Sending Stop command to ensure clean state");
@@ -253,7 +261,7 @@ public class AVTransportPlayer extends AbstractPlayer {
                 }, new Date());
             }
         };
-        getUpnpClient().getControlPoint().execute(stateCheck);
+        executorService.execute(stateCheck);
     }
 
     private void proceedWithSetURI(PlayableItem playableItem, Service<?, ?> service) {
@@ -318,10 +326,11 @@ public class AVTransportPlayer extends AbstractPlayer {
         albumArtUri = (albumArtUriProperty == null) ? null : albumArtUriProperty.getValue();
 
         InternalSetAVTransportURI setAVTransportURI = new InternalSetAVTransportURI(
-                service, modifyProxyUrlWithDeviceId(playableItem.getUri().toString()), actionState, metadata);
+                service, modifyProxyUrlWithDeviceId(playableItem.getUri().toString()), actionState, metadata, 
+                getHttpRequestSender());
         Log.d(getClass().getName(), "Original URI: " + playableItem.getUri().toString());
         Log.d(getClass().getName(), "Modified URI: " + modifyProxyUrlWithDeviceId(playableItem.getUri().toString()));
-        getUpnpClient().getControlPoint().execute(setAVTransportURI);
+        executorService.execute(setAVTransportURI);
         waitForActionComplete(actionState);
         int tries = 1;
         if (setAVTransportURI.hasFailures) {
@@ -331,7 +340,7 @@ public class AVTransportPlayer extends AbstractPlayer {
                 tries++;
                 Log.d(getClass().getName(), "setAVTransportURI.hasFailures retry:" + tries);
                 setAVTransportURI.hasFailures = false;
-                getUpnpClient().getControlPoint().execute(setAVTransportURI);
+                executorService.execute(setAVTransportURI);
                 waitForActionComplete(actionState);
             }
         }
@@ -350,7 +359,7 @@ public class AVTransportPlayer extends AbstractPlayer {
             @Override
             public void run() {
                 // Check current state before sending Play
-                GetTransportInfo stateCheck = new GetTransportInfo(service) {
+                GetTransportInfo stateCheck = new GetTransportInfo(service, getHttpRequestSender()) {
                     @Override
                     public void failure(ActionInvocation actioninvocation, UpnpResponse upnpresponse, String s) {
                         Log.d(getClass().getName(), "Failed to get transport state, sending Play anyway");
@@ -368,7 +377,7 @@ public class AVTransportPlayer extends AbstractPlayer {
                         } else if (state == TransportState.PAUSED_PLAYBACK) {
                             Log.d(getClass().getName(), "Resuming from pause, sending Play only");
                             // For paused content, just send Play command without SetAVTransportURI
-                            Play playCallback = new Play(service) {
+                            Play playCallback = new Play(service, getHttpRequestSender()) {
                                 @Override
                                 public void failure(ActionInvocation actioninvocation, UpnpResponse upnpresponse, String s) {
                                     Log.d(getClass().getName(), "Resume Play failed: " + s);
@@ -381,10 +390,10 @@ public class AVTransportPlayer extends AbstractPlayer {
                                     setProcessingCommand(false);
                                 }
                             };
-                            getUpnpClient().getControlPoint().execute(playCallback);
+                            executorService.execute(playCallback);
                         } else if (state == TransportState.PLAYING) {
                             Log.d(getClass().getName(), "Already playing, sending Stop first then Play");
-                            Stop stopCallback = new Stop(service) {
+                            Stop stopCallback = new Stop(service, getHttpRequestSender()) {
                                 @Override
                                 public void failure(ActionInvocation actioninvocation, UpnpResponse upnpresponse, String s) {
                                     Log.d(getClass().getName(), "Stop before Play failed: " + s);
@@ -402,21 +411,21 @@ public class AVTransportPlayer extends AbstractPlayer {
                                     }, new Date(System.currentTimeMillis() + 200));
                                 }
                             };
-                            getUpnpClient().getControlPoint().execute(stopCallback);
+                            executorService.execute(stopCallback);
                         } else {
                             Log.d(getClass().getName(), "Unknown state: " + state + ", sending Play anyway");
                             startPlayAction(service, actionState);
                         }
                     }
                 };
-                getUpnpClient().getControlPoint().execute(stateCheck);
+                executorService.execute(stateCheck);
             }
         }, new Date(System.currentTimeMillis() + 200));
     }
 
     private void startPlayAction(Service<?, ?> service, final ActionState actionState) {
         actionState.actionFinished = false;
-        Play actionCallback = new Play(service) {
+        Play actionCallback = new Play(service, getHttpRequestSender()) {
             @Override
             public void failure(ActionInvocation actioninvocation,
                                 UpnpResponse upnpresponse, String s) {
@@ -445,7 +454,7 @@ public class AVTransportPlayer extends AbstractPlayer {
                 }, new Date(System.currentTimeMillis() + 500));
             }
         };
-        getUpnpClient().getControlPoint().execute(actionCallback);
+        executorService.execute(actionCallback);
     }
 
     /**
@@ -538,7 +547,7 @@ public class AVTransportPlayer extends AbstractPlayer {
         Log.d(getClass().getName(), "Action Pause ");
         final ActionState actionState = new ActionState();
         actionState.actionFinished = false;
-        Pause actionCallback = new Pause(service) {
+        Pause actionCallback = new Pause(service, getHttpRequestSender()) {
             @Override
             public void failure(ActionInvocation actioninvocation,
                                 UpnpResponse upnpresponse, String s) {
@@ -559,7 +568,7 @@ public class AVTransportPlayer extends AbstractPlayer {
                 setProcessingCommand(false);
             }
         };
-        getUpnpClient().getControlPoint().execute(actionCallback);
+        executorService.execute(actionCallback);
     }
 
     @Override
@@ -622,7 +631,7 @@ public class AVTransportPlayer extends AbstractPlayer {
         }
 
         Log.d(getClass().getName(), "GetTransportInfo");
-        GetTransportInfo actionCallback = new GetTransportInfo(service) {
+        GetTransportInfo actionCallback = new GetTransportInfo(service, getHttpRequestSender()) {
             @Override
             public void failure(ActionInvocation actioninvocation, UpnpResponse upnpresponse, String s) {
                 Log.d(getClass().getName(), "GetTransportInfo failure: " + s);
@@ -648,7 +657,7 @@ public class AVTransportPlayer extends AbstractPlayer {
                 }
             }
         };
-        getUpnpClient().getControlPoint().execute(actionCallback);
+        executorService.execute(actionCallback);
     }
 
     private void sendPlayCommand() {
@@ -663,7 +672,7 @@ public class AVTransportPlayer extends AbstractPlayer {
         }
 
         Log.d(getClass().getName(), "Sending additional Play command");
-        Play actionCallback = new Play(service) {
+        Play actionCallback = new Play(service, getHttpRequestSender()) {
             @Override
             public void failure(ActionInvocation actioninvocation, UpnpResponse upnpresponse, String s) {
                 Log.d(getClass().getName(), "Additional Play command failed: " + s);
@@ -684,7 +693,7 @@ public class AVTransportPlayer extends AbstractPlayer {
                 }, new Date(System.currentTimeMillis() + 1000)); // Wait 1 second then check state
             }
         };
-        getUpnpClient().getControlPoint().execute(actionCallback);
+        executorService.execute(actionCallback);
     }
 
     protected void getPositionInfo() {
@@ -709,7 +718,7 @@ public class AVTransportPlayer extends AbstractPlayer {
         Log.d(getClass().getName(), "Action get position info ");
         positionActionState = new ActionState();
         positionActionState.actionFinished = false;
-        GetPositionInfo actionCallback = new GetPositionInfo(service) {
+        GetPositionInfo actionCallback = new GetPositionInfo(service, getHttpRequestSender()) {
             @Override
             public void failure(ActionInvocation actioninvocation,
                                 UpnpResponse upnpresponse, String s) {
@@ -782,7 +791,7 @@ public class AVTransportPlayer extends AbstractPlayer {
             }
         };
 
-        getUpnpClient().getControlPoint().execute(actionCallback);
+        executorService.execute(actionCallback);
 
 
     }
@@ -845,7 +854,7 @@ public class AVTransportPlayer extends AbstractPlayer {
         SimpleDateFormat dateFormat = new SimpleDateFormat("HH:mm:ss");
         dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
         String relativeTimeTarget = dateFormat.format(millisecondsFromStart);
-        Seek seekAction = new Seek(service, relativeTimeTarget) {
+        Seek seekAction = new Seek(service, relativeTimeTarget, getHttpRequestSender()) {
             @Override
             public void success(ActionInvocation invocation) {
                 //super.success(invocation);
@@ -890,7 +899,7 @@ public class AVTransportPlayer extends AbstractPlayer {
                 }
             }
         };
-        getUpnpClient().getControlPoint().execute(seekAction);
+        executorService.execute(seekAction);
 
     }
 
@@ -1021,8 +1030,8 @@ public class AVTransportPlayer extends AbstractPlayer {
         ActionState actionState;
 
         private InternalSetAVTransportURI(Service<?, ?> service, String uri,
-                                          ActionState actionState, String metadata) {
-            super(service, uri, metadata);
+                                          ActionState actionState, String metadata, de.yaacc.upnp.server.http.HttpRequestSender httpRequestSender) {
+            super(service, uri, metadata, httpRequestSender);
             this.actionState = actionState;
             Log.d(getClass().getName(), "InternalSetAVTransportURI created with URI: " + uri);
         }

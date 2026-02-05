@@ -14,6 +14,7 @@
  */
 
 package de.yaacc.upnp.protocol;
+import de.yaacc.util.Exceptions;
 
 import android.util.Log;
 
@@ -30,10 +31,9 @@ import org.fourthline.cling.model.meta.RemoteDevice;
 import org.fourthline.cling.model.meta.RemoteService;
 import org.fourthline.cling.model.types.ServiceType;
 import org.fourthline.cling.model.types.UDN;
-import org.fourthline.cling.registry.RegistrationException;
-import org.fourthline.cling.registry.Registry;
-import org.fourthline.cling.transport.RouterException;
-import org.seamless.util.Exceptions;
+import de.yaacc.upnp.registry.RegistrationException;
+import de.yaacc.upnp.registry.Registry;
+import java.io.IOException;
 
 import java.io.IOException;
 import java.net.URL;
@@ -108,7 +108,7 @@ public class RetrieveRemoteDescriptors implements Runnable {
         try {
             activeRetrievals.add(deviceURL);
             describe();
-        } catch (RouterException ex) {
+        } catch (IOException ex) {
             Log.w(getClass().getName(),
                     "Descriptor retrieval failed: " + deviceURL,
                     ex
@@ -118,7 +118,7 @@ public class RetrieveRemoteDescriptors implements Runnable {
         }
     }
 
-    protected void describe() throws RouterException {
+    protected void describe() throws IOException {
 
         // All of the following is a very expensive and time consuming procedure, thanks to the
         // braindead design of UPnP. Several GET requests, several descriptors, several XML parsing
@@ -182,7 +182,7 @@ public class RetrieveRemoteDescriptors implements Runnable {
         describe(descriptorContent);
     }
 
-    protected void describe(String descriptorXML) throws RouterException {
+    protected void describe(String descriptorXML) throws IOException {
 
         boolean notifiedStart = false;
         RemoteDevice describedDevice = null;
@@ -245,7 +245,7 @@ public class RetrieveRemoteDescriptors implements Runnable {
     }
 
     protected RemoteDevice describeServices(RemoteDevice currentDevice)
-            throws RouterException, DescriptorBindingException, ValidationException {
+            throws IOException, DescriptorBindingException, ValidationException {
 
         List<RemoteService> describedServices = new ArrayList<>();
         if (currentDevice.hasServices()) {
@@ -292,7 +292,7 @@ public class RetrieveRemoteDescriptors implements Runnable {
     }
 
     protected RemoteService describeService(RemoteService service)
-            throws RouterException, DescriptorBindingException, ValidationException {
+            throws IOException, DescriptorBindingException, ValidationException {
 
         URL descriptorURL;
         try {

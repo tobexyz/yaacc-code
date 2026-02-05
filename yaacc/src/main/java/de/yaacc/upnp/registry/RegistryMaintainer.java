@@ -17,9 +17,8 @@ package de.yaacc.upnp.registry;
 
 import android.util.Log;
 
-
 /**
- * Runs periodically and calls {@link RegistryImpl#maintain()}.
+ * Runs periodically and calls {@link org.fourthline.cling.registry.RegistryImpl#maintain()}.
  *
  * @author Christian Bauer
  */

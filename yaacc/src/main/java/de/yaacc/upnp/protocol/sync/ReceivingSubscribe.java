@@ -14,6 +14,7 @@
  */
 
 package de.yaacc.upnp.protocol.sync;
+import de.yaacc.util.Exceptions;
 
 import android.util.Log;
 
@@ -26,15 +27,14 @@ import org.fourthline.cling.model.message.gena.IncomingSubscribeRequestMessage;
 import org.fourthline.cling.model.message.gena.OutgoingSubscribeResponseMessage;
 import org.fourthline.cling.model.meta.LocalService;
 import org.fourthline.cling.model.resource.ServiceEventSubscriptionResource;
-import org.fourthline.cling.registry.Registry;
-import org.fourthline.cling.transport.RouterException;
-import org.seamless.util.Exceptions;
+import java.io.IOException;
 
 import java.net.URL;
 import java.util.List;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ExecutorService;
 
 import de.yaacc.upnp.protocol.ReceivingSync;
+import de.yaacc.upnp.registry.Registry;
 import de.yaacc.upnp.server.http.HttpRequestSender;
 
 /**
@@ -62,15 +62,17 @@ public class ReceivingSubscribe extends ReceivingSync<StreamRequestMessage, Outg
 
     private final Registry registry;
     private final HttpRequestSender httpRequestSender;
+    private final ExecutorService executorService;
     protected LocalGENASubscription subscription;
 
     public ReceivingSubscribe(Registry registry, HttpRequestSender httpRequestSender, StreamRequestMessage inputMessage) {
         super(inputMessage);
         this.httpRequestSender = httpRequestSender;
         this.registry = registry;
+        executorService = registry.getExecutorService();
     }
 
-    protected OutgoingSubscribeResponseMessage executeSync() throws RouterException {
+    protected OutgoingSubscribeResponseMessage executeSync() throws IOException {
 
         ServiceEventSubscriptionResource resource =
                 registry.getResource(
@@ -156,7 +158,7 @@ public class ReceivingSubscribe extends ReceivingSync<StreamRequestMessage, Outg
 
                 public void eventReceived() {
                     // The only thing we are interested in, sending an event when the state changes
-                    Executors.newSingleThreadExecutor().execute(new SendingEvent(httpRequestSender, this));
+                    executorService.execute(new SendingEvent(httpRequestSender, this));
                 }
             };
         } catch (Exception ex) {
@@ -188,7 +190,7 @@ public class ReceivingSubscribe extends ReceivingSync<StreamRequestMessage, Outg
             subscription.establish();
 
             Log.v(getClass().getName(), "Response to subscription sent successfully, now sending initial event asynchronously");
-            Executors.newSingleThreadExecutor().execute(new SendingEvent(httpRequestSender, subscription));
+            executorService.execute(new SendingEvent(httpRequestSender, subscription));
 
         } else if (subscription.getCurrentSequence().getValue() == 0) {
             Log.v(getClass().getName(), "Subscription request's response aborted, not sending initial event");

@@ -20,16 +20,11 @@ import android.util.Log;
 import org.fourthline.cling.model.message.StreamRequestMessage;
 import org.fourthline.cling.model.message.StreamResponseMessage;
 import org.fourthline.cling.model.profile.RemoteClientInfo;
-import org.fourthline.cling.protocol.ProtocolFactory;
-import org.fourthline.cling.transport.RouterException;
+
+import java.io.IOException;
 
 /**
  * Supertype for all synchronously executing protocols, handling reception of UPnP messages and return a response.
- * <p>
- * After instantiation by the {@link ProtocolFactory}, this protocol <code>run()</code>s and
- * calls its own {@link #waitBeforeExecution()} method. By default, the protocol does not wait
- * before then proceeding with {@link #executeSync()}.
- * </p>
  * <p>
  * The returned response will be available to the client of this protocol. The
  * client will then call either {@link #responseSent(StreamResponseMessage)}
@@ -58,7 +53,7 @@ public abstract class ReceivingSync<IN extends StreamRequestMessage, OUT extends
         return outputMessage;
     }
 
-    final protected void execute() throws RouterException {
+    final protected void execute() throws IOException {
         outputMessage = executeSync();
 
         if (outputMessage != null && getRemoteClientInfo().getExtraResponseHeaders().size() > 0) {
@@ -67,7 +62,7 @@ public abstract class ReceivingSync<IN extends StreamRequestMessage, OUT extends
         }
     }
 
-    protected abstract OUT executeSync() throws RouterException;
+    protected abstract OUT executeSync() throws IOException;
 
     /**
      * Called by the client of this protocol after the returned response has been successfully delivered.

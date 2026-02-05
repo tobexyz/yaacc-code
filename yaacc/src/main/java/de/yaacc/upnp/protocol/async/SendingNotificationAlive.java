@@ -20,7 +20,7 @@ import android.util.Log;
 
 import org.fourthline.cling.model.meta.LocalDevice;
 import org.fourthline.cling.model.types.NotificationSubtype;
-import org.fourthline.cling.transport.RouterException;
+import java.io.IOException;
 
 import de.yaacc.upnp.server.udp.UdpTransiver;
 
@@ -37,7 +37,7 @@ public class SendingNotificationAlive extends SendingNotification {
     }
 
     @Override
-    protected void execute() throws RouterException {
+    protected void execute() throws IOException {
         Log.v(getClass().getName(), "Sending alive messages (" + getBulkRepeat() + " times) for: " + getDevice());
         super.execute();
     }

@@ -8,7 +8,6 @@ import org.apache.hc.client5.http.config.ConnectionConfig;
 import org.apache.hc.client5.http.impl.DefaultConnectionKeepAliveStrategy;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
-import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
 import org.apache.hc.core5.http.ClassicHttpRequest;
 import org.apache.hc.core5.http.ClassicHttpResponse;
@@ -54,7 +53,6 @@ public class HttpRequestSender {
 
         Log.v(getClass().getName(), "Sending HTTP request: " + requestMessage);
         Log.v(getClass().getName(), "HTTP body: " + requestMessage.getBodyString());
-        CloseableHttpClient httpClient = HttpClients.createDefault();
         HttpUriRequestBase request = new HttpUriRequestBase(requestMessage.getOperation().getHttpMethodName(), requestMessage.getUri());
         applyRequestHeader(requestMessage, request);
         applyRequestBody(requestMessage, request);
@@ -113,6 +111,7 @@ public class HttpRequestSender {
         if (UpnpResponse.Status.getByStatusCode(response.getCode()) == null) {
             throw new IllegalStateException("can't create UpnpResponse.Status from http response status: " + response.getCode());
         }
+        Log.d(getClass().getName(), "Received response code: " + response.getCode());
         UpnpResponse responseOperation =
                 new UpnpResponse(
                         response.getCode(),

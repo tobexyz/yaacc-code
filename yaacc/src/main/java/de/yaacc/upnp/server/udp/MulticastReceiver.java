@@ -20,23 +20,26 @@
 package de.yaacc.upnp.server.udp;
 
 import android.content.Context;
-import android.os.AsyncTask;
 import android.util.Log;
 
+import de.yaacc.util.Exceptions;
 import org.fourthline.cling.model.UnsupportedDataException;
 import org.fourthline.cling.model.message.IncomingDatagramMessage;
-import org.fourthline.cling.protocol.ProtocolCreationException;
-import org.seamless.util.Exceptions;
 
-import java.net.DatagramPacket;
+import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.net.MulticastSocket;
 import java.net.NetworkInterface;
 import java.net.SocketException;
+import java.net.StandardProtocolFamily;
+import java.net.StandardSocketOptions;
 import java.net.UnknownHostException;
+import java.nio.ByteBuffer;
+import java.nio.channels.DatagramChannel;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import de.yaacc.upnp.protocol.ProtocolCreationException;
 import de.yaacc.upnp.protocol.ReceivingAsync;
 import de.yaacc.upnp.protocol.UpnpProtocolHandler;
 import de.yaacc.util.InterfaceResolutionHelper;
@@ -44,7 +47,7 @@ import de.yaacc.util.InterfaceResolutionHelper;
 /*
 Handling of UDP multicast packages
  */
-public class MulticastReceiver extends AsyncTask<Void, Void, Void> {
+public class MulticastReceiver {
 
     public static final int UPNP_MULTICAST_PORT = 1900;
     public static final String IPV4_UPNP_MULTICAST_GROUP = "239.255.255.250";
@@ -53,11 +56,16 @@ public class MulticastReceiver extends AsyncTask<Void, Void, Void> {
 
     protected NetworkInterface multicastInterface;
     protected InetSocketAddress multicastAddress;
-    protected MulticastSocket socket;
+    //protected MulticastSocket socket;
+    private DatagramChannel channel;
     private Context context;
+    private ExecutorService receiverExecutor;
+    private ExecutorService protocolExecutor;
 
 
     public MulticastReceiver() {
+        receiverExecutor = Executors.newSingleThreadExecutor();
+        protocolExecutor = Executors.newFixedThreadPool(100);
 
     }
 
@@ -65,28 +73,117 @@ public class MulticastReceiver extends AsyncTask<Void, Void, Void> {
     public void init(Context context, UpnpProtocolHandler protocolHandler) {
         this.protocolHandler = protocolHandler;
         this.context = context;
+        initSocket();
+    }
+
+    private void initSocket() {
         InterfaceResolutionHelper.InterfaceHolder usableInterface = InterfaceResolutionHelper.getNetworkInterface(context);
         this.multicastInterface = usableInterface.networkInterface;
 
         try {
 
             Log.v(getClass().getName(), "Creating wildcard socket (for receiving multicast datagrams) on port: " + UPNP_MULTICAST_PORT);
-            multicastAddress = new InetSocketAddress(getMulticastGroup(), UPNP_MULTICAST_PORT);
+         /*   multicastAddress = new InetSocketAddress(getMulticastGroup(), UPNP_MULTICAST_PORT);
 
             socket = new MulticastSocket(UPNP_MULTICAST_PORT);
             socket.setReuseAddress(true);
             socket.setReceiveBufferSize(32768); // Keep a backlog of incoming datagrams if we are not fast enough
-
             Log.v(getClass().getName(), "Joining multicast group: " + multicastAddress + " on network interface: " + multicastInterface.getDisplayName());
             socket.joinGroup(multicastAddress, multicastInterface);
+*/
+
+            channel = DatagramChannel.open(StandardProtocolFamily.INET);
+            channel.setOption(StandardSocketOptions.SO_REUSEADDR, true);
+            channel.bind(new InetSocketAddress(InetAddress.getByName("0.0.0.0"), UPNP_MULTICAST_PORT));
+            channel.join(getMulticastGroup(), multicastInterface);
 
         } catch (Exception ex) {
-            throw new IllegalStateException("Could not initialize " + getClass().getSimpleName() + ": " + ex);
+            throw new IllegalStateException("Could not initialize " + getClass().getSimpleName() + ": ", ex);
         }
     }
 
-    @Override
-    protected void onCancelled() {
+    public InetAddress getMulticastGroup() {
+        try {
+            return InetAddress.getByName(IPV4_UPNP_MULTICAST_GROUP);
+        } catch (UnknownHostException ex) {
+            throw new RuntimeException(ex);
+        }
+    }
+
+    public void execute() {
+        receiverExecutor.execute(() -> {
+            try {
+                Log.v(getClass().getName(), "Entering blocking receiving loop, listening for UDP datagrams on: " + channel.getLocalAddress() /*socket.getLocalAddress()*/);
+            } catch (IOException e) {
+                Log.v(getClass().getName(), "Could not get local address: ", e);
+            }
+            InetAddress receivedOnLocalAddress = InterfaceResolutionHelper.getBindAddresses(context).next();
+            ByteBuffer buffer = ByteBuffer.allocate(1024);
+            while (true) {
+                buffer.clear();
+                try {
+                    //byte[] buf = new byte[640];
+                    //DatagramPacket datagram = new DatagramPacket(buf, buf.length);
+
+                    if (!channel.isOpen()) {
+                        initSocket();
+                    }
+                    InetSocketAddress sender = (InetSocketAddress) channel.receive(buffer);
+                    buffer.flip();
+                    byte[] data = new byte[buffer.remaining()];
+                    buffer.get(data);
+
+                    //socket.receive(datagram);
+
+                    Log.v(getClass().getName(),
+                            "UDP datagram received from: " + sender.getAddress()//datagram.getAddress().getHostAddress()
+                                    + ":" + sender.getPort()//datagram.getPort()
+                                    + " on local interface: " + channel.getLocalAddress()//multicastInterface.getDisplayName()
+                                    + " and address: " + receivedOnLocalAddress.getHostAddress()
+                    );
+
+                    try {
+                        IncomingDatagramMessage<?> msg = DatagramHelper.read(receivedOnLocalAddress, data, sender.getAddress(), sender.getPort());
+                        ReceivingAsync<?> protocol = protocolHandler.createReceivingAsync(msg);
+                        if (protocol == null) {
+                            Log.v(getClass().getName(), "No protocol, ignoring received message: " + msg);
+                            continue;
+                        }
+
+                        Log.v(getClass().getName(), "Received asynchronous message: " + msg);
+                        protocolExecutor.execute(protocol);
+                    } catch (ProtocolCreationException ex) {
+                        Log.w(getClass().getName(), "Handling received datagram failed - " + Exceptions.unwrap(ex).toString());
+                    }
+
+                } catch (SocketException ex) {
+                    Log.v(getClass().getName(), "Socket closed", ex);
+                    break;
+                } catch (UnsupportedDataException ex) {
+                    Log.v(getClass().getName(), "Could not read datagram: " + ex.getMessage(), ex);
+                } catch (Exception ex) {
+                    throw new RuntimeException(ex);
+                }
+            }
+            try {
+                if (channel.isOpen()) {
+                    Log.v(getClass().getName(), "Closing multicast socket");
+                    channel.close();
+                }
+                /*
+                if (!socket.isClosed()) {
+                    Log.v(getClass().getName(), "Closing multicast socket");
+                    socket.close();
+                }
+                 */
+            } catch (Exception ex) {
+                throw new RuntimeException(ex);
+            }
+        });
+    }
+
+    public void cancel() {
+        /*
         if (socket != null && !socket.isClosed()) {
             try {
                 Log.v(getClass().getName(), "Leaving multicast group");
@@ -97,71 +194,15 @@ public class MulticastReceiver extends AsyncTask<Void, Void, Void> {
             }
             // So... just close it and ignore the log messages
             socket.close();
-        }
-    }
-
-
-    @Override
-    protected Void doInBackground(Void... voids) {
-        Log.v(getClass().getName(), "Entering blocking receiving loop, listening for UDP datagrams on: " + socket.getLocalAddress());
-        while (true) {
-
+        }*/
+        if (channel != null && channel.isOpen()) {
             try {
-                byte[] buf = new byte[640];
-                DatagramPacket datagram = new DatagramPacket(buf, buf.length);
-
-                socket.receive(datagram);
-
-                InetAddress receivedOnLocalAddress = InterfaceResolutionHelper.getBindAddresses(context).next();
-
-                Log.v(getClass().getName(),
-                        "UDP datagram received from: " + datagram.getAddress().getHostAddress()
-                                + ":" + datagram.getPort()
-                                + " on local interface: " + multicastInterface.getDisplayName()
-                                + " and address: " + receivedOnLocalAddress.getHostAddress()
-                );
-
-                try {
-                    IncomingDatagramMessage<?> msg = DatagramHelper.read(receivedOnLocalAddress, datagram);
-                    ReceivingAsync<?> protocol = protocolHandler.createReceivingAsync(msg);
-                    if (protocol == null) {
-
-                        Log.v(getClass().getName(), "No protocol, ignoring received message: " + msg);
-                        break;
-                    }
-
-                    Log.v(getClass().getName(), "Received asynchronous message: " + msg);
-                    Executors.newSingleThreadExecutor().execute(protocol);
-                } catch (ProtocolCreationException ex) {
-                    Log.w(getClass().getName(), "Handling received datagram failed - " + Exceptions.unwrap(ex).toString());
-                }
-
-            } catch (SocketException ex) {
-                Log.v(getClass().getName(), "Socket closed", ex);
-                break;
-            } catch (UnsupportedDataException ex) {
-                Log.v(getClass().getName(), "Could not read datagram: " + ex.getMessage(), ex);
-            } catch (Exception ex) {
-                throw new RuntimeException(ex);
+                channel.close();
+            } catch (IOException ex) {
+                Log.v(getClass().getName(), "Could not close multicast channel: ", ex);
             }
         }
-        try {
-            if (!socket.isClosed()) {
-                Log.v(getClass().getName(), "Closing multicast socket");
-                socket.close();
-            }
-        } catch (Exception ex) {
-            throw new RuntimeException(ex);
-        }
-        return null;
-    }
 
-    public InetAddress getMulticastGroup() {
-        try {
-            return InetAddress.getByName(IPV4_UPNP_MULTICAST_GROUP);
-        } catch (UnknownHostException ex) {
-            throw new RuntimeException(ex);
-        }
     }
 
 }

@@ -25,12 +25,12 @@ import org.fourthline.cling.model.message.discovery.IncomingNotificationRequest;
 import org.fourthline.cling.model.meta.RemoteDevice;
 import org.fourthline.cling.model.meta.RemoteDeviceIdentity;
 import org.fourthline.cling.model.types.UDN;
-import org.fourthline.cling.registry.Registry;
-import org.fourthline.cling.transport.RouterException;
+import java.io.IOException;
 
-import java.util.concurrent.Executors;
+import java.util.concurrent.ExecutorService;
 
 import de.yaacc.upnp.protocol.ReceivingAsync;
+import de.yaacc.upnp.registry.Registry;
 import de.yaacc.upnp.server.http.HttpRequestSender;
 
 /**
@@ -74,6 +74,7 @@ import de.yaacc.upnp.server.http.HttpRequestSender;
  */
 public class ReceivingNotification extends ReceivingAsync<IncomingNotificationRequest> {
 
+    private final ExecutorService executorService;
     private Registry registry;
     private HttpRequestSender httpRequestSender;
 
@@ -81,10 +82,11 @@ public class ReceivingNotification extends ReceivingAsync<IncomingNotificationRe
     public ReceivingNotification(Registry registry, HttpRequestSender httpRequestSender, IncomingDatagramMessage<UpnpRequest> inputMessage) {
         super(new IncomingNotificationRequest(inputMessage));
         this.registry = registry;
+        executorService = registry.getExecutorService();
         this.httpRequestSender = httpRequestSender;
     }
 
-    protected void execute() throws RouterException {
+    protected void execute() throws IOException {
 
         UDN udn = getInputMessage().getUDN();
         if (udn == null) {
@@ -127,7 +129,7 @@ public class ReceivingNotification extends ReceivingAsync<IncomingNotificationRe
 
             // Unfortunately, we always have to retrieve the descriptor because at this point we
             // have no idea if it's a root or embedded device
-            Executors.newSingleThreadExecutor().execute(
+            executorService.execute(
                     new RetrieveRemoteDescriptors(registry, httpRequestSender, rd)
             );
 

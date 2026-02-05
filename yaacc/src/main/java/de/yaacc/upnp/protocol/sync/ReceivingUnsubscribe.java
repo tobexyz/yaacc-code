@@ -23,8 +23,8 @@ import org.fourthline.cling.model.message.StreamResponseMessage;
 import org.fourthline.cling.model.message.UpnpResponse;
 import org.fourthline.cling.model.message.gena.IncomingUnsubscribeRequestMessage;
 import org.fourthline.cling.model.resource.ServiceEventSubscriptionResource;
-import org.fourthline.cling.registry.Registry;
-import org.fourthline.cling.transport.RouterException;
+import de.yaacc.upnp.registry.Registry;
+import java.io.IOException;
 
 import de.yaacc.upnp.protocol.ReceivingSync;
 
@@ -43,7 +43,7 @@ public class ReceivingUnsubscribe extends ReceivingSync<StreamRequestMessage, St
         this.registry = registry;
     }
 
-    protected StreamResponseMessage executeSync() throws RouterException {
+    protected StreamResponseMessage executeSync() throws IOException {
 
         ServiceEventSubscriptionResource resource =
                 registry.getResource(

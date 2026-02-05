@@ -24,8 +24,8 @@ import org.fourthline.cling.model.meta.RemoteDevice;
 import org.fourthline.cling.model.meta.RemoteDeviceIdentity;
 import org.fourthline.cling.model.resource.Resource;
 import org.fourthline.cling.model.types.UDN;
-import org.fourthline.cling.registry.RegistrationException;
-import org.fourthline.cling.registry.RegistryListener;
+import de.yaacc.upnp.registry.RegistrationException;
+import de.yaacc.upnp.registry.RegistryListener;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -34,6 +34,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
@@ -44,8 +45,11 @@ import java.util.concurrent.Executors;
 class RemoteItems extends RegistryItems<RemoteDevice, RemoteGENASubscription> {
 
 
+    private final ExecutorService executorService;
+
     RemoteItems(RegistryImpl registry) {
         super(registry);
+        executorService = Executors.newFixedThreadPool(20);
     }
 
     /**
@@ -105,7 +109,7 @@ class RemoteItems extends RegistryItems<RemoteDevice, RemoteGENASubscription> {
         // Only notify the listeners when the device is fully usable
         Log.v(getClass().getName(), "Completely hydrated remote device graph available, calling listeners: " + device);
         for (final RegistryListener listener : registry.getListeners()) {
-            Executors.newSingleThreadExecutor().execute(
+            executorService.execute(
                     new Runnable() {
                         public void run() {
                             listener.remoteDeviceAdded(registry, device);
@@ -146,7 +150,7 @@ class RemoteItems extends RegistryItems<RemoteDevice, RemoteGENASubscription> {
 
             Log.v(getClass().getName(), "Remote device updated, calling listeners: " + registeredRemoteDevice);
             for (final RegistryListener listener : registry.getListeners()) {
-                Executors.newSingleThreadExecutor().execute(
+                executorService.execute(
                         new Runnable() {
                             public void run() {
                                 listener.remoteDeviceUpdated(registry, item.getItem());
@@ -196,7 +200,7 @@ class RemoteItems extends RegistryItems<RemoteDevice, RemoteGENASubscription> {
                     Log.v(getClass().getName(), "Removing outgoing subscription: " + outgoingSubscription.getKey());
                     it.remove();
                     if (!shuttingDown) {
-                        Executors.newSingleThreadExecutor().execute(
+                        executorService.execute(
                                 new Runnable() {
                                     public void run() {
                                         outgoingSubscription.getItem().end(CancelReason.DEVICE_WAS_REMOVED, null);
@@ -210,7 +214,7 @@ class RemoteItems extends RegistryItems<RemoteDevice, RemoteGENASubscription> {
             // Only notify listeners if we are NOT in the process of shutting down the registry
             if (!shuttingDown) {
                 for (final RegistryListener listener : registry.getListeners()) {
-                    Executors.newSingleThreadExecutor().execute(
+                    executorService.execute(
                             new Runnable() {
                                 public void run() {
                                     listener.remoteDeviceRemoved(registry, registeredDevice);
@@ -303,7 +307,7 @@ class RemoteItems extends RegistryItems<RemoteDevice, RemoteGENASubscription> {
         }
         for (RemoteGENASubscription remoteSubscription : remoteSubscriptions) {
             // This will remove the active subscription from the registry!
-            registry.getProtocolFactory()
+            registry.getProtocolHandler()
                     .createSendingUnsubscribe(remoteSubscription)
                     .run();
         }
@@ -316,7 +320,7 @@ class RemoteItems extends RegistryItems<RemoteDevice, RemoteGENASubscription> {
 
     protected void renewOutgoingSubscription(final RemoteGENASubscription subscription) {
         registry.executeAsyncProtocol(
-                registry.getProtocolFactory().createSendingRenewal(subscription)
+                registry.getProtocolHandler().createSendingRenewal(subscription)
         );
     }
 }

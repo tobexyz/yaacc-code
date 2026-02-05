@@ -21,10 +21,11 @@ import org.fourthline.cling.model.gena.CancelReason;
 import org.fourthline.cling.model.gena.RemoteGENASubscription;
 import org.fourthline.cling.model.message.StreamResponseMessage;
 import org.fourthline.cling.model.message.gena.OutgoingUnsubscribeRequestMessage;
-import org.fourthline.cling.registry.Registry;
-import org.fourthline.cling.transport.RouterException;
+import de.yaacc.upnp.registry.Registry;
+import java.io.IOException;
 
 import java.io.IOException;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import de.yaacc.upnp.protocol.SendingSync;
@@ -46,15 +47,18 @@ public class SendingUnsubscribe extends SendingSync<OutgoingUnsubscribeRequestMe
     final protected RemoteGENASubscription subscription;
     private final HttpRequestSender httpRequestSender;
     private final Registry registry;
+    private final ExecutorService executorService;
 
     public SendingUnsubscribe(Registry registry, HttpRequestSender httpRequestSender, RemoteGENASubscription subscription) {
         super(new OutgoingUnsubscribeRequestMessage(subscription, null));
         this.registry = registry;
         this.httpRequestSender = httpRequestSender;
         this.subscription = subscription;
+        executorService = Executors.newFixedThreadPool(20);
+
     }
 
-    protected StreamResponseMessage executeSync() throws RouterException {
+    protected StreamResponseMessage executeSync() throws IOException {
 
         Log.v(getClass().getName(), "Sending unsubscribe request: " + getInputMessage());
 
@@ -63,7 +67,7 @@ public class SendingUnsubscribe extends SendingSync<OutgoingUnsubscribeRequestMe
             response = httpRequestSender.send(getInputMessage());
             return response;
         } catch (IOException e) {
-            throw new RouterException(e);
+            throw new IOException(e);
         } finally {
             onUnsubscribe(response);
         }
@@ -73,7 +77,7 @@ public class SendingUnsubscribe extends SendingSync<OutgoingUnsubscribeRequestMe
         // Always remove from the registry and end the subscription properly - even if it's failed
         registry.removeRemoteSubscription(subscription);
 
-        Executors.newSingleThreadExecutor().execute(
+        executorService.execute(
                 new Runnable() {
                     public void run() {
                         if (response == null) {

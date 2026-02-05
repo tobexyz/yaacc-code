@@ -17,6 +17,7 @@ package de.yaacc.upnp.protocol.sync;
 
 import android.util.Log;
 
+import de.yaacc.util.Exceptions;
 import org.fourthline.cling.model.UnsupportedDataException;
 import org.fourthline.cling.model.action.ActionCancelledException;
 import org.fourthline.cling.model.action.ActionException;
@@ -30,10 +31,9 @@ import org.fourthline.cling.model.message.header.ContentTypeHeader;
 import org.fourthline.cling.model.message.header.UpnpHeader;
 import org.fourthline.cling.model.resource.ServiceControlResource;
 import org.fourthline.cling.model.types.ErrorCode;
-import org.fourthline.cling.registry.Registry;
-import org.fourthline.cling.transport.RouterException;
+import de.yaacc.upnp.registry.Registry;
+import java.io.IOException;
 import org.fourthline.cling.transport.impl.SOAPActionProcessorImpl;
-import org.seamless.util.Exceptions;
 
 import de.yaacc.upnp.protocol.ReceivingSync;
 
@@ -57,7 +57,7 @@ public class ReceivingAction extends ReceivingSync<StreamRequestMessage, StreamR
         this.registry = registry;
     }
 
-    protected StreamResponseMessage executeSync() throws RouterException {
+    protected StreamResponseMessage executeSync() throws IOException {
 
         ContentTypeHeader contentTypeHeader =
                 getInputMessage().getHeaders().getFirstHeader(UpnpHeader.Type.CONTENT_TYPE, ContentTypeHeader.class);

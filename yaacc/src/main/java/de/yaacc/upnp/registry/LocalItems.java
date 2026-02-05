@@ -23,9 +23,8 @@ import org.fourthline.cling.model.gena.LocalGENASubscription;
 import org.fourthline.cling.model.meta.LocalDevice;
 import org.fourthline.cling.model.resource.Resource;
 import org.fourthline.cling.model.types.UDN;
-import org.fourthline.cling.protocol.SendingAsync;
-import org.fourthline.cling.registry.RegistrationException;
-import org.fourthline.cling.registry.RegistryListener;
+import de.yaacc.upnp.registry.RegistrationException;
+import de.yaacc.upnp.registry.RegistryListener;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -35,7 +34,10 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+
+import de.yaacc.upnp.protocol.SendingAsync;
 
 /**
  * Internal class, required by {@link org.fourthline.cling.registry.RegistryImpl}.
@@ -44,6 +46,7 @@ import java.util.concurrent.Executors;
  */
 class LocalItems extends RegistryItems<LocalDevice, LocalGENASubscription> {
 
+    private final ExecutorService executorService;
     int ALIVE_INTERVAL_MILLIS = 0; //Defaults to zero, disabling ALIVE flooding.
     protected Map<UDN, DiscoveryOptions> discoveryOptions = new HashMap<>();
     protected long lastAliveIntervalTimestamp = 0;
@@ -51,6 +54,7 @@ class LocalItems extends RegistryItems<LocalDevice, LocalGENASubscription> {
 
     LocalItems(RegistryImpl registry) {
         super(registry);
+        executorService = Executors.newFixedThreadPool(20);
     }
 
     protected void setDiscoveryOptions(UDN udn, DiscoveryOptions options) {
@@ -119,7 +123,7 @@ class LocalItems extends RegistryItems<LocalDevice, LocalGENASubscription> {
             advertiseAlive(localDevice);
 
         for (final RegistryListener listener : registry.getListeners()) {
-            Executors.newSingleThreadExecutor().execute(
+            executorService.execute(
                     new Runnable() {
                         public void run() {
                             listener.localDeviceAdded(registry, localDevice);
@@ -170,7 +174,7 @@ class LocalItems extends RegistryItems<LocalDevice, LocalGENASubscription> {
                     Log.v(getClass().getName(), "Removing incoming subscription: " + incomingSubscription.getKey());
                     it.remove();
                     if (!shuttingDown) {
-                        Executors.newSingleThreadExecutor().execute(
+                        executorService.execute(
                                 new Runnable() {
                                     public void run() {
                                         incomingSubscription.getItem().end(CancelReason.DEVICE_WAS_REMOVED);
@@ -186,7 +190,7 @@ class LocalItems extends RegistryItems<LocalDevice, LocalGENASubscription> {
 
             if (!shuttingDown) {
                 for (final RegistryListener listener : registry.getListeners()) {
-                    registry.getConfiguration().getRegistryListenerExecutor().execute(
+                    executorService.execute(
                             new Runnable() {
                                 public void run() {
                                     listener.localDeviceRemoved(registry, localDevice);
@@ -297,13 +301,13 @@ class LocalItems extends RegistryItems<LocalDevice, LocalGENASubscription> {
                 } catch (InterruptedException ex) {
                     Log.e(getClass().getName(), "Background execution interrupted: " + ex.getMessage());
                 }
-                registry.getProtocolFactory().createSendingNotificationAlive(localDevice).run();
+                registry.getUpnpProtocolHandler().createSendingNotificationAlive(localDevice).run();
             }
         });
     }
 
     protected void advertiseByebye(final LocalDevice localDevice, boolean asynchronous) {
-        final SendingAsync prot = registry.getProtocolFactory().createSendingNotificationByebye(localDevice);
+        final SendingAsync prot = registry.getUpnpProtocolHandler().createSendingNotificationByebye(localDevice);
         if (asynchronous) {
             registry.executeAsyncProtocol(prot);
         } else {

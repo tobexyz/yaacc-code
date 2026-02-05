@@ -27,10 +27,8 @@ import android.util.Log;
 
 import androidx.annotation.NonNull;
 
-import org.fourthline.cling.registry.Registry;
-import org.fourthline.cling.transport.spi.InitializationException;
-
 import de.yaacc.upnp.protocol.UpnpProtocolHandler;
+import de.yaacc.upnp.registry.Registry;
 import de.yaacc.upnp.server.http.HttpRequestSender;
 import de.yaacc.upnp.server.udp.MulticastReceiver;
 import de.yaacc.upnp.server.udp.UdpTransiver;
@@ -47,10 +45,10 @@ public class NetworkDeviceListener {
     private MulticastReceiver multicastReceiver;
 
     private UdpTransiver udpTransiver;
-    private UpnpProtocolHandler udpProtocolHandler;
+    private UpnpProtocolHandler upnpProtocolHandler;
 
 
-    public NetworkDeviceListener(Context context, Registry registry) throws InitializationException {
+    public NetworkDeviceListener(Context context, Registry registry) throws IllegalStateException {
         this.context = context;
         this.registry = registry;
         this.wifiManager = ((WifiManager) context.getSystemService(Context.WIFI_SERVICE));
@@ -104,10 +102,10 @@ public class NetworkDeviceListener {
             setWiFiMulticastLock(true);
             setWifiLock(true);
         }
-        udpProtocolHandler = new UpnpProtocolHandler(context, registry, udpTransiver, multicastReceiver, httpRequestSender);
-        multicastReceiver.init(context, udpProtocolHandler);
+        upnpProtocolHandler = new UpnpProtocolHandler(context, registry, udpTransiver, multicastReceiver, httpRequestSender);
+        multicastReceiver.init(context, upnpProtocolHandler);
         multicastReceiver.execute();
-        udpTransiver.init(context, udpProtocolHandler);
+        udpTransiver.init(context, upnpProtocolHandler);
         udpTransiver.execute();
     }
 
@@ -119,9 +117,9 @@ public class NetworkDeviceListener {
             setWiFiMulticastLock(false);
             setWifiLock(false);
         }
-        udpProtocolHandler = null;
-        multicastReceiver.cancel(true);
-        udpTransiver.cancel(true);
+        upnpProtocolHandler = null;
+        multicastReceiver.cancel();
+        udpTransiver.cancel();
     }
 
     private boolean isWifi() {
@@ -188,4 +186,15 @@ public class NetworkDeviceListener {
         return udpTransiver;
     }
 
+    public HttpRequestSender getHttpRequestSender() {
+        return httpRequestSender;
+    }
+
+    public UpnpProtocolHandler getUpnpProtocolHandler() {
+        return upnpProtocolHandler;
+    }
+
+    public boolean isInitalized() {
+        return udpTransiver != null && multicastReceiver != null && upnpProtocolHandler != null;
+    }
 }

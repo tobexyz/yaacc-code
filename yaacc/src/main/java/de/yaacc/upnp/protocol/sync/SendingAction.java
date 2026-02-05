@@ -28,7 +28,7 @@ import org.fourthline.cling.model.message.control.IncomingActionResponseMessage;
 import org.fourthline.cling.model.message.control.OutgoingActionRequestMessage;
 import org.fourthline.cling.model.meta.Device;
 import org.fourthline.cling.model.types.ErrorCode;
-import org.fourthline.cling.transport.RouterException;
+import java.io.IOException;
 import org.fourthline.cling.transport.impl.SOAPActionProcessorImpl;
 
 import java.io.IOException;
@@ -64,11 +64,11 @@ public class SendingAction extends SendingSync<OutgoingActionRequestMessage, Inc
 
     }
 
-    protected IncomingActionResponseMessage executeSync() throws RouterException {
+    protected IncomingActionResponseMessage executeSync() throws IOException {
         return invokeRemote(getInputMessage());
     }
 
-    protected IncomingActionResponseMessage invokeRemote(OutgoingActionRequestMessage requestMessage) throws RouterException {
+    protected IncomingActionResponseMessage invokeRemote(OutgoingActionRequestMessage requestMessage) throws IOException {
         Device device = actionInvocation.getAction().getService().getDevice();
 
         Log.v(getClass().getName(), "Sending outgoing action call '" + actionInvocation.getAction().getName() + "' to remote service of: " + device);
@@ -111,7 +111,7 @@ public class SendingAction extends SendingSync<OutgoingActionRequestMessage, Inc
     }
 
     protected StreamResponseMessage sendRemoteRequest(OutgoingActionRequestMessage requestMessage)
-            throws ActionException, RouterException {
+            throws ActionException, IOException {
 
         try {
             Log.v(getClass().getName(), "Writing SOAP request body of: " + requestMessage);

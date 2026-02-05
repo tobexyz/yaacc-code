@@ -46,9 +46,8 @@ import de.yaacc.browser.TabBrowserActivity;
 import de.yaacc.musicplayer.BackgroundMusicService;
 import de.yaacc.player.PlayerService;
 import de.yaacc.upnp.UpnpClient;
-import de.yaacc.upnp.registry.UpnpRegistryService;
-import de.yaacc.upnp.server.YaaccAudioRenderingControlService;
 import de.yaacc.upnp.server.YaaccUpnpServerService;
+import de.yaacc.upnp.server.renderingcontrol.YaaccAudioRenderingControlService;
 import de.yaacc.util.NotificationId;
 import de.yaacc.util.SafPermissionManager;
 import de.yaacc.util.ShutdownTimerListener;
@@ -71,7 +70,6 @@ public class Yaacc extends Application {
     @Override
     public void onCreate() {
         super.onCreate();
-        upnpClient = new UpnpClient(this);
         createNotificationChannel();
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
         boolean darkMode = preferences.getBoolean(getString(R.string.settings_dark_mode_key), true);
@@ -89,8 +87,11 @@ public class Yaacc extends Application {
         }
         contentLoadThreadPool = Executors.newFixedThreadPool(numThreads);
 
+
         // Validate and cleanup SAF permissions on app startup
         SafPermissionManager.validateAndCleanupPermissions(this);
+        startService(new Intent(this, YaaccUpnpServerService.class));
+        upnpClient = new UpnpClient(this);
 
     }
 
@@ -126,7 +127,7 @@ public class Yaacc extends Application {
         stopService(new Intent(this, BackgroundMusicService.class));
         stopService(new Intent(this, YaaccAudioRenderingControlService.class));
         stopService(new Intent(this, YaaccUpnpServerService.class));
-        stopService(new Intent(this, UpnpRegistryService.class));
+
 
         //FIXME work around to be fixed with new ui
         NotificationManager mNotificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);

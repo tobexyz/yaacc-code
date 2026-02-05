@@ -24,13 +24,13 @@ import org.fourthline.cling.model.message.UpnpResponse;
 import org.fourthline.cling.model.message.gena.IncomingEventRequestMessage;
 import org.fourthline.cling.model.message.gena.OutgoingEventResponseMessage;
 import org.fourthline.cling.model.resource.ServiceEventCallbackResource;
-import org.fourthline.cling.registry.Registry;
-import org.fourthline.cling.transport.RouterException;
+import java.io.IOException;
 import org.fourthline.cling.transport.impl.GENAEventProcessorImpl;
 
-import java.util.concurrent.Executors;
+import java.util.concurrent.ExecutorService;
 
 import de.yaacc.upnp.protocol.ReceivingSync;
+import de.yaacc.upnp.registry.Registry;
 
 /**
  * Handles incoming GENA event messages.
@@ -48,13 +48,15 @@ public class ReceivingEvent extends ReceivingSync<StreamRequestMessage, Outgoing
 
     private final Registry registry;
     private final GENAEventProcessorImpl genaEventProcessor = new GENAEventProcessorImpl();
+    private final ExecutorService executorService;
 
     public ReceivingEvent(Registry registry, StreamRequestMessage inputMessage) {
         super(inputMessage);
         this.registry = registry;
+        executorService = registry.getExecutorService();
     }
 
-    protected OutgoingEventResponseMessage executeSync() throws RouterException {
+    protected OutgoingEventResponseMessage executeSync() throws IOException {
 
         if (!getInputMessage().isContentTypeTextUDA()) {
             Log.w(getClass().getName(), "Received without or with invalid Content-Type: " + getInputMessage());
@@ -108,7 +110,7 @@ public class ReceivingEvent extends ReceivingSync<StreamRequestMessage, Outgoing
             final RemoteGENASubscription subscription =
                     registry.getRemoteSubscription(requestMessage.getSubscrptionId());
             if (subscription != null) {
-                Executors.newSingleThreadExecutor().execute(
+                executorService.execute(
                         new Runnable() {
                             public void run() {
                                 subscription.invalidMessage(ex);
@@ -130,7 +132,7 @@ public class ReceivingEvent extends ReceivingSync<StreamRequestMessage, Outgoing
             return new OutgoingEventResponseMessage(new UpnpResponse(UpnpResponse.Status.PRECONDITION_FAILED));
         }
 
-        Executors.newSingleThreadExecutor().execute(
+        executorService.execute(
                 new Runnable() {
                     public void run() {
                         Log.v(getClass().getName(), "Calling active subscription with event state variable values");

@@ -37,8 +37,6 @@ import org.fourthline.cling.model.types.InvalidValueException;
 import org.fourthline.cling.model.types.NamedServiceType;
 import org.fourthline.cling.model.types.NotificationSubtype;
 import org.fourthline.cling.model.types.ServiceType;
-import org.fourthline.cling.protocol.ProtocolCreationException;
-import org.fourthline.cling.registry.Registry;
 
 import java.net.URI;
 import java.net.URL;
@@ -59,6 +57,7 @@ import de.yaacc.upnp.protocol.sync.SendingEvent;
 import de.yaacc.upnp.protocol.sync.SendingRenewal;
 import de.yaacc.upnp.protocol.sync.SendingSubscribe;
 import de.yaacc.upnp.protocol.sync.SendingUnsubscribe;
+import de.yaacc.upnp.registry.Registry;
 import de.yaacc.upnp.server.YaaccUpnpServerService;
 import de.yaacc.upnp.server.http.HttpRequestSender;
 import de.yaacc.upnp.server.udp.MulticastReceiver;

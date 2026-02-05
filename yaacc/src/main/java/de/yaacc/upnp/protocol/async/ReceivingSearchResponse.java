@@ -25,13 +25,13 @@ import org.fourthline.cling.model.message.discovery.IncomingSearchResponse;
 import org.fourthline.cling.model.meta.RemoteDevice;
 import org.fourthline.cling.model.meta.RemoteDeviceIdentity;
 import org.fourthline.cling.model.types.UDN;
-import org.fourthline.cling.registry.Registry;
-import org.fourthline.cling.transport.RouterException;
+import java.io.IOException;
 
-import java.util.concurrent.Executors;
+import java.util.concurrent.ExecutorService;
 
 import de.yaacc.upnp.protocol.ReceivingAsync;
 import de.yaacc.upnp.protocol.RetrieveRemoteDescriptors;
+import de.yaacc.upnp.registry.Registry;
 import de.yaacc.upnp.server.http.HttpRequestSender;
 
 /**
@@ -50,13 +50,20 @@ public class ReceivingSearchResponse extends ReceivingAsync<IncomingSearchRespon
     private final Registry registry;
     private final HttpRequestSender httpReqSender;
 
+    public ExecutorService getExecutorService() {
+        return executorService;
+    }
+
+    private final ExecutorService executorService;
+
     public ReceivingSearchResponse(Registry registry, HttpRequestSender httpRequestSender, IncomingDatagramMessage<UpnpResponse> inputMessage) {
         super(new IncomingSearchResponse(inputMessage));
         this.registry = registry;
+        executorService = registry.getExecutorService();
         this.httpReqSender = httpRequestSender;
     }
 
-    protected void execute() throws RouterException {
+    protected void execute() throws IOException {
 
         if (!getInputMessage().isSearchResponseMessage()) {
             Log.v(getClass().getName(), "Ignoring invalid search response message: " + getInputMessage());
@@ -100,7 +107,7 @@ public class ReceivingSearchResponse extends ReceivingAsync<IncomingSearchRespon
 
         // Unfortunately, we always have to retrieve the descriptor because at this point we
         // have no idea if it's a root or embedded device
-        Executors.newSingleThreadExecutor().execute(
+        executorService.execute(
                 new RetrieveRemoteDescriptors(registry, httpReqSender, rd)
         );
 

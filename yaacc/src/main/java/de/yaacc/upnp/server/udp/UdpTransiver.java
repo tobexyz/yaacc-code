@@ -1,26 +1,26 @@
 package de.yaacc.upnp.server.udp;
 
 import android.content.Context;
-import android.os.AsyncTask;
 import android.util.Log;
 
+import de.yaacc.util.Exceptions;
 import org.fourthline.cling.model.UnsupportedDataException;
 import org.fourthline.cling.model.message.IncomingDatagramMessage;
 import org.fourthline.cling.model.message.OutgoingDatagramMessage;
-import org.fourthline.cling.protocol.ProtocolCreationException;
-import org.seamless.util.Exceptions;
 
 import java.net.DatagramPacket;
 import java.net.InetSocketAddress;
 import java.net.MulticastSocket;
 import java.net.SocketException;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import de.yaacc.upnp.protocol.ProtocolCreationException;
 import de.yaacc.upnp.protocol.ReceivingAsync;
 import de.yaacc.upnp.protocol.UpnpProtocolHandler;
 import de.yaacc.util.InterfaceResolutionHelper;
 
-public class UdpTransiver extends AsyncTask<Void, Void, Void> {
+public class UdpTransiver {
 
     private static int TTL = 4;
     private UpnpProtocolHandler protocolHandler;
@@ -28,11 +28,22 @@ public class UdpTransiver extends AsyncTask<Void, Void, Void> {
 
     private MulticastSocket socket;
 
+    private ExecutorService receiverExecutor;
+    private ExecutorService protocolExecutor;
+    private Context context;
+
     public UdpTransiver() {
+        receiverExecutor = Executors.newSingleThreadExecutor();
+        protocolExecutor = Executors.newFixedThreadPool(10);
     }
 
     public void init(Context context, UpnpProtocolHandler protocolHandler) {
         this.protocolHandler = protocolHandler;
+        this.context = context;
+        initSocket();
+    }
+
+    private void initSocket() {
         InterfaceResolutionHelper.InterfaceHolder usableInterface = InterfaceResolutionHelper.getNetworkInterface(context);
         try {
 
@@ -44,6 +55,7 @@ public class UdpTransiver extends AsyncTask<Void, Void, Void> {
             socket = new MulticastSocket(localAddress);
             socket.setTimeToLive(TTL);
             socket.setReceiveBufferSize(262144); // Keep a backlog of incoming datagrams if we are not fast enough
+            Log.v(getClass().getName(), "Socket created and bound to: " + socket.getLocalSocketAddress() + " on interface: " + usableInterface.networkInterface.getDisplayName());
         } catch (Exception ex) {
             throw new IllegalStateException("Could not initialize " + getClass().getSimpleName() + ": " + ex);
         }
@@ -56,78 +68,84 @@ public class UdpTransiver extends AsyncTask<Void, Void, Void> {
     }
 
     public void send(DatagramPacket datagram) {
-        try {
-            socket.send(datagram);
-        } catch (SocketException ex) {
-            Log.v(getClass().getName(), "Socket closed, aborting datagram send to: " + datagram.getAddress());
-        } catch (RuntimeException ex) {
-            throw ex;
-        } catch (Exception ex) {
+        protocolExecutor.execute(() -> {
             try {
-                Log.w(getClass().getName(), socket.getNetworkInterface() + " Exception sending datagram to: " + datagram.getAddress() + ": " + ex, ex);
-            } catch (SocketException se) {
-                Log.e(getClass().getName(), " Exception sending datagram to: " + datagram.getAddress() + ": " + ex, ex);
+                socket.send(datagram);
+            } catch (SocketException ex) {
+                Log.v(getClass().getName(), "Socket closed, aborting datagram send to: " + datagram.getAddress());
+            } catch (RuntimeException ex) {
+                throw ex;
+            } catch (Exception ex) {
+                try {
+                    Log.w(getClass().getName(), socket.getNetworkInterface() + " Exception sending datagram to: " + datagram.getAddress() + ": " + ex, ex);
+                } catch (SocketException se) {
+                    Log.e(getClass().getName(), " Exception sending datagram to: " + datagram.getAddress() + ": " + ex, ex);
+                }
             }
-        }
+
+        });
     }
 
-
-    @Override
-    protected Void doInBackground(Void... voids) {
-
-        Log.v(getClass().getName(), "Entering blocking receiving loop, listening for UDP datagrams on: " + socket.getLocalAddress());
-
-        while (true) {
-
+    public void execute() {
+        Log.v(getClass().getName(), "execute() called, submitting receiver task");
+        receiverExecutor.execute(() -> {
+            Log.v(getClass().getName(), "Receiver task started");
             try {
-                byte[] buf = new byte[MAX_DATAGRAM_BYTES];
-                DatagramPacket datagram = new DatagramPacket(buf, buf.length);
+                Log.v(getClass().getName(), "Entering blocking receiving loop, listening for UDP datagrams on: " + socket.getLocalAddress());
+            } catch (Exception e) {
+                Log.e(getClass().getName(), "Error getting local address", e);
+            }
 
-                socket.receive(datagram);
-
-                Log.v(getClass().getName(),
-                        "UDP datagram received from: "
-                                + datagram.getAddress().getHostAddress()
-                                + ":" + datagram.getPort()
-                );
+            while (true) {
 
                 try {
-                    IncomingDatagramMessage<?> msg = DatagramHelper.read(socket.getInterface(), datagram);
-                    ReceivingAsync<?> protocol = protocolHandler.createReceivingAsync(msg);
-                    if (protocol == null) {
+                    byte[] buf = new byte[MAX_DATAGRAM_BYTES];
+                    DatagramPacket datagram = new DatagramPacket(buf, buf.length);
+                    Log.v(getClass().getName(), "UDP before");
+                    socket.receive(datagram);
 
-                        Log.v(getClass().getName(), "No protocol, ignoring received message: " + msg);
-                        break;
+                    Log.v(getClass().getName(),
+                            "UDP datagram received from: "
+                                    + datagram.getAddress().getHostAddress()
+                                    + ":" + datagram.getPort()
+                    );
+
+                    try {
+                        IncomingDatagramMessage<?> msg = DatagramHelper.read(socket.getInterface(), datagram);
+                        ReceivingAsync<?> protocol = protocolHandler.createReceivingAsync(msg);
+                        if (protocol == null) {
+
+                            Log.v(getClass().getName(), "No protocol, ignoring received message: " + msg);
+                            continue;
+                        }
+
+                        Log.v(getClass().getName(), "Received asynchronous message: " + msg);
+                        protocolExecutor.execute(protocol);
+                    } catch (ProtocolCreationException ex) {
+                        Log.w(getClass().getName(), "Handling received datagram failed - " + Exceptions.unwrap(ex).toString());
                     }
 
-                    Log.v(getClass().getName(), "Received asynchronous message: " + msg);
-                    Executors.newSingleThreadExecutor().execute(protocol);
-                } catch (ProtocolCreationException ex) {
-                    Log.w(getClass().getName(), "Handling received datagram failed - " + Exceptions.unwrap(ex).toString());
+                } catch (SocketException ex) {
+                    Log.v(getClass().getName(), "Socket closed", ex);
+                    break;
+                } catch (UnsupportedDataException ex) {
+                    Log.v(getClass().getName(), "Could not read datagram: " + ex.getMessage(), ex);
+                } catch (Exception ex) {
+                    throw new RuntimeException(ex);
                 }
-
-            } catch (SocketException ex) {
-                Log.v(getClass().getName(), "Socket closed", ex);
-                break;
-            } catch (UnsupportedDataException ex) {
-                Log.v(getClass().getName(), "Could not read datagram: " + ex.getMessage(), ex);
+            }
+            try {
+                if (!socket.isClosed()) {
+                    Log.v(getClass().getName(), "Closing unicast socket");
+                    socket.close();
+                }
             } catch (Exception ex) {
                 throw new RuntimeException(ex);
             }
-        }
-        try {
-            if (!socket.isClosed()) {
-                Log.v(getClass().getName(), "Closing unicast socket");
-                socket.close();
-            }
-        } catch (Exception ex) {
-            throw new RuntimeException(ex);
-        }
-        return null;
+        });
     }
 
-    @Override
-    protected void onCancelled() {
+    public void cancel() {
         if (socket != null && !socket.isClosed()) {
             socket.close();
         }

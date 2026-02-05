@@ -14,6 +14,7 @@
  */
 
 package de.yaacc.upnp.protocol.sync;
+import de.yaacc.util.Exceptions;
 
 import android.util.Log;
 
@@ -35,9 +36,8 @@ import org.fourthline.cling.model.resource.DeviceDescriptorResource;
 import org.fourthline.cling.model.resource.IconResource;
 import org.fourthline.cling.model.resource.Resource;
 import org.fourthline.cling.model.resource.ServiceDescriptorResource;
-import org.fourthline.cling.registry.Registry;
-import org.fourthline.cling.transport.RouterException;
-import org.seamless.util.Exceptions;
+import de.yaacc.upnp.registry.Registry;
+import java.io.IOException;
 
 import java.net.URI;
 
@@ -66,7 +66,7 @@ public class ReceivingRetrieval extends ReceivingSync<StreamRequestMessage, Stre
         this.registry = registry;
     }
 
-    protected StreamResponseMessage executeSync() throws RouterException {
+    protected StreamResponseMessage executeSync() throws IOException {
 
         if (!getInputMessage().hasHostHeader()) {
             Log.v(getClass().getName(), "Ignoring message, missing HOST header: " + getInputMessage());
@@ -76,7 +76,7 @@ public class ReceivingRetrieval extends ReceivingSync<StreamRequestMessage, Stre
         URI requestedURI = getInputMessage().getOperation().getURI();
 
         Resource foundResource = registry.getResource(requestedURI);
-
+        Log.d(getClass().getName(), "Registry id: " + registry);
         if (foundResource == null) {
             foundResource = onResourceNotFound(requestedURI);
             if (foundResource == null) {

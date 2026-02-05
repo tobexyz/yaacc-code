@@ -60,8 +60,6 @@ import java.net.URI;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import de.yaacc.upnp.UpnpClient;
-
 
 /**
  * Implementation of an avtransport service version 3 mainly copied from cling example implementation.
@@ -237,7 +235,6 @@ public class YaaccAVTransportService implements LastChangeDelegator {
     Class<? extends AVTransportStateMachine> stateMachineDefinition;
     Class<? extends AbstractState<?>> initialState;
     Class<? extends AVTransport> transportClass;
-    private UpnpClient upnpClient = null;
     @UpnpStateVariable(eventMaximumRateMilliseconds = 200)
     private LastChange lastChange = new LastChange(new AVTransportLastChangeParser());
 
@@ -258,10 +255,9 @@ public class YaaccAVTransportService implements LastChangeDelegator {
     /**
      *
      */
-    public YaaccAVTransportService(UpnpClient upnpClient) {
+    public YaaccAVTransportService() {
         this(AvTransportStateMachine.class,
                 AvTransportMediaRendererNoMediaPresent.class);
-        this.upnpClient = upnpClient;
     }
 
     public static UnsignedIntegerFourBytes getDefaultInstanceID() {
@@ -323,9 +319,8 @@ public class YaaccAVTransportService implements LastChangeDelegator {
         return StateMachineBuilder.build(
                 AvTransportStateMachine.class,
                 AvTransportMediaRendererNoMediaPresent.class, new Class[]{
-                        AvTransport.class, UpnpClient.class}, new Object[]{
-                        new AvTransport(instanceId, getLastChange(), StorageMedium.NETWORK),
-                        upnpClient});
+                        AvTransport.class}, new Object[]{
+                        new AvTransport(instanceId, getLastChange(), StorageMedium.NETWORK)});
     }
 
     @UpnpAction(name = "GetCurrentTransportActions", out = @UpnpOutputArgument(name = "Actions", stateVariable = "CurrentTransportActions"))
