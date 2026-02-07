@@ -670,12 +670,13 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
             YaaccLogger.d(getClass().getName(), "SAF content id is invalid: " + contentEnc);
             return null;
         }
-        String contentUri = new String(
-                Base64.decode(contentEnc.substring(0, contentEnc.indexOf(".")).getBytes(), Base64.NO_WRAP));
-        if (!contentId.equals("" + contentUri.hashCode())) {
-            YaaccLogger.d(getClass().getName(), "SAF content id is invalid: " + contentId);
+        String contentEncBase64 = contentEnc.substring(0, contentEnc.indexOf("."));
+        if (!contentId.equals(contentEncBase64)) {
+            YaaccLogger.d(getClass().getName(), "SAF content id mismatch: " + contentId + " != " + contentEncBase64);
             return null;
         }
+        String contentUri = new String(
+                Base64.decode(contentEncBase64.getBytes(), Base64.NO_WRAP));
 
         DocumentFile file = null;
         try {

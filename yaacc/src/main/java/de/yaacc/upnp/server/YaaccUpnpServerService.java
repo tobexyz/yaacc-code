@@ -338,7 +338,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
                 IOReactorConfig config = IOReactorConfig.custom()
                         .setSoKeepAlive(true)
                         .setTcpNoDelay(true)
-                        .setSoTimeout(Timeout.ofSeconds(30))
+                        .setSoTimeout(Timeout.ofMinutes(5))
                         .setIoThreadCount(8)
                         .build();
                 httpServer = H2ServerBootstrap.bootstrap()
