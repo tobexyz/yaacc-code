@@ -33,6 +33,7 @@ import org.fourthline.cling.model.meta.Device;
 import org.fourthline.cling.model.meta.Icon;
 import org.fourthline.cling.model.meta.RemoteDevice;
 import org.fourthline.cling.model.meta.Service;
+import org.fourthline.cling.model.types.UDAServiceType;
 import de.yaacc.upnp.callback.avtransport.GetPositionInfo;
 import de.yaacc.upnp.callback.avtransport.GetTransportInfo;
 import de.yaacc.upnp.callback.avtransport.Pause;
@@ -40,14 +41,20 @@ import de.yaacc.upnp.callback.avtransport.Play;
 import de.yaacc.upnp.callback.avtransport.Seek;
 import de.yaacc.upnp.callback.avtransport.SetAVTransportURI;
 import de.yaacc.upnp.callback.avtransport.Stop;
+import de.yaacc.upnp.callback.connectionmanager.GetProtocolInfo;
 import org.fourthline.cling.support.contentdirectory.DIDLParser;
 import org.fourthline.cling.support.model.DIDLContent;
 import org.fourthline.cling.support.model.DIDLObject;
 import org.fourthline.cling.support.model.PositionInfo;
+import org.fourthline.cling.support.model.ProtocolInfo;
+import org.fourthline.cling.support.model.ProtocolInfos;
 import org.fourthline.cling.support.model.Res;
 import org.fourthline.cling.support.model.TransportInfo;
 import org.fourthline.cling.support.model.TransportState;
 import org.fourthline.cling.support.model.item.Item;
+
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import java.net.URI;
 import java.net.URL;
@@ -182,11 +189,15 @@ public class AVTransportPlayer extends AbstractPlayer {
     protected void startItem(PlayableItem playableItem, Object loadedItem) {
         if (playableItem == null || getDevice() == null)
             return;
-        YaaccLogger.d(getClass().getName(), "Uri: " + playableItem.getUri());
-        YaaccLogger.d(getClass().getName(), "Duration: " + playableItem.getDuration());
+        
+        // Try to select best resource for this device
+        PlayableItem deviceOptimizedItem = selectBestResourceForDevice(playableItem);
+        
+        YaaccLogger.d(getClass().getName(), "Uri: " + deviceOptimizedItem.getUri());
+        YaaccLogger.d(getClass().getName(), "Duration: " + deviceOptimizedItem.getDuration());
         YaaccLogger.d(getClass().getName(),
-                "MimeType: " + playableItem.getMimeType());
-        YaaccLogger.d(getClass().getName(), "Title: " + playableItem.getTitle());
+                "MimeType: " + deviceOptimizedItem.getMimeType());
+        YaaccLogger.d(getClass().getName(), "Title: " + deviceOptimizedItem.getTitle());
         Service<?, ?> service = getUpnpClient().getAVTransportService(getDevice());
         if (service == null) {
             YaaccLogger.d(getClass().getName(),
@@ -196,7 +207,103 @@ public class AVTransportPlayer extends AbstractPlayer {
         }
 
         // Check transport state first and handle accordingly
-        checkTransportStateForStart(playableItem, service);
+        checkTransportStateForStart(deviceOptimizedItem, service);
+    }
+    
+    /**
+     * Select the best resource for this specific device based on supported protocols
+     */
+    private PlayableItem selectBestResourceForDevice(PlayableItem playableItem) {
+        Item item = playableItem.getItem();
+        if (item == null || item.getResources().isEmpty()) {
+            return playableItem;
+        }
+        
+        // Get device's supported protocols
+        Service<?, ?> cmService = getDevice().findService(new UDAServiceType("ConnectionManager"));
+        if (cmService == null) {
+            YaaccLogger.d(getClass().getName(), "No ConnectionManager service, using default resource");
+            return playableItem;
+        }
+        
+        // Query supported protocols synchronously
+        final ProtocolInfos[] supportedProtocols = new ProtocolInfos[1];
+        final CountDownLatch latch = new CountDownLatch(1);
+        
+        executorService.execute(
+            new GetProtocolInfo(cmService, getHttpRequestSender()) {
+                @Override
+                public void received(ActionInvocation actionInvocation, ProtocolInfos sinkProtocolInfos, ProtocolInfos sourceProtocolInfos) {
+                    supportedProtocols[0] = sinkProtocolInfos;
+                    latch.countDown();
+                }
+                
+                @Override
+                public void failure(ActionInvocation invocation, UpnpResponse operation, String defaultMsg) {
+                    YaaccLogger.d(AVTransportPlayer.class.getName(), "GetProtocolInfo failed: " + defaultMsg);
+                    latch.countDown();
+                }
+            }
+        );
+        
+        try {
+            latch.await(2, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            YaaccLogger.d(getClass().getName(), "GetProtocolInfo timeout");
+            return playableItem;
+        }
+        
+        if (supportedProtocols[0] == null || supportedProtocols[0].isEmpty()) {
+            YaaccLogger.d(getClass().getName(), "No supported protocols found, using default resource");
+            return playableItem;
+        }
+        
+        // Find best matching resource
+        Res bestMatch = null;
+        long bestBitrate = 0;
+        
+        for (Res resource : item.getResources()) {
+            if (resource.getProtocolInfo() == null) continue;
+            
+            String contentFormat = resource.getProtocolInfo().getContentFormat();
+            if (contentFormat == null || contentFormat.isEmpty()) continue;
+            
+            // Check if device supports this format
+            boolean supported = false;
+            for (ProtocolInfo deviceProtocol : supportedProtocols[0]) {
+                if (deviceProtocol.getContentFormat().equals(contentFormat) ||
+                    deviceProtocol.getContentFormat().equals("*") ||
+                    deviceProtocol.getContentFormat().startsWith(contentFormat.split("/")[0] + "/*")) {
+                    supported = true;
+                    break;
+                }
+            }
+            
+            if (!supported) {
+                YaaccLogger.d(getClass().getName(), "Device doesn't support: " + contentFormat);
+                continue;
+            }
+            
+            // Among supported formats, prefer higher bitrate
+            Long bitrate = resource.getBitrate();
+            if (bitrate != null && bitrate > bestBitrate) {
+                bestBitrate = bitrate;
+                bestMatch = resource;
+            } else if (bestMatch == null) {
+                bestMatch = resource;
+            }
+        }
+        
+        if (bestMatch != null && !bestMatch.equals(item.getFirstResource())) {
+            YaaccLogger.d(getClass().getName(), "Selected device-optimized resource: " + 
+                bestMatch.getProtocolInfo().getContentFormat() + " bitrate: " + bestMatch.getBitrate());
+            // Create new PlayableItem with selected resource
+            Item optimizedItem = new Item(item);
+            optimizedItem.setResources(java.util.Collections.singletonList(bestMatch));
+            return new PlayableItem(optimizedItem, (int) playableItem.getDuration());
+        }
+        
+        return playableItem;
     }
 
     private void checkTransportStateForStart(PlayableItem playableItem, Service<?, ?> service) {

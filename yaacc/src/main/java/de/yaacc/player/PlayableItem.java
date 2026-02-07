@@ -46,7 +46,7 @@ public class PlayableItem {
         this.item = item;
         id = UUID.randomUUID();
         setTitle(item.getTitle());
-        Res resource = item.getFirstResource();
+        Res resource = selectBestResource(item);
         if (resource != null) {
             setUri(Uri.parse(resource.getValue()));
             String mimeType = resource.getProtocolInfo().getContentFormat();
@@ -98,6 +98,51 @@ public class PlayableItem {
         duration = 0;
         item = null;
         id = UUID.randomUUID();
+    }
+
+    /**
+     * Select the best playable resource from an item.
+     * Filters out non-media types and prefers higher quality.
+     */
+    private Res selectBestResource(Item item) {
+        if (item.getResources() == null || item.getResources().isEmpty()) {
+            return null;
+        }
+        
+        Res bestResource = null;
+        long bestBitrate = 0;
+        
+        for (Res resource : item.getResources()) {
+            String contentFormat = resource.getProtocolInfo().getContentFormat();
+            if (contentFormat == null || contentFormat.isEmpty()) {
+                continue;
+            }
+            
+            // Only accept audio, video, or image types
+            if (!contentFormat.startsWith("audio/") && 
+                !contentFormat.startsWith("video/") && 
+                !contentFormat.startsWith("image/")) {
+                YaaccLogger.d(getClass().getName(), "Skipping non-media resource: " + contentFormat);
+                continue;
+            }
+            
+            // Prefer higher bitrate
+            Long bitrate = resource.getBitrate();
+            if (bitrate != null && bitrate > bestBitrate) {
+                bestBitrate = bitrate;
+                bestResource = resource;
+            } else if (bestResource == null) {
+                bestResource = resource;
+            }
+        }
+        
+        if (bestResource != null) {
+            YaaccLogger.d(getClass().getName(), "Selected resource: " + 
+                bestResource.getProtocolInfo().getContentFormat() + 
+                " bitrate: " + bestResource.getBitrate());
+        }
+        
+        return bestResource;
     }
 
 
