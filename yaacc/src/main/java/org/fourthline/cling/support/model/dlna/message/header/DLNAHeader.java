@@ -15,7 +15,7 @@
 
 package org.fourthline.cling.support.model.dlna.message.header;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.message.header.InvalidHeaderException;
 import org.fourthline.cling.model.message.header.UpnpHeader;
@@ -57,17 +57,17 @@ public abstract class DLNAHeader<T> extends UpnpHeader<T> {
         for (int i = 0; i < type.getHeaderTypes().length && upnpHeader == null; i++) {
             Class<? extends DLNAHeader> headerClass = type.getHeaderTypes()[i];
             try {
-                Log.v(DLNAHeader.class.getName(), "Trying to parse '" + type + "' with class: " + headerClass.getSimpleName());
+                YaaccLogger.v(DLNAHeader.class.getName(), "Trying to parse '" + type + "' with class: " + headerClass.getSimpleName());
                 upnpHeader = headerClass.newInstance();
                 if (headerValue != null) {
                     upnpHeader.setString(headerValue);
                 }
             } catch (InvalidHeaderException ex) {
-                Log.v(DLNAHeader.class.getName(), "Invalid header value for tested type: " + headerClass.getSimpleName() + " - " + ex.getMessage());
+                YaaccLogger.v(DLNAHeader.class.getName(), "Invalid header value for tested type: " + headerClass.getSimpleName() + " - " + ex.getMessage());
                 upnpHeader = null;
             } catch (Exception ex) {
-                Log.e(DLNAHeader.class.getName(), "Error instantiating header of type '" + type + "' with value: " + headerValue);
-                Log.e(DLNAHeader.class.getName(), "Exception root cause: ", Exceptions.unwrap(ex));
+                YaaccLogger.e(DLNAHeader.class.getName(), "Error instantiating header of type '" + type + "' with value: " + headerValue);
+                YaaccLogger.e(DLNAHeader.class.getName(), "Exception root cause: ", Exceptions.unwrap(ex));
             }
 
         }

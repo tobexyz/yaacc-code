@@ -22,7 +22,7 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.database.Cursor;
 import android.provider.MediaStore;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.support.model.DIDLObject;
 import org.fourthline.cling.support.model.DIDLObject.Property.UPNP;
@@ -120,10 +120,20 @@ public class MusicArtistItemBrowser extends ContentBrowser {
                 @SuppressLint("Range") String duration = mediaCursor.getString(mediaCursor
                         .getColumnIndex(MediaStore.Audio.Media.DURATION));
                 duration = contentDirectory.formatDuration(duration);
+                Integer trackNumber = null;
+                Integer year = null;
+                int trackIdx = mediaCursor.getColumnIndex(MediaStore.Audio.Media.TRACK);
+                if (trackIdx >= 0) {
+                    trackNumber = mediaCursor.getInt(trackIdx);
+                }
+                int yearIdx = mediaCursor.getColumnIndex(MediaStore.Audio.Media.YEAR);
+                if (yearIdx >= 0) {
+                    year = mediaCursor.getInt(yearIdx);
+                }
 
                 @SuppressLint("Range") String mimeTypeString = mediaCursor.getString(mediaCursor
                         .getColumnIndex(MediaStore.Audio.Media.MIME_TYPE));
-                Log.d(getClass().getName(), "Mimetype: " + mimeTypeString);
+                YaaccLogger.d(getClass().getName(), "Mimetype: " + mimeTypeString);
                 @SuppressLint("Range") MimeType mimeType = MimeType.valueOf(mimeTypeString);
                 // file parameter only needed for media players which decide
                 // the ability of playing a file by the file extension
@@ -134,13 +144,24 @@ public class MusicArtistItemBrowser extends ContentBrowser {
                 ProtocolInfo protocolInfo = new ProtocolInfo(Protocol.HTTP_GET, ProtocolInfo.WILDCARD, mimeType.toString(), getDLNAAttributes(mimeType));
                 Res resource = new Res(protocolInfo, size, uri);
                 resource.setDuration(duration);
+                resource.setSampleFrequency(44100L); // Standard for MP3
+                resource.setNrAudioChannels(2L); // Stereo
+                // Set audio properties for better renderer compatibility
+                resource.setSampleFrequency(44100L); // Standard for MP3
+                resource.setNrAudioChannels(2L); // Stereo
                 MusicTrack musicTrack = new MusicTrack(
                         ContentDirectoryIDs.MUSIC_ARTIST_ITEM_PREFIX.getId() + id,
                         ContentDirectoryIDs.MUSIC_ARTIST_PREFIX.getId() + artistId,
-                        title + "-(" + name + ")", "", album, artist, resource);
+                        title + "-(" + name + ")", artist, album, artist, resource);
                 musicTrack
                         .replaceFirstProperty(new UPNP.ALBUM_ART_URI(albumArtUri));
-                musicTrack.setArtists(new PersonWithRole[]{new PersonWithRole(artist, "AlbumArtist")});
+                musicTrack.setArtists(new PersonWithRole[]{new PersonWithRole(artist)});
+                if (trackNumber != null && trackNumber > 0) {
+                    musicTrack.setOriginalTrackNumber(trackNumber);
+                }
+                if (year != null && year > 0) {
+                    musicTrack.setDate(year + "-01-01");
+                }
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
                     @SuppressLint("Range") String genre = mediaCursor.getString(mediaCursor
                             .getColumnIndex(MediaStore.Audio.Media.GENRE));
@@ -150,11 +171,11 @@ public class MusicArtistItemBrowser extends ContentBrowser {
                     musicTrack.setGenres(new String[]{genre});
                 }
                 result = musicTrack;
-                Log.d(getClass().getName(), "MusicTrack: " + id + " Name: " + name
+                YaaccLogger.d(getClass().getName(), "MusicTrack: " + id + " Name: " + name
                         + " uri: " + uri);
 
             } else {
-                Log.d(getClass().getName(), "Item " + myId + "  not found.");
+                YaaccLogger.d(getClass().getName(), "Item " + myId + "  not found.");
             }
         }
         return result;

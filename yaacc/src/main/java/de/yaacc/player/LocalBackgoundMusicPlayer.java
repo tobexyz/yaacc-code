@@ -25,7 +25,7 @@ import android.content.ServiceConnection;
 import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.IBinder;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import androidx.preference.PreferenceManager;
 
@@ -67,7 +67,7 @@ public class LocalBackgoundMusicPlayer extends AbstractPlayer implements Service
 
     public LocalBackgoundMusicPlayer(UpnpClient upnpClient) {
         super(upnpClient);
-        Log.d(getClass().getName(), "Starting background music service... ");
+        YaaccLogger.d(getClass().getName(), "Starting background music service... ");
         Context context = getUpnpClient().getContext();
 
         context.startForegroundService(new Intent(context, BackgroundMusicService.class));
@@ -91,7 +91,7 @@ public class LocalBackgoundMusicPlayer extends AbstractPlayer implements Service
                 backgroundMusicService.removeServiceListener(this);
                 backgroundMusicService.unbindService(this);
             } catch (IllegalArgumentException iex) {
-                Log.d(getClass().getName(), "ignoring exception while unbind service");
+                YaaccLogger.d(getClass().getName(), "ignoring exception while unbind service");
             }
             backgroundMusicService.stopForeground(true);
         }
@@ -133,7 +133,7 @@ public class LocalBackgoundMusicPlayer extends AbstractPlayer implements Service
             }
         }, 600L);
         int timeLeft = getBackgroundService().getDuration() - getBackgroundService().getCurrentPosition();
-        Log.d(this.getClass().getName(), "TimeLeft after resume: " + timeLeft + " duration: " + getBackgroundService().getDuration() + " curPos: " + getBackgroundService().getCurrentPosition());
+        YaaccLogger.d(this.getClass().getName(), "TimeLeft after resume: " + timeLeft + " duration: " + getBackgroundService().getDuration() + " curPos: " + getBackgroundService().getCurrentPosition());
         startTimer(timeLeft + getSilenceDuration());
     }
 
@@ -297,7 +297,7 @@ public class LocalBackgoundMusicPlayer extends AbstractPlayer implements Service
 
     @Override
     public void onServiceConnected(ComponentName className, IBinder binder) {
-        Log.d(getClass().getName(), "onServiceConnected..." + className);
+        YaaccLogger.d(getClass().getName(), "onServiceConnected..." + className);
         if (binder instanceof BackgroundMusicServiceBinder) {
             backgroundMusicService = ((BackgroundMusicServiceBinder) binder).getService();
             backgroundMusicService.addServiceListener(this);
@@ -309,7 +309,7 @@ public class LocalBackgoundMusicPlayer extends AbstractPlayer implements Service
 
     @Override
     public void onServiceDisconnected(ComponentName className) {
-        Log.d(getClass().getName(), "onServiceDisconnected...");
+        YaaccLogger.d(getClass().getName(), "onServiceDisconnected...");
         backgroundMusicService = null;
 
     }

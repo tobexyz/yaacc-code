@@ -22,7 +22,7 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.database.Cursor;
 import android.provider.MediaStore;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.support.model.DIDLObject;
 import org.fourthline.cling.support.model.DIDLObject.Property.UPNP;
@@ -181,7 +181,17 @@ public class MusicAlbumFolderBrowser extends ContentBrowser {
                         @SuppressLint("Range") String duration = mediaCursor.getString(mediaCursor
                                 .getColumnIndex(MediaStore.Audio.Media.DURATION));
                         duration = contentDirectory.formatDuration(duration);
-                        Log.d(getClass().getName(),
+                Integer trackNumber = null;
+                Integer year = null;
+                int trackIdx = mediaCursor.getColumnIndex(MediaStore.Audio.Media.TRACK);
+                if (trackIdx >= 0) {
+                    trackNumber = mediaCursor.getInt(trackIdx);
+                }
+                int yearIdx = mediaCursor.getColumnIndex(MediaStore.Audio.Media.YEAR);
+                if (yearIdx >= 0) {
+                    year = mediaCursor.getInt(yearIdx);
+                }
+                        YaaccLogger.d(getClass().getName(),
                                 "Mimetype: "
                                         + mediaCursor.getString(mediaCursor
                                         .getColumnIndex(MediaStore.Audio.Media.MIME_TYPE)));
@@ -215,10 +225,16 @@ public class MusicAlbumFolderBrowser extends ContentBrowser {
                             resource.setBitrate(Long.valueOf(bitrate));
                             musicTrack.setGenres(new String[]{genre});
                         }
-                        musicTrack.setArtists(new PersonWithRole[]{new PersonWithRole(artist, "AlbumArtist")});
+                        musicTrack.setArtists(new PersonWithRole[]{new PersonWithRole(artist)});
+                if (trackNumber != null && trackNumber > 0) {
+                    musicTrack.setOriginalTrackNumber(trackNumber);
+                }
+                if (year != null && year > 0) {
+                    musicTrack.setDate(year + "-01-01");
+                }
 
                         result.add(musicTrack);
-                        Log.d(getClass().getName(), "MusicTrack: " + id + " Name: "
+                        YaaccLogger.d(getClass().getName(), "MusicTrack: " + id + " Name: "
                                 + name + " uri: " + uri);
                         currentCount++;
                     }
@@ -227,7 +243,7 @@ public class MusicAlbumFolderBrowser extends ContentBrowser {
                 }
 
             } else {
-                Log.d(getClass().getName(), "System media store is empty.");
+                YaaccLogger.d(getClass().getName(), "System media store is empty.");
             }
         }
 

@@ -18,7 +18,7 @@ package org.fourthline.cling.binding.xml;
 import static org.fourthline.cling.binding.xml.Descriptor.Service.ATTRIBUTE;
 import static org.fourthline.cling.binding.xml.Descriptor.Service.ELEMENT;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.binding.staging.MutableAction;
 import org.fourthline.cling.binding.staging.MutableActionArgument;
@@ -57,7 +57,7 @@ public class UDA10ServiceDescriptorBinderSAXImpl extends UDA10ServiceDescriptorB
         }
 
         try {
-            Log.v(getClass().getName(), "Reading service from XML descriptor");
+            YaaccLogger.v(getClass().getName(), "Reading service from XML descriptor");
 
             SAXParser parser = new SAXParser();
 
@@ -242,7 +242,7 @@ public class UDA10ServiceDescriptorBinderSAXImpl extends UDA10ServiceDescriptorB
                         getInstance().direction = ActionArgument.Direction.valueOf(directionString.toUpperCase(Locale.ROOT));
                     } catch (IllegalArgumentException ex) {
                         // TODO: UPNP VIOLATION: Pelco SpectraIV-IP uses illegal value INOUT
-                        Log.w(getClass().getName(), "UPnP specification violation: Invalid action argument direction, assuming 'IN': " + directionString);
+                        YaaccLogger.w(getClass().getName(), "UPnP specification violation: Invalid action argument direction, assuming 'IN': " + directionString);
                         getInstance().direction = ActionArgument.Direction.IN;
                     }
                     break;

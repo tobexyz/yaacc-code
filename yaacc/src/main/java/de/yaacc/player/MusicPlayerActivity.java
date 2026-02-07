@@ -24,7 +24,7 @@ import android.content.ServiceConnection;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.IBinder;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.ImageButton;
@@ -63,7 +63,7 @@ public class MusicPlayerActivity extends AppCompatActivity implements ServiceCon
 
     public void onServiceConnected(ComponentName className, IBinder binder) {
         if (binder instanceof PlayerService.PlayerServiceBinder) {
-            Log.d(getClass().getName(), "PlayerService connected");
+            YaaccLogger.d(getClass().getName(), "PlayerService connected");
             playerService = ((PlayerService.PlayerServiceBinder) binder).getService();
             initialize();
             setTrackInfo();
@@ -72,7 +72,7 @@ public class MusicPlayerActivity extends AppCompatActivity implements ServiceCon
     //binder comes from server to communicate with method's of
 
     public void onServiceDisconnected(ComponentName className) {
-        Log.d(getClass().getName(), "PlayerService disconnected");
+        YaaccLogger.d(getClass().getName(), "PlayerService disconnected");
         playerService = null;
     }
 
@@ -191,10 +191,10 @@ public class MusicPlayerActivity extends AppCompatActivity implements ServiceCon
                     long durationTimeMillis = Objects.requireNonNull(dateFormat.parse(durationString)).getTime();
 
                     int targetPosition = Double.valueOf(durationTimeMillis * ((double) seekBar.getProgress() / 100)).intValue();
-                    Log.d(getClass().getName(), "TargetPosition" + targetPosition);
+                    YaaccLogger.d(getClass().getName(), "TargetPosition" + targetPosition);
                     getPlayer().seekTo(targetPosition);
                 } catch (ParseException pex) {
-                    Log.d(getClass().getName(), "Error while parsing time string", pex);
+                    YaaccLogger.d(getClass().getName(), "Error while parsing time string", pex);
                 }
 
             }
@@ -238,7 +238,7 @@ public class MusicPlayerActivity extends AppCompatActivity implements ServiceCon
         try {
             unbindService(this);
         } catch (IllegalArgumentException iae) {
-            Log.d(getClass().getName(), "Ignore exception on unbind service while activity destroy");
+            YaaccLogger.d(getClass().getName(), "Ignore exception on unbind service while activity destroy");
         }
     }
 
@@ -335,7 +335,7 @@ public class MusicPlayerActivity extends AppCompatActivity implements ServiceCon
                 seekBar.setProgress(progress);
             }
         } catch (ParseException pex) {
-            Log.d(getClass().getName(), "Error while parsing time string", pex);
+            YaaccLogger.d(getClass().getName(), "Error while parsing time string", pex);
         }
 
 

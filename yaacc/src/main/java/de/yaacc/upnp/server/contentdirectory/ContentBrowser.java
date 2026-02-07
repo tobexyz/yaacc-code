@@ -20,7 +20,7 @@ package de.yaacc.upnp.server.contentdirectory;
 
 import android.content.Context;
 import android.util.Base64;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 import android.webkit.MimeTypeMap;
 
 import org.fourthline.cling.support.model.DIDLObject;
@@ -78,7 +78,7 @@ public abstract class ContentBrowser {
     public String getUriString(YaaccContentDirectory contentDirectory, String id, MimeType mimeType, String contentUri) {
         String fileExtension = MimeTypeMap.getSingleton().getExtensionFromMimeType(mimeType.toString());
         if (fileExtension == null) {
-            Log.d(getClass().getName(), "Can't lookup file extension from mimetype: " + mimeType);
+            YaaccLogger.d(getClass().getName(), "Can't lookup file extension from mimetype: " + mimeType);
             //try subtype
             fileExtension = mimeType.getSubtype();
 
@@ -151,7 +151,7 @@ public abstract class ContentBrowser {
                 result = result + "*";
             }
         }
-        result = result + ";DLNA.ORG_OP=01";
+        result = result + ";DLNA.ORG_OP=01;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=01700000000000000000000000000000";
         return result;
     }
 

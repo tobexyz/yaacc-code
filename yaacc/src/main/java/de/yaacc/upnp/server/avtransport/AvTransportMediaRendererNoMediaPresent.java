@@ -18,7 +18,7 @@
  */
 package de.yaacc.upnp.server.avtransport;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.support.avtransport.impl.state.AbstractState;
 import org.fourthline.cling.support.avtransport.impl.state.NoMediaPresent;
@@ -55,7 +55,7 @@ public class AvTransportMediaRendererNoMediaPresent extends
     @Override
     public Class<? extends AbstractState<?>> setTransportURI(URI uri,
                                                              String metaData) {
-        Log.d(this.getClass().getName(), "set Transport: " + uri + " metaData: " + metaData);
+        YaaccLogger.d(this.getClass().getName(), "set Transport: " + uri + " metaData: " + metaData);
         getTransport().setMediaInfo(new MediaInfo(uri.toString(), metaData));
         // If you can, you should find and set the duration of the track here!
         getTransport().setPositionInfo(

@@ -22,7 +22,7 @@ import android.app.NotificationManager;
 import android.content.Context;
 import android.os.AsyncTask;
 import android.os.Environment;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 import android.webkit.MimeTypeMap;
 
 import androidx.core.app.NotificationCompat;
@@ -141,7 +141,7 @@ public class FileDownloader extends AsyncTask<DIDLObject, Void, Void> {
         NotificationManager mNotificationManager = (NotificationManager) upnpClient.getContext()
                 .getSystemService(Context.NOTIFICATION_SERVICE);
         // mId allows you to update the notification later on.
-        Log.d(getClass().getName(), "Cancle Notification with ID: " + NotificationId.FILE_DOWNLOADER.getId());
+        YaaccLogger.d(getClass().getName(), "Cancle Notification with ID: " + NotificationId.FILE_DOWNLOADER.getId());
         mNotificationManager.cancel(NotificationId.FILE_DOWNLOADER.getId());
 
     }

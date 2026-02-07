@@ -22,7 +22,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import androidx.preference.PreferenceManager;
 
@@ -40,11 +40,11 @@ public class ServerAutostart extends BroadcastReceiver {
 
         if (preferences.getBoolean(
                 context.getString(R.string.settings_local_server_autostart_chkbx), false) && "android.intent.action.BOOT_COMPLETED".equals(intent.getAction())) {
-            Log.d(this.getClass().toString(), "Starting YAACC server on device start");
+            YaaccLogger.d(this.getClass().toString(), "Starting YAACC server on device start");
             Intent serviceIntent = new Intent(context, YaaccUpnpServerService.class);
             context.startForegroundService(serviceIntent);
         } else {
-            Log.d(this.getClass().toString(), "Not starting YAACC server on device start");
+            YaaccLogger.d(this.getClass().toString(), "Not starting YAACC server on device start");
         }
     }
 

@@ -119,6 +119,6 @@
     <string name="reset_shared_folders">gedeelde mappen opnieuw instellen</string>
     <string name="shutdown_timer">Uitschakeltimer</string>
     <string name="add_saf_content">bron toevoegen</string>
-    <string name="saf_content">SAF</string>
+    <string name="saf_content">gekoppeld</string>
     <string name="enable_server_side_seeking_for_external_urls">Schakel serverzijdig tijdsbereikbeheer in de proxymodus in.</string>
 </resources>

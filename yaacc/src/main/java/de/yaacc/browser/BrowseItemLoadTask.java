@@ -18,7 +18,7 @@
 package de.yaacc.browser;
 
 import android.os.AsyncTask;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.support.model.DIDLContent;
 
@@ -46,14 +46,14 @@ public class BrowseItemLoadTask extends AsyncTask<Long, Integer, ContentDirector
         }
 
         Long from = params[0];
-        Log.d(getClass().getName(), "loading from:" + from + " chunkSize: " + chunkSize);
+        YaaccLogger.d(getClass().getName(), "loading from:" + from + " chunkSize: " + chunkSize);
         return ((Yaacc) itemAdapter.getContext().getApplicationContext()).getUpnpClient().browseSync(itemAdapter.getNavigator().getCurrentPosition(), from, this.chunkSize);
 
     }
 
     @Override
     protected void onPostExecute(ContentDirectoryBrowseResult result) {
-        Log.d(getClass().getName(), "Ended AsyncTask for loading:" + result);
+        YaaccLogger.d(getClass().getName(), "Ended AsyncTask for loading:" + result);
         if (result == null)
             return;
         int previousItemCount = itemAdapter.getItemCount();
@@ -72,7 +72,7 @@ public class BrowseItemLoadTask extends AsyncTask<Long, Integer, ContentDirector
             if (result.getUpnpFailure() != null) {
                 String text = itemAdapter.getContext().getString(R.string.error_upnp_specific) + " "
                         + result.getUpnpFailure();
-                Log.e("ResolveError", text + "(" + itemAdapter.getNavigator().getCurrentPosition().getObjectId() + ")");
+                YaaccLogger.e("ResolveError", text + "(" + itemAdapter.getNavigator().getCurrentPosition().getObjectId() + ")");
             } else {
             }
             itemAdapter.clear();

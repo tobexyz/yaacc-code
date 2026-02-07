@@ -18,7 +18,7 @@
 package de.yaacc.player;
 
 import android.net.Uri;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 import android.webkit.MimeTypeMap;
 
 import org.fourthline.cling.support.model.Res;
@@ -59,7 +59,7 @@ public class PlayableItem {
             // calculate duration
 
             long millis = defaultDuration;
-            Log.v(getClass().getName(), "resource.getDuration(): " + resource.getDuration());
+            YaaccLogger.v(getClass().getName(), "resource.getDuration(): " + resource.getDuration());
             if (resource.getDuration() != null) {
                 try {
                     String[] tokens = resource.getDuration().split(":");
@@ -72,16 +72,16 @@ public class PlayableItem {
                     if (tokens.length > 2) {
                         String seconds = tokens[2];
                         if (tokens[2].contains(".")) {
-                            Log.d(getClass().getName(), "tokens[2]: " + tokens[2] + "split: " + tokens[2].split("\\.").length);
+                            YaaccLogger.d(getClass().getName(), "tokens[2]: " + tokens[2] + "split: " + tokens[2].split("\\.").length);
                             seconds = tokens[2].split("\\.")[0];
                         }
                         millis += Long.parseLong(seconds);
                     }
                     millis = millis * 1000;
-                    Log.d(getClass().getName(), "resource.getDuration(): " + resource.getDuration() + " millis: " + millis);
+                    YaaccLogger.d(getClass().getName(), "resource.getDuration(): " + resource.getDuration() + " millis: " + millis);
 
                 } catch (Exception e) {
-                    Log.d(getClass().getName(), "bad duration format", e);
+                    YaaccLogger.d(getClass().getName(), "bad duration format", e);
                 }
             }
             setDuration(millis);

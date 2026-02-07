@@ -19,7 +19,7 @@ package de.yaacc.browser;
 
 import android.content.Context;
 import android.net.Uri;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -123,7 +123,7 @@ public class BrowseReceiverDeviceAdapter extends RecyclerView.Adapter<BrowseRece
                     if (48 == icon.getHeight() && 48 == icon.getWidth() && "image/png".equals(icon.getMimeType().toString())) {
                         URL iconUri = ((RemoteDevice) device).normalizeURI(icon.getUri());
                         if (iconUri != null) {
-                            Log.d(getClass().getName(), "Device icon uri:" + iconUri);
+                            YaaccLogger.d(getClass().getName(), "Device icon uri:" + iconUri);
                             new IconDownloadTask(holder.icon).execute(Uri.parse(iconUri.toString()));
                             break;
                         }
@@ -139,11 +139,11 @@ public class BrowseReceiverDeviceAdapter extends RecyclerView.Adapter<BrowseRece
         holder.name.setText(device.getDetails().getFriendlyName());
         holder.checkBox.setOnClickListener((it) -> {
             if (!((CheckBox) it).isChecked()) {
-                Log.d(getClass().getName(), "isNotChecked:" + device.getDisplayString());
+                YaaccLogger.d(getClass().getName(), "isNotChecked:" + device.getDisplayString());
                 removeSelectedDevice(device);
                 upnpClient.removeReceiverDevice(device);
             } else {
-                Log.d(getClass().getName(), "isChecked:" + device.getDisplayString());
+                YaaccLogger.d(getClass().getName(), "isChecked:" + device.getDisplayString());
                 addSelectedDevice(device);
                 upnpClient.addReceiverDevice(device);
             }

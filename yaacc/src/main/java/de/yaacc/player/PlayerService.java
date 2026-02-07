@@ -25,7 +25,7 @@ import android.os.Binder;
 import android.os.HandlerThread;
 import android.os.IBinder;
 import android.os.PowerManager;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 import android.widget.Toast;
 
 import androidx.core.app.NotificationCompat;
@@ -76,12 +76,12 @@ public class PlayerService extends Service {
 
     @Override
     public void onDestroy() {
-        Log.d(this.getClass().getName(), "On Destroy");
+        YaaccLogger.d(this.getClass().getName(), "On Destroy");
     }
 
     @Override
     public IBinder onBind(Intent intent) {
-        Log.d(this.getClass().getName(), "On Bind");
+        YaaccLogger.d(this.getClass().getName(), "On Bind");
         return binder;
     }
 
@@ -92,7 +92,7 @@ public class PlayerService extends Service {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         super.onStartCommand(intent, flags, startId);
-        Log.d(this.getClass().getName(), "Received start id " + startId + ": " + intent);
+        YaaccLogger.d(this.getClass().getName(), "Received start id " + startId + ": " + intent);
         if (playerServiceBroadcastReceiver == null) {
             playerServiceBroadcastReceiver = new PlayerServiceBroadcastReceiver(this);
             playerServiceBroadcastReceiver.registerReceiver();
@@ -126,9 +126,9 @@ public class PlayerService extends Service {
     }
 
     public Player getPlayer(int playerId) {
-        Log.v(this.getClass().getName(), "Get Player for id " + playerId);
+        YaaccLogger.v(this.getClass().getName(), "Get Player for id " + playerId);
         if (currentActivePlayer.get(playerId) == null) {
-            Log.v(this.getClass().getName(), "Get Player not found");
+            YaaccLogger.v(this.getClass().getName(), "Get Player not found");
         }
         return currentActivePlayer.get(playerId);
     }
@@ -143,7 +143,7 @@ public class PlayerService extends Service {
      * @return the player
      */
     public List<Player> createPlayer(UpnpClient upnpClient, List<PlayableItem> items) {
-        Log.d(getClass().getName(), "create player...");
+        YaaccLogger.d(getClass().getName(), "create player...");
         List<Player> resultList = new ArrayList<>();
         if (items.isEmpty()) {
             return resultList;
@@ -165,7 +165,7 @@ public class PlayerService extends Service {
             }
 
         }
-        Log.d(getClass().getName(), "video:" + video + " image: " + image + " audio:" + music);
+        YaaccLogger.d(getClass().getName(), "video:" + video + " image: " + image + " audio:" + music);
         for (Device<?, ?, ?> device : upnpClient.getReceiverDevices()) {
             result = createPlayer(upnpClient, device, video, image, music);
             if (result != null) {

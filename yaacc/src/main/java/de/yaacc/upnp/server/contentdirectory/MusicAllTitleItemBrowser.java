@@ -22,7 +22,7 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.database.Cursor;
 import android.provider.MediaStore;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.support.model.DIDLObject;
 import org.fourthline.cling.support.model.DIDLObject.Property.UPNP;
@@ -111,7 +111,17 @@ public class MusicAllTitleItemBrowser extends ContentBrowser {
                 @SuppressLint("Range") String duration = mediaCursor.getString(mediaCursor
                         .getColumnIndex(MediaStore.Audio.Media.DURATION));
                 duration = contentDirectory.formatDuration(duration);
-                Log.d(getClass().getName(),
+                Integer trackNumber = null;
+                Integer year = null;
+                int trackIdx = mediaCursor.getColumnIndex(MediaStore.Audio.Media.TRACK);
+                if (trackIdx >= 0) {
+                    trackNumber = mediaCursor.getInt(trackIdx);
+                }
+                int yearIdx = mediaCursor.getColumnIndex(MediaStore.Audio.Media.YEAR);
+                if (yearIdx >= 0) {
+                    year = mediaCursor.getInt(yearIdx);
+                }
+                YaaccLogger.d(getClass().getName(),
                         "Mimetype: "
                                 + mediaCursor.getString(mediaCursor
                                 .getColumnIndex(MediaStore.Audio.Media.MIME_TYPE)));
@@ -128,6 +138,8 @@ public class MusicAllTitleItemBrowser extends ContentBrowser {
                 ProtocolInfo protocolInfo = new ProtocolInfo(Protocol.HTTP_GET, ProtocolInfo.WILDCARD, mimeType.toString(), getDLNAAttributes(mimeType));
                 Res resource = new Res(protocolInfo, size, uri);
                 resource.setDuration(duration);
+                resource.setSampleFrequency(44100L); // Standard for MP3
+                resource.setNrAudioChannels(2L); // Stereo
                 MusicTrack musicTrack = new MusicTrack(
                         ContentDirectoryIDs.MUSIC_ALL_TITLES_ITEM_PREFIX.getId()
                                 + id,
@@ -135,7 +147,13 @@ public class MusicAllTitleItemBrowser extends ContentBrowser {
                         + "-(" + name + ")", "", album, artist, resource);
                 musicTrack
                         .replaceFirstProperty(new UPNP.ALBUM_ART_URI(albumArtUri));
-                musicTrack.setArtists(new PersonWithRole[]{new PersonWithRole(artist, "AlbumArtist")});
+                musicTrack.setArtists(new PersonWithRole[]{new PersonWithRole(artist)});
+                if (trackNumber != null && trackNumber > 0) {
+                    musicTrack.setOriginalTrackNumber(trackNumber);
+                }
+                if (year != null && year > 0) {
+                    musicTrack.setDate(year + "-01-01");
+                }
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
                     @SuppressLint("Range") String genre = mediaCursor.getString(mediaCursor
                             .getColumnIndex(MediaStore.Audio.Media.GENRE));
@@ -146,11 +164,12 @@ public class MusicAllTitleItemBrowser extends ContentBrowser {
                 }
 
                 result = musicTrack;
-                Log.d(getClass().getName(), "MusicTrack: " + id + " Name: " + name
-                        + " uri: " + uri);
+                YaaccLogger.d(getClass().getName(), "MusicTrack: " + id + " Name: " + name
+                        + " uri: " + uri + " trackNumber: " + trackNumber + " year: " + year 
+                        + " artist: " + artist + " album: " + album);
 
             } else {
-                Log.d(getClass().getName(), "Item " + myId + "  not found.");
+                YaaccLogger.d(getClass().getName(), "Item " + myId + "  not found.");
             }
         }
         return result;

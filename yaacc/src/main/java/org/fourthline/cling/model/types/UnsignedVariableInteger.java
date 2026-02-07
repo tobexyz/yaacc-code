@@ -15,7 +15,7 @@
 
 package org.fourthline.cling.model.types;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 /**
  * A crude solution for unsigned "non-negative" types in UPnP, not usable for any arithmetic.
@@ -54,7 +54,7 @@ public abstract class UnsignedVariableInteger {
         if (s.startsWith("-")) {
             // Don't throw exception, just cut it!
             // TODO: UPNP VIOLATION: Twonky Player returns "-1" as the track number
-            Log.w(getClass().getName(), "Invalid negative integer value '" + s + "', assuming value 0!");
+            YaaccLogger.w(getClass().getName(), "Invalid negative integer value '" + s + "', assuming value 0!");
             s = "0";
         }
         setValue(Long.parseLong(s.trim()));

@@ -29,7 +29,7 @@ import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.os.Build;
 import android.os.IBinder;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 import android.widget.Toast;
 
 import androidx.core.app.NotificationCompat;
@@ -86,7 +86,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
 
     public void onServiceConnected(ComponentName className, IBinder binder) {
         if (binder instanceof PlayerService.PlayerServiceBinder) {
-            Log.d("ServiceConnection", "connected");
+            YaaccLogger.d("ServiceConnection", "connected");
 
             playerService = ((PlayerService.PlayerServiceBinder) binder).getService();
             playerService.addPlayer(this);
@@ -95,7 +95,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
 
 
     public void onServiceDisconnected(ComponentName className) {
-        Log.d("ServiceConnection", "disconnected");
+        YaaccLogger.d("ServiceConnection", "disconnected");
         if (playerService != null) {
             playerService.removePlayer(this);
         }
@@ -448,20 +448,20 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
 
     protected Object loadItem(int toLoadIndex) {
         if (toLoadIndex == currentLoadedIndex && loadedItem != null) {
-            Log.d(getClass().getName(), "returning already loaded item");
+            YaaccLogger.d(getClass().getName(), "returning already loaded item");
             return loadedItem;
         }
         if (toLoadIndex >= 0 && toLoadIndex <= items.size()) {
-            Log.d(getClass().getName(), "loaded item");
+            YaaccLogger.d(getClass().getName(), "loaded item");
             currentLoadedIndex = toLoadIndex;
 
             PlayableItem playableItem = items.get(toLoadIndex);
 
-            Log.d(getClass().getName(), "Checking item restriction: " + playableItem.getItem().getTitle() + " restricted=" + playableItem.getItem().isRestricted());
+            YaaccLogger.d(getClass().getName(), "Checking item restriction: " + playableItem.getItem().getTitle() + " restricted=" + playableItem.getItem().isRestricted());
             /*
             // If item is restricted, show toast and wait
             if (playableItem.getItem().isRestricted()) {
-                Log.d(getClass().getName(), "Item is restricted, showing toast and waiting");
+                YaaccLogger.d(getClass().getName(), "Item is restricted, showing toast and waiting");
                 Context context = getUpnpClient().getContext();
                 if (context instanceof Activity) {
                     ((Activity) context).runOnUiThread(() -> {
@@ -476,14 +476,14 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
                     try {
                         Thread.sleep(500);
                         waitedSeconds++;
-                        Log.d(getClass().getName(), "Still waiting for item: " + playableItem.getItem().getTitle() + " (waited " + (waitedSeconds * 0.5) + "s)");
+                        YaaccLogger.d(getClass().getName(), "Still waiting for item: " + playableItem.getItem().getTitle() + " (waited " + (waitedSeconds * 0.5) + "s)");
                     } catch (InterruptedException e) {
                         break;
                     }
                 }
 
                 if (playableItem.getItem().isRestricted()) {
-                    Log.w(getClass().getName(), "Item still restricted after timeout");
+                    YaaccLogger.w(getClass().getName(), "Item still restricted after timeout");
                     return null;
                 }
             }
@@ -562,10 +562,10 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
                 }
                 millis = millis * 1000;
             } catch (Exception e) {
-                Log.d(getClass().getName(), "ignoring error on parsing to millis of:" + timeString, e);
+                YaaccLogger.d(getClass().getName(), "ignoring error on parsing to millis of:" + timeString, e);
             }
         }
-        Log.v(getClass().getName(), "parsing time string" + timeString + " result millis:" + millis);
+        YaaccLogger.v(getClass().getName(), "parsing time string" + timeString + " result millis:" + millis);
         return millis;
     }
 
@@ -580,7 +580,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
      * @param duration in millis
      */
     public void startTimer(final long duration) {
-        Log.d(getClass().getName(), "Start timer duration: " + duration);
+        YaaccLogger.d(getClass().getName(), "Start timer duration: " + duration);
         cancelTimer();
         Intent intent = new Intent();
         intent.setAction(PlayerServiceBroadcastReceiver.ACTION_NEXT);
@@ -598,14 +598,14 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
                             System.currentTimeMillis() + duration,
                             alarmIntent
                     );
-                    Log.d(getClass().getName(), "ExactAndAllowWhileIdle alarm event in: " + (System.currentTimeMillis() + duration));
+                    YaaccLogger.d(getClass().getName(), "ExactAndAllowWhileIdle alarm event in: " + (System.currentTimeMillis() + duration));
                 } else {
                     alarmManager.setAndAllowWhileIdle(
                             AlarmManager.RTC_WAKEUP,
                             System.currentTimeMillis() + duration,
                             alarmIntent
                     );
-                    Log.d(getClass().getName(), "AndAllowWhileIdle alarm event in: " + (System.currentTimeMillis() + duration));
+                    YaaccLogger.d(getClass().getName(), "AndAllowWhileIdle alarm event in: " + (System.currentTimeMillis() + duration));
                 }
             } else {
                 alarmManager.setExact(
@@ -613,7 +613,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
                         System.currentTimeMillis() + duration,
                         alarmIntent
                 );
-                Log.d(getClass().getName(), "exact alarm event in: " + (System.currentTimeMillis() + duration));
+                YaaccLogger.d(getClass().getName(), "exact alarm event in: " + (System.currentTimeMillis() + duration));
             }
         });
 
@@ -693,7 +693,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
         NotificationManager mNotificationManager = (NotificationManager) getContext()
                 .getSystemService(Context.NOTIFICATION_SERVICE);
         // mId allows you to update the notification later on.
-        Log.d(getClass().getName(), "Cancel Notification with ID: " + getNotificationId());
+        YaaccLogger.d(getClass().getName(), "Cancel Notification with ID: " + getNotificationId());
         mNotificationManager.cancel(getNotificationId());
         ((Yaacc) getContext().getApplicationContext()).cancelYaaccGroupNotification();
 
@@ -737,7 +737,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
             try {
                 playerService.unbindService(this);
             } catch (IllegalArgumentException iex) {
-                Log.d(getClass().getName(), "Exception while unbind service");
+                YaaccLogger.d(getClass().getName(), "Exception while unbind service");
             }
 
         }

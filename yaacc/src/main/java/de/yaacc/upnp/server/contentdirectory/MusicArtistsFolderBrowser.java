@@ -22,7 +22,7 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.database.Cursor;
 import android.provider.MediaStore;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.support.model.DIDLObject;
 import org.fourthline.cling.support.model.SortCriterion;
@@ -125,12 +125,12 @@ public class MusicArtistsFolderBrowser extends ContentBrowser {
                     int tracks = getMusicTrackSize(contentDirectory, entry.getKey());
                     entry.getValue().setChildCount(tracks);
                     if (tracks > 0) {
-                        Log.d(getClass().getName(), "Artists Folder: " + entry.getValue().getId() + " Name: " + entry.getValue().getTitle());
+                        YaaccLogger.d(getClass().getName(), "Artists Folder: " + entry.getValue().getId() + " Name: " + entry.getValue().getTitle());
                         result.add(entry.getValue());
                     }
                 }
             } else {
-                Log.d(getClass().getName(), "System media store is empty.");
+                YaaccLogger.d(getClass().getName(), "System media store is empty.");
             }
         }
         int start = firstResult > 0 ? (int) firstResult : 0;

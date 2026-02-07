@@ -22,7 +22,7 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.database.Cursor;
 import android.provider.MediaStore;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.support.model.DIDLObject;
 import org.fourthline.cling.support.model.DIDLObject.Property.UPNP;
@@ -140,13 +140,23 @@ public class MusicGenreItemBrowser extends ContentBrowser {
                         .getColumnIndex(MediaStore.Audio.Media.ARTIST));
                 @SuppressLint("Range") String duration = mediaCursor.getString(mediaCursor
                         .getColumnIndex(MediaStore.Audio.Media.DURATION));
+                Integer trackNumber = null;
+                Integer year = null;
+                int trackIdx = mediaCursor.getColumnIndex(MediaStore.Audio.Media.TRACK);
+                if (trackIdx >= 0) {
+                    trackNumber = mediaCursor.getInt(trackIdx);
+                }
+                int yearIdx = mediaCursor.getColumnIndex(MediaStore.Audio.Media.YEAR);
+                if (yearIdx >= 0) {
+                    year = mediaCursor.getInt(yearIdx);
+                }
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
                     @SuppressLint("Range") int genreIdIdx = mediaCursor.getColumnIndex(MediaStore.Audio.Media.GENRE_ID);
                     genreId = mediaCursor.getString(genreIdIdx);
                 }
                 @SuppressLint("Range") String mimeTypeString = mediaCursor.getString(mediaCursor
                         .getColumnIndex(MediaStore.Audio.Genres.Members.MIME_TYPE));
-                Log.d(getClass().getName(), "Mimetype: " + mimeTypeString);
+                YaaccLogger.d(getClass().getName(), "Mimetype: " + mimeTypeString);
                 MimeType mimeType = MimeType.valueOf(mimeTypeString);
                 // file parameter only needed for media players which decide
                 // the ability of playing a file by the file extension
@@ -160,9 +170,15 @@ public class MusicGenreItemBrowser extends ContentBrowser {
                 MusicTrack musicTrack = new MusicTrack(
                         ContentDirectoryIDs.MUSIC_GENRE_ITEM_PREFIX.getId() + id,
                         ContentDirectoryIDs.MUSIC_GENRE_PREFIX.getId() + genreId,
-                        title + "-(" + name + ")", "", album, artist, resource);
+                        title + "-(" + name + ")", artist, album, artist, resource);
                 musicTrack.replaceFirstProperty(new UPNP.ALBUM_ART_URI(albumArtUri));
-                musicTrack.setArtists(new PersonWithRole[]{new PersonWithRole(artist, "AlbumArtist")});
+                musicTrack.setArtists(new PersonWithRole[]{new PersonWithRole(artist)});
+                if (trackNumber != null && trackNumber > 0) {
+                    musicTrack.setOriginalTrackNumber(trackNumber);
+                }
+                if (year != null && year > 0) {
+                    musicTrack.setDate(year + "-01-01");
+                }
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
                     @SuppressLint("Range") String genre = mediaCursor.getString(mediaCursor
                             .getColumnIndex(MediaStore.Audio.Media.GENRE));
@@ -173,10 +189,10 @@ public class MusicGenreItemBrowser extends ContentBrowser {
                 }
                 result = musicTrack;
 
-                Log.d(getClass().getName(), "MusicTrack: " + id + " Name: " + name
+                YaaccLogger.d(getClass().getName(), "MusicTrack: " + id + " Name: " + name
                         + " uri: " + uri);
             } else {
-                Log.d(getClass().getName(), "Item " + myId + "  not found.");
+                YaaccLogger.d(getClass().getName(), "Item " + myId + "  not found.");
             }
         }
         return result;

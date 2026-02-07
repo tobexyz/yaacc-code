@@ -17,7 +17,7 @@
  */
 package de.yaacc.browser;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -52,7 +52,7 @@ public class Navigator implements Serializable {
     }
 
     public void pushPosition(Position pos) {
-        Log.d(getClass().getName(), "pushNavigation: " + pos.getObjectId());
+        YaaccLogger.d(getClass().getName(), "pushNavigation: " + pos.getObjectId());
         navigationPath.add(pos);
     }
 
@@ -66,7 +66,7 @@ public class Navigator implements Serializable {
         if (!navigationPath.isEmpty()) {
             result = navigationPath.removeLast();
         }
-        Log.d(getClass().getName(), "popNavigation: " + Objects.requireNonNull(result).getObjectId());
+        YaaccLogger.d(getClass().getName(), "popNavigation: " + Objects.requireNonNull(result).getObjectId());
         return result;
     }
 

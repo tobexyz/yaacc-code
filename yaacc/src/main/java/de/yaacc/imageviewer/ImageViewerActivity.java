@@ -28,7 +28,7 @@ import android.net.Uri;
 import android.os.AsyncTask.Status;
 import android.os.Bundle;
 import android.os.IBinder;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 import android.view.KeyEvent;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -93,14 +93,14 @@ public class ImageViewerActivity extends AppCompatActivity implements SwipeRecei
 
     public void onServiceConnected(ComponentName className, IBinder binder) {
         if (binder instanceof PlayerService.PlayerServiceBinder) {
-            Log.d(getClass().getName(), "PlayerService connected");
+            YaaccLogger.d(getClass().getName(), "PlayerService connected");
             playerService = ((PlayerService.PlayerServiceBinder) binder).getService();
             initialize();
         }
     }
 
     public void onServiceDisconnected(ComponentName className) {
-        Log.d(getClass().getName(), "PlayerService disconnected");
+        YaaccLogger.d(getClass().getName(), "PlayerService disconnected");
         playerService = null;
     }
 
@@ -111,7 +111,7 @@ public class ImageViewerActivity extends AppCompatActivity implements SwipeRecei
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        Log.d(this.getClass().getName(), "OnCreate");
+        YaaccLogger.d(this.getClass().getName(), "OnCreate");
         super.onCreate(savedInstanceState);
         init(savedInstanceState, getIntent());
         this.bindService(new Intent(this, PlayerService.class),
@@ -165,21 +165,21 @@ public class ImageViewerActivity extends AppCompatActivity implements SwipeRecei
             imageUris = (List<Uri>) savedInstanceState
                     .getSerializable("imageUris");
         } else {
-            Log.d(this.getClass().getName(),
+            YaaccLogger.d(this.getClass().getName(),
                     "Received Action View! now setting items ");
             Serializable urisData = intent.getSerializableExtra(URIS);
             if (urisData != null) {
                 if (urisData instanceof List) {
                     currentImageIndex = 0;
                     imageUris = (List<Uri>) urisData;
-                    Log.d(this.getClass().getName(),
+                    YaaccLogger.d(this.getClass().getName(),
                             "imageUris" + imageUris.toString());
                 }
             } else {
                 if (intent.getData() != null) {
                     currentImageIndex = 0;
                     imageUris.add(intent.getData());
-                    Log.d(this.getClass().getName(), "imageUris.add(i.getData)"
+                    YaaccLogger.d(this.getClass().getName(), "imageUris.add(i.getData)"
                             + imageUris.toString());
                 }
             }
@@ -203,7 +203,7 @@ public class ImageViewerActivity extends AppCompatActivity implements SwipeRecei
         try {
             unbindService(this);
         } catch (IllegalArgumentException iae) {
-            Log.d(getClass().getName(), "Ignore exception on unbind service while activity destroy");
+            YaaccLogger.d(getClass().getName(), "Ignore exception on unbind service while activity destroy");
         }
         super.onDestroy();
     }
@@ -463,7 +463,7 @@ public class ImageViewerActivity extends AppCompatActivity implements SwipeRecei
         pictureShowTimer.schedule(new TimerTask() {
             @Override
             public void run() {
-                Log.d(getClass().getName(), "TimerEvent" + this);
+                YaaccLogger.d(getClass().getName(), "TimerEvent" + this);
                 ImageViewerActivity.this.next();
             }
         }, getDuration());
@@ -493,7 +493,7 @@ public class ImageViewerActivity extends AppCompatActivity implements SwipeRecei
             return;
         }
         retrieveImageTask = new RetrieveImageTask(this);
-        Log.d(getClass().getName(),
+        YaaccLogger.d(getClass().getName(),
                 "showImage(" + imageUris.get(currentImageIndex) + ")");
         retrieveImageTask.executeOnExecutor(((Yaacc) getApplicationContext()).getContentLoadExecutor(), imageUris.get(currentImageIndex));
     }
@@ -589,13 +589,13 @@ public class ImageViewerActivity extends AppCompatActivity implements SwipeRecei
             showDefaultImage();
             return;
         }
-        Log.d(this.getClass().getName(), "image bounds: " + image.getBounds());
+        YaaccLogger.d(this.getClass().getName(), "image bounds: " + image.getBounds());
         runOnUiThread(new Runnable() {
             public void run() {
-                Log.d(getClass().getName(),
+                YaaccLogger.d(getClass().getName(),
                         "Start set image: " + System.currentTimeMillis());
                 imageView.setImageDrawable(image);
-                Log.d(getClass().getName(),
+                YaaccLogger.d(getClass().getName(),
                         "End set image: " + System.currentTimeMillis());
             }
         });
@@ -671,10 +671,10 @@ public class ImageViewerActivity extends AppCompatActivity implements SwipeRecei
 
     //FIXME https://stackoverflow.com/questions/26580117/android-how-to-create-overlay-drop-down-menu-similar-to-google-app
     private void menuBarsHide() {
-        Log.d(getClass().getName(), "menuBarsHide");
+        YaaccLogger.d(getClass().getName(), "menuBarsHide");
         ActionBar actionBar = getSupportActionBar();
         if (actionBar == null) {
-            Log.d(getClass().getName(), "menuBarsHide ActionBar is null");
+            YaaccLogger.d(getClass().getName(), "menuBarsHide ActionBar is null");
             return;
         }
 
@@ -689,10 +689,10 @@ public class ImageViewerActivity extends AppCompatActivity implements SwipeRecei
     }
 
     private void menuBarsShow() {
-        Log.d(getClass().getName(), "menuBarsShow");
+        YaaccLogger.d(getClass().getName(), "menuBarsShow");
         ActionBar actionBar = getSupportActionBar();
         if (actionBar == null) {
-            Log.d(getClass().getName(), "menuBarsShow ActionBar is null");
+            YaaccLogger.d(getClass().getName(), "menuBarsShow ActionBar is null");
             return;
         }
         actionBar.setDisplayShowTitleEnabled(false);

@@ -19,7 +19,7 @@ package de.yaacc.browser;
 
 import android.graphics.drawable.Drawable;
 import android.os.Bundle;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -100,7 +100,7 @@ public class ReceiverListFragment extends Fragment implements
 
     public boolean onBackPressed() {
 
-        Log.d(ReceiverListFragment.class.getName(), "onBackPressed() CurrentPosition");
+        YaaccLogger.d(ReceiverListFragment.class.getName(), "onBackPressed() CurrentPosition");
         if (getActivity().getParent() instanceof TabBrowserActivity) {
             ((TabBrowserActivity) getActivity().getParent()).setCurrentTab(BrowserTabs.CONTENT);
         }

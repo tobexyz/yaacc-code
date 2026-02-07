@@ -19,7 +19,7 @@ package de.yaacc.browser;
 
 import android.content.res.Configuration;
 import android.graphics.Bitmap;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 import android.util.TypedValue;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -74,7 +74,7 @@ public class PlayerListItemAdapter extends RecyclerView.Adapter<PlayerListItemAd
     }
 
     public void setItems(Collection<Player> newObjects) {
-        Log.d(getClass().getName(), "set objects; " + newObjects);
+        YaaccLogger.d(getClass().getName(), "set objects; " + newObjects);
         players.clear();
         players.addAll(newObjects);
         notifyDataSetChanged();

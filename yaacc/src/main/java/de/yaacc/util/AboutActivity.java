@@ -21,7 +21,7 @@ package de.yaacc.util;
 import android.content.Intent;
 import android.content.pm.PackageManager.NameNotFoundException;
 import android.os.Bundle;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
@@ -50,7 +50,7 @@ public class AboutActivity extends AppCompatActivity {
             CharSequence aboutText = textView.getText();
             textView.setText("Yet Another Android Client Controller\nVersion: " + app_ver + "\n\n" + aboutText);
         } catch (NameNotFoundException e) {
-            Log.d(getClass().getName(), "Can't find version", e);
+            YaaccLogger.d(getClass().getName(), "Can't find version", e);
         }
 
     }

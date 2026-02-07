@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
-    android:versionCode="40500"
-    android:versionName="4.5.0-SNAPSHOT">
+    android:versionCode="50000"
+    android:versionName="5.0.0-SNAPSHOT">
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
@@ -61,9 +61,7 @@
             </intent-filter>
         </activity>
 
-        <service
-            android:name=".upnp.UpnpRegistryService"
-            android:enabled="true" />
+
         <service
             android:name=".player.PlayerService"
             android:enabled="true"
@@ -150,7 +148,7 @@
             </intent-filter>
         </activity>
         <activity
-            android:name=".upnp.server.YaaccUpnpServerControlActivity"
+            android:name=".upnp.server.configuration.YaaccUpnpServerControlActivity"
             android:exported="true"
             android:label="@string/title_activity_yaacc_upnp_server_control">
             <intent-filter>

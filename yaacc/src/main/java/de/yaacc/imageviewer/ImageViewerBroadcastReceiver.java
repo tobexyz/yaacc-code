@@ -21,7 +21,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 /**
  * @author Tobias Schoene (openbit)
@@ -44,7 +44,7 @@ public class ImageViewerBroadcastReceiver extends BroadcastReceiver {
     }
 
     public ImageViewerBroadcastReceiver(ImageViewerActivity imageViewer) {
-        Log.d(this.getClass().getName(), "Starting Broadcast Receiver...");
+        YaaccLogger.d(this.getClass().getName(), "Starting Broadcast Receiver...");
         assert (imageViewer != null);
         this.imageViewer = imageViewer;
 
@@ -55,9 +55,9 @@ public class ImageViewerBroadcastReceiver extends BroadcastReceiver {
      */
     @Override
     public void onReceive(Context context, Intent intent) {
-        Log.d(this.getClass().getName(), "Received Action: " + intent.getAction());
+        YaaccLogger.d(this.getClass().getName(), "Received Action: " + intent.getAction());
         if (imageViewer == null) return;
-        Log.d(this.getClass().getName(), "Execute Action on imageViewer: " + imageViewer);
+        YaaccLogger.d(this.getClass().getName(), "Execute Action on imageViewer: " + imageViewer);
         if (ACTION_PLAY.equals(intent.getAction())) {
             imageViewer.play();
         } else if (ACTION_PAUSE.equals(intent.getAction())) {
@@ -76,7 +76,7 @@ public class ImageViewerBroadcastReceiver extends BroadcastReceiver {
     }
 
     public void registerReceiver() {
-        Log.d(this.getClass().getName(), "Register Receiver");
+        YaaccLogger.d(this.getClass().getName(), "Register Receiver");
         IntentFilter intentFilter = new IntentFilter();
         intentFilter.addAction(ACTION_PLAY);
         intentFilter.addAction(ACTION_PAUSE);

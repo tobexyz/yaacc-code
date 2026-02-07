@@ -16,7 +16,7 @@
 package org.fourthline.cling.model.meta;
 
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.Validatable;
 import org.fourthline.cling.model.ValidationError;
@@ -157,20 +157,20 @@ public class Icon implements Validatable {
         List<ValidationError> errors = new ArrayList<>();
 
         if (getMimeType() == null) {
-            Log.w(getClass().getName(), "UPnP specification violation of: " + getDevice());
-            Log.w(getClass().getName(), "Invalid icon, missing mime type: " + this);
+            YaaccLogger.w(getClass().getName(), "UPnP specification violation of: " + getDevice());
+            YaaccLogger.w(getClass().getName(), "Invalid icon, missing mime type: " + this);
         }
         if (getWidth() == 0) {
-            Log.w(getClass().getName(), "UPnP specification violation of: " + getDevice());
-            Log.w(getClass().getName(), "Invalid icon, missing width: " + this);
+            YaaccLogger.w(getClass().getName(), "UPnP specification violation of: " + getDevice());
+            YaaccLogger.w(getClass().getName(), "Invalid icon, missing width: " + this);
         }
         if (getHeight() == 0) {
-            Log.w(getClass().getName(), "UPnP specification violation of: " + getDevice());
-            Log.w(getClass().getName(), "Invalid icon, missing height: " + this);
+            YaaccLogger.w(getClass().getName(), "UPnP specification violation of: " + getDevice());
+            YaaccLogger.w(getClass().getName(), "Invalid icon, missing height: " + this);
         }
         if (getDepth() == 0) {
-            Log.w(getClass().getName(), "UPnP specification violation of: " + getDevice());
-            Log.w(getClass().getName(), "Invalid icon, missing bitmap depth: " + this);
+            YaaccLogger.w(getClass().getName(), "UPnP specification violation of: " + getDevice());
+            YaaccLogger.w(getClass().getName(), "Invalid icon, missing bitmap depth: " + this);
         }
 
         if (getUri() == null) {

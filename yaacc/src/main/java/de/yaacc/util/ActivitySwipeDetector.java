@@ -17,7 +17,7 @@
  */
 package de.yaacc.util;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.View.OnTouchListener;
@@ -34,33 +34,33 @@ public class ActivitySwipeDetector implements OnTouchListener {
     }
 
     private void onRightToLeftSwipe() {
-        Log.i(logTag, "RightToLeftSwipe!");
+        YaaccLogger.i(logTag, "RightToLeftSwipe!");
         swipeReceiver.onRightToLeftSwipe();
     }
 
     private void onLeftToRightSwipe() {
-        Log.i(logTag, "LeftToRightSwipe!");
+        YaaccLogger.i(logTag, "LeftToRightSwipe!");
         swipeReceiver.onLeftToRightSwipe();
     }
 
     private void onTopToBottomSwipe() {
-        Log.i(logTag, "onTopToBottomSwipe!");
+        YaaccLogger.i(logTag, "onTopToBottomSwipe!");
         swipeReceiver.onTopToBottomSwipe();
     }
 
     private void onBottomToTopSwipe() {
-        Log.i(logTag, "onBottomToTopSwipe!");
+        YaaccLogger.i(logTag, "onBottomToTopSwipe!");
         swipeReceiver.onBottomToTopSwipe();
     }
 
     private void endOnTouchProcessing(View v, MotionEvent event) {
-        Log.i(logTag, "endOnTouchProcessing!");
+        YaaccLogger.i(logTag, "endOnTouchProcessing!");
         swipeReceiver.endOnTouchProcessing(v, event);
 
     }
 
     private void beginOnTouchProcessing(View v, MotionEvent event) {
-        Log.i(logTag, "beginOnTouchProcessing!");
+        YaaccLogger.i(logTag, "beginOnTouchProcessing!");
         swipeReceiver.beginOnTouchProcessing(v, event);
 
     }
@@ -95,7 +95,7 @@ public class ActivitySwipeDetector implements OnTouchListener {
                             return true;
                         }
                     } else {
-                        Log.i(logTag, "Swipe was only " + Math.abs(deltaX)
+                        YaaccLogger.i(logTag, "Swipe was only " + Math.abs(deltaX)
                                 + " long, need at least " + MIN_DISTANCE);
                         return false; // We don't consume the event
                     }
@@ -112,7 +112,7 @@ public class ActivitySwipeDetector implements OnTouchListener {
                             return true;
                         }
                     } else {
-                        Log.i(logTag, "Swipe was only " + Math.abs(deltaX)
+                        YaaccLogger.i(logTag, "Swipe was only " + Math.abs(deltaX)
                                 + " long, need at least " + MIN_DISTANCE);
                         return false; // We don't consume the event
                     }

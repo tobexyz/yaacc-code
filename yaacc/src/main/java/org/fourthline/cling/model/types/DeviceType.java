@@ -15,7 +15,7 @@
 
 package org.fourthline.cling.model.types;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.Constants;
 
@@ -103,7 +103,7 @@ public class DeviceType {
             // urn:schemas-upnp-org:device::1
             matcher = Pattern.compile("urn:(" + Constants.REGEX_NAMESPACE + "):device::([0-9]+).*").matcher(s);
             if (matcher.matches() && matcher.groupCount() >= 2) {
-                Log.w(DeviceType.class.getName(), "UPnP specification violation, no device type token, defaulting to " + UNKNOWN + ": " + s);
+                YaaccLogger.w(DeviceType.class.getName(), "UPnP specification violation, no device type token, defaulting to " + UNKNOWN + ": " + s);
                 return new DeviceType(matcher.group(1), UNKNOWN, Integer.valueOf(matcher.group(2)));
             }
 
@@ -112,7 +112,7 @@ public class DeviceType {
             matcher = Pattern.compile("urn:(" + Constants.REGEX_NAMESPACE + "):device:(.+?):([0-9]+).*").matcher(s);
             if (matcher.matches() && matcher.groupCount() >= 3) {
                 String cleanToken = matcher.group(2).replaceAll("[^a-zA-Z_0-9\\-]", "-");
-                Log.w(DeviceType.class.getName(),
+                YaaccLogger.w(DeviceType.class.getName(),
                         "UPnP specification violation, replacing invalid device type token '"
                                 + matcher.group(2)
                                 + "' with: "

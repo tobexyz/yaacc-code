@@ -15,7 +15,7 @@
 
 package org.fourthline.cling.support.avtransport.impl;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.types.ErrorCode;
 import org.fourthline.cling.model.types.UnsignedIntegerFourBytes;
@@ -290,13 +290,13 @@ public class AVTransportService<T extends AVTransport> extends AbstractAVTranspo
             long id = instanceId.getValue();
             AVTransportStateMachine stateMachine = stateMachines.get(id);
             if (stateMachine == null && id == 0 && createDefaultTransport) {
-                Log.v(getClass().getName(), "Creating default transport instance with ID '0'");
+                YaaccLogger.v(getClass().getName(), "Creating default transport instance with ID '0'");
                 stateMachine = createStateMachine(instanceId);
                 stateMachines.put(id, stateMachine);
             } else if (stateMachine == null) {
                 throw new AVTransportException(AVTransportErrorCode.INVALID_INSTANCE_ID);
             }
-            Log.v(getClass().getName(), "Found transport control with ID '" + id + "'");
+            YaaccLogger.v(getClass().getName(), "Found transport control with ID '" + id + "'");
             return stateMachine;
         }
     }

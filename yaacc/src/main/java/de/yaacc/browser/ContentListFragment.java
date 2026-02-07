@@ -20,7 +20,7 @@ package de.yaacc.browser;
 import android.graphics.drawable.Drawable;
 import android.widget.ProgressBar;
 import android.os.Bundle;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.View.OnClickListener;
@@ -106,7 +106,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         topSeperator = contentlistView.findViewById(R.id.contentListTopSeperator);
         contentList = contentlistView.findViewById(R.id.contentList);
         progressBar = contentlistView.findViewById(R.id.contentListProgressBar);
-        Log.d("ContentListFragment", "ProgressBar found: " + (progressBar != null));
+        YaaccLogger.d("ContentListFragment", "ProgressBar found: " + (progressBar != null));
         contentList.setLayoutManager(new LinearLayoutManager(getActivity()));
         contentList.setFocusable(true);
         contentList.setFocusableInTouchMode(false); // Good for D-Pad primary interaction
@@ -186,7 +186,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
      */
     public boolean onBackPressed() {
 
-        Log.d(ContentListFragment.class.getName(), "onBackPressed() CurrentPosition: " + navigator.getCurrentPosition());
+        YaaccLogger.d(ContentListFragment.class.getName(), "onBackPressed() CurrentPosition: " + navigator.getCurrentPosition());
 
         if (bItemAdapter != null) {
             bItemAdapter.cancelRunningTasks();
@@ -253,7 +253,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
                     if (linearLayoutManager != null && linearLayoutManager.findLastCompletelyVisibleItemPosition() == bItemAdapter.getItemCount() - 1) {
                         if (getActivity() != null) {
                             getActivity().runOnUiThread(() -> {
-                                Log.d(getClass().getName(), "scroll int dx, int dy" + dx + ", " + dy);
+                                YaaccLogger.d(getClass().getName(), "scroll int dx, int dy" + dx + ", " + dy);
                                 bItemAdapter.loadMore();
                             });
                         }
@@ -310,7 +310,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
      */
     @Override
     public void deviceRemoved(Device<?, ?, ?> device) {
-        Log.d(this.getClass().toString(), "device removal called");
+        YaaccLogger.d(this.getClass().toString(), "device removal called");
         if (device.equals(upnpClient.getProviderDevice())) {
             clearItemList();
         }

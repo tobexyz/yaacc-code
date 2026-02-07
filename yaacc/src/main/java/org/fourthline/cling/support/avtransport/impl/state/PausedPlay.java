@@ -15,7 +15,7 @@
 
 package org.fourthline.cling.support.avtransport.impl.state;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.support.avtransport.lastchange.AVTransportVariable;
 import org.fourthline.cling.support.model.AVTransport;
@@ -36,7 +36,7 @@ public abstract class PausedPlay<T extends AVTransport> extends AbstractState<T>
     }
 
     public void onEntry() {
-        Log.v(getClass().getName(), "Setting transport state to PAUSED_PLAYBACK");
+        YaaccLogger.v(getClass().getName(), "Setting transport state to PAUSED_PLAYBACK");
         getTransport().setTransportInfo(
                 new TransportInfo(
                         TransportState.PAUSED_PLAYBACK,

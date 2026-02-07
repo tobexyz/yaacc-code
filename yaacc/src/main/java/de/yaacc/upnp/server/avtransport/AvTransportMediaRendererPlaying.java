@@ -19,7 +19,7 @@
 package de.yaacc.upnp.server.avtransport;
 
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.support.avtransport.impl.state.AbstractState;
 import org.fourthline.cling.support.avtransport.impl.state.Playing;
@@ -67,7 +67,7 @@ public class AvTransportMediaRendererPlaying extends Playing<AvTransport> implem
      */
     @Override
     public void onEntry() {
-        Log.d(this.getClass().getName(), "On Entry");
+        YaaccLogger.d(this.getClass().getName(), "On Entry");
         super.onEntry();
         if (getTransport() == null
                 || getTransport().getPositionInfo() == null
@@ -94,9 +94,9 @@ public class AvTransportMediaRendererPlaying extends Playing<AvTransport> implem
     @Override
     public Class<? extends AbstractState<?>> setTransportURI(URI uri,
                                                              String metaData) {
-        Log.d(this.getClass().getName(), "Set TransportURI");
-        Log.d(this.getClass().getName(), "uri: " + uri);
-        Log.d(this.getClass().getName(), "metaData: " + metaData);
+        YaaccLogger.d(this.getClass().getName(), "Set TransportURI");
+        YaaccLogger.d(this.getClass().getName(), "uri: " + uri);
+        YaaccLogger.d(this.getClass().getName(), "metaData: " + metaData);
         getTransport().setMediaInfo(new MediaInfo(uri.toString(), metaData));
 // If you can, you should find and set the duration of the track here!
         getTransport().setPositionInfo(
@@ -117,7 +117,7 @@ public class AvTransportMediaRendererPlaying extends Playing<AvTransport> implem
      */
     @Override
     public Class<? extends AbstractState<?>> stop() {
-        Log.d(this.getClass().getName(), "Stop");
+        YaaccLogger.d(this.getClass().getName(), "Stop");
         updateTime = false;
 // Stop playing!
         return AvTransportMediaRendererStopped.class;
@@ -129,7 +129,7 @@ public class AvTransportMediaRendererPlaying extends Playing<AvTransport> implem
      */
     @Override
     public Class<? extends AbstractState<?>> play(String speed) {
-        Log.d(this.getClass().getName(), "play");
+        YaaccLogger.d(this.getClass().getName(), "play");
         updateTime = true;
         return AvTransportMediaRendererPlaying.class;
     }
@@ -140,7 +140,7 @@ public class AvTransportMediaRendererPlaying extends Playing<AvTransport> implem
      */
     @Override
     public Class<? extends AbstractState<?>> pause() {
-        Log.d(this.getClass().getName(), "pause");
+        YaaccLogger.d(this.getClass().getName(), "pause");
         updateTime = false;
         return AvTransportMediaRendererPaused.class;
     }
@@ -151,7 +151,7 @@ public class AvTransportMediaRendererPlaying extends Playing<AvTransport> implem
      */
     @Override
     public Class<? extends AbstractState<?>> next() {
-        Log.d(this.getClass().getName(), "next");
+        YaaccLogger.d(this.getClass().getName(), "next");
         updateTime = false;
         return null;
     }
@@ -162,7 +162,7 @@ public class AvTransportMediaRendererPlaying extends Playing<AvTransport> implem
      */
     @Override
     public Class<? extends AbstractState<?>> previous() {
-        Log.d(this.getClass().getName(), "previous");
+        YaaccLogger.d(this.getClass().getName(), "previous");
         updateTime = false;
         return null;
     }
@@ -173,7 +173,7 @@ public class AvTransportMediaRendererPlaying extends Playing<AvTransport> implem
      */
     @Override
     public Class<? extends AbstractState<?>> seek(SeekMode unit, String target) {
-        Log.d(this.getClass().getName(), "seek");
+        YaaccLogger.d(this.getClass().getName(), "seek");
         if (SeekMode.REL_TIME.equals(unit)) {
             SimpleDateFormat dateFormat = new SimpleDateFormat("HH:mm:ss");
             dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
@@ -185,7 +185,7 @@ public class AvTransportMediaRendererPlaying extends Playing<AvTransport> implem
                     }
                 }
             } catch (ParseException pex) {
-                Log.d(getClass().getName(), "unable to parse target time string", pex);
+                YaaccLogger.d(getClass().getName(), "unable to parse target time string", pex);
             }
         }
         updateTime = true;
@@ -214,7 +214,7 @@ public class AvTransportMediaRendererPlaying extends Playing<AvTransport> implem
             if (player != null && !player.getDuration().equals("")) {
                 getTransport().getPositionInfo().setTrackDuration(player.getDuration());
                 getTransport().getPositionInfo().setRelTime(player.getElapsedTime());
-                Log.d(getClass().getName(), "doSetTrackInfo: " + getTransport() + "Posinfo:" + getTransport().getPositionInfo() + " RelTime: " + getTransport().getPositionInfo().getRelTime());
+                YaaccLogger.d(getClass().getName(), "doSetTrackInfo: " + getTransport() + "Posinfo:" + getTransport().getPositionInfo() + " RelTime: " + getTransport().getPositionInfo().getRelTime());
                 break;
             }
         }
