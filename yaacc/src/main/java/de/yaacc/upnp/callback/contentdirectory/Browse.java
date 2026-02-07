@@ -1,6 +1,6 @@
 package de.yaacc.upnp.callback.contentdirectory;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.action.ActionException;
 import org.fourthline.cling.model.action.ActionInvocation;
@@ -45,7 +45,7 @@ public abstract class Browse extends ActionCallback {
 
         super(new ActionInvocation(service.getAction("Browse")), httpRequestSender);
 
-        Log.v(getClass().getName(), "Creating browse action for object ID: " + objectID);
+        YaaccLogger.v(getClass().getName(), "Creating browse action for object ID: " + objectID);
 
         getActionInvocation().setInput("ObjectID", objectID);
         getActionInvocation().setInput("BrowseFlag", flag.toString());
@@ -65,7 +65,7 @@ public abstract class Browse extends ActionCallback {
 
     @Override
     public void success(ActionInvocation invocation) {
-        Log.v(getClass().getName(), "Successful browse action, reading output argument values");
+        YaaccLogger.v(getClass().getName(), "Successful browse action, reading output argument values");
 
         BrowseResult result = new BrowseResult(
                 invocation.getOutput("Result").getValue().toString(),

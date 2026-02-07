@@ -15,7 +15,7 @@
 
 package de.yaacc.upnp.protocol.sync;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import de.yaacc.util.Exceptions;
 import org.fourthline.cling.model.UnsupportedDataException;
@@ -66,12 +66,12 @@ public class ReceivingAction extends ReceivingSync<StreamRequestMessage, StreamR
         // 'If the CONTENT-TYPE header specifies an unsupported value (other then "text/xml") the
         // device must return an HTTP status code "415 Unsupported Media Type".'
         if (contentTypeHeader != null && !contentTypeHeader.isUDACompliantXML()) {
-            Log.w(getClass().getName(), "Received invalid Content-Type '" + contentTypeHeader + "': " + getInputMessage());
+            YaaccLogger.w(getClass().getName(), "Received invalid Content-Type '" + contentTypeHeader + "': " + getInputMessage());
             return new StreamResponseMessage(new UpnpResponse(UpnpResponse.Status.UNSUPPORTED_MEDIA_TYPE));
         }
 
         if (contentTypeHeader == null) {
-            Log.w(getClass().getName(), "Received without Content-Type: " + getInputMessage());
+            YaaccLogger.w(getClass().getName(), "Received without Content-Type: " + getInputMessage());
         }
 
         ServiceControlResource resource =
@@ -81,11 +81,11 @@ public class ReceivingAction extends ReceivingSync<StreamRequestMessage, StreamR
                 );
 
         if (resource == null) {
-            Log.v(getClass().getName(), "No local resource found: " + getInputMessage());
+            YaaccLogger.v(getClass().getName(), "No local resource found: " + getInputMessage());
             return null;
         }
 
-        Log.v(getClass().getName(), "Found local action resource matching relative request URI: " + getInputMessage().getUri());
+        YaaccLogger.v(getClass().getName(), "Found local action resource matching relative request URI: " + getInputMessage().getUri());
 
         RemoteActionInvocation invocation;
         OutgoingActionResponseMessage responseMessage = null;
@@ -96,14 +96,14 @@ public class ReceivingAction extends ReceivingSync<StreamRequestMessage, StreamR
             IncomingActionRequestMessage requestMessage =
                     new IncomingActionRequestMessage(getInputMessage(), resource.getModel());
 
-            Log.v(getClass().getName(), "Created incoming action request message: " + requestMessage);
+            YaaccLogger.v(getClass().getName(), "Created incoming action request message: " + requestMessage);
             invocation = new RemoteActionInvocation(requestMessage.getAction(), getRemoteClientInfo());
 
             // Throws UnsupportedDataException if the body can't be read
-            Log.v(getClass().getName(), "Reading body of request message:" + requestMessage.getBodyString());
+            YaaccLogger.v(getClass().getName(), "Reading body of request message:" + requestMessage.getBodyString());
             soapActionProcessor.readBody(requestMessage, invocation);
 
-            Log.v(getClass().getName(), "Executing on local service: " + invocation);
+            YaaccLogger.v(getClass().getName(), "Executing on local service: " + invocation);
             resource.getModel().getExecutor(invocation.getAction()).execute(invocation);
 
             if (invocation.getFailure() == null) {
@@ -112,7 +112,7 @@ public class ReceivingAction extends ReceivingSync<StreamRequestMessage, StreamR
             } else {
 
                 if (invocation.getFailure() instanceof ActionCancelledException) {
-                    Log.v(getClass().getName(), "Action execution was cancelled, returning 404 to client");
+                    YaaccLogger.v(getClass().getName(), "Action execution was cancelled, returning 404 to client");
                     // A 404 status is appropriate for this situation: The resource is gone/not available and it's
                     // a temporary condition. Most likely the cancellation happened because the client connection
                     // has been dropped, so it doesn't really matter what we return here anyway.
@@ -127,13 +127,13 @@ public class ReceivingAction extends ReceivingSync<StreamRequestMessage, StreamR
             }
 
         } catch (ActionException ex) {
-            Log.v(getClass().getName(), "Error executing local action: ", ex);
+            YaaccLogger.v(getClass().getName(), "Error executing local action: ", ex);
 
             invocation = new RemoteActionInvocation(ex, getRemoteClientInfo());
             responseMessage = new OutgoingActionResponseMessage(UpnpResponse.Status.INTERNAL_SERVER_ERROR);
 
         } catch (UnsupportedDataException ex) {
-            Log.w(getClass().getName(), "Error reading action request XML body: " + ex.toString(), Exceptions.unwrap(ex));
+            YaaccLogger.w(getClass().getName(), "Error reading action request XML body: " + ex.toString(), Exceptions.unwrap(ex));
 
             invocation =
                     new RemoteActionInvocation(
@@ -148,15 +148,15 @@ public class ReceivingAction extends ReceivingSync<StreamRequestMessage, StreamR
 
         try {
 
-            Log.v(getClass().getName(), "Writing body of response message");
+            YaaccLogger.v(getClass().getName(), "Writing body of response message");
             soapActionProcessor.writeBody(responseMessage, invocation);
 
-            Log.v(getClass().getName(), "Returning finished response message: " + responseMessage);
+            YaaccLogger.v(getClass().getName(), "Returning finished response message: " + responseMessage);
             return responseMessage;
 
         } catch (UnsupportedDataException ex) {
-            Log.w(getClass().getName(), "Failure writing body of response message, sending '500 Internal Server Error' without body");
-            Log.w(getClass().getName(), "Exception root cause: ", Exceptions.unwrap(ex));
+            YaaccLogger.w(getClass().getName(), "Failure writing body of response message, sending '500 Internal Server Error' without body");
+            YaaccLogger.w(getClass().getName(), "Exception root cause: ", Exceptions.unwrap(ex));
             return new StreamResponseMessage(UpnpResponse.Status.INTERNAL_SERVER_ERROR);
         }
     }

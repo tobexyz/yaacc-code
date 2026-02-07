@@ -16,7 +16,7 @@
 package de.yaacc.upnp.protocol.sync;
 import de.yaacc.util.Exceptions;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.binding.xml.DescriptorBindingException;
 import org.fourthline.cling.binding.xml.DeviceDescriptorBinder;
@@ -69,18 +69,18 @@ public class ReceivingRetrieval extends ReceivingSync<StreamRequestMessage, Stre
     protected StreamResponseMessage executeSync() throws IOException {
 
         if (!getInputMessage().hasHostHeader()) {
-            Log.v(getClass().getName(), "Ignoring message, missing HOST header: " + getInputMessage());
+            YaaccLogger.v(getClass().getName(), "Ignoring message, missing HOST header: " + getInputMessage());
             return new StreamResponseMessage(new UpnpResponse(UpnpResponse.Status.PRECONDITION_FAILED));
         }
 
         URI requestedURI = getInputMessage().getOperation().getURI();
 
         Resource foundResource = registry.getResource(requestedURI);
-        Log.d(getClass().getName(), "Registry id: " + registry);
+        YaaccLogger.d(getClass().getName(), "Registry id: " + registry);
         if (foundResource == null) {
             foundResource = onResourceNotFound(requestedURI);
             if (foundResource == null) {
-                Log.v(getClass().getName(), "No local resource found: " + getInputMessage());
+                YaaccLogger.v(getClass().getName(), "No local resource found: " + getInputMessage());
                 return null;
             }
         }
@@ -96,7 +96,7 @@ public class ReceivingRetrieval extends ReceivingSync<StreamRequestMessage, Stre
 
             if (DeviceDescriptorResource.class.isAssignableFrom(resource.getClass())) {
 
-                Log.v(getClass().getName(), "Found local device matching relative request URI: " + requestedURI);
+                YaaccLogger.v(getClass().getName(), "Found local device matching relative request URI: " + requestedURI);
                 LocalDevice device = (LocalDevice) resource.getModel();
 
                 DeviceDescriptorBinder deviceDescriptorBinder = new UDA10DeviceDescriptorBinderImpl();
@@ -113,7 +113,7 @@ public class ReceivingRetrieval extends ReceivingSync<StreamRequestMessage, Stre
             } else if (ServiceDescriptorResource.class.isAssignableFrom(resource.getClass())) {
 
 
-                Log.v(getClass().getName(), "Found local service matching relative request URI: " + requestedURI);
+                YaaccLogger.v(getClass().getName(), "Found local service matching relative request URI: " + requestedURI);
                 LocalService service = (LocalService) resource.getModel();
 
                 ServiceDescriptorBinder serviceDescriptorBinder = new UDA10ServiceDescriptorBinderSAXImpl();
@@ -125,19 +125,19 @@ public class ReceivingRetrieval extends ReceivingSync<StreamRequestMessage, Stre
 
             } else if (IconResource.class.isAssignableFrom(resource.getClass())) {
 
-                Log.v(getClass().getName(), "Found local icon matching relative request URI: " + requestedURI);
+                YaaccLogger.v(getClass().getName(), "Found local icon matching relative request URI: " + requestedURI);
                 Icon icon = (Icon) resource.getModel();
                 response = new StreamResponseMessage(icon.getData(), icon.getMimeType());
 
             } else {
 
-                Log.v(getClass().getName(), "Ignoring GET for found local resource: " + resource);
+                YaaccLogger.v(getClass().getName(), "Ignoring GET for found local resource: " + resource);
                 return null;
             }
 
         } catch (DescriptorBindingException ex) {
-            Log.w(getClass().getName(), "Error generating requested device/service descriptor: " + ex.toString());
-            Log.w(getClass().getName(), "Exception root cause: ", Exceptions.unwrap(ex));
+            YaaccLogger.w(getClass().getName(), "Error generating requested device/service descriptor: " + ex.toString());
+            YaaccLogger.w(getClass().getName(), "Exception root cause: ", Exceptions.unwrap(ex));
             response = new StreamResponseMessage(UpnpResponse.Status.INTERNAL_SERVER_ERROR);
         }
 

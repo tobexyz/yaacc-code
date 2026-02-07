@@ -15,7 +15,7 @@
 
 package de.yaacc.upnp.protocol.async;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.ValidationError;
 import org.fourthline.cling.model.ValidationException;
@@ -66,21 +66,21 @@ public class ReceivingSearchResponse extends ReceivingAsync<IncomingSearchRespon
     protected void execute() throws IOException {
 
         if (!getInputMessage().isSearchResponseMessage()) {
-            Log.v(getClass().getName(), "Ignoring invalid search response message: " + getInputMessage());
+            YaaccLogger.v(getClass().getName(), "Ignoring invalid search response message: " + getInputMessage());
             return;
         }
 
         UDN udn = getInputMessage().getRootDeviceUDN();
         if (udn == null) {
-            Log.v(getClass().getName(), "Ignoring search response message without UDN: " + getInputMessage());
+            YaaccLogger.v(getClass().getName(), "Ignoring search response message without UDN: " + getInputMessage());
             return;
         }
 
         RemoteDeviceIdentity rdIdentity = new RemoteDeviceIdentity(getInputMessage());
-        Log.v(getClass().getName(), "Received device search response: " + rdIdentity);
+        YaaccLogger.v(getClass().getName(), "Received device search response: " + rdIdentity);
 
         if (registry.update(rdIdentity)) {
-            Log.v(getClass().getName(), "Remote device was already known: " + udn);
+            YaaccLogger.v(getClass().getName(), "Remote device was already known: " + udn);
             return;
         }
 
@@ -88,20 +88,20 @@ public class ReceivingSearchResponse extends ReceivingAsync<IncomingSearchRespon
         try {
             rd = new RemoteDevice(rdIdentity);
         } catch (ValidationException ex) {
-            Log.w(getClass().getName(), "Validation errors of device during discovery: " + rdIdentity);
+            YaaccLogger.w(getClass().getName(), "Validation errors of device during discovery: " + rdIdentity);
             for (ValidationError validationError : ex.getErrors()) {
-                Log.w(getClass().getName(), validationError.toString());
+                YaaccLogger.w(getClass().getName(), validationError.toString());
             }
             return;
         }
 
         if (rdIdentity.getDescriptorURL() == null) {
-            Log.v(getClass().getName(), "Ignoring message without location URL header: " + getInputMessage());
+            YaaccLogger.v(getClass().getName(), "Ignoring message without location URL header: " + getInputMessage());
             return;
         }
 
         if (rdIdentity.getMaxAgeSeconds() == null) {
-            Log.v(getClass().getName(), "Ignoring message without max-age header: " + getInputMessage());
+            YaaccLogger.v(getClass().getName(), "Ignoring message without max-age header: " + getInputMessage());
             return;
         }
 

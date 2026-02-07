@@ -20,7 +20,7 @@ package de.yaacc.player;
 import android.app.PendingIntent;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import java.net.URI;
 
@@ -61,7 +61,7 @@ public class MultiContentPlayer extends AbstractPlayer {
      */
     @Override
     protected void stopItem(PlayableItem playableItem) {
-        Log.d(getClass().getName(), "Stop not implemented for multi player");
+        YaaccLogger.d(getClass().getName(), "Stop not implemented for multi player");
 
     }
 
@@ -93,7 +93,7 @@ public class MultiContentPlayer extends AbstractPlayer {
         try {
             getContext().startActivity(intent);
         } catch (final ActivityNotFoundException anfe) {
-            Log.e(getClass().getName(), R.string.can_not_start_activity
+            YaaccLogger.e(getClass().getName(), R.string.can_not_start_activity
                     + anfe.getMessage(), anfe);
         }
 
@@ -101,7 +101,7 @@ public class MultiContentPlayer extends AbstractPlayer {
 
     @Override
     public long getCurrentPosition() {
-        Log.d(getClass().getName(), "CurrentPosition not implemented");
+        YaaccLogger.d(getClass().getName(), "CurrentPosition not implemented");
 
         return 0;
     }
@@ -139,7 +139,7 @@ public class MultiContentPlayer extends AbstractPlayer {
 
     @Override
     public void seekTo(long millisecondsFromStart) {
-        Log.d(getClass().getName(), "SeekTo not implemented");
+        YaaccLogger.d(getClass().getName(), "SeekTo not implemented");
     }
 
 

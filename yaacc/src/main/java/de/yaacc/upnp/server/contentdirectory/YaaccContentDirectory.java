@@ -22,7 +22,7 @@ import static java.util.Arrays.stream;
 
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import androidx.preference.PreferenceManager;
 
@@ -327,7 +327,7 @@ public class YaaccContentDirectory {
         } catch (ContentDirectoryException ex) {
             throw ex;
         } catch (Exception ex) {
-            Log.d(getClass().getName(), "exception on browse", ex);
+            YaaccLogger.d(getClass().getName(), "exception on browse", ex);
             throw new ContentDirectoryException(ErrorCode.ACTION_FAILED,
                     ex.toString());
         }
@@ -337,7 +337,7 @@ public class YaaccContentDirectory {
                                String filter, long firstResult, long maxResults,
                                SortCriterion[] orderby) throws ContentDirectoryException {
 
-        Log.d(getClass().getName(), "Browse: objectId: " + objectID
+        YaaccLogger.d(getClass().getName(), "Browse: objectId: " + objectID
                 + " browseFlag: " + browseFlag + " filter: " + filter
                 + " firstResult: " + firstResult + " maxResults: " + maxResults
                 + " orderby: " + stream(orderby).map(SortCriterion::toString).collect(Collectors.joining(",")));
@@ -401,7 +401,7 @@ public class YaaccContentDirectory {
         try {
             // Generate output with nested items
             String didlXml = new DIDLParser().generate(didl, false);
-            Log.d(getClass().getName(), "CDResponse: " + didlXml);
+            YaaccLogger.d(getClass().getName(), "CDResponse: " + didlXml);
             result = new BrowseResult(didlXml, childCount, totalMatches);
         } catch (Exception e) {
             throw new ContentDirectoryException(
@@ -459,7 +459,7 @@ public class YaaccContentDirectory {
         } else if (objectID.startsWith(ContentDirectoryIDs.SAF_FOLDER.getId()) || objectID.startsWith(ContentDirectoryIDs.SAF_PREFIX.getId())) {
             result = new SafFolderBrowser(getContext());
         } else {
-            Log.d(getClass().getName(), "unknown object id: " + objectID);
+            YaaccLogger.d(getClass().getName(), "unknown object id: " + objectID);
             result = new RootFolderBrowser(getContext());
         }
 

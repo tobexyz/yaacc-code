@@ -27,7 +27,7 @@ import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.util.DisplayMetrics;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 import android.view.Window;
 import android.widget.Toast;
 
@@ -109,7 +109,7 @@ public class RetrieveImageTask extends AsyncTask<Uri, Void, Void> {
      */
     private void retrieveImage(Uri imageUri) {
         {
-            Log.d(getClass().getName(), "Load imageUri: " + imageUri);
+            YaaccLogger.d(getClass().getName(), "Load imageUri: " + imageUri);
             Drawable image = null;
 
             try {
@@ -119,21 +119,21 @@ public class RetrieveImageTask extends AsyncTask<Uri, Void, Void> {
                             .getDisplayMetrics().heightPixels;
                     int widthPixels = imageViewerActivity.getResources()
                             .getDisplayMetrics().widthPixels;
-                    Log.d(getClass().getName(),
+                    YaaccLogger.d(getClass().getName(),
                             "Decode image: " + System.currentTimeMillis());
-                    Log.d(getClass().getName(), "Size width,height: "
+                    YaaccLogger.d(getClass().getName(), "Size width,height: "
                             + widthPixels + "," + heightPixels);
                     Bitmap bitmap = decodeSampledBitmapFromStream(imageUri,
                             widthPixels, heightPixels);
                     image = new BitmapDrawable(
                             imageViewerActivity.getResources(), bitmap);
-                    Log.d(getClass().getName(),
+                    YaaccLogger.d(getClass().getName(),
                             "Got image: " + System.currentTimeMillis());
-                    Log.d(getClass().getName(), "image: " + image);
+                    YaaccLogger.d(getClass().getName(), "image: " + image);
                 }
             } catch (final Exception e) {
                 image = Drawable.createFromPath("@drawable/ic_launcher");
-                Log.d(getClass().getName(), "Error while processing image", e);
+                YaaccLogger.d(getClass().getName(), "Error while processing image", e);
                 imageViewerActivity.runOnUiThread(() -> {
                     Toast toast = Toast.makeText(imageViewerActivity,
                             "Exception:" + e.getMessage(),
@@ -146,10 +146,10 @@ public class RetrieveImageTask extends AsyncTask<Uri, Void, Void> {
             final Drawable finalImage = image;
             imageViewerActivity.runOnUiThread(new Runnable() {
                 public void run() {
-                    Log.d(getClass().getName(),
+                    YaaccLogger.d(getClass().getName(),
                             "Start show image: " + System.currentTimeMillis());
                     imageViewerActivity.showImage(finalImage);
-                    Log.d(getClass().getName(),
+                    YaaccLogger.d(getClass().getName(),
                             "End show image: " + System.currentTimeMillis());
                 }
             });
@@ -167,7 +167,7 @@ public class RetrieveImageTask extends AsyncTask<Uri, Void, Void> {
     private InputStream getUriAsStream(Uri imageUri)
             throws FileNotFoundException, IOException, MalformedURLException {
         InputStream is;
-        Log.d(getClass().getName(), "Start load: " + System.currentTimeMillis());
+        YaaccLogger.d(getClass().getName(), "Start load: " + System.currentTimeMillis());
         if (ContentResolver.SCHEME_CONTENT.equals(imageUri.getScheme())) {
             is = imageViewerActivity.getContentResolver().openInputStream(
                     imageUri);
@@ -175,8 +175,8 @@ public class RetrieveImageTask extends AsyncTask<Uri, Void, Void> {
             is = (InputStream) new java.net.URL(imageUri.toString())
                     .getContent();
         }
-        Log.d(getClass().getName(), "Stop load: " + System.currentTimeMillis());
-        Log.d(getClass().getName(), "InputStream: " + is);
+        YaaccLogger.d(getClass().getName(), "Stop load: " + System.currentTimeMillis());
+        YaaccLogger.d(getClass().getName(), "InputStream: " + is);
         return is;
     }
 
@@ -189,15 +189,15 @@ public class RetrieveImageTask extends AsyncTask<Uri, Void, Void> {
         options.outWidth = reqWidth;
         options.inDensity = DisplayMetrics.DENSITY_LOW;
         options.inSampleSize = 2;
-        Log.d(this.getClass().getName(),
+        YaaccLogger.d(this.getClass().getName(),
                 "displaying image size width, height, inSampleSize "
                         + options.outWidth + "," + options.outHeight + ","
                         + options.inSampleSize);
-        Log.d(this.getClass().getName(), "free meomory before image load: "
+        YaaccLogger.d(this.getClass().getName(), "free meomory before image load: "
                 + Runtime.getRuntime().freeMemory());
         Bitmap bitmap = BitmapFactory.decodeStream(new FlushedInputStream(is),
                 null, options);
-        Log.d(this.getClass().getName(), "free meomory after image load: "
+        YaaccLogger.d(this.getClass().getName(), "free meomory after image load: "
                 + Runtime.getRuntime().freeMemory());
         return bitmap;
     }

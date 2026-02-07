@@ -15,7 +15,7 @@
 
 package de.yaacc.upnp.server.connectionmanager;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.binding.annotations.UpnpAction;
 import org.fourthline.cling.binding.annotations.UpnpInputArgument;
@@ -121,7 +121,7 @@ public class ConnectionManagerService {
     })
     synchronized public ConnectionInfo getCurrentConnectionInfo(@UpnpInputArgument(name = "ConnectionID") int connectionId)
             throws ActionException {
-        Log.v(getClass().getName(), "Getting connection information of connection ID: " + connectionId);
+        YaaccLogger.v(getClass().getName(), "Getting connection information of connection ID: " + connectionId);
         ConnectionInfo info;
         if ((info = activeConnections.get(connectionId)) == null) {
             throw new ConnectionManagerException(
@@ -140,7 +140,7 @@ public class ConnectionManagerService {
         for (Integer connectionID : activeConnections.keySet()) {
             csv.add(new UnsignedIntegerFourBytes(connectionID));
         }
-        Log.v(getClass().getName(), "Returning current connection IDs: " + csv.size());
+        YaaccLogger.v(getClass().getName(), "Returning current connection IDs: " + csv.size());
         return csv;
     }
 

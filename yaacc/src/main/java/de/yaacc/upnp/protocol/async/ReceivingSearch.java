@@ -16,7 +16,7 @@
 package de.yaacc.upnp.protocol.async;
 
 import android.content.Context;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.DiscoveryOptions;
 import org.fourthline.cling.model.Location;
@@ -85,17 +85,17 @@ public class ReceivingSearch extends ReceivingAsync<IncomingSearchRequest> {
     }
 
     protected void execute() throws IOException {
-        Log.v(getClass().getName(), "execute receiving search");
+        YaaccLogger.v(getClass().getName(), "execute receiving search");
 
         if (!getInputMessage().isMANSSDPDiscover()) {
-            Log.v(getClass().getName(), "Invalid search request, no or invalid MAN ssdp:discover header: " + getInputMessage());
+            YaaccLogger.v(getClass().getName(), "Invalid search request, no or invalid MAN ssdp:discover header: " + getInputMessage());
             return;
         }
 
         UpnpHeader searchTarget = getInputMessage().getSearchTarget();
 
         if (searchTarget == null) {
-            Log.v(getClass().getName(), "Invalid search request, did not contain ST header: " + getInputMessage());
+            YaaccLogger.v(getClass().getName(), "Invalid search request, did not contain ST header: " + getInputMessage());
             return;
         }
         sendResponses(searchTarget);
@@ -108,7 +108,7 @@ public class ReceivingSearch extends ReceivingAsync<IncomingSearchRequest> {
         Integer mx = getInputMessage().getMX();
 
         if (mx == null) {
-            Log.v(getClass().getName(), "Invalid search request, did not contain MX header: " + getInputMessage());
+            YaaccLogger.v(getClass().getName(), "Invalid search request, did not contain MX header: " + getInputMessage());
             return false;
         }
 
@@ -120,7 +120,7 @@ public class ReceivingSearch extends ReceivingAsync<IncomingSearchRequest> {
         // Only wait if there is something to wait for
         if (registry.getLocalDevices().size() > 0) {
             int sleepTime = new Random().nextInt(mx * 1000);
-            Log.v(getClass().getName(), "Sleeping " + sleepTime + " milliseconds to avoid flooding with search responses");
+            YaaccLogger.v(getClass().getName(), "Sleeping " + sleepTime + " milliseconds to avoid flooding with search responses");
             Thread.sleep(sleepTime);
         }
 
@@ -150,12 +150,12 @@ public class ReceivingSearch extends ReceivingAsync<IncomingSearchRequest> {
             sendSearchResponseServiceType((ServiceType) searchTarget.getValue(), currentNetworkAddress);
 
         } else {
-            Log.w(getClass().getName(), "Non-implemented search request target: " + searchTarget.getClass());
+            YaaccLogger.w(getClass().getName(), "Non-implemented search request target: " + searchTarget.getClass());
         }
     }
 
     protected void sendSearchResponseAll(NetworkAddress activeStreamServer) throws IOException {
-        Log.v(getClass().getName(), "Responding to 'all' search with advertisement messages for all local devices");
+        YaaccLogger.v(getClass().getName(), "Responding to 'all' search with advertisement messages for all local devices");
 
         for (LocalDevice localDevice : registry.getLocalDevices()) {
 
@@ -164,7 +164,7 @@ public class ReceivingSearch extends ReceivingAsync<IncomingSearchRequest> {
 
             // We are re-using the regular notification messages here but override the NT with the ST header
 
-            Log.v(getClass().getName(), "Sending root device messages: " + localDevice);
+            YaaccLogger.v(getClass().getName(), "Sending root device messages: " + localDevice);
 
             List<OutgoingSearchResponse> rootDeviceMsgs =
                     createDeviceMessages(localDevice, activeStreamServer);
@@ -175,7 +175,7 @@ public class ReceivingSearch extends ReceivingAsync<IncomingSearchRequest> {
             if (localDevice.hasEmbeddedDevices()) {
                 for (LocalDevice embeddedDevice : localDevice.findEmbeddedDevices()) {
 
-                    Log.v(getClass().getName(), "Sending embedded device messages: " + embeddedDevice);
+                    YaaccLogger.v(getClass().getName(), "Sending embedded device messages: " + embeddedDevice);
 
                     List<OutgoingSearchResponse> embeddedDeviceMsgs =
                             createDeviceMessages(embeddedDevice, activeStreamServer);
@@ -189,7 +189,7 @@ public class ReceivingSearch extends ReceivingAsync<IncomingSearchRequest> {
                     createServiceTypeMessages(localDevice, activeStreamServer);
             if (serviceTypeMsgs.size() > 0) {
 
-                Log.v(getClass().getName(), "Sending service type messages");
+                YaaccLogger.v(getClass().getName(), "Sending service type messages");
 
                 for (OutgoingSearchResponse upnpMessage : serviceTypeMsgs) {
                     udpTransiver.send(upnpMessage);
@@ -256,7 +256,7 @@ public class ReceivingSearch extends ReceivingAsync<IncomingSearchRequest> {
     }
 
     protected void sendSearchResponseRootDevices(NetworkAddress activeStreamServer) throws IOException {
-        Log.v(getClass().getName(), "Responding to root device search with advertisement messages for all local root devices");
+        YaaccLogger.v(getClass().getName(), "Responding to root device search with advertisement messages for all local root devices");
         for (LocalDevice device : registry.getLocalDevices()) {
 
             if (isAdvertisementDisabled(device))
@@ -280,7 +280,7 @@ public class ReceivingSearch extends ReceivingAsync<IncomingSearchRequest> {
             if (isAdvertisementDisabled((LocalDevice) device))
                 return;
 
-            Log.v(getClass().getName(), "Responding to UDN device search: " + udn);
+            YaaccLogger.v(getClass().getName(), "Responding to UDN device search: " + udn);
             OutgoingSearchResponse message =
                     new OutgoingSearchResponseUDN(
                             getInputMessage(),
@@ -293,7 +293,7 @@ public class ReceivingSearch extends ReceivingAsync<IncomingSearchRequest> {
     }
 
     protected void sendSearchResponseDeviceType(DeviceType deviceType, NetworkAddress activeStreamServer) throws IOException {
-        Log.v(getClass().getName(), "Responding to device type search: " + deviceType);
+        YaaccLogger.v(getClass().getName(), "Responding to device type search: " + deviceType);
         Collection<Device<?, ?, ?>> devices = registry.getDevices(deviceType);
         for (Device device : devices) {
             if (device instanceof LocalDevice) {
@@ -301,7 +301,7 @@ public class ReceivingSearch extends ReceivingAsync<IncomingSearchRequest> {
                 if (isAdvertisementDisabled((LocalDevice) device))
                     continue;
 
-                Log.v(getClass().getName(), "Sending matching device type search result for: " + device);
+                YaaccLogger.v(getClass().getName(), "Sending matching device type search result for: " + device);
                 OutgoingSearchResponse message =
                         new OutgoingSearchResponseDeviceType(
                                 getInputMessage(),
@@ -315,7 +315,7 @@ public class ReceivingSearch extends ReceivingAsync<IncomingSearchRequest> {
     }
 
     protected void sendSearchResponseServiceType(ServiceType serviceType, NetworkAddress activeStreamServer) throws IOException {
-        Log.v(getClass().getName(), "Responding to service type search: " + serviceType);
+        YaaccLogger.v(getClass().getName(), "Responding to service type search: " + serviceType);
         Collection<Device<?, ?, ?>> devices = registry.getDevices(serviceType);
         for (Device device : devices) {
             if (device instanceof LocalDevice) {
@@ -323,7 +323,7 @@ public class ReceivingSearch extends ReceivingAsync<IncomingSearchRequest> {
                 if (isAdvertisementDisabled((LocalDevice) device))
                     continue;
 
-                Log.v(getClass().getName(), "Sending matching service type search result: " + device);
+                YaaccLogger.v(getClass().getName(), "Sending matching service type search result: " + device);
                 OutgoingSearchResponse message =
                         new OutgoingSearchResponseServiceType(
                                 getInputMessage(),

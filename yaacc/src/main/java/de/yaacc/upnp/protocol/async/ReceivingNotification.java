@@ -15,7 +15,7 @@
 
 package de.yaacc.upnp.protocol.async;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.ValidationError;
 import org.fourthline.cling.model.ValidationException;
@@ -90,40 +90,40 @@ public class ReceivingNotification extends ReceivingAsync<IncomingNotificationRe
 
         UDN udn = getInputMessage().getUDN();
         if (udn == null) {
-            Log.v(getClass().getName(), "Ignoring notification message without UDN: " + getInputMessage());
+            YaaccLogger.v(getClass().getName(), "Ignoring notification message without UDN: " + getInputMessage());
             return;
         }
 
         RemoteDeviceIdentity rdIdentity = new RemoteDeviceIdentity(getInputMessage());
-        Log.v(getClass().getName(), "Received device notification: " + rdIdentity);
+        YaaccLogger.v(getClass().getName(), "Received device notification: " + rdIdentity);
 
         RemoteDevice rd;
         try {
             rd = new RemoteDevice(rdIdentity);
         } catch (ValidationException ex) {
-            Log.w(getClass().getName(), "Validation errors of device during discovery: " + rdIdentity);
+            YaaccLogger.w(getClass().getName(), "Validation errors of device during discovery: " + rdIdentity);
             for (ValidationError validationError : ex.getErrors()) {
-                Log.w(getClass().getName(), validationError.toString());
+                YaaccLogger.w(getClass().getName(), validationError.toString());
             }
             return;
         }
 
         if (getInputMessage().isAliveMessage()) {
 
-            Log.v(getClass().getName(), "Received device ALIVE advertisement, descriptor location is: " + rdIdentity.getDescriptorURL());
+            YaaccLogger.v(getClass().getName(), "Received device ALIVE advertisement, descriptor location is: " + rdIdentity.getDescriptorURL());
 
             if (rdIdentity.getDescriptorURL() == null) {
-                Log.v(getClass().getName(), "Ignoring message without location URL header: " + getInputMessage());
+                YaaccLogger.v(getClass().getName(), "Ignoring message without location URL header: " + getInputMessage());
                 return;
             }
 
             if (rdIdentity.getMaxAgeSeconds() == null) {
-                Log.v(getClass().getName(), "Ignoring message without max-age header: " + getInputMessage());
+                YaaccLogger.v(getClass().getName(), "Ignoring message without max-age header: " + getInputMessage());
                 return;
             }
 
             if (registry.update(rdIdentity)) {
-                Log.v(getClass().getName(), "Remote device was already known: " + udn);
+                YaaccLogger.v(getClass().getName(), "Remote device was already known: " + udn);
                 return;
             }
 
@@ -135,14 +135,14 @@ public class ReceivingNotification extends ReceivingAsync<IncomingNotificationRe
 
         } else if (getInputMessage().isByeByeMessage()) {
 
-            Log.v(getClass().getName(), "Received device BYEBYE advertisement");
+            YaaccLogger.v(getClass().getName(), "Received device BYEBYE advertisement");
             boolean removed = registry.removeDevice(rd);
             if (removed) {
-                Log.v(getClass().getName(), "Removed remote device from registry: " + rd);
+                YaaccLogger.v(getClass().getName(), "Removed remote device from registry: " + rd);
             }
 
         } else {
-            Log.v(getClass().getName(), "Ignoring unknown notification message: " + getInputMessage());
+            YaaccLogger.v(getClass().getName(), "Ignoring unknown notification message: " + getInputMessage());
         }
 
     }

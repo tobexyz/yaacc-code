@@ -23,7 +23,7 @@ import android.content.Intent;
 import android.content.ServiceConnection;
 import android.os.Bundle;
 import android.os.IBinder;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.ImageButton;
@@ -47,7 +47,7 @@ public class MultiContentPlayerActivity extends AppCompatActivity implements Ser
 
     public void onServiceConnected(ComponentName className, IBinder binder) {
         if (binder instanceof PlayerService.PlayerServiceBinder) {
-            Log.d(getClass().getName(), "PlayerService connected");
+            YaaccLogger.d(getClass().getName(), "PlayerService connected");
             playerService = ((PlayerService.PlayerServiceBinder) binder).getService();
             initialize();
         }
@@ -55,7 +55,7 @@ public class MultiContentPlayerActivity extends AppCompatActivity implements Ser
     //binder comes from server to communicate with method's of
 
     public void onServiceDisconnected(ComponentName className) {
-        Log.d(getClass().getName(), "PlayerService disconnected");
+        YaaccLogger.d(getClass().getName(), "PlayerService disconnected");
         playerService = null;
     }
 

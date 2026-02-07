@@ -18,7 +18,7 @@
  */
 package de.yaacc.upnp.server.avtransport;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.binding.annotations.UpnpAction;
 import org.fourthline.cling.binding.annotations.UpnpInputArgument;
@@ -338,7 +338,7 @@ public class YaaccAVTransportService implements LastChangeDelegator {
         try {
             return ((YaaccState) stateMachine.getCurrentState()).getPossibleTransportActions();
         } catch (TransitionException ex) {
-            Log.d(getClass().getName(), "Exception in state transition ignoring it", ex);
+            YaaccLogger.d(getClass().getName(), "Exception in state transition ignoring it", ex);
             return new TransportAction[0];
         }
     }
@@ -365,7 +365,7 @@ public class YaaccAVTransportService implements LastChangeDelegator {
         } catch (TransitionException ex) {
             throw new AVTransportException(AVTransportErrorCode.TRANSITION_NOT_AVAILABLE, ex.getMessage());
         }
-        Log.d(getClass().getName(), "setAVTransportURI: " + uri + " currentURIMetaData: " + currentURIMetaData);
+        YaaccLogger.d(getClass().getName(), "setAVTransportURI: " + uri + " currentURIMetaData: " + currentURIMetaData);
     }
 
     @UpnpAction
@@ -467,7 +467,7 @@ public class YaaccAVTransportService implements LastChangeDelegator {
     })
     public PositionInfo getPositionInfo(@UpnpInputArgument(name = "InstanceID") UnsignedIntegerFourBytes instanceId)
             throws AVTransportException {
-        Log.d(getClass().getName(), "Transport: " + findStateMachine(instanceId).getCurrentState().getTransport() + " PositionInfo: " + findStateMachine(instanceId).getCurrentState().getTransport().getPositionInfo());
+        YaaccLogger.d(getClass().getName(), "Transport: " + findStateMachine(instanceId).getCurrentState().getTransport() + " PositionInfo: " + findStateMachine(instanceId).getCurrentState().getTransport().getPositionInfo());
         return findStateMachine(instanceId).getCurrentState().getTransport().getPositionInfo();
     }
 
@@ -620,13 +620,13 @@ public class YaaccAVTransportService implements LastChangeDelegator {
             long id = instanceId.getValue();
             AVTransportStateMachine stateMachine = stateMachines.get(id);
             if (stateMachine == null && createDefaultTransport) {
-                Log.d(getClass().getName(), "Creating stateMachine instance with ID '" + id + "'");
+                YaaccLogger.d(getClass().getName(), "Creating stateMachine instance with ID '" + id + "'");
                 stateMachine = createStateMachine(instanceId);
                 stateMachines.put(id, stateMachine);
             } else if (stateMachine == null) {
                 throw new AVTransportException(AVTransportErrorCode.INVALID_INSTANCE_ID);
             }
-            Log.d(getClass().getName(), "Found transport control with ID '" + id + "'");
+            YaaccLogger.d(getClass().getName(), "Found transport control with ID '" + id + "'");
             return stateMachine;
         }
     }

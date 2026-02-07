@@ -2,7 +2,7 @@ package de.yaacc.upnp.callback;
 import de.yaacc.util.Exceptions;
 
 import android.content.Context;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.UnsupportedDataException;
 import org.fourthline.cling.model.UserConstants;
@@ -87,7 +87,7 @@ public abstract class SubscriptionCallback implements Runnable {
 
     private void establishLocalSubscription(LocalService service) {
         if (registry.getLocalDevice(service.getDevice().getIdentity().getUdn(), false) == null) {
-            Log.v(getClass().getName(), "Local device service is currently not registered, failing subscription immediately");
+            YaaccLogger.v(getClass().getName(), "Local device service is currently not registered, failing subscription immediately");
             failed(null, null, new IllegalStateException("Local device is not registered"));
             return;
         }
@@ -131,8 +131,8 @@ public abstract class SubscriptionCallback implements Runnable {
             localSubscription.registerOnService();
 
         } catch (Exception ex) {
-            Log.v(getClass().getName(), "Local callback creation failed: " + ex.toString());
-            Log.v(getClass().getName(), "Exception root cause: ", Exceptions.unwrap(ex));
+            YaaccLogger.v(getClass().getName(), "Local callback creation failed: " + ex.toString());
+            YaaccLogger.v(getClass().getName(), "Exception root cause: ", Exceptions.unwrap(ex));
             if (localSubscription != null)
                 registry.removeLocalSubscription(localSubscription);
             failed(localSubscription, null, ex);

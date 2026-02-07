@@ -24,7 +24,7 @@ import android.media.MediaMetadataRetriever;
 import android.net.Uri;
 import android.provider.DocumentsContract;
 import android.util.Base64;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import androidx.documentfile.provider.DocumentFile;
 import androidx.preference.PreferenceManager;
@@ -103,7 +103,7 @@ public class SafFolderBrowser extends ContentBrowser {
                     return file.listFiles().length;
                 }
             } catch (IllegalArgumentException e) {
-                Log.w(getClass().getName(), "Can not decode path from id: " + myId + " returning size 0", e);
+                YaaccLogger.w(getClass().getName(), "Can not decode path from id: " + myId + " returning size 0", e);
                 return 0;
             }
         }
@@ -112,10 +112,10 @@ public class SafFolderBrowser extends ContentBrowser {
 
     @Override
     public List<Container> browseContainer(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
-        Log.d(getClass().getName(), "browseContainer called with myId: " + myId);
+        YaaccLogger.d(getClass().getName(), "browseContainer called with myId: " + myId);
         List<Container> result = new ArrayList<>();
         if (myId.equals(ContentDirectoryIDs.SAF_FOLDER.getId())) {
-            Log.d(getClass().getName(), "Browsing root SAF folder");
+            YaaccLogger.d(getClass().getName(), "Browsing root SAF folder");
             List<String> sortedPathes = new ArrayList<>(getSelectedSafPathes());
             Collections.sort(sortedPathes);
 
@@ -129,18 +129,18 @@ public class SafFolderBrowser extends ContentBrowser {
                     String title = file.getName() != null ? file.getName() : path;
                     String base64Str = Base64.encodeToString(file.getUri().toString().getBytes(), Base64.NO_WRAP);
                     String folderId = ContentDirectoryIDs.SAF_PREFIX.getId() + base64Str;
-                    Log.d(getClass().getName(), "Creating root folder: " + title + " with ID: " + folderId);
+                    YaaccLogger.d(getClass().getName(), "Creating root folder: " + title + " with ID: " + folderId);
                     StorageFolder folder = new StorageFolder(folderId, ContentDirectoryIDs.SAF_FOLDER.getId(), title, "yaacc", 0, null);
                     result.add(folder);
                 }
             }
         } else {
             // Browse subfolder
-            Log.d(getClass().getName(), "Browsing subfolder with ID: " + myId);
+            YaaccLogger.d(getClass().getName(), "Browsing subfolder with ID: " + myId);
             String pathEnc = myId.substring(ContentDirectoryIDs.SAF_PREFIX.getId().length());
-            Log.d(getClass().getName(), "Encoded path: " + pathEnc);
+            YaaccLogger.d(getClass().getName(), "Encoded path: " + pathEnc);
             String path = new String(Base64.decode(pathEnc.getBytes(), Base64.NO_WRAP));
-            Log.d(getClass().getName(), "Decoded path: " + path);
+            YaaccLogger.d(getClass().getName(), "Decoded path: " + path);
 
             Uri uri = Uri.parse(path);
             DocumentFile root = null;
@@ -149,25 +149,25 @@ public class SafFolderBrowser extends ContentBrowser {
             if (path.contains("/tree/")) {
                 // This is a tree URI, use it directly
                 root = DocumentFile.fromTreeUri(getContext(), uri);
-                Log.d(getClass().getName(), "Using tree URI: " + path);
+                YaaccLogger.d(getClass().getName(), "Using tree URI: " + path);
             } else {
                 // This is a document URI, we need to find it within its parent tree
-                Log.d(getClass().getName(), "Document URI detected, finding parent tree: " + path);
+                YaaccLogger.d(getClass().getName(), "Document URI detected, finding parent tree: " + path);
                 // For now, skip these problematic folders to avoid showing parent content
-                Log.w(getClass().getName(), "Skipping document URI folder to avoid parent content");
+                YaaccLogger.w(getClass().getName(), "Skipping document URI folder to avoid parent content");
                 return result;
             }
 
             if (root != null && root.isDirectory()) {
                 DocumentFile[] files = root.listFiles();
-                Log.d(getClass().getName(), "Found " + files.length + " files in subfolder");
+                YaaccLogger.d(getClass().getName(), "Found " + files.length + " files in subfolder");
                 int start = (int) Math.max(0, firstResult);
                 int end = (int) Math.min(files.length, start + maxResults);
-                Log.d(getClass().getName(), "Parent: " + myId);
+                YaaccLogger.d(getClass().getName(), "Parent: " + myId);
                 for (int i = start; i < end; i++) {
                     DocumentFile file = files[i];
                     if (file.isDirectory()) {
-                        Log.d(getClass().getName(), "Child: " + file.getUri());
+                        YaaccLogger.d(getClass().getName(), "Child: " + file.getUri());
                         String title = file.getName() != null ? file.getName() : file.getUri().toString();
 
                         // Create tree URI for the child folder so it can be browsed properly
@@ -175,36 +175,36 @@ public class SafFolderBrowser extends ContentBrowser {
                             String authority = file.getUri().getAuthority();
                             String documentId = DocumentsContract.getDocumentId(file.getUri());
                             Uri childTreeUri = DocumentsContract.buildTreeDocumentUri(authority, documentId);
-                            Log.d(getClass().getName(), "Child tree URI: " + childTreeUri);
+                            YaaccLogger.d(getClass().getName(), "Child tree URI: " + childTreeUri);
 
                             // Test if we can access this tree URI
                             DocumentFile testAccess = DocumentFile.fromTreeUri(getContext(), childTreeUri);
                             if (testAccess != null) {
                                 String base64Str = Base64.encodeToString(childTreeUri.toString().getBytes(), Base64.NO_WRAP);
                                 String childId = ContentDirectoryIDs.SAF_PREFIX.getId() + base64Str;
-                                Log.d(getClass().getName(), "Creating child folder: " + title + " with ID: " + childId);
+                                YaaccLogger.d(getClass().getName(), "Creating child folder: " + title + " with ID: " + childId);
                                 StorageFolder folder = new StorageFolder(childId, myId, title, "yaacc", 0, null);
                                 folder.setRestricted(testAccess.canRead());
                                 result.add(folder);
                             } else {
-                                Log.w(getClass().getName(), "Cannot access child tree URI, skipping folder: " + title);
+                                YaaccLogger.w(getClass().getName(), "Cannot access child tree URI, skipping folder: " + title);
                             }
                         } catch (Exception e) {
-                            Log.e(getClass().getName(), "Error creating tree URI for child, skipping folder: " + title, e);
+                            YaaccLogger.e(getClass().getName(), "Error creating tree URI for child, skipping folder: " + title, e);
                         }
                     }
                 }
             } else {
-                Log.e(getClass().getName(), "Root DocumentFile is null or not a directory for path: " + path);
+                YaaccLogger.e(getClass().getName(), "Root DocumentFile is null or not a directory for path: " + path);
             }
         }
-        Log.d(getClass().getName(), "Returning " + result.size() + " containers");
+        YaaccLogger.d(getClass().getName(), "Returning " + result.size() + " containers");
         return result;
     }
 
     @Override
     public List<Item> browseItem(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
-        Log.d(getClass().getName(), "browseItem called with myId: " + myId);
+        YaaccLogger.d(getClass().getName(), "browseItem called with myId: " + myId);
         List<Item> result = new ArrayList<>();
         if (myId.equals(ContentDirectoryIDs.SAF_FOLDER.getId())) {
             List<String> sortedPathes = new ArrayList<>(getSelectedSafPathes());
@@ -222,15 +222,15 @@ public class SafFolderBrowser extends ContentBrowser {
             }
         } else {
             // Browse subfolder items
-            Log.d(getClass().getName(), "Browsing subfolder items for: " + myId);
+            YaaccLogger.d(getClass().getName(), "Browsing subfolder items for: " + myId);
             String pathEnc = myId.substring(ContentDirectoryIDs.SAF_PREFIX.getId().length());
             String path = new String(Base64.decode(pathEnc.getBytes(), Base64.NO_WRAP));
-            Log.d(getClass().getName(), "Decoded path: " + path);
+            YaaccLogger.d(getClass().getName(), "Decoded path: " + path);
             DocumentFile root = DocumentFile.fromTreeUri(getContext(), Uri.parse(path));
             if (root != null && root.isDirectory()) {
                 if (root.canRead()) {
                     DocumentFile[] files = root.listFiles();
-                    Log.d(getClass().getName(), "Found " + files.length + " files in folder");
+                    YaaccLogger.d(getClass().getName(), "Found " + files.length + " files in folder");
                     int start = (int) Math.max(0, firstResult);
                     int end = (int) Math.min(files.length, start + maxResults);
                     for (int i = start; i < end; i++) {
@@ -240,22 +240,22 @@ public class SafFolderBrowser extends ContentBrowser {
                         }
                     }
                 } else {
-                    Log.w(getClass().getName(), "Cannot access folder, skipping: " + path);
+                    YaaccLogger.w(getClass().getName(), "Cannot access folder, skipping: " + path);
                 }
             } else {
-                Log.e(getClass().getName(), "Root DocumentFile is null or not a directory for path: " + path);
+                YaaccLogger.e(getClass().getName(), "Root DocumentFile is null or not a directory for path: " + path);
             }
         }
-        Log.d(getClass().getName(), "Returning " + result.size() + " items");
+        YaaccLogger.d(getClass().getName(), "Returning " + result.size() + " items");
         return result;
     }
 
     private Item createItem(YaaccContentDirectory contentDirectory, String path, DocumentFile file, String parentId, boolean restricted) {
         String mimeTypeStr = file.getType();
         long currentTime = System.currentTimeMillis();
-        Log.d(getClass().getName(), "Created item for: " + path + " with mime type: " + mimeTypeStr);
+        YaaccLogger.d(getClass().getName(), "Created item for: " + path + " with mime type: " + mimeTypeStr);
         if (file.getName().endsWith("m3u")) {
-            Log.d(getClass().getName(), "Ignoring m3u file");
+            YaaccLogger.d(getClass().getName(), "Ignoring m3u file");
             return null;
         }
         if (mimeTypeStr != null) {
@@ -275,9 +275,9 @@ public class SafFolderBrowser extends ContentBrowser {
 
             String duration = null;
             if (mimeTypeMain.equals("audio") && !restricted) {
-                Log.d(getClass().getName(), "Extracting duration for: " + file.getUri() + " took: " + (System.currentTimeMillis() - currentTime) + "ms");
+                YaaccLogger.d(getClass().getName(), "Extracting duration for: " + file.getUri() + " took: " + (System.currentTimeMillis() - currentTime) + "ms");
                 duration = extractDuration(file);
-                Log.d(getClass().getName(), "Extracted duration for: " + file.getUri() + " took: " + (System.currentTimeMillis() - currentTime) + "ms");
+                YaaccLogger.d(getClass().getName(), "Extracted duration for: " + file.getUri() + " took: " + (System.currentTimeMillis() - currentTime) + "ms");
             }
             Res res = new Res(protocolInfo, file.length(), duration, null, uri);
 
@@ -293,7 +293,7 @@ public class SafFolderBrowser extends ContentBrowser {
             if (item != null) {
                 item.setRestricted(restricted);
             }
-            Log.d(getClass().getName(), "Created item for: " + path + "took: " + (System.currentTimeMillis() - currentTime) + "ms");
+            YaaccLogger.d(getClass().getName(), "Created item for: " + path + "took: " + (System.currentTimeMillis() - currentTime) + "ms");
             return item;
 
         }
@@ -320,12 +320,12 @@ public class SafFolderBrowser extends ContentBrowser {
                             // Replace the resource in the item
                             item.getResources().clear();
                             item.addResource(newRes);
-                            Log.d(getClass().getName(), "Updated duration for: " + item.getTitle() + " -> " + duration);
+                            YaaccLogger.d(getClass().getName(), "Updated duration for: " + item.getTitle() + " -> " + duration);
                         } catch (Exception e) {
-                            Log.w(getClass().getName(), "Failed to update duration for: " + item.getTitle(), e);
+                            YaaccLogger.w(getClass().getName(), "Failed to update duration for: " + item.getTitle(), e);
                         }
                     }
-                    Log.d(getClass().getName(), "Item ready for playback: " + item.getTitle());
+                    YaaccLogger.d(getClass().getName(), "Item ready for playback: " + item.getTitle());
                 }
             }.execute();
         }
@@ -334,7 +334,7 @@ public class SafFolderBrowser extends ContentBrowser {
         MediaMetadataRetriever retriever = null;
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(getContext());
         if (preferences.contains(getContext().getString(R.string.settings_duration_format_key) + file.getUri())) {
-            Log.d(getClass().getName(), "Found duration in cache for: " + file.getUri());
+            YaaccLogger.d(getClass().getName(), "Found duration in cache for: " + file.getUri());
             return preferences.getString(getContext().getString(R.string.settings_duration_format_key) + file.getUri(), null);
         }
         try {
@@ -345,18 +345,18 @@ public class SafFolderBrowser extends ContentBrowser {
             if (durationStr != null) {
                 long durationMs = Long.parseLong(durationStr);
                 String durationString = FormatHelper.parseMillisToTimeStringTo(durationMs);
-                Log.d(getClass().getName(), "Put duration in cache for: " + file.getUri());
+                YaaccLogger.d(getClass().getName(), "Put duration in cache for: " + file.getUri());
                 preferences.edit().putString(getContext().getString(R.string.settings_duration_format_key) + file.getUri(), durationString).apply();
                 return durationString;
             }
         } catch (Exception e) {
-            Log.w(getClass().getName(), "Could not extract duration from: " + file.getUri(), e);
+            YaaccLogger.w(getClass().getName(), "Could not extract duration from: " + file.getUri(), e);
         } finally {
             if (retriever != null) {
                 try {
                     retriever.release();
                 } catch (Exception e) {
-                    Log.w(getClass().getName(), "Error releasing MediaMetadataRetriever", e);
+                    YaaccLogger.w(getClass().getName(), "Error releasing MediaMetadataRetriever", e);
                 }
             }
         }

@@ -26,7 +26,7 @@ import android.content.ServiceConnection;
 import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.IBinder;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import androidx.core.app.NotificationCompat;
 
@@ -90,7 +90,7 @@ public class LocalImagePlayer implements Player, ServiceConnection {
 
     public void onServiceConnected(ComponentName className, IBinder binder) {
         if (binder instanceof PlayerService.PlayerServiceBinder) {
-            Log.d("ServiceConnection", "connected");
+            YaaccLogger.d("ServiceConnection", "connected");
 
             playerService = ((PlayerService.PlayerServiceBinder) binder).getService();
             playerService.addPlayer(this);
@@ -99,7 +99,7 @@ public class LocalImagePlayer implements Player, ServiceConnection {
 
 
     public void onServiceDisconnected(ComponentName className) {
-        Log.d("ServiceConnection", "disconnected");
+        YaaccLogger.d("ServiceConnection", "disconnected");
         if (playerService != null) {
             playerService.removePlayer(this);
         }
@@ -210,7 +210,7 @@ public class LocalImagePlayer implements Player, ServiceConnection {
 
             @Override
             public void run() {
-                Log.d(this.getClass().getName(), "send play");
+                YaaccLogger.d(this.getClass().getName(), "send play");
                 Intent intent = new Intent();
                 intent.setAction(ImageViewerBroadcastReceiver.ACTION_PLAY);
                 upnpClient.getContext().sendBroadcast(intent);

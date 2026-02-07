@@ -30,7 +30,7 @@ import android.content.SharedPreferences;
 import android.os.BatteryManager;
 import android.os.CountDownTimer;
 import android.os.PowerManager;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import androidx.appcompat.app.AppCompatDelegate;
 import androidx.core.app.NotificationCompat;
@@ -51,6 +51,7 @@ import de.yaacc.upnp.server.renderingcontrol.YaaccAudioRenderingControlService;
 import de.yaacc.util.NotificationId;
 import de.yaacc.util.SafPermissionManager;
 import de.yaacc.util.ShutdownTimerListener;
+import de.yaacc.util.YaaccLogger;
 
 /**
  * application which holds the global state
@@ -70,6 +71,7 @@ public class Yaacc extends Application {
     @Override
     public void onCreate() {
         super.onCreate();
+        YaaccLogger.initialize(this);
         createNotificationChannel();
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
         boolean darkMode = preferences.getBoolean(getString(R.string.settings_dark_mode_key), true);
@@ -80,9 +82,9 @@ public class Yaacc extends Application {
         }
 
         int numThreads = Integer.parseInt(preferences.getString(getString(R.string.settings_browse_load_threads_key), "10"));
-        Log.d(getClass().getName(), "Number of Threads used for content loading: " + numThreads);
+        YaaccLogger.d(getClass().getName(), "Number of Threads used for content loading: " + numThreads);
         if (numThreads <= 0) {
-            Log.d(getClass().getName(), "Number of Threads invalid using 10 threads instead: " + numThreads);
+            YaaccLogger.d(getClass().getName(), "Number of Threads invalid using 10 threads instead: " + numThreads);
             numThreads = 10;
         }
         contentLoadThreadPool = Executors.newFixedThreadPool(numThreads);
@@ -115,7 +117,7 @@ public class Yaacc extends Application {
     }
 
     public void exit() {
-        Log.d(getClass().getName(), "Start shutdown and close");
+        YaaccLogger.d(getClass().getName(), "Start shutdown and close");
         upnpClient.shutdown();
         //clear proxy links from preferences
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
@@ -184,7 +186,7 @@ public class Yaacc extends Application {
         shutdownTimer = new CountDownTimer(duration, 1000L) {
             @Override
             public void onTick(long millisUntilFinished) {
-                Log.d(getClass().getName(), "Shutdown in: " + millisUntilFinished + " millis");
+                YaaccLogger.d(getClass().getName(), "Shutdown in: " + millisUntilFinished + " millis");
                 if (getShutdownTimerListener() != null) {
                     getShutdownTimerListener().onTick(millisUntilFinished);
                 }
@@ -193,7 +195,7 @@ public class Yaacc extends Application {
 
             @Override
             public void onFinish() {
-                Log.v(getClass().getName(), "Shutdown timer finished shutting down now!");
+                YaaccLogger.v(getClass().getName(), "Shutdown timer finished shutting down now!");
                 exit();
             }
         };

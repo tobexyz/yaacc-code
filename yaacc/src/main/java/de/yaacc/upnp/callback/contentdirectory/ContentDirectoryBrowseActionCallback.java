@@ -18,7 +18,7 @@
  */
 package de.yaacc.upnp.callback.contentdirectory;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.action.ActionInvocation;
 import org.fourthline.cling.model.message.UpnpResponse;
@@ -58,7 +58,7 @@ public class ContentDirectoryBrowseActionCallback extends Browse {
     public boolean receivedRaw(ActionInvocation actionInvocation,
                                BrowseResult browseResult) {
         // TODO Auto-generated method stub
-        Log.d(this.getClass().getName(), "RAW-Result: " + browseResult.getResult());
+        YaaccLogger.d(this.getClass().getName(), "RAW-Result: " + browseResult.getResult());
         return super.receivedRaw(actionInvocation, browseResult);
     }
 

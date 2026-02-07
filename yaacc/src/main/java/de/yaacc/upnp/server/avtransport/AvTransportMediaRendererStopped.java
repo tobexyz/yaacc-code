@@ -18,7 +18,7 @@
  */
 package de.yaacc.upnp.server.avtransport;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.support.avtransport.impl.state.AbstractState;
 import org.fourthline.cling.support.avtransport.impl.state.Stopped;
@@ -60,7 +60,7 @@ public class AvTransportMediaRendererStopped extends Stopped<AvTransport> implem
      */
     @Override
     public void onEntry() {
-        Log.d(this.getClass().getName(), "On Entry");
+        YaaccLogger.d(this.getClass().getName(), "On Entry");
         super.onEntry();
         List<Player> players = upnpClient.getCurrentPlayers(getTransport());
         for (Player player : players) {
@@ -80,9 +80,9 @@ public class AvTransportMediaRendererStopped extends Stopped<AvTransport> implem
     @Override
     public Class<? extends AbstractState<?>> setTransportURI(URI uri,
                                                              String metaData) {
-        Log.d(this.getClass().getName(), "setTransportURI");
-        Log.d(this.getClass().getName(), "uri: " + uri);
-        Log.d(this.getClass().getName(), "metaData: " + metaData);
+        YaaccLogger.d(this.getClass().getName(), "setTransportURI");
+        YaaccLogger.d(this.getClass().getName(), "uri: " + uri);
+        YaaccLogger.d(this.getClass().getName(), "metaData: " + metaData);
         getTransport().setMediaInfo(new MediaInfo(uri.toString(), metaData));
 // If you can, you should find and set the duration of the track here!
         getTransport().setPositionInfo(
@@ -109,7 +109,7 @@ public class AvTransportMediaRendererStopped extends Stopped<AvTransport> implem
      */
     @Override
     public Class<? extends AbstractState<?>> stop() {
-        Log.d(this.getClass().getName(), "stop");
+        YaaccLogger.d(this.getClass().getName(), "stop");
 // / Same here, if you are stopped already and someone calls STOP,
 // well...
         return AvTransportMediaRendererStopped.class;
@@ -124,7 +124,7 @@ public class AvTransportMediaRendererStopped extends Stopped<AvTransport> implem
      */
     @Override
     public Class<? extends AbstractState<?>> play(String speed) {
-        Log.d(this.getClass().getName(), "play");
+        YaaccLogger.d(this.getClass().getName(), "play");
 // It's easier to let this classes' onEntry() method do the work
         return AvTransportMediaRendererPlaying.class;
     }
@@ -136,7 +136,7 @@ public class AvTransportMediaRendererStopped extends Stopped<AvTransport> implem
      */
     @Override
     public Class<? extends AbstractState<?>> next() {
-        Log.d(this.getClass().getName(), "next");
+        YaaccLogger.d(this.getClass().getName(), "next");
         return AvTransportMediaRendererStopped.class;
     }
 
@@ -147,7 +147,7 @@ public class AvTransportMediaRendererStopped extends Stopped<AvTransport> implem
      */
     @Override
     public Class<? extends AbstractState<?>> previous() {
-        Log.d(this.getClass().getName(), "previous");
+        YaaccLogger.d(this.getClass().getName(), "previous");
         return AvTransportMediaRendererStopped.class;
     }
 
@@ -160,7 +160,7 @@ public class AvTransportMediaRendererStopped extends Stopped<AvTransport> implem
      */
     @Override
     public Class<? extends AbstractState<?>> seek(SeekMode unit, String target) {
-        Log.d(this.getClass().getName(), "seek");
+        YaaccLogger.d(this.getClass().getName(), "seek");
 // Implement seeking with the stream in stopped state!
         return AvTransportMediaRendererStopped.class;
     }

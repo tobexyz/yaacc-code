@@ -22,7 +22,7 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.database.Cursor;
 import android.provider.MediaStore;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.support.model.DIDLObject;
 import org.fourthline.cling.support.model.SortCriterion;
@@ -110,7 +110,7 @@ public class ImagesByBucketNamesFolderBrowser extends ContentBrowser {
                         @SuppressLint("Range") String name = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Images.Media.BUCKET_DISPLAY_NAME));
                         StorageFolder imageFolder = new StorageFolder(ContentDirectoryIDs.IMAGES_BY_BUCKET_NAME_PREFIX.getId() + id, ContentDirectoryIDs.IMAGES_BY_BUCKET_NAMES_FOLDER.getId(), name, "yaacc", 0, 90700L);
                         folderMap.put(id, imageFolder);
-                        Log.d(getClass().getName(), "image by bucket names folder: " + id + " Name: " + name);
+                        YaaccLogger.d(getClass().getName(), "image by bucket names folder: " + id + " Name: " + name);
                         currentCount++;
                     }
                     currentIndex++;
@@ -122,7 +122,7 @@ public class ImagesByBucketNamesFolderBrowser extends ContentBrowser {
                     result.add(entry.getValue());
                 }
             } else {
-                Log.d(getClass().getName(), "System media store is empty.");
+                YaaccLogger.d(getClass().getName(), "System media store is empty.");
             }
         }
 

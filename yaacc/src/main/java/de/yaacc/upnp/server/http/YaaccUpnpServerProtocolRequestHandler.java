@@ -18,7 +18,7 @@
  */
 package de.yaacc.upnp.server.http;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.EntityDetails;
@@ -76,26 +76,26 @@ public class YaaccUpnpServerProtocolRequestHandler implements AsyncServerRequest
 
         try {
             StreamRequestMessage requestMessage = readRequestMessage(message);
-            Log.v(getClass().getName(), "Processing new request message: " + requestMessage + " body: " + requestMessage.getBodyString());
+            YaaccLogger.v(getClass().getName(), "Processing new request message: " + requestMessage + " body: " + requestMessage.getBodyString());
 
 
             StreamResponseMessage responseMessage = process(requestMessage);
 
             if (responseMessage != null) {
 
-                Log.v(getClass().getName(), "Preparing HTTP response message: " + responseMessage + " body: " + responseMessage.getBodyString());
+                YaaccLogger.v(getClass().getName(), "Preparing HTTP response message: " + responseMessage + " body: " + responseMessage.getBodyString());
                 writeResponseMessage(responseMessage, responseBuilder);
             } else {
                 // If it's null, it's 404
-                Log.v(getClass().getName(), "Sending HTTP response status: " + HttpStatus.SC_NOT_FOUND);
+                YaaccLogger.v(getClass().getName(), "Sending HTTP response status: " + HttpStatus.SC_NOT_FOUND);
                 responseBuilder.setStatus(HttpStatus.SC_NOT_FOUND);
             }
             responseTrigger.submitResponse(responseBuilder.build(), context);
 
         } catch (Throwable t) {
-            Log.i(getClass().getName(), "Exception occurred during UPnP stream processing: " + t);
-            Log.d(getClass().getName(), "Cause: " + unwrap(t), unwrap(t));
-            Log.v(getClass().getName(), "returning INTERNAL SERVER ERROR to client");
+            YaaccLogger.i(getClass().getName(), "Exception occurred during UPnP stream processing: " + t);
+            YaaccLogger.d(getClass().getName(), "Cause: " + unwrap(t), unwrap(t));
+            YaaccLogger.v(getClass().getName(), "returning INTERNAL SERVER ERROR to client");
             responseBuilder.setStatus(HttpStatus.SC_INTERNAL_SERVER_ERROR);
             responseTrigger.submitResponse(responseBuilder.build(), context);
 
@@ -109,7 +109,7 @@ public class YaaccUpnpServerProtocolRequestHandler implements AsyncServerRequest
         String requestMethod = request.getMethod();
         String requestURI = request.getRequestUri();
 
-        Log.v(getClass().getName(), "Processing HTTP request: " + requestMethod + " " + requestURI);
+        YaaccLogger.v(getClass().getName(), "Processing HTTP request: " + requestMethod + " " + requestURI);
 
         StreamRequestMessage requestMessage;
         try {
@@ -139,27 +139,27 @@ public class YaaccUpnpServerProtocolRequestHandler implements AsyncServerRequest
         if (bodyBytes == null) {
             bodyBytes = new byte[]{};
         }
-        Log.v(getClass().getName(), "Reading request body bytes: " + bodyBytes.length);
+        YaaccLogger.v(getClass().getName(), "Reading request body bytes: " + bodyBytes.length);
 
         if (bodyBytes.length > 0 && requestMessage.isContentTypeMissingOrText()) {
 
-            Log.v(getClass().getName(), "Request contains textual entity body, converting then setting string on message");
+            YaaccLogger.v(getClass().getName(), "Request contains textual entity body, converting then setting string on message");
             requestMessage.setBodyCharacters(bodyBytes);
 
         } else if (bodyBytes.length > 0) {
 
-            Log.v(getClass().getName(), "Request contains binary entity body, setting bytes on message");
+            YaaccLogger.v(getClass().getName(), "Request contains binary entity body, setting bytes on message");
             requestMessage.setBody(UpnpMessage.BodyType.BYTES, bodyBytes);
 
         } else {
-            Log.v(getClass().getName(), "Request did not contain entity body");
+            YaaccLogger.v(getClass().getName(), "Request did not contain entity body");
         }
 
         return requestMessage;
     }
 
     protected void writeResponseMessage(StreamResponseMessage responseMessage, AsyncResponseBuilder responseBuilder) {
-        Log.v(getClass().getName(), "Sending HTTP response status: " + responseMessage.getOperation().getStatusCode());
+        YaaccLogger.v(getClass().getName(), "Sending HTTP response status: " + responseMessage.getOperation().getStatusCode());
 
         responseBuilder.setStatus(responseMessage.getOperation().getStatusCode());
 
@@ -177,7 +177,7 @@ public class YaaccUpnpServerProtocolRequestHandler implements AsyncServerRequest
         int contentLength = responseBodyBytes != null ? responseBodyBytes.length : -1;
 
         if (contentLength > 0) {
-            Log.v(getClass().getName(), "Response message has body, writing bytes to stream...");
+            YaaccLogger.v(getClass().getName(), "Response message has body, writing bytes to stream...");
             ContentType ct = ContentType.APPLICATION_XML;
             if (responseMessage.getContentTypeHeader() != null) {
                 ct = ContentType.parse(responseMessage.getContentTypeHeader().getValue().toString());
@@ -200,18 +200,18 @@ public class YaaccUpnpServerProtocolRequestHandler implements AsyncServerRequest
      * @return The TCP (HTTP) stream response message, or <code>null</code> if a 404 should be send to the client.
      */
     public StreamResponseMessage process(StreamRequestMessage requestMsg) {
-        Log.v(getClass().getName(), "Processing stream request message: " + requestMsg);
+        YaaccLogger.v(getClass().getName(), "Processing stream request message: " + requestMsg);
 
         try {
             // Try to get a protocol implementation that matches the request message
             syncProtocol = upnpProtocolHandler.createReceivingSync(requestMsg);
         } catch (ProtocolCreationException ex) {
-            Log.w(getClass().getName(), "Processing stream request failed - " + unwrap(ex).toString());
+            YaaccLogger.w(getClass().getName(), "Processing stream request failed - " + unwrap(ex).toString());
             return new StreamResponseMessage(UpnpResponse.Status.NOT_IMPLEMENTED);
         }
 
         // Run it
-        Log.v(getClass().getName(), "Running protocol for synchronous message processing: " + syncProtocol);
+        YaaccLogger.v(getClass().getName(), "Running protocol for synchronous message processing: " + syncProtocol);
         syncProtocol.run();
 
         // ... then grab the response
@@ -219,10 +219,10 @@ public class YaaccUpnpServerProtocolRequestHandler implements AsyncServerRequest
 
         if (responseMsg == null) {
             // That's ok, the caller is supposed to handle this properly (e.g. convert it to HTTP 404)
-            Log.v(getClass().getName(), "Protocol did not return any response message");
+            YaaccLogger.v(getClass().getName(), "Protocol did not return any response message");
             return null;
         }
-        Log.v(getClass().getName(), "Protocol returned response: " + responseMsg);
+        YaaccLogger.v(getClass().getName(), "Protocol returned response: " + responseMsg);
         return responseMsg;
     }
 

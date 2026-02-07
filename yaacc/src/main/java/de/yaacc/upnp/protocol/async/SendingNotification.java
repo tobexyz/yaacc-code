@@ -16,7 +16,7 @@
 package de.yaacc.upnp.protocol.async;
 
 import android.content.Context;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.Location;
 import org.fourthline.cling.model.message.discovery.OutgoingNotificationRequest;
@@ -84,11 +84,11 @@ public abstract class SendingNotification extends SendingAsync {
                 }
 
                 // UDA 1.0 is silent about this but UDA 1.1 recomments "a few hundred milliseconds"
-                Log.v(getClass().getName(), "Sleeping " + getBulkIntervalMilliseconds() + " milliseconds");
+                YaaccLogger.v(getClass().getName(), "Sleeping " + getBulkIntervalMilliseconds() + " milliseconds");
                 Thread.sleep(getBulkIntervalMilliseconds());
 
             } catch (InterruptedException ex) {
-                Log.w(getClass().getName(), "Advertisement thread was interrupted: " + ex);
+                YaaccLogger.w(getClass().getName(), "Advertisement thread was interrupted: " + ex);
             }
         }
     }
@@ -102,7 +102,7 @@ public abstract class SendingNotification extends SendingAsync {
     }
 
     public void sendMessages(Location descriptorLocation) throws IOException {
-        Log.v(getClass().getName(), "Sending root device messages: " + getDevice());
+        YaaccLogger.v(getClass().getName(), "Sending root device messages: " + getDevice());
         List<OutgoingNotificationRequest> rootDeviceMsgs =
                 createDeviceMessages(getDevice(), descriptorLocation);
         for (OutgoingNotificationRequest upnpMessage : rootDeviceMsgs) {
@@ -111,7 +111,7 @@ public abstract class SendingNotification extends SendingAsync {
 
         if (getDevice().hasEmbeddedDevices()) {
             for (LocalDevice embeddedDevice : getDevice().findEmbeddedDevices()) {
-                Log.v(getClass().getName(), "Sending embedded device messages: " + embeddedDevice);
+                YaaccLogger.v(getClass().getName(), "Sending embedded device messages: " + embeddedDevice);
                 List<OutgoingNotificationRequest> embeddedDeviceMsgs =
                         createDeviceMessages(embeddedDevice, descriptorLocation);
                 for (OutgoingNotificationRequest upnpMessage : embeddedDeviceMsgs) {
@@ -123,7 +123,7 @@ public abstract class SendingNotification extends SendingAsync {
         List<OutgoingNotificationRequest> serviceTypeMsgs =
                 createServiceTypeMessages(getDevice(), descriptorLocation);
         if (serviceTypeMsgs.size() > 0) {
-            Log.v(getClass().getName(), "Sending service type messages");
+            YaaccLogger.v(getClass().getName(), "Sending service type messages");
             for (OutgoingNotificationRequest upnpMessage : serviceTypeMsgs) {
                 udpTransiver.send(upnpMessage);
             }

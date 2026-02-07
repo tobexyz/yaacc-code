@@ -16,7 +16,7 @@
 package de.yaacc.upnp.protocol.async;
 
 import android.content.Context;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.meta.LocalDevice;
 import org.fourthline.cling.model.types.NotificationSubtype;
@@ -38,7 +38,7 @@ public class SendingNotificationAlive extends SendingNotification {
 
     @Override
     protected void execute() throws IOException {
-        Log.v(getClass().getName(), "Sending alive messages (" + getBulkRepeat() + " times) for: " + getDevice());
+        YaaccLogger.v(getClass().getName(), "Sending alive messages (" + getBulkRepeat() + " times) for: " + getDevice());
         super.execute();
     }
 

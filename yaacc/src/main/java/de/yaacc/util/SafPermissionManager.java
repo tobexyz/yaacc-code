@@ -4,7 +4,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.UriPermission;
 import android.net.Uri;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import androidx.preference.PreferenceManager;
 
@@ -24,7 +24,7 @@ public class SafPermissionManager {
         List<UriPermission> grantedPermissions = context.getContentResolver().getPersistedUriPermissions();
         Set<String> toBeRemoved = new HashSet<>();
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
-        Log.d(SafPermissionManager.class.getName(), "Checking " + storedUris.size() + " stored SAF URIs, " +
+        YaaccLogger.d(SafPermissionManager.class.getName(), "Checking " + storedUris.size() + " stored SAF URIs, " +
                 grantedPermissions.size() + " total permissions");
 
         // Check each stored URI to see if we still have permission
@@ -34,16 +34,16 @@ public class SafPermissionManager {
                 boolean hasPermission = grantedPermissions.stream()
                         .anyMatch(perm -> uriString.contains(perm.getUri().toString()) && perm.isReadPermission());
 
-                grantedPermissions.stream().forEach(it -> Log.d(SafPermissionManager.class.getName(), "Permission: " + it.getUri() + " " + it.isReadPermission()));
-                Log.d(SafPermissionManager.class.getName(), "Checking permission for SAF URI: " + uriString + " -> " + hasPermission);
+                grantedPermissions.stream().forEach(it -> YaaccLogger.d(SafPermissionManager.class.getName(), "Permission: " + it.getUri() + " " + it.isReadPermission()));
+                YaaccLogger.d(SafPermissionManager.class.getName(), "Checking permission for SAF URI: " + uriString + " -> " + hasPermission);
                 if (!hasPermission) {
-                    Log.d(SafPermissionManager.class.getName(), "Lost permission for SAF URI removing: " + uriString);
+                    YaaccLogger.d(SafPermissionManager.class.getName(), "Lost permission for SAF URI removing: " + uriString);
                     toBeRemoved.add(uriString);
                 } else {
-                    Log.d(SafPermissionManager.class.getName(), "Permission OK for SAF URI: " + uriString);
+                    YaaccLogger.d(SafPermissionManager.class.getName(), "Permission OK for SAF URI: " + uriString);
                 }
             } catch (Exception e) {
-                Log.w(SafPermissionManager.class.getName(), "Error checking permission for URI: " + uriString, e);
+                YaaccLogger.w(SafPermissionManager.class.getName(), "Error checking permission for URI: " + uriString, e);
             }
         }
         //release orphaned permissions from MediaPathFilter
@@ -54,7 +54,7 @@ public class SafPermissionManager {
         selectedUriSet.removeAll(toBeRemoved);
         MediaPathFilter.saveSelectedSafPathes(context, selectedUriSet);
         for (String uriString : toBeRemoved) {
-            Log.d(SafPermissionManager.class.getName(), "Removing duration cache entry for SAF URI: " + uriString);
+            YaaccLogger.d(SafPermissionManager.class.getName(), "Removing duration cache entry for SAF URI: " + uriString);
             if (preferences.contains(context.getString(R.string.settings_duration_format_key) + toBeRemoved)) {
                 preferences.edit().remove(context.getString(R.string.settings_duration_format_key) + toBeRemoved);
             }
@@ -65,7 +65,7 @@ public class SafPermissionManager {
             cleanupOrphanedPermissions(context, storedUriSet, grantedPermissions);
         }
 
-        Log.i(SafPermissionManager.class.getName(), "SAF permission check complete");
+        YaaccLogger.i(SafPermissionManager.class.getName(), "SAF permission check complete");
     }
 
     private static void cleanupOrphanedPermissions(Context context, Set<String> validUris, List<UriPermission> grantedPermissions) {
@@ -79,9 +79,9 @@ public class SafPermissionManager {
                             permission.getUri(),
                             android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
                     );
-                    Log.i(SafPermissionManager.class.getName(), "Released orphaned permission: " + uriString);
+                    YaaccLogger.i(SafPermissionManager.class.getName(), "Released orphaned permission: " + uriString);
                 } catch (Exception e) {
-                    Log.w(SafPermissionManager.class.getName(), "Failed to release permission: " + uriString, e);
+                    YaaccLogger.w(SafPermissionManager.class.getName(), "Failed to release permission: " + uriString, e);
                 }
             }
         }

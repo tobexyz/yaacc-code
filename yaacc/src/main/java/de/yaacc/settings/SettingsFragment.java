@@ -33,6 +33,7 @@ import java.util.Collection;
 
 import de.yaacc.R;
 import de.yaacc.upnp.UpnpClient;
+import de.yaacc.util.YaaccLogger;
 
 /**
  * @author Christoph Hähnel (eyeless)
@@ -62,6 +63,14 @@ public class SettingsFragment extends PreferenceFragmentCompat {
                 } else {
                     AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM);
                 }
+                return true;
+            });
+        }
+
+        androidx.preference.ListPreference logLevelPreference = findPreference(getString(R.string.settings_log_level_key));
+        if (logLevelPreference != null) {
+            logLevelPreference.setOnPreferenceChangeListener((preference, newValue) -> {
+                YaaccLogger.updateLogLevel();
                 return true;
             });
         }

@@ -15,7 +15,7 @@
 
 package de.yaacc.upnp.protocol;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import java.io.IOException;
 
@@ -45,7 +45,7 @@ public abstract class SendingAsync implements Runnable {
                 cause = current;
             }
             if (cause instanceof InterruptedException) {
-                Log.v(getClass().getName(), "Interrupted protocol '" + getClass().getSimpleName() + "': " + ex, cause);
+                YaaccLogger.v(getClass().getName(), "Interrupted protocol '" + getClass().getSimpleName() + "': " + ex, cause);
             } else {
                 throw new RuntimeException(
                         "Fatal error while executing protocol '" + getClass().getSimpleName() + "': " + ex, ex

@@ -22,7 +22,7 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.database.Cursor;
 import android.provider.MediaStore;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.support.model.DIDLObject;
 import org.fourthline.cling.support.model.PersonWithRole;
@@ -255,7 +255,7 @@ public class MusicGenreFolderBrowser extends ContentBrowser {
                         duration = contentDirectory.formatDuration(duration);
                         @SuppressLint("Range") String mimeTypeString = mediaCursor.getString(mediaCursor
                                 .getColumnIndex(MediaStore.Audio.Media.MIME_TYPE));
-                        Log.d(getClass().getName(),
+                        YaaccLogger.d(getClass().getName(),
                                 "Mimetype: "
                                         + mimeTypeString);
                         MimeType mimeType = MimeType
@@ -291,7 +291,7 @@ public class MusicGenreFolderBrowser extends ContentBrowser {
                         }
                         result.add(musicTrack);
 
-                        Log.d(getClass().getName(), "MusicTrack: " + id + " Name: "
+                        YaaccLogger.d(getClass().getName(), "MusicTrack: " + id + " Name: "
                                 + name + " uri: " + uri);
                         currentCount++;
                     }
@@ -300,7 +300,7 @@ public class MusicGenreFolderBrowser extends ContentBrowser {
                 }
 
             } else {
-                Log.d(getClass().getName(), "System media store is empty.");
+                YaaccLogger.d(getClass().getName(), "System media store is empty.");
             }
         }
 

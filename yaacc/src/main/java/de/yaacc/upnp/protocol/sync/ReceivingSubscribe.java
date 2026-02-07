@@ -16,7 +16,7 @@
 package de.yaacc.upnp.protocol.sync;
 import de.yaacc.util.Exceptions;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.gena.CancelReason;
 import org.fourthline.cling.model.gena.LocalGENASubscription;
@@ -81,11 +81,11 @@ public class ReceivingSubscribe extends ReceivingSync<StreamRequestMessage, Outg
                 );
 
         if (resource == null) {
-            Log.v(getClass().getName(), "No local resource found: " + getInputMessage());
+            YaaccLogger.v(getClass().getName(), "No local resource found: " + getInputMessage());
             return null;
         }
 
-        Log.v(getClass().getName(), "Found local event subscription matching relative request URI: " + getInputMessage().getUri());
+        YaaccLogger.v(getClass().getName(), "Found local event subscription matching relative request URI: " + getInputMessage().getUri());
 
         IncomingSubscribeRequestMessage requestMessage =
                 new IncomingSubscribeRequestMessage(getInputMessage(), resource.getModel());
@@ -93,7 +93,7 @@ public class ReceivingSubscribe extends ReceivingSync<StreamRequestMessage, Outg
         // Error conditions UDA 1.0 section 4.1.1 and 4.1.2
         if (requestMessage.getSubscriptionId() != null &&
                 (requestMessage.hasNotificationHeader() || requestMessage.getCallbackURLs() != null)) {
-            Log.v(getClass().getName(), "Subscription ID and NT or Callback in subscribe request: " + getInputMessage());
+            YaaccLogger.v(getClass().getName(), "Subscription ID and NT or Callback in subscribe request: " + getInputMessage());
             return new OutgoingSubscribeResponseMessage(UpnpResponse.Status.BAD_REQUEST);
         }
 
@@ -102,7 +102,7 @@ public class ReceivingSubscribe extends ReceivingSync<StreamRequestMessage, Outg
         } else if (requestMessage.hasNotificationHeader() && requestMessage.getCallbackURLs() != null) {
             return processNewSubscription(resource.getModel(), requestMessage);
         } else {
-            Log.v(getClass().getName(), "No subscription ID, no NT or Callback, neither subscription or renewal: " + getInputMessage());
+            YaaccLogger.v(getClass().getName(), "No subscription ID, no NT or Callback, neither subscription or renewal: " + getInputMessage());
             return new OutgoingSubscribeResponseMessage(UpnpResponse.Status.PRECONDITION_FAILED);
         }
 
@@ -115,16 +115,16 @@ public class ReceivingSubscribe extends ReceivingSync<StreamRequestMessage, Outg
 
         // Error conditions UDA 1.0 section 4.1.1 and 4.1.2
         if (subscription == null) {
-            Log.v(getClass().getName(), "Invalid subscription ID for renewal request: " + getInputMessage());
+            YaaccLogger.v(getClass().getName(), "Invalid subscription ID for renewal request: " + getInputMessage());
             return new OutgoingSubscribeResponseMessage(UpnpResponse.Status.PRECONDITION_FAILED);
         }
 
-        Log.v(getClass().getName(), "Renewing subscription: " + subscription);
+        YaaccLogger.v(getClass().getName(), "Renewing subscription: " + subscription);
         subscription.setSubscriptionDuration(requestMessage.getRequestedTimeoutSeconds());
         if (registry.updateLocalSubscription(subscription)) {
             return new OutgoingSubscribeResponseMessage(subscription);
         } else {
-            Log.v(getClass().getName(), "Subscription went away before it could be renewed: " + getInputMessage());
+            YaaccLogger.v(getClass().getName(), "Subscription went away before it could be renewed: " + getInputMessage());
             return new OutgoingSubscribeResponseMessage(UpnpResponse.Status.PRECONDITION_FAILED);
         }
     }
@@ -135,12 +135,12 @@ public class ReceivingSubscribe extends ReceivingSync<StreamRequestMessage, Outg
 
         // Error conditions UDA 1.0 section 4.1.1 and 4.1.2
         if (callbackURLs == null || callbackURLs.size() == 0) {
-            Log.v(getClass().getName(), "Missing or invalid Callback URLs in subscribe request: " + getInputMessage());
+            YaaccLogger.v(getClass().getName(), "Missing or invalid Callback URLs in subscribe request: " + getInputMessage());
             return new OutgoingSubscribeResponseMessage(UpnpResponse.Status.PRECONDITION_FAILED);
         }
 
         if (!requestMessage.hasNotificationHeader()) {
-            Log.v(getClass().getName(), "Missing or invalid NT header in subscribe request: " + getInputMessage());
+            YaaccLogger.v(getClass().getName(), "Missing or invalid NT header in subscribe request: " + getInputMessage());
             return new OutgoingSubscribeResponseMessage(UpnpResponse.Status.PRECONDITION_FAILED);
         }
 
@@ -162,14 +162,14 @@ public class ReceivingSubscribe extends ReceivingSync<StreamRequestMessage, Outg
                 }
             };
         } catch (Exception ex) {
-            Log.w(getClass().getName(), "Couldn't create local subscription to service: ", Exceptions.unwrap(ex));
+            YaaccLogger.w(getClass().getName(), "Couldn't create local subscription to service: ", Exceptions.unwrap(ex));
             return new OutgoingSubscribeResponseMessage(UpnpResponse.Status.INTERNAL_SERVER_ERROR);
         }
 
-        Log.v(getClass().getName(), "Adding subscription to registry: " + subscription);
+        YaaccLogger.v(getClass().getName(), "Adding subscription to registry: " + subscription);
         registry.addLocalSubscription(subscription);
 
-        Log.v(getClass().getName(), "Returning subscription response, waiting to send initial event");
+        YaaccLogger.v(getClass().getName(), "Returning subscription response, waiting to send initial event");
         return new OutgoingSubscribeResponseMessage(subscription);
     }
 
@@ -185,21 +185,21 @@ public class ReceivingSubscribe extends ReceivingSync<StreamRequestMessage, Outg
             // event message arrives later than the first on-change event message. Shouldn't be a problem as the
             // subscriber is supposed to figure out what to do with out-of-sequence messages. I would be
             // surprised though if actual implementations won't crash!
-            Log.v(getClass().getName(), "Establishing subscription");
+            YaaccLogger.v(getClass().getName(), "Establishing subscription");
             subscription.registerOnService();
             subscription.establish();
 
-            Log.v(getClass().getName(), "Response to subscription sent successfully, now sending initial event asynchronously");
+            YaaccLogger.v(getClass().getName(), "Response to subscription sent successfully, now sending initial event asynchronously");
             executorService.execute(new SendingEvent(httpRequestSender, subscription));
 
         } else if (subscription.getCurrentSequence().getValue() == 0) {
-            Log.v(getClass().getName(), "Subscription request's response aborted, not sending initial event");
+            YaaccLogger.v(getClass().getName(), "Subscription request's response aborted, not sending initial event");
             if (responseMessage == null) {
-                Log.v(getClass().getName(), "Reason: No response at all from subscriber");
+                YaaccLogger.v(getClass().getName(), "Reason: No response at all from subscriber");
             } else {
-                Log.v(getClass().getName(), "Reason: " + responseMessage.getOperation());
+                YaaccLogger.v(getClass().getName(), "Reason: " + responseMessage.getOperation());
             }
-            Log.v(getClass().getName(), "Removing subscription from registry: " + subscription);
+            YaaccLogger.v(getClass().getName(), "Removing subscription from registry: " + subscription);
             registry.removeLocalSubscription(subscription);
         }
     }
@@ -207,7 +207,7 @@ public class ReceivingSubscribe extends ReceivingSync<StreamRequestMessage, Outg
     @Override
     public void responseException(Throwable t) {
         if (subscription == null) return; // Nothing to do, we didn't get that far
-        Log.v(getClass().getName(), "Response could not be send to subscriber, removing local GENA subscription: " + subscription);
+        YaaccLogger.v(getClass().getName(), "Response could not be send to subscriber, removing local GENA subscription: " + subscription);
         registry.removeLocalSubscription(subscription);
     }
 }

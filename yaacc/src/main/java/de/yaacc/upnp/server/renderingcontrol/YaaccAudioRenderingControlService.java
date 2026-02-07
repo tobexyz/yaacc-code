@@ -20,7 +20,7 @@ package de.yaacc.upnp.server.renderingcontrol;
 
 import android.content.Context;
 import android.media.AudioManager;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.types.UnsignedIntegerFourBytes;
 import org.fourthline.cling.model.types.UnsignedIntegerTwoBytes;
@@ -45,7 +45,7 @@ public class YaaccAudioRenderingControlService extends
     @Override
     public boolean getMute(UnsignedIntegerFourBytes instanceId, String channelName)
             throws RenderingControlException {
-        Log.d(getClass().getName(), "getMute() ");
+        YaaccLogger.d(getClass().getName(), "getMute() ");
         AudioManager audioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
         if (audioManager != null) {
             return audioManager.isStreamMute(AudioManager.STREAM_MUSIC);
@@ -56,7 +56,7 @@ public class YaaccAudioRenderingControlService extends
     @Override
     public UnsignedIntegerTwoBytes getVolume(UnsignedIntegerFourBytes instanceId,
                                              String channelName) throws RenderingControlException {
-        Log.d(getClass().getName(), "getVolume() ");
+        YaaccLogger.d(getClass().getName(), "getVolume() ");
         int volume = 0;
         AudioManager audioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
         if (audioManager != null) {
@@ -70,7 +70,7 @@ public class YaaccAudioRenderingControlService extends
     @Override
     public void setMute(UnsignedIntegerFourBytes instanceId, String channelName, boolean desiredMute)
             throws RenderingControlException {
-        Log.d(getClass().getName(), "setMute()");
+        YaaccLogger.d(getClass().getName(), "setMute()");
         AudioManager audioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
         if (audioManager != null) {
             audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, desiredMute ? AudioManager.ADJUST_MUTE : AudioManager.ADJUST_UNMUTE, 0);
@@ -81,7 +81,7 @@ public class YaaccAudioRenderingControlService extends
     @Override
     public void setVolume(UnsignedIntegerFourBytes instanceId, String channelName,
                           UnsignedIntegerTwoBytes desiredVolume) throws RenderingControlException {
-        Log.d(getClass().getName(), "setVolume() ");
+        YaaccLogger.d(getClass().getName(), "setVolume() ");
         int desired = desiredVolume.getValue() != null ? desiredVolume.getValue().intValue() : 0;
         if (desired < 0) {
             desired = 0;
@@ -99,13 +99,13 @@ public class YaaccAudioRenderingControlService extends
 
     @Override
     public UnsignedIntegerFourBytes[] getCurrentInstanceIds() {
-        Log.d(getClass().getName(), " getCurrentInstanceIds() - not yet implemented");
+        YaaccLogger.d(getClass().getName(), " getCurrentInstanceIds() - not yet implemented");
         return null;
     }
 
     @Override
     protected Channel[] getCurrentChannels() {
-        Log.d(getClass().getName(), " getCurrentChannels() - not yet implemented");
+        YaaccLogger.d(getClass().getName(), " getCurrentChannels() - not yet implemented");
         return null;
     }
 

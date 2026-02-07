@@ -15,7 +15,7 @@
 
 package de.yaacc.upnp.protocol.async;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.message.discovery.OutgoingSearchRequest;
 import org.fourthline.cling.model.message.header.MXHeader;
@@ -82,7 +82,7 @@ public class SendingSearch extends SendingAsync {
 
     protected void execute() throws IOException {
 
-        Log.v(getClass().getName(), "Executing search for target: " + searchTarget.getString() + " with MX seconds: " + getMxSeconds());
+        YaaccLogger.v(getClass().getName(), "Executing search for target: " + searchTarget.getString() + " with MX seconds: " + getMxSeconds());
 
         OutgoingSearchRequest msg = new OutgoingSearchRequest(searchTarget, getMxSeconds());
         prepareOutgoingSearchRequest(msg);
@@ -93,12 +93,12 @@ public class SendingSearch extends SendingAsync {
                 udpTransiver.send(msg);
 
                 // UDA 1.0 is silent about this but UDA 1.1 recommends "a few hundred milliseconds"
-                Log.v(getClass().getName(), "Sleeping " + getBulkIntervalMilliseconds() + " milliseconds");
+                YaaccLogger.v(getClass().getName(), "Sleeping " + getBulkIntervalMilliseconds() + " milliseconds");
                 Thread.sleep(getBulkIntervalMilliseconds());
 
             } catch (InterruptedException ex) {
                 // Interruption means we stop sending search messages, e.g. on shutdown of thread pool
-                Log.v(getClass().getName(), "got exception on search", ex);
+                YaaccLogger.v(getClass().getName(), "got exception on search", ex);
                 break;
             }
         }

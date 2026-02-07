@@ -16,7 +16,7 @@
 package de.yaacc.upnp.protocol.async;
 import de.yaacc.util.Exceptions;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.binding.xml.DescriptorBindingException;
 import org.fourthline.cling.binding.xml.DeviceDescriptorBinder;
@@ -94,13 +94,13 @@ public class RetrieveRemoteDescriptors implements Runnable {
         // processing this several times concurrently.
 
         if (activeRetrievals.contains(deviceURL)) {
-            Log.v(getClass().getName(), "Exiting early, active retrieval for URL already in progress: " + deviceURL);
+            YaaccLogger.v(getClass().getName(), "Exiting early, active retrieval for URL already in progress: " + deviceURL);
             return;
         }
 
         // Exit if it has been discovered already, could be we have been waiting in the executor queue too long
         if (registry.getRemoteDevice(rd.getIdentity().getUdn(), true) != null) {
-            Log.v(getClass().getName(), "Exiting early, already discovered: " + deviceURL);
+            YaaccLogger.v(getClass().getName(), "Exiting early, already discovered: " + deviceURL);
             return;
         }
 
@@ -108,7 +108,7 @@ public class RetrieveRemoteDescriptors implements Runnable {
             activeRetrievals.add(deviceURL);
             describe();
         } catch (IOException ex) {
-            Log.w(getClass().getName(),
+            YaaccLogger.w(getClass().getName(),
                     "Descriptor retrieval failed: " + deviceURL,
                     ex
             );
@@ -131,18 +131,18 @@ public class RetrieveRemoteDescriptors implements Runnable {
 
             deviceDescRetrievalMsg =
                     new StreamRequestMessage(UpnpRequest.Method.GET, rd.getIdentity().getDescriptorURL());
-            Log.v(getClass().getName(), "Sending device descriptor retrieval message: " + deviceDescRetrievalMsg);
+            YaaccLogger.v(getClass().getName(), "Sending device descriptor retrieval message: " + deviceDescRetrievalMsg);
             deviceDescMsg = httpRequestSender.send(deviceDescRetrievalMsg);
         } catch (IllegalArgumentException ex) {
             // UpnpRequest constructor can throw IllegalArgumentException on invalid URI
             // IllegalArgumentException can also be thrown by Apache HttpClient on blank URI in send()
-            Log.w(getClass().getName(),
+            YaaccLogger.w(getClass().getName(),
                     "Device descriptor retrieval failed: "
                             + rd.getIdentity().getDescriptorURL()
                             + " , possibly invalid URL: ", ex);
             return;
         } catch (IOException ex) {
-            Log.w(getClass().getName(),
+            YaaccLogger.w(getClass().getName(),
                     "Device descriptor retrieval failed: "
                             + rd.getIdentity().getDescriptorURL()
                             + " ,exception on send: ", ex);
@@ -151,14 +151,14 @@ public class RetrieveRemoteDescriptors implements Runnable {
 
 
         if (deviceDescMsg == null) {
-            Log.w(getClass().getName(),
+            YaaccLogger.w(getClass().getName(),
                     "Device descriptor retrieval failed, no response: " + rd.getIdentity().getDescriptorURL()
             );
             return;
         }
 
         if (deviceDescMsg.getOperation().isFailed()) {
-            Log.w(getClass().getName(),
+            YaaccLogger.w(getClass().getName(),
                     "Device descriptor retrieval failed: "
                             + rd.getIdentity().getDescriptorURL() +
                             ", "
@@ -168,7 +168,7 @@ public class RetrieveRemoteDescriptors implements Runnable {
         }
 
         if (!deviceDescMsg.isContentTypeTextUDA()) {
-            Log.v(getClass().getName(),
+            YaaccLogger.v(getClass().getName(),
                     "Received device descriptor without or with invalid Content-Type: "
                             + rd.getIdentity().getDescriptorURL());
             // We continue despite the invalid UPnP message because we can still hope to convert the content
@@ -176,11 +176,11 @@ public class RetrieveRemoteDescriptors implements Runnable {
 
         String descriptorContent = deviceDescMsg.getBodyString();
         if (descriptorContent == null || descriptorContent.length() == 0) {
-            Log.w(getClass().getName(), "Received empty device descriptor:" + rd.getIdentity().getDescriptorURL());
+            YaaccLogger.w(getClass().getName(), "Received empty device descriptor:" + rd.getIdentity().getDescriptorURL());
             return;
         }
 
-        Log.v(getClass().getName(), "Received root device descriptor: " + deviceDescMsg);
+        YaaccLogger.v(getClass().getName(), "Received root device descriptor: " + deviceDescMsg);
         describe(descriptorContent);
     }
 
@@ -198,15 +198,15 @@ public class RetrieveRemoteDescriptors implements Runnable {
                     descriptorXML
             );
 
-            Log.v(getClass().getName(), "Remote device described (without services) notifying listeners: " + describedDevice);
+            YaaccLogger.v(getClass().getName(), "Remote device described (without services) notifying listeners: " + describedDevice);
             notifiedStart = registry.notifyDiscoveryStart(describedDevice);
 
-            Log.v(getClass().getName(), "Hydrating described device's services: " + describedDevice);
+            YaaccLogger.v(getClass().getName(), "Hydrating described device's services: " + describedDevice);
             RemoteDevice hydratedDevice = describeServices(describedDevice);
             if (hydratedDevice == null) {
                 if (!errorsAlreadyLogged.contains(rd.getIdentity().getUdn())) {
                     errorsAlreadyLogged.add(rd.getIdentity().getUdn());
-                    Log.w(getClass().getName(), "Device service description failed: " + rd);
+                    YaaccLogger.w(getClass().getName(), "Device service description failed: " + rd);
                 }
                 if (notifiedStart)
                     registry.notifyDiscoveryFailure(
@@ -215,7 +215,7 @@ public class RetrieveRemoteDescriptors implements Runnable {
                     );
                 return;
             } else {
-                Log.v(getClass().getName(), "Adding fully hydrated remote device to registry: " + hydratedDevice);
+                YaaccLogger.v(getClass().getName(), "Adding fully hydrated remote device to registry: " + hydratedDevice);
                 // The registry will do the right thing: A new root device is going to be added, if it's
                 // already present or we just received the descriptor again (because we got an embedded
                 // devices' notification), it will simply update the expiration timestamp of the root
@@ -227,23 +227,23 @@ public class RetrieveRemoteDescriptors implements Runnable {
             // Avoid error log spam each time device is discovered, errors are logged once per device.
             if (!errorsAlreadyLogged.contains(rd.getIdentity().getUdn())) {
                 errorsAlreadyLogged.add(rd.getIdentity().getUdn());
-                Log.w(getClass().getName(), "Could not validate device model: " + rd);
+                YaaccLogger.w(getClass().getName(), "Could not validate device model: " + rd);
                 for (ValidationError validationError : ex.getErrors()) {
-                    Log.w(getClass().getName(), validationError.toString());
+                    YaaccLogger.w(getClass().getName(), validationError.toString());
                 }
                 if (describedDevice != null && notifiedStart)
                     registry.notifyDiscoveryFailure(describedDevice, ex);
             }
 
         } catch (DescriptorBindingException ex) {
-            Log.w(getClass().getName(), "Could not hydrate device or its services from descriptor: " + rd);
-            Log.w(getClass().getName(), "Cause was: " + Exceptions.unwrap(ex));
+            YaaccLogger.w(getClass().getName(), "Could not hydrate device or its services from descriptor: " + rd);
+            YaaccLogger.w(getClass().getName(), "Cause was: " + Exceptions.unwrap(ex));
             if (describedDevice != null && notifiedStart)
                 registry.notifyDiscoveryFailure(describedDevice, ex);
 
         } catch (RegistrationException ex) {
-            Log.w(getClass().getName(), "Adding hydrated device to registry failed: " + rd);
-            Log.w(getClass().getName(), "Cause was: " + ex.toString());
+            YaaccLogger.w(getClass().getName(), "Adding hydrated device to registry failed: " + rd);
+            YaaccLogger.w(getClass().getName(), "Cause was: " + ex.toString());
             if (describedDevice != null && notifiedStart)
                 registry.notifyDiscoveryFailure(describedDevice, ex);
         }
@@ -261,7 +261,7 @@ public class RetrieveRemoteDescriptors implements Runnable {
                 if (svc != null)
                     describedServices.add(svc);
                 else
-                    Log.w(getClass().getName(), "Skipping invalid service '" + service + "' of: " + currentDevice);
+                    YaaccLogger.w(getClass().getName(), "Skipping invalid service '" + service + "' of: " + currentDevice);
             }
         }
 
@@ -303,29 +303,29 @@ public class RetrieveRemoteDescriptors implements Runnable {
         try {
             descriptorURL = service.getDevice().normalizeURI(service.getDescriptorURI());
         } catch (IllegalArgumentException e) {
-            Log.w(getClass().getName(), "Could not normalize service descriptor URL: " + service.getDescriptorURI());
+            YaaccLogger.w(getClass().getName(), "Could not normalize service descriptor URL: " + service.getDescriptorURI());
             return null;
         }
 
         StreamRequestMessage serviceDescRetrievalMsg = new StreamRequestMessage(UpnpRequest.Method.GET, descriptorURL);
 
 
-        Log.v(getClass().getName(), "Sending service descriptor retrieval message: " + serviceDescRetrievalMsg);
+        YaaccLogger.v(getClass().getName(), "Sending service descriptor retrieval message: " + serviceDescRetrievalMsg);
         StreamResponseMessage serviceDescMsg = null;
         try {
             serviceDescMsg = httpRequestSender.send(serviceDescRetrievalMsg);
         } catch (IOException e) {
-            Log.w(getClass().getName(), "Exception while sending service descriptor retrieval message: ", e);
+            YaaccLogger.w(getClass().getName(), "Exception while sending service descriptor retrieval message: ", e);
             return null;
         }
 
         if (serviceDescMsg == null) {
-            Log.w(getClass().getName(), "Could not retrieve service descriptor, no response: " + service);
+            YaaccLogger.w(getClass().getName(), "Could not retrieve service descriptor, no response: " + service);
             return null;
         }
 
         if (serviceDescMsg.getOperation().isFailed()) {
-            Log.w(getClass().getName(), "Service descriptor retrieval failed: "
+            YaaccLogger.w(getClass().getName(), "Service descriptor retrieval failed: "
                     + descriptorURL
                     + ", "
                     + serviceDescMsg.getOperation().getResponseDetails());
@@ -333,17 +333,17 @@ public class RetrieveRemoteDescriptors implements Runnable {
         }
 
         if (!serviceDescMsg.isContentTypeTextUDA()) {
-            Log.v(getClass().getName(), "Received service descriptor without or with invalid Content-Type: " + descriptorURL);
+            YaaccLogger.v(getClass().getName(), "Received service descriptor without or with invalid Content-Type: " + descriptorURL);
             // We continue despite the invalid UPnP message because we can still hope to convert the content
         }
 
         String descriptorContent = serviceDescMsg.getBodyString();
         if (descriptorContent == null || descriptorContent.length() == 0) {
-            Log.w(getClass().getName(), "Received empty service descriptor:" + descriptorURL);
+            YaaccLogger.w(getClass().getName(), "Received empty service descriptor:" + descriptorURL);
             return null;
         }
 
-        Log.v(getClass().getName(), "Received service descriptor, hydrating service model: " + serviceDescMsg);
+        YaaccLogger.v(getClass().getName(), "Received service descriptor, hydrating service model: " + serviceDescMsg);
         ServiceDescriptorBinder serviceDescriptorBinder = new UDA10ServiceDescriptorBinderImpl();
 
         return serviceDescriptorBinder.describe(service, descriptorContent);
@@ -359,10 +359,10 @@ public class RetrieveRemoteDescriptors implements Runnable {
         for (RemoteService discoveredService : services) {
             for (ServiceType exclusiveType : exclusiveTypes) {
                 if (discoveredService.getServiceType().implementsVersion(exclusiveType)) {
-                    Log.v(getClass().getName(), "Including exclusive service: " + discoveredService);
+                    YaaccLogger.v(getClass().getName(), "Including exclusive service: " + discoveredService);
                     exclusiveServices.add(discoveredService);
                 } else {
-                    Log.v(getClass().getName(), "Excluding unwanted service: " + exclusiveType);
+                    YaaccLogger.v(getClass().getName(), "Excluding unwanted service: " + exclusiveType);
                 }
             }
         }

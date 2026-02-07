@@ -15,7 +15,7 @@
 
 package de.yaacc.upnp.callback.avtransport;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.action.ActionInvocation;
 import org.fourthline.cling.model.meta.Service;
@@ -43,6 +43,6 @@ public abstract class SetPlayMode extends ActionCallback {
 
     @Override
     public void success(ActionInvocation invocation) {
-        Log.v(getClass().getName(), "Execution successful");
+        YaaccLogger.v(getClass().getName(), "Execution successful");
     }
 }

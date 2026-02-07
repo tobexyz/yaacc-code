@@ -31,7 +31,7 @@ import android.net.Uri;
 import android.os.Build;
 import android.provider.MediaStore;
 import android.util.Base64;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 import android.util.Size;
 
 import androidx.core.content.res.ResourcesCompat;
@@ -137,11 +137,11 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
                 long maxSafePosition = (long) (totalSize * 0.85);
                 estimatedPosition = Math.min(estimatedPosition, maxSafePosition);
 
-                Log.d(getClass().getName(), "Calculated byte position " + estimatedPosition + " for time " + timeMs + "ms (file size: " + totalSize + ", ratio: " + String.format("%.3f", timeRatio) + ")");
+                YaaccLogger.d(getClass().getName(), "Calculated byte position " + estimatedPosition + " for time " + timeMs + "ms (file size: " + totalSize + ", ratio: " + String.format("%.3f", timeRatio) + ")");
                 return estimatedPosition;
             }
         } catch (Exception e) {
-            Log.w(getClass().getName(), "Failed to calculate byte position", e);
+            YaaccLogger.w(getClass().getName(), "Failed to calculate byte position", e);
         }
 
         return 0;
@@ -162,11 +162,11 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
                 // Assume average bitrate of 128 kbps for MP3 files
                 // Duration (seconds) = (file size in bytes * 8) / (bitrate in bits per second)
                 long estimatedDurationMs = (fileSize * 8 * 1000) / (128 * 1024);
-                Log.d(getClass().getName(), "Estimated duration: " + estimatedDurationMs + "ms from file size: " + fileSize + " bytes");
+                YaaccLogger.d(getClass().getName(), "Estimated duration: " + estimatedDurationMs + "ms from file size: " + fileSize + " bytes");
                 return estimatedDurationMs;
             }
         } catch (Exception e) {
-            Log.w(getClass().getName(), "Failed to estimate duration from URL: " + url, e);
+            YaaccLogger.w(getClass().getName(), "Failed to estimate duration from URL: " + url, e);
         }
         return 0;
     }
@@ -181,7 +181,7 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
             state.currentTimePosition = timeMs;
             state.isPaused = isPaused;
             state.lastUpdateTime = System.currentTimeMillis();
-            Log.d("YaaccUpnpServerServiceHttpHandler", "Updated renderer position: " + rendererKey + " -> " + timeMs + "ms, paused=" + isPaused);
+            YaaccLogger.d("YaaccUpnpServerServiceHttpHandler", "Updated renderer position: " + rendererKey + " -> " + timeMs + "ms, paused=" + isPaused);
         }
     }
 
@@ -196,7 +196,7 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
                        final ResponseTrigger responseTrigger,
                        final HttpContext context) throws HttpException, IOException {
 
-        Log.d(getClass().getName(), "Processing HTTP request: "
+        YaaccLogger.d(getClass().getName(), "Processing HTTP request: "
                 + request.getHead().getRequestUri());
         final AsyncResponseBuilder responseBuilder = AsyncResponseBuilder.create(HttpStatus.SC_OK);
         // Extract what we need from the HTTP httpRequest
@@ -205,7 +205,7 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
 
         // Only accept HTTP-GET
         if (!requestMethod.equals("GET") && !requestMethod.equals("HEAD")) {
-            Log.d(getClass().getName(),
+            YaaccLogger.d(getClass().getName(),
                     "HTTP request isn't GET or HEAD stop! Method was: "
                             + requestMethod);
             throw new MethodNotSupportedException(requestMethod
@@ -261,7 +261,7 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
             }
         }
         Arrays.stream(request.getHead().getHeaders())
-                .forEach(it -> Log.d(getClass().getName(), "HEADER " + it.getName() + ": " + it.getValue()));
+                .forEach(it -> YaaccLogger.d(getClass().getName(), "HEADER " + it.getName() + ": " + it.getValue()));
         List<HttpRange> ranges = new ArrayList<>();
         if (request.getHead().getHeader(HttpHeaders.RANGE) != null) {
             ranges = HttpRange.parseRangeHeader(request.getHead().getHeader(HttpHeaders.RANGE).getValue().toString());
@@ -274,7 +274,7 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
         } else if (!thumbId.isEmpty()) {
             contentHolder = lookupThumbnail(thumbId, ranges);
         } else if (contentProxyEnabled && YaaccUpnpServerService.PROXY_PATH.equals(type)) {
-            Log.d(getClass().getName(), "Processing proxy request: " + requestUri);
+            YaaccLogger.d(getClass().getName(), "Processing proxy request: " + requestUri);
             // Handle both old and new proxy URL formats
             if (pathSegments.size() >= 3) {
                 // New format: /proxy/encodedDeviceId/contentKey
@@ -292,7 +292,7 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
 
         if (contentHolder == null) {
             // tricky but works
-            Log.d(getClass().getName(), "Resource with id " + contentId
+            YaaccLogger.d(getClass().getName(), "Resource with id " + contentId
                     + albumId + thumbId + pathSegments.get(1) + " not found");
             responseBuilder.setStatus(HttpStatus.SC_NOT_FOUND);
             String response = "<html><body>Resource with id " + contentId + albumId
@@ -325,7 +325,7 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
         }
         responseBuilder.setHeader(HttpHeaders.ACCEPT_RANGES, "bytes");
         responseTrigger.submitResponse(responseBuilder.build(), context);
-        Log.d(getClass().getName(), "end doService: ");
+        YaaccLogger.d(getClass().getName(), "end doService: ");
     }
 
     private void createForbiddenResponse(ResponseTrigger responseTrigger, HttpContext context,
@@ -334,7 +334,7 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
         responseBuilder.setEntity(
                 AsyncEntityProducers.create("<html><body>Access denied</body></html>", ContentType.TEXT_HTML));
         responseTrigger.submitResponse(responseBuilder.build(), context);
-        Log.d(getClass().getName(), "end doService: Access denied");
+        YaaccLogger.d(getClass().getName(), "end doService: Access denied");
     }
 
     private Context getContext() {
@@ -357,7 +357,7 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
         if (contentId == null) {
             return null;
         }
-        Log.d(getClass().getName(), "System media store lookup: " + contentId);
+        YaaccLogger.d(getClass().getName(), "System media store lookup: " + contentId);
         String[] projection = {MediaStore.Files.FileColumns._ID,
                 MediaStore.Files.FileColumns.MIME_TYPE,
                 MediaStore.Files.FileColumns.DATA};
@@ -386,13 +386,13 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
                     if (mimeTypeStr != null) {
                         mimeType = MimeType.valueOf(mimeTypeStr);
                     }
-                    Log.d(getClass().getName(), "Content found: " + mimeType
+                    YaaccLogger.d(getClass().getName(), "Content found: " + mimeType
                             + " Uri: " + dataUri);
                     result = new ContentHolder(mimeType, dataUri, ranges, context);
                     mFilesCursor.moveToNext();
                 }
             } else {
-                Log.d(getClass().getName(), "System media store is empty.");
+                YaaccLogger.d(getClass().getName(), "System media store is empty.");
             }
         }
 
@@ -418,7 +418,7 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
             return result;
         }
         if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
-            Log.d(getClass().getName(), "System media store lookup album: "
+            YaaccLogger.d(getClass().getName(), "System media store lookup album: "
                     + albumId);
             String[] projection = {MediaStore.Audio.Albums._ID,
                     // FIXME what is the right mime type?
@@ -447,11 +447,11 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
                         // mimeType = MimeType.valueOf(mimeTypeStr);
                         // }
                         if (dataUri != null) {
-                            Log.d(getClass().getName(), "Content found: " + mimeType
+                            YaaccLogger.d(getClass().getName(), "Content found: " + mimeType
                                     + " Uri: " + dataUri);
                             result = new ContentHolder(mimeType, dataUri, ranges, context);
                         } else {
-                            Log.d(getClass().getName(), "Album art not found in media store. Fallback to default");
+                            YaaccLogger.d(getClass().getName(), "Album art not found in media store. Fallback to default");
                             Bitmap bitmap = BitmapFactory.decodeResource(context.getResources(),
                                     R.drawable.yaacc192_32);
 
@@ -464,26 +464,26 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
                                 fos.close();
                                 result = new ContentHolder(mimeType, art.getAbsolutePath(), ranges, context);
                             } catch (IOException e) {
-                                Log.e(getClass().getName(), "Error loading album art from file", e);
+                                YaaccLogger.e(getClass().getName(), "Error loading album art from file", e);
                             }
                         }
                         cursor.moveToNext();
                     }
                 } else {
-                    Log.d(getClass().getName(), "System media store is empty.");
+                    YaaccLogger.d(getClass().getName(), "System media store is empty.");
                 }
             }
         } else {
             Uri albumArtUri = ContentUris.withAppendedId(MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI,
                     Long.parseLong(albumId));
             MimeType mimeType = MimeType.valueOf("image/jpeg");
-            Log.d(getClass().getName(), "Content found: " + mimeType
+            YaaccLogger.d(getClass().getName(), "Content found: " + mimeType
                     + " Uri: " + albumArtUri);
             Bitmap bitmap;
             try {
                 bitmap = context.getContentResolver().loadThumbnail(albumArtUri, new Size(1024, 1024), null);
             } catch (IOException io) {
-                Log.d(getClass().getName(), "Album art not found in media store. Fallback to default");
+                YaaccLogger.d(getClass().getName(), "Album art not found in media store. Fallback to default");
                 bitmap = BitmapFactory.decodeResource(context.getResources(), R.drawable.yaacc192_32);
             }
             try {
@@ -495,7 +495,7 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
                 fos.close();
                 result = new ContentHolder(mimeType, art.getAbsolutePath(), ranges, context);
             } catch (IOException e) {
-                Log.e(getClass().getName(), "Error loading album art from file", e);
+                YaaccLogger.e(getClass().getName(), "Error loading album art from file", e);
             }
 
         }
@@ -523,11 +523,11 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
         try {
             id = Long.parseLong(idStr);
         } catch (NumberFormatException nfe) {
-            Log.d(getClass().getName(), "ParsingError of id: " + idStr, nfe);
+            YaaccLogger.d(getClass().getName(), "ParsingError of id: " + idStr, nfe);
             return result;
         }
 
-        Log.d(getClass().getName(), "System media store lookup thumbnail: "
+        YaaccLogger.d(getClass().getName(), "System media store lookup thumbnail: "
                 + idStr);
         Bitmap bitmap = MediaStore.Images.Thumbnails.getThumbnail(getContext()
                         .getContentResolver(), id,
@@ -542,7 +542,7 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
             result = new ContentHolder(mimeType, byteArray, ranges, context);
 
         } else {
-            Log.d(getClass().getName(), "System media store is empty.");
+            YaaccLogger.d(getClass().getName(), "System media store is empty.");
         }
         return result;
     }
@@ -552,19 +552,19 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
     }
 
     private ContentHolder lookupProxyContent(String contentKey, List<HttpRange> ranges, String deviceId) {
-        Log.d(getClass().getName(), "Looking up proxy content for key: " + contentKey + ", device: " + deviceId);
+        YaaccLogger.d(getClass().getName(), "Looking up proxy content for key: " + contentKey + ", device: " + deviceId);
 
         String targetUri = PreferenceManager.getDefaultSharedPreferences(getContext())
                 .getString(YaaccUpnpServerService.PROXY_LINK_KEY_PREFIX + contentKey, null);
-        Log.d(getClass().getName(), "Target URI from preferences: " + targetUri);
+        YaaccLogger.d(getClass().getName(), "Target URI from preferences: " + targetUri);
 
         if (targetUri == null) {
-            Log.e(getClass().getName(), "No target URI found for proxy key: " + contentKey);
+            YaaccLogger.e(getClass().getName(), "No target URI found for proxy key: " + contentKey);
             return null;
         }
         String targetMimetype = PreferenceManager.getDefaultSharedPreferences(getContext())
                 .getString(YaaccUpnpServerService.PROXY_LINK_MIME_TYPE_KEY_PREFIX + contentKey, null);
-        Log.d(getClass().getName(), "Target MIME type: " + targetMimetype);
+        YaaccLogger.d(getClass().getName(), "Target MIME type: " + targetMimetype);
 
         // Check if this renderer needs server-side position management
         boolean useServerPositionManagement = false; // Default: no server-side management
@@ -573,30 +573,30 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
             SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(getContext());
             String prefKey = "manage_external_seeking_" + deviceId;
             useServerPositionManagement = preferences.getBoolean(prefKey, false);
-            Log.d(getClass().getName(), "Checking preference key: " + prefKey);
-            Log.d(getClass().getName(), "Server position management for device " + deviceId + ": " + useServerPositionManagement);
+            YaaccLogger.d(getClass().getName(), "Checking preference key: " + prefKey);
+            YaaccLogger.d(getClass().getName(), "Server position management for device " + deviceId + ": " + useServerPositionManagement);
         } else {
-            Log.d(getClass().getName(), "No device ID available, using default (no server-side management)");
+            YaaccLogger.d(getClass().getName(), "No device ID available, using default (no server-side management)");
         }
 
         if (useServerPositionManagement && !ranges.isEmpty()) {
-            Log.d(getClass().getName(), "Server-side management enabled, processing ranges: " + ranges.size());
+            YaaccLogger.d(getClass().getName(), "Server-side management enabled, processing ranges: " + ranges.size());
             // For basic renderers, ignore their range requests and use server-managed position
             String rendererKey = deviceId + "_" + contentKey;
             RendererState state = rendererStates.get(rendererKey);
-            Log.d(getClass().getName(), "Looking for renderer state: " + rendererKey + ", found: " + (state != null));
+            YaaccLogger.d(getClass().getName(), "Looking for renderer state: " + rendererKey + ", found: " + (state != null));
             if (state != null && state.currentUrl.equals(targetUri)) {
                 long bytePosition;
                 if (state.isPaused) {
                     // When paused, use the exact same byte position as before
                     bytePosition = state.lastBytePosition;
-                    Log.d(getClass().getName(), "Using cached byte position for pause: " + bytePosition);
+                    YaaccLogger.d(getClass().getName(), "Using cached byte position for pause: " + bytePosition);
                 } else {
                     // Calculate new byte position and cache it
                     // If we don't have duration yet, get it now
                     if (state.totalDuration <= 0) {
                         state.totalDuration = getDurationFromUrl(targetUri);
-                        Log.d(getClass().getName(), "Updated renderer state duration: " + state.totalDuration + "ms");
+                        YaaccLogger.d(getClass().getName(), "Updated renderer state duration: " + state.totalDuration + "ms");
                     }
                     bytePosition = calculateBytePositionFromTime(targetUri, state.currentTimePosition, state.totalDuration);
                     if (bytePosition > 0) {
@@ -608,7 +608,7 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
                     // Override the renderer's incorrect range request
                     ranges.clear();
                     ranges.add(new HttpRange("bytes", bytePosition, null, null));
-                    Log.d(getClass().getName(), "Overriding range request with server-managed position: bytes=" + bytePosition + "- (paused=" + state.isPaused + ")");
+                    YaaccLogger.d(getClass().getName(), "Overriding range request with server-managed position: bytes=" + bytePosition + "- (paused=" + state.isPaused + ")");
                 }
             } else {
                 // Initialize renderer state for new playback  
@@ -622,31 +622,31 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
                 newState.isPaused = false;
                 newState.lastBytePosition = 0;
                 rendererStates.put(rendererKey, newState);
-                Log.d(getClass().getName(), "Initialized renderer state for: " + rendererKey + " with position: " + serverPosition + "ms");
+                YaaccLogger.d(getClass().getName(), "Initialized renderer state for: " + rendererKey + " with position: " + serverPosition + "ms");
 
                 // Calculate byte position for the current server position
                 if (serverPosition > 0) {
-                    Log.d(getClass().getName(), "Attempting to get duration for URL: " + targetUri);
+                    YaaccLogger.d(getClass().getName(), "Attempting to get duration for URL: " + targetUri);
                     // Get the total duration dynamically from the media file
                     long totalDuration = getDurationFromUrl(targetUri);
-                    Log.d(getClass().getName(), "Retrieved duration: " + totalDuration + "ms for position: " + serverPosition + "ms");
+                    YaaccLogger.d(getClass().getName(), "Retrieved duration: " + totalDuration + "ms for position: " + serverPosition + "ms");
 
                     if (totalDuration > 0) {
                         long bytePosition = calculateBytePositionFromTime(targetUri, serverPosition, totalDuration);
-                        Log.d(getClass().getName(), "Calculated byte position: " + bytePosition + " for time: " + serverPosition + "ms");
+                        YaaccLogger.d(getClass().getName(), "Calculated byte position: " + bytePosition + " for time: " + serverPosition + "ms");
                         if (bytePosition > 0) {
                             // Override the renderer's range request
                             ranges.clear();
                             ranges.add(new HttpRange("bytes", bytePosition, null, null));
-                            Log.d(getClass().getName(), "Overriding range request with server-managed position: bytes=" + bytePosition + "- (time=" + serverPosition + "ms, duration=" + totalDuration + "ms)");
+                            YaaccLogger.d(getClass().getName(), "Overriding range request with server-managed position: bytes=" + bytePosition + "- (time=" + serverPosition + "ms, duration=" + totalDuration + "ms)");
                         } else {
-                            Log.w(getClass().getName(), "Byte position calculation returned 0 or negative: " + bytePosition);
+                            YaaccLogger.w(getClass().getName(), "Byte position calculation returned 0 or negative: " + bytePosition);
                         }
                     } else {
-                        Log.w(getClass().getName(), "Could not determine duration for URL: " + targetUri);
+                        YaaccLogger.w(getClass().getName(), "Could not determine duration for URL: " + targetUri);
                     }
                 } else {
-                    Log.d(getClass().getName(), "Server position is 0, no range override needed");
+                    YaaccLogger.d(getClass().getName(), "Server position is 0, no range override needed");
                 }
             }
         }
@@ -656,24 +656,24 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
             mimeType = MimeType.valueOf(targetMimetype);
         }
 
-        Log.d(getClass().getName(), "Creating ContentHolder for proxy: " + targetUri + " with MIME: " + mimeType + ", ranges: " + ranges.size());
+        YaaccLogger.d(getClass().getName(), "Creating ContentHolder for proxy: " + targetUri + " with MIME: " + mimeType + ", ranges: " + ranges.size());
         return new ContentHolder(mimeType, targetUri, ranges, context);
     }
 
     private ContentHolder lookupSafContent(String contentKey, String contentEnc, List<HttpRange> ranges) {
         if (!contentKey.startsWith(ContentDirectoryIDs.SAF_PREFIX.getId())) {
-            Log.d(getClass().getName(), "SAF content id is unknown: " + contentKey);
+            YaaccLogger.d(getClass().getName(), "SAF content id is unknown: " + contentKey);
             return null;
         }
         String contentId = contentKey.substring(ContentDirectoryIDs.SAF_PREFIX.getId().length());
         if (contentEnc.indexOf(".") == -1) {
-            Log.d(getClass().getName(), "SAF content id is invalid: " + contentEnc);
+            YaaccLogger.d(getClass().getName(), "SAF content id is invalid: " + contentEnc);
             return null;
         }
         String contentUri = new String(
                 Base64.decode(contentEnc.substring(0, contentEnc.indexOf(".")).getBytes(), Base64.NO_WRAP));
         if (!contentId.equals("" + contentUri.hashCode())) {
-            Log.d(getClass().getName(), "SAF content id is invalid: " + contentId);
+            YaaccLogger.d(getClass().getName(), "SAF content id is invalid: " + contentId);
             return null;
         }
 
@@ -688,17 +688,17 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
             }
 
             if (file == null || !file.exists()) {
-                Log.d(getClass().getName(), "SAF content uri is unknown: " + contentUri);
+                YaaccLogger.d(getClass().getName(), "SAF content uri is unknown: " + contentUri);
                 return null;
             }
 
             // Check if it's a directory - directories cannot be streamed
             if (file.isDirectory()) {
-                Log.d(getClass().getName(), "SAF content is a directory, cannot stream: " + contentUri);
+                YaaccLogger.d(getClass().getName(), "SAF content is a directory, cannot stream: " + contentUri);
                 return null;
             }
         } catch (Exception e) {
-            Log.e(getClass().getName(), "Error accessing SAF content: " + contentUri, e);
+            YaaccLogger.e(getClass().getName(), "Error accessing SAF content: " + contentUri, e);
             return null;
         }
 
@@ -706,7 +706,7 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
         try {
             mimeTypeStr = file.getType();
         } catch (Exception e) {
-            Log.w(getClass().getName(), "Error getting MIME type for SAF content", e);
+            YaaccLogger.w(getClass().getName(), "Error getting MIME type for SAF content", e);
         }
 
         MimeType mimeType = MimeType.valueOf("*/*");
@@ -716,7 +716,7 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
             // Fallback: try to determine MIME type from file extension
             //String fileName = file.getName();
             String fileName = contentEnc;
-            Log.d(getClass().getName(), "File name: " + fileName);
+            YaaccLogger.d(getClass().getName(), "File name: " + fileName);
             if (fileName != null) {
                 String fileExtension = android.webkit.MimeTypeMap.getFileExtensionFromUrl(fileName);
                 if (fileExtension != null && !fileExtension.isEmpty()) {
@@ -743,7 +743,7 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
          * }
          *
          * if (!isPathAllowed) {
-         * Log.d(getClass().getName(), "SAF content URI not in selected paths: " +
+         * YaaccLogger.d(getClass().getName(), "SAF content URI not in selected paths: " +
          * contentUri);
          * return null;
          * }
@@ -817,10 +817,10 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
                                 if (startPosition > 0) {
                                     input.skip(startPosition);
                                 }
-                                Log.d(getClass().getName(), "Opened SAF input stream for: " + documentFile.getUri() +
+                                YaaccLogger.d(getClass().getName(), "Opened SAF input stream for: " + documentFile.getUri() +
                                         " range: " + startPosition + "-" + (startPosition + rangeLength - 1));
                             } catch (Exception e) {
-                                Log.e(getClass().getName(), "Error opening SAF input stream", e);
+                                YaaccLogger.e(getClass().getName(), "Error opening SAF input stream", e);
                                 channel.endStream();
                                 return;
                             }
@@ -835,12 +835,12 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
                                     totalBytesRead += bytesRead;
                                     channel.write(ByteBuffer.wrap(buffer, 0, bytesRead));
                                 } else {
-                                    Log.d(getClass().getName(), "End of SAF stream reached. Total bytes: " + totalBytesRead);
+                                    YaaccLogger.d(getClass().getName(), "End of SAF stream reached. Total bytes: " + totalBytesRead);
                                     input.close();
                                     channel.endStream();
                                 }
                             } catch (IOException e) {
-                                Log.e(getClass().getName(), "Error reading from SAF stream", e);
+                                YaaccLogger.e(getClass().getName(), "Error reading from SAF stream", e);
                                 if (input != null) {
                                     try {
                                         input.close();
@@ -867,7 +867,7 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
 
                     @Override
                     public void failed(final Exception cause) {
-                        Log.e(getClass().getName(), "SAF streaming failed", cause);
+                        YaaccLogger.e(getClass().getName(), "SAF streaming failed", cause);
                         if (input != null) {
                             try {
                                 input.close();
@@ -877,7 +877,7 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
                     }
                 };
             }
-            Log.e(getClass().getName(), "DocumentFile is null, doesn't exist, or is a directory");
+            YaaccLogger.e(getClass().getName(), "DocumentFile is null, doesn't exist, or is a directory");
             return super.getEntityProducer();
         }
     }
@@ -956,7 +956,7 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
                         }
                         return -1; // Unknown length for external URLs
                     } catch (Exception e) {
-                        Log.e(getClass().getName(), "Error getting external content length", e);
+                        YaaccLogger.e(getClass().getName(), "Error getting external content length", e);
                         return -1;
                     }
                 } else {
@@ -973,7 +973,7 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
                                 return docFile.length();
                             }
                         } catch (Exception e) {
-                            Log.e(getClass().getName(), "Error getting SAF content length", e);
+                            YaaccLogger.e(getClass().getName(), "Error getting SAF content length", e);
                         }
                     }
                 }
@@ -988,7 +988,7 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
                 long startPosition;
                 long rangeLength;
                 if (ranges.size() > 1) {
-                    Log.d(getClass().getName(),
+                    YaaccLogger.d(getClass().getName(),
                             "More than on ranges requested. Currently only one range is supported. Responding with the first range");
                 }
                 if (ranges.isEmpty()) {
@@ -1010,10 +1010,10 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
 
                 // Read a range of bytes (e.g., bytes 100 to 200)
                 if (startPosition < 0 || startPosition + rangeLength > fileSize) {
-                    Log.d(getClass().getName(), "Invalid range startPosition: " + startPosition + " rangeLength: "
+                    YaaccLogger.d(getClass().getName(), "Invalid range startPosition: " + startPosition + " rangeLength: "
                             + rangeLength + " fileSize: " + fileSize);
                     rangeLength = fileSize - startPosition;
-                    Log.d(getClass().getName(), "Adjusted range startPosition: " + startPosition + " rangeLength: "
+                    YaaccLogger.d(getClass().getName(), "Adjusted range startPosition: " + startPosition + " rangeLength: "
                             + rangeLength + " fileSize: " + fileSize);
                 }
 
@@ -1052,24 +1052,24 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
                                             // Apply range request to external connection
                                             if (!ranges.isEmpty()) {
                                                 con.setRequestProperty("Range", HttpRange.toHeaderString(ranges));
-                                                Log.d(getClass().getName(), "Applying range request to external URL: " + HttpRange.toHeaderString(ranges));
+                                                YaaccLogger.d(getClass().getName(), "Applying range request to external URL: " + HttpRange.toHeaderString(ranges));
                                             }
                                             con.connect();
 
                                             // Check if we got a partial content response
                                             int responseCode = con.getResponseCode();
-                                            Log.d(getClass().getName(), "External server response code: " + responseCode);
+                                            YaaccLogger.d(getClass().getName(), "External server response code: " + responseCode);
 
                                             input = con.getInputStream();
                                             length = con.getContentLengthLong();
                                             if (length <= 0) {
                                                 length = con.getContentLength();
                                             }
-                                            Log.d(getClass().getName(), "External connection established on attempt " + (i + 1) + ", content length: " + length);
+                                            YaaccLogger.d(getClass().getName(), "External connection established on attempt " + (i + 1) + ", content length: " + length);
                                             break; // Success, exit retry loop
                                         } catch (Exception e) {
                                             lastException = e;
-                                            Log.w(getClass().getName(), "Connection attempt " + (i + 1) + " failed: " + e.getMessage());
+                                            YaaccLogger.w(getClass().getName(), "Connection attempt " + (i + 1) + " failed: " + e.getMessage());
                                             if (i < retries - 1) {
                                                 try {
                                                     Thread.sleep(1000);
@@ -1084,7 +1084,7 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
                                     }
                                 }
                             } catch (IOException e) {
-                                Log.e(getClass().getName(), "Error opening external content", e);
+                                YaaccLogger.e(getClass().getName(), "Error opening external content", e);
                             }
                             return this;
                         }
@@ -1115,11 +1115,11 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
                                         channel.endStream();
                                     }
                                 } else {
-                                    Log.w(getClass().getName(), "Input stream is null, ending stream");
+                                    YaaccLogger.w(getClass().getName(), "Input stream is null, ending stream");
                                     channel.endStream();
                                 }
                             } catch (IOException e) {
-                                Log.e(getClass().getName(), "Error reading external content", e);
+                                YaaccLogger.e(getClass().getName(), "Error reading external content", e);
                                 if (input != null) {
                                     try {
                                         input.close();
@@ -1137,7 +1137,7 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
 
                         @Override
                         public void failed(final Exception cause) {
-                            Log.e(getClass().getName(), "External content streaming failed", cause);
+                            YaaccLogger.e(getClass().getName(), "External content streaming failed", cause);
                             if (input != null) {
                                 try {
                                     input.close();
@@ -1152,7 +1152,7 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
                     if (file.exists()) {
                         if (ranges.isEmpty()) {
                             result = AsyncEntityProducers.create(file, ContentType.parse(getMimeType().toString()));
-                            Log.d(getClass().getName(), "Return without range request file-Uri: " + getUri()
+                            YaaccLogger.d(getClass().getName(), "Return without range request file-Uri: " + getUri()
                                     + " Mimetype: " + getMimeType());
                         } else {
                             // For large files (>50MB), use streaming instead of loading into memory
@@ -1164,7 +1164,7 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
                             }
 
                             if (fileSize > 50 * 1024 * 1024 || rangeSize > 50 * 1024 * 1024) { // 50MB threshold
-                                Log.d(getClass().getName(), "Using streaming for large file: " + fileSize + " bytes, range: " + rangeSize + " bytes");
+                                YaaccLogger.d(getClass().getName(), "Using streaming for large file: " + fileSize + " bytes, range: " + rangeSize + " bytes");
                                 result = createStreamingEntityProducer(file, ranges);
                             } else {
                                 result = AsyncEntityProducers.create(readRangeFormFile(file, ranges),
@@ -1191,7 +1191,7 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
                                                 length = docFile.length();
                                             }
                                         } catch (IOException e) {
-                                            Log.e(getClass().getName(), "Error opening DocumentFile", e);
+                                            YaaccLogger.e(getClass().getName(), "Error opening DocumentFile", e);
                                         }
                                         return this;
                                     }
@@ -1241,7 +1241,7 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
                                         ContentType.parse(getMimeType().toString()));
                             }
                         } catch (Exception e) {
-                            Log.e(getClass().getName(), "Error handling DocumentFile", e);
+                            YaaccLogger.e(getClass().getName(), "Error handling DocumentFile", e);
                         }
                     }
                 }
@@ -1250,7 +1250,7 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
             }
 
             if (result == null) {
-                Log.d(getClass().getName(), "Resource is null");
+                YaaccLogger.d(getClass().getName(), "Resource is null");
                 return AsyncEntityProducers.create("<html><body><h1>Resource not found</h1></body></html>",
                         ContentType.TEXT_HTML);
             }
@@ -1287,7 +1287,7 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
 
                         raf.seek(startPosition);
                     } catch (IOException e) {
-                        Log.e(getClass().getName(), "Error initializing streaming producer", e);
+                        YaaccLogger.e(getClass().getName(), "Error initializing streaming producer", e);
                     }
                 }
 
@@ -1324,7 +1324,7 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
 
                 @Override
                 public void failed(final Exception cause) {
-                    Log.e(getClass().getName(), "Streaming failed", cause);
+                    YaaccLogger.e(getClass().getName(), "Streaming failed", cause);
                     if (raf != null) {
                         try {
                             raf.close();

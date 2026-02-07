@@ -17,7 +17,7 @@
  */
 package de.yaacc.upnp.model.types;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.types.Datatype;
 import org.fourthline.cling.model.types.InvalidValueException;
@@ -118,7 +118,7 @@ public class SyncOffset implements Datatype<SyncOffset> {
         } else if (toBeParsed.startsWith("-P")) {
             toBeParsed = toBeParsed.substring(2);
         } else {
-            Log.w(this.getClass().getName(), "Can't parse offset format: " + offset + " ignoring it");
+            YaaccLogger.w(this.getClass().getName(), "Can't parse offset format: " + offset + " ignoring it");
             return;
         }
         //Minimum requiered format
@@ -126,75 +126,75 @@ public class SyncOffset implements Datatype<SyncOffset> {
             hour = Integer.parseInt(toBeParsed.substring(0, 2));
             if (hour < 0 || hour > 23) {
                 hour = 0;
-                Log.w(this.getClass().getName(), "Can't parse offset hour format: " + offset + " ignoring it");
+                YaaccLogger.w(this.getClass().getName(), "Can't parse offset hour format: " + offset + " ignoring it");
             }
             toBeParsed = toBeParsed.substring(3);
             minute = Integer.parseInt(toBeParsed.substring(0, 2));
             if (minute < 0 || minute > 59) {
                 minute = 0;
-                Log.w(this.getClass().getName(), "Can't parse offset minute format: " + offset + " ignoring it");
+                YaaccLogger.w(this.getClass().getName(), "Can't parse offset minute format: " + offset + " ignoring it");
             }
             toBeParsed = toBeParsed.substring(3);
             second = Integer.parseInt(toBeParsed.substring(0, 2));
             if (second < 0 || second > 59) {
                 second = 0;
-                Log.w(this.getClass().getName(), "Can't parse offset second format: " + offset + " ignoring it");
+                YaaccLogger.w(this.getClass().getName(), "Can't parse offset second format: " + offset + " ignoring it");
             }
             toBeParsed = toBeParsed.substring(2);
             if (toBeParsed.indexOf('.') > 0 || (toBeParsed.indexOf('.') == -1 && toBeParsed.length() > 0)) {
-                Log.w(this.getClass().getName(), "Can't parse offset second format: " + offset + " ignoring it");
+                YaaccLogger.w(this.getClass().getName(), "Can't parse offset second format: " + offset + " ignoring it");
                 second = 0;
                 if (toBeParsed.indexOf('.') > 0) {
                     toBeParsed = toBeParsed.substring(toBeParsed.indexOf('.'));
                 }
             }
         } else {
-            Log.w(this.getClass().getName(), "Can't parse offset time format: " + offset + " ignoring it");
+            YaaccLogger.w(this.getClass().getName(), "Can't parse offset time format: " + offset + " ignoring it");
             return;
         }
         if (toBeParsed.matches("^[.]\\d{3}.*")) {
             millis = Integer.parseInt(toBeParsed.substring(1, 4));
             if (millis < 0 || millis > 999) {
                 millis = 0;
-                Log.w(this.getClass().getName(), "Can't parse offset millis format: " + offset + " ignoring it");
+                YaaccLogger.w(this.getClass().getName(), "Can't parse offset millis format: " + offset + " ignoring it");
             }
             toBeParsed = toBeParsed.substring(4);
             if (!toBeParsed.startsWith(" ") && toBeParsed.indexOf(' ') > -1) {
                 toBeParsed = toBeParsed.substring(toBeParsed.indexOf(' '));
                 millis = 0;
-                Log.w(this.getClass().getName(), "Can't parse offset millis format: " + offset + " ignoring it");
+                YaaccLogger.w(this.getClass().getName(), "Can't parse offset millis format: " + offset + " ignoring it");
             }
             if (toBeParsed.matches("^\\s\\d{3}.*")) {
                 micros = Integer.parseInt(toBeParsed.substring(1, 4));
                 if (micros < 0 || micros > 999) {
                     micros = 0;
-                    Log.w(this.getClass().getName(), "Can't parse offset micros format: " + offset + " ignoring it");
+                    YaaccLogger.w(this.getClass().getName(), "Can't parse offset micros format: " + offset + " ignoring it");
                 }
                 toBeParsed = toBeParsed.substring(4);
                 if (!toBeParsed.startsWith(" ") && toBeParsed.indexOf(' ') > -1) {
                     toBeParsed = toBeParsed.substring(toBeParsed.indexOf(' '));
                     micros = 0;
-                    Log.w(this.getClass().getName(), "Can't parse offset micros format: " + offset + " ignoring it");
+                    YaaccLogger.w(this.getClass().getName(), "Can't parse offset micros format: " + offset + " ignoring it");
                 }
                 if (toBeParsed.matches("^\\s\\d{3}.*")) {
                     nanos = Integer.parseInt(toBeParsed.substring(1, 4));
                     if (nanos < 0 || nanos > 999) {
                         nanos = 0;
-                        Log.w(this.getClass().getName(), "Can't parse offset nanos format: " + offset + " ignoring it");
+                        YaaccLogger.w(this.getClass().getName(), "Can't parse offset nanos format: " + offset + " ignoring it");
                     }
                     toBeParsed = toBeParsed.substring(4);
                     if (toBeParsed.length() > 0) {
                         nanos = 0;
-                        Log.w(this.getClass().getName(), "Can't parse offset nanos format: " + offset + " ignoring it");
+                        YaaccLogger.w(this.getClass().getName(), "Can't parse offset nanos format: " + offset + " ignoring it");
                     }
                 } else {
-                    Log.w(this.getClass().getName(), "Can't parse offset nanos : " + offset + " ignoring it");
+                    YaaccLogger.w(this.getClass().getName(), "Can't parse offset nanos : " + offset + " ignoring it");
                 }
             } else {
-                Log.w(this.getClass().getName(), "Can't parse offset mircos : " + offset + " ignoring it");
+                YaaccLogger.w(this.getClass().getName(), "Can't parse offset mircos : " + offset + " ignoring it");
             }
         } else {
-            Log.w(this.getClass().getName(), "Can't parse offset sub second format: " + offset + " ignoring it");
+            YaaccLogger.w(this.getClass().getName(), "Can't parse offset sub second format: " + offset + " ignoring it");
         }
 
     }

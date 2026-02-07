@@ -1,7 +1,7 @@
 package de.yaacc.upnp.server.http;
 
 import android.os.Build;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.apache.hc.client5.http.classic.methods.HttpUriRequestBase;
 import org.apache.hc.client5.http.config.ConnectionConfig;
@@ -51,8 +51,8 @@ public class HttpRequestSender {
 
     public StreamResponseMessage send(StreamRequestMessage requestMessage) throws IOException {
 
-        Log.v(getClass().getName(), "Sending HTTP request: " + requestMessage);
-        Log.v(getClass().getName(), "HTTP body: " + requestMessage.getBodyString());
+        YaaccLogger.v(getClass().getName(), "Sending HTTP request: " + requestMessage);
+        YaaccLogger.v(getClass().getName(), "HTTP body: " + requestMessage.getBodyString());
         HttpUriRequestBase request = new HttpUriRequestBase(requestMessage.getOperation().getHttpMethodName(), requestMessage.getUri());
         applyRequestHeader(requestMessage, request);
         applyRequestBody(requestMessage, request);
@@ -76,13 +76,13 @@ public class HttpRequestSender {
                     requestMessage.getUdaMajorVersion(),
                     requestMessage.getUdaMinorVersion());
 
-            Log.d(getClass().getName(), "Setting header '" + UpnpHeader.Type.USER_AGENT.getHttpName() + "': " + value);
+            YaaccLogger.d(getClass().getName(), "Setting header '" + UpnpHeader.Type.USER_AGENT.getHttpName() + "': " + value);
             request.addHeader(UpnpHeader.Type.USER_AGENT.getHttpName(), value);
         }
         for (Map.Entry<String, List<String>> entry : requestMessage.getHeaders().entrySet()) {
             for (String v : entry.getValue()) {
                 String headerName = entry.getKey();
-                Log.d(getClass().getName(), "Setting header '" + headerName + "': " + v);
+                YaaccLogger.d(getClass().getName(), "Setting header '" + headerName + "': " + v);
                 request.addHeader(headerName, v);
             }
         }
@@ -91,7 +91,7 @@ public class HttpRequestSender {
     private void applyRequestBody(StreamRequestMessage requestMessage, ClassicHttpRequest request) {
         // Body
         if (requestMessage.hasBody()) {
-            Log.d(getClass().getName(), "Writing textual request body: " + requestMessage);
+            YaaccLogger.d(getClass().getName(), "Writing textual request body: " + requestMessage);
             MimeType contentType =
                     requestMessage.getContentTypeHeader() != null
                             ? requestMessage.getContentTypeHeader().getValue()
@@ -111,13 +111,13 @@ public class HttpRequestSender {
         if (UpnpResponse.Status.getByStatusCode(response.getCode()) == null) {
             throw new IllegalStateException("can't create UpnpResponse.Status from http response status: " + response.getCode());
         }
-        Log.d(getClass().getName(), "Received response code: " + response.getCode());
+        YaaccLogger.d(getClass().getName(), "Received response code: " + response.getCode());
         UpnpResponse responseOperation =
                 new UpnpResponse(
                         response.getCode(),
                         Objects.requireNonNull(UpnpResponse.Status.getByStatusCode(response.getCode())).getStatusMsg()
                 );
-        Log.d(getClass().getName(), "Received response: " + responseOperation);
+        YaaccLogger.d(getClass().getName(), "Received response: " + responseOperation);
         StreamResponseMessage responseMessage = new StreamResponseMessage(responseOperation);
         // Headers
         UpnpHeaders headers = new UpnpHeaders();
@@ -129,19 +129,19 @@ public class HttpRequestSender {
         // Body
         byte[] bytes = EntityUtils.toByteArray(response.getEntity());
         if (bytes != null && bytes.length > 0 && responseMessage.isContentTypeMissingOrText()) {
-            Log.d(getClass().getName(), "Response contains textual entity body, converting then setting string on message");
+            YaaccLogger.d(getClass().getName(), "Response contains textual entity body, converting then setting string on message");
             try {
                 responseMessage.setBodyCharacters(bytes);
             } catch (UnsupportedEncodingException ex) {
                 throw new RuntimeException("Unsupported character encoding: " + ex, ex);
             }
         } else if (bytes != null && bytes.length > 0) {
-            Log.d(getClass().getName(), "Response contains binary entity body, setting bytes on message");
+            YaaccLogger.d(getClass().getName(), "Response contains binary entity body, setting bytes on message");
             responseMessage.setBody(UpnpMessage.BodyType.BYTES, bytes);
         } else {
-            Log.d(getClass().getName(), "Response did not contain entity body");
+            YaaccLogger.d(getClass().getName(), "Response did not contain entity body");
         }
-        Log.d(getClass().getName(), "Response message complete: " + responseMessage);
+        YaaccLogger.d(getClass().getName(), "Response message complete: " + responseMessage);
         return responseMessage;
     }
 

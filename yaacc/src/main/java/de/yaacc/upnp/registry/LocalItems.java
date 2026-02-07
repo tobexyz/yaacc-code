@@ -15,7 +15,7 @@
 
 package de.yaacc.upnp.registry;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.DiscoveryOptions;
 import org.fourthline.cling.model.gena.CancelReason;
@@ -88,11 +88,11 @@ class LocalItems extends RegistryItems<LocalDevice, LocalGENASubscription> {
         setDiscoveryOptions(localDevice.getIdentity().getUdn(), options);
 
         if (registry.getDevice(localDevice.getIdentity().getUdn(), false) != null) {
-            Log.v(getClass().getName(), "Ignoring addition, device already registered: " + localDevice);
+            YaaccLogger.v(getClass().getName(), "Ignoring addition, device already registered: " + localDevice);
             return;
         }
 
-        Log.v(getClass().getName(), "Adding local device to registry: " + localDevice);
+        YaaccLogger.v(getClass().getName(), "Adding local device to registry: " + localDevice);
 
         for (Resource deviceResource : getResources(localDevice)) {
 
@@ -101,11 +101,11 @@ class LocalItems extends RegistryItems<LocalDevice, LocalGENASubscription> {
             }
 
             registry.addResource(deviceResource);
-            Log.v(getClass().getName(), "Registered resource: " + deviceResource);
+            YaaccLogger.v(getClass().getName(), "Registered resource: " + deviceResource);
 
         }
 
-        Log.v(getClass().getName(), "Adding item to registry with expiration in seconds: " + localDevice.getIdentity().getMaxAgeSeconds());
+        YaaccLogger.v(getClass().getName(), "Adding item to registry with expiration in seconds: " + localDevice.getIdentity().getMaxAgeSeconds());
 
         RegistryItem<UDN, LocalDevice> localItem = new RegistryItem<>(
                 localDevice.getIdentity().getUdn(),
@@ -114,7 +114,7 @@ class LocalItems extends RegistryItems<LocalDevice, LocalGENASubscription> {
         );
 
         getDeviceItems().add(localItem);
-        Log.v(getClass().getName(), "Registered local device: " + localItem);
+        YaaccLogger.v(getClass().getName(), "Registered local device: " + localItem);
 
         if (isByeByeBeforeFirstAlive(localItem.getKey()))
             advertiseByebye(localDevice, true);
@@ -151,14 +151,14 @@ class LocalItems extends RegistryItems<LocalDevice, LocalGENASubscription> {
         LocalDevice registeredDevice = get(localDevice.getIdentity().getUdn(), true);
         if (registeredDevice != null) {
 
-            Log.v(getClass().getName(), "Removing local device from registry: " + localDevice);
+            YaaccLogger.v(getClass().getName(), "Removing local device from registry: " + localDevice);
 
             setDiscoveryOptions(localDevice.getIdentity().getUdn(), null);
             getDeviceItems().remove(new RegistryItem(localDevice.getIdentity().getUdn()));
 
             for (Resource deviceResource : getResources(localDevice)) {
                 if (registry.removeResource(deviceResource)) {
-                    Log.v(getClass().getName(), "Unregistered resource: " + deviceResource);
+                    YaaccLogger.v(getClass().getName(), "Unregistered resource: " + deviceResource);
                 }
             }
 
@@ -171,7 +171,7 @@ class LocalItems extends RegistryItems<LocalDevice, LocalGENASubscription> {
                         incomingSubscription.getItem().getService().getDevice().getIdentity().getUdn();
 
                 if (subscriptionForUDN.equals(registeredDevice.getIdentity().getUdn())) {
-                    Log.v(getClass().getName(), "Removing incoming subscription: " + incomingSubscription.getKey());
+                    YaaccLogger.v(getClass().getName(), "Removing incoming subscription: " + incomingSubscription.getKey());
                     it.remove();
                     if (!shuttingDown) {
                         executorService.execute(
@@ -242,7 +242,7 @@ class LocalItems extends RegistryItems<LocalDevice, LocalGENASubscription> {
                 lastAliveIntervalTimestamp = now;
                 for (RegistryItem<UDN, LocalDevice> localItem : getDeviceItems()) {
                     if (isAdvertised(localItem.getKey())) {
-                        Log.v(getClass().getName(), "Flooding advertisement of local item: " + localItem);
+                        YaaccLogger.v(getClass().getName(), "Flooding advertisement of local item: " + localItem);
                         expiredLocalItems.add(localItem);
                     }
                 }
@@ -254,7 +254,7 @@ class LocalItems extends RegistryItems<LocalDevice, LocalGENASubscription> {
             // Alive interval is not enabled, regular expiration check of all devices
             for (RegistryItem<UDN, LocalDevice> localItem : getDeviceItems()) {
                 if (isAdvertised(localItem.getKey()) && localItem.getExpirationDetails().hasExpired(true)) {
-                    Log.v(getClass().getName(), "Local item has expired: " + localItem);
+                    YaaccLogger.v(getClass().getName(), "Local item has expired: " + localItem);
                     expiredLocalItems.add(localItem);
                 }
             }
@@ -262,7 +262,7 @@ class LocalItems extends RegistryItems<LocalDevice, LocalGENASubscription> {
 
         // Now execute the advertisements
         for (RegistryItem<UDN, LocalDevice> expiredLocalItem : expiredLocalItems) {
-            Log.v(getClass().getName(), "Refreshing local device advertisement: " + expiredLocalItem.getItem());
+            YaaccLogger.v(getClass().getName(), "Refreshing local device advertisement: " + expiredLocalItem.getItem());
             advertiseAlive(expiredLocalItem.getItem());
             expiredLocalItem.getExpirationDetails().stampLastRefresh();
         }
@@ -275,7 +275,7 @@ class LocalItems extends RegistryItems<LocalDevice, LocalGENASubscription> {
             }
         }
         for (RegistryItem<String, LocalGENASubscription> subscription : expiredIncomingSubscriptions) {
-            Log.v(getClass().getName(), "Removing expired: " + subscription);
+            YaaccLogger.v(getClass().getName(), "Removing expired: " + subscription);
             removeSubscription(subscription.getItem());
             subscription.getItem().end(CancelReason.EXPIRED);
         }
@@ -285,10 +285,10 @@ class LocalItems extends RegistryItems<LocalDevice, LocalGENASubscription> {
     /* ############################################################################################################ */
 
     void shutdown() {
-        Log.v(getClass().getName(), "Clearing all registered subscriptions to local devices during shutdown");
+        YaaccLogger.v(getClass().getName(), "Clearing all registered subscriptions to local devices during shutdown");
         getSubscriptionItems().clear();
 
-        Log.v(getClass().getName(), "Removing all local devices from registry during shutdown");
+        YaaccLogger.v(getClass().getName(), "Removing all local devices from registry during shutdown");
         removeAll(true);
     }
 
@@ -296,10 +296,10 @@ class LocalItems extends RegistryItems<LocalDevice, LocalGENASubscription> {
         registry.executeAsyncProtocol(new Runnable() {
             public void run() {
                 try {
-                    Log.v(getClass().getName(), "Sleeping some milliseconds to avoid flooding the network with ALIVE msgs");
+                    YaaccLogger.v(getClass().getName(), "Sleeping some milliseconds to avoid flooding the network with ALIVE msgs");
                     Thread.sleep(randomGenerator.nextInt(100));
                 } catch (InterruptedException ex) {
-                    Log.e(getClass().getName(), "Background execution interrupted: " + ex.getMessage());
+                    YaaccLogger.e(getClass().getName(), "Background execution interrupted: " + ex.getMessage());
                 }
                 registry.getUpnpProtocolHandler().createSendingNotificationAlive(localDevice).run();
             }

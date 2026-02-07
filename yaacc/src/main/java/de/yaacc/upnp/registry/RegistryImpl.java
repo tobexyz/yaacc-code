@@ -15,7 +15,7 @@
 
 package de.yaacc.upnp.registry;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.DiscoveryOptions;
 import org.fourthline.cling.model.ExpirationDetails;
@@ -77,8 +77,8 @@ public class RegistryImpl implements Registry {
      */
 
     public RegistryImpl() {
-        Log.v(getClass().getName(), "Creating Registry: " + getClass().getName());
-        Log.v(getClass().getName(), "Starting registry background maintenance...");
+        YaaccLogger.v(getClass().getName(), "Creating Registry: " + getClass().getName());
+        YaaccLogger.v(getClass().getName(), "Starting registry background maintenance...");
         executorService = Executors.newFixedThreadPool(50);
         registryMaintainer = createRegistryMaintainer();
         if (registryMaintainer != null) {
@@ -114,7 +114,7 @@ public class RegistryImpl implements Registry {
     synchronized public boolean notifyDiscoveryStart(final RemoteDevice device) {
         // Exit if we have it already, this is atomic inside this method, finally
         if (getRemoteDevice(device.getIdentity().getUdn(), true) != null) {
-            Log.v(getClass().getName(), "Not notifying listeners, already registered: " + device);
+            YaaccLogger.v(getClass().getName(), "Not notifying listeners, already registered: " + device);
             return false;
         }
         for (final RegistryListener listener : getListeners()) {
@@ -160,7 +160,7 @@ public class RegistryImpl implements Registry {
     }
 
     synchronized public void addDevice(RemoteDevice remoteDevice) {
-        Log.d(getClass().getName(), "Adding remote device: " + remoteDevice.getIdentity().getDescriptorURL());
+        YaaccLogger.d(getClass().getName(), "Adding remote device: " + remoteDevice.getIdentity().getDescriptorURL());
         remoteItems.add(remoteDevice);
     }
 
@@ -374,14 +374,14 @@ public class RegistryImpl implements Registry {
 
     // When you call this, make sure you have the Router lock before this lock is obtained!
     synchronized public void shutdown() {
-        Log.v(getClass().getName(), "Shutting down registry...");
+        YaaccLogger.v(getClass().getName(), "Shutting down registry...");
 
         if (registryMaintainer != null)
             registryMaintainer.stop();
 
         // Final cleanup run to flush out pending executions which might
         // not have been caught by the maintainer before it stopped
-        Log.v(getClass().getName(), "Executing final pending operations on shutdown: " + pendingExecutions.size());
+        YaaccLogger.v(getClass().getName(), "Executing final pending operations on shutdown: " + pendingExecutions.size());
         runPendingExecutions(false);
 
         for (RegistryListener listener : registryListeners) {
@@ -403,7 +403,7 @@ public class RegistryImpl implements Registry {
 
     synchronized public void pause() {
         if (registryMaintainer != null) {
-            Log.v(getClass().getName(), "Pausing registry maintenance");
+            YaaccLogger.v(getClass().getName(), "Pausing registry maintenance");
             runPendingExecutions(true);
             registryMaintainer.stop();
             registryMaintainer = null;
@@ -412,7 +412,7 @@ public class RegistryImpl implements Registry {
 
     synchronized public void resume() {
         if (registryMaintainer == null) {
-            Log.v(getClass().getName(), "Resuming registry maintenance");
+            YaaccLogger.v(getClass().getName(), "Resuming registry maintenance");
             remoteItems.resume();
             registryMaintainer = createRegistryMaintainer();
             if (registryMaintainer != null) {
@@ -430,7 +430,7 @@ public class RegistryImpl implements Registry {
     synchronized void maintain() {
 
 
-        Log.v(getClass().getName(), "Maintaining registry...");
+        YaaccLogger.v(getClass().getName(), "Maintaining registry...");
 
         // Remove expired resources
         Iterator<RegistryItem<URI, Resource>> it = resourceItems.iterator();
@@ -438,7 +438,7 @@ public class RegistryImpl implements Registry {
             RegistryItem<URI, Resource> item = it.next();
             if (item.getExpirationDetails().hasExpired()) {
 
-                Log.v(getClass().getName(), "Removing expired resource: " + item);
+                YaaccLogger.v(getClass().getName(), "Removing expired resource: " + item);
                 it.remove();
             }
         }
@@ -465,7 +465,7 @@ public class RegistryImpl implements Registry {
 
     synchronized void runPendingExecutions(boolean async) {
 
-        Log.v(getClass().getName(), "Executing pending operations: " + pendingExecutions.size());
+        YaaccLogger.v(getClass().getName(), "Executing pending operations: " + pendingExecutions.size());
         for (Runnable pendingExecution : pendingExecutions) {
             if (async)
                 executorService.execute(pendingExecution);
@@ -481,25 +481,25 @@ public class RegistryImpl implements Registry {
 
     public void printDebugLog() {
         {
-            Log.v(getClass().getName(), "====================================    REMOTE   ================================================");
+            YaaccLogger.v(getClass().getName(), "====================================    REMOTE   ================================================");
 
             for (RemoteDevice remoteDevice : remoteItems.get()) {
-                Log.v(getClass().getName(), remoteDevice.toString());
+                YaaccLogger.v(getClass().getName(), remoteDevice.toString());
             }
 
-            Log.v(getClass().getName(), "====================================    LOCAL    ================================================");
+            YaaccLogger.v(getClass().getName(), "====================================    LOCAL    ================================================");
 
             for (LocalDevice localDevice : localItems.get()) {
-                Log.v(getClass().getName(), localDevice.toString());
+                YaaccLogger.v(getClass().getName(), localDevice.toString());
             }
 
-            Log.v(getClass().getName(), "====================================  RESOURCES  ================================================");
+            YaaccLogger.v(getClass().getName(), "====================================  RESOURCES  ================================================");
 
             for (RegistryItem<URI, Resource> resourceItem : resourceItems) {
-                Log.v(getClass().getName(), resourceItem.toString());
+                YaaccLogger.v(getClass().getName(), resourceItem.toString());
             }
 
-            Log.v(getClass().getName(), "=================================================================================================");
+            YaaccLogger.v(getClass().getName(), "=================================================================================================");
 
         }
 
@@ -527,7 +527,7 @@ public class RegistryImpl implements Registry {
             RemoteGENASubscription subscription = getRemoteSubscription(subscriptionId);
             while (subscription == null && !pendingSubscriptionsLock.isEmpty()) {
                 try {
-                    Log.v(getClass().getName(), "Subscription not found, waiting for pending subscription procedure to terminate.");
+                    YaaccLogger.v(getClass().getName(), "Subscription not found, waiting for pending subscription procedure to terminate.");
                     pendingSubscriptionsLock.wait();
                 } catch (InterruptedException e) {
                 }

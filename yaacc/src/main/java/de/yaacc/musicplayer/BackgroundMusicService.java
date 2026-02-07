@@ -29,7 +29,7 @@ import android.net.Uri;
 import android.os.Binder;
 import android.os.IBinder;
 import android.os.PowerManager;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import androidx.core.app.NotificationCompat;
 
@@ -66,7 +66,7 @@ public class BackgroundMusicService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
-        Log.d(this.getClass().getName(), "On Create");
+        YaaccLogger.d(this.getClass().getName(), "On Create");
 
         // Start foreground immediately with a basic notification
         Notification minimalNotification = new NotificationCompat.Builder(this, Yaacc.NOTIFICATION_CHANNEL_ID)
@@ -105,7 +105,7 @@ public class BackgroundMusicService extends Service {
      */
     @Override
     public void onDestroy() {
-        Log.d(this.getClass().getName(), "On Destroy");
+        YaaccLogger.d(this.getClass().getName(), "On Destroy");
         if (player != null) {
             player.stop();
             player.release();
@@ -124,13 +124,13 @@ public class BackgroundMusicService extends Service {
      */
     @Override
     public IBinder onBind(Intent intent) {
-        Log.d(this.getClass().getName(), "On Bind");
+        YaaccLogger.d(this.getClass().getName(), "On Bind");
         return binder;
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        Log.d(this.getClass().getName(), "Received start id " + startId + ": " + intent);
+        YaaccLogger.d(this.getClass().getName(), "Received start id " + startId + ": " + intent);
         initialize(intent);
         return START_STICKY;
     }
@@ -149,7 +149,7 @@ public class BackgroundMusicService extends Service {
                 setMusicUri(intent.getData());
             }
         } catch (Exception e) {
-            Log.e(this.getClass().getName(), "Ignoring exception while changing datasource uri", e);
+            YaaccLogger.e(this.getClass().getName(), "Ignoring exception while changing datasource uri", e);
 
 
         }
@@ -164,7 +164,7 @@ public class BackgroundMusicService extends Service {
             try {
                 player.stop();
             } catch (Exception ex) {
-                Log.d(getClass().getName(), "Ignoring exception on stop action: ", ex);
+                YaaccLogger.d(getClass().getName(), "Ignoring exception on stop action: ", ex);
             }
         }
     }
@@ -178,7 +178,7 @@ public class BackgroundMusicService extends Service {
             try {
                 player.start();
             } catch (Exception ex) {
-                Log.d(getClass().getName(), "Ignoring exception on start action: ", ex);
+                YaaccLogger.d(getClass().getName(), "Ignoring exception on start action: ", ex);
             }
 
         }
@@ -192,7 +192,7 @@ public class BackgroundMusicService extends Service {
             try {
                 player.pause();
             } catch (Exception ex) {
-                Log.d(getClass().getName(), "Ignoring exception on pause action: ", ex);
+                YaaccLogger.d(getClass().getName(), "Ignoring exception on pause action: ", ex);
             }
         }
     }
@@ -207,7 +207,7 @@ public class BackgroundMusicService extends Service {
             try {
                 player.seekTo(Long.valueOf(pos).intValue());
             } catch (Exception ex) {
-                Log.d(getClass().getName(), "Ignoring exception on steekTo action: ", ex);
+                YaaccLogger.d(getClass().getName(), "Ignoring exception on steekTo action: ", ex);
             }
         }
 
@@ -219,7 +219,7 @@ public class BackgroundMusicService extends Service {
      * @param uri the uri to play
      */
     public void setMusicUri(Uri uri) {
-        Log.d(this.getClass().getName(), "changing datasource uri to:" + uri.toString());
+        YaaccLogger.d(this.getClass().getName(), "changing datasource uri to:" + uri.toString());
         if (player != null) {
             player.stop();
             player.reset();
@@ -228,7 +228,7 @@ public class BackgroundMusicService extends Service {
         }
         player.setWakeMode(getApplicationContext(), PowerManager.PARTIAL_WAKE_LOCK);
         player.setOnErrorListener((MediaPlayer mediaPlayer, int what, int extra) -> {
-            Log.e(getClass().getName(), "Error in State  " + what + " extra: " + extra);
+            YaaccLogger.e(getClass().getName(), "Error in State  " + what + " extra: " + extra);
             return false;
         });
         player.setOnCompletionListener((mp) -> {
@@ -250,14 +250,14 @@ public class BackgroundMusicService extends Service {
         try {
             player.setDataSource(uri.toString());
         } catch (Exception e) {
-            Log.e(this.getClass().getName(), "Ignoring exception while changing datasource uri", e);
+            YaaccLogger.e(this.getClass().getName(), "Ignoring exception while changing datasource uri", e);
         }
 
 
         try {
             player.prepare();
         } catch (Exception e) {
-            Log.e(this.getClass().getName(), "Ignoring exception while preparing media player", e);
+            YaaccLogger.e(this.getClass().getName(), "Ignoring exception while preparing media player", e);
         }
 
     }
@@ -283,7 +283,7 @@ public class BackgroundMusicService extends Service {
             try {
                 currentPosition = player.getCurrentPosition();
             } catch (Exception ex) {
-                Log.d(getClass().getName(), "Caught player exception", ex);
+                YaaccLogger.d(getClass().getName(), "Caught player exception", ex);
             }
         }
 

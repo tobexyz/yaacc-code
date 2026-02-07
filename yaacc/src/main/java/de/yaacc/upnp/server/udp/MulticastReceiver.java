@@ -20,7 +20,7 @@
 package de.yaacc.upnp.server.udp;
 
 import android.content.Context;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import de.yaacc.util.Exceptions;
 import org.fourthline.cling.model.UnsupportedDataException;
@@ -82,13 +82,13 @@ public class MulticastReceiver {
 
         try {
 
-            Log.v(getClass().getName(), "Creating wildcard socket (for receiving multicast datagrams) on port: " + UPNP_MULTICAST_PORT);
+            YaaccLogger.v(getClass().getName(), "Creating wildcard socket (for receiving multicast datagrams) on port: " + UPNP_MULTICAST_PORT);
          /*   multicastAddress = new InetSocketAddress(getMulticastGroup(), UPNP_MULTICAST_PORT);
 
             socket = new MulticastSocket(UPNP_MULTICAST_PORT);
             socket.setReuseAddress(true);
             socket.setReceiveBufferSize(32768); // Keep a backlog of incoming datagrams if we are not fast enough
-            Log.v(getClass().getName(), "Joining multicast group: " + multicastAddress + " on network interface: " + multicastInterface.getDisplayName());
+            YaaccLogger.v(getClass().getName(), "Joining multicast group: " + multicastAddress + " on network interface: " + multicastInterface.getDisplayName());
             socket.joinGroup(multicastAddress, multicastInterface);
 */
 
@@ -113,9 +113,9 @@ public class MulticastReceiver {
     public void execute() {
         receiverExecutor.execute(() -> {
             try {
-                Log.v(getClass().getName(), "Entering blocking receiving loop, listening for UDP datagrams on: " + channel.getLocalAddress() /*socket.getLocalAddress()*/);
+                YaaccLogger.v(getClass().getName(), "Entering blocking receiving loop, listening for UDP datagrams on: " + channel.getLocalAddress() /*socket.getLocalAddress()*/);
             } catch (IOException e) {
-                Log.v(getClass().getName(), "Could not get local address: ", e);
+                YaaccLogger.v(getClass().getName(), "Could not get local address: ", e);
             }
             InetAddress receivedOnLocalAddress = InterfaceResolutionHelper.getBindAddresses(context).next();
             ByteBuffer buffer = ByteBuffer.allocate(1024);
@@ -135,7 +135,7 @@ public class MulticastReceiver {
 
                     //socket.receive(datagram);
 
-                    Log.v(getClass().getName(),
+                    YaaccLogger.v(getClass().getName(),
                             "UDP datagram received from: " + sender.getAddress()//datagram.getAddress().getHostAddress()
                                     + ":" + sender.getPort()//datagram.getPort()
                                     + " on local interface: " + channel.getLocalAddress()//multicastInterface.getDisplayName()
@@ -146,33 +146,33 @@ public class MulticastReceiver {
                         IncomingDatagramMessage<?> msg = DatagramHelper.read(receivedOnLocalAddress, data, sender.getAddress(), sender.getPort());
                         ReceivingAsync<?> protocol = protocolHandler.createReceivingAsync(msg);
                         if (protocol == null) {
-                            Log.v(getClass().getName(), "No protocol, ignoring received message: " + msg);
+                            YaaccLogger.v(getClass().getName(), "No protocol, ignoring received message: " + msg);
                             continue;
                         }
 
-                        Log.v(getClass().getName(), "Received asynchronous message: " + msg);
+                        YaaccLogger.v(getClass().getName(), "Received asynchronous message: " + msg);
                         protocolExecutor.execute(protocol);
                     } catch (ProtocolCreationException ex) {
-                        Log.w(getClass().getName(), "Handling received datagram failed - " + Exceptions.unwrap(ex).toString());
+                        YaaccLogger.w(getClass().getName(), "Handling received datagram failed - " + Exceptions.unwrap(ex).toString());
                     }
 
                 } catch (SocketException ex) {
-                    Log.v(getClass().getName(), "Socket closed", ex);
+                    YaaccLogger.v(getClass().getName(), "Socket closed", ex);
                     break;
                 } catch (UnsupportedDataException ex) {
-                    Log.v(getClass().getName(), "Could not read datagram: " + ex.getMessage(), ex);
+                    YaaccLogger.v(getClass().getName(), "Could not read datagram: " + ex.getMessage(), ex);
                 } catch (Exception ex) {
                     throw new RuntimeException(ex);
                 }
             }
             try {
                 if (channel.isOpen()) {
-                    Log.v(getClass().getName(), "Closing multicast socket");
+                    YaaccLogger.v(getClass().getName(), "Closing multicast socket");
                     channel.close();
                 }
                 /*
                 if (!socket.isClosed()) {
-                    Log.v(getClass().getName(), "Closing multicast socket");
+                    YaaccLogger.v(getClass().getName(), "Closing multicast socket");
                     socket.close();
                 }
                  */
@@ -186,11 +186,11 @@ public class MulticastReceiver {
         /*
         if (socket != null && !socket.isClosed()) {
             try {
-                Log.v(getClass().getName(), "Leaving multicast group");
+                YaaccLogger.v(getClass().getName(), "Leaving multicast group");
                 socket.leaveGroup(multicastAddress, multicastInterface);
                 // Well this doesn't work and I have no idea why I get "java.net.SocketException: Can't assign requested address"
             } catch (Exception ex) {
-                Log.v(getClass().getName(), "Could not leave multicast group: ", ex);
+                YaaccLogger.v(getClass().getName(), "Could not leave multicast group: ", ex);
             }
             // So... just close it and ignore the log messages
             socket.close();
@@ -199,7 +199,7 @@ public class MulticastReceiver {
             try {
                 channel.close();
             } catch (IOException ex) {
-                Log.v(getClass().getName(), "Could not close multicast channel: ", ex);
+                YaaccLogger.v(getClass().getName(), "Could not close multicast channel: ", ex);
             }
         }
 

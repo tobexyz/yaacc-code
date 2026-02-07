@@ -23,7 +23,7 @@ import android.net.ConnectivityManager;
 import android.net.Network;
 import android.net.NetworkCapabilities;
 import android.net.wifi.WifiManager;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import androidx.annotation.NonNull;
 
@@ -68,14 +68,14 @@ public class NetworkDeviceListener {
             public void onAvailable(@NonNull Network network) {
                 super.onAvailable(network);
                 if (!isCellular() && !network.equals(currentNetwork)) {
-                    Log.d(getClass().getName(), String.format("Network available %s", network));
+                    YaaccLogger.d(getClass().getName(), String.format("Network available %s", network));
                     if (currentNetwork != null) {
                         disable();
-                        Log.d(getClass().getName(), String.format("Network disabled %s", currentNetwork));
+                        YaaccLogger.d(getClass().getName(), String.format("Network disabled %s", currentNetwork));
                     }
                     currentNetwork = network;
                     enable();
-                    Log.d(getClass().getName(), String.format("Network enabled %s", currentNetwork));
+                    YaaccLogger.d(getClass().getName(), String.format("Network enabled %s", currentNetwork));
                 }
 
             }
@@ -84,9 +84,9 @@ public class NetworkDeviceListener {
             public void onLost(@NonNull Network network) {
                 super.onLost(network);
                 if (network.equals(currentNetwork)) {
-                    Log.d(getClass().getName(), String.format("Network lost %s", network));
+                    YaaccLogger.d(getClass().getName(), String.format("Network lost %s", network));
                     disable();
-                    Log.d(getClass().getName(), String.format("Network disabled %s", currentNetwork));
+                    YaaccLogger.d(getClass().getName(), String.format("Network disabled %s", currentNetwork));
                     currentNetwork = null;
                 }
             }
@@ -94,7 +94,7 @@ public class NetworkDeviceListener {
     }
 
     public void enable() {
-        Log.v(getClass().getName(), "in android router enable");
+        YaaccLogger.v(getClass().getName(), "in android router enable");
 
         // Enable multicast on the WiFi network interface,
         // requires android.permission.CHANGE_WIFI_MULTICAST_STATE
@@ -110,7 +110,7 @@ public class NetworkDeviceListener {
     }
 
     public void disable() {
-        Log.v(getClass().getName(), "in android router disable");
+        YaaccLogger.v(getClass().getName(), "in android router disable");
         // Disable multicast on WiFi network interface,
         // requires android.permission.CHANGE_WIFI_MULTICAST_STATE
         if (isWifi()) {
@@ -145,17 +145,17 @@ public class NetworkDeviceListener {
 
         if (enable) {
             if (multicastLock.isHeld()) {
-                Log.w(getClass().getName(), "WiFi multicast lock already acquired");
+                YaaccLogger.w(getClass().getName(), "WiFi multicast lock already acquired");
             } else {
-                Log.d(getClass().getName(), "WiFi multicast lock acquired");
+                YaaccLogger.d(getClass().getName(), "WiFi multicast lock acquired");
                 multicastLock.acquire();
             }
         } else {
             if (multicastLock.isHeld()) {
-                Log.d(getClass().getName(), "WiFi multicast lock released");
+                YaaccLogger.d(getClass().getName(), "WiFi multicast lock released");
                 multicastLock.release();
             } else {
-                Log.w(getClass().getName(), "WiFi multicast lock already released");
+                YaaccLogger.w(getClass().getName(), "WiFi multicast lock already released");
             }
         }
     }
@@ -167,17 +167,17 @@ public class NetworkDeviceListener {
 
         if (enable) {
             if (wifiLock.isHeld()) {
-                Log.w(getClass().getName(), "WiFi lock already acquired");
+                YaaccLogger.w(getClass().getName(), "WiFi lock already acquired");
             } else {
-                Log.d(getClass().getName(), "WiFi lock acquired");
+                YaaccLogger.d(getClass().getName(), "WiFi lock acquired");
                 wifiLock.acquire();
             }
         } else {
             if (wifiLock.isHeld()) {
-                Log.d(getClass().getName(), "WiFi lock released");
+                YaaccLogger.d(getClass().getName(), "WiFi lock released");
                 wifiLock.release();
             } else {
-                Log.w(getClass().getName(), "WiFi lock already released");
+                YaaccLogger.w(getClass().getName(), "WiFi lock already released");
             }
         }
     }

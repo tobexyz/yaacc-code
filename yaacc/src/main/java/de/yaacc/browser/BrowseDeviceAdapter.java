@@ -22,7 +22,7 @@ import android.content.Context;
 import android.content.ContextWrapper;
 import android.content.Intent;
 import android.net.Uri;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -131,7 +131,7 @@ public class BrowseDeviceAdapter extends RecyclerView.Adapter<BrowseDeviceAdapte
                     if (48 == icon.getHeight() && 48 == icon.getWidth() && "image/png".equals(icon.getMimeType().toString())) {
                         URL iconUri = ((RemoteDevice) device).normalizeURI(icon.getUri());
                         if (iconUri != null) {
-                            Log.d(getClass().getName(), "Device icon uri:" + iconUri);
+                            YaaccLogger.d(getClass().getName(), "Device icon uri:" + iconUri);
                             new IconDownloadTask(holder.icon).execute(Uri.parse(iconUri.toString()));
                             break;
                         }

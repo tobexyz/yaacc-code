@@ -15,7 +15,7 @@
 
 package de.yaacc.upnp.registry;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 /**
  * Runs periodically and calls {@link org.fourthline.cling.registry.RegistryImpl#maintain()}.
@@ -37,14 +37,14 @@ public class RegistryMaintainer implements Runnable {
 
     public void stop() {
 
-        Log.v(getClass().getName(), "Setting stopped status on thread");
+        YaaccLogger.v(getClass().getName(), "Setting stopped status on thread");
         stopped = true;
     }
 
     public void run() {
         stopped = false;
 
-        Log.v(getClass().getName(), "Running registry maintenance loop every milliseconds: " + sleepIntervalMillis);
+        YaaccLogger.v(getClass().getName(), "Running registry maintenance loop every milliseconds: " + sleepIntervalMillis);
         while (!stopped) {
 
             try {
@@ -55,7 +55,7 @@ public class RegistryMaintainer implements Runnable {
             }
 
         }
-        Log.v(getClass().getName(), "Stopped status on thread received, ending maintenance loop");
+        YaaccLogger.v(getClass().getName(), "Stopped status on thread received, ending maintenance loop");
     }
 
 }

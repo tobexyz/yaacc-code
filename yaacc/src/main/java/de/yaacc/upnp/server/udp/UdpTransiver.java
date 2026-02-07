@@ -1,7 +1,7 @@
 package de.yaacc.upnp.server.udp;
 
 import android.content.Context;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import de.yaacc.util.Exceptions;
 import org.fourthline.cling.model.UnsupportedDataException;
@@ -50,12 +50,12 @@ public class UdpTransiver {
             // TODO: UPNP VIOLATION: The spec does not prohibit using the 1900 port here again, however, the
             // Netgear ReadyNAS miniDLNA implementation will no longer answer if it has to send search response
             // back via UDP unicast to port 1900... so we use an ephemeral port
-            Log.v(getClass().getName(), "Creating bound socket (for datagram input/output) on: " + usableInterface.inetAddress);
+            YaaccLogger.v(getClass().getName(), "Creating bound socket (for datagram input/output) on: " + usableInterface.inetAddress);
             InetSocketAddress localAddress = new InetSocketAddress(usableInterface.inetAddress, 0);
             socket = new MulticastSocket(localAddress);
             socket.setTimeToLive(TTL);
             socket.setReceiveBufferSize(262144); // Keep a backlog of incoming datagrams if we are not fast enough
-            Log.v(getClass().getName(), "Socket created and bound to: " + socket.getLocalSocketAddress() + " on interface: " + usableInterface.networkInterface.getDisplayName());
+            YaaccLogger.v(getClass().getName(), "Socket created and bound to: " + socket.getLocalSocketAddress() + " on interface: " + usableInterface.networkInterface.getDisplayName());
         } catch (Exception ex) {
             throw new IllegalStateException("Could not initialize " + getClass().getSimpleName() + ": " + ex);
         }
@@ -63,7 +63,7 @@ public class UdpTransiver {
 
     public void send(OutgoingDatagramMessage message) {
         DatagramPacket packet = DatagramHelper.write(message);
-        Log.v(getClass().getName(), "Sending UDP datagram packet to: " + message.getDestinationAddress() + ":" + message.getDestinationPort());
+        YaaccLogger.v(getClass().getName(), "Sending UDP datagram packet to: " + message.getDestinationAddress() + ":" + message.getDestinationPort());
         send(packet);
     }
 
@@ -72,14 +72,14 @@ public class UdpTransiver {
             try {
                 socket.send(datagram);
             } catch (SocketException ex) {
-                Log.v(getClass().getName(), "Socket closed, aborting datagram send to: " + datagram.getAddress());
+                YaaccLogger.v(getClass().getName(), "Socket closed, aborting datagram send to: " + datagram.getAddress());
             } catch (RuntimeException ex) {
                 throw ex;
             } catch (Exception ex) {
                 try {
-                    Log.w(getClass().getName(), socket.getNetworkInterface() + " Exception sending datagram to: " + datagram.getAddress() + ": " + ex, ex);
+                    YaaccLogger.w(getClass().getName(), socket.getNetworkInterface() + " Exception sending datagram to: " + datagram.getAddress() + ": " + ex, ex);
                 } catch (SocketException se) {
-                    Log.e(getClass().getName(), " Exception sending datagram to: " + datagram.getAddress() + ": " + ex, ex);
+                    YaaccLogger.e(getClass().getName(), " Exception sending datagram to: " + datagram.getAddress() + ": " + ex, ex);
                 }
             }
 
@@ -87,13 +87,13 @@ public class UdpTransiver {
     }
 
     public void execute() {
-        Log.v(getClass().getName(), "execute() called, submitting receiver task");
+        YaaccLogger.v(getClass().getName(), "execute() called, submitting receiver task");
         receiverExecutor.execute(() -> {
-            Log.v(getClass().getName(), "Receiver task started");
+            YaaccLogger.v(getClass().getName(), "Receiver task started");
             try {
-                Log.v(getClass().getName(), "Entering blocking receiving loop, listening for UDP datagrams on: " + socket.getLocalAddress());
+                YaaccLogger.v(getClass().getName(), "Entering blocking receiving loop, listening for UDP datagrams on: " + socket.getLocalAddress());
             } catch (Exception e) {
-                Log.e(getClass().getName(), "Error getting local address", e);
+                YaaccLogger.e(getClass().getName(), "Error getting local address", e);
             }
 
             while (true) {
@@ -101,10 +101,10 @@ public class UdpTransiver {
                 try {
                     byte[] buf = new byte[MAX_DATAGRAM_BYTES];
                     DatagramPacket datagram = new DatagramPacket(buf, buf.length);
-                    Log.v(getClass().getName(), "UDP before");
+                    YaaccLogger.v(getClass().getName(), "UDP before");
                     socket.receive(datagram);
 
-                    Log.v(getClass().getName(),
+                    YaaccLogger.v(getClass().getName(),
                             "UDP datagram received from: "
                                     + datagram.getAddress().getHostAddress()
                                     + ":" + datagram.getPort()
@@ -115,28 +115,28 @@ public class UdpTransiver {
                         ReceivingAsync<?> protocol = protocolHandler.createReceivingAsync(msg);
                         if (protocol == null) {
 
-                            Log.v(getClass().getName(), "No protocol, ignoring received message: " + msg);
+                            YaaccLogger.v(getClass().getName(), "No protocol, ignoring received message: " + msg);
                             continue;
                         }
 
-                        Log.v(getClass().getName(), "Received asynchronous message: " + msg);
+                        YaaccLogger.v(getClass().getName(), "Received asynchronous message: " + msg);
                         protocolExecutor.execute(protocol);
                     } catch (ProtocolCreationException ex) {
-                        Log.w(getClass().getName(), "Handling received datagram failed - " + Exceptions.unwrap(ex).toString());
+                        YaaccLogger.w(getClass().getName(), "Handling received datagram failed - " + Exceptions.unwrap(ex).toString());
                     }
 
                 } catch (SocketException ex) {
-                    Log.v(getClass().getName(), "Socket closed", ex);
+                    YaaccLogger.v(getClass().getName(), "Socket closed", ex);
                     break;
                 } catch (UnsupportedDataException ex) {
-                    Log.v(getClass().getName(), "Could not read datagram: " + ex.getMessage(), ex);
+                    YaaccLogger.v(getClass().getName(), "Could not read datagram: " + ex.getMessage(), ex);
                 } catch (Exception ex) {
                     throw new RuntimeException(ex);
                 }
             }
             try {
                 if (!socket.isClosed()) {
-                    Log.v(getClass().getName(), "Closing unicast socket");
+                    YaaccLogger.v(getClass().getName(), "Closing unicast socket");
                     socket.close();
                 }
             } catch (Exception ex) {

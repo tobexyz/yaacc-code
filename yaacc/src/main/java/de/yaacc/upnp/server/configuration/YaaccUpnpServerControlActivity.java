@@ -25,7 +25,7 @@ import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 import android.util.TypedValue;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -156,13 +156,13 @@ public class YaaccUpnpServerControlActivity extends AppCompatActivity {
 
     private void selectSafContent() {
         if (!SafPermissionManager.canAddMorePermissions(this)) {
-            Log.w(getClass().getName(), "Cannot add more SAF permissions. Limit reached: " +
+            YaaccLogger.w(getClass().getName(), "Cannot add more SAF permissions. Limit reached: " +
                     SafPermissionManager.getPermissionCount(this));
             // TODO: Show user dialog about limit
             return;
         }
 
-        Log.w(getClass().getName(), "Starting SAF picker.");
+        YaaccLogger.w(getClass().getName(), "Starting SAF picker.");
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
                 | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
@@ -187,17 +187,17 @@ public class YaaccUpnpServerControlActivity extends AppCompatActivity {
                         }
                     }
                 } else {
-                    Log.e(getClass().getName(), "Could not list files in root: " + externalStorageRoot.getAbsolutePath());
+                    YaaccLogger.e(getClass().getName(), "Could not list files in root: " + externalStorageRoot.getAbsolutePath());
                 }
             } else {
-                Log.e(getClass().getName(), "Root directory does not exist or is not a directory: " + externalStorageRoot.getAbsolutePath());
+                YaaccLogger.e(getClass().getName(), "Root directory does not exist or is not a directory: " + externalStorageRoot.getAbsolutePath());
             }
         } else {
-            Log.e(getClass().getName(), "External storage not readable.");
+            YaaccLogger.e(getClass().getName(), "External storage not readable.");
         }
 
         if (fileRoots.isEmpty()) {
-            Log.w(getClass().getName(), "No file system roots found or storage unavailable. Adding a placeholder.");
+            YaaccLogger.w(getClass().getName(), "No file system roots found or storage unavailable. Adding a placeholder.");
         }
 
         Set<String> safUris = MediaPathFilter.getSafPathes(getApplicationContext());
@@ -212,10 +212,10 @@ public class YaaccUpnpServerControlActivity extends AppCompatActivity {
                             fileRoots.add(node);
                         }
                     } else {
-                        Log.w(getClass().getName(), "SAF root not accessible: " + uriString);
+                        YaaccLogger.w(getClass().getName(), "SAF root not accessible: " + uriString);
                     }
                 } catch (Exception e) {
-                    Log.e(getClass().getName(), "Error restoring SAF uri: " + uriString, e);
+                    YaaccLogger.e(getClass().getName(), "Error restoring SAF uri: " + uriString, e);
                 }
             }
         }
@@ -223,7 +223,7 @@ public class YaaccUpnpServerControlActivity extends AppCompatActivity {
 
 
         treeViewAdapter.setTreeNodeClickListener((treeNode, nodeView) -> {
-            Log.d(getClass().getName(), "Click on TreeNode with value " + treeNode.getValue().toString());
+            YaaccLogger.d(getClass().getName(), "Click on TreeNode with value " + treeNode.getValue().toString());
             Object value = treeNode.getValue();
             if (value instanceof File) {
                 clickedOnFile(treeNode, (File) value);
@@ -246,7 +246,7 @@ public class YaaccUpnpServerControlActivity extends AppCompatActivity {
                 }
             }
         }
-        Log.d(getClass().getName(), "Clicked on document file: " + doc.getUri());
+        YaaccLogger.d(getClass().getName(), "Clicked on document file: " + doc.getUri());
     }
 
     private void clickedOnFile(TreeNode treeNode, File value) {
@@ -262,7 +262,7 @@ public class YaaccUpnpServerControlActivity extends AppCompatActivity {
                 }
             }
         }
-        Log.d(getClass().getName(), "Clicked on file: " + file.getAbsolutePath());
+        YaaccLogger.d(getClass().getName(), "Clicked on file: " + file.getAbsolutePath());
     }
 
     /**
@@ -329,7 +329,7 @@ public class YaaccUpnpServerControlActivity extends AppCompatActivity {
                         final int takeFlags = data.getFlags() & (Intent.FLAG_GRANT_READ_URI_PERMISSION);
                         getContentResolver().takePersistableUriPermission(treeUri, takeFlags);
                     } catch (Exception e) {
-                        Log.w(getClass().getName(), "Could not take persistable uri permission", e);
+                        YaaccLogger.w(getClass().getName(), "Could not take persistable uri permission", e);
                     }
 
                     Set<String> uriSet = MediaPathFilter.getSafPathes(getApplicationContext());

@@ -15,7 +15,7 @@
 
 package de.yaacc.upnp.registry;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.gena.CancelReason;
 import org.fourthline.cling.model.gena.RemoteGENASubscription;
@@ -67,14 +67,14 @@ class RemoteItems extends RegistryItems<RemoteDevice, RemoteGENASubscription> {
     void add(final RemoteDevice device) {
 
         if (update(device.getIdentity())) {
-            Log.v(getClass().getName(), "Ignoring addition, device already registered: " + device);
+            YaaccLogger.v(getClass().getName(), "Ignoring addition, device already registered: " + device);
             return;
         }
 
         Resource[] resources = getResources(device);
 
         for (Resource deviceResource : resources) {
-            Log.v(getClass().getName(), "Validating remote device resource; " + deviceResource);
+            YaaccLogger.v(getClass().getName(), "Validating remote device resource; " + deviceResource);
             if (registry.getResource(deviceResource.getPathQuery()) != null) {
                 throw new RegistrationException("URI namespace conflict with already registered resource: " + deviceResource);
             }
@@ -82,7 +82,7 @@ class RemoteItems extends RegistryItems<RemoteDevice, RemoteGENASubscription> {
 
         for (Resource validatedResource : resources) {
             registry.addResource(validatedResource);
-            Log.v(getClass().getName(), "Added remote device resource: " + validatedResource);
+            YaaccLogger.v(getClass().getName(), "Added remote device resource: " + validatedResource);
         }
 
         // Override the device's maximum age if configured (systems without multicast support)
@@ -91,7 +91,7 @@ class RemoteItems extends RegistryItems<RemoteDevice, RemoteGENASubscription> {
                 device,
                 device.getIdentity().getMaxAgeSeconds()
         );
-        Log.v(getClass().getName(), "Adding hydrated remote device to registry with "
+        YaaccLogger.v(getClass().getName(), "Adding hydrated remote device to registry with "
                 + item.getExpirationDetails().getMaxAgeSeconds() + " seconds expiration: " + device);
         getDeviceItems().add(item);
 
@@ -103,11 +103,11 @@ class RemoteItems extends RegistryItems<RemoteDevice, RemoteGENASubscription> {
             sb.append(resource).append("\n");
         }
         sb.append("-------------------------- END Registry Namespace -----------------------------------");
-        Log.v(getClass().getName(), sb.toString());
+        YaaccLogger.v(getClass().getName(), sb.toString());
 
 
         // Only notify the listeners when the device is fully usable
-        Log.v(getClass().getName(), "Completely hydrated remote device graph available, calling listeners: " + device);
+        YaaccLogger.v(getClass().getName(), "Completely hydrated remote device graph available, calling listeners: " + device);
         for (final RegistryListener listener : registry.getListeners()) {
             executorService.execute(
                     new Runnable() {
@@ -124,7 +124,7 @@ class RemoteItems extends RegistryItems<RemoteDevice, RemoteGENASubscription> {
 
         for (LocalDevice localDevice : registry.getLocalDevices()) {
             if (localDevice.findDevice(rdIdentity.getUdn()) != null) {
-                Log.v(getClass().getName(), "Ignoring update, a local device graph contains UDN");
+                YaaccLogger.v(getClass().getName(), "Ignoring update, a local device graph contains UDN");
                 return true;
             }
         }
@@ -133,7 +133,7 @@ class RemoteItems extends RegistryItems<RemoteDevice, RemoteGENASubscription> {
         if (registeredRemoteDevice != null) {
 
             if (!registeredRemoteDevice.isRoot()) {
-                Log.v(getClass().getName(), "Updating root device of embedded: " + registeredRemoteDevice);
+                YaaccLogger.v(getClass().getName(), "Updating root device of embedded: " + registeredRemoteDevice);
                 registeredRemoteDevice = registeredRemoteDevice.getRoot();
             }
 
@@ -144,11 +144,11 @@ class RemoteItems extends RegistryItems<RemoteDevice, RemoteGENASubscription> {
                     rdIdentity.getMaxAgeSeconds()
             );
 
-            Log.v(getClass().getName(), "Updating expiration of: " + registeredRemoteDevice);
+            YaaccLogger.v(getClass().getName(), "Updating expiration of: " + registeredRemoteDevice);
             getDeviceItems().remove(item);
             getDeviceItems().add(item);
 
-            Log.v(getClass().getName(), "Remote device updated, calling listeners: " + registeredRemoteDevice);
+            YaaccLogger.v(getClass().getName(), "Remote device updated, calling listeners: " + registeredRemoteDevice);
             for (final RegistryListener listener : registry.getListeners()) {
                 executorService.execute(
                         new Runnable() {
@@ -179,12 +179,12 @@ class RemoteItems extends RegistryItems<RemoteDevice, RemoteGENASubscription> {
         final RemoteDevice registeredDevice = get(remoteDevice.getIdentity().getUdn(), true);
         if (registeredDevice != null) {
 
-            Log.v(getClass().getName(), "Removing remote device from registry: " + remoteDevice);
+            YaaccLogger.v(getClass().getName(), "Removing remote device from registry: " + remoteDevice);
 
             // Resources
             for (Resource deviceResource : getResources(registeredDevice)) {
                 if (registry.removeResource(deviceResource)) {
-                    Log.v(getClass().getName(), "Unregistered resource: " + deviceResource);
+                    YaaccLogger.v(getClass().getName(), "Unregistered resource: " + deviceResource);
                 }
             }
 
@@ -197,7 +197,7 @@ class RemoteItems extends RegistryItems<RemoteDevice, RemoteGENASubscription> {
                         outgoingSubscription.getItem().getService().getDevice().getIdentity().getUdn();
 
                 if (subscriptionForUDN.equals(registeredDevice.getIdentity().getUdn())) {
-                    Log.v(getClass().getName(), "Removing outgoing subscription: " + outgoingSubscription.getKey());
+                    YaaccLogger.v(getClass().getName(), "Removing outgoing subscription: " + outgoingSubscription.getKey());
                     it.remove();
                     if (!shuttingDown) {
                         executorService.execute(
@@ -259,7 +259,7 @@ class RemoteItems extends RegistryItems<RemoteDevice, RemoteGENASubscription> {
         // Iterate over a copy to avoid ConcurrentModificationException
         for (RegistryItem<UDN, RemoteDevice> remoteItem : new HashSet<>(getDeviceItems())) {
 
-            Log.v(getClass().getName(), "Device '" + remoteItem.getItem() + "' expires in seconds: "
+            YaaccLogger.v(getClass().getName(), "Device '" + remoteItem.getItem() + "' expires in seconds: "
                     + remoteItem.getExpirationDetails().getSecondsUntilExpiration());
             if (remoteItem.getExpirationDetails().hasExpired(false)) {
                 expiredRemoteDevices.put(remoteItem.getKey(), remoteItem.getItem());
@@ -267,7 +267,7 @@ class RemoteItems extends RegistryItems<RemoteDevice, RemoteGENASubscription> {
         }
         for (RemoteDevice remoteDevice : expiredRemoteDevices.values()) {
 
-            Log.v(getClass().getName(), "Removing expired: " + remoteDevice);
+            YaaccLogger.v(getClass().getName(), "Removing expired: " + remoteDevice);
             remove(remoteDevice);
         }
 
@@ -281,13 +281,13 @@ class RemoteItems extends RegistryItems<RemoteDevice, RemoteGENASubscription> {
         }
         for (RemoteGENASubscription subscription : expiredOutgoingSubscriptions) {
 
-            Log.v(getClass().getName(), "Renewing outgoing subscription: " + subscription);
+            YaaccLogger.v(getClass().getName(), "Renewing outgoing subscription: " + subscription);
             renewOutgoingSubscription(subscription);
         }
     }
 
     public void resume() {
-        Log.v(getClass().getName(), "Updating remote device expiration timestamps on resume");
+        YaaccLogger.v(getClass().getName(), "Updating remote device expiration timestamps on resume");
         List<RemoteDeviceIdentity> toUpdate = new ArrayList<>();
         // Iterate over a copy to avoid ConcurrentModificationException
         for (RegistryItem<UDN, RemoteDevice> remoteItem : new HashSet<>(getDeviceItems())) {
@@ -299,7 +299,7 @@ class RemoteItems extends RegistryItems<RemoteDevice, RemoteGENASubscription> {
     }
 
     void shutdown() {
-        Log.v(getClass().getName(), "Cancelling all outgoing subscriptions to remote devices during shutdown");
+        YaaccLogger.v(getClass().getName(), "Cancelling all outgoing subscriptions to remote devices during shutdown");
         List<RemoteGENASubscription> remoteSubscriptions = new ArrayList<>();
         // Iterate over a copy to avoid ConcurrentModificationException
         for (RegistryItem<String, RemoteGENASubscription> item : new HashSet<>(getSubscriptionItems())) {
@@ -312,7 +312,7 @@ class RemoteItems extends RegistryItems<RemoteDevice, RemoteGENASubscription> {
                     .run();
         }
 
-        Log.v(getClass().getName(), "Removing all remote devices from registry during shutdown");
+        YaaccLogger.v(getClass().getName(), "Removing all remote devices from registry during shutdown");
         removeAll(true);
     }
 

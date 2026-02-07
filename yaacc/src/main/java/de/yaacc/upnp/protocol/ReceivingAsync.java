@@ -16,7 +16,7 @@
 package de.yaacc.upnp.protocol;
 import de.yaacc.util.Exceptions;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.message.UpnpMessage;
 import org.fourthline.cling.model.message.header.UpnpHeader;
@@ -47,7 +47,7 @@ public abstract class ReceivingAsync<M extends UpnpMessage> implements Runnable 
         try {
             proceed = waitBeforeExecution();
         } catch (InterruptedException ex) {
-            Log.v(getClass().getName(), "Protocol wait before execution interrupted (on shutdown?): " + getClass().getSimpleName());
+            YaaccLogger.v(getClass().getName(), "Protocol wait before execution interrupted (on shutdown?): " + getClass().getSimpleName());
             proceed = false;
         }
 
@@ -57,7 +57,7 @@ public abstract class ReceivingAsync<M extends UpnpMessage> implements Runnable 
             } catch (Exception ex) {
                 Throwable cause = Exceptions.unwrap(ex);
                 if (cause instanceof InterruptedException) {
-                    Log.v(getClass().getName(), "Interrupted protocol '" + getClass().getSimpleName() + "': " + ex, cause);
+                    YaaccLogger.v(getClass().getName(), "Interrupted protocol '" + getClass().getSimpleName() + "': " + ex, cause);
                 } else {
                     throw new RuntimeException(
                             "Fatal error while executing protocol '" + getClass().getSimpleName() + "': " + ex, ex

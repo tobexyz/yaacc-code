@@ -23,7 +23,7 @@ import android.widget.ProgressBar;
 import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.AsyncTask;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -115,9 +115,9 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
         // Show/hide progress bar
         if (progressBar != null) {
             progressBar.setVisibility(loading ? View.VISIBLE : View.GONE);
-            Log.d("BrowseContentItemAdapter", "Progress bar visibility set to: " + (loading ? "VISIBLE" : "GONE"));
+            YaaccLogger.d("BrowseContentItemAdapter", "Progress bar visibility set to: " + (loading ? "VISIBLE" : "GONE"));
         } else {
-            Log.e("BrowseContentItemAdapter", "Progress bar is null!");
+            YaaccLogger.e("BrowseContentItemAdapter", "Progress bar is null!");
         }
     }
 
@@ -130,7 +130,7 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
     }
 
     public void addAll(Collection<? extends DIDLObject> newObjects) {
-        Log.d(getClass().getName(), "added objects; " + newObjects);
+        YaaccLogger.d(getClass().getName(), "added objects; " + newObjects);
         int start = objects.size();
         List<DIDLObject> filteredObjects = newObjects.stream().filter(it -> !objects.contains(it)).collect(Collectors.toList());
         objects.addAll(filteredObjects);
@@ -350,7 +350,7 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
         setLoading(true);
         Long from = (long) getItemCount();
 
-        Log.d(getClass().getName(), "loadMore from: " + from);
+        YaaccLogger.d(getClass().getName(), "loadMore from: " + from);
 
         BrowseItemLoadTask browseItemLoadTask = new BrowseItemLoadTask(this, itemsToLoad, scrollToPositionId);
         asyncTasks.add(browseItemLoadTask);

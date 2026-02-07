@@ -21,7 +21,7 @@
 package de.yaacc.upnp.protocol;
 
 import android.content.Context;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.Namespace;
 import org.fourthline.cling.model.action.ActionInvocation;
@@ -86,7 +86,7 @@ public class UpnpProtocolHandler {
 
     public ReceivingAsync createReceivingAsync(IncomingDatagramMessage message) throws ProtocolCreationException {
 
-        Log.v(getClass().getName(), "Creating protocol for incoming asynchronous: " + message);
+        YaaccLogger.v(getClass().getName(), "Creating protocol for incoming asynchronous: " + message);
 
 
         if (message.getOperation() instanceof UpnpRequest) {
@@ -148,9 +148,9 @@ public class UpnpProtocolHandler {
                     return true;
             }
         } catch (InvalidValueException ex) {
-            Log.v(getClass().getName(), "Not a named service type header value: " + usnHeader);
+            YaaccLogger.v(getClass().getName(), "Not a named service type header value: " + usnHeader);
         }
-        Log.v(getClass().getName(), "Service advertisement not supported, dropping it: " + usnHeader);
+        YaaccLogger.v(getClass().getName(), "Service advertisement not supported, dropping it: " + usnHeader);
         return false;
     }
 
@@ -160,7 +160,7 @@ public class UpnpProtocolHandler {
     }
 
     public ReceivingSync createReceivingSync(StreamRequestMessage message) throws ProtocolCreationException {
-        Log.v(getClass().getName(), "Creating protocol for incoming synchronous: " + message);
+        YaaccLogger.v(getClass().getName(), "Creating protocol for incoming synchronous: " + message);
 
         if (message.getOperation().getMethod().equals(UpnpRequest.Method.GET)) {
 
@@ -191,7 +191,7 @@ public class UpnpProtocolHandler {
             // TODO: UPNP VIOLATION: Yamaha does the same
             // /dev/9ab0c000-f668-11de-9976-00a0de870fd4/svc/upnp-org/RenderingControl/event/cb><http://10.189.150.197:42082/dev/9ab0c000-f668-11de-9976-00a0de870fd4/svc/upnp-org/RenderingControl/event/cb
             if (message.getUri().getPath().contains(Namespace.EVENTS + Namespace.CALLBACK_FILE)) {
-                Log.w(getClass().getName(), "Fixing trailing garbage in event message path: " + message.getUri().getPath());
+                YaaccLogger.w(getClass().getName(), "Fixing trailing garbage in event message path: " + message.getUri().getPath());
                 String invalid = message.getUri().toString();
                 message.setUri(
                         URI.create(invalid.substring(

@@ -15,7 +15,7 @@
 
 package de.yaacc.upnp.protocol.sync;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.NetworkAddress;
 import org.fourthline.cling.model.gena.RemoteGENASubscription;
@@ -81,7 +81,7 @@ public class SendingSubscribe extends SendingSync<OutgoingSubscribeRequestMessag
     protected IncomingSubscribeResponseMessage executeSync() throws IOException {
 
         if (!getInputMessage().hasCallbackURLs()) {
-            Log.v(getClass().getName(), "Subscription failed, no active local callback URLs available (network disabled?)");
+            YaaccLogger.v(getClass().getName(), "Subscription failed, no active local callback URLs available (network disabled?)");
             executorService.execute(
                     new Runnable() {
                         public void run() {
@@ -92,7 +92,7 @@ public class SendingSubscribe extends SendingSync<OutgoingSubscribeRequestMessag
             return null;
         }
 
-        Log.v(getClass().getName(), "Sending subscription request: " + getInputMessage());
+        YaaccLogger.v(getClass().getName(), "Sending subscription request: " + getInputMessage());
 
         try {
             // register this pending Subscription to bloc if the notification is received before the
@@ -115,7 +115,7 @@ public class SendingSubscribe extends SendingSync<OutgoingSubscribeRequestMessag
             final IncomingSubscribeResponseMessage responseMessage = new IncomingSubscribeResponseMessage(response);
 
             if (response.getOperation().isFailed()) {
-                Log.v(getClass().getName(), "Subscription failed, response was: " + responseMessage);
+                YaaccLogger.v(getClass().getName(), "Subscription failed, response was: " + responseMessage);
                 executorService.execute(
                         new Runnable() {
                             public void run() {
@@ -124,7 +124,7 @@ public class SendingSubscribe extends SendingSync<OutgoingSubscribeRequestMessag
                         }
                 );
             } else if (!responseMessage.isValidHeaders()) {
-                Log.v(getClass().getName(), "Subscription failed, invalid or missing (SID, Timeout) response headers");
+                YaaccLogger.v(getClass().getName(), "Subscription failed, invalid or missing (SID, Timeout) response headers");
                 executorService.execute(
                         new Runnable() {
                             public void run() {
@@ -134,7 +134,7 @@ public class SendingSubscribe extends SendingSync<OutgoingSubscribeRequestMessag
                 );
             } else {
 
-                Log.v(getClass().getName(), "Subscription established, adding to registry, response was: " + response);
+                YaaccLogger.v(getClass().getName(), "Subscription established, adding to registry, response was: " + response);
                 subscription.setSubscriptionId(responseMessage.getSubscriptionId());
                 subscription.setActualSubscriptionDurationSeconds(responseMessage.getSubscriptionDurationSeconds());
 
@@ -156,7 +156,7 @@ public class SendingSubscribe extends SendingSync<OutgoingSubscribeRequestMessag
     }
 
     protected void onSubscriptionFailure() {
-        Log.v(getClass().getName(), "Subscription failed");
+        YaaccLogger.v(getClass().getName(), "Subscription failed");
         executorService.execute(
                 new Runnable() {
                     public void run() {

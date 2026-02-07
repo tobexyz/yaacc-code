@@ -15,7 +15,7 @@
 
 package de.yaacc.upnp.protocol.sync;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.gena.CancelReason;
 import org.fourthline.cling.model.gena.RemoteGENASubscription;
@@ -63,7 +63,7 @@ public class SendingRenewal extends SendingSync<OutgoingRenewalRequestMessage, I
     }
 
     protected IncomingSubscribeResponseMessage executeSync() throws IOException {
-        Log.v(getClass().getName(), "Sending subscription renewal request: " + getInputMessage());
+        YaaccLogger.v(getClass().getName(), "Sending subscription renewal request: " + getInputMessage());
 
         StreamResponseMessage response;
         try {
@@ -81,7 +81,7 @@ public class SendingRenewal extends SendingSync<OutgoingRenewalRequestMessage, I
         final IncomingSubscribeResponseMessage responseMessage = new IncomingSubscribeResponseMessage(response);
 
         if (response.getOperation().isFailed()) {
-            Log.v(getClass().getName(), "Subscription renewal failed, response was: " + response);
+            YaaccLogger.v(getClass().getName(), "Subscription renewal failed, response was: " + response);
             registry.removeRemoteSubscription(subscription);
             executorService.execute(
                     new Runnable() {
@@ -91,7 +91,7 @@ public class SendingRenewal extends SendingSync<OutgoingRenewalRequestMessage, I
                     }
             );
         } else if (!responseMessage.isValidHeaders()) {
-            Log.v(getClass().getName(), "Subscription renewal failed, invalid or missing (SID, Timeout) response headers");
+            YaaccLogger.v(getClass().getName(), "Subscription renewal failed, invalid or missing (SID, Timeout) response headers");
             executorService.execute(
                     new Runnable() {
                         public void run() {
@@ -100,7 +100,7 @@ public class SendingRenewal extends SendingSync<OutgoingRenewalRequestMessage, I
                     }
             );
         } else {
-            Log.v(getClass().getName(), "Subscription renewed, updating in registry, response was: " + response);
+            YaaccLogger.v(getClass().getName(), "Subscription renewed, updating in registry, response was: " + response);
             subscription.setActualSubscriptionDurationSeconds(responseMessage.getSubscriptionDurationSeconds());
             registry.updateRemoteSubscription(subscription);
         }
@@ -109,7 +109,7 @@ public class SendingRenewal extends SendingSync<OutgoingRenewalRequestMessage, I
     }
 
     protected void onRenewalFailure() {
-        Log.v(getClass().getName(), "Subscription renewal failed, removing subscription from registry");
+        YaaccLogger.v(getClass().getName(), "Subscription renewal failed, removing subscription from registry");
         registry.removeRemoteSubscription(subscription);
         executorService.execute(
                 new Runnable() {

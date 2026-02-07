@@ -15,7 +15,7 @@
 
 package de.yaacc.upnp.protocol.sync;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.gena.LocalGENASubscription;
 import org.fourthline.cling.model.message.StreamRequestMessage;
@@ -52,11 +52,11 @@ public class ReceivingUnsubscribe extends ReceivingSync<StreamRequestMessage, St
                 );
 
         if (resource == null) {
-            Log.v(getClass().getName(), "No local resource found: " + getInputMessage());
+            YaaccLogger.v(getClass().getName(), "No local resource found: " + getInputMessage());
             return null;
         }
 
-        Log.v(getClass().getName(), "Found local event subscription matching relative request URI: " + getInputMessage().getUri());
+        YaaccLogger.v(getClass().getName(), "Found local event subscription matching relative request URI: " + getInputMessage().getUri());
 
         IncomingUnsubscribeRequestMessage requestMessage =
                 new IncomingUnsubscribeRequestMessage(getInputMessage(), resource.getModel());
@@ -64,7 +64,7 @@ public class ReceivingUnsubscribe extends ReceivingSync<StreamRequestMessage, St
         // Error conditions UDA 1.0 section 4.1.3
         if (requestMessage.getSubscriptionId() != null &&
                 (requestMessage.hasNotificationHeader() || requestMessage.hasCallbackHeader())) {
-            Log.v(getClass().getName(), "Subscription ID and NT or Callback in unsubcribe request: " + getInputMessage());
+            YaaccLogger.v(getClass().getName(), "Subscription ID and NT or Callback in unsubcribe request: " + getInputMessage());
             return new StreamResponseMessage(UpnpResponse.Status.BAD_REQUEST);
         }
 
@@ -72,15 +72,15 @@ public class ReceivingUnsubscribe extends ReceivingSync<StreamRequestMessage, St
                 registry.getLocalSubscription(requestMessage.getSubscriptionId());
 
         if (subscription == null) {
-            Log.v(getClass().getName(), "Invalid subscription ID for unsubscribe request: " + getInputMessage());
+            YaaccLogger.v(getClass().getName(), "Invalid subscription ID for unsubscribe request: " + getInputMessage());
             return new StreamResponseMessage(UpnpResponse.Status.PRECONDITION_FAILED);
         }
 
-        Log.v(getClass().getName(), "Unregistering subscription: " + subscription);
+        YaaccLogger.v(getClass().getName(), "Unregistering subscription: " + subscription);
         if (registry.removeLocalSubscription(subscription)) {
             subscription.end(null); // No reason, just an unsubscribe
         } else {
-            Log.v(getClass().getName(), "Subscription was already removed from registry");
+            YaaccLogger.v(getClass().getName(), "Subscription was already removed from registry");
         }
 
         return new StreamResponseMessage(UpnpResponse.Status.OK);

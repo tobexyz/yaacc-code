@@ -30,7 +30,7 @@ import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.os.Binder;
 import android.os.IBinder;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import androidx.core.app.NotificationCompat;
 import androidx.core.content.res.ResourcesCompat;
@@ -142,7 +142,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
      */
     @Override
     public IBinder onBind(Intent intent) {
-        Log.d(this.getClass().getName(), "On Bind");
+        YaaccLogger.d(this.getClass().getName(), "On Bind");
         // do nothing
         return binder;
     }
@@ -184,14 +184,14 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         Thread initializationThread = new Thread(this::initialize);
         initializationThread.start();
         showNotification();
-        Log.d(this.getClass().getName(), "End On Start");
-        Log.d(this.getClass().getName(), "on start took: " + (System.currentTimeMillis() - start));
+        YaaccLogger.d(this.getClass().getName(), "End On Start");
+        YaaccLogger.d(this.getClass().getName(), "on start took: " + (System.currentTimeMillis() - start));
         return START_STICKY;
     }
 
     @Override
     public void onDestroy() {
-        Log.d(this.getClass().getName(), "Destroying the service");
+        YaaccLogger.d(this.getClass().getName(), "Destroying the service");
         if (preferences != null) {
             preferences.unregisterOnSharedPreferenceChangeListener(this);
         }
@@ -208,7 +208,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
             try {
                 httpServer.awaitShutdown(TimeValue.ofSeconds(3));
             } catch (InterruptedException e) {
-                Log.w(getClass().getName(), "got exception on stream server stop ", e);
+                YaaccLogger.w(getClass().getName(), "got exception on stream server stop ", e);
             }
 
         }
@@ -252,7 +252,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         try {
             createHttpServer();
         } catch (IOException e) {
-            Log.e(getClass().getName(), "Error while creating http server", e);
+            YaaccLogger.e(getClass().getName(), "Error while creating http server", e);
         }
 
 
@@ -263,14 +263,14 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
 
     private void createUpnpDevice() {
         String versionName;
-        Log.d(this.getClass().getName(), "Create UPNP Device whith ID: " + locaDeviceUuid);
+        YaaccLogger.d(this.getClass().getName(), "Create UPNP Device whith ID: " + locaDeviceUuid);
         if (registry.getDevices().contains(localDevice)) {
             registry.removeDevice(localDevice);
         }
         try {
             versionName = getApplicationContext().getPackageManager().getPackageInfo(getApplicationContext().getPackageName(), 0).versionName;
         } catch (NameNotFoundException ex) {
-            Log.e(this.getClass().getName(), "Error while creating device", ex);
+            YaaccLogger.e(this.getClass().getName(), "Error while creating device", ex);
             versionName = "??";
         }
         try {
@@ -302,17 +302,17 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
             registry.addDevice(localDevice);
 
         } catch (ValidationException e) {
-            Log.e(this.getClass().getName(), "Exception during device creation", e);
-            Log.e(this.getClass().getName(), "Exception during device creation Errors:" + e.getErrors());
+            YaaccLogger.e(this.getClass().getName(), "Exception during device creation", e);
+            YaaccLogger.e(this.getClass().getName(), "Exception during device creation Errors:" + e.getErrors());
             throw new IllegalStateException("Exception during device creation", e);
         }
 
     }
 
     public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
-        Log.d(this.getClass().getName(), "Preference changed apply change");
+        YaaccLogger.d(this.getClass().getName(), "Preference changed apply change");
         if (registry == null) {
-            Log.d(this.getClass().getName(), "Registry is null");
+            YaaccLogger.d(this.getClass().getName(), "Registry is null");
             registry = new RegistryImpl();
         }
         if (getApplicationContext().getString(R.string.settings_local_server_chkbx).equals(key)) {
@@ -348,11 +348,11 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
                             @Override
                             public void execute(Exception ex) {
                                 if (ex instanceof SocketTimeoutException) {
-                                    Log.e(getClass().getName(), "connection timeout:", ex);
+                                    YaaccLogger.e(getClass().getName(), "connection timeout:", ex);
                                 } else if (ex instanceof ConnectionClosedException) {
-                                    Log.e(getClass().getName(), "connection closed:", ex);
+                                    YaaccLogger.e(getClass().getName(), "connection closed:", ex);
                                 } else {
-                                    Log.e(getClass().getName(), "connection error:", ex);
+                                    YaaccLogger.e(getClass().getName(), "connection error:", ex);
                                 }
                             }
 
@@ -362,18 +362,18 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
                         .register(UpnpProtocolHandler.NAMESPACE.getBasePath().getPath() + "/*", new YaaccUpnpServerProtocolRequestHandler(getNetworkDeviceListener().getUpnpProtocolHandler()))
                         .create();
                 httpServer.start();
-                Log.d(getClass().getName(), "HTTP server created and started successfully");
+                YaaccLogger.d(getClass().getName(), "HTTP server created and started successfully");
             } catch (Exception e) {
-                Log.e(getClass().getName(), "Failed to create HTTP server", e);
+                YaaccLogger.e(getClass().getName(), "Failed to create HTTP server", e);
                 httpServer = null;
                 throw new IOException("Failed to create HTTP server", e);
             }
         } else {
             try {
                 httpServer.resume();
-                Log.d(getClass().getName(), "HTTP server resumed");
+                YaaccLogger.d(getClass().getName(), "HTTP server resumed");
             } catch (Exception e) {
-                Log.e(getClass().getName(), "Failed to resume HTTP server", e);
+                YaaccLogger.e(getClass().getName(), "Failed to resume HTTP server", e);
                 httpServer = null;
                 throw new IOException("Failed to resume HTTP server", e);
             }
@@ -381,18 +381,18 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
 
         try {
             httpServer.listen(new InetSocketAddress(PORT), URIScheme.HTTP);
-            Log.d(getClass().getName(), "Server listening on port " + PORT);
-            Log.d(getClass().getName(), "Server status: " + httpServer.getStatus().name());
-            Log.d(getClass().getName(), "Server Endpoints: " + httpServer.getEndpoints().size());
+            YaaccLogger.d(getClass().getName(), "Server listening on port " + PORT);
+            YaaccLogger.d(getClass().getName(), "Server status: " + httpServer.getStatus().name());
+            YaaccLogger.d(getClass().getName(), "Server Endpoints: " + httpServer.getEndpoints().size());
         } catch (Exception e) {
-            Log.e(getClass().getName(), "Failed to bind HTTP server to port " + PORT, e);
+            YaaccLogger.e(getClass().getName(), "Failed to bind HTTP server to port " + PORT, e);
             if (httpServer != null) {
                 httpServer.close();
                 httpServer = null;
             }
             throw new IOException("Failed to bind HTTP server to port " + PORT, e);
         }
-        httpServer.getEndpoints().forEach(endpoint -> Log.d(getClass().getName(), "Endpoint: " + endpoint.toString()));
+        httpServer.getEndpoints().forEach(endpoint -> YaaccLogger.d(getClass().getName(), "Endpoint: " + endpoint.toString()));
 /*
         timer.schedule(new TimerTask() {
 
@@ -419,13 +419,13 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
             try (CloseableHttpResponse response = httpClient.execute(httpHead)) {
                 int statusCode = response.getCode();
                 if (statusCode >= 200 && statusCode < 300) {
-                    Log.i(getClass().getName(), "HttpServer responded with HTTP " + statusCode + ". It is operational.");
+                    YaaccLogger.i(getClass().getName(), "HttpServer responded with HTTP " + statusCode + ". It is operational.");
                 } else {
-                    Log.w(getClass().getName(), "HttpServer responded with HTTP " + statusCode + ". It might be listening but not fully operational.");
+                    YaaccLogger.w(getClass().getName(), "HttpServer responded with HTTP " + statusCode + ". It might be listening but not fully operational.");
                 }
             }
         } catch (IOException e) {
-            Log.e(getClass().getName(), "HttpServer is NOT responding to HTTP requests or is unreachable. Trying restart", e);
+            YaaccLogger.e(getClass().getName(), "HttpServer is NOT responding to HTTP requests or is unreachable. Trying restart", e);
             //restartServerService();
             if (httpServer != null && httpServer.getStatus() == IOReactorStatus.ACTIVE) {
                 httpServer.listen(new InetSocketAddress(PORT), URIScheme.HTTP);
@@ -433,8 +433,8 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
 
                     @Override
                     public void run() {
-                        Log.d(getClass().getName(), "Server Endpoints after restart listener: " + httpServer.getEndpoints().size());
-                        httpServer.getEndpoints().forEach(endpoint -> Log.d(getClass().getName(), "Endpoint: " + endpoint.toString()));
+                        YaaccLogger.d(getClass().getName(), "Server Endpoints after restart listener: " + httpServer.getEndpoints().size());
+                        httpServer.getEndpoints().forEach(endpoint -> YaaccLogger.d(getClass().getName(), "Endpoint: " + endpoint.toString()));
                     }
                 }, 500L);
             } else {
@@ -451,7 +451,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
             try {
                 httpServer.awaitShutdown(TimeValue.ofSeconds(3));
             } catch (InterruptedException e) {
-                Log.w(getClass().getName(), "got exception on stream server stop ", e);
+                YaaccLogger.w(getClass().getName(), "got exception on stream server stop ", e);
             }
         }
         httpServer = null;
@@ -462,7 +462,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
                 try {
                     createHttpServer();
                 } catch (IOException e) {
-                    Log.w(getClass().getName(), "got exception on stream server stop ", e);
+                    YaaccLogger.w(getClass().getName(), "got exception on stream server stop ", e);
                 }
             }
         }, 600L);
@@ -478,7 +478,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
             new Timer().schedule(new TimerTask() {
                 @Override
                 public void run() {
-                    Log.v(YaaccUpnpServerService.this.getClass().getName(), "Sending upnp alive notivication");
+                    YaaccLogger.v(YaaccUpnpServerService.this.getClass().getName(), "Sending upnp alive notivication");
                     SendingNotificationAlive sendingNotificationAlive;
                     if (localDevice != null) {
                         sendingNotificationAlive = new SendingNotificationAlive(getApplicationContext(), networkDeviceListener.getUdpTransiver(), localDevice);

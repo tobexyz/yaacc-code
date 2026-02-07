@@ -20,7 +20,7 @@ package de.yaacc.util;
 
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import androidx.preference.PreferenceManager;
 
@@ -59,16 +59,16 @@ public class InterfaceResolutionHelper {
                         result.add(iter.nextElement());
                     }
                 } else {
-                    Log.d(InterfaceResolutionHelper.class.getName(),
+                    YaaccLogger.d(InterfaceResolutionHelper.class.getName(),
                             "network interface not found by name, maybe device is offline");
                 }
             } catch (
                     SocketException se) {
-                Log.d(InterfaceResolutionHelper.class.getName(),
+                YaaccLogger.d(InterfaceResolutionHelper.class.getName(),
                         "Error while retrieving network interfaces", se);
             }
         } else {
-            Log.d(InterfaceResolutionHelper.class.getName(),
+            YaaccLogger.d(InterfaceResolutionHelper.class.getName(),
                     "network interface name is null, maybe device is offline");
         }
         return result.iterator();
@@ -122,7 +122,7 @@ public class InterfaceResolutionHelper {
                 }
             }
         } catch (SocketException se) {
-            Log.d(InterfaceResolutionHelper.class.getName(),
+            YaaccLogger.d(InterfaceResolutionHelper.class.getName(),
                     "Error while retrieving network interfaces", se);
         }
         return result;

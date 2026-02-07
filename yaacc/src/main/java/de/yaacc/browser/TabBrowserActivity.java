@@ -31,7 +31,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.PowerManager;
 import android.provider.Settings;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 import android.util.TypedValue;
 import android.view.ContextMenu;
 import android.view.ContextMenu.ContextMenuInfo;
@@ -210,7 +210,7 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
         if (!checkIfAlreadyhavePermission()) {
             requestForSpecificPermission();
         } else {
-            Log.d(getClass().getName(), "All permissions granted");
+            YaaccLogger.d(getClass().getName(), "All permissions granted");
         }
 
         checkBatteryOptimizationEnabled();
@@ -218,7 +218,7 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
         // local server startup
         upnpClient = ((Yaacc) getApplicationContext()).getUpnpClient();
         if (upnpClient == null) {
-            Log.d(getClass().getName(), "Upnp client is null");
+            YaaccLogger.d(getClass().getName(), "Upnp client is null");
             return;
         }
 
@@ -230,7 +230,7 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
         }
 
         checkIfReceivedShareIntent(null);
-        Log.d(this.getClass().getName(), "on create took: " + (System.currentTimeMillis() - start));
+        YaaccLogger.d(this.getClass().getName(), "on create took: " + (System.currentTimeMillis() - start));
     }
 
     private void checkBatteryOptimizationEnabled() {
@@ -244,7 +244,7 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
         try {
             startActivity(intent);
         } catch (ActivityNotFoundException ex) {
-            Log.d(getClass().getName(), "Ignoring exception ActivityNotFoundException during check for battery optimization");
+            YaaccLogger.d(getClass().getName(), "Ignoring exception ActivityNotFoundException during check for battery optimization");
         }
     }
 
@@ -366,13 +366,13 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
                 getApplicationContext().stopService(getYaaccUpnpServerService());
             }
             getApplicationContext().startForegroundService(getYaaccUpnpServerService());
-            Log.d(this.getClass().getName(), "Starting local service");
+            YaaccLogger.d(this.getClass().getName(), "Starting local service");
         } else {
             getApplicationContext().stopService(getYaaccUpnpServerService());
-            Log.d(this.getClass().getName(), "Stopping local service");
+            YaaccLogger.d(this.getClass().getName(), "Stopping local service");
         }
         leftSettings = false;
-        Log.d(this.getClass().getName(), "on on resume took: " + (System.currentTimeMillis() - start));
+        YaaccLogger.d(this.getClass().getName(), "on on resume took: " + (System.currentTimeMillis() - start));
     }
 
 
@@ -391,7 +391,7 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
 
     @Override
     public void onBackPressed() {
-        Log.d(TabBrowserActivity.class.getName(), "onBackPressed() ");
+        YaaccLogger.d(TabBrowserActivity.class.getName(), "onBackPressed() ");
         if (getSupportFragmentManager().getFragments().size() > tabLayout.getSelectedTabPosition()) {
             Fragment fragment = getSupportFragmentManager().getFragments().get(tabLayout.getSelectedTabPosition());
             if (!(fragment instanceof OnBackPressedListener) || !((OnBackPressedListener) fragment).onBackPressed()) {

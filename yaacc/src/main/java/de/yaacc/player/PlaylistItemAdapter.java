@@ -2,7 +2,7 @@ package de.yaacc.player;
 
 import android.content.Context;
 import android.graphics.Typeface;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -84,7 +84,7 @@ public class PlaylistItemAdapter extends RecyclerView.Adapter<PlaylistItemAdapte
 
         if (listPosition == selectedForMovePosition) {
             // Highlight the selected item (e.g., change background color or add a border)
-            Log.d(getClass().getName(), "Item selected for keyboard move: " + item.getTitle());
+            YaaccLogger.d(getClass().getName(), "Item selected for keyboard move: " + item.getTitle());
             holder.itemView.setBackgroundColor(context.getResources().getColor(R.color.design_default_color_secondary));
         } else {
             holder.itemView.setBackgroundColor(context.getResources().getColor(android.R.color.transparent));

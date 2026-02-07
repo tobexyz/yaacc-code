@@ -20,7 +20,7 @@ package de.yaacc.player;
 
 import android.content.ComponentName;
 import android.os.IBinder;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.action.ActionInvocation;
 import org.fourthline.cling.model.message.UpnpResponse;
@@ -56,14 +56,14 @@ public class AVTransportController extends AVTransportPlayer {
 
     public void onServiceConnected(ComponentName className, IBinder binder) {
         if (binder instanceof PlayerService.PlayerServiceBinder) {
-            Log.d(getClass().getName(), "ignore service connected");
+            YaaccLogger.d(getClass().getName(), "ignore service connected");
 
         }
     }
 
 
     public void onServiceDisconnected(ComponentName className) {
-        Log.d(getClass().getName(), "ignore service disconnected");
+        YaaccLogger.d(getClass().getName(), "ignore service disconnected");
 
     }
 
@@ -85,25 +85,25 @@ public class AVTransportController extends AVTransportPlayer {
             return;
         Service<?, ?> service = getUpnpClient().getAVTransportService(getDevice());
         if (service == null) {
-            Log.d(getClass().getName(),
+            YaaccLogger.d(getClass().getName(),
                     "No AVTransport-Service found on Device: "
                             + getDevice().getDisplayString());
             return;
         }
 
-        Log.d(getClass().getName(), "Action Next");
+        YaaccLogger.d(getClass().getName(), "Action Next");
         final ActionState actionState = new ActionState();
         actionState.actionFinished = false;
         Next actionCallback = new Next(service, getHttpRequestSender()) {
             @Override
             public void failure(ActionInvocation actioninvocation,
                                 UpnpResponse upnpresponse, String s) {
-                Log.d(getClass().getName(), "Failure UpnpResponse: "
+                YaaccLogger.d(getClass().getName(), "Failure UpnpResponse: "
                         + upnpresponse);
-                Log.d(getClass().getName(),
+                YaaccLogger.d(getClass().getName(),
                         upnpresponse != null ? "UpnpResponse: "
                                 + upnpresponse.getResponseDetails() : "");
-                Log.d(getClass().getName(), "s: " + s);
+                YaaccLogger.d(getClass().getName(), "s: " + s);
                 actionState.actionFinished = true;
             }
 
@@ -122,25 +122,25 @@ public class AVTransportController extends AVTransportPlayer {
             return;
         Service<?, ?> service = getUpnpClient().getAVTransportService(getDevice());
         if (service == null) {
-            Log.d(getClass().getName(),
+            YaaccLogger.d(getClass().getName(),
                     "No AVTransport-Service found on Device: "
                             + getDevice().getDisplayString());
             return;
         }
 
-        Log.d(getClass().getName(), "Action Previous");
+        YaaccLogger.d(getClass().getName(), "Action Previous");
         final ActionState actionState = new ActionState();
         actionState.actionFinished = false;
         Previous actionCallback = new Previous(service, getHttpRequestSender()) {
             @Override
             public void failure(ActionInvocation actioninvocation,
                                 UpnpResponse upnpresponse, String s) {
-                Log.d(getClass().getName(), "Failure UpnpResponse: "
+                YaaccLogger.d(getClass().getName(), "Failure UpnpResponse: "
                         + upnpresponse);
-                Log.d(getClass().getName(),
+                YaaccLogger.d(getClass().getName(),
                         upnpresponse != null ? "UpnpResponse: "
                                 + upnpresponse.getResponseDetails() : "");
-                Log.d(getClass().getName(), "s: " + s);
+                YaaccLogger.d(getClass().getName(), "s: " + s);
                 actionState.actionFinished = true;
             }
 
@@ -159,25 +159,25 @@ public class AVTransportController extends AVTransportPlayer {
             return;
         Service<?, ?> service = getUpnpClient().getAVTransportService(getDevice());
         if (service == null) {
-            Log.d(getClass().getName(),
+            YaaccLogger.d(getClass().getName(),
                     "No AVTransport-Service found on Device: "
                             + getDevice().getDisplayString());
             return;
         }
 
-        Log.d(getClass().getName(), "Action Play");
+        YaaccLogger.d(getClass().getName(), "Action Play");
         final ActionState actionState = new ActionState();
         actionState.actionFinished = false;
         Play actionCallback = new Play(service, getHttpRequestSender()) {
             @Override
             public void failure(ActionInvocation actioninvocation,
                                 UpnpResponse upnpresponse, String s) {
-                Log.d(getClass().getName(), "Failure UpnpResponse: "
+                YaaccLogger.d(getClass().getName(), "Failure UpnpResponse: "
                         + upnpresponse);
-                Log.d(getClass().getName(),
+                YaaccLogger.d(getClass().getName(),
                         upnpresponse != null ? "UpnpResponse: "
                                 + upnpresponse.getResponseDetails() : "");
-                Log.d(getClass().getName(), "s: " + s);
+                YaaccLogger.d(getClass().getName(), "s: " + s);
                 actionState.actionFinished = true;
             }
 

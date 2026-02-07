@@ -22,7 +22,7 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.database.Cursor;
 import android.provider.MediaStore;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.support.model.DIDLObject;
 import org.fourthline.cling.support.model.DIDLObject.Property.UPNP;
@@ -146,7 +146,7 @@ public class MusicGenreItemBrowser extends ContentBrowser {
                 }
                 @SuppressLint("Range") String mimeTypeString = mediaCursor.getString(mediaCursor
                         .getColumnIndex(MediaStore.Audio.Genres.Members.MIME_TYPE));
-                Log.d(getClass().getName(), "Mimetype: " + mimeTypeString);
+                YaaccLogger.d(getClass().getName(), "Mimetype: " + mimeTypeString);
                 MimeType mimeType = MimeType.valueOf(mimeTypeString);
                 // file parameter only needed for media players which decide
                 // the ability of playing a file by the file extension
@@ -173,10 +173,10 @@ public class MusicGenreItemBrowser extends ContentBrowser {
                 }
                 result = musicTrack;
 
-                Log.d(getClass().getName(), "MusicTrack: " + id + " Name: " + name
+                YaaccLogger.d(getClass().getName(), "MusicTrack: " + id + " Name: " + name
                         + " uri: " + uri);
             } else {
-                Log.d(getClass().getName(), "Item " + myId + "  not found.");
+                YaaccLogger.d(getClass().getName(), "Item " + myId + "  not found.");
             }
         }
         return result;

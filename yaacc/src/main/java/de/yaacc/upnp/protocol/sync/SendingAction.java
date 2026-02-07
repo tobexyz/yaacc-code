@@ -15,7 +15,7 @@
 
 package de.yaacc.upnp.protocol.sync;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import androidx.annotation.Nullable;
 
@@ -71,14 +71,14 @@ public class SendingAction extends SendingSync<OutgoingActionRequestMessage, Inc
     protected IncomingActionResponseMessage invokeRemote(OutgoingActionRequestMessage requestMessage) throws IOException {
         Device device = actionInvocation.getAction().getService().getDevice();
 
-        Log.v(getClass().getName(), "Sending outgoing action call '" + actionInvocation.getAction().getName() + "' to remote service of: " + device);
+        YaaccLogger.v(getClass().getName(), "Sending outgoing action call '" + actionInvocation.getAction().getName() + "' to remote service of: " + device);
         IncomingActionResponseMessage responseMessage = null;
         try {
 
             StreamResponseMessage streamResponse = sendRemoteRequest(requestMessage);
 
             if (streamResponse == null) {
-                Log.v(getClass().getName(), "No connection or no no response received, returning null");
+                YaaccLogger.v(getClass().getName(), "No connection or no no response received, returning null");
                 actionInvocation.setFailure(new ActionException(ErrorCode.ACTION_FAILED, "Connection error or no response received"));
                 return null;
             }
@@ -86,7 +86,7 @@ public class SendingAction extends SendingSync<OutgoingActionRequestMessage, Inc
             responseMessage = new IncomingActionResponseMessage(streamResponse);
 
             if (responseMessage.isFailedNonRecoverable()) {
-                Log.v(getClass().getName(), "Response was a non-recoverable failure: " + responseMessage);
+                YaaccLogger.v(getClass().getName(), "Response was a non-recoverable failure: " + responseMessage);
                 throw new ActionException(
                         ErrorCode.ACTION_FAILED, "Non-recoverable remote execution failure: " + responseMessage.getOperation().getResponseDetails()
                 );
@@ -100,7 +100,7 @@ public class SendingAction extends SendingSync<OutgoingActionRequestMessage, Inc
 
 
         } catch (ActionException ex) {
-            Log.v(getClass().getName(), "Remote action invocation failed, returning Internal Server Error message: " + ex.getMessage());
+            YaaccLogger.v(getClass().getName(), "Remote action invocation failed, returning Internal Server Error message: " + ex.getMessage());
             actionInvocation.setFailure(ex);
             if (responseMessage == null || !responseMessage.getOperation().isFailed()) {
                 return new IncomingActionResponseMessage(new UpnpResponse(UpnpResponse.Status.INTERNAL_SERVER_ERROR));
@@ -114,20 +114,20 @@ public class SendingAction extends SendingSync<OutgoingActionRequestMessage, Inc
             throws ActionException, IOException {
 
         try {
-            Log.v(getClass().getName(), "Writing SOAP request body of: " + requestMessage);
+            YaaccLogger.v(getClass().getName(), "Writing SOAP request body of: " + requestMessage);
             soapActionProcessor.writeBody(requestMessage, actionInvocation);
 
-            Log.v(getClass().getName(), "Sending SOAP body of message as stream to remote device");
+            YaaccLogger.v(getClass().getName(), "Sending SOAP body of message as stream to remote device");
             return httpRequestSender.send(requestMessage);
 
         } catch (UnsupportedDataException ex) {
-            Log.v(getClass().getName(), "Error writing SOAP body: " + ex);
-            Log.v(getClass().getName(), "Exception root cause: ", unwrap(ex));
+            YaaccLogger.v(getClass().getName(), "Error writing SOAP body: " + ex);
+            YaaccLogger.v(getClass().getName(), "Exception root cause: ", unwrap(ex));
 
             throw new ActionException(ErrorCode.ACTION_FAILED, "Error writing request message. " + ex.getMessage());
         } catch (IOException ex) {
-            Log.v(getClass().getName(), "Error writing SOAP body: " + ex);
-            Log.v(getClass().getName(), "Exception root cause: ", unwrap(ex));
+            YaaccLogger.v(getClass().getName(), "Error writing SOAP body: " + ex);
+            YaaccLogger.v(getClass().getName(), "Exception root cause: ", unwrap(ex));
 
             throw new ActionException(ErrorCode.ACTION_FAILED, "Error writing request message. " + ex.getMessage());
         }
@@ -145,11 +145,11 @@ public class SendingAction extends SendingSync<OutgoingActionRequestMessage, Inc
     protected void handleResponse(IncomingActionResponseMessage responseMsg) throws ActionException {
 
         try {
-            Log.v(getClass().getName(), "Received response for outgoing call, reading SOAP response body: " + responseMsg);
+            YaaccLogger.v(getClass().getName(), "Received response for outgoing call, reading SOAP response body: " + responseMsg);
             soapActionProcessor.readBody(responseMsg, actionInvocation);
         } catch (UnsupportedDataException ex) {
-            Log.v(getClass().getName(), "Error reading SOAP body: " + ex);
-            Log.v(getClass().getName(), "Exception root cause: ", unwrap(ex));
+            YaaccLogger.v(getClass().getName(), "Error reading SOAP body: " + ex);
+            YaaccLogger.v(getClass().getName(), "Exception root cause: ", unwrap(ex));
             throw new ActionException(
                     ErrorCode.ACTION_FAILED,
                     "Error reading SOAP response message. " + ex.getMessage(),
@@ -161,12 +161,12 @@ public class SendingAction extends SendingSync<OutgoingActionRequestMessage, Inc
     protected void handleResponseFailure(IncomingActionResponseMessage responseMsg) throws ActionException {
 
         try {
-            Log.v(getClass().getName(), "Received response with Internal Server Error, reading SOAP failure message");
+            YaaccLogger.v(getClass().getName(), "Received response with Internal Server Error, reading SOAP failure message");
 
             soapActionProcessor.readBody(responseMsg, actionInvocation);
         } catch (UnsupportedDataException ex) {
-            Log.v(getClass().getName(), "Error reading SOAP body: " + ex);
-            Log.v(getClass().getName(), "Exception root cause: ", unwrap(ex));
+            YaaccLogger.v(getClass().getName(), "Error reading SOAP body: " + ex);
+            YaaccLogger.v(getClass().getName(), "Exception root cause: ", unwrap(ex));
             throw new ActionException(
                     ErrorCode.ACTION_FAILED,
                     "Error reading SOAP response failure message. " + ex.getMessage(),

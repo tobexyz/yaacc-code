@@ -15,7 +15,7 @@
 
 package de.yaacc.upnp.protocol.sync;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.gena.CancelReason;
 import org.fourthline.cling.model.gena.RemoteGENASubscription;
@@ -60,7 +60,7 @@ public class SendingUnsubscribe extends SendingSync<OutgoingUnsubscribeRequestMe
 
     protected StreamResponseMessage executeSync() throws IOException {
 
-        Log.v(getClass().getName(), "Sending unsubscribe request: " + getInputMessage());
+        YaaccLogger.v(getClass().getName(), "Sending unsubscribe request: " + getInputMessage());
 
         StreamResponseMessage response = null;
         try {
@@ -81,13 +81,13 @@ public class SendingUnsubscribe extends SendingSync<OutgoingUnsubscribeRequestMe
                 new Runnable() {
                     public void run() {
                         if (response == null) {
-                            Log.v(getClass().getName(), "Unsubscribe failed, no response received");
+                            YaaccLogger.v(getClass().getName(), "Unsubscribe failed, no response received");
                             subscription.end(CancelReason.UNSUBSCRIBE_FAILED, null);
                         } else if (response.getOperation().isFailed()) {
-                            Log.v(getClass().getName(), "Unsubscribe failed, response was: " + response);
+                            YaaccLogger.v(getClass().getName(), "Unsubscribe failed, response was: " + response);
                             subscription.end(CancelReason.UNSUBSCRIBE_FAILED, response.getOperation());
                         } else {
-                            Log.v(getClass().getName(), "Unsubscribe successful, response was: " + response);
+                            YaaccLogger.v(getClass().getName(), "Unsubscribe successful, response was: " + response);
                             subscription.end(null, response.getOperation());
                         }
                     }

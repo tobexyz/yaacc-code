@@ -18,7 +18,7 @@
 package de.yaacc.browser;
 
 import android.os.Bundle;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -101,7 +101,7 @@ public class PlayerListFragment extends Fragment implements
     }
 
     public boolean onBackPressed() {
-        Log.d(PlayerListFragment.class.getName(), "onBackPressed() CurrentPosition");
+        YaaccLogger.d(PlayerListFragment.class.getName(), "onBackPressed() CurrentPosition");
         if (requireActivity().getParent() instanceof TabBrowserActivity) {
             ((TabBrowserActivity) requireActivity().getParent()).setCurrentTab(BrowserTabs.RECEIVER);
         }

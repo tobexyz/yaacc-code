@@ -15,7 +15,7 @@
 
 package de.yaacc.upnp.protocol.sync;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.gena.LocalGENASubscription;
 import org.fourthline.cling.model.message.StreamResponseMessage;
@@ -73,16 +73,16 @@ public class SendingEvent extends SendingSync<OutgoingEventRequestMessage, Strea
 
     protected StreamResponseMessage executeSync() throws IOException {
 
-        Log.v(getClass().getName(), "Sending event for subscription: " + subscriptionId);
+        YaaccLogger.v(getClass().getName(), "Sending event for subscription: " + subscriptionId);
 
         StreamResponseMessage lastResponse = null;
 
         for (OutgoingEventRequestMessage requestMessage : requestMessages) {
 
             if (currentSequence.getValue() == 0) {
-                Log.v(getClass().getName(), "Sending initial event message to callback URL: " + requestMessage.getUri());
+                YaaccLogger.v(getClass().getName(), "Sending initial event message to callback URL: " + requestMessage.getUri());
             } else {
-                Log.v(getClass().getName(), "Sending event message '" + currentSequence + "' to callback URL: " + requestMessage.getUri());
+                YaaccLogger.v(getClass().getName(), "Sending event message '" + currentSequence + "' to callback URL: " + requestMessage.getUri());
             }
 
 
@@ -92,7 +92,7 @@ public class SendingEvent extends SendingSync<OutgoingEventRequestMessage, Strea
             } catch (IOException e) {
                 throw new IOException(e);
             }
-            Log.v(getClass().getName(), "Received event callback response: " + lastResponse);
+            YaaccLogger.v(getClass().getName(), "Received event callback response: " + lastResponse);
 
         }
 

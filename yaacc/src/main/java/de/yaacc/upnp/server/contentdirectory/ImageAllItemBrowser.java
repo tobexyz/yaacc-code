@@ -22,7 +22,7 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.database.Cursor;
 import android.provider.MediaStore;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 import android.webkit.MimeTypeMap;
 
 import org.fourthline.cling.support.model.DIDLObject;
@@ -79,7 +79,7 @@ public class ImageAllItemBrowser extends ContentBrowser {
                         .getColumnIndex(MediaStore.Images.ImageColumns.SIZE)));
                 @SuppressLint("Range") String mimeTypeSTring = mImageCursor.getString(mImageCursor
                         .getColumnIndex(MediaStore.Images.ImageColumns.MIME_TYPE));
-                Log.d(getClass().getName(),
+                YaaccLogger.d(getClass().getName(),
                         "Mimetype: "
                                 + mimeTypeSTring);
                 MimeType mimeType = MimeType
@@ -98,10 +98,10 @@ public class ImageAllItemBrowser extends ContentBrowser {
                         + YaaccUpnpServerService.PORT + "/thumb/" + id);
                 result.replaceFirstProperty(new UPNP.ALBUM_ART_URI(
                         albumArtUri));
-                Log.d(getClass().getName(), "Image: " + id + " Name: " + name
+                YaaccLogger.d(getClass().getName(), "Image: " + id + " Name: " + name
                         + " uri: " + uri);
             } else {
-                Log.d(getClass().getName(), "Item " + myId + "  not found.");
+                YaaccLogger.d(getClass().getName(), "Item " + myId + "  not found.");
             }
         }
         return result;

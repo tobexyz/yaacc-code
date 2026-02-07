@@ -25,7 +25,7 @@ import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.IBinder;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.KeyEvent;
@@ -81,7 +81,7 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
 
     public void onServiceConnected(ComponentName className, IBinder binder) {
         if (binder instanceof PlayerService.PlayerServiceBinder) {
-            Log.d(getClass().getName(), "PlayerService connected");
+            YaaccLogger.d(getClass().getName(), "PlayerService connected");
             playerService = ((PlayerService.PlayerServiceBinder) binder).getService();
             initialize();
         }
@@ -89,7 +89,7 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
 
 
     public void onServiceDisconnected(ComponentName className) {
-        Log.d(getClass().getName(), "PlayerService disconnected");
+        YaaccLogger.d(getClass().getName(), "PlayerService disconnected");
         playerService = null;
     }
 
@@ -107,7 +107,7 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
             try {
                 getPlayerService().unbindService(this);
             } catch (IllegalArgumentException iae) {
-                Log.d(getClass().getName(), "Ignore exception on unbind service while activity pause");
+                YaaccLogger.d(getClass().getName(), "Ignore exception on unbind service while activity pause");
             }
         }
     }
@@ -183,7 +183,7 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
         try {
             unbindService(this);
         } catch (IllegalArgumentException iae) {
-            Log.d(getClass().getName(), "Ignore exception on unbind service while activity destroy");
+            YaaccLogger.d(getClass().getName(), "Ignore exception on unbind service while activity destroy");
         }
 
     }
@@ -298,7 +298,7 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
         SeekBar volumeSeekBar = (SeekBar) findViewById(R.id.avtransportPlayerActivityControlVolumeSeekBar);
         volumeSeekBar.setMax(100);
         if (getPlayer() != null && getPlayer().hasActionGetVolume()) {
-            Log.d(getClass().getName(), "Volume:" + getPlayer().getVolume());
+            YaaccLogger.d(getClass().getName(), "Volume:" + getPlayer().getVolume());
             volumeSeekBar.setEnabled(true);
             volumeSeekBar.setProgress(getPlayer().getVolume());
         } else {
@@ -346,10 +346,10 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
                     long durationTimeMillis = Objects.requireNonNull(dateFormat.parse(durationString)).getTime();
 
                     int targetPosition = Double.valueOf(durationTimeMillis * ((double) seekBar.getProgress() / 100)).intValue();
-                    Log.d(getClass().getName(), "TargetPosition" + targetPosition);
+                    YaaccLogger.d(getClass().getName(), "TargetPosition" + targetPosition);
                     getPlayer().seekTo(targetPosition);
                 } catch (ParseException pex) {
-                    Log.d(getClass().getName(), "Error while parsing time string", pex);
+                    YaaccLogger.d(getClass().getName(), "Error while parsing time string", pex);
                 }
 
             }
@@ -379,7 +379,7 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
             this.bindService(new Intent(this, PlayerService.class),
                     this, Context.BIND_AUTO_CREATE);
         } catch (Exception ex) {
-            Log.d(getClass().getName(), "ignore exception on service bind during onCreate");
+            YaaccLogger.d(getClass().getName(), "ignore exception on service bind during onCreate");
         }
         // initialize buttons
         playerId = getIntent().getIntExtra(AVTransportPlayer.PLAYER_ID, -1);
@@ -399,7 +399,7 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
                 findViewById(R.id.avtransportPlayerActivitySeparator).setVisibility(View.INVISIBLE);
             }
         }
-        Log.d(getClass().getName(), "Got id from intent: " + playerId);
+        YaaccLogger.d(getClass().getName(), "Got id from intent: " + playerId);
 
     }
 
@@ -493,7 +493,7 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
                 seekBar.setProgress(progress);
             }
         } catch (ParseException pex) {
-            Log.d(getClass().getName(), "Error while parsing time string", pex);
+            YaaccLogger.d(getClass().getName(), "Error while parsing time string", pex);
         }
     }
 

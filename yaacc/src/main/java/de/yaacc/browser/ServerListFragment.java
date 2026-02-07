@@ -22,7 +22,7 @@ import static com.google.android.material.timepicker.MaterialTimePicker.INPUT_MO
 import android.content.SharedPreferences;
 import android.graphics.drawable.Drawable;
 import android.os.Bundle;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -84,7 +84,7 @@ public class ServerListFragment extends Fragment implements
     }
 
     public boolean onBackPressed() {
-        Log.d(ServerListFragment.class.getName(), "onBackPressed()");
+        YaaccLogger.d(ServerListFragment.class.getName(), "onBackPressed()");
         ((Yaacc) requireActivity().getApplicationContext()).exit();
         ServerListFragment.super.requireActivity().finish();
         return true;
@@ -122,7 +122,7 @@ public class ServerListFragment extends Fragment implements
             try {
                 requireActivity();
             } catch (IllegalStateException iex) {
-                Log.d(getClass().getName(), "ignoring illegal state exception on device added", iex);
+                YaaccLogger.d(getClass().getName(), "ignoring illegal state exception on device added", iex);
                 return;
             }
             if (requireActivity().getParent() instanceof TabBrowserActivity) {
@@ -136,7 +136,7 @@ public class ServerListFragment extends Fragment implements
      */
     @Override
     public void deviceRemoved(Device<?, ?, ?> device) {
-        Log.d(this.getClass().toString(), "device removal called");
+        YaaccLogger.d(this.getClass().toString(), "device removal called");
 
         populateDeviceList();
 
@@ -239,7 +239,7 @@ public class ServerListFragment extends Fragment implements
             picker.addOnPositiveButtonClickListener(dialog -> {
 
                 long millis = (picker.getHour() * 3600L + picker.getMinute() * 60L) * 1000L;
-                Log.d(getClass().getName(), "time set: " + picker.getHour() + ":" + picker.getMinute() + " millis: " + millis);
+                YaaccLogger.d(getClass().getName(), "time set: " + picker.getHour() + ":" + picker.getMinute() + " millis: " + millis);
                 getPreferences().edit().putLong(getContext().getString(R.string.settings_shutdown_timer), millis).apply();
                 if (shutdownTimerSwitch.isChecked()) {
                     ((Yaacc) getContext().getApplicationContext()).stopShutdownTimer();

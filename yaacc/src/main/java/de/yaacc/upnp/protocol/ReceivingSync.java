@@ -15,7 +15,7 @@
 
 package de.yaacc.upnp.protocol;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.message.StreamRequestMessage;
 import org.fourthline.cling.model.message.StreamResponseMessage;
@@ -57,7 +57,7 @@ public abstract class ReceivingSync<IN extends StreamRequestMessage, OUT extends
         outputMessage = executeSync();
 
         if (outputMessage != null && getRemoteClientInfo().getExtraResponseHeaders().size() > 0) {
-            Log.v(getClass().getName(), "Setting extra headers on response message: " + getRemoteClientInfo().getExtraResponseHeaders().size());
+            YaaccLogger.v(getClass().getName(), "Setting extra headers on response message: " + getRemoteClientInfo().getExtraResponseHeaders().size());
             outputMessage.getHeaders().putAll(getRemoteClientInfo().getExtraResponseHeaders());
         }
     }

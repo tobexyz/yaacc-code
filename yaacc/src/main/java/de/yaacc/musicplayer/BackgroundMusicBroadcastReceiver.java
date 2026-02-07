@@ -22,7 +22,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.net.Uri;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 /**
  * @author Tobias Schoene (openbit)
@@ -42,7 +42,7 @@ public class BackgroundMusicBroadcastReceiver extends BroadcastReceiver {
 
 
     public BackgroundMusicBroadcastReceiver(BackgroundMusicService backgroundMusicService) {
-        Log.d(this.getClass().getName(), "Starting Broadcast Receiver...");
+        YaaccLogger.d(this.getClass().getName(), "Starting Broadcast Receiver...");
         assert (backgroundMusicService != null);
         this.backgroundMusicService = backgroundMusicService;
 
@@ -53,9 +53,9 @@ public class BackgroundMusicBroadcastReceiver extends BroadcastReceiver {
      */
     @Override
     public void onReceive(Context context, Intent intent) {
-        Log.d(this.getClass().getName(), "Received Action: " + intent.getAction());
+        YaaccLogger.d(this.getClass().getName(), "Received Action: " + intent.getAction());
         if (backgroundMusicService == null) return;
-        Log.d(this.getClass().getName(), "Execute Action on backgroundMusicService: " + backgroundMusicService);
+        YaaccLogger.d(this.getClass().getName(), "Execute Action on backgroundMusicService: " + backgroundMusicService);
         if (ACTION_PLAY.equals(intent.getAction())) {
             backgroundMusicService.play();
         } else if (ACTION_PAUSE.equals(intent.getAction())) {
@@ -72,7 +72,7 @@ public class BackgroundMusicBroadcastReceiver extends BroadcastReceiver {
     }
 
     public void registerReceiver() {
-        Log.d(this.getClass().getName(), "Register BackgroundMusicBroadcastReceiver");
+        YaaccLogger.d(this.getClass().getName(), "Register BackgroundMusicBroadcastReceiver");
         IntentFilter intentFilter = new IntentFilter();
         intentFilter.addAction(ACTION_PLAY);
         intentFilter.addAction(ACTION_PAUSE);
