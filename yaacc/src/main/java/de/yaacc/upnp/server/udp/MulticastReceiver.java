@@ -159,6 +159,9 @@ public class MulticastReceiver {
                 } catch (SocketException ex) {
                     YaaccLogger.v(getClass().getName(), "Socket closed", ex);
                     break;
+                } catch (java.nio.channels.AsynchronousCloseException ex) {
+                    YaaccLogger.v(getClass().getName(), "Channel closed asynchronously", ex);
+                    break;
                 } catch (UnsupportedDataException ex) {
                     YaaccLogger.v(getClass().getName(), "Could not read datagram: " + ex.getMessage(), ex);
                 } catch (Exception ex) {
