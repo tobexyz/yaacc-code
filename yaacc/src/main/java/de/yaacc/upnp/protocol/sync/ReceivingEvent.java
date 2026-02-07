@@ -1,4 +1,22 @@
 /*
+ *
+ * Copyright (C) 2026 Tobias Schoene www.yaacc.de
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 3
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ */
+/*
  * Copyright (C) 2013 4th Line GmbH, Switzerland
  *
  * The contents of this file are subject to the terms of either the GNU
@@ -39,7 +57,7 @@ import de.yaacc.upnp.registry.Registry;
  * Once found, the GENA event message payload will be transformed and the
  * {@link RemoteGENASubscription#receive(org.fourthline.cling.model.types.UnsignedIntegerFourBytes,
  * java.util.Collection)} method will be called asynchronously using the executor
- * returned by {@link org.fourthline.cling.UpnpServiceConfiguration#getRegistryListenerExecutor()}.
+ * .
  * </p>
  *
  * @author Christian Bauer
