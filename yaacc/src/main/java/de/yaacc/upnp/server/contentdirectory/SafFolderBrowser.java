@@ -19,6 +19,7 @@
 package de.yaacc.upnp.server.contentdirectory;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.media.MediaMetadataRetriever;
 import android.net.Uri;
 import android.provider.DocumentsContract;
@@ -26,6 +27,7 @@ import android.util.Base64;
 import android.util.Log;
 
 import androidx.documentfile.provider.DocumentFile;
+import androidx.preference.PreferenceManager;
 
 import org.fourthline.cling.support.model.DIDLObject;
 import org.fourthline.cling.support.model.Protocol;
@@ -100,10 +102,10 @@ public class SafFolderBrowser extends ContentBrowser {
 
     @Override
     public List<Container> browseContainer(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
-        Log.d("SafFolderBrowser", "browseContainer called with myId: " + myId);
+        Log.d(getClass().getName(), "browseContainer called with myId: " + myId);
         List<Container> result = new ArrayList<>();
         if (myId.equals(ContentDirectoryIDs.SAF_FOLDER.getId())) {
-            Log.d("SafFolderBrowser", "Browsing root SAF folder");
+            Log.d(getClass().getName(), "Browsing root SAF folder");
             List<String> sortedPathes = new ArrayList<>(getSelectedSafPathes());
             Collections.sort(sortedPathes);
 
@@ -117,18 +119,18 @@ public class SafFolderBrowser extends ContentBrowser {
                     String title = file.getName() != null ? file.getName() : path;
                     String base64Str = Base64.encodeToString(file.getUri().toString().getBytes(), Base64.NO_WRAP);
                     String folderId = ContentDirectoryIDs.SAF_PREFIX.getId() + base64Str;
-                    Log.d("SafFolderBrowser", "Creating root folder: " + title + " with ID: " + folderId);
+                    Log.d(getClass().getName(), "Creating root folder: " + title + " with ID: " + folderId);
                     StorageFolder folder = new StorageFolder(folderId, ContentDirectoryIDs.SAF_FOLDER.getId(), title, "yaacc", 0, null);
                     result.add(folder);
                 }
             }
         } else {
             // Browse subfolder
-            Log.d("SafFolderBrowser", "Browsing subfolder with ID: " + myId);
+            Log.d(getClass().getName(), "Browsing subfolder with ID: " + myId);
             String pathEnc = myId.substring(ContentDirectoryIDs.SAF_PREFIX.getId().length());
-            Log.d("SafFolderBrowser", "Encoded path: " + pathEnc);
+            Log.d(getClass().getName(), "Encoded path: " + pathEnc);
             String path = new String(Base64.decode(pathEnc.getBytes(), Base64.NO_WRAP));
-            Log.d("SafFolderBrowser", "Decoded path: " + path);
+            Log.d(getClass().getName(), "Decoded path: " + path);
 
             Uri uri = Uri.parse(path);
             DocumentFile root = null;
@@ -137,25 +139,25 @@ public class SafFolderBrowser extends ContentBrowser {
             if (path.contains("/tree/")) {
                 // This is a tree URI, use it directly
                 root = DocumentFile.fromTreeUri(getContext(), uri);
-                Log.d("SafFolderBrowser", "Using tree URI: " + path);
+                Log.d(getClass().getName(), "Using tree URI: " + path);
             } else {
                 // This is a document URI, we need to find it within its parent tree
-                Log.d("SafFolderBrowser", "Document URI detected, finding parent tree: " + path);
+                Log.d(getClass().getName(), "Document URI detected, finding parent tree: " + path);
                 // For now, skip these problematic folders to avoid showing parent content
-                Log.w("SafFolderBrowser", "Skipping document URI folder to avoid parent content");
+                Log.w(getClass().getName(), "Skipping document URI folder to avoid parent content");
                 return result;
             }
 
             if (root != null && root.isDirectory()) {
                 DocumentFile[] files = root.listFiles();
-                Log.d("SafFolderBrowser", "Found " + files.length + " files in subfolder");
+                Log.d(getClass().getName(), "Found " + files.length + " files in subfolder");
                 int start = (int) Math.max(0, firstResult);
                 int end = (int) Math.min(files.length, start + maxResults);
-                Log.d("SafFolderBrowser", "Parent: " + myId);
+                Log.d(getClass().getName(), "Parent: " + myId);
                 for (int i = start; i < end; i++) {
                     DocumentFile file = files[i];
                     if (file.isDirectory()) {
-                        Log.d("SafFolderBrowser", "Child: " + file.getUri().toString());
+                        Log.d(getClass().getName(), "Child: " + file.getUri());
                         String title = file.getName() != null ? file.getName() : file.getUri().toString();
 
                         // Create tree URI for the child folder so it can be browsed properly
@@ -163,36 +165,36 @@ public class SafFolderBrowser extends ContentBrowser {
                             String authority = file.getUri().getAuthority();
                             String documentId = DocumentsContract.getDocumentId(file.getUri());
                             Uri childTreeUri = DocumentsContract.buildTreeDocumentUri(authority, documentId);
-                            Log.d("SafFolderBrowser", "Child tree URI: " + childTreeUri);
+                            Log.d(getClass().getName(), "Child tree URI: " + childTreeUri);
 
                             // Test if we can access this tree URI
                             DocumentFile testAccess = DocumentFile.fromTreeUri(getContext(), childTreeUri);
-                            if (testAccess != null && testAccess.canRead()) {
+                            if (testAccess != null) {
                                 String base64Str = Base64.encodeToString(childTreeUri.toString().getBytes(), Base64.NO_WRAP);
                                 String childId = ContentDirectoryIDs.SAF_PREFIX.getId() + base64Str;
-                                Log.d("SafFolderBrowser", "Creating child folder: " + title + " with ID: " + childId);
+                                Log.d(getClass().getName(), "Creating child folder: " + title + " with ID: " + childId);
                                 StorageFolder folder = new StorageFolder(childId, myId, title, "yaacc", 0, null);
+                                folder.setRestricted(testAccess.canRead());
                                 result.add(folder);
                             } else {
-
-                                Log.w("SafFolderBrowser", "Cannot access child tree URI, skipping folder: " + title);
+                                Log.w(getClass().getName(), "Cannot access child tree URI, skipping folder: " + title);
                             }
                         } catch (Exception e) {
-                            Log.e("SafFolderBrowser", "Error creating tree URI for child, skipping folder: " + title, e);
+                            Log.e(getClass().getName(), "Error creating tree URI for child, skipping folder: " + title, e);
                         }
                     }
                 }
             } else {
-                Log.e("SafFolderBrowser", "Root DocumentFile is null or not a directory for path: " + path);
+                Log.e(getClass().getName(), "Root DocumentFile is null or not a directory for path: " + path);
             }
         }
-        Log.d("SafFolderBrowser", "Returning " + result.size() + " containers");
+        Log.d(getClass().getName(), "Returning " + result.size() + " containers");
         return result;
     }
 
     @Override
     public List<Item> browseItem(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
-        Log.d("SafFolderBrowser", "browseItem called with myId: " + myId);
+        Log.d(getClass().getName(), "browseItem called with myId: " + myId);
         List<Item> result = new ArrayList<>();
         if (myId.equals(ContentDirectoryIDs.SAF_FOLDER.getId())) {
             List<String> sortedPathes = new ArrayList<>(getSelectedSafPathes());
@@ -205,38 +207,47 @@ public class SafFolderBrowser extends ContentBrowser {
                 String path = sortedPathes.get(i);
                 DocumentFile file = DocumentFile.fromSingleUri(getContext(), Uri.parse(path));
                 if (file != null && !file.isDirectory()) {
-                    addItem(contentDirectory, result, path, file, myId);
+                    addItem(contentDirectory, result, path, file, myId, !file.canRead());
                 }
             }
         } else {
             // Browse subfolder items
-            Log.d("SafFolderBrowser", "Browsing subfolder items for: " + myId);
+            Log.d(getClass().getName(), "Browsing subfolder items for: " + myId);
             String pathEnc = myId.substring(ContentDirectoryIDs.SAF_PREFIX.getId().length());
             String path = new String(Base64.decode(pathEnc.getBytes(), Base64.NO_WRAP));
-            Log.d("SafFolderBrowser", "Decoded path: " + path);
+            Log.d(getClass().getName(), "Decoded path: " + path);
             DocumentFile root = DocumentFile.fromTreeUri(getContext(), Uri.parse(path));
             if (root != null && root.isDirectory()) {
-                DocumentFile[] files = root.listFiles();
-                Log.d("SafFolderBrowser", "Found " + files.length + " files in folder");
-                int start = (int) Math.max(0, firstResult);
-                int end = (int) Math.min(files.length, start + maxResults);
-                for (int i = start; i < end; i++) {
-                    DocumentFile file = files[i];
-                    if (!file.isDirectory()) {
-                        addItem(contentDirectory, result, file.getUri().toString(), file, myId);
+                if (root.canRead()) {
+                    DocumentFile[] files = root.listFiles();
+                    Log.d(getClass().getName(), "Found " + files.length + " files in folder");
+                    int start = (int) Math.max(0, firstResult);
+                    int end = (int) Math.min(files.length, start + maxResults);
+                    for (int i = start; i < end; i++) {
+                        DocumentFile file = files[i];
+                        if (!file.isDirectory()) {
+                            addItem(contentDirectory, result, file.getUri().toString(), file, myId, !file.canRead());
+                        }
                     }
+                } else {
+                    Log.w(getClass().getName(), "Cannot access folder, skipping: " + path);
                 }
             } else {
-                Log.e("SafFolderBrowser", "Root DocumentFile is null or not a directory for path: " + path);
+                Log.e(getClass().getName(), "Root DocumentFile is null or not a directory for path: " + path);
             }
         }
-        Log.d("SafFolderBrowser", "Returning " + result.size() + " items");
+        Log.d(getClass().getName(), "Returning " + result.size() + " items");
         return result;
     }
 
-    private void addItem(YaaccContentDirectory contentDirectory, List<Item> result, String path, DocumentFile file, String parentId) {
+    private void addItem(YaaccContentDirectory contentDirectory, List<Item> result, String path, DocumentFile file, String parentId, boolean restricted) {
         String mimeTypeStr = file.getType();
-
+        long currentTime = System.currentTimeMillis();
+        Log.d(getClass().getName(), "Adding item for: " + path + " with mime type: " + mimeTypeStr);
+        if (file.getName().endsWith("m3u")) {
+            Log.d(getClass().getName(), "Ignoring m3u file");
+            return;
+        }
         if (mimeTypeStr != null) {
             MimeType mimeType = MimeType.valueOf(mimeTypeStr);
             String mimeTypeMain = mimeType.getType();
@@ -250,14 +261,18 @@ public class SafFolderBrowser extends ContentBrowser {
             ProtocolInfo protocolInfo = new ProtocolInfo(Protocol.HTTP_GET, ProtocolInfo.WILDCARD, mimeType.toString(), getDLNAAttributes(mimeType));
 
             // Create resource without duration first for audio files
-            String duration = extractDuration(file);
+
+            String duration = null;
+            if (mimeTypeMain.equals("audio") && !restricted) {
+                Log.d(getClass().getName(), "Extracting duration for: " + file.getUri() + " took: " + (System.currentTimeMillis() - currentTime) + "ms");
+                duration = extractDuration(file);
+                Log.d(getClass().getName(), "Extracted duration for: " + file.getUri() + " took: " + (System.currentTimeMillis() - currentTime) + "ms");
+            }
             Res res = new Res(protocolInfo, file.length(), duration, null, uri);
 
             Item item = null;
             if (mimeTypeMain.equals("audio")) {
                 item = new AudioItem(id, parentId, title, "yaacc", res);
-                // Load duration asynchronously
-                //loadDurationAsync(file, item, res);
             } else if (mimeTypeMain.equals("video")) {
                 item = new VideoItem(id, parentId, title, "yaacc", res);
             } else if (mimeTypeMain.equals("image")) {
@@ -265,9 +280,11 @@ public class SafFolderBrowser extends ContentBrowser {
             }
 
             if (item != null) {
+                item.setRestricted(restricted);
                 result.add(item);
             }
         }
+        Log.d(getClass().getName(), "Added item for: " + path + "took: " + (System.currentTimeMillis() - currentTime) + "ms");
     }
 
     /*
@@ -290,19 +307,23 @@ public class SafFolderBrowser extends ContentBrowser {
                             // Replace the resource in the item
                             item.getResources().clear();
                             item.addResource(newRes);
-                            Log.d("SafFolderBrowser", "Updated duration for: " + item.getTitle() + " -> " + duration);
+                            Log.d(getClass().getName(), "Updated duration for: " + item.getTitle() + " -> " + duration);
                         } catch (Exception e) {
-                            Log.w("SafFolderBrowser", "Failed to update duration for: " + item.getTitle(), e);
+                            Log.w(getClass().getName(), "Failed to update duration for: " + item.getTitle(), e);
                         }
                     }
-                    Log.d("SafFolderBrowser", "Item ready for playback: " + item.getTitle());
+                    Log.d(getClass().getName(), "Item ready for playback: " + item.getTitle());
                 }
             }.execute();
         }
     */
     private String extractDuration(DocumentFile file) {
-
         MediaMetadataRetriever retriever = null;
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(getContext());
+        if (preferences.contains(getContext().getString(R.string.settings_duration_format_key) + file.getUri())) {
+            Log.d(getClass().getName(), "Found duration in cache for: " + file.getUri());
+            return preferences.getString(getContext().getString(R.string.settings_duration_format_key) + file.getUri(), null);
+        }
         try {
             retriever = new MediaMetadataRetriever();
             retriever.setDataSource(getContext(), file.getUri());
@@ -310,16 +331,19 @@ public class SafFolderBrowser extends ContentBrowser {
 
             if (durationStr != null) {
                 long durationMs = Long.parseLong(durationStr);
-                return FormatHelper.parseMillisToTimeStringTo(durationMs);
+                String durationString = FormatHelper.parseMillisToTimeStringTo(durationMs);
+                Log.d(getClass().getName(), "Put duration in cache for: " + file.getUri());
+                preferences.edit().putString(getContext().getString(R.string.settings_duration_format_key) + file.getUri(), durationString).apply();
+                return durationString;
             }
         } catch (Exception e) {
-            Log.w("SafFolderBrowser", "Could not extract duration from: " + file.getUri(), e);
+            Log.w(getClass().getName(), "Could not extract duration from: " + file.getUri(), e);
         } finally {
             if (retriever != null) {
                 try {
                     retriever.release();
                 } catch (Exception e) {
-                    Log.w("SafFolderBrowser", "Error releasing MediaMetadataRetriever", e);
+                    Log.w(getClass().getName(), "Error releasing MediaMetadataRetriever", e);
                 }
             }
         }
