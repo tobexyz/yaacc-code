@@ -33,8 +33,6 @@
 
 package de.yaacc.upnp.registry;
 
-import de.yaacc.util.YaaccLogger;
-
 import org.fourthline.cling.model.gena.CancelReason;
 import org.fourthline.cling.model.gena.RemoteGENASubscription;
 import org.fourthline.cling.model.meta.LocalDevice;
@@ -42,8 +40,6 @@ import org.fourthline.cling.model.meta.RemoteDevice;
 import org.fourthline.cling.model.meta.RemoteDeviceIdentity;
 import org.fourthline.cling.model.resource.Resource;
 import org.fourthline.cling.model.types.UDN;
-import de.yaacc.upnp.registry.RegistrationException;
-import de.yaacc.upnp.registry.RegistryListener;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -54,6 +50,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+
+import de.yaacc.util.YaaccLogger;
 
 /**
  * Internal class, required by {@link de.yaacc.upnp.registry.RegistryImpl}.

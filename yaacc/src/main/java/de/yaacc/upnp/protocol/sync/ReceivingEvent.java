@@ -33,8 +33,6 @@
 
 package de.yaacc.upnp.protocol.sync;
 
-import de.yaacc.util.YaaccLogger;
-
 import org.fourthline.cling.model.UnsupportedDataException;
 import org.fourthline.cling.model.gena.RemoteGENASubscription;
 import org.fourthline.cling.model.message.StreamRequestMessage;
@@ -42,13 +40,14 @@ import org.fourthline.cling.model.message.UpnpResponse;
 import org.fourthline.cling.model.message.gena.IncomingEventRequestMessage;
 import org.fourthline.cling.model.message.gena.OutgoingEventResponseMessage;
 import org.fourthline.cling.model.resource.ServiceEventCallbackResource;
-import java.io.IOException;
 import org.fourthline.cling.transport.impl.GENAEventProcessorImpl;
 
+import java.io.IOException;
 import java.util.concurrent.ExecutorService;
 
 import de.yaacc.upnp.protocol.ReceivingSync;
 import de.yaacc.upnp.registry.Registry;
+import de.yaacc.util.YaaccLogger;
 
 /**
  * Handles incoming GENA event messages.

@@ -33,8 +33,6 @@
 
 package de.yaacc.upnp.protocol.sync;
 
-import de.yaacc.util.YaaccLogger;
-
 import androidx.annotation.Nullable;
 
 import org.fourthline.cling.model.UnsupportedDataException;
@@ -46,7 +44,6 @@ import org.fourthline.cling.model.message.control.IncomingActionResponseMessage;
 import org.fourthline.cling.model.message.control.OutgoingActionRequestMessage;
 import org.fourthline.cling.model.meta.Device;
 import org.fourthline.cling.model.types.ErrorCode;
-import java.io.IOException;
 import org.fourthline.cling.transport.impl.SOAPActionProcessorImpl;
 
 import java.io.IOException;
@@ -54,6 +51,7 @@ import java.net.URL;
 
 import de.yaacc.upnp.protocol.SendingSync;
 import de.yaacc.upnp.server.http.HttpRequestSender;
+import de.yaacc.util.YaaccLogger;
 
 /**
  * Sending control message, transforming a local {@link ActionInvocation}.

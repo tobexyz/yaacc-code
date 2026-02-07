@@ -33,16 +33,16 @@
 
 package de.yaacc.upnp.protocol.async;
 
-import de.yaacc.util.YaaccLogger;
-
 import org.fourthline.cling.model.message.discovery.OutgoingSearchRequest;
 import org.fourthline.cling.model.message.header.MXHeader;
 import org.fourthline.cling.model.message.header.STAllHeader;
 import org.fourthline.cling.model.message.header.UpnpHeader;
+
 import java.io.IOException;
 
 import de.yaacc.upnp.protocol.SendingAsync;
 import de.yaacc.upnp.server.udp.UdpTransiver;
+import de.yaacc.util.YaaccLogger;
 
 /**
  * Sending search request messages using the supplied search type.

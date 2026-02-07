@@ -17,10 +17,8 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
 package de.yaacc.upnp.callback;
-import de.yaacc.util.Exceptions;
 
 import android.content.Context;
-import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.UnsupportedDataException;
 import org.fourthline.cling.model.UserConstants;
@@ -32,15 +30,17 @@ import org.fourthline.cling.model.message.UpnpResponse;
 import org.fourthline.cling.model.meta.LocalService;
 import org.fourthline.cling.model.meta.RemoteService;
 import org.fourthline.cling.model.meta.Service;
-import de.yaacc.upnp.registry.Registry;
 
 import java.util.Collections;
 import java.util.concurrent.ExecutorService;
 
 import de.yaacc.upnp.protocol.sync.SendingSubscribe;
 import de.yaacc.upnp.protocol.sync.SendingUnsubscribe;
+import de.yaacc.upnp.registry.Registry;
 import de.yaacc.upnp.server.http.HttpRequestSender;
+import de.yaacc.util.Exceptions;
 import de.yaacc.util.InterfaceResolutionHelper;
+import de.yaacc.util.YaaccLogger;
 
 public abstract class SubscriptionCallback implements Runnable {
 
@@ -200,10 +200,10 @@ public abstract class SubscriptionCallback implements Runnable {
         };
 
         SendingSubscribe protocol = new SendingSubscribe(
-            registry, 
-            httpRequestSender, 
-            remoteSubscription, 
-            InterfaceResolutionHelper.getNetworkAddress(context)
+                registry,
+                httpRequestSender,
+                remoteSubscription,
+                InterfaceResolutionHelper.getNetworkAddress(context)
         );
         protocol.run();
     }

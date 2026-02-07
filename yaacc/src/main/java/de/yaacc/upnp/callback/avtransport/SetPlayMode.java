@@ -33,8 +33,6 @@
 
 package de.yaacc.upnp.callback.avtransport;
 
-import de.yaacc.util.YaaccLogger;
-
 import org.fourthline.cling.model.action.ActionInvocation;
 import org.fourthline.cling.model.meta.Service;
 import org.fourthline.cling.model.types.UnsignedIntegerFourBytes;
@@ -42,6 +40,7 @@ import org.fourthline.cling.support.model.PlayMode;
 
 import de.yaacc.upnp.callback.ActionCallback;
 import de.yaacc.upnp.server.http.HttpRequestSender;
+import de.yaacc.util.YaaccLogger;
 
 /**
  * @author Christian Bauer

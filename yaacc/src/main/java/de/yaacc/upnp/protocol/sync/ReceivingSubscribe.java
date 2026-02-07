@@ -32,9 +32,6 @@
  */
 
 package de.yaacc.upnp.protocol.sync;
-import de.yaacc.util.Exceptions;
-
-import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.gena.CancelReason;
 import org.fourthline.cling.model.gena.LocalGENASubscription;
@@ -45,8 +42,8 @@ import org.fourthline.cling.model.message.gena.IncomingSubscribeRequestMessage;
 import org.fourthline.cling.model.message.gena.OutgoingSubscribeResponseMessage;
 import org.fourthline.cling.model.meta.LocalService;
 import org.fourthline.cling.model.resource.ServiceEventSubscriptionResource;
-import java.io.IOException;
 
+import java.io.IOException;
 import java.net.URL;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -54,6 +51,8 @@ import java.util.concurrent.ExecutorService;
 import de.yaacc.upnp.protocol.ReceivingSync;
 import de.yaacc.upnp.registry.Registry;
 import de.yaacc.upnp.server.http.HttpRequestSender;
+import de.yaacc.util.Exceptions;
+import de.yaacc.util.YaaccLogger;
 
 /**
  * Handles reception of GENA event subscription (initial and renewal) messages.

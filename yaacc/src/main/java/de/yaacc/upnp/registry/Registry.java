@@ -46,15 +46,12 @@ import org.fourthline.cling.model.resource.Resource;
 import org.fourthline.cling.model.types.DeviceType;
 import org.fourthline.cling.model.types.ServiceType;
 import org.fourthline.cling.model.types.UDN;
-import de.yaacc.upnp.registry.RegistrationException;
-import de.yaacc.upnp.registry.RegistryMaintainer;
 
 import java.net.URI;
 import java.util.Collection;
 import java.util.concurrent.ExecutorService;
 
 import de.yaacc.upnp.protocol.UpnpProtocolHandler;
-import de.yaacc.upnp.registry.RegistryListener;
 
 /**
  * The core of the UPnP stack, keeping track of known devices and resources.

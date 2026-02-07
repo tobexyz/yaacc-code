@@ -34,7 +34,6 @@
 package de.yaacc.upnp.protocol.async;
 
 import android.content.Context;
-import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.Location;
 import org.fourthline.cling.model.message.discovery.OutgoingNotificationRequest;
@@ -45,8 +44,8 @@ import org.fourthline.cling.model.message.discovery.OutgoingNotificationRequestU
 import org.fourthline.cling.model.meta.LocalDevice;
 import org.fourthline.cling.model.types.NotificationSubtype;
 import org.fourthline.cling.model.types.ServiceType;
-import java.io.IOException;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -54,6 +53,7 @@ import de.yaacc.upnp.protocol.SendingAsync;
 import de.yaacc.upnp.protocol.UpnpProtocolHandler;
 import de.yaacc.upnp.server.udp.UdpTransiver;
 import de.yaacc.util.InterfaceResolutionHelper;
+import de.yaacc.util.YaaccLogger;
 
 /**
  * Sending notification messages for a registered local device.

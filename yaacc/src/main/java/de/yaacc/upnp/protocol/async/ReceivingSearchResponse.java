@@ -33,8 +33,6 @@
 
 package de.yaacc.upnp.protocol.async;
 
-import de.yaacc.util.YaaccLogger;
-
 import org.fourthline.cling.model.ValidationError;
 import org.fourthline.cling.model.ValidationException;
 import org.fourthline.cling.model.message.IncomingDatagramMessage;
@@ -43,14 +41,15 @@ import org.fourthline.cling.model.message.discovery.IncomingSearchResponse;
 import org.fourthline.cling.model.meta.RemoteDevice;
 import org.fourthline.cling.model.meta.RemoteDeviceIdentity;
 import org.fourthline.cling.model.types.UDN;
-import java.io.IOException;
 
+import java.io.IOException;
 import java.util.concurrent.ExecutorService;
 
 import de.yaacc.upnp.protocol.ReceivingAsync;
 import de.yaacc.upnp.protocol.RetrieveRemoteDescriptors;
 import de.yaacc.upnp.registry.Registry;
 import de.yaacc.upnp.server.http.HttpRequestSender;
+import de.yaacc.util.YaaccLogger;
 
 /**
  * Handles reception of search response messages.

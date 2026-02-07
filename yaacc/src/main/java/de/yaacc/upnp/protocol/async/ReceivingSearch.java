@@ -34,7 +34,6 @@
 package de.yaacc.upnp.protocol.async;
 
 import android.content.Context;
-import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.DiscoveryOptions;
 import org.fourthline.cling.model.Location;
@@ -59,9 +58,8 @@ import org.fourthline.cling.model.meta.LocalDevice;
 import org.fourthline.cling.model.types.DeviceType;
 import org.fourthline.cling.model.types.ServiceType;
 import org.fourthline.cling.model.types.UDN;
-import de.yaacc.upnp.registry.Registry;
-import java.io.IOException;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -69,8 +67,10 @@ import java.util.Random;
 
 import de.yaacc.upnp.protocol.ReceivingAsync;
 import de.yaacc.upnp.protocol.UpnpProtocolHandler;
+import de.yaacc.upnp.registry.Registry;
 import de.yaacc.upnp.server.udp.UdpTransiver;
 import de.yaacc.util.InterfaceResolutionHelper;
+import de.yaacc.util.YaaccLogger;
 
 /**
  * Handles reception of search requests, responds for local registered devices.

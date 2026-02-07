@@ -33,8 +33,6 @@
 
 package de.yaacc.upnp.registry;
 
-import de.yaacc.util.YaaccLogger;
-
 import org.fourthline.cling.model.DiscoveryOptions;
 import org.fourthline.cling.model.ExpirationDetails;
 import org.fourthline.cling.model.ServiceReference;
@@ -62,7 +60,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import de.yaacc.upnp.protocol.UpnpProtocolHandler;
-import de.yaacc.upnp.registry.RegistryListener;
+import de.yaacc.util.YaaccLogger;
 
 
 /**

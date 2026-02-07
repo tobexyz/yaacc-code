@@ -32,14 +32,14 @@
  */
 
 package de.yaacc.upnp.protocol;
-import de.yaacc.util.Exceptions;
-
-import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.message.UpnpMessage;
 import org.fourthline.cling.model.message.header.UpnpHeader;
 
 import java.io.IOException;
+
+import de.yaacc.util.Exceptions;
+import de.yaacc.util.YaaccLogger;
 
 /**
  * Supertype for all asynchronously executing protocols, handling reception of UPnP messages.

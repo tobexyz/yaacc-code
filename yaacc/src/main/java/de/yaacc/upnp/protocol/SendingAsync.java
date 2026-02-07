@@ -33,9 +33,9 @@
 
 package de.yaacc.upnp.protocol;
 
-import de.yaacc.util.YaaccLogger;
-
 import java.io.IOException;
+
+import de.yaacc.util.YaaccLogger;
 
 /**
  * Supertype for all synchronously executing protocols, sending UPnP messages.

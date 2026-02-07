@@ -33,8 +33,6 @@
 
 package de.yaacc.upnp.server.connectionmanager;
 
-import de.yaacc.util.YaaccLogger;
-
 import org.fourthline.cling.binding.annotations.UpnpAction;
 import org.fourthline.cling.binding.annotations.UpnpInputArgument;
 import org.fourthline.cling.binding.annotations.UpnpOutputArgument;
@@ -55,6 +53,8 @@ import org.fourthline.cling.support.model.ProtocolInfos;
 import java.beans.PropertyChangeSupport;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+
+import de.yaacc.util.YaaccLogger;
 
 /**
  * Base for connection management, implements the connection ID "0" behavior.

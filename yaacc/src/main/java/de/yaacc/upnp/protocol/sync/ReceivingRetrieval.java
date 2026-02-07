@@ -32,9 +32,6 @@
  */
 
 package de.yaacc.upnp.protocol.sync;
-import de.yaacc.util.Exceptions;
-
-import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.binding.xml.DescriptorBindingException;
 import org.fourthline.cling.binding.xml.DeviceDescriptorBinder;
@@ -54,13 +51,15 @@ import org.fourthline.cling.model.resource.DeviceDescriptorResource;
 import org.fourthline.cling.model.resource.IconResource;
 import org.fourthline.cling.model.resource.Resource;
 import org.fourthline.cling.model.resource.ServiceDescriptorResource;
-import de.yaacc.upnp.registry.Registry;
-import java.io.IOException;
 
+import java.io.IOException;
 import java.net.URI;
 
 import de.yaacc.upnp.protocol.ReceivingSync;
 import de.yaacc.upnp.protocol.UpnpProtocolHandler;
+import de.yaacc.upnp.registry.Registry;
+import de.yaacc.util.Exceptions;
+import de.yaacc.util.YaaccLogger;
 
 /**
  * Handles reception of device/service descriptor and icon retrieval messages.

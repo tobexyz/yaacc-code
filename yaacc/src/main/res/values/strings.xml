@@ -121,6 +121,6 @@
     <string name="reset_shared_folders">reset shared folders</string>
     <string name="shutdown_timer">Shutdown timer</string>
     <string name="add_saf_content">add source</string>
-    <string name="saf_content">SAF</string>
+    <string name="saf_content">Linked</string>
     <string name="enable_server_side_seeking_for_external_urls">Enable server-side time range management in proxy mode</string>
 </resources>

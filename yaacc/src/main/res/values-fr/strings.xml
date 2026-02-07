@@ -119,6 +119,6 @@
     <string name="reset_shared_folders">reset shared folders</string>
     <string name="shutdown_timer">Minuterie d\'arrêt</string>
     <string name="add_saf_content">ajouter une source</string>
-    <string name="saf_content">SAF</string>
+    <string name="saf_content">lié</string>
     <string name="enable_server_side_seeking_for_external_urls">Activer la gestion des plages horaires côté serveur en mode proxy</string>
 </resources>

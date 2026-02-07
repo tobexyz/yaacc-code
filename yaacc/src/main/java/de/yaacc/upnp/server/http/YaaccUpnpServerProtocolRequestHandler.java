@@ -36,8 +36,6 @@
  */
 package de.yaacc.upnp.server.http;
 
-import de.yaacc.util.YaaccLogger;
-
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.EntityDetails;
 import org.apache.hc.core5.http.Header;
@@ -67,6 +65,7 @@ import java.util.Map;
 import de.yaacc.upnp.protocol.ProtocolCreationException;
 import de.yaacc.upnp.protocol.ReceivingSync;
 import de.yaacc.upnp.protocol.UpnpProtocolHandler;
+import de.yaacc.util.YaaccLogger;
 
 public class YaaccUpnpServerProtocolRequestHandler implements AsyncServerRequestHandler<Message<HttpRequest, byte[]>> {
 

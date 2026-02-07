@@ -40,7 +40,6 @@ import org.fourthline.cling.model.resource.Resource;
 import org.fourthline.cling.model.types.DeviceType;
 import org.fourthline.cling.model.types.ServiceType;
 import org.fourthline.cling.model.types.UDN;
-import de.yaacc.upnp.registry.RegistrationException;
 
 import java.util.Arrays;
 import java.util.Collection;

@@ -33,18 +33,18 @@
 
 package de.yaacc.upnp.protocol.sync;
 
-import de.yaacc.util.YaaccLogger;
-
 import org.fourthline.cling.model.gena.LocalGENASubscription;
 import org.fourthline.cling.model.message.StreamRequestMessage;
 import org.fourthline.cling.model.message.StreamResponseMessage;
 import org.fourthline.cling.model.message.UpnpResponse;
 import org.fourthline.cling.model.message.gena.IncomingUnsubscribeRequestMessage;
 import org.fourthline.cling.model.resource.ServiceEventSubscriptionResource;
-import de.yaacc.upnp.registry.Registry;
+
 import java.io.IOException;
 
 import de.yaacc.upnp.protocol.ReceivingSync;
+import de.yaacc.upnp.registry.Registry;
+import de.yaacc.util.YaaccLogger;
 
 /**
  * Handles reception of GENA event unsubscribe messages.

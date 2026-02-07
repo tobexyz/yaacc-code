@@ -33,13 +33,10 @@
 
 package de.yaacc.upnp.protocol.sync;
 
-import de.yaacc.util.YaaccLogger;
-
 import org.fourthline.cling.model.gena.LocalGENASubscription;
 import org.fourthline.cling.model.message.StreamResponseMessage;
 import org.fourthline.cling.model.message.gena.OutgoingEventRequestMessage;
 import org.fourthline.cling.model.types.UnsignedIntegerFourBytes;
-import java.io.IOException;
 import org.fourthline.cling.transport.impl.GENAEventProcessorImpl;
 
 import java.io.IOException;
@@ -47,6 +44,7 @@ import java.net.URL;
 
 import de.yaacc.upnp.protocol.SendingSync;
 import de.yaacc.upnp.server.http.HttpRequestSender;
+import de.yaacc.util.YaaccLogger;
 
 /**
  * Sending GENA event messages to remote subscribers.

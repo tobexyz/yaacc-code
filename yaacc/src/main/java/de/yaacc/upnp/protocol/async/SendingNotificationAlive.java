@@ -34,13 +34,14 @@
 package de.yaacc.upnp.protocol.async;
 
 import android.content.Context;
-import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.meta.LocalDevice;
 import org.fourthline.cling.model.types.NotificationSubtype;
+
 import java.io.IOException;
 
 import de.yaacc.upnp.server.udp.UdpTransiver;
+import de.yaacc.util.YaaccLogger;
 
 /**
  * Sending <em>ALIVE</em> notification messages for a registered local device.

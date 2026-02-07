@@ -33,9 +33,6 @@
 
 package de.yaacc.upnp.protocol.sync;
 
-import de.yaacc.util.YaaccLogger;
-
-import de.yaacc.util.Exceptions;
 import org.fourthline.cling.model.UnsupportedDataException;
 import org.fourthline.cling.model.action.ActionCancelledException;
 import org.fourthline.cling.model.action.ActionException;
@@ -49,11 +46,14 @@ import org.fourthline.cling.model.message.header.ContentTypeHeader;
 import org.fourthline.cling.model.message.header.UpnpHeader;
 import org.fourthline.cling.model.resource.ServiceControlResource;
 import org.fourthline.cling.model.types.ErrorCode;
-import de.yaacc.upnp.registry.Registry;
-import java.io.IOException;
 import org.fourthline.cling.transport.impl.SOAPActionProcessorImpl;
 
+import java.io.IOException;
+
 import de.yaacc.upnp.protocol.ReceivingSync;
+import de.yaacc.upnp.registry.Registry;
+import de.yaacc.util.Exceptions;
+import de.yaacc.util.YaaccLogger;
 
 /**
  * Handles reception of control messages, invoking actions on local services.

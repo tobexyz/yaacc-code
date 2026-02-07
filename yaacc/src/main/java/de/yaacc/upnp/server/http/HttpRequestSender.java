@@ -19,7 +19,6 @@
 package de.yaacc.upnp.server.http;
 
 import android.os.Build;
-import de.yaacc.util.YaaccLogger;
 
 import org.apache.hc.client5.http.classic.methods.HttpUriRequestBase;
 import org.apache.hc.client5.http.config.ConnectionConfig;
@@ -52,6 +51,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+
+import de.yaacc.util.YaaccLogger;
 
 public class HttpRequestSender {
 

@@ -119,6 +119,6 @@
     <string name="reset_shared_folders">重置共享文件夹</string>
     <string name="shutdown_timer">关闭定时器</string>
     <string name="add_saf_content">添加源</string>
-    <string name="saf_content">SAF</string>
+    <string name="saf_content">链接的</string>
     <string name="enable_server_side_seeking_for_external_urls">在代理模式下启用服务器端时间范围管理</string>
 </resources>

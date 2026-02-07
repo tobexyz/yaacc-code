@@ -119,6 +119,6 @@
     <string name="reset_shared_folders">freigegebene Ordner zurücksetzen</string>
     <string name="shutdown_timer">Ausschalttimer</string>
     <string name="add_saf_content">Quelle hinzufügen</string>
-    <string name="saf_content">SAF</string>
+    <string name="saf_content">verküpft</string>
     <string name="enable_server_side_seeking_for_external_urls">Aktivieren Sie die serverseitige Zeitbereichsverwaltung im Proxy-Modus.</string>
 </resources>

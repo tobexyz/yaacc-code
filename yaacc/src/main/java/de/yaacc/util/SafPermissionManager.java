@@ -22,7 +22,6 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.UriPermission;
 import android.net.Uri;
-import de.yaacc.util.YaaccLogger;
 
 import androidx.preference.PreferenceManager;
 

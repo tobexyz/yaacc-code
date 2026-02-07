@@ -32,9 +32,6 @@
  */
 
 package de.yaacc.upnp.protocol.async;
-import de.yaacc.util.Exceptions;
-
-import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.binding.xml.DescriptorBindingException;
 import org.fourthline.cling.binding.xml.DeviceDescriptorBinder;
@@ -51,9 +48,6 @@ import org.fourthline.cling.model.meta.RemoteDevice;
 import org.fourthline.cling.model.meta.RemoteService;
 import org.fourthline.cling.model.types.ServiceType;
 import org.fourthline.cling.model.types.UDN;
-import de.yaacc.upnp.registry.RegistrationException;
-import de.yaacc.upnp.registry.Registry;
-import java.io.IOException;
 
 import java.io.IOException;
 import java.net.URL;
@@ -63,8 +57,12 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 
+import de.yaacc.upnp.registry.RegistrationException;
+import de.yaacc.upnp.registry.Registry;
 import de.yaacc.upnp.server.YaaccUpnpServerService;
 import de.yaacc.upnp.server.http.HttpRequestSender;
+import de.yaacc.util.Exceptions;
+import de.yaacc.util.YaaccLogger;
 
 /**
  * Retrieves all remote device XML descriptors, parses them, creates an immutable device and service metadata graph.

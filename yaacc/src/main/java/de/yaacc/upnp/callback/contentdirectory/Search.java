@@ -33,8 +33,6 @@
 
 package de.yaacc.upnp.callback.contentdirectory;
 
-import de.yaacc.util.YaaccLogger;
-
 import org.fourthline.cling.model.action.ActionException;
 import org.fourthline.cling.model.action.ActionInvocation;
 import org.fourthline.cling.model.meta.Service;
@@ -47,6 +45,7 @@ import org.fourthline.cling.support.model.SortCriterion;
 
 import de.yaacc.upnp.callback.ActionCallback;
 import de.yaacc.upnp.server.http.HttpRequestSender;
+import de.yaacc.util.YaaccLogger;
 
 /**
  * Invokes a "Search" action, parses the result.
