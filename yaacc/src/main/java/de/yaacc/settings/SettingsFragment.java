@@ -70,7 +70,9 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         androidx.preference.ListPreference logLevelPreference = findPreference(getString(R.string.settings_log_level_key));
         if (logLevelPreference != null) {
             logLevelPreference.setOnPreferenceChangeListener((preference, newValue) -> {
-                YaaccLogger.updateLogLevel();
+                if (newValue instanceof String) {
+                    YaaccLogger.setLogLevel((String) newValue);
+                }
                 return true;
             });
         }

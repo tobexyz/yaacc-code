@@ -15,7 +15,7 @@
 
 package org.fourthline.cling.model.action;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.Command;
 import org.fourthline.cling.model.ServiceManager;
@@ -56,7 +56,7 @@ public abstract class AbstractActionExecutor implements ActionExecutor {
      */
     public void execute(final ActionInvocation<LocalService> actionInvocation) {
 
-        Log.v(getClass().getName(), "Invoking on local service: " + actionInvocation);
+        YaaccLogger.v(getClass().getName(), "Invoking on local service: " + actionInvocation);
 
         final LocalService service = actionInvocation.getAction().getService();
 
@@ -82,19 +82,19 @@ public abstract class AbstractActionExecutor implements ActionExecutor {
 
         } catch (ActionException ex) {
 
-            Log.v(getClass().getName(), "ActionException thrown by service, wrapping in invocation and returning: " + ex);
-            Log.v(getClass().getName(), "Exception root cause: ", Exceptions.unwrap(ex));
+            YaaccLogger.v(getClass().getName(), "ActionException thrown by service, wrapping in invocation and returning: " + ex);
+            YaaccLogger.v(getClass().getName(), "Exception root cause: ", Exceptions.unwrap(ex));
 
             actionInvocation.setFailure(ex);
         } catch (InterruptedException ex) {
-            Log.v(getClass().getName(), "InterruptedException thrown by service, wrapping in invocation and returning: " + ex);
-            Log.v(getClass().getName(), "Exception root cause: ", Exceptions.unwrap(ex));
+            YaaccLogger.v(getClass().getName(), "InterruptedException thrown by service, wrapping in invocation and returning: " + ex);
+            YaaccLogger.v(getClass().getName(), "Exception root cause: ", Exceptions.unwrap(ex));
 
             actionInvocation.setFailure(new ActionCancelledException(ex));
         } catch (Throwable t) {
             Throwable rootCause = Exceptions.unwrap(t);
-            Log.v(getClass().getName(), "Execution has thrown, wrapping root cause in ActionException and returning: " + t);
-            Log.v(getClass().getName(), "Exception root cause: ", rootCause);
+            YaaccLogger.v(getClass().getName(), "Execution has thrown, wrapping root cause in ActionException and returning: " + t);
+            YaaccLogger.v(getClass().getName(), "Exception root cause: ", rootCause);
 
             actionInvocation.setFailure(
                     new ActionException(
@@ -119,15 +119,15 @@ public abstract class AbstractActionExecutor implements ActionExecutor {
      */
     protected Object readOutputArgumentValues(Action<LocalService> action, Object instance) throws Exception {
         Object[] results = new Object[action.getOutputArguments().length];
-        Log.v(getClass().getName(), "Attempting to retrieve output argument values using accessor: " + results.length);
+        YaaccLogger.v(getClass().getName(), "Attempting to retrieve output argument values using accessor: " + results.length);
 
         int i = 0;
         for (ActionArgument outputArgument : action.getOutputArguments()) {
-            Log.v(getClass().getName(), "Calling acccessor method for: " + outputArgument);
+            YaaccLogger.v(getClass().getName(), "Calling acccessor method for: " + outputArgument);
 
             StateVariableAccessor accessor = getOutputArgumentAccessors().get(outputArgument);
             if (accessor != null) {
-                Log.v(getClass().getName(), "Calling accessor to read output argument value: " + accessor);
+                YaaccLogger.v(getClass().getName(), "Calling accessor to read output argument value: " + accessor);
                 results[i++] = accessor.read(instance);
             } else {
                 throw new IllegalStateException("No accessor bound for: " + outputArgument);
@@ -151,10 +151,10 @@ public abstract class AbstractActionExecutor implements ActionExecutor {
         if (result != null) {
             try {
                 if (service.isStringConvertibleType(result)) {
-                    Log.v(getClass().getName(), "Result of invocation matches convertible type, setting toString() single output argument value");
+                    YaaccLogger.v(getClass().getName(), "Result of invocation matches convertible type, setting toString() single output argument value");
                     actionInvocation.setOutput(new ActionArgumentValue(argument, result.toString()));
                 } else {
-                    Log.v(getClass().getName(), "Result of invocation is Object, setting single output argument value");
+                    YaaccLogger.v(getClass().getName(), "Result of invocation is Object, setting single output argument value");
                     actionInvocation.setOutput(new ActionArgumentValue(argument, result));
                 }
             } catch (InvalidValueException ex) {
@@ -166,7 +166,7 @@ public abstract class AbstractActionExecutor implements ActionExecutor {
             }
         } else {
 
-            Log.v(getClass().getName(), "Result of invocation is null, not setting any output argument value(s)");
+            YaaccLogger.v(getClass().getName(), "Result of invocation is null, not setting any output argument value(s)");
         }
 
     }

@@ -17,7 +17,7 @@ package org.fourthline.cling.support.lastchange;
 
 import static org.fourthline.cling.model.XMLUtil.appendNewElement;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.XMLUtil;
 import org.fourthline.cling.model.types.UnsignedIntegerFourBytes;
@@ -104,18 +104,18 @@ public abstract class LastChangeParser extends SAXParser {
         new RootHandler(event, this);
 
 
-        Log.v(getClass().getName(), "Parsing 'LastChange' event XML content");
-        Log.v(getClass().getName(), "===================================== 'LastChange' BEGIN ============================================");
-        Log.v(getClass().getName(), xml);
-        Log.v(getClass().getName(), "====================================== 'LastChange' END  ============================================");
+        YaaccLogger.v(getClass().getName(), "Parsing 'LastChange' event XML content");
+        YaaccLogger.v(getClass().getName(), "===================================== 'LastChange' BEGIN ============================================");
+        YaaccLogger.v(getClass().getName(), xml);
+        YaaccLogger.v(getClass().getName(), "====================================== 'LastChange' END  ============================================");
 
         parse(new InputSource(new StringReader(xml)));
 
-        Log.v(getClass().getName(), "Parsed event with instances IDs: " + event.getInstanceIDs().size());
+        YaaccLogger.v(getClass().getName(), "Parsed event with instances IDs: " + event.getInstanceIDs().size());
         for (InstanceID instanceID : event.getInstanceIDs()) {
-            Log.v(getClass().getName(), "InstanceID '" + instanceID.getId() + "' has values: " + instanceID.getValues().size());
+            YaaccLogger.v(getClass().getName(), "InstanceID '" + instanceID.getId() + "' has values: " + instanceID.getValues().size());
             for (EventedValue eventedValue : instanceID.getValues()) {
-                Log.v(getClass().getName(), eventedValue.getName() + " => " + eventedValue.getValue());
+                YaaccLogger.v(getClass().getName(), eventedValue.getName() + " => " + eventedValue.getValue());
             }
         }
 
@@ -223,7 +223,7 @@ public abstract class LastChangeParser extends SAXParser {
                     getInstance().getValues().add(esv);
             } catch (Exception ex) {
                 // Don't exit, just log a warning
-                Log.w(getClass().getName(), "Error reading event XML, ignoring value: " + Exceptions.unwrap(ex));
+                YaaccLogger.w(getClass().getName(), "Error reading event XML, ignoring value: " + Exceptions.unwrap(ex));
             }
         }
 

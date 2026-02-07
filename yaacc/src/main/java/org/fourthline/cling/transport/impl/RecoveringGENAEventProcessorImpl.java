@@ -15,7 +15,7 @@
 
 package org.fourthline.cling.transport.impl;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.UnsupportedDataException;
 import org.fourthline.cling.model.XMLUtil;
@@ -61,7 +61,7 @@ public class RecoveringGENAEventProcessorImpl extends PullGENAEventProcessorImpl
             if (!requestMessage.isBodyNonEmptyString())
                 throw ex;
 
-            Log.w(getClass().getName(), "Trying to recover from invalid GENA XML event: " + ex);
+            YaaccLogger.w(getClass().getName(), "Trying to recover from invalid GENA XML event: " + ex);
 
             // Some properties may have been read at this point, so reset the list
             requestMessage.getStateVariableValues().clear();
@@ -82,7 +82,7 @@ public class RecoveringGENAEventProcessorImpl extends PullGENAEventProcessorImpl
                     // Throw the initial exception containing unmodified XML
                     throw ex;
                 }
-                Log.w(getClass().getName(), "Partial read of GENA event properties (probably due to truncated XML)");
+                YaaccLogger.w(getClass().getName(), "Partial read of GENA event properties (probably due to truncated XML)");
             }
         }
     }

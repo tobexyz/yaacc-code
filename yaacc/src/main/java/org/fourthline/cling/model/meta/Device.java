@@ -15,7 +15,7 @@
 
 package org.fourthline.cling.model.meta;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.Namespace;
 import org.fourthline.cling.model.Validatable;
@@ -86,7 +86,7 @@ public abstract class Device<DI extends DeviceIdentity, D extends Device, S exte
                     if (iconErrors.isEmpty()) {
                         validIcons.add(icon);
                     } else {
-                        Log.w(getClass().getName(), "Discarding invalid '" + icon + "': " + iconErrors);
+                        YaaccLogger.w(getClass().getName(), "Discarding invalid '" + icon + "': " + iconErrors);
                     }
                 }
             }
@@ -119,7 +119,7 @@ public abstract class Device<DI extends DeviceIdentity, D extends Device, S exte
         if (errors.size() > 0) {
 
             for (ValidationError error : errors) {
-                Log.v(getClass().getName(), error.toString());
+                YaaccLogger.v(getClass().getName(), error.toString());
             }
 
             throw new ValidationException("Validation of device graph failed, call getErrors() on exception", errors);

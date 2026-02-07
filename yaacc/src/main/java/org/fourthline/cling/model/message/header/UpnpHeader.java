@@ -15,7 +15,7 @@
 
 package org.fourthline.cling.model.message.header;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.seamless.util.Exceptions;
 
@@ -59,18 +59,18 @@ public abstract class UpnpHeader<T> {
         for (int i = 0; i < type.getHeaderTypes().length && upnpHeader == null; i++) {
             Class<? extends UpnpHeader> headerClass = type.getHeaderTypes()[i];
             try {
-                //Log.v(UpnpHeader.class.getName(), "Trying to parse '" + type + "' with class: " + headerClass.getSimpleName());
+                //YaaccLogger.v(UpnpHeader.class.getName(), "Trying to parse '" + type + "' with class: " + headerClass.getSimpleName());
                 upnpHeader = headerClass.newInstance();
                 if (headerValue != null) {
                     upnpHeader.setString(headerValue);
                 }
             } catch (InvalidHeaderException ex) {
                 //This Exception is expected therefore no log is needed
-                // Log.v(UpnpHeader.class.getName(), "Invalid header value for tested type: " + headerClass.getSimpleName() + " - " + ex.getMessage());
+                // YaaccLogger.v(UpnpHeader.class.getName(), "Invalid header value for tested type: " + headerClass.getSimpleName() + " - " + ex.getMessage());
                 upnpHeader = null;
             } catch (Exception ex) {
-                Log.w(UpnpHeader.class.getName(), "Error instantiating header of type '" + type + "' with value: " + headerValue);
-                Log.w(UpnpHeader.class.getName(), "Exception root cause: ", Exceptions.unwrap(ex));
+                YaaccLogger.w(UpnpHeader.class.getName(), "Error instantiating header of type '" + type + "' with value: " + headerValue);
+                YaaccLogger.w(UpnpHeader.class.getName(), "Exception root cause: ", Exceptions.unwrap(ex));
             }
 
         }

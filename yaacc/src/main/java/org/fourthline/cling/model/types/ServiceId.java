@@ -15,7 +15,7 @@
 
 package org.fourthline.cling.model.types;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.Constants;
 
@@ -91,14 +91,14 @@ public class ServiceId {
         // urn:upnp-org:serviceId:
         matcher = Pattern.compile("urn:(" + Constants.REGEX_NAMESPACE + "):serviceId:").matcher(s);
         if (matcher.matches() && matcher.groupCount() >= 1) {
-            Log.w(ServiceId.class.getName(), "UPnP specification violation, no service ID token, defaulting to " + UNKNOWN + ": " + s);
+            YaaccLogger.w(ServiceId.class.getName(), "UPnP specification violation, no service ID token, defaulting to " + UNKNOWN + ": " + s);
             return new ServiceId(matcher.group(1), UNKNOWN);
         }
 
         // TODO: UPNP VIOLATION: PS Audio Bridge has invalid service IDs
         String tokens[] = s.split("[:]");
         if (tokens.length == 4) {
-            Log.w(ServiceId.class.getName(), "UPnP specification violation, trying a simple colon-split of: " + s);
+            YaaccLogger.w(ServiceId.class.getName(), "UPnP specification violation, trying a simple colon-split of: " + s);
             return new ServiceId(tokens[1], tokens[3]);
         }
 

@@ -15,7 +15,7 @@
 
 package org.fourthline.cling.transport.impl;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.UnsupportedDataException;
 import org.fourthline.cling.model.action.ActionArgumentValue;
@@ -169,7 +169,7 @@ public class PullSOAPActionProcessorImpl extends SOAPActionProcessorImpl {
                         "Could not find argument '" + arg.getName() + "' node");
             }
 
-            Log.v(getClass().getName(), "Reading action argument: " + arg.getName() + " value: " + value);
+            YaaccLogger.v(getClass().getName(), "Reading action argument: " + arg.getName() + " value: " + value);
             values[i] = createValue(arg, value);
         }
         return values;
@@ -209,10 +209,10 @@ public class PullSOAPActionProcessorImpl extends SOAPActionProcessorImpl {
                 int numericCode = Integer.valueOf(errorCode);
                 ErrorCode standardErrorCode = ErrorCode.getByCode(numericCode);
                 if (standardErrorCode != null) {
-                    Log.v(getClass().getName(), "Reading fault element: " + standardErrorCode.getCode() + " - " + errorDescription);
+                    YaaccLogger.v(getClass().getName(), "Reading fault element: " + standardErrorCode.getCode() + " - " + errorDescription);
                     return new ActionException(standardErrorCode, errorDescription, false);
                 } else {
-                    Log.v(getClass().getName(), "Reading fault element: " + numericCode + " - " + errorDescription);
+                    YaaccLogger.v(getClass().getName(), "Reading fault element: " + numericCode + " - " + errorDescription);
                     return new ActionException(numericCode, errorDescription);
                 }
             } catch (NumberFormatException ex) {

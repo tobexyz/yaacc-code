@@ -15,7 +15,7 @@
 
 package org.fourthline.cling.transport.impl;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.Constants;
 import org.fourthline.cling.model.UnsupportedDataException;
@@ -62,7 +62,7 @@ public class SOAPActionProcessorImpl implements SOAPActionProcessor, ErrorHandle
 
     public void writeBody(ActionRequestMessage requestMessage, ActionInvocation actionInvocation) throws UnsupportedDataException {
 
-        Log.v(getClass().getName(), "Writing body of " + requestMessage + " for: " + actionInvocation);
+        YaaccLogger.v(getClass().getName(), "Writing body of " + requestMessage + " for: " + actionInvocation);
 
         try {
 
@@ -73,9 +73,9 @@ public class SOAPActionProcessorImpl implements SOAPActionProcessor, ErrorHandle
 
             writeBodyRequest(d, body, requestMessage, actionInvocation);
 
-            Log.v(getClass().getName(), "===================================== SOAP BODY (Request) BEGIN ============================================");
-            Log.v(getClass().getName(), requestMessage.getBodyString());
-            Log.v(getClass().getName(), "-===================================== SOAP BODY END ============================================");
+            YaaccLogger.v(getClass().getName(), "===================================== SOAP BODY (Request) BEGIN ============================================");
+            YaaccLogger.v(getClass().getName(), requestMessage.getBodyString());
+            YaaccLogger.v(getClass().getName(), "-===================================== SOAP BODY END ============================================");
 
 
         } catch (Exception ex) {
@@ -85,7 +85,7 @@ public class SOAPActionProcessorImpl implements SOAPActionProcessor, ErrorHandle
 
     public void writeBody(ActionResponseMessage responseMessage, ActionInvocation actionInvocation) throws UnsupportedDataException {
 
-        Log.v(getClass().getName(), "Writing body of " + responseMessage + " for: " + actionInvocation);
+        YaaccLogger.v(getClass().getName(), "Writing body of " + responseMessage + " for: " + actionInvocation);
 
         try {
 
@@ -100,9 +100,9 @@ public class SOAPActionProcessorImpl implements SOAPActionProcessor, ErrorHandle
                 writeBodyResponse(d, body, responseMessage, actionInvocation);
             }
 
-            Log.v(getClass().getName(), "===================================== SOAP BODY (Response) BEGIN ============================================");
-            Log.v(getClass().getName(), responseMessage.getBodyString());
-            Log.v(getClass().getName(), "-===================================== SOAP BODY END ============================================");
+            YaaccLogger.v(getClass().getName(), "===================================== SOAP BODY (Response) BEGIN ============================================");
+            YaaccLogger.v(getClass().getName(), responseMessage.getBodyString());
+            YaaccLogger.v(getClass().getName(), "-===================================== SOAP BODY END ============================================");
 
         } catch (Exception ex) {
             throw new UnsupportedDataException("Can't transform message payload: " + ex, ex);
@@ -111,10 +111,10 @@ public class SOAPActionProcessorImpl implements SOAPActionProcessor, ErrorHandle
 
     public void readBody(ActionRequestMessage requestMessage, ActionInvocation actionInvocation) throws UnsupportedDataException {
 
-        Log.v(getClass().getName(), "Reading body of " + requestMessage + " for: " + actionInvocation);
-        Log.v(getClass().getName(), "===================================== SOAP BODY (Request) BEGIN ============================================");
-        Log.v(getClass().getName(), requestMessage.getBodyString());
-        Log.v(getClass().getName(), "-===================================== SOAP BODY END ============================================");
+        YaaccLogger.v(getClass().getName(), "Reading body of " + requestMessage + " for: " + actionInvocation);
+        YaaccLogger.v(getClass().getName(), "===================================== SOAP BODY (Request) BEGIN ============================================");
+        YaaccLogger.v(getClass().getName(), requestMessage.getBodyString());
+        YaaccLogger.v(getClass().getName(), "-===================================== SOAP BODY END ============================================");
 
 
         String body = getMessageBody(requestMessage);
@@ -138,10 +138,10 @@ public class SOAPActionProcessorImpl implements SOAPActionProcessor, ErrorHandle
 
     public void readBody(ActionResponseMessage responseMsg, ActionInvocation actionInvocation) throws UnsupportedDataException {
 
-        Log.v(getClass().getName(), "Reading body of " + responseMsg + " for: " + actionInvocation);
-        Log.v(getClass().getName(), "===================================== SOAP BODY (Response) BEGIN ============================================");
-        Log.v(getClass().getName(), responseMsg.getBodyString());
-        Log.v(getClass().getName(), "-===================================== SOAP BODY END ============================================");
+        YaaccLogger.v(getClass().getName(), "Reading body of " + responseMsg + " for: " + actionInvocation);
+        YaaccLogger.v(getClass().getName(), "===================================== SOAP BODY (Response) BEGIN ============================================");
+        YaaccLogger.v(getClass().getName(), responseMsg.getBodyString());
+        YaaccLogger.v(getClass().getName(), "-===================================== SOAP BODY END ============================================");
 
 
         String body = getMessageBody(responseMsg);
@@ -269,7 +269,7 @@ public class SOAPActionProcessorImpl implements SOAPActionProcessor, ErrorHandle
                                                 ActionRequestMessage message,
                                                 ActionInvocation actionInvocation) {
 
-        Log.v(getClass().getName(), "Writing action request element: " + actionInvocation.getAction().getName());
+        YaaccLogger.v(getClass().getName(), "Writing action request element: " + actionInvocation.getAction().getName());
 
         Element actionRequestElement = d.createElementNS(
                 message.getActionNamespace(),
@@ -285,7 +285,7 @@ public class SOAPActionProcessorImpl implements SOAPActionProcessor, ErrorHandle
                                                ActionInvocation actionInvocation) {
         NodeList bodyChildren = bodyElement.getChildNodes();
 
-        Log.v(getClass().getName(), "Looking for action request element matching namespace:" + message.getActionNamespace());
+        YaaccLogger.v(getClass().getName(), "Looking for action request element matching namespace:" + message.getActionNamespace());
 
         for (int i = 0; i < bodyChildren.getLength(); i++) {
             Node bodyChild = bodyChildren.item(i);
@@ -300,7 +300,7 @@ public class SOAPActionProcessorImpl implements SOAPActionProcessor, ErrorHandle
                     throw new UnsupportedDataException(
                             "Illegal or missing namespace on action request element: " + bodyChild
                     );
-                Log.v(getClass().getName(), "Reading action request element: " + unprefixedName);
+                YaaccLogger.v(getClass().getName(), "Reading action request element: " + unprefixedName);
                 return (Element) bodyChild;
             }
         }
@@ -316,7 +316,7 @@ public class SOAPActionProcessorImpl implements SOAPActionProcessor, ErrorHandle
                                                  ActionResponseMessage message,
                                                  ActionInvocation actionInvocation) {
 
-        Log.v(getClass().getName(), "Writing action response element: " + actionInvocation.getAction().getName());
+        YaaccLogger.v(getClass().getName(), "Writing action response element: " + actionInvocation.getAction().getName());
         Element actionResponseElement = d.createElementNS(
                 message.getActionNamespace(),
                 "u:" + actionInvocation.getAction().getName() + "Response"
@@ -336,11 +336,11 @@ public class SOAPActionProcessorImpl implements SOAPActionProcessor, ErrorHandle
                 continue;
 
             if (getUnprefixedNodeName(bodyChild).equals(actionInvocation.getAction().getName() + "Response")) {
-                Log.v(getClass().getName(), "Reading action response element: " + getUnprefixedNodeName(bodyChild));
+                YaaccLogger.v(getClass().getName(), "Reading action response element: " + getUnprefixedNodeName(bodyChild));
                 return (Element) bodyChild;
             }
         }
-        Log.v(getClass().getName(), "Could not read action response element");
+        YaaccLogger.v(getClass().getName(), "Could not read action response element");
         return null;
     }
 
@@ -352,7 +352,7 @@ public class SOAPActionProcessorImpl implements SOAPActionProcessor, ErrorHandle
 
         for (ActionArgument argument : actionInvocation.getAction().getInputArguments()) {
             String value = actionInvocation.getInput(argument) != null ? actionInvocation.getInput(argument).toString() : "";
-            Log.v(getClass().getName(), "Writing action input argument: " + argument.getName() + " value: " + value);
+            YaaccLogger.v(getClass().getName(), "Writing action input argument: " + argument.getName() + " value: " + value);
             XMLUtil.appendNewElement(d, actionRequestElement, argument.getName(), value);
         }
     }
@@ -375,7 +375,7 @@ public class SOAPActionProcessorImpl implements SOAPActionProcessor, ErrorHandle
 
         for (ActionArgument argument : actionInvocation.getAction().getOutputArguments()) {
             String value = actionInvocation.getOutput(argument) != null ? actionInvocation.getOutput(argument).toString() : "";
-            Log.v(getClass().getName(), "Writing action output argument: " + argument.getName() + " value: " + value);
+            YaaccLogger.v(getClass().getName(), "Writing action output argument: " + argument.getName() + " value: " + value);
             XMLUtil.appendNewElement(d, actionResponseElement, argument.getName(), value);
         }
     }
@@ -411,7 +411,7 @@ public class SOAPActionProcessorImpl implements SOAPActionProcessor, ErrorHandle
         int errorCode = actionInvocation.getFailure().getErrorCode();
         String errorDescription = actionInvocation.getFailure().getMessage();
 
-        Log.v(getClass().getName(), "Writing fault element: " + errorCode + " - " + errorDescription);
+        YaaccLogger.v(getClass().getName(), "Writing fault element: " + errorCode + " - " + errorDescription);
 
         XMLUtil.appendNewElement(d, upnpErrorElement, "errorCode", Integer.toString(errorCode));
         XMLUtil.appendNewElement(d, upnpErrorElement, "errorDescription", errorDescription);
@@ -480,10 +480,10 @@ public class SOAPActionProcessorImpl implements SOAPActionProcessor, ErrorHandle
                 int numericCode = Integer.valueOf(errorCode);
                 ErrorCode standardErrorCode = ErrorCode.getByCode(numericCode);
                 if (standardErrorCode != null) {
-                    Log.v(getClass().getName(), "Reading fault element: " + standardErrorCode.getCode() + " - " + errorDescription);
+                    YaaccLogger.v(getClass().getName(), "Reading fault element: " + standardErrorCode.getCode() + " - " + errorDescription);
                     return new ActionException(standardErrorCode, errorDescription, false);
                 } else {
-                    Log.v(getClass().getName(), "Reading fault element: " + numericCode + " - " + errorDescription);
+                    YaaccLogger.v(getClass().getName(), "Reading fault element: " + numericCode + " - " + errorDescription);
                     return new ActionException(numericCode, errorDescription);
                 }
             } catch (NumberFormatException ex) {
@@ -547,7 +547,7 @@ public class SOAPActionProcessorImpl implements SOAPActionProcessor, ErrorHandle
             }
 
             String value = XMLUtil.getTextContent(node);
-            Log.v(getClass().getName(), "Reading action argument: " + arg.getName() + " value: " + value);
+            YaaccLogger.v(getClass().getName(), "Reading action argument: " + arg.getName() + " value: " + value);
             values[i] = createValue(arg, value);
         }
         return values;
@@ -614,7 +614,7 @@ public class SOAPActionProcessorImpl implements SOAPActionProcessor, ErrorHandle
     }
 
     public void warning(SAXParseException e) throws SAXException {
-        Log.w(getClass().getName(), e.toString());
+        YaaccLogger.w(getClass().getName(), e.toString());
     }
 
     public void error(SAXParseException e) throws SAXException {

@@ -15,7 +15,7 @@
 
 package org.fourthline.cling.binding.xml;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.ValidationException;
 import org.fourthline.cling.model.meta.Device;
@@ -47,7 +47,7 @@ public class RecoveringUDA10DeviceDescriptorBinderImpl extends UDA10DeviceDescri
                 device = super.describe(undescribedDevice, descriptorXml);
                 return device;
             } catch (DescriptorBindingException ex) {
-                Log.w(getClass().getName(), "Regular parsing failed: " + Exceptions.unwrap(ex).getMessage());
+                YaaccLogger.w(getClass().getName(), "Regular parsing failed: " + Exceptions.unwrap(ex).getMessage());
                 originalException = ex;
             }
 
@@ -60,7 +60,7 @@ public class RecoveringUDA10DeviceDescriptorBinderImpl extends UDA10DeviceDescri
                     device = super.describe(undescribedDevice, fixedXml);
                     return device;
                 } catch (DescriptorBindingException ex) {
-                    Log.w(getClass().getName(), "Removing leading garbage didn't work: " + Exceptions.unwrap(ex).getMessage());
+                    YaaccLogger.w(getClass().getName(), "Removing leading garbage didn't work: " + Exceptions.unwrap(ex).getMessage());
                 }
             }
 
@@ -70,7 +70,7 @@ public class RecoveringUDA10DeviceDescriptorBinderImpl extends UDA10DeviceDescri
                     device = super.describe(undescribedDevice, fixedXml);
                     return device;
                 } catch (DescriptorBindingException ex) {
-                    Log.w(getClass().getName(), "Removing trailing garbage didn't work: " + Exceptions.unwrap(ex).getMessage());
+                    YaaccLogger.w(getClass().getName(), "Removing trailing garbage didn't work: " + Exceptions.unwrap(ex).getMessage());
                 }
             }
 
@@ -84,7 +84,7 @@ public class RecoveringUDA10DeviceDescriptorBinderImpl extends UDA10DeviceDescri
                         device = super.describe(undescribedDevice, fixedXml);
                         return device;
                     } catch (DescriptorBindingException ex) {
-                        Log.w(getClass().getName(), "Fixing namespace prefix didn't work: " + Exceptions.unwrap(ex).getMessage());
+                        YaaccLogger.w(getClass().getName(), "Fixing namespace prefix didn't work: " + Exceptions.unwrap(ex).getMessage());
                         lastException = ex;
                     }
                 } else {
@@ -98,7 +98,7 @@ public class RecoveringUDA10DeviceDescriptorBinderImpl extends UDA10DeviceDescri
                     device = super.describe(undescribedDevice, fixedXml);
                     return device;
                 } catch (DescriptorBindingException ex) {
-                    Log.w(getClass().getName(), "Fixing XML entities didn't work: " + Exceptions.unwrap(ex).getMessage());
+                    YaaccLogger.w(getClass().getName(), "Fixing XML entities didn't work: " + Exceptions.unwrap(ex).getMessage());
                 }
             }
 
@@ -138,11 +138,11 @@ public class RecoveringUDA10DeviceDescriptorBinderImpl extends UDA10DeviceDescri
     protected String fixGarbageTrailingChars(String descriptorXml, DescriptorBindingException ex) {
         int index = descriptorXml.indexOf("</root>");
         if (index == -1) {
-            Log.w(getClass().getName(), "No closing </root> element in descriptor");
+            YaaccLogger.w(getClass().getName(), "No closing </root> element in descriptor");
             return null;
         }
         if (descriptorXml.length() != index + "</root>".length()) {
-            Log.w(getClass().getName(), "Detected garbage characters after <root> node, removing");
+            YaaccLogger.w(getClass().getName(), "Detected garbage characters after <root> node, removing");
             return descriptorXml.substring(0, index) + "</root>";
         }
         return null;
@@ -170,24 +170,24 @@ public class RecoveringUDA10DeviceDescriptorBinderImpl extends UDA10DeviceDescri
         }
 
         String missingNS = matcher.group(1);
-        Log.w(getClass().getName(), "Fixing missing namespace declaration for: " + missingNS);
+        YaaccLogger.w(getClass().getName(), "Fixing missing namespace declaration for: " + missingNS);
 
         // Extract <root> attributes
         pattern = Pattern.compile("<root([^>]*)");
         matcher = pattern.matcher(descriptorXml);
         if (!matcher.find() || matcher.groupCount() != 1) {
-            Log.v(getClass().getName(), "Could not find <root> element attributes");
+            YaaccLogger.v(getClass().getName(), "Could not find <root> element attributes");
             return null;
         }
 
         String rootAttributes = matcher.group(1);
-        Log.v(getClass().getName(), "Preserving existing <root> element attributes/namespace declarations: " + matcher.group(0));
+        YaaccLogger.v(getClass().getName(), "Preserving existing <root> element attributes/namespace declarations: " + matcher.group(0));
 
         // Extract <root> body
         pattern = Pattern.compile("<root[^>]*>(.*)</root>", Pattern.DOTALL);
         matcher = pattern.matcher(descriptorXml);
         if (!matcher.find() || matcher.groupCount() != 1) {
-            Log.v(getClass().getName(), "Could not extract body of <root> element");
+            YaaccLogger.v(getClass().getName(), "Could not extract body of <root> element");
             return null;
         }
 

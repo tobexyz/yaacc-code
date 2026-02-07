@@ -18,7 +18,7 @@ package org.fourthline.cling.support.contentdirectory;
 import static org.fourthline.cling.model.XMLUtil.appendNewElement;
 import static org.fourthline.cling.model.XMLUtil.appendNewElementIfNotNull;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.types.Datatype;
 import org.fourthline.cling.model.types.InvalidValueException;
@@ -116,7 +116,7 @@ public class DIDLParser extends SAXParser {
         DIDLContent content = new DIDLContent();
         createRootHandler(content, this);
 
-        Log.v(getClass().getName(), "Parsing DIDL XML content");
+        YaaccLogger.v(getClass().getName(), "Parsing DIDL XML content");
         parse(new InputSource(new StringReader(xml.replaceAll("&(?!amp;)", "&amp;"))));
         return content;
     }
@@ -204,7 +204,7 @@ public class DIDLParser extends SAXParser {
                     new ProtocolInfo(attributes.getValue("protocolInfo"))
             );
         } catch (InvalidValueException ex) {
-            Log.w(getClass().getName(), "In DIDL content, invalid resource protocol info: " + Exceptions.unwrap(ex));
+            YaaccLogger.w(getClass().getName(), "In DIDL content, invalid resource protocol info: " + Exceptions.unwrap(ex));
             return null;
         }
 
@@ -385,7 +385,7 @@ public class DIDLParser extends SAXParser {
 
         String title = container.getTitle();
         if (title == null) {
-            Log.v(getClass().getName(), "Missing 'dc:title' element for container: " + container.getId());
+            YaaccLogger.v(getClass().getName(), "Missing 'dc:title' element for container: " + container.getId());
             title = UNKNOWN_TITLE;
         }
 
@@ -466,7 +466,7 @@ public class DIDLParser extends SAXParser {
 
         String title = item.getTitle();
         if (title == null) {
-            Log.v(getClass().getName(), "Missing 'dc:title' element for item: " + item.getId());
+            YaaccLogger.v(getClass().getName(), "Missing 'dc:title' element for item: " + item.getId());
             title = UNKNOWN_TITLE;
         }
 
@@ -587,7 +587,7 @@ public class DIDLParser extends SAXParser {
             }
 
         } else {
-            Log.v(getClass().getName(), "Unknown desc metadata content, please override populateDescMetadata(): " + descMeta.getMetadata());
+            YaaccLogger.v(getClass().getName(), "Unknown desc metadata content, please override populateDescMetadata(): " + descMeta.getMetadata());
         }
     }
 
@@ -626,9 +626,9 @@ public class DIDLParser extends SAXParser {
      */
     public void debugXML(String s) {
 
-        Log.v(getClass().getName(), "-------------------------------------------------------------------------------------");
-        Log.v(getClass().getName(), "\n" + s);
-        Log.v(getClass().getName(), "-------------------------------------------------------------------------------------");
+        YaaccLogger.v(getClass().getName(), "-------------------------------------------------------------------------------------");
+        YaaccLogger.v(getClass().getName(), "\n" + s);
+        YaaccLogger.v(getClass().getName(), "-------------------------------------------------------------------------------------");
 
     }
 
@@ -676,7 +676,7 @@ public class DIDLParser extends SAXParser {
                                 WriteStatus.valueOf(getCharacters())
                         );
                     } catch (Exception ex) {
-                        Log.v(getClass().getName(), "Ignoring invalid writeStatus value: " + getCharacters());
+                        YaaccLogger.v(getClass().getName(), "Ignoring invalid writeStatus value: " + getCharacters());
                     }
                 } else if ("class".equals(localName)) {
                     getInstance().setClazz(
@@ -958,10 +958,10 @@ public class DIDLParser extends SAXParser {
         protected boolean isLastElement(String uri, String localName, String qName) {
             if (DIDLContent.NAMESPACE_URI.equals(uri) && "container".equals(localName)) {
                 if (getInstance().getTitle() == null) {
-                    Log.w(getClass().getName(), "In DIDL content, missing 'dc:title' element for container: " + getInstance().getId());
+                    YaaccLogger.w(getClass().getName(), "In DIDL content, missing 'dc:title' element for container: " + getInstance().getId());
                 }
                 if (getInstance().getClazz() == null) {
-                    Log.w(getClass().getName(), "In DIDL content, missing 'upnp:class' element for container: " + getInstance().getId());
+                    YaaccLogger.w(getClass().getName(), "In DIDL content, missing 'upnp:class' element for container: " + getInstance().getId());
                 }
                 return true;
             }
@@ -1001,10 +1001,10 @@ public class DIDLParser extends SAXParser {
         protected boolean isLastElement(String uri, String localName, String qName) {
             if (DIDLContent.NAMESPACE_URI.equals(uri) && "item".equals(localName)) {
                 if (getInstance().getTitle() == null) {
-                    Log.w(getClass().getName(), "In DIDL content, missing 'dc:title' element for item: " + getInstance().getId());
+                    YaaccLogger.w(getClass().getName(), "In DIDL content, missing 'dc:title' element for item: " + getInstance().getId());
                 }
                 if (getInstance().getClazz() == null) {
-                    Log.w(getClass().getName(), "In DIDL content, missing 'upnp:class' element for item: " + getInstance().getId());
+                    YaaccLogger.w(getClass().getName(), "In DIDL content, missing 'upnp:class' element for item: " + getInstance().getId());
                 }
                 return true;
             }

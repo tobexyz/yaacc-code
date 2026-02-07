@@ -16,7 +16,7 @@
 package org.fourthline.cling.model.meta;
 
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.ModelUtil;
 import org.fourthline.cling.model.Validatable;
@@ -82,8 +82,8 @@ public class StateVariable<S extends Service> implements Validatable {
                     "StateVariable without name of: " + getService()
             ));
         } else if (!ModelUtil.isValidUDAName(getName())) {
-            Log.w(getClass().getName(), "UPnP specification violation of: " + getService().getDevice());
-            Log.w(getClass().getName(), "Invalid state variable name: " + this);
+            YaaccLogger.w(getClass().getName(), "UPnP specification violation of: " + getService().getDevice());
+            YaaccLogger.w(getClass().getName(), "Invalid state variable name: " + this);
         }
 
         errors.addAll(getTypeDetails().validate());

@@ -15,7 +15,7 @@
 
 package org.fourthline.cling.binding.annotations;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.binding.LocalServiceBindingException;
 import org.fourthline.cling.model.Constants;
@@ -83,7 +83,7 @@ public class AnnotationActionBinder {
             name = AnnotationLocalServiceBinder.toUpnpActionName(getMethod().getName());
         }
 
-        Log.v(getClass().getName(), "Creating action and executor: " + name);
+        YaaccLogger.v(getClass().getName(), "Creating action and executor: " + name);
 
         List<ActionArgument> inputArguments = createInputArguments();
         Map<ActionArgument<LocalService>, StateVariableAccessor> outputArguments = createOutputArguments();
@@ -193,7 +193,7 @@ public class AnnotationActionBinder {
                     hasMultipleOutputArguments
             );
 
-            Log.v(getClass().getName(), "Found related state variable for output argument '" + argumentName + "': " + stateVariable);
+            YaaccLogger.v(getClass().getName(), "Found related state variable for output argument '" + argumentName + "': " + stateVariable);
 
             ActionArgument outputArgument = new ActionArgument(
                     argumentName,
@@ -216,7 +216,7 @@ public class AnnotationActionBinder {
         if (isVoid) {
 
             if (getterName != null && getterName.length() > 0) {
-                Log.v(getClass().getName(), "Action method is void, will use getter method named: " + getterName);
+                YaaccLogger.v(getClass().getName(), "Action method is void, will use getter method named: " + getterName);
 
                 // Use the same class as the action method
                 Method getter = Reflections.getMethod(getMethod().getDeclaringClass(), getterName);
@@ -230,13 +230,13 @@ public class AnnotationActionBinder {
                 return new GetterStateVariableAccessor(getter);
 
             } else {
-                Log.v(getClass().getName(), "Action method is void, trying to find existing accessor of related: " + stateVariable);
+                YaaccLogger.v(getClass().getName(), "Action method is void, trying to find existing accessor of related: " + stateVariable);
                 return getStateVariables().get(stateVariable);
             }
 
 
         } else if (getterName != null && getterName.length() > 0) {
-            Log.v(getClass().getName(), "Action method is not void, will use getter method on returned instance: " + getterName);
+            YaaccLogger.v(getClass().getName(), "Action method is not void, will use getter method on returned instance: " + getterName);
 
             // Use the returned class
             Method getter = Reflections.getMethod(getMethod().getReturnType(), getterName);
@@ -250,7 +250,7 @@ public class AnnotationActionBinder {
             return new GetterStateVariableAccessor(getter);
 
         } else if (!multipleArguments) {
-            Log.v(getClass().getName(), "Action method is not void, will use the returned instance: " + getMethod().getReturnType());
+            YaaccLogger.v(getClass().getName(), "Action method is not void, will use the returned instance: " + getMethod().getReturnType());
             validateType(stateVariable, getMethod().getReturnType());
         }
 
@@ -268,7 +268,7 @@ public class AnnotationActionBinder {
 
         if (relatedStateVariable == null && argumentName != null && argumentName.length() > 0) {
             String actualName = AnnotationLocalServiceBinder.toUpnpStateVariableName(argumentName);
-            Log.v(getClass().getName(), "Finding related state variable with argument name (converted to UPnP name): " + actualName);
+            YaaccLogger.v(getClass().getName(), "Finding related state variable with argument name (converted to UPnP name): " + actualName);
             relatedStateVariable = getStateVariable(argumentName);
         }
 
@@ -276,7 +276,7 @@ public class AnnotationActionBinder {
             // Try with A_ARG_TYPE prefix
             String actualName = AnnotationLocalServiceBinder.toUpnpStateVariableName(argumentName);
             actualName = Constants.ARG_TYPE_PREFIX + actualName;
-            Log.v(getClass().getName(), "Finding related state variable with prefixed argument name (converted to UPnP name): " + actualName);
+            YaaccLogger.v(getClass().getName(), "Finding related state variable with prefixed argument name (converted to UPnP name): " + actualName);
             relatedStateVariable = getStateVariable(actualName);
         }
 
@@ -284,7 +284,7 @@ public class AnnotationActionBinder {
             // TODO: Well, this is often a nice shortcut but sometimes might have false positives
             String methodPropertyName = Reflections.getMethodPropertyName(methodName);
             if (methodPropertyName != null) {
-                Log.v(getClass().getName(), "Finding related state variable with method property name: " + methodPropertyName);
+                YaaccLogger.v(getClass().getName(), "Finding related state variable with method property name: " + methodPropertyName);
                 relatedStateVariable =
                         getStateVariable(
                                 AnnotationLocalServiceBinder.toUpnpStateVariableName(methodPropertyName)
@@ -305,7 +305,7 @@ public class AnnotationActionBinder {
                         ? Datatype.Default.STRING
                         : Datatype.Default.getByJavaType(type);
 
-        Log.v(getClass().getName(), "Expecting '" + stateVariable + "' to match default mapping: " + expectedDefaultMapping);
+        YaaccLogger.v(getClass().getName(), "Expecting '" + stateVariable + "' to match default mapping: " + expectedDefaultMapping);
 
         if (expectedDefaultMapping != null &&
                 !stateVariable.getTypeDetails().getDatatype().isHandlingJavaType(expectedDefaultMapping.getJavaType())) {
@@ -323,7 +323,7 @@ public class AnnotationActionBinder {
             );
         }
 
-        Log.v(getClass().getName(), "State variable matches required argument datatype (or can't be validated because it is custom)");
+        YaaccLogger.v(getClass().getName(), "State variable matches required argument datatype (or can't be validated because it is custom)");
     }
 
     protected StateVariable getStateVariable(String name) {

@@ -15,7 +15,7 @@
 
 package org.fourthline.cling.transport.impl;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.Constants;
 import org.fourthline.cling.model.UnsupportedDataException;
@@ -54,7 +54,7 @@ public class GENAEventProcessorImpl implements GENAEventProcessor, ErrorHandler 
     }
 
     public void writeBody(OutgoingEventRequestMessage requestMessage) throws UnsupportedDataException {
-        Log.v(getClass().getName(), "Writing body of: " + requestMessage);
+        YaaccLogger.v(getClass().getName(), "Writing body of: " + requestMessage);
 
         try {
 
@@ -67,9 +67,9 @@ public class GENAEventProcessorImpl implements GENAEventProcessor, ErrorHandler 
 
             requestMessage.setBody(UpnpMessage.BodyType.STRING, toString(d));
 
-            Log.v(getClass().getName(), "===================================== GENA BODY BEGIN ============================================");
-            Log.v(getClass().getName(), requestMessage.getBody().toString());
-            Log.v(getClass().getName(), "====================================== GENA BODY END =============================================");
+            YaaccLogger.v(getClass().getName(), "===================================== GENA BODY BEGIN ============================================");
+            YaaccLogger.v(getClass().getName(), requestMessage.getBody().toString());
+            YaaccLogger.v(getClass().getName(), "====================================== GENA BODY END =============================================");
         } catch (Exception ex) {
             throw new UnsupportedDataException("Can't transform message payload: " + ex.getMessage(), ex);
         }
@@ -77,10 +77,10 @@ public class GENAEventProcessorImpl implements GENAEventProcessor, ErrorHandler 
 
     public void readBody(IncomingEventRequestMessage requestMessage) throws UnsupportedDataException {
 
-        Log.v(getClass().getName(), "Reading body of: " + requestMessage);
-        Log.v(getClass().getName(), "===================================== GENA BODY BEGIN ============================================");
-        Log.v(getClass().getName(), requestMessage.getBody() != null ? requestMessage.getBody().toString() : "null");
-        Log.v(getClass().getName(), "-===================================== GENA BODY END ============================================");
+        YaaccLogger.v(getClass().getName(), "Reading body of: " + requestMessage);
+        YaaccLogger.v(getClass().getName(), "===================================== GENA BODY BEGIN ============================================");
+        YaaccLogger.v(getClass().getName(), requestMessage.getBody() != null ? requestMessage.getBody().toString() : "null");
+        YaaccLogger.v(getClass().getName(), "-===================================== GENA BODY END ============================================");
 
 
         String body = getMessageBody(requestMessage);
@@ -160,7 +160,7 @@ public class GENAEventProcessorImpl implements GENAEventProcessor, ErrorHandler 
                     String stateVariableName = getUnprefixedNodeName(propertyChild);
                     for (StateVariable stateVariable : stateVariables) {
                         if (stateVariable.getName().equals(stateVariableName)) {
-                            Log.v(getClass().getName(), "Reading state variable value: " + stateVariableName);
+                            YaaccLogger.v(getClass().getName(), "Reading state variable value: " + stateVariableName);
                             String value = XMLUtil.getTextContent(propertyChild);
                             message.getStateVariableValues().add(
                                     new StateVariableValue(stateVariable, value)
@@ -201,7 +201,7 @@ public class GENAEventProcessorImpl implements GENAEventProcessor, ErrorHandler 
     }
 
     public void warning(SAXParseException e) throws SAXException {
-        Log.w(getClass().getName(), e.toString());
+        YaaccLogger.w(getClass().getName(), e.toString());
     }
 
     public void error(SAXParseException e) throws SAXException {

@@ -46,6 +46,10 @@ public class YaaccLogger {
         String logLevel = preferences.getString("settings_log_level_key", "E");
         currentLogLevel = parseLogLevel(logLevel);
     }
+    
+    public static void setLogLevel(String level) {
+        currentLogLevel = parseLogLevel(level);
+    }
 
     private static int parseLogLevel(String level) {
         switch (level) {

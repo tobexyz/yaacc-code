@@ -15,7 +15,7 @@
 
 package org.fourthline.cling.support.lastchange;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.types.Datatype;
 import org.fourthline.cling.model.types.InvalidValueException;
@@ -45,7 +45,7 @@ public class EventedValueURI extends EventedValue<URI> {
             // to parse whatever devices give us, like the Roku which sends "unknown url".
             return super.valueOf(s);
         } catch (InvalidValueException ex) {
-            Log.v(getClass().getName(), "Ignoring invalid URI in evented value '" + s + "': " + Exceptions.unwrap(ex));
+            YaaccLogger.v(getClass().getName(), "Ignoring invalid URI in evented value '" + s + "': " + Exceptions.unwrap(ex));
             return null;
         }
     }
