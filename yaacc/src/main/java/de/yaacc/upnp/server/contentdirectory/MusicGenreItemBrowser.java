@@ -140,6 +140,16 @@ public class MusicGenreItemBrowser extends ContentBrowser {
                         .getColumnIndex(MediaStore.Audio.Media.ARTIST));
                 @SuppressLint("Range") String duration = mediaCursor.getString(mediaCursor
                         .getColumnIndex(MediaStore.Audio.Media.DURATION));
+                Integer trackNumber = null;
+                Integer year = null;
+                int trackIdx = mediaCursor.getColumnIndex(MediaStore.Audio.Media.TRACK);
+                if (trackIdx >= 0) {
+                    trackNumber = mediaCursor.getInt(trackIdx);
+                }
+                int yearIdx = mediaCursor.getColumnIndex(MediaStore.Audio.Media.YEAR);
+                if (yearIdx >= 0) {
+                    year = mediaCursor.getInt(yearIdx);
+                }
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
                     @SuppressLint("Range") int genreIdIdx = mediaCursor.getColumnIndex(MediaStore.Audio.Media.GENRE_ID);
                     genreId = mediaCursor.getString(genreIdIdx);
@@ -160,9 +170,15 @@ public class MusicGenreItemBrowser extends ContentBrowser {
                 MusicTrack musicTrack = new MusicTrack(
                         ContentDirectoryIDs.MUSIC_GENRE_ITEM_PREFIX.getId() + id,
                         ContentDirectoryIDs.MUSIC_GENRE_PREFIX.getId() + genreId,
-                        title + "-(" + name + ")", "", album, artist, resource);
+                        title + "-(" + name + ")", artist, album, artist, resource);
                 musicTrack.replaceFirstProperty(new UPNP.ALBUM_ART_URI(albumArtUri));
-                musicTrack.setArtists(new PersonWithRole[]{new PersonWithRole(artist, "AlbumArtist")});
+                musicTrack.setArtists(new PersonWithRole[]{new PersonWithRole(artist)});
+                if (trackNumber != null && trackNumber > 0) {
+                    musicTrack.setOriginalTrackNumber(trackNumber);
+                }
+                if (year != null && year > 0) {
+                    musicTrack.setDate(year + "-01-01");
+                }
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
                     @SuppressLint("Range") String genre = mediaCursor.getString(mediaCursor
                             .getColumnIndex(MediaStore.Audio.Media.GENRE));

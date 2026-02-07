@@ -151,7 +151,7 @@ public abstract class ContentBrowser {
                 result = result + "*";
             }
         }
-        result = result + ";DLNA.ORG_OP=01";
+        result = result + ";DLNA.ORG_OP=01;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=01700000000000000000000000000000";
         return result;
     }
 

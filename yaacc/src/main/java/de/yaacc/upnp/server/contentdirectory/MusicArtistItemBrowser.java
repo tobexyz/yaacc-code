@@ -120,6 +120,16 @@ public class MusicArtistItemBrowser extends ContentBrowser {
                 @SuppressLint("Range") String duration = mediaCursor.getString(mediaCursor
                         .getColumnIndex(MediaStore.Audio.Media.DURATION));
                 duration = contentDirectory.formatDuration(duration);
+                Integer trackNumber = null;
+                Integer year = null;
+                int trackIdx = mediaCursor.getColumnIndex(MediaStore.Audio.Media.TRACK);
+                if (trackIdx >= 0) {
+                    trackNumber = mediaCursor.getInt(trackIdx);
+                }
+                int yearIdx = mediaCursor.getColumnIndex(MediaStore.Audio.Media.YEAR);
+                if (yearIdx >= 0) {
+                    year = mediaCursor.getInt(yearIdx);
+                }
 
                 @SuppressLint("Range") String mimeTypeString = mediaCursor.getString(mediaCursor
                         .getColumnIndex(MediaStore.Audio.Media.MIME_TYPE));
@@ -134,13 +144,24 @@ public class MusicArtistItemBrowser extends ContentBrowser {
                 ProtocolInfo protocolInfo = new ProtocolInfo(Protocol.HTTP_GET, ProtocolInfo.WILDCARD, mimeType.toString(), getDLNAAttributes(mimeType));
                 Res resource = new Res(protocolInfo, size, uri);
                 resource.setDuration(duration);
+                resource.setSampleFrequency(44100L); // Standard for MP3
+                resource.setNrAudioChannels(2L); // Stereo
+                // Set audio properties for better renderer compatibility
+                resource.setSampleFrequency(44100L); // Standard for MP3
+                resource.setNrAudioChannels(2L); // Stereo
                 MusicTrack musicTrack = new MusicTrack(
                         ContentDirectoryIDs.MUSIC_ARTIST_ITEM_PREFIX.getId() + id,
                         ContentDirectoryIDs.MUSIC_ARTIST_PREFIX.getId() + artistId,
-                        title + "-(" + name + ")", "", album, artist, resource);
+                        title + "-(" + name + ")", artist, album, artist, resource);
                 musicTrack
                         .replaceFirstProperty(new UPNP.ALBUM_ART_URI(albumArtUri));
-                musicTrack.setArtists(new PersonWithRole[]{new PersonWithRole(artist, "AlbumArtist")});
+                musicTrack.setArtists(new PersonWithRole[]{new PersonWithRole(artist)});
+                if (trackNumber != null && trackNumber > 0) {
+                    musicTrack.setOriginalTrackNumber(trackNumber);
+                }
+                if (year != null && year > 0) {
+                    musicTrack.setDate(year + "-01-01");
+                }
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
                     @SuppressLint("Range") String genre = mediaCursor.getString(mediaCursor
                             .getColumnIndex(MediaStore.Audio.Media.GENRE));
