@@ -85,7 +85,6 @@ import java.util.UUID;
 import de.yaacc.R;
 import de.yaacc.Yaacc;
 import de.yaacc.upnp.protocol.UpnpProtocolHandler;
-import de.yaacc.upnp.protocol.async.SendingNotificationAlive;
 import de.yaacc.upnp.registry.Registry;
 import de.yaacc.upnp.registry.RegistryImpl;
 import de.yaacc.upnp.server.avtransport.YaaccAVTransportService;
@@ -257,8 +256,6 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
 
 
         createUpnpDevice();
-
-        startUpnpAliveNotifications();
     }
 
     private void createUpnpDevice() {
@@ -279,7 +276,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
             // Used for shown name: first part of ManufactDet, first
             // part of ModelDet and version number
             DeviceDetails yaaccDetails = new DeviceDetails(
-                    "YAACC - (" + getLocalServerName() + ")", new ManufacturerDetails("yaacc.de",
+                    getLocalServerName(), new ManufacturerDetails("yaacc.de",
                     "http://www.yaacc.de"), new ModelDetails(getLocalServerName() + "- UpnP", "Free Android UPnP AV MediaServer and MediaRenderer, GNU GPL",
                     versionName), URI.create("http://" + InterfaceResolutionHelper.getIpAddress(getApplicationContext()) + ":" + PORT));
 
@@ -298,8 +295,13 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
                 }
             }
             DeviceIdentity identity = new DeviceIdentity(new UDN(locaDeviceUuid));
-            localDevice = new LocalDevice(identity, new UDADeviceType("YaaccUPnP"), yaaccDetails, createDeviceIcons(), services.toArray(new LocalService<?>[0]));
+            localDevice = new LocalDevice(identity, new UDADeviceType("MediaServer"), yaaccDetails, createDeviceIcons(), services.toArray(new LocalService<?>[0]));
             registry.addDevice(localDevice);
+            
+            // Configure ALIVE announcement interval from settings
+            int aliveInterval = getUpnpNotificationFrequency();
+            registry.setAliveInterval(aliveInterval);
+            YaaccLogger.d(this.getClass().getName(), "UPnP ALIVE interval set to: " + aliveInterval + "ms");
 
         } catch (ValidationException e) {
             YaaccLogger.e(this.getClass().getName(), "Exception during device creation", e);
@@ -324,6 +326,11 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         }
         if (getApplicationContext().getString(R.string.settings_local_server_receiver_chkbx).equals(key)) {
             createUpnpDevice();
+        }
+        if (getApplicationContext().getString(R.string.settings_sending_upnp_alive_interval_key).equals(key)) {
+            int aliveInterval = getUpnpNotificationFrequency();
+            registry.setAliveInterval(aliveInterval);
+            YaaccLogger.d(this.getClass().getName(), "UPnP ALIVE interval updated to: " + aliveInterval + "ms");
         }
     }
 
@@ -467,28 +474,6 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
             }
         }, 600L);
 
-    }
-
-    /**
-     * start sending periodical upnp alive notifications.
-     */
-    private void startUpnpAliveNotifications() {
-        int upnpNotificationFrequency = getUpnpNotificationFrequency();
-        if (upnpNotificationFrequency != -1 && preferences.getBoolean(getString(R.string.settings_local_server_chkbx), false)) {
-            new Timer().schedule(new TimerTask() {
-                @Override
-                public void run() {
-                    YaaccLogger.v(YaaccUpnpServerService.this.getClass().getName(), "Sending upnp alive notivication");
-                    SendingNotificationAlive sendingNotificationAlive;
-                    if (localDevice != null) {
-                        sendingNotificationAlive = new SendingNotificationAlive(getApplicationContext(), networkDeviceListener.getUdpTransiver(), localDevice);
-                        sendingNotificationAlive.run();
-                    }
-                    startUpnpAliveNotifications();
-                }
-            }, upnpNotificationFrequency);
-
-        }
     }
 
     /**

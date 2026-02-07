@@ -299,6 +299,11 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
                     + thumbId + pathSegments.get(1) + " not found</body></html>";
             responseBuilder.setEntity(AsyncEntityProducers.create(response, ContentType.TEXT_HTML));
         } else {
+            YaaccLogger.d(getClass().getName(), "Serving content: type=" + type 
+                    + " mimeType=" + contentHolder.getMimeType() 
+                    + " length=" + contentHolder.getContentLength() 
+                    + " ranges=" + ranges.size());
+            
             if (!ranges.isEmpty()) {
                 responseBuilder.setStatus(HttpStatus.SC_PARTIAL_CONTENT);
                 // Add Content-Range header for partial content
@@ -311,6 +316,7 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
                     long end = range.getEnd() != null ? range.getEnd() : fileSize - 1;
                     responseBuilder.setHeader(HttpHeaders.CONTENT_RANGE,
                             "bytes " + start + "-" + end + "/" + fileSize);
+                    YaaccLogger.d(getClass().getName(), "Partial content: " + start + "-" + end + "/" + fileSize);
                 }
             } else {
                 responseBuilder.setStatus(HttpStatus.SC_OK);

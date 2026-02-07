@@ -376,6 +376,11 @@ public class RegistryImpl implements Registry {
         localItems.advertiseLocalDevices();
     }
 
+    @Override
+    synchronized public void setAliveInterval(int intervalMillis) {
+        localItems.setAliveIntervalMillis(intervalMillis);
+    }
+
     /* ############################################################################################################ */
 
     public UpnpProtocolHandler getProtocolHandler() {

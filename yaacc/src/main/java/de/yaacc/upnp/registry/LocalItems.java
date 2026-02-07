@@ -72,6 +72,11 @@ class LocalItems extends RegistryItems<LocalDevice, LocalGENASubscription> {
         executorService = Executors.newFixedThreadPool(20);
     }
 
+    public void setAliveIntervalMillis(int aliveIntervalMillis) {
+        this.ALIVE_INTERVAL_MILLIS = aliveIntervalMillis;
+        YaaccLogger.d(getClass().getName(), "ALIVE interval set to: " + aliveIntervalMillis + "ms");
+    }
+
     protected void setDiscoveryOptions(UDN udn, DiscoveryOptions options) {
         if (options != null)
             this.discoveryOptions.put(udn, options);

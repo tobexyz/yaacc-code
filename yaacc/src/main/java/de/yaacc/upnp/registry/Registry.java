@@ -463,6 +463,16 @@ public interface Registry {
      */
     public void advertiseLocalDevices();
 
+    /**
+     * Set the interval for periodic ALIVE announcements.
+     * <p>
+     * Set to 0 to disable periodic announcements (devices will only announce on expiration).
+     * Recommended value: 5000ms (5 seconds) for better discovery by clients like Kodi.
+     * </p>
+     * @param intervalMillis interval in milliseconds between ALIVE announcements
+     */
+    public void setAliveInterval(int intervalMillis);
+
 
     UpnpProtocolHandler getUpnpProtocolHandler();
 
