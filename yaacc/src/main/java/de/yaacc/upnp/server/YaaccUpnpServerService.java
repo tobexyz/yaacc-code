@@ -64,7 +64,6 @@ import org.fourthline.cling.model.types.ServiceType;
 import org.fourthline.cling.model.types.UDADeviceType;
 import org.fourthline.cling.model.types.UDAServiceType;
 import org.fourthline.cling.model.types.UDN;
-import de.yaacc.upnp.server.connectionmanager.ConnectionManagerService;
 import org.fourthline.cling.support.model.Protocol;
 import org.fourthline.cling.support.model.ProtocolInfo;
 import org.fourthline.cling.support.model.ProtocolInfos;
@@ -91,6 +90,7 @@ import de.yaacc.upnp.registry.Registry;
 import de.yaacc.upnp.registry.RegistryImpl;
 import de.yaacc.upnp.server.avtransport.YaaccAVTransportService;
 import de.yaacc.upnp.server.configuration.YaaccUpnpServerControlActivity;
+import de.yaacc.upnp.server.connectionmanager.ConnectionManagerService;
 import de.yaacc.upnp.server.contentdirectory.YaaccContentDirectory;
 import de.yaacc.upnp.server.http.YaaccUpnpServerContentHttpHandler;
 import de.yaacc.upnp.server.http.YaaccUpnpServerProtocolRequestHandler;
@@ -227,7 +227,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
                 .setOngoing(true)
                 .setSmallIcon(R.drawable.ic_notification_default)
                 .setSilent(true)
-                .setContentTitle("Yaacc Upnp Server")
+                .setContentTitle("Yaacc Upnp Service")
                 .setGroup(Yaacc.NOTIFICATION_GROUP_KEY)
                 .setContentText(preferences.getString(getApplicationContext().getString(R.string.settings_local_server_name_key), ""));
         mBuilder.setContentIntent(contentIntent);
