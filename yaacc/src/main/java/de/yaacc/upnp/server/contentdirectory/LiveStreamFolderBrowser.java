@@ -132,22 +132,30 @@ public class LiveStreamFolderBrowser extends ContentBrowser {
             String streamUrl = "http://" + contentDirectory.getIpAddress() + ":"
                     + de.yaacc.upnp.server.YaaccUpnpServerService.PORT + "/live/video";
 
-            MimeType mimeType = MimeType.valueOf("video/mp4");
+            de.yaacc.util.YaaccLogger.i(getClass().getName(), "Creating live video item with URL: " + streamUrl);
+
+            MimeType mimeType = MimeType.valueOf("video/mpeg");
             org.fourthline.cling.support.model.ProtocolInfo protocolInfo =
                     new org.fourthline.cling.support.model.ProtocolInfo(
                             org.fourthline.cling.support.model.Protocol.HTTP_GET,
                             org.fourthline.cling.support.model.ProtocolInfo.WILDCARD,
-                            mimeType.toString(),
-                            org.fourthline.cling.support.model.ProtocolInfo.WILDCARD);
+                            "video/mpeg",
+                            "DLNA.ORG_OP=01;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=01500000000000000000000000000000");
 
             Res res = new Res(protocolInfo, null, streamUrl);
+            res.setResolution("1280x720");
+
+
+            de.yaacc.util.YaaccLogger.i(getClass().getName(), "Video Res created: " + res.getValue() + " protocol: " + res.getProtocolInfo());
 
             VideoItem videoItem = new VideoItem(
                     ContentDirectoryIDs.LIVE_STREAM_SCREEN_CAST.getId(),
                     ContentDirectoryIDs.LIVE_STREAM_FOLDER.getId(),
-                    getContext().getString(R.string.screen_cast_stream),
+                    preferences.getString(getContext().getString(R.string.settings_local_server_name), "YAACC") + " " + getContext().getString(R.string.screen_cast_stream),
                     "yaacc",
                     res);
+
+            de.yaacc.util.YaaccLogger.i(getClass().getName(), "VideoItem created with " + videoItem.getResources().size() + " resources");
 
             result.add(videoItem);
         }

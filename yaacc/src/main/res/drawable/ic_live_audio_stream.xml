@@ -1,0 +1,41 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="#FFFFFF">
+    <!-- Rounded rectangle (device) with gap at bottom -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeWidth="1.5"
+        android:strokeColor="@android:color/white"
+        android:pathData="M4,3C4,3 4,2 5,2L19,2C20,2 20,3 20,3L20,18L16,18"/>
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeWidth="1.5"
+        android:strokeColor="@android:color/white"
+        android:pathData="M8,18L4,18L4,3"/>
+    
+    <!-- Speaker icon inside rectangle -->
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M8,8L8,14L10,14L13,17L13,5L10,8L8,8Z"/>
+    <!-- Sound waves from speaker -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:pathData="M14,9.5C14,9.5 15,10 15,11C15,12 14,12.5 14,12.5"
+        android:strokeWidth="1.2"
+        android:strokeColor="@android:color/white"
+        android:strokeLineCap="round"/>
+    <path
+        android:fillColor="@android:color/transparent"
+        android:pathData="M15.5,8C15.5,8 17,9 17,11C17,13 15.5,14 15.5,14"
+        android:strokeWidth="1.2"
+        android:strokeColor="@android:color/white"
+        android:strokeLineCap="round"/>
+    
+    <!-- Arrow pointing up through gap toward speaker -->
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M12,22L12,18L9,20L12,18L15,20Z"/>
+</vector>

@@ -136,6 +136,12 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
     
     // Live streaming (Android 10+)
     private de.yaacc.upnp.server.media.SystemAudioCaptureService audioCapture;
+    private de.yaacc.upnp.server.media.ScreenCastCaptureService videoCapture;
+    
+    private static final int HTTP_SERVER_RETRY_DELAY_MS = 2000;
+    private static final int HTTP_SERVER_MAX_RETRIES = 3;
+    private final Object initLock = new Object();
+    private volatile boolean isInitialized = false;
 
     /*
      * (non-Javadoc)
@@ -152,10 +158,12 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
     @Override
     public void onCreate() {
         super.onCreate();
+        YaaccLogger.i(getClass().getName(), "YaaccUpnpServerService onCreate called");
         // when the service starts, the preferences are initialized
         preferences = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
         preferences.registerOnSharedPreferenceChangeListener(this);
         timer = new Timer();
+        YaaccLogger.i(getClass().getName(), "YaaccUpnpServerService onCreate complete");
     }
 
 
@@ -166,6 +174,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
      */
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        YaaccLogger.i(getClass().getName(), "YaaccUpnpServerService onStartCommand called");
         long start = System.currentTimeMillis();
         if (registry == null) {
             registry = new RegistryImpl();
@@ -194,6 +203,11 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
     @Override
     public void onDestroy() {
         YaaccLogger.d(this.getClass().getName(), "Destroying the service");
+        
+        synchronized (initLock) {
+            isInitialized = false;
+        }
+        
         if (preferences != null) {
             preferences.unregisterOnSharedPreferenceChangeListener(this);
         }
@@ -212,7 +226,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
             } catch (InterruptedException e) {
                 YaaccLogger.w(getClass().getName(), "got exception on stream server stop ", e);
             }
-
+            httpServer = null;
         }
         cancleNotification();
         super.onDestroy();
@@ -225,16 +239,36 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         ((Yaacc) getApplicationContext()).createYaaccGroupNotification();
         Intent notificationIntent = new Intent(this, YaaccUpnpServerControlActivity.class);
         PendingIntent contentIntent = PendingIntent.getActivity(this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE);
+        
+        String serverStatus = "Starting...";
+        if (httpServer != null) {
+            try {
+                IOReactorStatus status = httpServer.getStatus();
+                serverStatus = status == IOReactorStatus.ACTIVE ? "✓ HTTP Server Running" : "⚠ HTTP Server: " + status;
+            } catch (Exception e) {
+                serverStatus = "⚠ HTTP Server Error";
+            }
+        } else {
+            serverStatus = "⚠ HTTP Server Not Started";
+        }
+        
         NotificationCompat.Builder mBuilder = new NotificationCompat.Builder(this, Yaacc.NOTIFICATION_CHANNEL_ID)
                 .setOngoing(true)
                 .setSmallIcon(R.drawable.ic_notification_default)
                 .setSilent(true)
                 .setContentTitle("Yaacc Upnp Service")
                 .setGroup(Yaacc.NOTIFICATION_GROUP_KEY)
-                .setContentText(preferences.getString(getApplicationContext().getString(R.string.settings_local_server_name_key), ""));
+                .setContentText(preferences.getString(getApplicationContext().getString(R.string.settings_local_server_name_key), "") + " - " + serverStatus);
         mBuilder.setContentIntent(contentIntent);
         startForeground(NotificationId.UPNP_SERVER.getId(), mBuilder.build());
 
+    }
+    
+    /**
+     * Update notification with current server status.
+     */
+    private void updateNotification() {
+        showNotification();
     }
 
     /**
@@ -251,15 +285,96 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
      *
      */
     private void initialize() {
-        try {
-            createHttpServer();
-        } catch (IOException e) {
-            YaaccLogger.e(getClass().getName(), "Error while creating http server - will retry on next server toggle", e);
-            // Don't fail initialization, server can be started later
+        synchronized (initLock) {
+            if (isInitialized) {
+                android.util.Log.i("YAACC_HTTP", "Already initialized, skipping");
+                return;
+            }
+            
+            android.util.Log.i("YAACC_HTTP", "initialize() called");
+            YaaccLogger.i(getClass().getName(), "initialize() called");
+            
+            // Try to create HTTP server with retries
+            boolean serverStarted = false;
+            for (int attempt = 1; attempt <= HTTP_SERVER_MAX_RETRIES && !serverStarted; attempt++) {
+                try {
+                    android.util.Log.i("YAACC_HTTP", "Attempt " + attempt + " to create HTTP server");
+                    YaaccLogger.i(getClass().getName(), "Calling createHttpServer() - attempt " + attempt);
+                    createHttpServer();
+                    
+                    // Health check: verify server is actually listening
+                    if (isHttpServerHealthy()) {
+                        android.util.Log.i("YAACC_HTTP", "HTTP server healthy");
+                        YaaccLogger.i(getClass().getName(), "HTTP server started successfully");
+                        serverStarted = true;
+                    } else {
+                        android.util.Log.w("YAACC_HTTP", "Health check failed on attempt " + attempt);
+                        YaaccLogger.w(getClass().getName(), "HTTP server created but health check failed - attempt " + attempt);
+                        shutdownHttpServer();
+                        if (attempt < HTTP_SERVER_MAX_RETRIES) {
+                            Thread.sleep(HTTP_SERVER_RETRY_DELAY_MS);
+                        }
+                    }
+                } catch (IOException e) {
+                    android.util.Log.e("YAACC_HTTP", "IOException on attempt " + attempt, e);
+                    YaaccLogger.e(getClass().getName(), "Error creating HTTP server - attempt " + attempt, e);
+                    if (attempt < HTTP_SERVER_MAX_RETRIES) {
+                        try {
+                            Thread.sleep(HTTP_SERVER_RETRY_DELAY_MS);
+                        } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt();
+                            break;
+                        }
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
+            
+            if (!serverStarted) {
+                android.util.Log.e("YAACC_HTTP", "Failed to start after " + HTTP_SERVER_MAX_RETRIES + " attempts");
+                YaaccLogger.e(getClass().getName(), "Failed to start HTTP server after " + HTTP_SERVER_MAX_RETRIES + " attempts");
+            }
+
+            createUpnpDevice();
+            isInitialized = true;
+            
+            // Update notification with server status
+            updateNotification();
+            
+            android.util.Log.i("YAACC_HTTP", "initialize() complete");
+            YaaccLogger.i(getClass().getName(), "initialize() complete");
         }
-
-
-        createUpnpDevice();
+    }
+    
+    private boolean isHttpServerHealthy() {
+        if (httpServer == null) {
+            return false;
+        }
+        
+        // Check if server is in ACTIVE state
+        try {
+            IOReactorStatus status = httpServer.getStatus();
+            boolean healthy = status == IOReactorStatus.ACTIVE;
+            YaaccLogger.d(getClass().getName(), "HTTP server health check: status=" + status + ", healthy=" + healthy);
+            return healthy;
+        } catch (Exception e) {
+            YaaccLogger.w(getClass().getName(), "HTTP server health check failed", e);
+            return false;
+        }
+    }
+    
+    private void shutdownHttpServer() {
+        if (httpServer != null) {
+            try {
+                httpServer.initiateShutdown();
+                httpServer.awaitShutdown(TimeValue.ofSeconds(1));
+            } catch (Exception e) {
+                YaaccLogger.w(getClass().getName(), "Error shutting down HTTP server", e);
+            }
+            httpServer = null;
+        }
     }
 
     private void createUpnpDevice() {
@@ -358,6 +473,14 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
                     stopAudioCapture();
                 }
             }
+            if (getApplicationContext().getString(R.string.settings_local_server_serve_screen_cast_chkbx).equals(key)) {
+                boolean enabled = sharedPreferences.getBoolean(key, false);
+                if (enabled) {
+                    startVideoCapture();
+                } else {
+                    stopVideoCapture();
+                }
+            }
         }
     }
 
@@ -367,9 +490,12 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
     private void createHttpServer() throws IOException {
         // Create a HttpService for providing content in the network.
         // Set up the HTTP service
+        android.util.Log.i("YAACC_HTTP", "createHttpServer called, httpServer=" + (httpServer == null ? "null" : "exists"));
         if (httpServer == null) {
             try {
+                android.util.Log.i("YAACC_HTTP", "Creating new HTTP server");
                 IOReactorConfig config = IOReactorConfig.custom()
+                        .setSoReuseAddress(true)
                         .setSoKeepAlive(true)
                         .setTcpNoDelay(true)
                         .setSoTimeout(Timeout.ofMinutes(5))
@@ -395,7 +521,9 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
                         .register("*", new YaaccUpnpServerContentHttpHandler(getApplicationContext()))
                         .register(UpnpProtocolHandler.NAMESPACE.getBasePath().getPath() + "/*", new YaaccUpnpServerProtocolRequestHandler(getNetworkDeviceListener().getUpnpProtocolHandler()))
                         .create();
+                android.util.Log.i("YAACC_HTTP", "Starting HTTP server");
                 httpServer.start();
+                android.util.Log.i("YAACC_HTTP", "HTTP server started, status=" + httpServer.getStatus());
                 YaaccLogger.i(getClass().getName(), "HTTP server created and started successfully on port " + PORT);
                 
                 // Verify server is actually listening
@@ -406,15 +534,19 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
                     Thread.currentThread().interrupt();
                 }
             } catch (Exception e) {
+                android.util.Log.e("YAACC_HTTP", "Failed to create HTTP server", e);
                 YaaccLogger.e(getClass().getName(), "Failed to create HTTP server", e);
                 httpServer = null;
                 throw new IOException("Failed to create HTTP server", e);
             }
         } else {
+            android.util.Log.i("YAACC_HTTP", "HTTP server exists, resuming");
             try {
                 httpServer.resume();
+                android.util.Log.i("YAACC_HTTP", "HTTP server resumed, status=" + httpServer.getStatus());
                 YaaccLogger.d(getClass().getName(), "HTTP server resumed");
             } catch (Exception e) {
+                android.util.Log.e("YAACC_HTTP", "Failed to resume HTTP server", e);
                 YaaccLogger.e(getClass().getName(), "Failed to resume HTTP server", e);
                 httpServer = null;
                 throw new IOException("Failed to resume HTTP server", e);
@@ -948,5 +1080,47 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
     
     public de.yaacc.upnp.server.media.SystemAudioCaptureService getAudioCapture() {
         return audioCapture;
+    }
+    
+    @androidx.annotation.RequiresApi(api = android.os.Build.VERSION_CODES.Q)
+    private void startVideoCapture() {
+        if (videoCapture != null && videoCapture.isCapturing()) {
+            YaaccLogger.w(getClass().getName(), "Video capture already running");
+            return;
+        }
+        
+        android.media.projection.MediaProjection projection = 
+            de.yaacc.upnp.server.media.MediaProjectionHelper.getMediaProjection();
+        
+        if (projection == null) {
+            // Try to create from stored permission
+            if (!de.yaacc.upnp.server.media.MediaProjectionHelper.createMediaProjectionFromStored(this)) {
+                YaaccLogger.e(getClass().getName(), "No MediaProjection available for video capture");
+                return;
+            }
+            projection = de.yaacc.upnp.server.media.MediaProjectionHelper.getMediaProjection();
+        }
+        
+        if (videoCapture == null) {
+            videoCapture = new de.yaacc.upnp.server.media.ScreenCastCaptureService(this);
+        }
+        
+        if (videoCapture.startCapture(projection)) {
+            YaaccLogger.i(getClass().getName(), "Video capture started successfully");
+        } else {
+            YaaccLogger.e(getClass().getName(), "Failed to start video capture");
+        }
+    }
+    
+    @androidx.annotation.RequiresApi(api = android.os.Build.VERSION_CODES.Q)
+    private void stopVideoCapture() {
+        if (videoCapture != null) {
+            videoCapture.stopCapture();
+            YaaccLogger.i(getClass().getName(), "Video capture stopped");
+        }
+    }
+    
+    public de.yaacc.upnp.server.media.ScreenCastCaptureService getVideoCapture() {
+        return videoCapture;
     }
 }

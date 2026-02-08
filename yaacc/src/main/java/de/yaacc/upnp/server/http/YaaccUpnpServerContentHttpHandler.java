@@ -296,6 +296,9 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
             if ("audio".equals(streamType)) {
                 YaaccLogger.d(getClass().getName(), "Routing to audio stream");
                 contentHolder = serveLiveAudio(ranges);
+            } else if ("video".equals(streamType)) {
+                YaaccLogger.d(getClass().getName(), "Routing to video stream");
+                contentHolder = serveLiveVideo(ranges);
             } else {
                 YaaccLogger.w(getClass().getName(), "Unknown stream type: " + streamType);
             }
@@ -337,6 +340,13 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
             responseBuilder.setHeader(HttpHeaders.CONNECTION, "close");
             responseBuilder.setHeader("transferMode.dlna.org", "Streaming");
             responseBuilder.setHeader("contentFeatures.dlna.org", "DLNA.ORG_OP=01;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=01700000000000000000000000000000");
+            
+            // Add MJPEG-specific headers for Kodi compatibility
+            if (contentHolder instanceof LiveStreamContentHolder && ((LiveStreamContentHolder)contentHolder).isVideo) {
+                responseBuilder.setHeader(HttpHeaders.CACHE_CONTROL, "no-cache, no-store, must-revalidate");
+                responseBuilder.setHeader(HttpHeaders.PRAGMA, "no-cache");
+                responseBuilder.setHeader(HttpHeaders.EXPIRES, "0");
+            }
 
             responseBuilder.setEntity(contentHolder.getEntityProducer());
         }
@@ -400,6 +410,42 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
             return new LiveStreamContentHolder(mimeType, inputStream, context);
         } catch (java.io.IOException e) {
             YaaccLogger.e(getClass().getName(), "Failed to create audio stream", e);
+            return null;
+        }
+    }
+
+    /**
+     * Serve live video stream (Android 10+).
+     */
+    @androidx.annotation.RequiresApi(api = android.os.Build.VERSION_CODES.Q)
+    private ContentHolder serveLiveVideo(List<HttpRange> ranges) {
+        YaaccLogger.d(getClass().getName(), "serveLiveVideo called");
+        
+        YaaccUpnpServerService service = ((Yaacc) getContext().getApplicationContext())
+            .getUpnpClient().getYaaccUpnpServerService();
+        
+        if (service == null) {
+            return null;
+        }
+        
+        de.yaacc.upnp.server.media.ScreenCastCaptureService videoCapture = service.getVideoCapture();
+        if (videoCapture == null || !videoCapture.isCapturing()) {
+            YaaccLogger.w(getClass().getName(), "Video capture not active");
+            return null;
+        }
+        
+        try {
+            java.io.InputStream inputStream = videoCapture.createInputStream();
+            if (inputStream == null) {
+                return null;
+            }
+            
+            YaaccLogger.i(getClass().getName(), "Serving MJPEG video stream");
+            
+            MimeType mimeType = MimeType.valueOf("multipart/x-mixed-replace; boundary=frame");
+            return new LiveStreamContentHolder(mimeType, inputStream, context, true);
+        } catch (java.io.IOException e) {
+            YaaccLogger.e(getClass().getName(), "Error creating video stream", e);
             return null;
         }
     }
@@ -1410,10 +1456,16 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
      */
     static class LiveStreamContentHolder extends ContentHolder {
         private final java.io.InputStream inputStream;
+        private final boolean isVideo;
         
         public LiveStreamContentHolder(MimeType mimeType, java.io.InputStream inputStream, Context context) {
+            this(mimeType, inputStream, context, false);
+        }
+        
+        public LiveStreamContentHolder(MimeType mimeType, java.io.InputStream inputStream, Context context, boolean isVideo) {
             super(mimeType, (byte[])null, java.util.Collections.emptyList(), context);
             this.inputStream = inputStream;
+            this.isVideo = isVideo;
         }
         
         @Override
@@ -1474,6 +1526,110 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
                     try {
                         inputStream.close();
                     } catch (java.io.IOException ignored) {
+                    }
+                }
+            };
+        }
+    }
+    
+    static class ByteArrayContentHolder extends ContentHolder {
+        private final byte[] data;
+        
+        ByteArrayContentHolder(MimeType mimeType, byte[] data, Context context) {
+            super(mimeType, data, null, context);
+            this.data = data;
+        }
+        
+        @Override
+        public AsyncEntityProducer getEntityProducer() {
+            return new AbstractBinAsyncEntityProducer(0, ContentType.parse(mimeType.toString())) {
+                private int position = 0;
+                
+                @Override
+                public boolean isRepeatable() {
+                    return false;
+                }
+                
+                @Override
+                protected int availableData() {
+                    return data.length - position;
+                }
+                
+                @Override
+                protected void produceData(StreamChannel<ByteBuffer> channel) throws IOException {
+                    if (position < data.length) {
+                        int remaining = data.length - position;
+                        ByteBuffer buffer = ByteBuffer.wrap(data, position, remaining);
+                        channel.write(buffer);
+                        position += remaining;
+                        channel.endStream();
+                    }
+                }
+                
+                @Override
+                public void failed(Exception cause) {
+                }
+                
+                @Override
+                public void releaseResources() {
+                }
+            };
+        }
+    }
+    
+    static class FileContentHolder extends ContentHolder {
+        private final java.io.File file;
+        private final java.io.FileInputStream fis;
+        
+        FileContentHolder(MimeType mimeType, java.io.File file, java.io.FileInputStream fis, Context context) {
+            super(mimeType, file.getAbsolutePath(), null, context);
+            this.file = file;
+            this.fis = fis;
+        }
+        
+        @Override
+        public AsyncEntityProducer getEntityProducer() {
+            return new AbstractBinAsyncEntityProducer(8192, ContentType.parse(mimeType.toString())) {
+                private final byte[] buffer = new byte[8192];
+                
+                @Override
+                public boolean isRepeatable() {
+                    return false;
+                }
+                
+                @Override
+                protected int availableData() {
+                    try {
+                        return fis.available();
+                    } catch (IOException e) {
+                        return 0;
+                    }
+                }
+                
+                @Override
+                protected void produceData(StreamChannel<ByteBuffer> channel) throws IOException {
+                    int bytesRead = fis.read(buffer);
+                    if (bytesRead > 0) {
+                        channel.write(ByteBuffer.wrap(buffer, 0, bytesRead));
+                    }
+                    if (bytesRead == -1) {
+                        channel.endStream();
+                    }
+                }
+                
+                @Override
+                public void failed(Exception cause) {
+                    try {
+                        fis.close();
+                    } catch (IOException ignored) {
+                    }
+                }
+                
+                @Override
+                public void releaseResources() {
+                    try {
+                        fis.close();
+                    } catch (IOException ignored) {
                     }
                 }
             };

@@ -109,7 +109,8 @@ public class PlayableItem {
             return null;
         }
         
-        Res bestResource = null;
+        // Always use first resource as fallback
+        Res bestResource = item.getResources().get(0);
         long bestBitrate = 0;
         
         for (Res resource : item.getResources()) {
@@ -118,10 +119,12 @@ public class PlayableItem {
                 continue;
             }
             
-            // Only accept audio, video, or image types
+            // Only accept audio, video, image, or streaming playlist types
             if (!contentFormat.startsWith("audio/") && 
                 !contentFormat.startsWith("video/") && 
-                !contentFormat.startsWith("image/")) {
+                !contentFormat.startsWith("image/") &&
+                !contentFormat.equals("application/vnd.apple.mpegurl") &&
+                !contentFormat.equals("application/x-mpegURL")) {
                 YaaccLogger.d(getClass().getName(), "Skipping non-media resource: " + contentFormat);
                 continue;
             }
@@ -130,8 +133,6 @@ public class PlayableItem {
             Long bitrate = resource.getBitrate();
             if (bitrate != null && bitrate > bestBitrate) {
                 bestBitrate = bitrate;
-                bestResource = resource;
-            } else if (bestResource == null) {
                 bestResource = resource;
             }
         }
