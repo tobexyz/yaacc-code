@@ -81,6 +81,31 @@ public class ServerListFragment extends Fragment implements
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        
+        // Register callback for MediaProjection stop events
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            de.yaacc.upnp.server.media.MediaProjectionHelper.setStopCallback(() -> {
+                // MediaProjection stopped - disable streaming
+                if (getActivity() != null) {
+                    getActivity().runOnUiThread(() -> {
+                        android.content.SharedPreferences prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(requireContext());
+                        prefs.edit()
+                            .putBoolean(getString(R.string.settings_local_server_serve_system_audio_chkbx), false)
+                            .putBoolean(getString(R.string.settings_local_server_serve_screen_cast_chkbx), false)
+                            .apply();
+                        
+                        de.yaacc.browser.BrowseDeviceAdapter.setAudioStreaming(false);
+                        de.yaacc.browser.BrowseDeviceAdapter.setVideoStreaming(false);
+                        
+                        if (bDeviceAdapter != null) {
+                            bDeviceAdapter.notifyDataSetChanged();
+                        }
+                        
+                        YaaccLogger.i(getClass().getName(), "Streaming disabled - MediaProjection stopped");
+                    });
+                }
+            });
+        }
     }
 
     public boolean onBackPressed() {
@@ -102,6 +127,13 @@ public class ServerListFragment extends Fragment implements
                 RecyclerView deviceList = contentList;
                 if (deviceList.getAdapter() == null) {
                     bDeviceAdapter = new BrowseDeviceAdapter(getActivity(), deviceList, upnpClient, new ArrayList<>(upnpClient.getDevicesProvidingContentDirectoryService()));
+                    // Set permission callback for streaming buttons
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                        bDeviceAdapter.setPermissionCallback(() -> {
+                            android.content.Intent intent = de.yaacc.upnp.server.media.MediaProjectionHelper.createPermissionIntent(requireContext());
+                            startActivityForResult(intent, de.yaacc.upnp.server.media.MediaProjectionHelper.REQUEST_CODE_MEDIA_PROJECTION);
+                        });
+                    }
                     deviceList.setAdapter(bDeviceAdapter);
                 } else {
                     bDeviceAdapter.setDevices(new LinkedList<>(upnpClient.getDevicesProvidingContentDirectoryService()));
@@ -312,5 +344,60 @@ public class ServerListFragment extends Fragment implements
     @Override
     public void onTick(long millisUntilFinished) {
         setShutdownTimerRemainingTime(FormatHelper.parseMillisToTimeStringTo(millisUntilFinished));
+    }
+    
+    @Override
+    public void onActivityResult(int requestCode, int resultCode, android.content.Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q &&
+            requestCode == de.yaacc.upnp.server.media.MediaProjectionHelper.REQUEST_CODE_MEDIA_PROJECTION) {
+            
+            if (de.yaacc.upnp.server.media.MediaProjectionHelper.handlePermissionResult(requireContext(), resultCode, data)) {
+                // Permission granted - enable only the button that requested it
+                YaaccLogger.i(getClass().getName(), "MediaProjection permission granted");
+                
+                android.content.SharedPreferences prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(requireContext());
+                android.content.SharedPreferences.Editor editor = prefs.edit();
+                
+                // Enable only the button that requested permission
+                if (de.yaacc.browser.BrowseDeviceAdapter.isPendingAudioRequest()) {
+                    editor.putBoolean(getString(R.string.settings_local_server_serve_system_audio_chkbx), true);
+                    de.yaacc.browser.BrowseDeviceAdapter.setAudioStreaming(true);
+                }
+                if (de.yaacc.browser.BrowseDeviceAdapter.isPendingVideoRequest()) {
+                    editor.putBoolean(getString(R.string.settings_local_server_serve_screen_cast_chkbx), true);
+                    de.yaacc.browser.BrowseDeviceAdapter.setVideoStreaming(true);
+                }
+                editor.apply();
+                
+                // Clear pending flags
+                de.yaacc.browser.BrowseDeviceAdapter.clearPendingRequests();
+                
+                // Refresh the adapter to update button states
+                if (bDeviceAdapter != null) {
+                    bDeviceAdapter.notifyDataSetChanged();
+                }
+            } else {
+                // Permission denied - disable both and clear pending
+                YaaccLogger.w(getClass().getName(), "MediaProjection permission denied");
+                
+                de.yaacc.browser.BrowseDeviceAdapter.clearPendingRequests();
+                
+                android.content.SharedPreferences prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(requireContext());
+                prefs.edit()
+                    .putBoolean(getString(R.string.settings_local_server_serve_system_audio_chkbx), false)
+                    .putBoolean(getString(R.string.settings_local_server_serve_screen_cast_chkbx), false)
+                    .apply();
+                
+                // Update adapter state
+                if (bDeviceAdapter != null) {
+                    de.yaacc.browser.BrowseDeviceAdapter.setAudioStreaming(false);
+                    de.yaacc.browser.BrowseDeviceAdapter.setVideoStreaming(false);
+                    // Refresh the adapter to update button states
+                    bDeviceAdapter.notifyDataSetChanged();
+                }
+            }
+        }
     }
 }

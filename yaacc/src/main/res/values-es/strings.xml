@@ -80,6 +80,7 @@
     <string name="genres">Géneros</string>
     <string name="videos">Vídeos</string>
     <string name="music">Música</string>
+    <string name="screen_cast_stream">Transmisión de pantalla</string>
     <string name="title_activity_yaacc_log">Ver registro</string>
     <string name="logContent">El contenido del registro del sistema debe mostrarse aquí</string>
     <string name="activity_remote_player_mute">Silenciar</string>
@@ -121,4 +122,6 @@
     <string name="add_saf_content">agregar fuente</string>
     <string name="saf_content">vinculado</string>
     <string name="enable_server_side_seeking_for_external_urls">Habilitar la administración del rango de tiempo del lado del servidor en modo proxy</string>
+    <string name="live_streams">Transmisiones en vivo</string>
+    <string name="system_audio_stream">Transmisión de audio del dispositivo</string>
 </resources>

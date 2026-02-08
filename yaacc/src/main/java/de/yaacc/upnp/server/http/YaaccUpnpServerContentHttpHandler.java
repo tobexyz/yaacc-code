@@ -75,6 +75,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import de.yaacc.R;
+import de.yaacc.Yaacc;
 import de.yaacc.upnp.server.YaaccUpnpServerService;
 import de.yaacc.upnp.server.contentdirectory.ContentDirectoryIDs;
 import de.yaacc.upnp.server.contentdirectory.MediaPathFilter;
@@ -288,6 +289,16 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
             }
         } else if (contentServerEnabled && YaaccUpnpServerService.SAF_PATH.equals(type)) {
             contentHolder = lookupSafContent(pathSegments.get(1), pathSegments.get(2), ranges);
+        } else if (contentServerEnabled && "live".equals(type) && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            // Live streaming endpoint
+            YaaccLogger.d(getClass().getName(), "Live stream request: " + requestUri);
+            String streamType = pathSegments.get(1);
+            if ("audio".equals(streamType)) {
+                YaaccLogger.d(getClass().getName(), "Routing to audio stream");
+                contentHolder = serveLiveAudio(ranges);
+            } else {
+                YaaccLogger.w(getClass().getName(), "Unknown stream type: " + streamType);
+            }
         }
 
         if (contentHolder == null) {
@@ -345,6 +356,52 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
 
     private Context getContext() {
         return context;
+    }
+
+    /**
+     * Serve live audio stream (Android 10+).
+     */
+    @androidx.annotation.RequiresApi(api = android.os.Build.VERSION_CODES.Q)
+    private ContentHolder serveLiveAudio(List<HttpRange> ranges) {
+        YaaccLogger.d(getClass().getName(), "serveLiveAudio called");
+        
+        YaaccUpnpServerService service = ((Yaacc) getContext().getApplicationContext())
+            .getUpnpClient().getYaaccUpnpServerService();
+        
+        if (service == null) {
+            YaaccLogger.w(getClass().getName(), "Server service not available");
+            return null;
+        }
+        
+        de.yaacc.upnp.server.media.SystemAudioCaptureService audioCapture = service.getAudioCapture();
+        if (audioCapture == null) {
+            YaaccLogger.w(getClass().getName(), "Audio capture service is null");
+            return null;
+        }
+        
+        if (!audioCapture.isCapturing()) {
+            YaaccLogger.w(getClass().getName(), "Audio capture not active");
+            return null;
+        }
+        
+        YaaccLogger.d(getClass().getName(), "Audio capture is active, creating stream for client");
+        
+        try {
+            java.io.InputStream inputStream = audioCapture.getWavInputStream();
+            if (inputStream == null) {
+                YaaccLogger.w(getClass().getName(), "Audio input stream not available");
+                return null;
+            }
+            
+            YaaccLogger.i(getClass().getName(), "Serving live audio stream to new client");
+            
+            // Serve as audio/wav for better compatibility
+            MimeType mimeType = MimeType.valueOf("audio/wav");
+            return new LiveStreamContentHolder(mimeType, inputStream, context);
+        } catch (java.io.IOException e) {
+            YaaccLogger.e(getClass().getName(), "Failed to create audio stream", e);
+            return null;
+        }
     }
 
     /**
@@ -1343,6 +1400,81 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
                 @Override
                 public boolean isRepeatable() {
                     return false; // File streaming is not repeatable
+                }
+            };
+        }
+    }
+    
+    /**
+     * ContentHolder for live streams (no known length).
+     */
+    static class LiveStreamContentHolder extends ContentHolder {
+        private final java.io.InputStream inputStream;
+        
+        public LiveStreamContentHolder(MimeType mimeType, java.io.InputStream inputStream, Context context) {
+            super(mimeType, (byte[])null, java.util.Collections.emptyList(), context);
+            this.inputStream = inputStream;
+        }
+        
+        @Override
+        public long getContentLength() {
+            return -1; // Unknown length for live streams
+        }
+        
+        @Override
+        public AsyncEntityProducer getEntityProducer() {
+            return new AbstractBinAsyncEntityProducer(8192, ContentType.parse(mimeType.toString())) {
+                private boolean endOfStream = false;
+                
+                @Override
+                public boolean isRepeatable() {
+                    return false; // Live streams cannot be repeated
+                }
+                
+                @Override
+                protected int availableData() {
+                    if (endOfStream) {
+                        return 0;
+                    }
+                    try {
+                        int available = inputStream.available();
+                        return available > 0 ? available : 1; // Always indicate data might be available
+                    } catch (java.io.IOException e) {
+                        YaaccLogger.e(getClass().getName(), "Error checking available data", e);
+                        endOfStream = true;
+                        return 0;
+                    }
+                }
+                
+                @Override
+                protected void produceData(org.apache.hc.core5.http.nio.StreamChannel<java.nio.ByteBuffer> channel) throws java.io.IOException {
+                    byte[] buffer = new byte[8192];
+                    int bytesRead = inputStream.read(buffer);
+                    if (bytesRead > 0) {
+                        channel.write(java.nio.ByteBuffer.wrap(buffer, 0, bytesRead));
+                        YaaccLogger.v(getClass().getName(), "Streamed " + bytesRead + " bytes");
+                    } else if (bytesRead == -1) {
+                        endOfStream = true;
+                        channel.endStream();
+                    }
+                }
+                
+                @Override
+                public void failed(Exception cause) {
+                    YaaccLogger.e(getClass().getName(), "Live stream failed", cause);
+                    try {
+                        inputStream.close();
+                    } catch (java.io.IOException ignored) {
+                    }
+                }
+                
+                @Override
+                public void releaseResources() {
+                    YaaccLogger.d(getClass().getName(), "Releasing live stream resources");
+                    try {
+                        inputStream.close();
+                    } catch (java.io.IOException ignored) {
+                    }
                 }
             };
         }

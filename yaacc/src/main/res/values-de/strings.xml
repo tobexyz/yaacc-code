@@ -89,6 +89,7 @@
     <string name="browse_context_play_all">Spiele Einträge ab</string>
     <string name="open">Öffnen</string>
     <string name="exitActivity">Beenden</string>
+    <string name="screen_cast_stream">Screencast-Stream</string>
     <string name="title_activity_yaacc_log">Zeige Log</string>
     <string name="logContent">Der Inhalt des Systemlogs sollte hier angezeigt werden</string>
     <string name="icon">Icon</string>
@@ -121,4 +122,6 @@
     <string name="add_saf_content">Quelle hinzufügen</string>
     <string name="saf_content">verknüpft</string>
     <string name="enable_server_side_seeking_for_external_urls">Aktivieren Sie die serverseitige Zeitbereichsverwaltung im Proxy-Modus.</string>
+    <string name="live_streams">Live-Streams</string>
+    <string name="system_audio_stream">Geräte-Audiostream</string>
 </resources>

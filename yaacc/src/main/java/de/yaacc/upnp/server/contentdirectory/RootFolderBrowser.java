@@ -20,6 +20,7 @@ package de.yaacc.upnp.server.contentdirectory;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.os.Build;
 
 import androidx.preference.PreferenceManager;
 
@@ -67,6 +68,9 @@ public class RootFolderBrowser extends ContentBrowser {
         if (isServingSaf()) {
             result++;
         }
+        if (isServingLiveStreams()) {
+            result++;
+        }
         return result;
     }
 
@@ -86,6 +90,9 @@ public class RootFolderBrowser extends ContentBrowser {
         }
         if (isServingSaf()) {
             result.add((Container) new SafFolderBrowser(getContext()).browseMeta(contentDirectory, ContentDirectoryIDs.SAF_FOLDER.getId(), 0, 1, orderby));
+        }
+        if (isServingLiveStreams()) {
+            result.add((Container) new LiveStreamFolderBrowser(getContext()).browseMeta(contentDirectory, ContentDirectoryIDs.LIVE_STREAM_FOLDER.getId(), 0, 1, orderby));
         }
         int start = firstResult > 0 ? (int) firstResult : 0;
         if (firstResult >= (result.size() - 1)) {
@@ -137,6 +144,21 @@ public class RootFolderBrowser extends ContentBrowser {
         return preferences.getBoolean(
                 getContext().getString(
                         R.string.settings_local_server_serve_saf_chkbx),
+                false);
+    }
+
+    private boolean isServingLiveStreams() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            return false;
+        }
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(getContext());
+        return preferences.getBoolean(
+                getContext().getString(
+                        R.string.settings_local_server_serve_system_audio_chkbx),
+                false) ||
+                preferences.getBoolean(
+                getContext().getString(
+                        R.string.settings_local_server_serve_screen_cast_chkbx),
                 false);
     }
 }

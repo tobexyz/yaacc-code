@@ -60,6 +60,47 @@ public class BrowseDeviceAdapter extends RecyclerView.Adapter<BrowseDeviceAdapte
     private LinkedList<Device<?, ?, ?>> devices;
     private UpnpClient upnpClient;
     private RecyclerView deviceList;
+    
+    // Track streaming state (transient, not persisted)
+    private static boolean isAudioStreaming = false;
+    private static boolean isVideoStreaming = false;
+    
+    // Track which button requested permission (for onActivityResult)
+    private static boolean pendingAudioRequest = false;
+    private static boolean pendingVideoRequest = false;
+    
+    // Callback for permission requests
+    public interface StreamPermissionCallback {
+        void requestMediaProjectionPermission();
+    }
+    
+    private StreamPermissionCallback permissionCallback;
+    
+    // Track which button requested permission
+    private static boolean audioButtonRequestedPermission = false;
+    private static boolean videoButtonRequestedPermission = false;
+    
+    // Public accessors for streaming state
+    public static void setAudioStreaming(boolean enabled) {
+        isAudioStreaming = enabled;
+    }
+    
+    public static void setVideoStreaming(boolean enabled) {
+        isVideoStreaming = enabled;
+    }
+    
+    public static boolean isPendingAudioRequest() {
+        return pendingAudioRequest;
+    }
+    
+    public static boolean isPendingVideoRequest() {
+        return pendingVideoRequest;
+    }
+    
+    public static void clearPendingRequests() {
+        pendingAudioRequest = false;
+        pendingVideoRequest = false;
+    }
 
 
     public BrowseDeviceAdapter(Context ctx, RecyclerView deviceList, UpnpClient upnpClient, List<Device<?, ?, ?>> devices) {
@@ -73,6 +114,10 @@ public class BrowseDeviceAdapter extends RecyclerView.Adapter<BrowseDeviceAdapte
         this.deviceList = deviceList;
         context = ctx;
         notifyDataSetChanged();
+    }
+    
+    public void setPermissionCallback(StreamPermissionCallback callback) {
+        this.permissionCallback = callback;
     }
 
     @Override
@@ -114,7 +159,7 @@ public class BrowseDeviceAdapter extends RecyclerView.Adapter<BrowseDeviceAdapte
             }
             return false;
         });
-        return new ViewHolder(view, context);
+        return new ViewHolder(view, context, this);
     }
 
     @Override
@@ -124,6 +169,8 @@ public class BrowseDeviceAdapter extends RecyclerView.Adapter<BrowseDeviceAdapte
             holder.scanButton.setVisibility(View.GONE);
             holder.scanButtonLabel.setVisibility(View.GONE);
             holder.configButton.setVisibility(View.GONE);
+            holder.streamAudioButton.setVisibility(View.GONE);
+            holder.streamVideoButton.setVisibility(View.GONE);
             holder.scanButton.setFocusable(false);
             if (device.hasIcons()) {
                 Icon[] icons = device.getIcons();
@@ -150,6 +197,29 @@ public class BrowseDeviceAdapter extends RecyclerView.Adapter<BrowseDeviceAdapte
             holder.configButton.setVisibility(View.VISIBLE);
             holder.configButton.setFocusable(true);
             holder.configButton.setImageDrawable(ThemeHelper.tintDrawable(context.getResources().getDrawable(R.drawable.ic_baseline_settings_32, context.getTheme()), context.getTheme()));
+            
+            // Show stream buttons only on Android 10+
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                holder.streamAudioButton.setVisibility(View.VISIBLE);
+                holder.streamVideoButton.setVisibility(View.VISIBLE);
+                // Apply theme tinting like other buttons
+                holder.streamAudioButton.setImageDrawable(ThemeHelper.tintDrawable(
+                    context.getResources().getDrawable(R.drawable.ic_baseline_audiotrack_32, context.getTheme()), 
+                    context.getTheme()));
+                holder.streamVideoButton.setImageDrawable(ThemeHelper.tintDrawable(
+                    context.getResources().getDrawable(R.drawable.ic_baseline_devices_32, context.getTheme()), 
+                    context.getTheme()));
+                // Restore state from preferences
+                android.content.SharedPreferences prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(context);
+                isAudioStreaming = prefs.getBoolean(context.getString(R.string.settings_local_server_serve_system_audio_chkbx), false);
+                isVideoStreaming = prefs.getBoolean(context.getString(R.string.settings_local_server_serve_screen_cast_chkbx), false);
+                // Update button states
+                holder.updateStreamButtonState(holder.streamAudioButton, isAudioStreaming);
+                holder.updateStreamButtonState(holder.streamVideoButton, isVideoStreaming);
+            } else {
+                holder.streamAudioButton.setVisibility(View.GONE);
+                holder.streamVideoButton.setVisibility(View.GONE);
+            }
         }
 
         holder.name.setText(device.getDetails().getFriendlyName());
@@ -171,13 +241,17 @@ public class BrowseDeviceAdapter extends RecyclerView.Adapter<BrowseDeviceAdapte
         ImageButton scanButton;
         TextView scanButtonLabel;
         ImageButton configButton;
+        ImageButton streamAudioButton;
+        ImageButton streamVideoButton;
 
         Context context;
+        BrowseDeviceAdapter adapter;
         private Timer timer;
 
-        public ViewHolder(View itemView, Context context) {
+        public ViewHolder(View itemView, Context context, BrowseDeviceAdapter adapter) {
             super(itemView);
             this.context = context;
+            this.adapter = adapter;
             timer = new Timer();
             this.icon = itemView.findViewById(R.id.browseDeviceItemIcon);
             this.name = itemView.findViewById(R.id.browseDeviceItemName);
@@ -196,6 +270,91 @@ public class BrowseDeviceAdapter extends RecyclerView.Adapter<BrowseDeviceAdapte
             configButton.setOnClickListener((v) -> {
                 ViewHolder.this.context.startActivity(new Intent(ViewHolder.this.context, YaaccUpnpServerControlActivity.class));
             });
+            
+            this.streamAudioButton = itemView.findViewById(R.id.browseDeviceItemStreamAudio);
+            this.streamVideoButton = itemView.findViewById(R.id.browseDeviceItemStreamVideo);
+            
+            streamAudioButton.setOnClickListener((v) -> {
+                if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.Q) {
+                    return;
+                }
+                
+                if (!isAudioStreaming) {
+                    // Turning ON - check permission
+                    if (!de.yaacc.upnp.server.media.MediaProjectionHelper.hasPermission()) {
+                        // Request permission - mark that audio button requested it
+                        pendingAudioRequest = true;
+                        pendingVideoRequest = false;
+                        if (adapter.permissionCallback != null) {
+                            adapter.permissionCallback.requestMediaProjectionPermission();
+                        }
+                        return;
+                    }
+                }
+                
+                // Toggle state
+                isAudioStreaming = !isAudioStreaming;
+                updateStreamButtonState(streamAudioButton, isAudioStreaming);
+                
+                // Save to preferences (hidden from UI)
+                android.content.SharedPreferences prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(context);
+                prefs.edit().putBoolean(context.getString(R.string.settings_local_server_serve_system_audio_chkbx), isAudioStreaming).apply();
+                
+                // If both disabled, clear permission
+                if (!isAudioStreaming && !isVideoStreaming) {
+                    de.yaacc.upnp.server.media.MediaProjectionHelper.clearPermission();
+                }
+                
+                // TODO: Start/stop audio capture service
+                YaaccLogger.i(getClass().getName(), "Audio streaming: " + isAudioStreaming);
+            });
+            
+            streamVideoButton.setOnClickListener((v) -> {
+                if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.Q) {
+                    return;
+                }
+                
+                if (!isVideoStreaming) {
+                    // Turning ON - check permission
+                    if (!de.yaacc.upnp.server.media.MediaProjectionHelper.hasPermission()) {
+                        // Request permission - mark that video button requested it
+                        pendingAudioRequest = false;
+                        pendingVideoRequest = true;
+                        if (adapter.permissionCallback != null) {
+                            adapter.permissionCallback.requestMediaProjectionPermission();
+                        }
+                        return;
+                    }
+                }
+                
+                // Toggle state
+                isVideoStreaming = !isVideoStreaming;
+                updateStreamButtonState(streamVideoButton, isVideoStreaming);
+                
+                // Save to preferences (hidden from UI)
+                android.content.SharedPreferences prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(context);
+                prefs.edit().putBoolean(context.getString(R.string.settings_local_server_serve_screen_cast_chkbx), isVideoStreaming).apply();
+                
+                // If both disabled, clear permission
+                if (!isAudioStreaming && !isVideoStreaming) {
+                    de.yaacc.upnp.server.media.MediaProjectionHelper.clearPermission();
+                }
+                
+                // TODO: Start/stop video capture service
+                YaaccLogger.i(getClass().getName(), "Video streaming: " + isVideoStreaming);
+            });
+        }
+        
+        private void updateStreamButtonState(ImageButton button, boolean isActive) {
+            android.util.TypedValue typedValue = new android.util.TypedValue();
+            if (isActive) {
+                // Use accent/primary color for active state
+                context.getTheme().resolveAttribute(com.google.android.material.R.attr.colorPrimary, typedValue, true);
+                button.setColorFilter(typedValue.data);
+            } else {
+                // Clear color filter to use default theme color
+                button.clearColorFilter();
+            }
         }
 
         private Activity getActivity(Context ctx) {

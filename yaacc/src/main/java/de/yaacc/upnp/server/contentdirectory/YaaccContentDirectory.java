@@ -458,6 +458,8 @@ public class YaaccContentDirectory {
             result = new VideoItemBrowser(getContext());
         } else if (objectID.startsWith(ContentDirectoryIDs.SAF_FOLDER.getId()) || objectID.startsWith(ContentDirectoryIDs.SAF_PREFIX.getId())) {
             result = new SafFolderBrowser(getContext());
+        } else if (ContentDirectoryIDs.LIVE_STREAM_FOLDER.getId().equals(objectID)) {
+            result = new LiveStreamFolderBrowser(getContext());
         } else {
             YaaccLogger.d(getClass().getName(), "unknown object id: " + objectID);
             result = new RootFolderBrowser(getContext());

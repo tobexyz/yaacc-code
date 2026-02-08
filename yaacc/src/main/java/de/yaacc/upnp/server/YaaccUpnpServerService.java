@@ -133,6 +133,9 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
     private HttpAsyncServer httpServer;
     private Timer timer;
     private LocalDevice localDevice;
+    
+    // Live streaming (Android 10+)
+    private de.yaacc.upnp.server.media.SystemAudioCaptureService audioCapture;
 
     /*
      * (non-Javadoc)
@@ -251,7 +254,8 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         try {
             createHttpServer();
         } catch (IOException e) {
-            YaaccLogger.e(getClass().getName(), "Error while creating http server", e);
+            YaaccLogger.e(getClass().getName(), "Error while creating http server - will retry on next server toggle", e);
+            // Don't fail initialization, server can be started later
         }
 
 
@@ -261,6 +265,17 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
     private void createUpnpDevice() {
         String versionName;
         YaaccLogger.d(this.getClass().getName(), "Create UPNP Device whith ID: " + locaDeviceUuid);
+        
+        // Ensure HTTP server is running when creating device
+        if (httpServer == null) {
+            YaaccLogger.w(this.getClass().getName(), "HTTP server not running, attempting to create");
+            try {
+                createHttpServer();
+            } catch (IOException e) {
+                YaaccLogger.e(this.getClass().getName(), "Failed to create HTTP server during device creation", e);
+            }
+        }
+        
         if (registry.getDevices().contains(localDevice)) {
             registry.removeDevice(localDevice);
         }
@@ -332,6 +347,18 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
             registry.setAliveInterval(aliveInterval);
             YaaccLogger.d(this.getClass().getName(), "UPnP ALIVE interval updated to: " + aliveInterval + "ms");
         }
+        
+        // Handle live streaming toggles (Android 10+)
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            if (getApplicationContext().getString(R.string.settings_local_server_serve_system_audio_chkbx).equals(key)) {
+                boolean enabled = sharedPreferences.getBoolean(key, false);
+                if (enabled) {
+                    startAudioCapture();
+                } else {
+                    stopAudioCapture();
+                }
+            }
+        }
     }
 
     /**
@@ -369,7 +396,15 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
                         .register(UpnpProtocolHandler.NAMESPACE.getBasePath().getPath() + "/*", new YaaccUpnpServerProtocolRequestHandler(getNetworkDeviceListener().getUpnpProtocolHandler()))
                         .create();
                 httpServer.start();
-                YaaccLogger.d(getClass().getName(), "HTTP server created and started successfully");
+                YaaccLogger.i(getClass().getName(), "HTTP server created and started successfully on port " + PORT);
+                
+                // Verify server is actually listening
+                try {
+                    Thread.sleep(100); // Give it a moment to bind
+                    YaaccLogger.i(getClass().getName(), "HTTP server should now be listening on port " + PORT);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
             } catch (Exception e) {
                 YaaccLogger.e(getClass().getName(), "Failed to create HTTP server", e);
                 httpServer = null;
@@ -869,5 +904,49 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
 
     public boolean isInitialized() {
         return registry != null && networkDeviceListener.isInitalized();
+    }
+    
+    // Live streaming methods (Android 10+)
+    
+    @androidx.annotation.RequiresApi(api = android.os.Build.VERSION_CODES.Q)
+    private void startAudioCapture() {
+        if (audioCapture != null && audioCapture.isCapturing()) {
+            YaaccLogger.w(getClass().getName(), "Audio capture already running");
+            return;
+        }
+        
+        android.media.projection.MediaProjection projection = 
+            de.yaacc.upnp.server.media.MediaProjectionHelper.getMediaProjection();
+        
+        if (projection == null) {
+            // Try to create from stored permission
+            if (!de.yaacc.upnp.server.media.MediaProjectionHelper.createMediaProjectionFromStored(this)) {
+                YaaccLogger.e(getClass().getName(), "No MediaProjection available for audio capture");
+                return;
+            }
+            projection = de.yaacc.upnp.server.media.MediaProjectionHelper.getMediaProjection();
+        }
+        
+        if (audioCapture == null) {
+            audioCapture = new de.yaacc.upnp.server.media.SystemAudioCaptureService();
+        }
+        
+        if (audioCapture.startCapture(projection)) {
+            YaaccLogger.i(getClass().getName(), "Audio capture started successfully");
+        } else {
+            YaaccLogger.e(getClass().getName(), "Failed to start audio capture");
+        }
+    }
+    
+    @androidx.annotation.RequiresApi(api = android.os.Build.VERSION_CODES.Q)
+    private void stopAudioCapture() {
+        if (audioCapture != null) {
+            audioCapture.stopCapture();
+            YaaccLogger.i(getClass().getName(), "Audio capture stopped");
+        }
+    }
+    
+    public de.yaacc.upnp.server.media.SystemAudioCaptureService getAudioCapture() {
+        return audioCapture;
     }
 }
