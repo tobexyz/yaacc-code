@@ -31,7 +31,6 @@ import android.net.Uri;
 import android.os.Build;
 import android.provider.MediaStore;
 import android.util.Base64;
-import de.yaacc.util.YaaccLogger;
 import android.util.Size;
 
 import androidx.core.content.res.ResourcesCompat;
@@ -79,7 +78,9 @@ import de.yaacc.Yaacc;
 import de.yaacc.upnp.server.YaaccUpnpServerService;
 import de.yaacc.upnp.server.contentdirectory.ContentDirectoryIDs;
 import de.yaacc.upnp.server.contentdirectory.MediaPathFilter;
+import de.yaacc.upnp.server.media.SystemAudioCaptureService;
 import de.yaacc.util.HttpRange;
+import de.yaacc.util.YaaccLogger;
 
 /**
  * A http service to retrieve media content by an id.
@@ -299,6 +300,9 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
             } else if ("video".equals(streamType)) {
                 YaaccLogger.d(getClass().getName(), "Routing to video stream");
                 contentHolder = serveLiveVideo(ranges);
+            } else if ("videoaudio".equals(streamType)) {
+                YaaccLogger.d(getClass().getName(), "Routing to combined video+audio stream");
+                contentHolder = serveLiveCombined(ranges);
             } else {
                 YaaccLogger.w(getClass().getName(), "Unknown stream type: " + streamType);
             }
@@ -313,11 +317,11 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
                     + thumbId + pathSegments.get(1) + " not found</body></html>";
             responseBuilder.setEntity(AsyncEntityProducers.create(response, ContentType.TEXT_HTML));
         } else {
-            YaaccLogger.d(getClass().getName(), "Serving content: type=" + type 
-                    + " mimeType=" + contentHolder.getMimeType() 
-                    + " length=" + contentHolder.getContentLength() 
+            YaaccLogger.d(getClass().getName(), "Serving content: type=" + type
+                    + " mimeType=" + contentHolder.getMimeType()
+                    + " length=" + contentHolder.getContentLength()
                     + " ranges=" + ranges.size());
-            
+
             if (!ranges.isEmpty()) {
                 responseBuilder.setStatus(HttpStatus.SC_PARTIAL_CONTENT);
                 // Add Content-Range header for partial content
@@ -340,9 +344,9 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
             responseBuilder.setHeader(HttpHeaders.CONNECTION, "close");
             responseBuilder.setHeader("transferMode.dlna.org", "Streaming");
             responseBuilder.setHeader("contentFeatures.dlna.org", "DLNA.ORG_OP=01;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=01700000000000000000000000000000");
-            
+
             // Add MJPEG-specific headers for Kodi compatibility
-            if (contentHolder instanceof LiveStreamContentHolder && ((LiveStreamContentHolder)contentHolder).isVideo) {
+            if (contentHolder instanceof LiveStreamContentHolder && ((LiveStreamContentHolder) contentHolder).isVideo) {
                 responseBuilder.setHeader(HttpHeaders.CACHE_CONTROL, "no-cache, no-store, must-revalidate");
                 responseBuilder.setHeader(HttpHeaders.PRAGMA, "no-cache");
                 responseBuilder.setHeader(HttpHeaders.EXPIRES, "0");
@@ -374,37 +378,37 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
     @androidx.annotation.RequiresApi(api = android.os.Build.VERSION_CODES.Q)
     private ContentHolder serveLiveAudio(List<HttpRange> ranges) {
         YaaccLogger.d(getClass().getName(), "serveLiveAudio called");
-        
+
         YaaccUpnpServerService service = ((Yaacc) getContext().getApplicationContext())
-            .getUpnpClient().getYaaccUpnpServerService();
-        
+                .getUpnpClient().getYaaccUpnpServerService();
+
         if (service == null) {
             YaaccLogger.w(getClass().getName(), "Server service not available");
             return null;
         }
-        
-        de.yaacc.upnp.server.media.SystemAudioCaptureService audioCapture = service.getAudioCapture();
+
+        SystemAudioCaptureService audioCapture = service.getAudioCapture();
         if (audioCapture == null) {
             YaaccLogger.w(getClass().getName(), "Audio capture service is null");
             return null;
         }
-        
+
         if (!audioCapture.isCapturing()) {
             YaaccLogger.w(getClass().getName(), "Audio capture not active");
             return null;
         }
-        
+
         YaaccLogger.d(getClass().getName(), "Audio capture is active, creating stream for client");
-        
+
         try {
-            java.io.InputStream inputStream = audioCapture.getWavInputStream();
+            InputStream inputStream = audioCapture.getInputStream();
             if (inputStream == null) {
                 YaaccLogger.w(getClass().getName(), "Audio input stream not available");
                 return null;
             }
-            
+
             YaaccLogger.i(getClass().getName(), "Serving live audio stream to new client");
-            
+
             // Serve as audio/wav for better compatibility
             MimeType mimeType = MimeType.valueOf("audio/wav");
             return new LiveStreamContentHolder(mimeType, inputStream, context);
@@ -420,32 +424,136 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
     @androidx.annotation.RequiresApi(api = android.os.Build.VERSION_CODES.Q)
     private ContentHolder serveLiveVideo(List<HttpRange> ranges) {
         YaaccLogger.d(getClass().getName(), "serveLiveVideo called");
-        
+
         YaaccUpnpServerService service = ((Yaacc) getContext().getApplicationContext())
-            .getUpnpClient().getYaaccUpnpServerService();
-        
+                .getUpnpClient().getYaaccUpnpServerService();
+
         if (service == null) {
             return null;
         }
-        
+
         de.yaacc.upnp.server.media.ScreenCastCaptureService videoCapture = service.getVideoCapture();
         if (videoCapture == null || !videoCapture.isCapturing()) {
             YaaccLogger.w(getClass().getName(), "Video capture not active");
             return null;
         }
-        
+
         try {
             java.io.InputStream inputStream = videoCapture.createInputStream();
             if (inputStream == null) {
                 return null;
             }
-            
+
             YaaccLogger.i(getClass().getName(), "Serving MJPEG video stream");
-            
+
             MimeType mimeType = MimeType.valueOf("multipart/x-mixed-replace; boundary=frame");
             return new LiveStreamContentHolder(mimeType, inputStream, context, true);
         } catch (java.io.IOException e) {
             YaaccLogger.e(getClass().getName(), "Error creating video stream", e);
+            return null;
+        }
+    }
+
+    /**
+     * Serve combined video+audio stream (MPEG-TS)
+     */
+    @androidx.annotation.RequiresApi(api = android.os.Build.VERSION_CODES.Q)
+    private ContentHolder serveLiveCombined(List<HttpRange> ranges) {
+        YaaccLogger.d(getClass().getName(), "serveLiveCombined called, ranges: " + (ranges != null ? ranges.size() : 0));
+
+        YaaccUpnpServerService service = ((Yaacc) getContext().getApplicationContext())
+                .getUpnpClient().getYaaccUpnpServerService();
+
+        if (service == null) {
+            return null;
+        }
+
+        de.yaacc.upnp.server.media.CombinedCaptureService combinedCapture = service.getCombinedCapture();
+        if (combinedCapture == null || !combinedCapture.isCapturing()) {
+            YaaccLogger.w(getClass().getName(), "Combined capture not active");
+            return null;
+        }
+
+        java.io.File outputFile = combinedCapture.getOutputFile();
+        if (outputFile == null || !outputFile.exists()) {
+            YaaccLogger.w(getClass().getName(), "Output file not available");
+            return null;
+        }
+
+        try {
+            YaaccLogger.i(getClass().getName(), "Serving MPEG-TS live stream");
+            MimeType mimeType = MimeType.valueOf("video/mp2t");
+
+            // Create a custom input stream that follows the circular buffer
+            java.io.InputStream stream = new java.io.InputStream() {
+                private java.io.RandomAccessFile raf = new java.io.RandomAccessFile(outputFile, "r");
+                private static final long MAX_FILE_SIZE = 10 * 1024 * 1024; // Must match muxer
+                private long position = -1; // Will be set on first read
+                private long startTime = System.currentTimeMillis();
+
+                @Override
+                public int read() throws java.io.IOException {
+                    byte[] b = new byte[1];
+                    int result = read(b, 0, 1);
+                    return result > 0 ? (b[0] & 0xFF) : -1;
+                }
+
+                @Override
+                public int read(byte[] b, int off, int len) throws java.io.IOException {
+                    if (position < 0) {
+                        de.yaacc.upnp.server.media.FragmentedMp4Muxer muxer = combinedCapture.getMuxer();
+                        if (muxer != null) {
+                            position = muxer.getLastKeyframePosition();
+                            YaaccLogger.i(getClass().getName(), "Starting stream from keyframe at " + position);
+                        } else {
+                            position = 0;
+                        }
+                    }
+
+                    // Check how much data is available
+                    de.yaacc.upnp.server.media.FragmentedMp4Muxer muxer = combinedCapture.getMuxer();
+                    if (muxer == null) return -1;
+
+                    long writePos = muxer.getWritePosition();
+                    long available;
+                    if (writePos >= position) {
+                        available = writePos - position;
+                    } else {
+                        available = (MAX_FILE_SIZE - position) + writePos;
+                    }
+
+                    // Wait if no data available
+                    if (available < 188) {
+                        try {
+                            Thread.sleep(5);
+                        } catch (InterruptedException e) {
+                        }
+                        return 0;
+                    }
+
+                    int toRead = Math.min((int) Math.min(available, len) / 188 * 188, 188 * 200);
+                    if (toRead == 0) toRead = 188;
+
+                    raf.seek(position);
+                    int read = raf.read(b, off, toRead);
+
+                    if (read > 0) {
+                        position = (position + read) % MAX_FILE_SIZE;
+                        return read;
+                    }
+
+                    return 0;
+                }
+
+                @Override
+                public void close() throws java.io.IOException {
+                    raf.close();
+                }
+            };
+
+            return new LiveStreamContentHolder(mimeType, stream, context, true);
+        } catch (java.io.IOException e) {
+            YaaccLogger.e(getClass().getName(), "Error opening stream file", e);
             return null;
         }
     }
@@ -1450,39 +1558,39 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
             };
         }
     }
-    
+
     /**
      * ContentHolder for live streams (no known length).
      */
     static class LiveStreamContentHolder extends ContentHolder {
         private final java.io.InputStream inputStream;
         private final boolean isVideo;
-        
+
         public LiveStreamContentHolder(MimeType mimeType, java.io.InputStream inputStream, Context context) {
             this(mimeType, inputStream, context, false);
         }
-        
+
         public LiveStreamContentHolder(MimeType mimeType, java.io.InputStream inputStream, Context context, boolean isVideo) {
-            super(mimeType, (byte[])null, java.util.Collections.emptyList(), context);
+            super(mimeType, (byte[]) null, java.util.Collections.emptyList(), context);
             this.inputStream = inputStream;
             this.isVideo = isVideo;
         }
-        
+
         @Override
         public long getContentLength() {
             return -1; // Unknown length for live streams
         }
-        
+
         @Override
         public AsyncEntityProducer getEntityProducer() {
             return new AbstractBinAsyncEntityProducer(8192, ContentType.parse(mimeType.toString())) {
                 private boolean endOfStream = false;
-                
+
                 @Override
                 public boolean isRepeatable() {
                     return false; // Live streams cannot be repeated
                 }
-                
+
                 @Override
                 protected int availableData() {
                     if (endOfStream) {
@@ -1497,7 +1605,7 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
                         return 0;
                     }
                 }
-                
+
                 @Override
                 protected void produceData(org.apache.hc.core5.http.nio.StreamChannel<java.nio.ByteBuffer> channel) throws java.io.IOException {
                     byte[] buffer = new byte[8192];
@@ -1510,7 +1618,7 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
                         channel.endStream();
                     }
                 }
-                
+
                 @Override
                 public void failed(Exception cause) {
                     YaaccLogger.e(getClass().getName(), "Live stream failed", cause);
@@ -1519,7 +1627,7 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
                     } catch (java.io.IOException ignored) {
                     }
                 }
-                
+
                 @Override
                 public void releaseResources() {
                     YaaccLogger.d(getClass().getName(), "Releasing live stream resources");
@@ -1531,30 +1639,30 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
             };
         }
     }
-    
+
     static class ByteArrayContentHolder extends ContentHolder {
         private final byte[] data;
-        
+
         ByteArrayContentHolder(MimeType mimeType, byte[] data, Context context) {
             super(mimeType, data, null, context);
             this.data = data;
         }
-        
+
         @Override
         public AsyncEntityProducer getEntityProducer() {
             return new AbstractBinAsyncEntityProducer(0, ContentType.parse(mimeType.toString())) {
                 private int position = 0;
-                
+
                 @Override
                 public boolean isRepeatable() {
                     return false;
                 }
-                
+
                 @Override
                 protected int availableData() {
                     return data.length - position;
                 }
-                
+
                 @Override
                 protected void produceData(StreamChannel<ByteBuffer> channel) throws IOException {
                     if (position < data.length) {
@@ -1565,38 +1673,38 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
                         channel.endStream();
                     }
                 }
-                
+
                 @Override
                 public void failed(Exception cause) {
                 }
-                
+
                 @Override
                 public void releaseResources() {
                 }
             };
         }
     }
-    
+
     static class FileContentHolder extends ContentHolder {
         private final java.io.File file;
         private final java.io.FileInputStream fis;
-        
+
         FileContentHolder(MimeType mimeType, java.io.File file, java.io.FileInputStream fis, Context context) {
             super(mimeType, file.getAbsolutePath(), null, context);
             this.file = file;
             this.fis = fis;
         }
-        
+
         @Override
         public AsyncEntityProducer getEntityProducer() {
             return new AbstractBinAsyncEntityProducer(8192, ContentType.parse(mimeType.toString())) {
                 private final byte[] buffer = new byte[8192];
-                
+
                 @Override
                 public boolean isRepeatable() {
                     return false;
                 }
-                
+
                 @Override
                 protected int availableData() {
                     try {
@@ -1605,7 +1713,7 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
                         return 0;
                     }
                 }
-                
+
                 @Override
                 protected void produceData(StreamChannel<ByteBuffer> channel) throws IOException {
                     int bytesRead = fis.read(buffer);
@@ -1616,7 +1724,7 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
                         channel.endStream();
                     }
                 }
-                
+
                 @Override
                 public void failed(Exception cause) {
                     try {
@@ -1624,7 +1732,7 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
                     } catch (IOException ignored) {
                     }
                 }
-                
+
                 @Override
                 public void releaseResources() {
                     try {

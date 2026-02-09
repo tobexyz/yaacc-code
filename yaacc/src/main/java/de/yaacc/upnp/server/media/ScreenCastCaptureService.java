@@ -1,5 +1,6 @@
 /*
- * Copyright (C) 2026 www.yaacc.de
+ *
+ * Copyright (C) 2026 Tobias Schoene www.yaacc.de
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -50,14 +51,14 @@ public class ScreenCastCaptureService {
 
     private static final int FRAME_RATE = 15;
     private static final int JPEG_QUALITY = 75;
-    
+
     private final Context context;
     private VirtualDisplay virtualDisplay;
     private ImageReader imageReader;
     private Thread captureThread;
     private volatile boolean isCapturing = false;
     private final List<PipedOutputStream> outputStreams = new java.util.concurrent.CopyOnWriteArrayList<>();
-    
+
     private int screenWidth;
     private int screenHeight;
     private int screenDensity;
@@ -71,7 +72,7 @@ public class ScreenCastCaptureService {
         WindowManager wm = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
         DisplayMetrics metrics = new DisplayMetrics();
         wm.getDefaultDisplay().getRealMetrics(metrics);
-        
+
         screenWidth = 1280;
         screenHeight = 720;
         screenDensity = metrics.densityDpi;
@@ -84,8 +85,8 @@ public class ScreenCastCaptureService {
             imageReader = ImageReader.newInstance(screenWidth, screenHeight, PixelFormat.RGBA_8888, 2);
 
             virtualDisplay = mediaProjection.createVirtualDisplay(
-                "YAACC-ScreenCapture", screenWidth, screenHeight, screenDensity,
-                DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR, imageReader.getSurface(), null, null);
+                    "YAACC-ScreenCapture", screenWidth, screenHeight, screenDensity,
+                    DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR, imageReader.getSurface(), null, null);
 
             isCapturing = true;
 
@@ -107,7 +108,10 @@ public class ScreenCastCaptureService {
         isCapturing = false;
 
         if (captureThread != null) {
-            try { captureThread.join(1000); } catch (InterruptedException e) {}
+            try {
+                captureThread.join(1000);
+            } catch (InterruptedException e) {
+            }
             captureThread = null;
         }
 
@@ -122,7 +126,10 @@ public class ScreenCastCaptureService {
         }
 
         for (PipedOutputStream stream : outputStreams) {
-            try { stream.close(); } catch (IOException e) {}
+            try {
+                stream.close();
+            } catch (IOException e) {
+            }
         }
         outputStreams.clear();
 
@@ -132,10 +139,10 @@ public class ScreenCastCaptureService {
     public java.io.InputStream createInputStream() throws IOException {
         PipedOutputStream outputStream = new PipedOutputStream();
         PipedInputStream inputStream = new PipedInputStream(outputStream, 1024 * 1024);
-        
+
         outputStreams.add(outputStream);
         YaaccLogger.i(getClass().getName(), "Created stream, clients: " + outputStreams.size());
-        
+
         return inputStream;
     }
 
@@ -145,24 +152,26 @@ public class ScreenCastCaptureService {
 
     private void captureLoop() {
         long frameInterval = 1000 / FRAME_RATE;
-        
+        YaaccLogger.i(getClass().getName(), "Capture loop started");
+
         while (isCapturing && imageReader != null) {
             long frameStart = System.currentTimeMillis();
-            
+
             try {
                 Image image = imageReader.acquireLatestImage();
                 if (image != null) {
+                    YaaccLogger.d(getClass().getName(), "Got image");
                     try {
                         byte[] jpegData = imageToJpeg(image);
-                        
+
                         if (jpegData != null && jpegData.length > 0) {
                             List<PipedOutputStream> deadStreams = new java.util.ArrayList<>();
-                            
+
                             for (PipedOutputStream stream : outputStreams) {
                                 try {
                                     String header = "--frame\r\n" +
-                                                   "Content-Type: image/jpeg\r\n" +
-                                                   "Content-Length: " + jpegData.length + "\r\n\r\n";
+                                            "Content-Type: image/jpeg\r\n" +
+                                            "Content-Length: " + jpegData.length + "\r\n\r\n";
                                     stream.write(header.getBytes());
                                     stream.write(jpegData);
                                     stream.write("\r\n".getBytes());
@@ -171,23 +180,26 @@ public class ScreenCastCaptureService {
                                     deadStreams.add(stream);
                                 }
                             }
-                            
+
                             for (PipedOutputStream dead : deadStreams) {
                                 outputStreams.remove(dead);
-                                try { dead.close(); } catch (IOException e) {}
+                                try {
+                                    dead.close();
+                                } catch (IOException e) {
+                                }
                             }
                         }
                     } finally {
                         image.close();
                     }
                 }
-                
+
                 long elapsed = System.currentTimeMillis() - frameStart;
                 long sleep = frameInterval - elapsed;
                 if (sleep > 0) {
                     Thread.sleep(sleep);
                 }
-                
+
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 break;
@@ -196,7 +208,7 @@ public class ScreenCastCaptureService {
             }
         }
     }
-    
+
     private byte[] imageToJpeg(Image image) {
         try {
             Image.Plane[] planes = image.getPlanes();
@@ -204,18 +216,18 @@ public class ScreenCastCaptureService {
             int pixelStride = planes[0].getPixelStride();
             int rowStride = planes[0].getRowStride();
             int rowPadding = rowStride - pixelStride * screenWidth;
-            
+
             Bitmap bitmap = Bitmap.createBitmap(screenWidth + rowPadding / pixelStride, screenHeight, Bitmap.Config.ARGB_8888);
             bitmap.copyPixelsFromBuffer(buffer);
-            
+
             if (rowPadding != 0) {
                 bitmap = Bitmap.createBitmap(bitmap, 0, 0, screenWidth, screenHeight);
             }
-            
+
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             bitmap.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, out);
             bitmap.recycle();
-            
+
             return out.toByteArray();
         } catch (Exception e) {
             YaaccLogger.e(getClass().getName(), "Error converting image", e);

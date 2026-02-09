@@ -1,5 +1,6 @@
 /*
- * Copyright (C) 2026 www.yaacc.de
+ *
+ * Copyright (C) 2026 Tobias Schoene www.yaacc.de
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -38,17 +39,17 @@ import de.yaacc.util.YaaccLogger;
 public class MediaProjectionHelper {
 
     public static final int REQUEST_CODE_MEDIA_PROJECTION = 2001;
-    
+
     private static MediaProjection mediaProjection;
     private static MediaProjectionManager mediaProjectionManager;
     private static int storedResultCode = Activity.RESULT_CANCELED;
     private static Intent storedResultData = null;
-    
+
     // Callback for when MediaProjection stops
     public interface MediaProjectionStopCallback {
         void onMediaProjectionStopped();
     }
-    
+
     private static MediaProjectionStopCallback stopCallback;
 
     /**
@@ -63,8 +64,8 @@ public class MediaProjectionHelper {
      */
     public static Intent createPermissionIntent(Context context) {
         if (mediaProjectionManager == null) {
-            mediaProjectionManager = (MediaProjectionManager) 
-                context.getSystemService(Context.MEDIA_PROJECTION_SERVICE);
+            mediaProjectionManager = (MediaProjectionManager)
+                    context.getSystemService(Context.MEDIA_PROJECTION_SERVICE);
         }
         return mediaProjectionManager.createScreenCaptureIntent();
     }
@@ -75,8 +76,8 @@ public class MediaProjectionHelper {
      */
     public static boolean handlePermissionResult(Context context, int resultCode, Intent data) {
         if (resultCode != Activity.RESULT_OK || data == null) {
-            YaaccLogger.w(MediaProjectionHelper.class.getName(), 
-                "MediaProjection permission denied");
+            YaaccLogger.w(MediaProjectionHelper.class.getName(),
+                    "MediaProjection permission denied");
             storedResultCode = Activity.RESULT_CANCELED;
             storedResultData = null;
             return false;
@@ -85,9 +86,9 @@ public class MediaProjectionHelper {
         // Store the result for later use by the service
         storedResultCode = resultCode;
         storedResultData = data;
-        
-        YaaccLogger.i(MediaProjectionHelper.class.getName(), 
-            "MediaProjection permission granted, stored for service");
+
+        YaaccLogger.i(MediaProjectionHelper.class.getName(),
+                "MediaProjection permission granted, stored for service");
         return true;
     }
 
@@ -97,8 +98,8 @@ public class MediaProjectionHelper {
      */
     public static boolean createMediaProjectionFromStored(Context context) {
         if (storedResultCode == Activity.RESULT_CANCELED || storedResultData == null) {
-            YaaccLogger.w(MediaProjectionHelper.class.getName(), 
-                "No stored MediaProjection permission");
+            YaaccLogger.w(MediaProjectionHelper.class.getName(),
+                    "No stored MediaProjection permission");
             return false;
         }
         return createMediaProjection(context, storedResultCode, storedResultData);
@@ -110,41 +111,41 @@ public class MediaProjectionHelper {
      */
     public static boolean createMediaProjection(Context context, int resultCode, Intent data) {
         if (mediaProjectionManager == null) {
-            mediaProjectionManager = (MediaProjectionManager) 
-                context.getSystemService(Context.MEDIA_PROJECTION_SERVICE);
+            mediaProjectionManager = (MediaProjectionManager)
+                    context.getSystemService(Context.MEDIA_PROJECTION_SERVICE);
         }
 
         stopMediaProjection();
-        
+
         try {
             mediaProjection = mediaProjectionManager.getMediaProjection(resultCode, data);
-            
+
             if (mediaProjection != null) {
                 mediaProjection.registerCallback(new MediaProjection.Callback() {
                     @Override
                     public void onStop() {
-                        YaaccLogger.i(MediaProjectionHelper.class.getName(), 
-                            "MediaProjection stopped");
+                        YaaccLogger.i(MediaProjectionHelper.class.getName(),
+                                "MediaProjection stopped");
                         mediaProjection = null;
                         storedResultCode = Activity.RESULT_CANCELED;
                         storedResultData = null;
-                        
+
                         // Notify callback
                         if (stopCallback != null) {
                             stopCallback.onMediaProjectionStopped();
                         }
                     }
                 }, null);
-                
-                YaaccLogger.i(MediaProjectionHelper.class.getName(), 
-                    "MediaProjection created successfully");
+
+                YaaccLogger.i(MediaProjectionHelper.class.getName(),
+                        "MediaProjection created successfully");
                 return true;
             }
         } catch (Exception e) {
-            YaaccLogger.e(MediaProjectionHelper.class.getName(), 
-                "Failed to create MediaProjection", e);
+            YaaccLogger.e(MediaProjectionHelper.class.getName(),
+                    "Failed to create MediaProjection", e);
         }
-        
+
         return false;
     }
 
@@ -187,8 +188,8 @@ public class MediaProjectionHelper {
             try {
                 mediaProjection.stop();
             } catch (Exception e) {
-                YaaccLogger.e(MediaProjectionHelper.class.getName(), 
-                    "Error stopping MediaProjection", e);
+                YaaccLogger.e(MediaProjectionHelper.class.getName(),
+                        "Error stopping MediaProjection", e);
             }
             mediaProjection = null;
         }

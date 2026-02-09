@@ -1,5 +1,6 @@
 /*
- * Copyright (C) 2026 www.yaacc.de
+ *
+ * Copyright (C) 2026 Tobias Schoene www.yaacc.de
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -75,12 +76,21 @@ public class WavHeaderInputStream extends InputStream {
         int blockAlign = channels * bitsPerSample / 8;
 
         // RIFF header
-        header[0] = 'R'; header[1] = 'I'; header[2] = 'F'; header[3] = 'F';
+        header[0] = 'R';
+        header[1] = 'I';
+        header[2] = 'F';
+        header[3] = 'F';
         writeInt(header, 4, 0x7FFFFFFF); // File size (unknown for streaming)
-        header[8] = 'W'; header[9] = 'A'; header[10] = 'V'; header[11] = 'E';
+        header[8] = 'W';
+        header[9] = 'A';
+        header[10] = 'V';
+        header[11] = 'E';
 
         // fmt chunk
-        header[12] = 'f'; header[13] = 'm'; header[14] = 't'; header[15] = ' ';
+        header[12] = 'f';
+        header[13] = 'm';
+        header[14] = 't';
+        header[15] = ' ';
         writeInt(header, 16, 16); // fmt chunk size
         writeShort(header, 20, (short) 1); // PCM format
         writeShort(header, 22, (short) channels);
@@ -90,7 +100,10 @@ public class WavHeaderInputStream extends InputStream {
         writeShort(header, 34, (short) bitsPerSample);
 
         // data chunk
-        header[36] = 'd'; header[37] = 'a'; header[38] = 't'; header[39] = 'a';
+        header[36] = 'd';
+        header[37] = 'a';
+        header[38] = 't';
+        header[39] = 'a';
         writeInt(header, 40, 0x7FFFFFFF); // Data size (unknown for streaming)
 
         return header;

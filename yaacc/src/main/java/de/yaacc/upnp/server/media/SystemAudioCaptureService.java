@@ -1,5 +1,6 @@
 /*
- * Copyright (C) 2026 www.yaacc.de
+ *
+ * Copyright (C) 2026 Tobias Schoene www.yaacc.de
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -26,6 +27,7 @@ import android.os.Build;
 import androidx.annotation.RequiresApi;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
 import java.util.List;
@@ -45,7 +47,7 @@ public class SystemAudioCaptureService {
     private static final int CHANNEL_CONFIG = AudioFormat.CHANNEL_IN_STEREO;
     private static final int AUDIO_FORMAT = AudioFormat.ENCODING_PCM_16BIT;
     private static final int BUFFER_SIZE_MULTIPLIER = 8; // Larger buffer for stability
-    
+
     private AudioRecord audioRecord;
     private Thread captureThread;
     private volatile boolean isCapturing = false;
@@ -63,22 +65,22 @@ public class SystemAudioCaptureService {
         try {
             int bufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL_CONFIG, AUDIO_FORMAT);
             bufferSize *= BUFFER_SIZE_MULTIPLIER; // Increase buffer for stability
-            
+
             AudioPlaybackCaptureConfiguration config = new AudioPlaybackCaptureConfiguration.Builder(mediaProjection)
-                .addMatchingUsage(android.media.AudioAttributes.USAGE_MEDIA)
-                .addMatchingUsage(android.media.AudioAttributes.USAGE_GAME)
-                .addMatchingUsage(android.media.AudioAttributes.USAGE_UNKNOWN)
-                .build();
+                    .addMatchingUsage(android.media.AudioAttributes.USAGE_MEDIA)
+                    .addMatchingUsage(android.media.AudioAttributes.USAGE_GAME)
+                    .addMatchingUsage(android.media.AudioAttributes.USAGE_UNKNOWN)
+                    .build();
 
             audioRecord = new AudioRecord.Builder()
-                .setAudioPlaybackCaptureConfig(config)
-                .setAudioFormat(new AudioFormat.Builder()
-                    .setEncoding(AUDIO_FORMAT)
-                    .setSampleRate(SAMPLE_RATE)
-                    .setChannelMask(CHANNEL_CONFIG)
-                    .build())
-                .setBufferSizeInBytes(bufferSize)
-                .build();
+                    .setAudioPlaybackCaptureConfig(config)
+                    .setAudioFormat(new AudioFormat.Builder()
+                            .setEncoding(AUDIO_FORMAT)
+                            .setSampleRate(SAMPLE_RATE)
+                            .setChannelMask(CHANNEL_CONFIG)
+                            .build())
+                    .setBufferSizeInBytes(bufferSize)
+                    .build();
 
             if (audioRecord.getState() != AudioRecord.STATE_INITIALIZED) {
                 YaaccLogger.e(getClass().getName(), "AudioRecord not initialized");
@@ -144,17 +146,17 @@ public class SystemAudioCaptureService {
      * Create a new input stream for a client.
      * Each client gets its own stream for concurrent playback.
      */
-    public java.io.InputStream createInputStream() throws IOException {
+    public InputStream createInputStream() throws IOException {
         int bufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL_CONFIG, AUDIO_FORMAT) * BUFFER_SIZE_MULTIPLIER;
         PipedOutputStream outputStream = new PipedOutputStream();
         PipedInputStream inputStream = new PipedInputStream(outputStream, bufferSize * 4);
-        
+
         outputStreams.add(outputStream);
         YaaccLogger.i(getClass().getName(), "Created new input stream, total clients: " + outputStreams.size());
-        
+
         return inputStream;
     }
-    
+
     /**
      * Remove a client's output stream when they disconnect.
      */
@@ -171,11 +173,11 @@ public class SystemAudioCaptureService {
     /**
      * Get InputStream wrapped with WAV header.
      */
-    public java.io.InputStream getWavInputStream() throws IOException {
+    public InputStream getInputStream() throws IOException {
         if (!isCapturing) {
             return null;
         }
-        java.io.InputStream stream = createInputStream();
+        InputStream stream = createInputStream();
         return new WavHeaderInputStream(stream, SAMPLE_RATE, 2, 16);
     }
 
@@ -188,14 +190,14 @@ public class SystemAudioCaptureService {
 
     private void captureLoop() {
         byte[] buffer = new byte[8192];
-        
+
         while (isCapturing && audioRecord != null) {
             int bytesRead = audioRecord.read(buffer, 0, buffer.length);
-            
+
             if (bytesRead > 0) {
                 // Broadcast to all connected clients
                 List<PipedOutputStream> deadStreams = new java.util.ArrayList<>();
-                
+
                 for (PipedOutputStream stream : outputStreams) {
                     try {
                         stream.write(buffer, 0, bytesRead);
@@ -206,12 +208,12 @@ public class SystemAudioCaptureService {
                         deadStreams.add(stream);
                     }
                 }
-                
+
                 // Remove dead streams
                 for (PipedOutputStream dead : deadStreams) {
                     removeOutputStream(dead);
                 }
-                
+
             } else if (bytesRead < 0) {
                 YaaccLogger.e(getClass().getName(), "AudioRecord read error: " + bytesRead);
                 try {

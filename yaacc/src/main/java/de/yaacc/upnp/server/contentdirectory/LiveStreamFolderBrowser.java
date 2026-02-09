@@ -140,7 +140,7 @@ public class LiveStreamFolderBrowser extends ContentBrowser {
                             org.fourthline.cling.support.model.Protocol.HTTP_GET,
                             org.fourthline.cling.support.model.ProtocolInfo.WILDCARD,
                             "video/mpeg",
-                            "DLNA.ORG_OP=01;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=01500000000000000000000000000000");
+                            "DLNA.ORG_OP=00;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=01500000000000000000000000000000");
 
             Res res = new Res(protocolInfo, null, streamUrl);
             res.setResolution("1280x720");
@@ -159,7 +159,35 @@ public class LiveStreamFolderBrowser extends ContentBrowser {
 
             result.add(videoItem);
         }
+        //FIXME experimental not stable working
+        // Combined video+audio stream (MPEG-TS)
+        /*
+        if (preferences.getBoolean(getContext().getString(R.string.settings_local_server_serve_system_audio_chkbx), false) &&
+                preferences.getBoolean(getContext().getString(R.string.settings_local_server_serve_screen_cast_chkbx), false)) {
 
+            String streamUrl = "http://" + contentDirectory.getIpAddress() + ":"
+                    + de.yaacc.upnp.server.YaaccUpnpServerService.PORT + "/live/videoaudio";
+
+            org.fourthline.cling.support.model.ProtocolInfo protocolInfo =
+                    new org.fourthline.cling.support.model.ProtocolInfo(
+                            org.fourthline.cling.support.model.Protocol.HTTP_GET,
+                            org.fourthline.cling.support.model.ProtocolInfo.WILDCARD,
+                            "video/mp2t",
+                            "DLNA.ORG_OP=01;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=01500000000000000000000000000000");
+
+            Res res = new Res(protocolInfo, null, streamUrl);
+            res.setResolution("1280x720");
+
+            VideoItem combinedItem = new VideoItem(
+                    ContentDirectoryIDs.LIVE_STREAM_COMBINED.getId(),
+                    ContentDirectoryIDs.LIVE_STREAM_FOLDER.getId(),
+                    preferences.getString(getContext().getString(R.string.settings_local_server_name), "YAACC") + " Video+Audio Stream",
+                    "yaacc",
+                    res);
+
+            result.add(combinedItem);
+        }
+        */
         return result;
     }
 
