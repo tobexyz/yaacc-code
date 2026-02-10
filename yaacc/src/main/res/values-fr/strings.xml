@@ -80,6 +80,7 @@
     <string name="genres">Genre</string>
     <string name="videos">Vidéos</string>
     <string name="music">Musique</string>
+    <string name="screen_cast_stream">Flux de diffusion d\'écran</string>
     <string name="title_activity_yaacc_log">Afficher le journal</string>
     <string name="logContent">Le contenu du journal système doit être affiché ici</string>
     <string name="activity_remote_player_mute">Muet</string>
@@ -121,4 +122,6 @@
     <string name="add_saf_content">ajouter une source</string>
     <string name="saf_content">lié</string>
     <string name="enable_server_side_seeking_for_external_urls">Activer la gestion des plages horaires côté serveur en mode proxy</string>
+    <string name="live_streams">Diffusions en direct</string>
+    <string name="system_audio_stream">Flux audio de l\'appareil</string>
 </resources>

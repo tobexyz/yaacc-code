@@ -89,6 +89,13 @@ public class Yaacc extends Application {
         }
         contentLoadThreadPool = Executors.newFixedThreadPool(numThreads);
 
+        // Always start with streaming disabled
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            preferences.edit()
+                .putBoolean(getString(R.string.settings_local_server_serve_system_audio_chkbx), false)
+                .putBoolean(getString(R.string.settings_local_server_serve_screen_cast_chkbx), false)
+                .apply();
+        }
 
         // Validate and cleanup SAF permissions on app startup
         SafPermissionManager.validateAndCleanupPermissions(this);

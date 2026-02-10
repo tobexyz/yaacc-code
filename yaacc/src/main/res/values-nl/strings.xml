@@ -80,6 +80,8 @@
     <string name="genres">Genres</string>
     <string name="videos">Video\'s</string>
     <string name="music">Muziek</string>
+    <string name="system_audio_stream">Apparaataudiostream</string>
+    <string name="screen_cast_stream">Schermcaststream</string>
     <string name="title_activity_yaacc_log">Bekijk logboek</string>
     <string name="logContent">De inhoud van het systeemlogboek moet hier worden weergegeven</string>
     <string name="activity_remote_player_mute">Stom</string>
@@ -121,4 +123,5 @@
     <string name="add_saf_content">bron toevoegen</string>
     <string name="saf_content">gekoppeld</string>
     <string name="enable_server_side_seeking_for_external_urls">Schakel serverzijdig tijdsbereikbeheer in de proxymodus in.</string>
+    <string name="live_streams">Livestreams</string>
 </resources>

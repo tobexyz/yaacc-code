@@ -80,6 +80,8 @@
     <string name="genres">流派</string>
     <string name="videos">视频</string>
     <string name="music">音乐</string>
+    <string name="system_audio_stream">设备音频流</string>
+    <string name="screen_cast_stream">屏幕投射流</string>
     <string name="title_activity_yaacc_log">查看日志</string>
     <string name="logContent">系统日志内容应该显示在这里</string>
     <string name="activity_remote_player_mute">静音</string>
@@ -121,4 +123,5 @@
     <string name="add_saf_content">添加源</string>
     <string name="saf_content">链接的</string>
     <string name="enable_server_side_seeking_for_external_urls">在代理模式下启用服务器端时间范围管理</string>
+    <string name="live_streams">直播</string>
 </resources>

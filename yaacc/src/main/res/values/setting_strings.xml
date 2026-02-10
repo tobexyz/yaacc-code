@@ -110,6 +110,14 @@
     <string name="settings_local_server_serve_saf_off">serve SAF content is disabled</string>
     <string name="settings_local_server_serve_saf_on">serve SAF content is enabled</string>
     <string name="settings_local_server_serve_saf_chkbx" translatable="false">local_server_serve_saf_chkbx</string>
+    <string name="settings_local_server_serve_system_audio_title">system audio stream</string>
+    <string name="settings_local_server_serve_system_audio_off">system audio stream is disabled</string>
+    <string name="settings_local_server_serve_system_audio_on">system audio stream is enabled</string>
+    <string name="settings_local_server_serve_system_audio_chkbx" translatable="false">local_server_serve_system_audio_chkbx</string>
+    <string name="settings_local_server_serve_screen_cast_title">screen cast stream</string>
+    <string name="settings_local_server_serve_screen_cast_off">screen cast stream is disabled</string>
+    <string name="settings_local_server_serve_screen_cast_on">screen cast stream is enabled</string>
+    <string name="settings_local_server_serve_screen_cast_chkbx" translatable="false">local_server_serve_screen_cast_chkbx</string>
     <string name="settings_local_server_name">network name for local server</string>
     <string name="settings_local_server_name_key" translatable="false">settings_local_server_name_key</string>
     <string name="settings_local_server_autostart_title">autostart server on boot</string>

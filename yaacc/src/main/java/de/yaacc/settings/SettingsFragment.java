@@ -17,6 +17,7 @@
  */
 package de.yaacc.settings;
 
+import android.os.Build;
 import android.os.Bundle;
 import android.text.InputType;
 
