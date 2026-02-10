@@ -32,6 +32,7 @@ import android.media.projection.MediaProjection;
 import android.os.Binder;
 import android.os.IBinder;
 
+import androidx.annotation.RequiresApi;
 import androidx.core.app.NotificationCompat;
 import androidx.core.content.res.ResourcesCompat;
 import androidx.preference.PreferenceManager;
@@ -284,11 +285,10 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
     private void initialize() {
         synchronized (initLock) {
             if (isInitialized) {
-                android.util.Log.i(getClass().getName(), "Already initialized, skipping");
+                YaaccLogger.d(getClass().getName(), "Already initialized, skipping");
                 return;
             }
 
-            android.util.Log.i(getClass().getName(), "initialize() called");
             YaaccLogger.i(getClass().getName(), "initialize() called");
 
             // Try to create HTTP server with retries
@@ -979,7 +979,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
 
     // Live streaming methods (Android 10+)
 
-    @androidx.annotation.RequiresApi(api = android.os.Build.VERSION_CODES.Q)
+    @RequiresApi(api = android.os.Build.VERSION_CODES.Q)
     private void startAudioCapture() {
         if (audioCapture != null && audioCapture.isCapturing()) {
             YaaccLogger.w(getClass().getName(), "Audio capture already running");
@@ -998,8 +998,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         }
 
         if (audioCapture == null) {
-            audioCapture = new
-                    SystemAudioCaptureService();
+            audioCapture = new SystemAudioCaptureService();
             //audioCapture = new SystemAudioCaptureServiceAAC();
         }
 
@@ -1010,7 +1009,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         }
     }
 
-    @androidx.annotation.RequiresApi(api = android.os.Build.VERSION_CODES.Q)
+    @RequiresApi(api = android.os.Build.VERSION_CODES.Q)
     private void stopAudioCapture() {
         if (audioCapture != null) {
             audioCapture.stopCapture();
@@ -1022,7 +1021,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         return audioCapture;
     }
 
-    @androidx.annotation.RequiresApi(api = android.os.Build.VERSION_CODES.Q)
+    @RequiresApi(api = android.os.Build.VERSION_CODES.Q)
     private void startVideoCapture() {
         if (videoCapture != null && videoCapture.isCapturing()) {
             YaaccLogger.w(getClass().getName(), "Video capture already running");
@@ -1051,7 +1050,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         }
     }
 
-    @androidx.annotation.RequiresApi(api = android.os.Build.VERSION_CODES.Q)
+    @RequiresApi(api = android.os.Build.VERSION_CODES.Q)
     private void stopVideoCapture() {
         if (videoCapture != null) {
             videoCapture.stopCapture();
@@ -1063,7 +1062,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         return videoCapture;
     }
 
-    @androidx.annotation.RequiresApi(api = android.os.Build.VERSION_CODES.Q)
+    @RequiresApi(api = android.os.Build.VERSION_CODES.Q)
     private void startCombinedCapture() {
         YaaccLogger.i(getClass().getName(), "startCombinedCapture called");
 
@@ -1091,7 +1090,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         }
     }
 
-    @androidx.annotation.RequiresApi(api = android.os.Build.VERSION_CODES.Q)
+    @RequiresApi(api = android.os.Build.VERSION_CODES.Q)
     private void stopCombinedCapture() {
         if (combinedCapture != null && combinedCapture.isCapturing()) {
             combinedCapture.stopCapture();
