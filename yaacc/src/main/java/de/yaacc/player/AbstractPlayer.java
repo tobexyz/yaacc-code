@@ -27,13 +27,23 @@ import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.drawable.Drawable;
 import android.os.Build;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
+import android.support.v4.media.MediaMetadataCompat;
+import android.support.v4.media.session.MediaSessionCompat;
+import android.support.v4.media.session.PlaybackStateCompat;
 import de.yaacc.util.YaaccLogger;
 import android.widget.Toast;
 
 import androidx.core.app.NotificationCompat;
 import androidx.core.content.ContextCompat;
+import androidx.core.graphics.drawable.IconCompat;
+import androidx.media.app.NotificationCompat.MediaStyle;
+import androidx.media.session.MediaButtonReceiver;
 import androidx.preference.PreferenceManager;
 
 import java.beans.PropertyChangeListener;
@@ -50,6 +60,7 @@ import java.util.TimerTask;
 import de.yaacc.R;
 import de.yaacc.Yaacc;
 import de.yaacc.upnp.UpnpClient;
+import de.yaacc.util.ThemeHelper;
 
 /**
  * @author Tobias Schoene (openbit)
@@ -74,6 +85,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
     private Object loadedItem = null;
     private int currentLoadedIndex = -1;
     private Bitmap icon = null;
+    private MediaSessionCompat mediaSession;
 
     /**
      * @param upnpClient the upnpclient
@@ -82,6 +94,42 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
         super();
         this.upnpClient = upnpClient;
         startService();
+        // Initialize MediaSession on main thread
+        new Handler(Looper.getMainLooper()).post(this::initMediaSession);
+    }
+
+    private void initMediaSession() {
+        mediaSession = new MediaSessionCompat(getContext(), "YaaccPlayer_" + getId());
+        mediaSession.setCallback(new MediaSessionCompat.Callback() {
+            @Override
+            public void onPlay() {
+                AbstractPlayer.this.play();
+            }
+
+            @Override
+            public void onPause() {
+                AbstractPlayer.this.pause();
+            }
+
+            @Override
+            public void onStop() {
+                AbstractPlayer.this.stop();
+            }
+
+            @Override
+            public void onSkipToNext() {
+                AbstractPlayer.this.next();
+            }
+
+            @Override
+            public void onSkipToPrevious() {
+                AbstractPlayer.this.previous();
+            }
+        });
+        mediaSession.setActive(true);
+        
+        // Always refresh notification now that MediaSession is ready
+        showNotification();
     }
 
     public void onServiceConnected(ComponentName className, IBinder binder) {
@@ -243,6 +291,9 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
                 isPlaying = false;
                 paused = true;
                 doPause();
+                updatePlaybackState(PlaybackStateCompat.STATE_PAUSED);
+                updateMetadata();
+                showNotification();
                 setProcessingCommand(false);
             }
         }, new Date(System.currentTimeMillis()));
@@ -289,6 +340,9 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
                     } else {
                         loadItem(previousIndex, currentIndex);
                     }
+                    updatePlaybackState(PlaybackStateCompat.STATE_PLAYING);
+                    updateMetadata();
+                    showNotification();
                     setProcessingCommand(false);
                 }
             }
@@ -327,6 +381,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
                 }
                 isPlaying = false;
                 paused = false;
+                updatePlaybackState(PlaybackStateCompat.STATE_STOPPED);
                 setProcessingCommand(false);
             }
         }, new Date(System.currentTimeMillis()));
@@ -668,6 +723,8 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
      */
     private void showNotification() {
         ((Yaacc) getContext().getApplicationContext()).createYaaccGroupNotification();
+        
+        // Create media style notification with controls
         NotificationCompat.Builder mBuilder = new NotificationCompat.Builder(
                 getContext(), Yaacc.NOTIFICATION_CHANNEL_ID).setOngoing(false)
                 .setGroup(Yaacc.NOTIFICATION_GROUP_KEY)
@@ -676,6 +733,22 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
                 .setLargeIcon(getIcon())
                 .setContentTitle("Yaacc player")
                 .setContentText(getShortName() == null ? "" : getShortName());
+        
+        // Add media controls if MediaSession is ready
+        if (mediaSession != null) {
+            mBuilder.setStyle(new MediaStyle()
+                    .setMediaSession(mediaSession.getSessionToken())
+                    .setShowActionsInCompactView(0, 1, 2))
+                .addAction(createNotificationAction(R.drawable.ic_baseline_skip_previous_24, "Previous", 
+                        PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS))
+                .addAction(createNotificationAction(
+                        isPlaying() ? R.drawable.ic_baseline_pause_24 : R.drawable.ic_baseline_play_arrow_24,
+                        isPlaying() ? "Pause" : "Play",
+                        isPlaying() ? PlaybackStateCompat.ACTION_PAUSE : PlaybackStateCompat.ACTION_PLAY))
+                .addAction(createNotificationAction(R.drawable.ic_baseline_skip_next_24, "Next",
+                        PlaybackStateCompat.ACTION_SKIP_TO_NEXT));
+        }
+        
         PendingIntent contentIntent = getNotificationIntent();
         if (contentIntent != null) {
             mBuilder.setContentIntent(contentIntent);
@@ -696,7 +769,68 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
         YaaccLogger.d(getClass().getName(), "Cancel Notification with ID: " + getNotificationId());
         mNotificationManager.cancel(getNotificationId());
         ((Yaacc) getContext().getApplicationContext()).cancelYaaccGroupNotification();
+        
+        if (mediaSession != null) {
+            mediaSession.setActive(false);
+            mediaSession.release();
+            mediaSession = null;
+        }
+    }
 
+    private NotificationCompat.Action createNotificationAction(int iconRes, String title, long action) {
+        Drawable drawable = ContextCompat.getDrawable(getContext(), iconRes);
+        IconCompat icon;
+        
+        if (drawable != null) {
+            drawable = ThemeHelper.tintDrawable(drawable, getContext().getTheme());
+            Bitmap bitmap = Bitmap.createBitmap(
+                    drawable.getIntrinsicWidth(),
+                    drawable.getIntrinsicHeight(),
+                    Bitmap.Config.ARGB_8888);
+            Canvas canvas = new Canvas(bitmap);
+            drawable.setBounds(0, 0, canvas.getWidth(), canvas.getHeight());
+            drawable.draw(canvas);
+            icon = IconCompat.createWithBitmap(bitmap);
+        } else {
+            icon = IconCompat.createWithResource(getContext(), iconRes);
+        }
+        
+        return new NotificationCompat.Action.Builder(icon, title, createMediaAction(action)).build();
+    }
+
+    private PendingIntent createMediaAction(long action) {
+        Intent intent = new Intent(getContext(), MediaButtonReceiver.class);
+        intent.putExtra(PLAYER_ID, getId());
+        return PendingIntent.getBroadcast(getContext(), (int) action, intent,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+    }
+
+    private void updatePlaybackState(int state) {
+        if (mediaSession == null) return;
+        
+        PlaybackStateCompat.Builder stateBuilder = new PlaybackStateCompat.Builder()
+                .setActions(PlaybackStateCompat.ACTION_PLAY |
+                        PlaybackStateCompat.ACTION_PAUSE |
+                        PlaybackStateCompat.ACTION_STOP |
+                        PlaybackStateCompat.ACTION_SKIP_TO_NEXT |
+                        PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS)
+                .setState(state, PlaybackStateCompat.PLAYBACK_POSITION_UNKNOWN, 1.0f);
+        
+        mediaSession.setPlaybackState(stateBuilder.build());
+    }
+
+    private void updateMetadata() {
+        if (mediaSession == null) return;
+        
+        MediaMetadataCompat.Builder metadataBuilder = new MediaMetadataCompat.Builder()
+                .putString(MediaMetadataCompat.METADATA_KEY_TITLE, getShortName() != null ? getShortName() : "Yaacc Player")
+                .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, getName() != null ? getName() : "");
+        
+        if (getIcon() != null) {
+            metadataBuilder.putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, getIcon());
+        }
+        
+        mediaSession.setMetadata(metadataBuilder.build());
     }
 
     /**
