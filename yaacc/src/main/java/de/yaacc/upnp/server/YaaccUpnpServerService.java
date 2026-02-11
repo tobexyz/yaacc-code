@@ -181,6 +181,9 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
             networkDeviceListener = new NetworkDeviceListener(getApplicationContext(), registry);
             registry.setUpnpProtocolHandler(networkDeviceListener.getUpnpProtocolHandler());
         }
+        // App is active when service starts
+        networkDeviceListener.setAppInForeground(true);
+        
         locaDeviceUuid = preferences.getString(getApplicationContext().getString(R.string.settings_local_device_uuid_key), null);
         if (locaDeviceUuid == null) {
             locaDeviceUuid = UUID.randomUUID().toString();
@@ -228,6 +231,15 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         }
         cancleNotification();
         super.onDestroy();
+    }
+
+    @Override
+    public void onTaskRemoved(Intent rootIntent) {
+        super.onTaskRemoved(rootIntent);
+        YaaccLogger.d(getClass().getName(), "Task removed - app backgrounded");
+        if (networkDeviceListener != null) {
+            networkDeviceListener.setAppInForeground(false);
+        }
     }
 
     /**

@@ -73,8 +73,8 @@ public class MultiContentPlayer extends AbstractPlayer {
      */
     @Override
     protected Object loadItem(PlayableItem playableItem) {
-        // DO nothing special
-        return null;
+        // Return non-null to indicate item is ready
+        return playableItem;
     }
 
     /*

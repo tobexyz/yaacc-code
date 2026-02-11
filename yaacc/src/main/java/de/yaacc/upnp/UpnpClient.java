@@ -102,7 +102,6 @@ import de.yaacc.R;
 import de.yaacc.Yaacc;
 import de.yaacc.browser.Position;
 import de.yaacc.browser.TabBrowserActivity;
-import de.yaacc.musicplayer.BackgroundMusicService;
 import de.yaacc.player.PlayableItem;
 import de.yaacc.player.Player;
 import de.yaacc.player.PlayerService;
@@ -1076,10 +1075,6 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         if (playerService != null) {
             playerService.shutdown();
         }
-
-        result = getContext().stopService(new Intent(getContext(), BackgroundMusicService.class));
-        YaaccLogger.d(getClass().getName(), "Stopping BackgroundMusicService succsessful= " + result);
-
     }
 
     /**

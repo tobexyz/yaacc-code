@@ -43,7 +43,6 @@ import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
 import de.yaacc.browser.TabBrowserActivity;
-import de.yaacc.musicplayer.BackgroundMusicService;
 import de.yaacc.player.PlayerService;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.server.YaaccUpnpServerService;
@@ -133,7 +132,6 @@ public class Yaacc extends Application {
         SharedPreferences.Editor editor = preferences.edit();
         proxyLinks.forEach(k -> editor.remove(k).commit());
         stopService(new Intent(this, PlayerService.class));
-        stopService(new Intent(this, BackgroundMusicService.class));
         stopService(new Intent(this, YaaccAudioRenderingControlService.class));
         stopService(new Intent(this, YaaccUpnpServerService.class));
 

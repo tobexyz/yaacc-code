@@ -358,8 +358,10 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
     }
 
     private void exit() {
+        YaaccLogger.d(getClass().getName(), "Exit button pressed");
         Player player = getPlayer();
         if (player != null) {
+            YaaccLogger.d(getClass().getName(), "Calling player.exit() for player: " + player.getId());
             player.exit();
         }
         finish();

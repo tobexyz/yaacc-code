@@ -267,15 +267,13 @@ public class PlayerService extends Service {
     }
 
     private Player createMusicPlayer(UpnpClient upnpClient) {
-        Player result = getFirstCurrentPlayerOfType(LocalBackgoundMusicPlayer.class);
+        Player result = getFirstCurrentPlayerOfType(LocalMediaSessionPlayer.class);
         if (result != null) {
             shutdown(result);
         }
-        return new LocalBackgoundMusicPlayer(upnpClient, upnpClient
+        return new LocalMediaSessionPlayer(upnpClient, upnpClient
                 .getContext().getString(R.string.playerNameMusic), upnpClient
                 .getContext().getString(R.string.playerShortNameMusic));
-
-
     }
 
     /**
@@ -346,7 +344,7 @@ public class PlayerService extends Service {
                 result = LocalImagePlayer.class;
             } else if (!video && !image && music) {
 // use musicplayer
-                result = LocalBackgoundMusicPlayer.class;
+                result = LocalMediaSessionPlayer.class;
             }
         }
         return result;
@@ -359,14 +357,15 @@ public class PlayerService extends Service {
      */
     public void shutdown(Player player) {
         assert (player != null);
+        YaaccLogger.d(getClass().getName(), "Shutting down player: " + player.getId());
         currentActivePlayer.remove(player.getId());
         player.onDestroy();
         if (currentActivePlayer.isEmpty()) {
+            YaaccLogger.d(getClass().getName(), "No active players - stopping service");
             stopForeground(true);
             ((Yaacc) getApplicationContext()).cancelYaaccGroupNotification();
+            stopSelf();
         }
-
-
     }
 
     /**

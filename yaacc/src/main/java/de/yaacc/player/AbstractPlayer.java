@@ -127,9 +127,6 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
             }
         });
         mediaSession.setActive(true);
-        
-        // Always refresh notification now that MediaSession is ready
-        showNotification();
     }
 
     public void onServiceConnected(ComponentName className, IBinder binder) {
@@ -711,17 +708,38 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
      */
     @Override
     public void exit() {
+        YaaccLogger.d(getClass().getName(), "Player.exit() called for player: " + getId());
         if (isPlaying()) {
             stop();
         }
         playerService.shutdown(this);
-
     }
 
     /**
      * Displays the notification.
      */
     private void showNotification() {
+        // Run on background thread to avoid blocking UI
+        new Thread(() -> showNotificationWithRetry(0)).start();
+    }
+    
+    private void showNotificationWithRetry(int retryCount) {
+        // If MediaSession not ready yet, retry after delay (max 10 times = 2 seconds)
+        if (mediaSession == null && retryCount < 10) {
+            try {
+                Thread.sleep(200);
+            } catch (InterruptedException e) {
+                // Ignore
+            }
+            showNotificationWithRetry(retryCount + 1);
+            return;
+        }
+        
+        if (mediaSession == null) {
+            YaaccLogger.w(getClass().getName(), "MediaSession not ready after retries, skipping notification");
+            return;
+        }
+        
         ((Yaacc) getContext().getApplicationContext()).createYaaccGroupNotification();
         
         // Create media style notification with controls
