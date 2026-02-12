@@ -23,7 +23,13 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.net.Uri;
+import android.os.Handler;
+import android.os.Looper;
 import android.preference.PreferenceManager;
+import android.support.v4.media.session.MediaSessionCompat;
+
+import androidx.media.VolumeProviderCompat;
+
 import de.yaacc.util.YaaccLogger;
 import android.widget.Toast;
 
@@ -104,6 +110,13 @@ public class AVTransportPlayer extends AbstractPlayer {
         this.contentType = contentType;
         id = Math.abs(UUID.randomUUID().hashCode());
         setDeviceIcon(receiverDevice);
+        
+        // Configure MediaSession for remote volume control now that device is set
+        new Handler(Looper.getMainLooper()).post(() -> {
+            if (getMediaSession() != null) {
+                configureMediaSession(getMediaSession());
+            }
+        });
     }
 
     /**
@@ -112,6 +125,53 @@ public class AVTransportPlayer extends AbstractPlayer {
     public AVTransportPlayer(UpnpClient upnpClient) {
         super(upnpClient);
         executorService = Executors.newFixedThreadPool(20);
+    }
+
+    @Override
+    protected void configureMediaSession(MediaSessionCompat mediaSession) {
+        super.configureMediaSession(mediaSession);
+        
+        YaaccLogger.d(getClass().getName(), "Configuring MediaSession for remote playback");
+        
+        // Configure for remote playback with volume control
+        if (hasActionGetVolume()) {
+            int currentVolume = getVolume();
+            YaaccLogger.d(getClass().getName(), "Device supports volume control, current volume: " + currentVolume);
+            
+            VolumeProviderCompat volumeProvider = new VolumeProviderCompat(
+                VolumeProviderCompat.VOLUME_CONTROL_ABSOLUTE,
+                100, // max volume
+                currentVolume
+            ) {
+                @Override
+                public void onSetVolumeTo(int volume) {
+                    YaaccLogger.d(getClass().getName(), "VolumeProvider.onSetVolumeTo: " + volume);
+                    setVolume(volume);
+                    setCurrentVolume(volume);
+                }
+
+                @Override
+                public void onAdjustVolume(int direction) {
+                    YaaccLogger.d(getClass().getName(), "VolumeProvider.onAdjustVolume: " + direction);
+                    int delta = direction > 0 ? 5 : -5;
+                    int newVolume = Math.max(0, Math.min(100, getVolume() + delta));
+                    setVolume(newVolume);
+                    setCurrentVolume(newVolume);
+                }
+            };
+            
+            mediaSession.setPlaybackToRemote(volumeProvider);
+            
+            // Request audio focus so volume buttons route to this session
+            mediaSession.setFlags(
+                MediaSessionCompat.FLAG_HANDLES_MEDIA_BUTTONS |
+                MediaSessionCompat.FLAG_HANDLES_TRANSPORT_CONTROLS
+            );
+            
+            YaaccLogger.d(getClass().getName(), "MediaSession configured for remote playback");
+        } else {
+            YaaccLogger.d(getClass().getName(), "Device does not support volume control");
+        }
     }
 
     protected Device<?, ?, ?> getDevice() {

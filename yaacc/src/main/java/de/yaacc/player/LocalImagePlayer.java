@@ -26,6 +26,8 @@ import android.content.ServiceConnection;
 import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.IBinder;
+import android.support.v4.media.session.MediaSessionCompat;
+
 import de.yaacc.util.YaaccLogger;
 
 import androidx.core.app.NotificationCompat;
@@ -566,5 +568,11 @@ public class LocalImagePlayer implements Player, ServiceConnection {
     @Override
     public void fastRewind(int i) {
         //Not implemented
+    }
+
+    @Override
+    public MediaSessionCompat getMediaSession() {
+        // Image player doesn't use MediaSession
+        return null;
     }
 }

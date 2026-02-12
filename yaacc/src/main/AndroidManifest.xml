@@ -61,16 +61,6 @@
             </intent-filter>
         </activity>
 
-        <activity
-            android:name=".player.MediaSessionTestActivity"
-            android:exported="true"
-            android:label="MediaSession Test">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
-
         <service
             android:name=".player.PlayerService"
             android:enabled="true"

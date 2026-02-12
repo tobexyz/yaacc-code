@@ -5,6 +5,8 @@ import android.content.Intent;
 import android.os.Bundle;
 
 import androidx.annotation.Nullable;
+import androidx.media3.common.AudioAttributes;
+import androidx.media3.common.C;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.Player;
 import androidx.media3.exoplayer.ExoPlayer;
@@ -23,8 +25,15 @@ public class YaaccMediaSessionService extends MediaSessionService {
         super.onCreate();
         YaaccLogger.d(getClass().getName(), "Service created");
         
-        // Initialize ExoPlayer
+        // Initialize ExoPlayer with audio attributes for music playback
         player = new ExoPlayer.Builder(this).build();
+        
+        // Set audio attributes for music stream
+        AudioAttributes audioAttributes = new AudioAttributes.Builder()
+                .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+                .setUsage(C.USAGE_MEDIA)
+                .build();
+        player.setAudioAttributes(audioAttributes, true);
         
         // Create MediaSession
         mediaSession = new MediaSession.Builder(this, player)

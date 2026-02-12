@@ -127,6 +127,23 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
             }
         });
         mediaSession.setActive(true);
+        
+        // Allow subclasses to configure MediaSession (e.g., for remote volume)
+        configureMediaSession(mediaSession);
+    }
+
+    /**
+     * Override this to configure MediaSession (e.g., set volume provider for remote playback).
+     */
+    protected void configureMediaSession(MediaSessionCompat mediaSession) {
+        // Default: local playback, no special configuration
+    }
+
+    /**
+     * Get the MediaSession for this player.
+     */
+    public MediaSessionCompat getMediaSession() {
+        return mediaSession;
     }
 
     public void onServiceConnected(ComponentName className, IBinder binder) {

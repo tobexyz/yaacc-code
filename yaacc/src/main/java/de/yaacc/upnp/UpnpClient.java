@@ -105,6 +105,7 @@ import de.yaacc.browser.TabBrowserActivity;
 import de.yaacc.player.PlayableItem;
 import de.yaacc.player.Player;
 import de.yaacc.player.PlayerService;
+import de.yaacc.player.YaaccMediaRouteProvider;
 import de.yaacc.upnp.callback.contentdirectory.ContentDirectoryBrowseActionCallback;
 import de.yaacc.upnp.callback.contentdirectory.ContentDirectoryBrowseResult;
 import de.yaacc.upnp.protocol.async.SendingSearch;
@@ -132,6 +133,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     private PlayerService playerService;
     private Device<?, ?, ?> localDummyDevice;
     private YaaccUpnpServerService yaaccUpnpServerService;
+    private YaaccMediaRouteProvider mediaRouteProvider;
 
 
     public UpnpClient() {
@@ -155,6 +157,12 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         if (context != null) {
             this.context = context;
             this.preferences = PreferenceManager.getDefaultSharedPreferences(context);
+            
+            // Initialize MediaRouteProvider for UPnP devices
+            mediaRouteProvider = new YaaccMediaRouteProvider(context, this);
+            androidx.mediarouter.media.MediaRouter.getInstance(context)
+                .addProvider(mediaRouteProvider);
+            
             // FIXME check if this is right: Context.BIND_AUTO_CREATE kills the
             // service after closing the activity
             return context.bindService(new Intent(context, YaaccUpnpServerService.class), this, Context.BIND_AUTO_CREATE);
@@ -186,10 +194,18 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
 
     private void deviceAdded(@SuppressWarnings("rawtypes") final Device device) {
         fireDeviceAdded(device);
+        // Refresh MediaRouter routes when devices change
+        if (mediaRouteProvider != null) {
+            mediaRouteProvider.refreshRoutes();
+        }
     }
 
     private void deviceRemoved(@SuppressWarnings("rawtypes") final Device device) {
         fireDeviceRemoved(device);
+        // Refresh MediaRouter routes when devices change
+        if (mediaRouteProvider != null) {
+            mediaRouteProvider.refreshRoutes();
+        }
     }
 
     private void deviceUpdated(@SuppressWarnings("rawtypes") final Device device) {

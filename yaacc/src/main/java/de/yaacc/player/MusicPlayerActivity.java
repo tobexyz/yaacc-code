@@ -24,6 +24,7 @@ import android.content.ServiceConnection;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.IBinder;
+import android.view.KeyEvent;
 import de.yaacc.util.YaaccLogger;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -225,6 +226,8 @@ public class MusicPlayerActivity extends AppCompatActivity implements ServiceCon
     @Override
     protected void onResume() {
         super.onResume();
+        // For local playback, use music stream for volume control
+        setVolumeControlStream(android.media.AudioManager.STREAM_MUSIC);
         this.bindService(new Intent(this, PlayerService.class),
                 this, Context.BIND_AUTO_CREATE);
         updateTime = true;
@@ -358,5 +361,14 @@ public class MusicPlayerActivity extends AppCompatActivity implements ServiceCon
             }
         }, 1000L);
 
+    }
+
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        if (keyCode == KeyEvent.KEYCODE_VOLUME_UP || keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
+            // For local playback, use system volume (AudioManager handles it automatically)
+            return super.onKeyDown(keyCode, event);
+        }
+        return super.onKeyDown(keyCode, event);
     }
 }

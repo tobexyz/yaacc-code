@@ -3,6 +3,8 @@ package de.yaacc.player;
 import android.content.Context;
 import android.content.IntentFilter;
 import android.media.MediaRouter;
+import android.os.Handler;
+import android.os.Looper;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -176,8 +178,9 @@ public class YaaccMediaRouteProvider extends MediaRouteProvider {
 
     /**
      * Refresh routes when UPnP devices change.
+     * Must be called on main thread.
      */
     public void refreshRoutes() {
-        publishRoutes();
+        new Handler(Looper.getMainLooper()).post(this::publishRoutes);
     }
 }
