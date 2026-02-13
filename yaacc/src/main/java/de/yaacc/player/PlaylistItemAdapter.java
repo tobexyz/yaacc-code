@@ -140,6 +140,12 @@ public class PlaylistItemAdapter extends RecyclerView.Adapter<PlaylistItemAdapte
         if (listView != null) {
             listView.scrollToPosition(toPosition);
         }
+        
+        // Sync playlist to ExoPlayer if it's LocalMediaSessionPlayer
+        if (player instanceof de.yaacc.player.LocalMediaSessionPlayer) {
+            ((de.yaacc.player.LocalMediaSessionPlayer) player).syncPlaylistToExoPlayer();
+        }
+        
         return true;
     }
 
@@ -147,6 +153,11 @@ public class PlaylistItemAdapter extends RecyclerView.Adapter<PlaylistItemAdapte
     private void removeItem(int listPosition) {
         if (player.getItems().size() > listPosition && listPosition >= 0 && !(player.isPlaying() && listPosition <= player.getCurrentItemIndex())) {
             player.getItems().remove(listPosition);
+            
+            // Sync playlist to ExoPlayer if it's LocalMediaSessionPlayer
+            if (player instanceof de.yaacc.player.LocalMediaSessionPlayer) {
+                ((de.yaacc.player.LocalMediaSessionPlayer) player).syncPlaylistToExoPlayer();
+            }
             // Update local items list to reflect removal before notifying adapter
             PlayableItem removedItem = items.remove(listPosition);
             notifyItemRemoved(listPosition);

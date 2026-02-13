@@ -46,7 +46,6 @@ import de.yaacc.browser.TabBrowserActivity;
 import de.yaacc.player.PlayerService;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.server.YaaccUpnpServerService;
-import de.yaacc.upnp.server.renderingcontrol.YaaccAudioRenderingControlService;
 import de.yaacc.util.NotificationId;
 import de.yaacc.util.SafPermissionManager;
 import de.yaacc.util.ShutdownTimerListener;
@@ -132,7 +131,6 @@ public class Yaacc extends Application {
         SharedPreferences.Editor editor = preferences.edit();
         proxyLinks.forEach(k -> editor.remove(k).commit());
         stopService(new Intent(this, PlayerService.class));
-        stopService(new Intent(this, YaaccAudioRenderingControlService.class));
         stopService(new Intent(this, YaaccUpnpServerService.class));
 
 

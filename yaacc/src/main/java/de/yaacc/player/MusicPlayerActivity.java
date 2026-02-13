@@ -217,8 +217,7 @@ public class MusicPlayerActivity extends AppCompatActivity implements ServiceCon
     @Override
     protected void onRestart() {
         super.onRestart();
-        this.bindService(new Intent(this, PlayerService.class),
-                this, Context.BIND_AUTO_CREATE);
+        // Don't bind again - already bound in onCreate()
         updateTime = true;
         setTrackInfo();
     }
@@ -228,8 +227,7 @@ public class MusicPlayerActivity extends AppCompatActivity implements ServiceCon
         super.onResume();
         // For local playback, use music stream for volume control
         setVolumeControlStream(android.media.AudioManager.STREAM_MUSIC);
-        this.bindService(new Intent(this, PlayerService.class),
-                this, Context.BIND_AUTO_CREATE);
+        // Don't bind again - already bound in onCreate()
         updateTime = true;
         setTrackInfo();
     }
@@ -237,9 +235,11 @@ public class MusicPlayerActivity extends AppCompatActivity implements ServiceCon
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        YaaccLogger.d(getClass().getName(), "Activity onDestroy - unbinding from service");
         updateTime = false;
         try {
             unbindService(this);
+            YaaccLogger.d(getClass().getName(), "Successfully unbound from service");
         } catch (IllegalArgumentException iae) {
             YaaccLogger.d(getClass().getName(), "Ignore exception on unbind service while activity destroy");
         }

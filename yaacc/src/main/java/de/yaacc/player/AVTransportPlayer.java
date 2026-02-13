@@ -19,19 +19,30 @@ package de.yaacc.player;
 
 import android.app.Activity;
 import android.app.PendingIntent;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.graphics.Bitmap;
+import android.os.IBinder;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
 import android.preference.PreferenceManager;
 import android.support.v4.media.session.MediaSessionCompat;
+import android.widget.Toast;
 
 import androidx.media.VolumeProviderCompat;
+import androidx.media3.common.MediaItem;
+import androidx.media3.common.Player;
+import androidx.media3.common.util.UnstableApi;
+import androidx.media3.session.MediaSession;
+import androidx.media3.session.SessionCommand;
+import androidx.media3.session.SessionCommands;
+import androidx.media3.ui.PlayerNotificationManager;
 
-import de.yaacc.util.YaaccLogger;
-import android.widget.Toast;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
 
 import org.fourthline.cling.model.action.ActionInvocation;
 import org.fourthline.cling.model.message.UpnpResponse;
@@ -40,14 +51,6 @@ import org.fourthline.cling.model.meta.Icon;
 import org.fourthline.cling.model.meta.RemoteDevice;
 import org.fourthline.cling.model.meta.Service;
 import org.fourthline.cling.model.types.UDAServiceType;
-import de.yaacc.upnp.callback.avtransport.GetPositionInfo;
-import de.yaacc.upnp.callback.avtransport.GetTransportInfo;
-import de.yaacc.upnp.callback.avtransport.Pause;
-import de.yaacc.upnp.callback.avtransport.Play;
-import de.yaacc.upnp.callback.avtransport.Seek;
-import de.yaacc.upnp.callback.avtransport.SetAVTransportURI;
-import de.yaacc.upnp.callback.avtransport.Stop;
-import de.yaacc.upnp.callback.connectionmanager.GetProtocolInfo;
 import org.fourthline.cling.support.contentdirectory.DIDLParser;
 import org.fourthline.cling.support.model.DIDLContent;
 import org.fourthline.cling.support.model.DIDLObject;
@@ -59,9 +62,6 @@ import org.fourthline.cling.support.model.TransportInfo;
 import org.fourthline.cling.support.model.TransportState;
 import org.fourthline.cling.support.model.item.Item;
 
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-
 import java.net.URI;
 import java.net.URL;
 import java.text.SimpleDateFormat;
@@ -70,15 +70,27 @@ import java.util.TimeZone;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import de.yaacc.R;
+import de.yaacc.Yaacc;
 import de.yaacc.settings.SettingsFragment;
 import de.yaacc.upnp.ActionState;
 import de.yaacc.upnp.UpnpClient;
+import de.yaacc.upnp.callback.avtransport.GetPositionInfo;
+import de.yaacc.upnp.callback.avtransport.GetTransportInfo;
+import de.yaacc.upnp.callback.avtransport.Pause;
+import de.yaacc.upnp.callback.avtransport.Play;
+import de.yaacc.upnp.callback.avtransport.Seek;
+import de.yaacc.upnp.callback.avtransport.SetAVTransportURI;
+import de.yaacc.upnp.callback.avtransport.Stop;
+import de.yaacc.upnp.callback.connectionmanager.GetProtocolInfo;
 import de.yaacc.upnp.server.http.YaaccUpnpServerContentHttpHandler;
 import de.yaacc.util.InterfaceResolutionHelper;
+import de.yaacc.util.YaaccLogger;
 import de.yaacc.util.image.ImageDownloader;
 
 /**
@@ -86,6 +98,7 @@ import de.yaacc.util.image.ImageDownloader;
  *
  * @author Tobias Schoene (openbit)
  */
+@UnstableApi
 public class AVTransportPlayer extends AbstractPlayer {
 
 
@@ -96,6 +109,9 @@ public class AVTransportPlayer extends AbstractPlayer {
     private PositionInfo currentPositionInfo;
     private ActionState positionActionState = null;
     private URI albumArtUri;
+    private AVTransportPlayerWrapper playerWrapper;
+    private MediaSession media3Session;
+    private PlayerNotificationManager notificationManager;
 
 
     /**
@@ -108,9 +124,9 @@ public class AVTransportPlayer extends AbstractPlayer {
         setName(name);
         setShortName(shortName);
         this.contentType = contentType;
-        id = Math.abs(UUID.randomUUID().hashCode());
+        // id already initialized in base constructor
         setDeviceIcon(receiverDevice);
-        
+
         // Configure MediaSession for remote volume control now that device is set
         new Handler(Looper.getMainLooper()).post(() -> {
             if (getMediaSession() != null) {
@@ -125,52 +141,121 @@ public class AVTransportPlayer extends AbstractPlayer {
     public AVTransportPlayer(UpnpClient upnpClient) {
         super(upnpClient);
         executorService = Executors.newFixedThreadPool(20);
+
+        // Generate ID first (required for notification)
+        id = Math.abs(UUID.randomUUID().hashCode());
+
+        // Initialize Media3 Player wrapper
+        playerWrapper = new AVTransportPlayerWrapper(this, null);
+
+        // Create Media3 MediaSession for the wrapper
+        media3Session = new MediaSession.Builder(getContext(), playerWrapper)
+                .setId("avtransport_" + id)
+                .setCallback(new MediaSession.Callback() {
+                    @Override
+                    public MediaSession.ConnectionResult onConnect(MediaSession session,
+                                                                   MediaSession.ControllerInfo controller) {
+                        MediaSession.ConnectionResult result = MediaSession.Callback.super.onConnect(session, controller);
+                        
+                        // Enable device volume commands
+                        SessionCommands.Builder commandsBuilder = result.availableSessionCommands.buildUpon();
+                        commandsBuilder.add(new SessionCommand(SessionCommand.COMMAND_CODE_SESSION_SET_RATING));
+                        
+                        return MediaSession.ConnectionResult.accept(
+                            commandsBuilder.build(),
+                            result.availablePlayerCommands
+                        );
+                    }
+                })
+                .build();
+        
+        // Add listener to wrapper so Media3 session gets updates
+        playerWrapper.addListener(new Player.Listener() {
+            @Override
+            public void onMediaItemTransition(MediaItem mediaItem, int reason) {
+                YaaccLogger.d(getClass().getName(), "Media3: onMediaItemTransition - " + 
+                    (mediaItem != null ? mediaItem.mediaMetadata.title : "null"));
+            }
+            
+            @Override
+            public void onIsPlayingChanged(boolean isPlaying) {
+                YaaccLogger.d(getClass().getName(), "Media3: onIsPlayingChanged - " + isPlaying);
+            }
+        });
+
+        // Create notification manager
+        notificationManager = new PlayerNotificationManager.Builder(
+                getContext(),
+                getNotificationId(),
+                Yaacc.NOTIFICATION_CHANNEL_ID)
+                .setMediaDescriptionAdapter(new PlayerNotificationManager.MediaDescriptionAdapter() {
+                    @Override
+                    public CharSequence getCurrentContentTitle(Player player) {
+                        return getCurrentItemTitle();
+                    }
+
+                    @Override
+                    public PendingIntent createCurrentContentIntent(Player player) {
+                        return getNotificationIntent();
+                    }
+
+                    @Override
+                    public CharSequence getCurrentContentText(Player player) {
+                        return getName();
+                    }
+
+                    @Override
+                    public Bitmap getCurrentLargeIcon(Player player,
+                                                      PlayerNotificationManager.BitmapCallback callback) {
+                        return null;
+                    }
+                })
+                .build();
+
+        notificationManager.setUseNextAction(true);
+        notificationManager.setUsePreviousAction(true);
+        notificationManager.setUseNextActionInCompactView(true);
+        notificationManager.setUsePreviousActionInCompactView(true);
+        notificationManager.setSmallIcon(R.drawable.ic_notification_default);
+        notificationManager.setVisibility(androidx.core.app.NotificationCompat.VISIBILITY_PUBLIC);
+        notificationManager.setPriority(androidx.core.app.NotificationCompat.PRIORITY_DEFAULT);
+
+        YaaccLogger.d(getClass().getName(), "Setting up PlayerNotificationManager");
+
+        // setPlayer must be called on main thread
+        new Handler(Looper.getMainLooper()).post(() -> {
+            YaaccLogger.d(getClass().getName(), "Calling notificationManager.setPlayer()");
+            notificationManager.setPlayer(playerWrapper);
+            notificationManager.setMediaSessionToken(media3Session.getSessionCompatToken());
+            YaaccLogger.d(getClass().getName(), "PlayerNotificationManager setup complete");
+        });
     }
 
     @Override
     protected void configureMediaSession(MediaSessionCompat mediaSession) {
-        super.configureMediaSession(mediaSession);
-        
-        YaaccLogger.d(getClass().getName(), "Configuring MediaSession for remote playback");
-        
-        // Configure for remote playback with volume control
-        if (hasActionGetVolume()) {
-            int currentVolume = getVolume();
-            YaaccLogger.d(getClass().getName(), "Device supports volume control, current volume: " + currentVolume);
-            
-            VolumeProviderCompat volumeProvider = new VolumeProviderCompat(
-                VolumeProviderCompat.VOLUME_CONTROL_ABSOLUTE,
-                100, // max volume
-                currentVolume
-            ) {
-                @Override
-                public void onSetVolumeTo(int volume) {
-                    YaaccLogger.d(getClass().getName(), "VolumeProvider.onSetVolumeTo: " + volume);
-                    setVolume(volume);
-                    setCurrentVolume(volume);
-                }
+        // Don't configure legacy MediaSession - we're using Media3 MediaSession instead
+        // Deactivate it so only Media3 session is active
+        mediaSession.setActive(false);
+        YaaccLogger.d(getClass().getName(), "Deactivated legacy MediaSession - using Media3");
+    }
 
-                @Override
-                public void onAdjustVolume(int direction) {
-                    YaaccLogger.d(getClass().getName(), "VolumeProvider.onAdjustVolume: " + direction);
-                    int delta = direction > 0 ? 5 : -5;
-                    int newVolume = Math.max(0, Math.min(100, getVolume() + delta));
-                    setVolume(newVolume);
-                    setCurrentVolume(newVolume);
+    @Override
+    public void onServiceConnected(ComponentName className, IBinder binder) {
+        super.onServiceConnected(className, binder);
+        
+        // Register Media3 MediaSession with PlayerService (if initialized)
+        if (media3Session != null && binder instanceof PlayerService.PlayerServiceBinder) {
+            PlayerService playerService = ((PlayerService.PlayerServiceBinder) binder).getService();
+            playerService.registerMediaSession(media3Session);
+            YaaccLogger.d(getClass().getName(), "Media3 MediaSession registered with PlayerService");
+            
+            // Trigger initial device info query to activate volume control
+            new Handler(Looper.getMainLooper()).post(() -> {
+                if (playerWrapper != null) {
+                    playerWrapper.getDeviceInfo();
+                    playerWrapper.getDeviceVolume();
                 }
-            };
-            
-            mediaSession.setPlaybackToRemote(volumeProvider);
-            
-            // Request audio focus so volume buttons route to this session
-            mediaSession.setFlags(
-                MediaSessionCompat.FLAG_HANDLES_MEDIA_BUTTONS |
-                MediaSessionCompat.FLAG_HANDLES_TRANSPORT_CONTROLS
-            );
-            
-            YaaccLogger.d(getClass().getName(), "MediaSession configured for remote playback");
-        } else {
-            YaaccLogger.d(getClass().getName(), "Device does not support volume control");
+            });
         }
     }
 
@@ -249,10 +334,18 @@ public class AVTransportPlayer extends AbstractPlayer {
     protected void startItem(PlayableItem playableItem, Object loadedItem) {
         if (playableItem == null || getDevice() == null)
             return;
-        
+
+        // Request audio focus for lock screen volume control
+        if (media3Session != null) {
+            new Handler(Looper.getMainLooper()).post(() -> {
+                // Trigger a state update to make this session active
+                playerWrapper.notifyPlaybackStateChanged();
+            });
+        }
+
         // Try to select best resource for this device
         PlayableItem deviceOptimizedItem = selectBestResourceForDevice(playableItem);
-        
+
         YaaccLogger.d(getClass().getName(), "Uri: " + deviceOptimizedItem.getUri());
         YaaccLogger.d(getClass().getName(), "Duration: " + deviceOptimizedItem.getDuration());
         YaaccLogger.d(getClass().getName(),
@@ -269,7 +362,7 @@ public class AVTransportPlayer extends AbstractPlayer {
         // Check transport state first and handle accordingly
         checkTransportStateForStart(deviceOptimizedItem, service);
     }
-    
+
     /**
      * Select the best resource for this specific device based on supported protocols
      */
@@ -278,72 +371,72 @@ public class AVTransportPlayer extends AbstractPlayer {
         if (item == null || item.getResources().isEmpty()) {
             return playableItem;
         }
-        
+
         // Get device's supported protocols
         Service<?, ?> cmService = getDevice().findService(new UDAServiceType("ConnectionManager"));
         if (cmService == null) {
             YaaccLogger.d(getClass().getName(), "No ConnectionManager service, using default resource");
             return playableItem;
         }
-        
+
         // Query supported protocols synchronously
         final ProtocolInfos[] supportedProtocols = new ProtocolInfos[1];
         final CountDownLatch latch = new CountDownLatch(1);
-        
+
         executorService.execute(
-            new GetProtocolInfo(cmService, getHttpRequestSender()) {
-                @Override
-                public void received(ActionInvocation actionInvocation, ProtocolInfos sinkProtocolInfos, ProtocolInfos sourceProtocolInfos) {
-                    supportedProtocols[0] = sinkProtocolInfos;
-                    latch.countDown();
+                new GetProtocolInfo(cmService, getHttpRequestSender()) {
+                    @Override
+                    public void received(ActionInvocation actionInvocation, ProtocolInfos sinkProtocolInfos, ProtocolInfos sourceProtocolInfos) {
+                        supportedProtocols[0] = sinkProtocolInfos;
+                        latch.countDown();
+                    }
+
+                    @Override
+                    public void failure(ActionInvocation invocation, UpnpResponse operation, String defaultMsg) {
+                        YaaccLogger.d(AVTransportPlayer.class.getName(), "GetProtocolInfo failed: " + defaultMsg);
+                        latch.countDown();
+                    }
                 }
-                
-                @Override
-                public void failure(ActionInvocation invocation, UpnpResponse operation, String defaultMsg) {
-                    YaaccLogger.d(AVTransportPlayer.class.getName(), "GetProtocolInfo failed: " + defaultMsg);
-                    latch.countDown();
-                }
-            }
         );
-        
+
         try {
             latch.await(2, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             YaaccLogger.d(getClass().getName(), "GetProtocolInfo timeout");
             return playableItem;
         }
-        
+
         if (supportedProtocols[0] == null || supportedProtocols[0].isEmpty()) {
             YaaccLogger.d(getClass().getName(), "No supported protocols found, using default resource");
             return playableItem;
         }
-        
+
         // Find best matching resource
         Res bestMatch = null;
         long bestBitrate = 0;
-        
+
         for (Res resource : item.getResources()) {
             if (resource.getProtocolInfo() == null) continue;
-            
+
             String contentFormat = resource.getProtocolInfo().getContentFormat();
             if (contentFormat == null || contentFormat.isEmpty()) continue;
-            
+
             // Check if device supports this format
             boolean supported = false;
             for (ProtocolInfo deviceProtocol : supportedProtocols[0]) {
                 if (deviceProtocol.getContentFormat().equals(contentFormat) ||
-                    deviceProtocol.getContentFormat().equals("*") ||
-                    deviceProtocol.getContentFormat().startsWith(contentFormat.split("/")[0] + "/*")) {
+                        deviceProtocol.getContentFormat().equals("*") ||
+                        deviceProtocol.getContentFormat().startsWith(contentFormat.split("/")[0] + "/*")) {
                     supported = true;
                     break;
                 }
             }
-            
+
             if (!supported) {
                 YaaccLogger.d(getClass().getName(), "Device doesn't support: " + contentFormat);
                 continue;
             }
-            
+
             // Among supported formats, prefer higher bitrate
             Long bitrate = resource.getBitrate();
             if (bitrate != null && bitrate > bestBitrate) {
@@ -353,16 +446,16 @@ public class AVTransportPlayer extends AbstractPlayer {
                 bestMatch = resource;
             }
         }
-        
+
         if (bestMatch != null && !bestMatch.equals(item.getFirstResource())) {
-            YaaccLogger.d(getClass().getName(), "Selected device-optimized resource: " + 
-                bestMatch.getProtocolInfo().getContentFormat() + " bitrate: " + bestMatch.getBitrate());
+            YaaccLogger.d(getClass().getName(), "Selected device-optimized resource: " +
+                    bestMatch.getProtocolInfo().getContentFormat() + " bitrate: " + bestMatch.getBitrate());
             // Create new PlayableItem with selected resource
             Item optimizedItem = new Item(item);
             optimizedItem.setResources(java.util.Collections.singletonList(bestMatch));
             return new PlayableItem(optimizedItem, (int) playableItem.getDuration());
         }
-        
+
         return playableItem;
     }
 
@@ -374,6 +467,7 @@ public class AVTransportPlayer extends AbstractPlayer {
                 TransportState state = transportInfo.getCurrentTransportState();
                 YaaccLogger.d(getClass().getName(), "Current state before Play: " + state);
 
+                // Only resume if paused AND not changing tracks (paused flag is true)
                 if (state == TransportState.PAUSED_PLAYBACK) {
                     YaaccLogger.d(getClass().getName(), "Resuming from pause, sending Play only");
                     // For paused content, just send Play command without SetAVTransportURI
@@ -388,6 +482,8 @@ public class AVTransportPlayer extends AbstractPlayer {
                         public void success(ActionInvocation invocation) {
                             YaaccLogger.d(getClass().getName(), "Resume Play succeeded");
                             setProcessingCommand(false);
+                            setPlaying(true);
+                            playerWrapper.notifyPlaybackStateChanged();
                         }
                     };
                     executorService.execute(playCallback);
@@ -493,7 +589,7 @@ public class AVTransportPlayer extends AbstractPlayer {
         albumArtUri = (albumArtUriProperty == null) ? null : albumArtUriProperty.getValue();
 
         InternalSetAVTransportURI setAVTransportURI = new InternalSetAVTransportURI(
-                service, modifyProxyUrlWithDeviceId(playableItem.getUri().toString()), actionState, metadata, 
+                service, modifyProxyUrlWithDeviceId(playableItem.getUri().toString()), actionState, metadata,
                 getHttpRequestSender());
         YaaccLogger.d(getClass().getName(), "Original URI: " + playableItem.getUri().toString());
         YaaccLogger.d(getClass().getName(), "Modified URI: " + modifyProxyUrlWithDeviceId(playableItem.getUri().toString()));
@@ -555,6 +651,8 @@ public class AVTransportPlayer extends AbstractPlayer {
                                 public void success(ActionInvocation invocation) {
                                     YaaccLogger.d(getClass().getName(), "Resume Play succeeded");
                                     setProcessingCommand(false);
+                                    setPlaying(true);
+                                    playerWrapper.notifyPlaybackStateChanged();
                                 }
                             };
                             executorService.execute(playCallback);
@@ -610,6 +708,8 @@ public class AVTransportPlayer extends AbstractPlayer {
             public void success(ActionInvocation actioninvocation) {
                 super.success(actioninvocation);
                 actionState.actionFinished = true;
+                setPlaying(true);
+                playerWrapper.notifyPlaybackStateChanged();
                 setProcessingCommand(false);
 
                 // Check transport state after Play command
@@ -689,18 +789,13 @@ public class AVTransportPlayer extends AbstractPlayer {
         return id;
     }
 
-
     @Override
-    public void pause() {
-        if (isProcessingCommand())
-            return;
-        setProcessingCommand(true);
-
+    protected void doPause() {
+        YaaccLogger.d(getClass().getName(), "doPause() called");
         if (getDevice() == null) {
             YaaccLogger.d(getClass().getName(),
                     "No receiver device found: "
                             + deviceId);
-            setProcessingCommand(false);
             return;
         }
         Service<?, ?> service = getUpnpClient().getAVTransportService(getDevice());
@@ -708,7 +803,6 @@ public class AVTransportPlayer extends AbstractPlayer {
             YaaccLogger.d(getClass().getName(),
                     "No AVTransport-Service found on Device: "
                             + getDevice().getDisplayString());
-            setProcessingCommand(false);
             return;
         }
         YaaccLogger.d(getClass().getName(), "Action Pause ");
@@ -718,6 +812,7 @@ public class AVTransportPlayer extends AbstractPlayer {
             @Override
             public void failure(ActionInvocation actioninvocation,
                                 UpnpResponse upnpresponse, String s) {
+                YaaccLogger.d(getClass().getName(), "Pause FAILED: " + s);
                 YaaccLogger.d(getClass().getName(), "Failure UpnpResponse: "
                         + upnpresponse);
                 YaaccLogger.d(getClass().getName(),
@@ -725,17 +820,49 @@ public class AVTransportPlayer extends AbstractPlayer {
                                 + upnpresponse.getResponseDetails() : "");
                 YaaccLogger.d(getClass().getName(), "s: " + s);
                 actionState.actionFinished = true;
-                setProcessingCommand(false);
             }
 
             @Override
             public void success(ActionInvocation actioninvocation) {
                 super.success(actioninvocation);
+                YaaccLogger.d(getClass().getName(), "Pause SUCCESS - setting isPlaying=false");
                 actionState.actionFinished = true;
-                setProcessingCommand(false);
+                setPlaying(false);
+                playerWrapper.notifyPlaybackStateChanged();
+                YaaccLogger.d(getClass().getName(), "After pause: isPlaying=" + isPlaying());
             }
         };
         executorService.execute(actionCallback);
+    }
+
+    @Override
+    protected void doResume() {
+        // For UPnP, just send Play command to resume from current position
+        if (getDevice() == null) {
+            YaaccLogger.d(getClass().getName(), "No receiver device found: " + deviceId);
+            return;
+        }
+        Service<?, ?> service = getUpnpClient().getAVTransportService(getDevice());
+        if (service == null) {
+            YaaccLogger.d(getClass().getName(), "No AVTransport-Service found on Device: " + getDevice().getDisplayString());
+            return;
+        }
+
+        YaaccLogger.d(getClass().getName(), "Resuming playback with Play command");
+        Play playCallback = new Play(service, getHttpRequestSender()) {
+            @Override
+            public void failure(ActionInvocation actioninvocation, UpnpResponse upnpresponse, String s) {
+                YaaccLogger.d(getClass().getName(), "Resume failed: " + s);
+            }
+
+            @Override
+            public void success(ActionInvocation invocation) {
+                YaaccLogger.d(getClass().getName(), "Resume succeeded");
+                setPlaying(true);
+                playerWrapper.notifyPlaybackStateChanged();
+            }
+        };
+        executorService.execute(playCallback);
     }
 
     @Override
@@ -850,6 +977,8 @@ public class AVTransportPlayer extends AbstractPlayer {
             public void success(ActionInvocation actioninvocation) {
                 super.success(actioninvocation);
                 YaaccLogger.d(getClass().getName(), "Additional Play command succeeded");
+                setPlaying(true);
+                playerWrapper.notifyPlaybackStateChanged();
 
                 // Check transport state again after second Play command
                 executeCommand(new TimerTask() {
@@ -909,6 +1038,11 @@ public class AVTransportPlayer extends AbstractPlayer {
                 positionActionState.result = positionInfo;
                 currentPositionInfo = positionInfo;
                 YaaccLogger.d(getClass().getName(), "received Positioninfo= RelTime: " + positionInfo.getRelTime() + " remaining time: " + positionInfo.getTrackRemainingSeconds());
+
+                // Update MediaSession with current position for lock screen controls
+                if (isPlaying()) {
+                    updatePlaybackStateInternal(android.support.v4.media.session.PlaybackStateCompat.STATE_PLAYING);
+                }
 
                 long currentRemainingTime = positionInfo.getTrackRemainingSeconds();
 
@@ -1146,6 +1280,18 @@ public class AVTransportPlayer extends AbstractPlayer {
 
     @Override
     public void onDestroy() {
+        // Release notification manager and Media3 session
+        if (notificationManager != null) {
+            new Handler(Looper.getMainLooper()).post(() -> {
+                if (notificationManager != null) {
+                    notificationManager.setPlayer(null);
+                }
+                if (media3Session != null) {
+                    media3Session.release();
+                }
+            });
+        }
+
         doExit();
         super.onDestroy();
     }

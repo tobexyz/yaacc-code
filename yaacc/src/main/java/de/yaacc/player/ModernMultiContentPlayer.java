@@ -43,14 +43,14 @@ public class ModernMultiContentPlayer extends AbstractPlayer {
         Context context = getContext();
         SessionToken sessionToken = new SessionToken(
             context,
-            new ComponentName(context, YaaccMediaSessionService.class)
+            new ComponentName(context, PlayerService.class)
         );
         
         controllerFuture = new MediaController.Builder(context, sessionToken).buildAsync();
         controllerFuture.addListener(() -> {
             try {
                 mediaController = controllerFuture.get();
-                YaaccLogger.d(getClass().getName(), "Connected to MediaSessionService");
+                YaaccLogger.d(getClass().getName(), "Connected to PlayerService MediaSession");
             } catch (ExecutionException | InterruptedException e) {
                 YaaccLogger.e(getClass().getName(), "Failed to connect", e);
             }

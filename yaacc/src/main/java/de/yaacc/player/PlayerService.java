@@ -19,16 +19,17 @@ package de.yaacc.player;
 
 import android.app.Notification;
 import android.app.PendingIntent;
-import android.app.Service;
 import android.content.Intent;
 import android.os.Binder;
 import android.os.HandlerThread;
 import android.os.IBinder;
 import android.os.PowerManager;
-import de.yaacc.util.YaaccLogger;
 import android.widget.Toast;
 
 import androidx.core.app.NotificationCompat;
+import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.session.MediaSession;
+import androidx.media3.session.MediaSessionService;
 
 import org.fourthline.cling.model.meta.Device;
 
@@ -45,11 +46,12 @@ import de.yaacc.Yaacc;
 import de.yaacc.browser.TabBrowserActivity;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.util.NotificationId;
+import de.yaacc.util.YaaccLogger;
 
 /**
  * @author Tobias Schoene (tobexyz)
  */
-public class PlayerService extends Service {
+public class PlayerService extends MediaSessionService {
 
     private final IBinder binder = new PlayerServiceBinder();
     private PlayerServiceBroadcastReceiver playerServiceBroadcastReceiver;
@@ -58,8 +60,46 @@ public class PlayerService extends Service {
 
     private PowerManager.WakeLock wakeLock;
 
+    // Track active MediaSession from LocalMediaSessionPlayer
+    private MediaSession activeMediaSession;
+
 
     public PlayerService() {
+    }
+
+    @Override
+    public void onCreate() {
+        super.onCreate();
+        YaaccLogger.d(getClass().getName(), "Service created");
+    }
+    
+    /**
+     * Register MediaSession from LocalMediaSessionPlayer.
+     * Called when player connects to service.
+     */
+    public void registerMediaSession(MediaSession mediaSession) {
+        this.activeMediaSession = mediaSession;
+        YaaccLogger.d(getClass().getName(), "MediaSession registered: " + mediaSession.getId());
+    }
+    
+    /**
+     * Unregister MediaSession when player is destroyed.
+     */
+    public void unregisterMediaSession(MediaSession mediaSession) {
+        if (this.activeMediaSession == mediaSession) {
+            this.activeMediaSession = null;
+            YaaccLogger.d(getClass().getName(), "MediaSession unregistered");
+        }
+    }
+
+    private PendingIntent createSessionActivity() {
+        Intent intent = new Intent(this, de.yaacc.browser.TabBrowserActivity.class);
+        return PendingIntent.getActivity(
+                this,
+                0,
+                intent,
+                PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT
+        );
     }
 
     public void addPlayer(Player player) {
@@ -67,22 +107,72 @@ public class PlayerService extends Service {
             return;
         }
         currentActivePlayer.put(player.getId(), player);
+
+        // Listen for playing state changes
+        player.addPropertyChangeListener(evt -> {
+            if ("playing".equals(evt.getPropertyName())) {
+                updateForegroundState();
+            }
+        });
+
+        updateForegroundState();
     }
 
     public void removePlayer(Player player) {
-
         currentActivePlayer.remove(player.getId());
+        updateForegroundState();
+    }
+
+    private void updateForegroundState() {
+        boolean hasPlayingPlayer = false;
+
+        // Check if any player is actively playing
+        for (Player player : currentActivePlayer.values()) {
+            if (player.isPlaying()) {
+                hasPlayingPlayer = true;
+                break;
+            }
+        }
+
+        if (hasPlayingPlayer) {
+            // At least one player playing - MediaSessionService handles foreground automatically
+            YaaccLogger.d(getClass().getName(), "Player active - service foreground");
+        } else {
+            // No players playing
+            if (currentActivePlayer.isEmpty()) {
+                // No players at all - stop service completely
+                YaaccLogger.d(getClass().getName(), "No players - stopping service");
+                stopForeground(STOP_FOREGROUND_REMOVE);
+                ((Yaacc) getApplicationContext()).cancelYaaccGroupNotification();
+                stopSelf();
+            } else {
+                // Players exist but paused
+                // Don't stop foreground - Media3 PlayerNotificationManager handles it
+                YaaccLogger.d(getClass().getName(), "Players paused - keeping foreground for notification");
+            }
+        }
     }
 
     @Override
     public void onDestroy() {
         YaaccLogger.d(this.getClass().getName(), "On Destroy");
+        // MediaSession is owned by players, they will release it
+        super.onDestroy();
     }
 
     @Override
     public IBinder onBind(Intent intent) {
         YaaccLogger.d(this.getClass().getName(), "On Bind");
+        // Always return our binder for service binding
+        // MediaSessionService will handle media controller connections separately
         return binder;
+    }
+
+    @Override
+    public MediaSession onGetSession(MediaSession.ControllerInfo controllerInfo) {
+        // Return active MediaSession from LocalMediaSessionPlayer
+        // Returns null if no LocalMediaSessionPlayer active (other players use MediaSessionCompat)
+        return activeMediaSession;
     }
 
     public Collection<Player> getPlayer() {
@@ -360,12 +450,7 @@ public class PlayerService extends Service {
         YaaccLogger.d(getClass().getName(), "Shutting down player: " + player.getId());
         currentActivePlayer.remove(player.getId());
         player.onDestroy();
-        if (currentActivePlayer.isEmpty()) {
-            YaaccLogger.d(getClass().getName(), "No active players - stopping service");
-            stopForeground(true);
-            ((Yaacc) getApplicationContext()).cancelYaaccGroupNotification();
-            stopSelf();
-        }
+        updateForegroundState();
     }
 
     /**
