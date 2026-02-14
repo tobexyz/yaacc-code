@@ -66,6 +66,8 @@ import java.net.URI;
 import java.net.URL;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.TimeZone;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -112,6 +114,11 @@ public class AVTransportPlayer extends AbstractPlayer {
     private AVTransportPlayerWrapper playerWrapper;
     private MediaSession media3Session;
     private PlayerNotificationManager notificationManager;
+    private int consecutivePositionFailures = 0;
+    
+    // Retry tracking for critical commands
+    private static final int MAX_RETRIES = 3;
+    private final Map<String, Integer> commandRetries = new HashMap<>();
 
 
     /**
@@ -270,6 +277,30 @@ public class AVTransportPlayer extends AbstractPlayer {
     public String getContentType() {
         return contentType;
     }
+    
+    /**
+     * Helper to track and check if command should be retried
+     * @param commandKey Unique key for the command (e.g., "play_123")
+     * @return true if should retry, false if max retries reached
+     */
+    private boolean shouldRetry(String commandKey) {
+        int retries = commandRetries.getOrDefault(commandKey, 0);
+        if (retries < MAX_RETRIES) {
+            commandRetries.put(commandKey, retries + 1);
+            YaaccLogger.w(getClass().getName(), "Retrying " + commandKey + " (attempt " + (retries + 1) + "/" + MAX_RETRIES + ")");
+            return true;
+        }
+        commandRetries.remove(commandKey);
+        YaaccLogger.e(getClass().getName(), "Max retries reached for " + commandKey);
+        return false;
+    }
+    
+    /**
+     * Reset retry counter for successful command
+     */
+    private void resetRetry(String commandKey) {
+        commandRetries.remove(commandKey);
+    }
 
     protected de.yaacc.upnp.server.http.HttpRequestSender getHttpRequestSender() {
         return getUpnpClient().getYaaccUpnpServerService().getNetworkDeviceListener().getHttpRequestSender();
@@ -296,6 +327,11 @@ public class AVTransportPlayer extends AbstractPlayer {
         final ActionState actionState = new ActionState();
 // Now start Stopping
         YaaccLogger.d(getClass().getName(), "Action Stop");
+        doStopWithRetry(service, "stop_" + System.currentTimeMillis());
+    }
+    
+    private void doStopWithRetry(Service<?, ?> service, final String retryKey) {
+        final ActionState actionState = new ActionState();
         actionState.actionFinished = false;
         Stop actionCallback = new Stop(service, getHttpRequestSender()) {
             @Override
@@ -308,11 +344,22 @@ public class AVTransportPlayer extends AbstractPlayer {
                                 + upnpresponse.getResponseDetails() : "");
                 YaaccLogger.d(getClass().getName(), "s: " + s);
                 actionState.actionFinished = true;
+                
+                // Retry on failure
+                if (shouldRetry(retryKey)) {
+                    executeCommand(new TimerTask() {
+                        @Override
+                        public void run() {
+                            doStopWithRetry(service, retryKey);
+                        }
+                    }, new Date(System.currentTimeMillis() + 1000));
+                }
             }
 
             @Override
             public void success(ActionInvocation actioninvocation) {
                 super.success(actioninvocation);
+                resetRetry(retryKey);
                 actionState.actionFinished = true;
             }
         };
@@ -689,6 +736,10 @@ public class AVTransportPlayer extends AbstractPlayer {
     }
 
     private void startPlayAction(Service<?, ?> service, final ActionState actionState) {
+        startPlayAction(service, actionState, "play_" + System.currentTimeMillis());
+    }
+    
+    private void startPlayAction(Service<?, ?> service, final ActionState actionState, final String retryKey) {
         actionState.actionFinished = false;
         Play actionCallback = new Play(service, getHttpRequestSender()) {
             @Override
@@ -701,12 +752,24 @@ public class AVTransportPlayer extends AbstractPlayer {
                                 + upnpresponse.getResponseDetails() : "");
                 YaaccLogger.d(getClass().getName(), "s: " + s);
                 actionState.actionFinished = true;
-                setProcessingCommand(false);
+                
+                // Retry on failure
+                if (shouldRetry(retryKey)) {
+                    executeCommand(new TimerTask() {
+                        @Override
+                        public void run() {
+                            startPlayAction(service, actionState, retryKey);
+                        }
+                    }, new Date(System.currentTimeMillis() + 1000));
+                } else {
+                    setProcessingCommand(false);
+                }
             }
 
             @Override
             public void success(ActionInvocation actioninvocation) {
                 super.success(actioninvocation);
+                resetRetry(retryKey);
                 actionState.actionFinished = true;
                 setPlaying(true);
                 playerWrapper.notifyPlaybackStateChanged();
@@ -806,6 +869,10 @@ public class AVTransportPlayer extends AbstractPlayer {
             return;
         }
         YaaccLogger.d(getClass().getName(), "Action Pause ");
+        doPauseWithRetry(service, "pause_" + System.currentTimeMillis());
+    }
+    
+    private void doPauseWithRetry(Service<?, ?> service, final String retryKey) {
         final ActionState actionState = new ActionState();
         actionState.actionFinished = false;
         Pause actionCallback = new Pause(service, getHttpRequestSender()) {
@@ -820,11 +887,22 @@ public class AVTransportPlayer extends AbstractPlayer {
                                 + upnpresponse.getResponseDetails() : "");
                 YaaccLogger.d(getClass().getName(), "s: " + s);
                 actionState.actionFinished = true;
+                
+                // Retry on failure
+                if (shouldRetry(retryKey)) {
+                    executeCommand(new TimerTask() {
+                        @Override
+                        public void run() {
+                            doPauseWithRetry(service, retryKey);
+                        }
+                    }, new Date(System.currentTimeMillis() + 1000));
+                }
             }
 
             @Override
             public void success(ActionInvocation actioninvocation) {
                 super.success(actioninvocation);
+                resetRetry(retryKey);
                 YaaccLogger.d(getClass().getName(), "Pause SUCCESS - setting isPlaying=false");
                 actionState.actionFinished = true;
                 setPlaying(false);
@@ -1025,6 +1103,17 @@ public class AVTransportPlayer extends AbstractPlayer {
                                 + upnpresponse.getResponseDetails() : "");
                 YaaccLogger.d(getClass().getName(), "s: " + s);
                 positionActionState.actionFinished = true;
+                
+                // Track consecutive failures
+                consecutivePositionFailures++;
+                YaaccLogger.w(getClass().getName(), "Position query failed " + consecutivePositionFailures + " times");
+                
+                // After 3 consecutive failures, assume track ended and advance
+                if (consecutivePositionFailures >= 3 && isPlaying()) {
+                    YaaccLogger.w(getClass().getName(), "Device not responding, auto-advancing to next track");
+                    consecutivePositionFailures = 0;
+                    next();
+                }
             }
 
             @Override
@@ -1037,6 +1126,7 @@ public class AVTransportPlayer extends AbstractPlayer {
             public void received(ActionInvocation actionInvocation, PositionInfo positionInfo) {
                 positionActionState.result = positionInfo;
                 currentPositionInfo = positionInfo;
+                consecutivePositionFailures = 0; // Reset failure counter on success
                 YaaccLogger.d(getClass().getName(), "received Positioninfo= RelTime: " + positionInfo.getRelTime() + " remaining time: " + positionInfo.getTrackRemainingSeconds());
 
                 // Update MediaSession with current position for lock screen controls
