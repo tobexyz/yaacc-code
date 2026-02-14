@@ -45,6 +45,7 @@ public class NetworkDeviceListener {
     private WifiManager.MulticastLock multicastLock;
     private WifiManager.WifiLock wifiLock;
     private boolean isAppInForeground = true;
+    private Runnable wifiLockChangeListener;
 
     private Network currentNetwork;
     private MulticastReceiver multicastReceiver;
@@ -188,6 +189,10 @@ public class NetworkDeviceListener {
                 YaaccLogger.w(getClass().getName(), "WiFi lock already released");
             }
         }
+    }
+
+    public boolean isWifiLockHeld() {
+        return wifiLock != null && wifiLock.isHeld();
     }
 
     private boolean shouldHoldWifiLock() {

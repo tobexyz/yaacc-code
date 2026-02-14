@@ -137,6 +137,7 @@ public class PlayerService extends MediaSessionService {
         if (hasPlayingPlayer) {
             // At least one player playing - MediaSessionService handles foreground automatically
             YaaccLogger.d(getClass().getName(), "Player active - service foreground");
+            updateServiceNotification();
         } else {
             // No players playing
             if (currentActivePlayer.isEmpty()) {
@@ -149,8 +150,39 @@ public class PlayerService extends MediaSessionService {
                 // Players exist but paused
                 // Don't stop foreground - Media3 PlayerNotificationManager handles it
                 YaaccLogger.d(getClass().getName(), "Players paused - keeping foreground for notification");
+                updateServiceNotification();
             }
         }
+    }
+    
+    private void updateServiceNotification() {
+        Intent notificationIntent = new Intent(this, TabBrowserActivity.class);
+        PendingIntent pendingIntent = PendingIntent.getActivity(this,
+                0, notificationIntent, PendingIntent.FLAG_IMMUTABLE);
+        
+        // Build status text
+        int totalPlayers = currentActivePlayer.size();
+        int playingCount = 0;
+        for (Player player : currentActivePlayer.values()) {
+            if (player.isPlaying()) {
+                playingCount++;
+            }
+        }
+        
+        String statusText = totalPlayers == 0 ? "running" : 
+                           totalPlayers + " player" + (totalPlayers > 1 ? "s" : "") +
+                           (playingCount > 0 ? " (" + playingCount + " playing)" : " (paused)");
+        
+        Notification notification = new NotificationCompat.Builder(this, Yaacc.NOTIFICATION_CHANNEL_ID)
+                .setGroup(Yaacc.NOTIFICATION_GROUP_KEY)
+                .setContentTitle("Player Service")
+                .setSilent(true)
+                .setContentText(statusText)
+                .setSmallIcon(R.drawable.ic_notification_default)
+                .setContentIntent(pendingIntent)
+                .build();
+        
+        startForeground(NotificationId.PLAYER_SERVICE.getId(), notification);
     }
 
     @Override
@@ -188,19 +220,7 @@ public class PlayerService extends MediaSessionService {
             playerServiceBroadcastReceiver.registerReceiver();
         }
         ((Yaacc) getApplicationContext()).createYaaccGroupNotification();
-        Intent notificationIntent = new Intent(this, TabBrowserActivity.class);
-        PendingIntent pendingIntent = PendingIntent.getActivity(this,
-                0, notificationIntent, PendingIntent.FLAG_IMMUTABLE);
-        Notification notification = new NotificationCompat.Builder(this, Yaacc.NOTIFICATION_CHANNEL_ID)
-                .setGroup(Yaacc.NOTIFICATION_GROUP_KEY)
-                .setContentTitle("Player Service")
-                .setSilent(true)
-                .setContentText("running")
-                .setSmallIcon(R.drawable.ic_notification_default)
-                .setContentIntent(pendingIntent)
-                .build();
-
-        startForeground(NotificationId.PLAYER_SERVICE.getId(), notification);
+        updateServiceNotification();
         initialize();
 
         return START_STICKY;

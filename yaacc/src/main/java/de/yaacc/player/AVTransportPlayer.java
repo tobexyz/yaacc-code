@@ -1013,6 +1013,14 @@ public class AVTransportPlayer extends AbstractPlayer {
             public void received(ActionInvocation actioninvocation, TransportInfo info) {
                 YaaccLogger.d(getClass().getName(), "Transport State: " + info.getCurrentTransportState());
 
+                // If device stopped, track ended - advance to next
+                if (info.getCurrentTransportState() == TransportState.STOPPED && isPlaying()) {
+                    YaaccLogger.d(getClass().getName(), "Device stopped, advancing to next track");
+                    consecutivePositionFailures = 0;
+                    next();
+                    return;
+                }
+
                 // If not playing and we haven't exceeded retry limit, try Play command again
                 if (info.getCurrentTransportState() != TransportState.PLAYING && playRetryCount < MAX_PLAY_RETRIES) {
                     playRetryCount++;
@@ -1080,6 +1088,14 @@ public class AVTransportPlayer extends AbstractPlayer {
             YaaccLogger.d(getClass().getName(),
                     "No receiver device found: "
                             + deviceId);
+            
+            // Track device-not-found as position failure
+            consecutivePositionFailures++;
+            if (consecutivePositionFailures >= 3 && isPlaying()) {
+                YaaccLogger.w(getClass().getName(), "Device lost, stopping playback");
+                consecutivePositionFailures = 0;
+                stop();
+            }
             return;
         }
         Service<?, ?> service = getUpnpClient().getAVTransportService(getDevice());
@@ -1108,11 +1124,11 @@ public class AVTransportPlayer extends AbstractPlayer {
                 consecutivePositionFailures++;
                 YaaccLogger.w(getClass().getName(), "Position query failed " + consecutivePositionFailures + " times");
                 
-                // After 3 consecutive failures, assume track ended and advance
+                // After 3 consecutive failures, check device state to see if track ended
                 if (consecutivePositionFailures >= 3 && isPlaying()) {
-                    YaaccLogger.w(getClass().getName(), "Device not responding, auto-advancing to next track");
+                    YaaccLogger.w(getClass().getName(), "Position query failed 3 times, checking transport state");
                     consecutivePositionFailures = 0;
-                    next();
+                    getTransportInfo();
                 }
             }
 

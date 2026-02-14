@@ -151,6 +151,7 @@ public class Yaacc extends Application {
         int importance = NotificationManager.IMPORTANCE_DEFAULT;
         NotificationChannel channel = new NotificationChannel(NOTIFICATION_CHANNEL_ID, name, importance);
         channel.setDescription(description);
+        channel.setSound(null, null);
 
 
         // Register the channel with the system; you can't change the importance
