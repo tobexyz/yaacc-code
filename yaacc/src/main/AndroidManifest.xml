@@ -61,14 +61,15 @@
             </intent-filter>
         </activity>
 
-
         <service
             android:name=".player.PlayerService"
             android:enabled="true"
-            android:exported="false" />
-        <service
-            android:name=".musicplayer.BackgroundMusicService"
-            android:enabled="true" />
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback">
+            <intent-filter>
+                <action android:name="androidx.media3.session.MediaSessionService" />
+            </intent-filter>
+        </service>
         <service
             android:name=".upnp.server.YaaccUpnpServerService"
             android:enabled="true"

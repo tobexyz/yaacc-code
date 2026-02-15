@@ -24,7 +24,6 @@ import android.media.MediaMetadataRetriever;
 import android.net.Uri;
 import android.provider.DocumentsContract;
 import android.util.Base64;
-import de.yaacc.util.YaaccLogger;
 
 import androidx.documentfile.provider.DocumentFile;
 import androidx.preference.PreferenceManager;
@@ -45,9 +44,11 @@ import org.seamless.util.MimeType;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import de.yaacc.R;
 import de.yaacc.util.FormatHelper;
+import de.yaacc.util.YaaccLogger;
 
 /**
  * Browser for saf folder.
@@ -116,7 +117,9 @@ public class SafFolderBrowser extends ContentBrowser {
         List<Container> result = new ArrayList<>();
         if (myId.equals(ContentDirectoryIDs.SAF_FOLDER.getId())) {
             YaaccLogger.d(getClass().getName(), "Browsing root SAF folder");
-            List<String> sortedPathes = new ArrayList<>(getSelectedSafPathes());
+            Set<String> safPaths = getSelectedSafPathes();
+            YaaccLogger.d(getClass().getName(), "Found " + safPaths.size() + " SAF paths in preferences");
+            List<String> sortedPathes = new ArrayList<>(safPaths);
             Collections.sort(sortedPathes);
 
             int start = (int) Math.max(0, firstResult);
@@ -124,7 +127,9 @@ public class SafFolderBrowser extends ContentBrowser {
 
             for (int i = start; i < end; i++) {
                 String path = sortedPathes.get(i);
+                YaaccLogger.d(getClass().getName(), "Processing path " + i + ": " + path);
                 DocumentFile file = DocumentFile.fromTreeUri(getContext(), Uri.parse(path));
+                YaaccLogger.d(getClass().getName(), "DocumentFile: " + (file != null ? "exists" : "null") + ", isDirectory: " + (file != null && file.isDirectory()));
                 if (file != null && file.isDirectory()) {
                     String title = file.getName() != null ? file.getName() : path;
                     String base64Str = Base64.encodeToString(file.getUri().toString().getBytes(), Base64.NO_WRAP);
@@ -134,6 +139,7 @@ public class SafFolderBrowser extends ContentBrowser {
                     result.add(folder);
                 }
             }
+            YaaccLogger.d(getClass().getName(), "Returning " + result.size() + " SAF root folders");
         } else {
             // Browse subfolder
             YaaccLogger.d(getClass().getName(), "Browsing subfolder with ID: " + myId);
@@ -183,6 +189,10 @@ public class SafFolderBrowser extends ContentBrowser {
                                 String base64Str = Base64.encodeToString(childTreeUri.toString().getBytes(), Base64.NO_WRAP);
                                 String childId = ContentDirectoryIDs.SAF_PREFIX.getId() + base64Str;
                                 YaaccLogger.d(getClass().getName(), "Creating child folder: " + title + " with ID: " + childId);
+                                if (!testAccess.canRead()) {
+
+                                    title = "[X] " + title; //🔒
+                                }
                                 StorageFolder folder = new StorageFolder(childId, myId, title, "yaacc", 0, null);
                                 folder.setRestricted(testAccess.canRead());
                                 result.add(folder);
@@ -252,9 +262,26 @@ public class SafFolderBrowser extends ContentBrowser {
 
     private Item createItem(YaaccContentDirectory contentDirectory, String path, DocumentFile file, String parentId, boolean restricted) {
         String mimeTypeStr = file.getType();
+
+        // If MIME type is null, try to guess from file extension
+        if (mimeTypeStr == null && file.getName() != null) {
+            String fileName = file.getName().toLowerCase();
+            if (fileName.endsWith(".mp3")) mimeTypeStr = "audio/mpeg";
+            else if (fileName.endsWith(".mp4")) mimeTypeStr = "video/mp4";
+            else if (fileName.endsWith(".jpg") || fileName.endsWith(".jpeg"))
+                mimeTypeStr = "image/jpeg";
+            else if (fileName.endsWith(".png")) mimeTypeStr = "image/png";
+            else if (fileName.endsWith(".flac")) mimeTypeStr = "audio/flac";
+            else if (fileName.endsWith(".m4a")) mimeTypeStr = "audio/mp4";
+            else if (fileName.endsWith(".ogg")) mimeTypeStr = "audio/ogg";
+            else if (fileName.endsWith(".mkv")) mimeTypeStr = "video/x-matroska";
+            else if (fileName.endsWith(".avi")) mimeTypeStr = "video/x-msvideo";
+            YaaccLogger.d(getClass().getName(), "Guessed MIME type from extension: " + mimeTypeStr);
+        }
+
         long currentTime = System.currentTimeMillis();
         YaaccLogger.d(getClass().getName(), "Created item for: " + path + " with mime type: " + mimeTypeStr);
-        if (file.getName().endsWith("m3u")) {
+        if (file.getName() != null && file.getName().endsWith("m3u")) {
             YaaccLogger.d(getClass().getName(), "Ignoring m3u file");
             return null;
         }
@@ -265,6 +292,9 @@ public class SafFolderBrowser extends ContentBrowser {
             String id = ContentDirectoryIDs.SAF_PREFIX.getId() + base64enc;
             String title = file.getName() != null ? file.getName() : path;
 
+            if (restricted) {
+                title = "[X] " + title; //🔒
+            }
             // The actual URI for streaming from this server
             String uri = getUriString(contentDirectory, id, mimeType, path);
 

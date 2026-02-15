@@ -18,17 +18,15 @@
 package de.yaacc.browser;
 
 import android.content.Context;
-import android.view.View;
-import android.widget.ProgressBar;
 import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.AsyncTask;
-import de.yaacc.util.YaaccLogger;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageButton;
 import android.widget.ImageView;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -40,7 +38,6 @@ import org.fourthline.cling.support.model.DIDLObject;
 import org.fourthline.cling.support.model.container.Container;
 import org.fourthline.cling.support.model.item.AudioItem;
 import org.fourthline.cling.support.model.item.ImageItem;
-import org.fourthline.cling.support.model.item.Item;
 import org.fourthline.cling.support.model.item.PlaylistItem;
 import org.fourthline.cling.support.model.item.TextItem;
 import org.fourthline.cling.support.model.item.VideoItem;
@@ -56,6 +53,7 @@ import de.yaacc.R;
 import de.yaacc.Yaacc;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.util.ThemeHelper;
+import de.yaacc.util.YaaccLogger;
 import de.yaacc.util.image.IconDownloadTask;
 
 /**
@@ -133,6 +131,7 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
         YaaccLogger.d(getClass().getName(), "added objects; " + newObjects);
         int start = objects.size();
         List<DIDLObject> filteredObjects = newObjects.stream().filter(it -> !objects.contains(it)).collect(Collectors.toList());
+        YaaccLogger.d(getClass().getName(), "Adding " + filteredObjects.size() + " new objects (filtered from " + newObjects.size() + " total)");
         objects.addAll(filteredObjects);
         notifyItemRangeInserted(start, filteredObjects.size());
     }
@@ -215,6 +214,7 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
 
         DIDLObject currentObject = (DIDLObject) getItem(listPosition);
         holder.name.setText(currentObject.getTitle());
+
         IconDownloadTask iconDownloadTask = new IconDownloadTask(holder.icon,
                 this);
         asyncTasks.add(iconDownloadTask);

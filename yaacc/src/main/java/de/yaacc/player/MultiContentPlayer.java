@@ -20,13 +20,13 @@ package de.yaacc.player;
 import android.app.PendingIntent;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
-import de.yaacc.util.YaaccLogger;
 
 import java.net.URI;
 
 import de.yaacc.R;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.util.NotificationId;
+import de.yaacc.util.YaaccLogger;
 
 /**
  * @author Tobias Schoene (openbit)
@@ -73,8 +73,8 @@ public class MultiContentPlayer extends AbstractPlayer {
      */
     @Override
     protected Object loadItem(PlayableItem playableItem) {
-        // DO nothing special
-        return null;
+        // Return non-null to indicate item is ready
+        return playableItem;
     }
 
     /*
@@ -85,7 +85,7 @@ public class MultiContentPlayer extends AbstractPlayer {
      * java.lang.Object)
      */
     @Override
-    protected void startItem(PlayableItem playableItem, Object loadedItem) {
+    protected void startItem(PlayableItem playableItem, Object loadedItem, int index) {
         Intent intent = new Intent(Intent.ACTION_VIEW);
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         intent.addFlags(Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);

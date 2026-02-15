@@ -30,7 +30,6 @@ import android.content.SharedPreferences;
 import android.os.BatteryManager;
 import android.os.CountDownTimer;
 import android.os.PowerManager;
-import de.yaacc.util.YaaccLogger;
 
 import androidx.appcompat.app.AppCompatDelegate;
 import androidx.core.app.NotificationCompat;
@@ -43,11 +42,9 @@ import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
 import de.yaacc.browser.TabBrowserActivity;
-import de.yaacc.musicplayer.BackgroundMusicService;
 import de.yaacc.player.PlayerService;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.server.YaaccUpnpServerService;
-import de.yaacc.upnp.server.renderingcontrol.YaaccAudioRenderingControlService;
 import de.yaacc.util.NotificationId;
 import de.yaacc.util.SafPermissionManager;
 import de.yaacc.util.ShutdownTimerListener;
@@ -92,9 +89,9 @@ public class Yaacc extends Application {
         // Always start with streaming disabled
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
             preferences.edit()
-                .putBoolean(getString(R.string.settings_local_server_serve_system_audio_chkbx), false)
-                .putBoolean(getString(R.string.settings_local_server_serve_screen_cast_chkbx), false)
-                .apply();
+                    .putBoolean(getString(R.string.settings_local_server_serve_system_audio_chkbx), false)
+                    .putBoolean(getString(R.string.settings_local_server_serve_screen_cast_chkbx), false)
+                    .apply();
         }
 
         // Validate and cleanup SAF permissions on app startup
@@ -133,8 +130,6 @@ public class Yaacc extends Application {
         SharedPreferences.Editor editor = preferences.edit();
         proxyLinks.forEach(k -> editor.remove(k).commit());
         stopService(new Intent(this, PlayerService.class));
-        stopService(new Intent(this, BackgroundMusicService.class));
-        stopService(new Intent(this, YaaccAudioRenderingControlService.class));
         stopService(new Intent(this, YaaccUpnpServerService.class));
 
 
@@ -145,7 +140,16 @@ public class Yaacc extends Application {
         mNotificationManager.cancel(NotificationId.YAACC.getId());
         ActivityManager am = (ActivityManager) getApplicationContext().getSystemService(Context.ACTIVITY_SERVICE);
         am.getAppTasks().stream().forEach(t -> t.finishAndRemoveTask());
+        clearCache();
         Runtime.getRuntime().exit(0);
+    }
+
+    private void clearCache() {
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
+        Set<String> tobeDeleted = preferences.getAll().keySet().stream().filter(k -> k.startsWith(getApplicationContext().getString(R.string.settings_duration_format_key))).collect(Collectors.toSet());
+        SharedPreferences.Editor edit = preferences.edit();
+        tobeDeleted.forEach(it -> edit.remove(it));
+        edit.commit();
     }
 
     public void createNotificationChannel() {
@@ -155,6 +159,7 @@ public class Yaacc extends Application {
         int importance = NotificationManager.IMPORTANCE_DEFAULT;
         NotificationChannel channel = new NotificationChannel(NOTIFICATION_CHANNEL_ID, name, importance);
         channel.setDescription(description);
+        channel.setSound(null, null);
 
 
         // Register the channel with the system; you can't change the importance

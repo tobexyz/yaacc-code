@@ -19,13 +19,17 @@
 package de.yaacc.upnp.server;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.net.ConnectivityManager;
 import android.net.Network;
 import android.net.NetworkCapabilities;
 import android.net.wifi.WifiManager;
-import de.yaacc.util.YaaccLogger;
 
 import androidx.annotation.NonNull;
+import androidx.preference.PreferenceManager;
+
+import de.yaacc.R;
+import de.yaacc.util.YaaccLogger;
 
 import de.yaacc.upnp.protocol.UpnpProtocolHandler;
 import de.yaacc.upnp.registry.Registry;
@@ -40,6 +44,8 @@ public class NetworkDeviceListener {
     private HttpRequestSender httpRequestSender;
     private WifiManager.MulticastLock multicastLock;
     private WifiManager.WifiLock wifiLock;
+    private boolean isAppInForeground = true;
+    private Runnable wifiLockChangeListener;
 
     private Network currentNetwork;
     private MulticastReceiver multicastReceiver;
@@ -165,7 +171,10 @@ public class NetworkDeviceListener {
             wifiLock = wifiManager.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, getClass().getSimpleName());
         }
 
-        if (enable) {
+        // Smart WiFi lock: only hold if needed
+        boolean shouldHold = enable && shouldHoldWifiLock();
+
+        if (shouldHold) {
             if (wifiLock.isHeld()) {
                 YaaccLogger.w(getClass().getName(), "WiFi lock already acquired");
             } else {
@@ -178,6 +187,44 @@ public class NetworkDeviceListener {
                 wifiLock.release();
             } else {
                 YaaccLogger.w(getClass().getName(), "WiFi lock already released");
+            }
+        }
+    }
+
+    public boolean isWifiLockHeld() {
+        return wifiLock != null && wifiLock.isHeld();
+    }
+
+    private boolean shouldHoldWifiLock() {
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
+        
+        // Hold lock if server enabled
+        boolean serverEnabled = prefs.getBoolean(context.getString(R.string.settings_local_server_chkbx), false);
+        
+        // Hold lock if renderer enabled
+        boolean rendererEnabled = prefs.getBoolean(context.getString(R.string.settings_local_server_receiver_chkbx), false);
+        
+        // Hold lock if app in foreground (for discovery)
+        boolean needsForDiscovery = isAppInForeground;
+        
+        boolean shouldHold = serverEnabled || rendererEnabled || needsForDiscovery;
+        
+        YaaccLogger.d(getClass().getName(), 
+            "WiFi lock decision: server=" + serverEnabled + 
+            ", renderer=" + rendererEnabled + 
+            ", foreground=" + isAppInForeground + 
+            " -> " + (shouldHold ? "HOLD" : "RELEASE"));
+        
+        return shouldHold;
+    }
+
+    public void setAppInForeground(boolean inForeground) {
+        if (this.isAppInForeground != inForeground) {
+            YaaccLogger.d(getClass().getName(), "App foreground state changed: " + inForeground);
+            this.isAppInForeground = inForeground;
+            // Update WiFi lock based on new state
+            if (isWifi()) {
+                setWifiLock(true); // Will check shouldHoldWifiLock internally
             }
         }
     }

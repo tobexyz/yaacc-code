@@ -93,7 +93,6 @@ public class ReceivingRetrieval extends ReceivingSync<StreamRequestMessage, Stre
         URI requestedURI = getInputMessage().getOperation().getURI();
 
         Resource foundResource = registry.getResource(requestedURI);
-        YaaccLogger.d(getClass().getName(), "Registry id: " + registry);
         if (foundResource == null) {
             foundResource = onResourceNotFound(requestedURI);
             if (foundResource == null) {

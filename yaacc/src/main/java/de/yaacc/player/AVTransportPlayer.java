@@ -19,13 +19,26 @@ package de.yaacc.player;
 
 import android.app.Activity;
 import android.app.PendingIntent;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.graphics.Bitmap;
 import android.net.Uri;
+import android.os.Handler;
+import android.os.IBinder;
+import android.os.Looper;
 import android.preference.PreferenceManager;
-import de.yaacc.util.YaaccLogger;
+import android.support.v4.media.session.MediaSessionCompat;
 import android.widget.Toast;
+
+import androidx.media3.common.MediaItem;
+import androidx.media3.common.Player;
+import androidx.media3.common.util.UnstableApi;
+import androidx.media3.session.MediaSession;
+import androidx.media3.session.SessionCommand;
+import androidx.media3.session.SessionCommands;
+import androidx.media3.ui.PlayerNotificationManager;
 
 import org.fourthline.cling.model.action.ActionInvocation;
 import org.fourthline.cling.model.message.UpnpResponse;
@@ -34,14 +47,6 @@ import org.fourthline.cling.model.meta.Icon;
 import org.fourthline.cling.model.meta.RemoteDevice;
 import org.fourthline.cling.model.meta.Service;
 import org.fourthline.cling.model.types.UDAServiceType;
-import de.yaacc.upnp.callback.avtransport.GetPositionInfo;
-import de.yaacc.upnp.callback.avtransport.GetTransportInfo;
-import de.yaacc.upnp.callback.avtransport.Pause;
-import de.yaacc.upnp.callback.avtransport.Play;
-import de.yaacc.upnp.callback.avtransport.Seek;
-import de.yaacc.upnp.callback.avtransport.SetAVTransportURI;
-import de.yaacc.upnp.callback.avtransport.Stop;
-import de.yaacc.upnp.callback.connectionmanager.GetProtocolInfo;
 import org.fourthline.cling.support.contentdirectory.DIDLParser;
 import org.fourthline.cling.support.model.DIDLContent;
 import org.fourthline.cling.support.model.DIDLObject;
@@ -53,26 +58,37 @@ import org.fourthline.cling.support.model.TransportInfo;
 import org.fourthline.cling.support.model.TransportState;
 import org.fourthline.cling.support.model.item.Item;
 
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-
 import java.net.URI;
 import java.net.URL;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.TimeZone;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import de.yaacc.R;
+import de.yaacc.Yaacc;
 import de.yaacc.settings.SettingsFragment;
 import de.yaacc.upnp.ActionState;
 import de.yaacc.upnp.UpnpClient;
+import de.yaacc.upnp.callback.avtransport.GetPositionInfo;
+import de.yaacc.upnp.callback.avtransport.GetTransportInfo;
+import de.yaacc.upnp.callback.avtransport.Pause;
+import de.yaacc.upnp.callback.avtransport.Play;
+import de.yaacc.upnp.callback.avtransport.Seek;
+import de.yaacc.upnp.callback.avtransport.SetAVTransportURI;
+import de.yaacc.upnp.callback.avtransport.Stop;
+import de.yaacc.upnp.callback.connectionmanager.GetProtocolInfo;
 import de.yaacc.upnp.server.http.YaaccUpnpServerContentHttpHandler;
 import de.yaacc.util.InterfaceResolutionHelper;
+import de.yaacc.util.YaaccLogger;
 import de.yaacc.util.image.ImageDownloader;
 
 /**
@@ -80,6 +96,7 @@ import de.yaacc.util.image.ImageDownloader;
  *
  * @author Tobias Schoene (openbit)
  */
+@UnstableApi
 public class AVTransportPlayer extends AbstractPlayer {
 
 
@@ -90,6 +107,14 @@ public class AVTransportPlayer extends AbstractPlayer {
     private PositionInfo currentPositionInfo;
     private ActionState positionActionState = null;
     private URI albumArtUri;
+    private AVTransportPlayerWrapper playerWrapper;
+    private MediaSession media3Session;
+    private PlayerNotificationManager notificationManager;
+    private int consecutivePositionFailures = 0;
+
+    // Retry tracking for critical commands
+    private static final int MAX_RETRIES = 3;
+    private final Map<String, Integer> commandRetries = new HashMap<>();
 
 
     /**
@@ -102,8 +127,15 @@ public class AVTransportPlayer extends AbstractPlayer {
         setName(name);
         setShortName(shortName);
         this.contentType = contentType;
-        id = Math.abs(UUID.randomUUID().hashCode());
+        // id already initialized in base constructor
         setDeviceIcon(receiverDevice);
+
+        // Configure MediaSession for remote volume control now that device is set
+        new Handler(Looper.getMainLooper()).post(() -> {
+            if (getMediaSession() != null) {
+                configureMediaSession(getMediaSession());
+            }
+        });
     }
 
     /**
@@ -112,6 +144,122 @@ public class AVTransportPlayer extends AbstractPlayer {
     public AVTransportPlayer(UpnpClient upnpClient) {
         super(upnpClient);
         executorService = Executors.newFixedThreadPool(20);
+
+        // Generate ID first (required for notification)
+        id = Math.abs(UUID.randomUUID().hashCode());
+
+        // Initialize Media3 Player wrapper
+        playerWrapper = new AVTransportPlayerWrapper(this, null);
+
+        // Create Media3 MediaSession for the wrapper
+        media3Session = new MediaSession.Builder(getContext(), playerWrapper)
+                .setId("avtransport_" + id)
+                .setCallback(new MediaSession.Callback() {
+                    @Override
+                    public MediaSession.ConnectionResult onConnect(MediaSession session,
+                                                                   MediaSession.ControllerInfo controller) {
+                        MediaSession.ConnectionResult result = MediaSession.Callback.super.onConnect(session, controller);
+
+                        // Enable device volume commands
+                        SessionCommands.Builder commandsBuilder = result.availableSessionCommands.buildUpon();
+                        commandsBuilder.add(new SessionCommand(SessionCommand.COMMAND_CODE_SESSION_SET_RATING));
+
+                        return MediaSession.ConnectionResult.accept(
+                                commandsBuilder.build(),
+                                result.availablePlayerCommands
+                        );
+                    }
+                })
+                .build();
+
+        // Add listener to wrapper so Media3 session gets updates
+        playerWrapper.addListener(new Player.Listener() {
+            @Override
+            public void onMediaItemTransition(MediaItem mediaItem, int reason) {
+                YaaccLogger.d(getClass().getName(), "Media3: onMediaItemTransition - " +
+                        (mediaItem != null ? mediaItem.mediaMetadata.title : "null"));
+            }
+
+            @Override
+            public void onIsPlayingChanged(boolean isPlaying) {
+                YaaccLogger.d(getClass().getName(), "Media3: onIsPlayingChanged - " + isPlaying);
+            }
+        });
+
+        // Create notification manager
+        notificationManager = new PlayerNotificationManager.Builder(
+                getContext(),
+                getNotificationId(),
+                Yaacc.NOTIFICATION_CHANNEL_ID)
+                .setMediaDescriptionAdapter(new PlayerNotificationManager.MediaDescriptionAdapter() {
+                    @Override
+                    public CharSequence getCurrentContentTitle(Player player) {
+                        return getCurrentItemTitle();
+                    }
+
+                    @Override
+                    public PendingIntent createCurrentContentIntent(Player player) {
+                        return getNotificationIntent();
+                    }
+
+                    @Override
+                    public CharSequence getCurrentContentText(Player player) {
+                        return getName();
+                    }
+
+                    @Override
+                    public Bitmap getCurrentLargeIcon(Player player,
+                                                      PlayerNotificationManager.BitmapCallback callback) {
+                        return null;
+                    }
+                })
+                .build();
+
+        notificationManager.setUseNextAction(true);
+        notificationManager.setUsePreviousAction(true);
+        notificationManager.setUseNextActionInCompactView(true);
+        notificationManager.setUsePreviousActionInCompactView(true);
+        notificationManager.setSmallIcon(R.drawable.ic_notification_default);
+        notificationManager.setVisibility(androidx.core.app.NotificationCompat.VISIBILITY_PUBLIC);
+        notificationManager.setPriority(androidx.core.app.NotificationCompat.PRIORITY_DEFAULT);
+
+        YaaccLogger.d(getClass().getName(), "Setting up PlayerNotificationManager");
+
+        // setPlayer must be called on main thread
+        new Handler(Looper.getMainLooper()).post(() -> {
+            YaaccLogger.d(getClass().getName(), "Calling notificationManager.setPlayer()");
+            notificationManager.setPlayer(playerWrapper);
+            notificationManager.setMediaSessionToken(media3Session.getSessionCompatToken());
+            YaaccLogger.d(getClass().getName(), "PlayerNotificationManager setup complete");
+        });
+    }
+
+    @Override
+    protected void configureMediaSession(MediaSessionCompat mediaSession) {
+        // Don't configure legacy MediaSession - we're using Media3 MediaSession instead
+        // Deactivate it so only Media3 session is active
+        mediaSession.setActive(false);
+        YaaccLogger.d(getClass().getName(), "Deactivated legacy MediaSession - using Media3");
+    }
+
+    @Override
+    public void onServiceConnected(ComponentName className, IBinder binder) {
+        super.onServiceConnected(className, binder);
+
+        // Register Media3 MediaSession with PlayerService (if initialized)
+        if (media3Session != null && binder instanceof PlayerService.PlayerServiceBinder) {
+            PlayerService playerService = ((PlayerService.PlayerServiceBinder) binder).getService();
+            playerService.registerMediaSession(media3Session);
+            YaaccLogger.d(getClass().getName(), "Media3 MediaSession registered with PlayerService");
+
+            // Trigger initial device info query to activate volume control
+            new Handler(Looper.getMainLooper()).post(() -> {
+                if (playerWrapper != null) {
+                    playerWrapper.getDeviceInfo();
+                    playerWrapper.getDeviceVolume();
+                }
+            });
+        }
     }
 
     protected Device<?, ?, ?> getDevice() {
@@ -124,6 +272,31 @@ public class AVTransportPlayer extends AbstractPlayer {
 
     public String getContentType() {
         return contentType;
+    }
+
+    /**
+     * Helper to track and check if command should be retried
+     *
+     * @param commandKey Unique key for the command (e.g., "play_123")
+     * @return true if should retry, false if max retries reached
+     */
+    private boolean shouldRetry(String commandKey) {
+        int retries = commandRetries.getOrDefault(commandKey, 0);
+        if (retries < MAX_RETRIES) {
+            commandRetries.put(commandKey, retries + 1);
+            YaaccLogger.w(getClass().getName(), "Retrying " + commandKey + " (attempt " + (retries + 1) + "/" + MAX_RETRIES + ")");
+            return true;
+        }
+        commandRetries.remove(commandKey);
+        YaaccLogger.e(getClass().getName(), "Max retries reached for " + commandKey);
+        return false;
+    }
+
+    /**
+     * Reset retry counter for successful command
+     */
+    private void resetRetry(String commandKey) {
+        commandRetries.remove(commandKey);
     }
 
     protected de.yaacc.upnp.server.http.HttpRequestSender getHttpRequestSender() {
@@ -151,6 +324,11 @@ public class AVTransportPlayer extends AbstractPlayer {
         final ActionState actionState = new ActionState();
 // Now start Stopping
         YaaccLogger.d(getClass().getName(), "Action Stop");
+        doStopWithRetry(service, "stop_" + System.currentTimeMillis());
+    }
+
+    private void doStopWithRetry(Service<?, ?> service, final String retryKey) {
+        final ActionState actionState = new ActionState();
         actionState.actionFinished = false;
         Stop actionCallback = new Stop(service, getHttpRequestSender()) {
             @Override
@@ -163,11 +341,22 @@ public class AVTransportPlayer extends AbstractPlayer {
                                 + upnpresponse.getResponseDetails() : "");
                 YaaccLogger.d(getClass().getName(), "s: " + s);
                 actionState.actionFinished = true;
+
+                // Retry on failure
+                if (shouldRetry(retryKey)) {
+                    executeCommand(new TimerTask() {
+                        @Override
+                        public void run() {
+                            doStopWithRetry(service, retryKey);
+                        }
+                    }, new Date(System.currentTimeMillis() + 1000));
+                }
             }
 
             @Override
             public void success(ActionInvocation actioninvocation) {
                 super.success(actioninvocation);
+                resetRetry(retryKey);
                 actionState.actionFinished = true;
             }
         };
@@ -186,13 +375,21 @@ public class AVTransportPlayer extends AbstractPlayer {
      * @see de.yaacc.player.AbstractPlayer#startItem(de.yaacc.player.PlayableItem, java.lang.Object)
      */
     @Override
-    protected void startItem(PlayableItem playableItem, Object loadedItem) {
+    protected void startItem(PlayableItem playableItem, Object loadedItem, int index) {
         if (playableItem == null || getDevice() == null)
             return;
-        
+
+        // Request audio focus for lock screen volume control
+        if (media3Session != null) {
+            new Handler(Looper.getMainLooper()).post(() -> {
+                // Trigger a state update to make this session active
+                playerWrapper.notifyPlaybackStateChanged();
+            });
+        }
+
         // Try to select best resource for this device
         PlayableItem deviceOptimizedItem = selectBestResourceForDevice(playableItem);
-        
+
         YaaccLogger.d(getClass().getName(), "Uri: " + deviceOptimizedItem.getUri());
         YaaccLogger.d(getClass().getName(), "Duration: " + deviceOptimizedItem.getDuration());
         YaaccLogger.d(getClass().getName(),
@@ -209,7 +406,7 @@ public class AVTransportPlayer extends AbstractPlayer {
         // Check transport state first and handle accordingly
         checkTransportStateForStart(deviceOptimizedItem, service);
     }
-    
+
     /**
      * Select the best resource for this specific device based on supported protocols
      */
@@ -218,72 +415,72 @@ public class AVTransportPlayer extends AbstractPlayer {
         if (item == null || item.getResources().isEmpty()) {
             return playableItem;
         }
-        
+
         // Get device's supported protocols
         Service<?, ?> cmService = getDevice().findService(new UDAServiceType("ConnectionManager"));
         if (cmService == null) {
             YaaccLogger.d(getClass().getName(), "No ConnectionManager service, using default resource");
             return playableItem;
         }
-        
+
         // Query supported protocols synchronously
         final ProtocolInfos[] supportedProtocols = new ProtocolInfos[1];
         final CountDownLatch latch = new CountDownLatch(1);
-        
+
         executorService.execute(
-            new GetProtocolInfo(cmService, getHttpRequestSender()) {
-                @Override
-                public void received(ActionInvocation actionInvocation, ProtocolInfos sinkProtocolInfos, ProtocolInfos sourceProtocolInfos) {
-                    supportedProtocols[0] = sinkProtocolInfos;
-                    latch.countDown();
+                new GetProtocolInfo(cmService, getHttpRequestSender()) {
+                    @Override
+                    public void received(ActionInvocation actionInvocation, ProtocolInfos sinkProtocolInfos, ProtocolInfos sourceProtocolInfos) {
+                        supportedProtocols[0] = sinkProtocolInfos;
+                        latch.countDown();
+                    }
+
+                    @Override
+                    public void failure(ActionInvocation invocation, UpnpResponse operation, String defaultMsg) {
+                        YaaccLogger.d(AVTransportPlayer.class.getName(), "GetProtocolInfo failed: " + defaultMsg);
+                        latch.countDown();
+                    }
                 }
-                
-                @Override
-                public void failure(ActionInvocation invocation, UpnpResponse operation, String defaultMsg) {
-                    YaaccLogger.d(AVTransportPlayer.class.getName(), "GetProtocolInfo failed: " + defaultMsg);
-                    latch.countDown();
-                }
-            }
         );
-        
+
         try {
             latch.await(2, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             YaaccLogger.d(getClass().getName(), "GetProtocolInfo timeout");
             return playableItem;
         }
-        
+
         if (supportedProtocols[0] == null || supportedProtocols[0].isEmpty()) {
             YaaccLogger.d(getClass().getName(), "No supported protocols found, using default resource");
             return playableItem;
         }
-        
+
         // Find best matching resource
         Res bestMatch = null;
         long bestBitrate = 0;
-        
+
         for (Res resource : item.getResources()) {
             if (resource.getProtocolInfo() == null) continue;
-            
+
             String contentFormat = resource.getProtocolInfo().getContentFormat();
             if (contentFormat == null || contentFormat.isEmpty()) continue;
-            
+
             // Check if device supports this format
             boolean supported = false;
             for (ProtocolInfo deviceProtocol : supportedProtocols[0]) {
                 if (deviceProtocol.getContentFormat().equals(contentFormat) ||
-                    deviceProtocol.getContentFormat().equals("*") ||
-                    deviceProtocol.getContentFormat().startsWith(contentFormat.split("/")[0] + "/*")) {
+                        deviceProtocol.getContentFormat().equals("*") ||
+                        deviceProtocol.getContentFormat().startsWith(contentFormat.split("/")[0] + "/*")) {
                     supported = true;
                     break;
                 }
             }
-            
+
             if (!supported) {
                 YaaccLogger.d(getClass().getName(), "Device doesn't support: " + contentFormat);
                 continue;
             }
-            
+
             // Among supported formats, prefer higher bitrate
             Long bitrate = resource.getBitrate();
             if (bitrate != null && bitrate > bestBitrate) {
@@ -293,16 +490,16 @@ public class AVTransportPlayer extends AbstractPlayer {
                 bestMatch = resource;
             }
         }
-        
+
         if (bestMatch != null && !bestMatch.equals(item.getFirstResource())) {
-            YaaccLogger.d(getClass().getName(), "Selected device-optimized resource: " + 
-                bestMatch.getProtocolInfo().getContentFormat() + " bitrate: " + bestMatch.getBitrate());
+            YaaccLogger.d(getClass().getName(), "Selected device-optimized resource: " +
+                    bestMatch.getProtocolInfo().getContentFormat() + " bitrate: " + bestMatch.getBitrate());
             // Create new PlayableItem with selected resource
             Item optimizedItem = new Item(item);
             optimizedItem.setResources(java.util.Collections.singletonList(bestMatch));
             return new PlayableItem(optimizedItem, (int) playableItem.getDuration());
         }
-        
+
         return playableItem;
     }
 
@@ -314,6 +511,7 @@ public class AVTransportPlayer extends AbstractPlayer {
                 TransportState state = transportInfo.getCurrentTransportState();
                 YaaccLogger.d(getClass().getName(), "Current state before Play: " + state);
 
+                // Only resume if paused AND not changing tracks (paused flag is true)
                 if (state == TransportState.PAUSED_PLAYBACK) {
                     YaaccLogger.d(getClass().getName(), "Resuming from pause, sending Play only");
                     // For paused content, just send Play command without SetAVTransportURI
@@ -328,6 +526,8 @@ public class AVTransportPlayer extends AbstractPlayer {
                         public void success(ActionInvocation invocation) {
                             YaaccLogger.d(getClass().getName(), "Resume Play succeeded");
                             setProcessingCommand(false);
+                            setPlaying(true);
+                            playerWrapper.notifyPlaybackStateChanged();
                         }
                     };
                     executorService.execute(playCallback);
@@ -433,7 +633,7 @@ public class AVTransportPlayer extends AbstractPlayer {
         albumArtUri = (albumArtUriProperty == null) ? null : albumArtUriProperty.getValue();
 
         InternalSetAVTransportURI setAVTransportURI = new InternalSetAVTransportURI(
-                service, modifyProxyUrlWithDeviceId(playableItem.getUri().toString()), actionState, metadata, 
+                service, modifyProxyUrlWithDeviceId(playableItem.getUri().toString()), actionState, metadata,
                 getHttpRequestSender());
         YaaccLogger.d(getClass().getName(), "Original URI: " + playableItem.getUri().toString());
         YaaccLogger.d(getClass().getName(), "Modified URI: " + modifyProxyUrlWithDeviceId(playableItem.getUri().toString()));
@@ -495,6 +695,8 @@ public class AVTransportPlayer extends AbstractPlayer {
                                 public void success(ActionInvocation invocation) {
                                     YaaccLogger.d(getClass().getName(), "Resume Play succeeded");
                                     setProcessingCommand(false);
+                                    setPlaying(true);
+                                    playerWrapper.notifyPlaybackStateChanged();
                                 }
                             };
                             executorService.execute(playCallback);
@@ -531,6 +733,10 @@ public class AVTransportPlayer extends AbstractPlayer {
     }
 
     private void startPlayAction(Service<?, ?> service, final ActionState actionState) {
+        startPlayAction(service, actionState, "play_" + System.currentTimeMillis());
+    }
+
+    private void startPlayAction(Service<?, ?> service, final ActionState actionState, final String retryKey) {
         actionState.actionFinished = false;
         Play actionCallback = new Play(service, getHttpRequestSender()) {
             @Override
@@ -543,13 +749,27 @@ public class AVTransportPlayer extends AbstractPlayer {
                                 + upnpresponse.getResponseDetails() : "");
                 YaaccLogger.d(getClass().getName(), "s: " + s);
                 actionState.actionFinished = true;
-                setProcessingCommand(false);
+
+                // Retry on failure
+                if (shouldRetry(retryKey)) {
+                    executeCommand(new TimerTask() {
+                        @Override
+                        public void run() {
+                            startPlayAction(service, actionState, retryKey);
+                        }
+                    }, new Date(System.currentTimeMillis() + 1000));
+                } else {
+                    setProcessingCommand(false);
+                }
             }
 
             @Override
             public void success(ActionInvocation actioninvocation) {
                 super.success(actioninvocation);
+                resetRetry(retryKey);
                 actionState.actionFinished = true;
+                setPlaying(true);
+                playerWrapper.notifyPlaybackStateChanged();
                 setProcessingCommand(false);
 
                 // Check transport state after Play command
@@ -629,18 +849,13 @@ public class AVTransportPlayer extends AbstractPlayer {
         return id;
     }
 
-
     @Override
-    public void pause() {
-        if (isProcessingCommand())
-            return;
-        setProcessingCommand(true);
-
+    protected void doPause() {
+        YaaccLogger.d(getClass().getName(), "doPause() called");
         if (getDevice() == null) {
             YaaccLogger.d(getClass().getName(),
                     "No receiver device found: "
                             + deviceId);
-            setProcessingCommand(false);
             return;
         }
         Service<?, ?> service = getUpnpClient().getAVTransportService(getDevice());
@@ -648,16 +863,20 @@ public class AVTransportPlayer extends AbstractPlayer {
             YaaccLogger.d(getClass().getName(),
                     "No AVTransport-Service found on Device: "
                             + getDevice().getDisplayString());
-            setProcessingCommand(false);
             return;
         }
         YaaccLogger.d(getClass().getName(), "Action Pause ");
+        doPauseWithRetry(service, "pause_" + System.currentTimeMillis());
+    }
+
+    private void doPauseWithRetry(Service<?, ?> service, final String retryKey) {
         final ActionState actionState = new ActionState();
         actionState.actionFinished = false;
         Pause actionCallback = new Pause(service, getHttpRequestSender()) {
             @Override
             public void failure(ActionInvocation actioninvocation,
                                 UpnpResponse upnpresponse, String s) {
+                YaaccLogger.d(getClass().getName(), "Pause FAILED: " + s);
                 YaaccLogger.d(getClass().getName(), "Failure UpnpResponse: "
                         + upnpresponse);
                 YaaccLogger.d(getClass().getName(),
@@ -665,17 +884,60 @@ public class AVTransportPlayer extends AbstractPlayer {
                                 + upnpresponse.getResponseDetails() : "");
                 YaaccLogger.d(getClass().getName(), "s: " + s);
                 actionState.actionFinished = true;
-                setProcessingCommand(false);
+
+                // Retry on failure
+                if (shouldRetry(retryKey)) {
+                    executeCommand(new TimerTask() {
+                        @Override
+                        public void run() {
+                            doPauseWithRetry(service, retryKey);
+                        }
+                    }, new Date(System.currentTimeMillis() + 1000));
+                }
             }
 
             @Override
             public void success(ActionInvocation actioninvocation) {
                 super.success(actioninvocation);
+                resetRetry(retryKey);
+                YaaccLogger.d(getClass().getName(), "Pause SUCCESS - setting isPlaying=false");
                 actionState.actionFinished = true;
-                setProcessingCommand(false);
+                setPlaying(false);
+                playerWrapper.notifyPlaybackStateChanged();
+                YaaccLogger.d(getClass().getName(), "After pause: isPlaying=" + isPlaying());
             }
         };
         executorService.execute(actionCallback);
+    }
+
+    @Override
+    protected void doResume() {
+        // For UPnP, just send Play command to resume from current position
+        if (getDevice() == null) {
+            YaaccLogger.d(getClass().getName(), "No receiver device found: " + deviceId);
+            return;
+        }
+        Service<?, ?> service = getUpnpClient().getAVTransportService(getDevice());
+        if (service == null) {
+            YaaccLogger.d(getClass().getName(), "No AVTransport-Service found on Device: " + getDevice().getDisplayString());
+            return;
+        }
+
+        YaaccLogger.d(getClass().getName(), "Resuming playback with Play command");
+        Play playCallback = new Play(service, getHttpRequestSender()) {
+            @Override
+            public void failure(ActionInvocation actioninvocation, UpnpResponse upnpresponse, String s) {
+                YaaccLogger.d(getClass().getName(), "Resume failed: " + s);
+            }
+
+            @Override
+            public void success(ActionInvocation invocation) {
+                YaaccLogger.d(getClass().getName(), "Resume succeeded");
+                setPlaying(true);
+                playerWrapper.notifyPlaybackStateChanged();
+            }
+        };
+        executorService.execute(playCallback);
     }
 
     @Override
@@ -748,6 +1010,14 @@ public class AVTransportPlayer extends AbstractPlayer {
             public void received(ActionInvocation actioninvocation, TransportInfo info) {
                 YaaccLogger.d(getClass().getName(), "Transport State: " + info.getCurrentTransportState());
 
+                // If device stopped, track ended - advance to next
+                if (info.getCurrentTransportState() == TransportState.STOPPED && isPlaying()) {
+                    YaaccLogger.d(getClass().getName(), "Device stopped, advancing to next track");
+                    consecutivePositionFailures = 0;
+                    next();
+                    return;
+                }
+
                 // If not playing and we haven't exceeded retry limit, try Play command again
                 if (info.getCurrentTransportState() != TransportState.PLAYING && playRetryCount < MAX_PLAY_RETRIES) {
                     playRetryCount++;
@@ -790,6 +1060,8 @@ public class AVTransportPlayer extends AbstractPlayer {
             public void success(ActionInvocation actioninvocation) {
                 super.success(actioninvocation);
                 YaaccLogger.d(getClass().getName(), "Additional Play command succeeded");
+                setPlaying(true);
+                playerWrapper.notifyPlaybackStateChanged();
 
                 // Check transport state again after second Play command
                 executeCommand(new TimerTask() {
@@ -813,6 +1085,14 @@ public class AVTransportPlayer extends AbstractPlayer {
             YaaccLogger.d(getClass().getName(),
                     "No receiver device found: "
                             + deviceId);
+
+            // Track device-not-found as position failure
+            consecutivePositionFailures++;
+            if (consecutivePositionFailures >= 3 && isPlaying()) {
+                YaaccLogger.w(getClass().getName(), "Device lost, stopping playback");
+                consecutivePositionFailures = 0;
+                stop();
+            }
             return;
         }
         Service<?, ?> service = getUpnpClient().getAVTransportService(getDevice());
@@ -836,6 +1116,17 @@ public class AVTransportPlayer extends AbstractPlayer {
                                 + upnpresponse.getResponseDetails() : "");
                 YaaccLogger.d(getClass().getName(), "s: " + s);
                 positionActionState.actionFinished = true;
+
+                // Track consecutive failures
+                consecutivePositionFailures++;
+                YaaccLogger.w(getClass().getName(), "Position query failed " + consecutivePositionFailures + " times");
+
+                // After 3 consecutive failures, check device state to see if track ended
+                if (consecutivePositionFailures >= 3 && isPlaying()) {
+                    YaaccLogger.w(getClass().getName(), "Position query failed 3 times, checking transport state");
+                    consecutivePositionFailures = 0;
+                    getTransportInfo();
+                }
             }
 
             @Override
@@ -847,8 +1138,26 @@ public class AVTransportPlayer extends AbstractPlayer {
             @Override
             public void received(ActionInvocation actionInvocation, PositionInfo positionInfo) {
                 positionActionState.result = positionInfo;
+                PositionInfo previousPositionInfo = currentPositionInfo;
                 currentPositionInfo = positionInfo;
+                consecutivePositionFailures = 0; // Reset failure counter on success
                 YaaccLogger.d(getClass().getName(), "received Positioninfo= RelTime: " + positionInfo.getRelTime() + " remaining time: " + positionInfo.getTrackRemainingSeconds());
+
+                // Detect track end: position reset to 0:00:00 after being > 0
+                // This means device auto-advanced to next track
+                if ("0:00:00".equals(positionInfo.getRelTime()) &&
+                        previousPositionInfo != null &&
+                        !"0:00:00".equals(previousPositionInfo.getRelTime()) &&
+                        isPlaying()) {
+                    YaaccLogger.d(getClass().getName(), "Position reset to 0:00:00 after playing, checking transport state");
+                    getTransportInfo(); // Check if still playing or stopped
+                    return;
+                }
+
+                // Update MediaSession with current position for lock screen controls
+                if (isPlaying()) {
+                    updatePlaybackStateInternal(android.support.v4.media.session.PlaybackStateCompat.STATE_PLAYING);
+                }
 
                 long currentRemainingTime = positionInfo.getTrackRemainingSeconds();
 
@@ -1086,6 +1395,18 @@ public class AVTransportPlayer extends AbstractPlayer {
 
     @Override
     public void onDestroy() {
+        // Release notification manager and Media3 session
+        if (notificationManager != null) {
+            new Handler(Looper.getMainLooper()).post(() -> {
+                if (notificationManager != null) {
+                    notificationManager.setPlayer(null);
+                }
+                if (media3Session != null) {
+                    media3Session.release();
+                }
+            });
+        }
+
         doExit();
         super.onDestroy();
     }

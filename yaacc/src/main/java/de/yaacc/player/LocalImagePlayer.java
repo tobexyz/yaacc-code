@@ -26,11 +26,14 @@ import android.content.ServiceConnection;
 import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.IBinder;
+import android.support.v4.media.session.MediaSessionCompat;
+
 import de.yaacc.util.YaaccLogger;
 
 import androidx.core.app.NotificationCompat;
 
 import java.beans.PropertyChangeListener;
+import java.beans.PropertyChangeSupport;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -55,6 +58,7 @@ public class LocalImagePlayer implements Player, ServiceConnection {
 
 
     private final UpnpClient upnpClient;
+    private final PropertyChangeSupport pcs = new PropertyChangeSupport(this);
     private Timer commandExecutionTimer;
     private String name;
     private String shortName;
@@ -425,14 +429,12 @@ public class LocalImagePlayer implements Player, ServiceConnection {
 
     @Override
     public void addPropertyChangeListener(PropertyChangeListener listener) {
-        throw new UnsupportedOperationException();
-
+        pcs.addPropertyChangeListener(listener);
     }
 
     @Override
     public void removePropertyChangeListener(PropertyChangeListener listener) {
-        throw new UnsupportedOperationException();
-
+        pcs.removePropertyChangeListener(listener);
     }
 
 
@@ -566,5 +568,11 @@ public class LocalImagePlayer implements Player, ServiceConnection {
     @Override
     public void fastRewind(int i) {
         //Not implemented
+    }
+
+    @Override
+    public MediaSessionCompat getMediaSession() {
+        // Image player doesn't use MediaSession
+        return null;
     }
 }

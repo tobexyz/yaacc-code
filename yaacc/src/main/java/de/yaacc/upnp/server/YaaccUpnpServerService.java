@@ -181,6 +181,9 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
             networkDeviceListener = new NetworkDeviceListener(getApplicationContext(), registry);
             registry.setUpnpProtocolHandler(networkDeviceListener.getUpnpProtocolHandler());
         }
+        // App is active when service starts
+        networkDeviceListener.setAppInForeground(true);
+
         locaDeviceUuid = preferences.getString(getApplicationContext().getString(R.string.settings_local_device_uuid_key), null);
         if (locaDeviceUuid == null) {
             locaDeviceUuid = UUID.randomUUID().toString();
@@ -227,7 +230,20 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
             httpServer = null;
         }
         cancleNotification();
+
+
         super.onDestroy();
+    }
+
+
+    @Override
+    public void onTaskRemoved(Intent rootIntent) {
+        super.onTaskRemoved(rootIntent);
+        YaaccLogger.d(getClass().getName(), "Task removed - app backgrounded");
+        if (networkDeviceListener != null) {
+            networkDeviceListener.setAppInForeground(false);
+            updateNotification(); // WiFi lock may have changed
+        }
     }
 
     /**
@@ -238,25 +254,49 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         Intent notificationIntent = new Intent(this, YaaccUpnpServerControlActivity.class);
         PendingIntent contentIntent = PendingIntent.getActivity(this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE);
 
-        String serverStatus = "Starting...";
+        // Build status line with active features
+        StringBuilder statusBuilder = new StringBuilder();
+
+        // HTTP Server status
         if (httpServer != null) {
             try {
                 IOReactorStatus status = httpServer.getStatus();
-                serverStatus = status == IOReactorStatus.ACTIVE ? "✓ HTTP Server Running" : "⚠ HTTP Server: " + status;
+                statusBuilder.append(status == IOReactorStatus.ACTIVE ? "✓ HTTP" : "⚠ HTTP");
             } catch (Exception e) {
-                serverStatus = "⚠ HTTP Server Error";
+                statusBuilder.append("⚠ HTTP");
             }
         } else {
-            serverStatus = "⚠ HTTP Server Not Started";
+            statusBuilder.append("⚠ HTTP");
+        }
+
+        // Server/Renderer status
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
+        boolean serverEnabled = preferences.getBoolean(getString(R.string.settings_local_server_chkbx), false);
+        boolean poviderEnabled = preferences.getBoolean(getString(R.string.settings_local_server_provider_chkbx), false);
+        boolean rendererEnabled = preferences.getBoolean(getString(R.string.settings_local_server_receiver_chkbx), false);
+        boolean proxyEnabled = preferences.getBoolean(getString(R.string.settings_local_server_proxy_chkbx), false);
+
+        if (serverEnabled && poviderEnabled) {
+            statusBuilder.append(" | ✓ Server");
+        }
+        if (serverEnabled && rendererEnabled) {
+            statusBuilder.append(" | ✓ Renderer");
+        }
+        if (serverEnabled && proxyEnabled) {
+            statusBuilder.append(" | ✓ Proxy");
+        }
+        // WiFi lock status
+        if (networkDeviceListener != null && networkDeviceListener.isWifiLockHeld()) {
+            statusBuilder.append(" | ✓ WiFi Lock");
         }
 
         NotificationCompat.Builder mBuilder = new NotificationCompat.Builder(this, Yaacc.NOTIFICATION_CHANNEL_ID)
                 .setOngoing(true)
                 .setSmallIcon(R.drawable.ic_notification_default)
                 .setSilent(true)
-                .setContentTitle("Yaacc Upnp Service")
+                .setContentTitle("Yaacc UPnP Service")
                 .setGroup(Yaacc.NOTIFICATION_GROUP_KEY)
-                .setContentText(preferences.getString(getApplicationContext().getString(R.string.settings_local_server_name_key), "") + " - " + serverStatus);
+                .setContentText(statusBuilder.toString());
         mBuilder.setContentIntent(contentIntent);
         startForeground(NotificationId.UPNP_SERVER.getId(), mBuilder.build());
 
@@ -440,6 +480,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         }
         if (getApplicationContext().getString(R.string.settings_local_server_chkbx).equals(key)) {
             createUpnpDevice();
+            updateNotification();
         }
 
         if (getApplicationContext().getString(R.string.settings_local_server_provider_chkbx).equals(key)) {
@@ -447,6 +488,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         }
         if (getApplicationContext().getString(R.string.settings_local_server_receiver_chkbx).equals(key)) {
             createUpnpDevice();
+            updateNotification();
         }
         if (getApplicationContext().getString(R.string.settings_sending_upnp_alive_interval_key).equals(key)) {
             int aliveInterval = getUpnpNotificationFrequency();
