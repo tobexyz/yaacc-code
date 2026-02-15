@@ -230,8 +230,11 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
             httpServer = null;
         }
         cancleNotification();
+
+
         super.onDestroy();
     }
+
 
     @Override
     public void onTaskRemoved(Intent rootIntent) {

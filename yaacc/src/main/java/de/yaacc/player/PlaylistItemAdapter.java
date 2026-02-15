@@ -1,8 +1,24 @@
+/*
+ * Copyright (C) 2026 Tobias Schoene www.yaacc.de
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 3
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ */
 package de.yaacc.player;
 
 import android.content.Context;
 import android.graphics.Typeface;
-import de.yaacc.util.YaaccLogger;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -20,6 +36,7 @@ import java.util.List;
 
 import de.yaacc.R;
 import de.yaacc.util.ThemeHelper;
+import de.yaacc.util.YaaccLogger;
 
 public class PlaylistItemAdapter extends RecyclerView.Adapter<PlaylistItemAdapter.ViewHolder> {
 
@@ -140,12 +157,12 @@ public class PlaylistItemAdapter extends RecyclerView.Adapter<PlaylistItemAdapte
         if (listView != null) {
             listView.scrollToPosition(toPosition);
         }
-        
+
         // Sync playlist to ExoPlayer if it's LocalMediaSessionPlayer
         if (player instanceof de.yaacc.player.LocalMediaSessionPlayer) {
             ((de.yaacc.player.LocalMediaSessionPlayer) player).syncPlaylistToExoPlayer();
         }
-        
+
         return true;
     }
 
@@ -153,7 +170,7 @@ public class PlaylistItemAdapter extends RecyclerView.Adapter<PlaylistItemAdapte
     private void removeItem(int listPosition) {
         if (player.getItems().size() > listPosition && listPosition >= 0 && !(player.isPlaying() && listPosition <= player.getCurrentItemIndex())) {
             player.getItems().remove(listPosition);
-            
+
             // Sync playlist to ExoPlayer if it's LocalMediaSessionPlayer
             if (player instanceof de.yaacc.player.LocalMediaSessionPlayer) {
                 ((de.yaacc.player.LocalMediaSessionPlayer) player).syncPlaylistToExoPlayer();

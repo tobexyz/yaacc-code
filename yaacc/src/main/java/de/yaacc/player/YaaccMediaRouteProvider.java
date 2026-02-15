@@ -1,3 +1,20 @@
+/*
+ * Copyright (C) 2026 Tobias Schoene www.yaacc.de
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 3
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ */
 package de.yaacc.player;
 
 import android.content.Context;
@@ -40,18 +57,18 @@ public class YaaccMediaRouteProvider extends MediaRouteProvider {
      */
     private void publishRoutes() {
         MediaRouteProviderDescriptor.Builder builder = new MediaRouteProviderDescriptor.Builder();
-        
+
         // Get UPnP devices from registry
         upnpDevices.clear();
         upnpDevices.addAll(upnpClient.getDevices());
-        
+
         for (Device device : upnpDevices) {
             if (isMediaRenderer(device)) {
                 MediaRouteDescriptor route = createRouteForDevice(device);
                 builder.addRoute(route);
             }
         }
-        
+
         setDescriptor(builder.build());
         YaaccLogger.d(getClass().getName(), "Published " + upnpDevices.size() + " UPnP routes");
     }
@@ -61,7 +78,7 @@ public class YaaccMediaRouteProvider extends MediaRouteProvider {
      */
     private boolean isMediaRenderer(Device device) {
         return device.findService(
-            new org.fourthline.cling.model.types.UDAServiceType("AVTransport")
+                new org.fourthline.cling.model.types.UDAServiceType("AVTransport")
         ) != null;
     }
 
@@ -71,15 +88,15 @@ public class YaaccMediaRouteProvider extends MediaRouteProvider {
     private MediaRouteDescriptor createRouteForDevice(Device device) {
         String routeId = device.getIdentity().getUdn().getIdentifierString();
         String name = device.getDetails().getFriendlyName();
-        
+
         return new MediaRouteDescriptor.Builder(routeId, name)
-            .setDescription(device.getDetails().getModelDetails().getModelDescription())
-            .setPlaybackType(MediaRouter.RouteInfo.PLAYBACK_TYPE_REMOTE)
-            .setVolumeHandling(MediaRouter.RouteInfo.PLAYBACK_VOLUME_VARIABLE)
-            .setVolumeMax(100)
-            .setVolume(50)
-            .addControlFilter(new IntentFilter("android.media.action.PLAY"))
-            .build();
+                .setDescription(device.getDetails().getModelDetails().getModelDescription())
+                .setPlaybackType(MediaRouter.RouteInfo.PLAYBACK_TYPE_REMOTE)
+                .setVolumeHandling(MediaRouter.RouteInfo.PLAYBACK_VOLUME_VARIABLE)
+                .setVolumeMax(100)
+                .setVolume(50)
+                .addControlFilter(new IntentFilter("android.media.action.PLAY"))
+                .build();
     }
 
     @Nullable
@@ -155,7 +172,7 @@ public class YaaccMediaRouteProvider extends MediaRouteProvider {
         @Override
         public boolean onControlRequest(android.content.Intent intent, ControlRequestCallback callback) {
             YaaccLogger.d(getClass().getName(), "Control request: " + intent.getAction());
-            
+
             if (player == null) {
                 return false;
             }
@@ -171,7 +188,7 @@ public class YaaccMediaRouteProvider extends MediaRouteProvider {
                 player.stop();
                 return true;
             }
-            
+
             return false;
         }
     }

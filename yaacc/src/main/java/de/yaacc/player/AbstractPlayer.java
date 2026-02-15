@@ -536,37 +536,6 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
 
             PlayableItem playableItem = items.get(toLoadIndex);
 
-            YaaccLogger.d(getClass().getName(), "Checking item restriction: " + playableItem.getItem().getTitle() + " restricted=" + playableItem.getItem().isRestricted());
-            /*
-            // If item is restricted, show toast and wait
-            if (playableItem.getItem().isRestricted()) {
-                YaaccLogger.d(getClass().getName(), "Item is restricted, showing toast and waiting");
-                Context context = getUpnpClient().getContext();
-                if (context instanceof Activity) {
-                    ((Activity) context).runOnUiThread(() -> {
-                        Toast.makeText(context, "Loading item information...", Toast.LENGTH_LONG).show();
-                    });
-                }
-
-                // Wait for item to become ready (we're in background thread now)
-                int maxWaitSeconds = 10; // Reduced timeout since items become ready quickly
-                int waitedSeconds = 0;
-                while (playableItem.getItem().isRestricted() && waitedSeconds < maxWaitSeconds) {
-                    try {
-                        Thread.sleep(500);
-                        waitedSeconds++;
-                        YaaccLogger.d(getClass().getName(), "Still waiting for item: " + playableItem.getItem().getTitle() + " (waited " + (waitedSeconds * 0.5) + "s)");
-                    } catch (InterruptedException e) {
-                        break;
-                    }
-                }
-
-                if (playableItem.getItem().isRestricted()) {
-                    YaaccLogger.w(getClass().getName(), "Item still restricted after timeout");
-                    return null;
-                }
-            }
-            */
             loadedItem = loadItem(playableItem);
             return loadedItem;
         }
@@ -580,7 +549,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
         Object loadedItem = loadItem(nextIndex);
         firePropertyChange(PROPERTY_ITEM, items.get(previousIndex),
                 items.get(nextIndex));
-        startItem(playableItem, loadedItem);
+        startItem(playableItem, loadedItem, nextIndex);
         doPostLoadItem(playableItem);
     }
 
@@ -876,14 +845,14 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
     }
 
     private void updatePlaybackState(int state) {
-        updatePlaybackStateInternal(state);
+        new Handler(Looper.getMainLooper()).post(() -> this.updatePlaybackStateInternal(state));
     }
 
     protected void updatePlaybackStateInternal(int state) {
         if (mediaSession == null) return;
 
         long position = getCurrentPosition();
-        
+
         PlaybackStateCompat.Builder stateBuilder = new PlaybackStateCompat.Builder()
                 .setActions(PlaybackStateCompat.ACTION_PLAY |
                         PlaybackStateCompat.ACTION_PAUSE |
@@ -957,7 +926,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
     protected abstract Object loadItem(PlayableItem playableItem);
 
     protected abstract void startItem(PlayableItem playableItem,
-                                      Object loadedItem);
+                                      Object loadedItem, int index);
 
     /*
      * (non-Javadoc)

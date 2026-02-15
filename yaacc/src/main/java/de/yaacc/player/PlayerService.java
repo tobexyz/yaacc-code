@@ -26,8 +26,9 @@ import android.os.IBinder;
 import android.os.PowerManager;
 import android.widget.Toast;
 
+import androidx.annotation.OptIn;
 import androidx.core.app.NotificationCompat;
-import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.common.util.UnstableApi;
 import androidx.media3.session.MediaSession;
 import androidx.media3.session.MediaSessionService;
 
@@ -72,7 +73,7 @@ public class PlayerService extends MediaSessionService {
         super.onCreate();
         YaaccLogger.d(getClass().getName(), "Service created");
     }
-    
+
     /**
      * Register MediaSession from LocalMediaSessionPlayer.
      * Called when player connects to service.
@@ -81,7 +82,7 @@ public class PlayerService extends MediaSessionService {
         this.activeMediaSession = mediaSession;
         YaaccLogger.d(getClass().getName(), "MediaSession registered: " + mediaSession.getId());
     }
-    
+
     /**
      * Unregister MediaSession when player is destroyed.
      */
@@ -154,12 +155,12 @@ public class PlayerService extends MediaSessionService {
             }
         }
     }
-    
+
     private void updateServiceNotification() {
         Intent notificationIntent = new Intent(this, TabBrowserActivity.class);
         PendingIntent pendingIntent = PendingIntent.getActivity(this,
                 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE);
-        
+
         // Build status text
         int totalPlayers = currentActivePlayer.size();
         int playingCount = 0;
@@ -168,11 +169,11 @@ public class PlayerService extends MediaSessionService {
                 playingCount++;
             }
         }
-        
-        String statusText = totalPlayers == 0 ? "running" : 
-                           totalPlayers + " player" + (totalPlayers > 1 ? "s" : "") +
-                           (playingCount > 0 ? " (" + playingCount + " playing)" : " (paused)");
-        
+
+        String statusText = totalPlayers == 0 ? "running" :
+                totalPlayers + " player" + (totalPlayers > 1 ? "s" : "") +
+                        (playingCount > 0 ? " (" + playingCount + " playing)" : " (paused)");
+
         Notification notification = new NotificationCompat.Builder(this, Yaacc.NOTIFICATION_CHANNEL_ID)
                 .setGroup(Yaacc.NOTIFICATION_GROUP_KEY)
                 .setContentTitle("Player Service")
@@ -181,7 +182,7 @@ public class PlayerService extends MediaSessionService {
                 .setSmallIcon(R.drawable.ic_notification_default)
                 .setContentIntent(pendingIntent)
                 .build();
-        
+
         startForeground(NotificationId.PLAYER_SERVICE.getId(), notification);
     }
 
@@ -306,6 +307,7 @@ public class PlayerService extends MediaSessionService {
      * @param music          true if music items
      * @return the player or null if no device is present
      */
+    @OptIn(markerClass = UnstableApi.class)
     private Player createPlayer(UpnpClient upnpClient, Device receiverDevice,
                                 boolean video, boolean image, boolean music) {
         if (receiverDevice == null) {

@@ -24,15 +24,14 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
-import android.os.IBinder;
 import android.net.Uri;
 import android.os.Handler;
+import android.os.IBinder;
 import android.os.Looper;
 import android.preference.PreferenceManager;
 import android.support.v4.media.session.MediaSessionCompat;
 import android.widget.Toast;
 
-import androidx.media.VolumeProviderCompat;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.Player;
 import androidx.media3.common.util.UnstableApi;
@@ -40,9 +39,6 @@ import androidx.media3.session.MediaSession;
 import androidx.media3.session.SessionCommand;
 import androidx.media3.session.SessionCommands;
 import androidx.media3.ui.PlayerNotificationManager;
-
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
 
 import org.fourthline.cling.model.action.ActionInvocation;
 import org.fourthline.cling.model.message.UpnpResponse;
@@ -115,7 +111,7 @@ public class AVTransportPlayer extends AbstractPlayer {
     private MediaSession media3Session;
     private PlayerNotificationManager notificationManager;
     private int consecutivePositionFailures = 0;
-    
+
     // Retry tracking for critical commands
     private static final int MAX_RETRIES = 3;
     private final Map<String, Integer> commandRetries = new HashMap<>();
@@ -163,27 +159,27 @@ public class AVTransportPlayer extends AbstractPlayer {
                     public MediaSession.ConnectionResult onConnect(MediaSession session,
                                                                    MediaSession.ControllerInfo controller) {
                         MediaSession.ConnectionResult result = MediaSession.Callback.super.onConnect(session, controller);
-                        
+
                         // Enable device volume commands
                         SessionCommands.Builder commandsBuilder = result.availableSessionCommands.buildUpon();
                         commandsBuilder.add(new SessionCommand(SessionCommand.COMMAND_CODE_SESSION_SET_RATING));
-                        
+
                         return MediaSession.ConnectionResult.accept(
-                            commandsBuilder.build(),
-                            result.availablePlayerCommands
+                                commandsBuilder.build(),
+                                result.availablePlayerCommands
                         );
                     }
                 })
                 .build();
-        
+
         // Add listener to wrapper so Media3 session gets updates
         playerWrapper.addListener(new Player.Listener() {
             @Override
             public void onMediaItemTransition(MediaItem mediaItem, int reason) {
-                YaaccLogger.d(getClass().getName(), "Media3: onMediaItemTransition - " + 
-                    (mediaItem != null ? mediaItem.mediaMetadata.title : "null"));
+                YaaccLogger.d(getClass().getName(), "Media3: onMediaItemTransition - " +
+                        (mediaItem != null ? mediaItem.mediaMetadata.title : "null"));
             }
-            
+
             @Override
             public void onIsPlayingChanged(boolean isPlaying) {
                 YaaccLogger.d(getClass().getName(), "Media3: onIsPlayingChanged - " + isPlaying);
@@ -249,13 +245,13 @@ public class AVTransportPlayer extends AbstractPlayer {
     @Override
     public void onServiceConnected(ComponentName className, IBinder binder) {
         super.onServiceConnected(className, binder);
-        
+
         // Register Media3 MediaSession with PlayerService (if initialized)
         if (media3Session != null && binder instanceof PlayerService.PlayerServiceBinder) {
             PlayerService playerService = ((PlayerService.PlayerServiceBinder) binder).getService();
             playerService.registerMediaSession(media3Session);
             YaaccLogger.d(getClass().getName(), "Media3 MediaSession registered with PlayerService");
-            
+
             // Trigger initial device info query to activate volume control
             new Handler(Looper.getMainLooper()).post(() -> {
                 if (playerWrapper != null) {
@@ -277,9 +273,10 @@ public class AVTransportPlayer extends AbstractPlayer {
     public String getContentType() {
         return contentType;
     }
-    
+
     /**
      * Helper to track and check if command should be retried
+     *
      * @param commandKey Unique key for the command (e.g., "play_123")
      * @return true if should retry, false if max retries reached
      */
@@ -294,7 +291,7 @@ public class AVTransportPlayer extends AbstractPlayer {
         YaaccLogger.e(getClass().getName(), "Max retries reached for " + commandKey);
         return false;
     }
-    
+
     /**
      * Reset retry counter for successful command
      */
@@ -329,7 +326,7 @@ public class AVTransportPlayer extends AbstractPlayer {
         YaaccLogger.d(getClass().getName(), "Action Stop");
         doStopWithRetry(service, "stop_" + System.currentTimeMillis());
     }
-    
+
     private void doStopWithRetry(Service<?, ?> service, final String retryKey) {
         final ActionState actionState = new ActionState();
         actionState.actionFinished = false;
@@ -344,7 +341,7 @@ public class AVTransportPlayer extends AbstractPlayer {
                                 + upnpresponse.getResponseDetails() : "");
                 YaaccLogger.d(getClass().getName(), "s: " + s);
                 actionState.actionFinished = true;
-                
+
                 // Retry on failure
                 if (shouldRetry(retryKey)) {
                     executeCommand(new TimerTask() {
@@ -378,7 +375,7 @@ public class AVTransportPlayer extends AbstractPlayer {
      * @see de.yaacc.player.AbstractPlayer#startItem(de.yaacc.player.PlayableItem, java.lang.Object)
      */
     @Override
-    protected void startItem(PlayableItem playableItem, Object loadedItem) {
+    protected void startItem(PlayableItem playableItem, Object loadedItem, int index) {
         if (playableItem == null || getDevice() == null)
             return;
 
@@ -738,7 +735,7 @@ public class AVTransportPlayer extends AbstractPlayer {
     private void startPlayAction(Service<?, ?> service, final ActionState actionState) {
         startPlayAction(service, actionState, "play_" + System.currentTimeMillis());
     }
-    
+
     private void startPlayAction(Service<?, ?> service, final ActionState actionState, final String retryKey) {
         actionState.actionFinished = false;
         Play actionCallback = new Play(service, getHttpRequestSender()) {
@@ -752,7 +749,7 @@ public class AVTransportPlayer extends AbstractPlayer {
                                 + upnpresponse.getResponseDetails() : "");
                 YaaccLogger.d(getClass().getName(), "s: " + s);
                 actionState.actionFinished = true;
-                
+
                 // Retry on failure
                 if (shouldRetry(retryKey)) {
                     executeCommand(new TimerTask() {
@@ -871,7 +868,7 @@ public class AVTransportPlayer extends AbstractPlayer {
         YaaccLogger.d(getClass().getName(), "Action Pause ");
         doPauseWithRetry(service, "pause_" + System.currentTimeMillis());
     }
-    
+
     private void doPauseWithRetry(Service<?, ?> service, final String retryKey) {
         final ActionState actionState = new ActionState();
         actionState.actionFinished = false;
@@ -887,7 +884,7 @@ public class AVTransportPlayer extends AbstractPlayer {
                                 + upnpresponse.getResponseDetails() : "");
                 YaaccLogger.d(getClass().getName(), "s: " + s);
                 actionState.actionFinished = true;
-                
+
                 // Retry on failure
                 if (shouldRetry(retryKey)) {
                     executeCommand(new TimerTask() {
@@ -1088,7 +1085,7 @@ public class AVTransportPlayer extends AbstractPlayer {
             YaaccLogger.d(getClass().getName(),
                     "No receiver device found: "
                             + deviceId);
-            
+
             // Track device-not-found as position failure
             consecutivePositionFailures++;
             if (consecutivePositionFailures >= 3 && isPlaying()) {
@@ -1119,11 +1116,11 @@ public class AVTransportPlayer extends AbstractPlayer {
                                 + upnpresponse.getResponseDetails() : "");
                 YaaccLogger.d(getClass().getName(), "s: " + s);
                 positionActionState.actionFinished = true;
-                
+
                 // Track consecutive failures
                 consecutivePositionFailures++;
                 YaaccLogger.w(getClass().getName(), "Position query failed " + consecutivePositionFailures + " times");
-                
+
                 // After 3 consecutive failures, check device state to see if track ended
                 if (consecutivePositionFailures >= 3 && isPlaying()) {
                     YaaccLogger.w(getClass().getName(), "Position query failed 3 times, checking transport state");
@@ -1141,9 +1138,21 @@ public class AVTransportPlayer extends AbstractPlayer {
             @Override
             public void received(ActionInvocation actionInvocation, PositionInfo positionInfo) {
                 positionActionState.result = positionInfo;
+                PositionInfo previousPositionInfo = currentPositionInfo;
                 currentPositionInfo = positionInfo;
                 consecutivePositionFailures = 0; // Reset failure counter on success
                 YaaccLogger.d(getClass().getName(), "received Positioninfo= RelTime: " + positionInfo.getRelTime() + " remaining time: " + positionInfo.getTrackRemainingSeconds());
+
+                // Detect track end: position reset to 0:00:00 after being > 0
+                // This means device auto-advanced to next track
+                if ("0:00:00".equals(positionInfo.getRelTime()) &&
+                        previousPositionInfo != null &&
+                        !"0:00:00".equals(previousPositionInfo.getRelTime()) &&
+                        isPlaying()) {
+                    YaaccLogger.d(getClass().getName(), "Position reset to 0:00:00 after playing, checking transport state");
+                    getTransportInfo(); // Check if still playing or stopped
+                    return;
+                }
 
                 // Update MediaSession with current position for lock screen controls
                 if (isPlaying()) {

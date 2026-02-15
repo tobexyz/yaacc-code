@@ -101,7 +101,7 @@
             android:layout_toEndOf="@+id/sharedFoldersReset"
             android:layout_below="@+id/filterEnabled"
             android:text="@string/add_saf_content"
-            android:src="@drawable/outline_database_search_48"
+            android:src="@drawable/ic_search_bookmark"
             android:contentDescription="@string/add_saf_content"
             android:textAppearance="@android:style/TextAppearance.Material.Medium" />
 

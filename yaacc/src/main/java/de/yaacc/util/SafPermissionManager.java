@@ -23,11 +23,13 @@ import android.content.SharedPreferences;
 import android.content.UriPermission;
 import android.net.Uri;
 
+import androidx.documentfile.provider.DocumentFile;
 import androidx.preference.PreferenceManager;
 
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import de.yaacc.R;
 import de.yaacc.upnp.server.contentdirectory.MediaPathFilter;
@@ -58,6 +60,10 @@ public class SafPermissionManager {
                     toBeRemoved.add(uriString);
                 } else {
                     YaaccLogger.d(SafPermissionManager.class.getName(), "Permission OK for SAF URI: " + uriString);
+                    if (!DocumentFile.fromTreeUri(context, uri).exists()) {
+                        YaaccLogger.d(SafPermissionManager.class.getName(), "SAF URI does not exist anymore removing: " + uriString);
+                        toBeRemoved.add(uriString);
+                    }
                 }
             } catch (Exception e) {
                 YaaccLogger.w(SafPermissionManager.class.getName(), "Error checking permission for URI: " + uriString, e);
@@ -69,6 +75,8 @@ public class SafPermissionManager {
         MediaPathFilter.saveSafPathes(context, storedUriSet);
         Set<String> selectedUriSet = new HashSet<>(MediaPathFilter.getSelectedSafPathes(context));
         selectedUriSet.removeAll(toBeRemoved);
+        //clean up selected uris that are not in the stored uris
+        selectedUriSet = selectedUriSet.stream().filter(s -> storedUriSet.contains(s)).collect(Collectors.toSet());
         MediaPathFilter.saveSelectedSafPathes(context, selectedUriSet);
         for (String uriString : toBeRemoved) {
             YaaccLogger.d(SafPermissionManager.class.getName(), "Removing duration cache entry for SAF URI: " + uriString);

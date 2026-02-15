@@ -20,14 +20,15 @@ package de.yaacc.player;
 import android.app.PendingIntent;
 import android.content.ComponentName;
 import android.content.Intent;
-import android.net.Uri;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.support.v4.media.session.MediaSessionCompat;
 
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.MediaMetadata;
 import androidx.media3.common.Player;
+import androidx.media3.common.util.UnstableApi;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.session.MediaSession;
 import androidx.media3.ui.PlayerNotificationManager;
@@ -40,10 +41,12 @@ import de.yaacc.R;
 import de.yaacc.Yaacc;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.util.YaaccLogger;
+import jakarta.annotation.Nullable;
 
 /**
  * Local music player using ExoPlayer from PlayerService.
  */
+@UnstableApi
 public class LocalMediaSessionPlayer extends AbstractPlayer {
     private ExoPlayer exoPlayer;
     private MediaSession mediaSession;
@@ -51,6 +54,7 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
     private PlayerService playerService;
     private URI albumArtUri;
     private PlayableItem pendingItem; // Queue item if service not ready
+    private int pendingIndex;
 
     public LocalMediaSessionPlayer(UpnpClient upnpClient, String name, String shortName) {
         this(upnpClient);
@@ -67,7 +71,7 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
         if (exoPlayer != null) {
             return; // Already initialized
         }
-
+        YaaccLogger.d(getClass().getName(), "Initializing ExoPlayer");
         // Create ExoPlayer with audio attributes
         exoPlayer = new ExoPlayer.Builder(getContext()).build();
 
@@ -80,6 +84,20 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
 
         // Enable repeat mode so next/previous buttons always show
         exoPlayer.setRepeatMode(androidx.media3.common.Player.REPEAT_MODE_ALL);
+
+        exoPlayer.addListener(new Player.Listener() {
+            @Override
+            public void onMediaItemTransition(@Nullable MediaItem mediaItem, int reason) {
+                if (mediaItem != null && reason == Player.MEDIA_ITEM_TRANSITION_REASON_SEEK) {
+                    if (getCurrentItemIndex() != exoPlayer.getCurrentMediaItemIndex()) {
+
+                        setCurrentIndex(exoPlayer.getCurrentMediaItemIndex());
+                    }
+                    YaaccLogger.d(getClass().getName(), "Media item changed: " + mediaItem.mediaMetadata.title);
+
+                }
+            }
+        });
 
         // Create MediaSession with session activity for notification
         PendingIntent sessionActivity = PendingIntent.getActivity(
@@ -162,8 +180,9 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
             if (pendingItem != null) {
                 YaaccLogger.d(getClass().getName(), "Playing pending item: " + pendingItem.getTitle());
                 PlayableItem item = pendingItem;
+                startItem(item, null, pendingIndex);
                 pendingItem = null;
-                startItem(item, null);
+                pendingIndex = -1;
             }
         }
     }
@@ -176,7 +195,9 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
     @Override
     public void setItems(PlayableItem... playableItems) {
         super.setItems(playableItems);
-
+        if (exoPlayer == null) {
+            new Handler(Looper.getMainLooper()).post(this::initializeExoPlayer);
+        }
         // Add all items to ExoPlayer playlist
         if (exoPlayer != null && playableItems.length > 0) {
             new Handler(Looper.getMainLooper()).post(() -> {
@@ -195,7 +216,9 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
 
                         exoPlayer.addMediaItem(builder.build());
                     }
-                    exoPlayer.prepare();
+                    if (exoPlayer != null) {
+                        exoPlayer.prepare();
+                    }
                     YaaccLogger.d(getClass().getName(), "Added " + playableItems.length + " items to ExoPlayer");
                 }
             });
@@ -203,15 +226,18 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
     }
 
     @Override
-    protected void startItem(PlayableItem playableItem, Object loadedItem) {
+    protected void startItem(PlayableItem playableItem, Object loadedItem, int index) {
         YaaccLogger.d(getClass().getName(), "startItem called for: " + playableItem.getTitle());
 
         if (exoPlayer == null) {
             YaaccLogger.w(getClass().getName(), "ExoPlayer not ready, queuing item");
             pendingItem = playableItem;
+            pendingIndex = index;
             return;
         }
-
+        if (exoPlayer.getMediaItemCount() != getItems().size()) {
+            setItems(getItems().toArray(new PlayableItem[0]));
+        }
         DIDLObject.Property<URI> albumArtUriProperty = playableItem.getItem() == null ? null :
                 playableItem.getItem().getFirstProperty(DIDLObject.Property.UPNP.ALBUM_ART_URI.class);
         albumArtUri = (albumArtUriProperty == null) ? null : albumArtUriProperty.getValue();
@@ -219,19 +245,8 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
         // ExoPlayer must be called from main thread
         new Handler(Looper.getMainLooper()).post(() -> {
             if (exoPlayer != null) {
-                MediaItem.Builder builder = new MediaItem.Builder()
-                        .setUri(playableItem.getUri());
-
-                // Add metadata with album art
-                if (albumArtUri != null) {
-                    MediaMetadata metadata = new MediaMetadata.Builder()
-                            .setTitle(playableItem.getTitle())
-                            .setArtworkUri(Uri.parse(albumArtUri.toString()))
-                            .build();
-                    builder.setMediaMetadata(metadata);
-                }
-
-                exoPlayer.setMediaItem(builder.build());
+                exoPlayer.setPlayWhenReady(true);
+                exoPlayer.seekTo(index, 0);
                 exoPlayer.prepare();
                 exoPlayer.play();
                 setPlaying(true);
@@ -254,7 +269,7 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
             new Handler(Looper.getMainLooper()).post(() -> {
                 if (exoPlayer != null && exoPlayer.hasNextMediaItem()) {
                     exoPlayer.seekToNextMediaItem();
-                    setCurrentIndex(getCurrentItemIndex() + 1);
+                    //done by listener setCurrentIndex(getCurrentItemIndex() + 1);
                 }
             });
         }
@@ -268,7 +283,7 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
             new Handler(Looper.getMainLooper()).post(() -> {
                 if (exoPlayer != null && exoPlayer.hasPreviousMediaItem()) {
                     exoPlayer.seekToPreviousMediaItem();
-                    setCurrentIndex(getCurrentItemIndex() - 1);
+                    //done by listener setCurrentIndex(getCurrentItemIndex() - 1);
                 }
             });
         }
@@ -399,15 +414,15 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
     }
 
     @Override
-    public android.app.PendingIntent getNotificationIntent() {
+    public PendingIntent getNotificationIntent() {
         android.content.Intent intent = new android.content.Intent(getContext(), MusicPlayerActivity.class);
         intent.putExtra(PLAYER_ID, getId());
-        return android.app.PendingIntent.getActivity(getContext(), 0, intent,
-                android.app.PendingIntent.FLAG_IMMUTABLE);
+        return PendingIntent.getActivity(getContext(), 0, intent,
+                PendingIntent.FLAG_IMMUTABLE);
     }
 
     @Override
-    public android.support.v4.media.session.MediaSessionCompat getMediaSession() {
+    public MediaSessionCompat getMediaSession() {
         // Return null - we use Media3 MediaSession, not legacy MediaSessionCompat
         // This prevents AbstractPlayer from trying to use MediaSessionCompat in notification
         return null;

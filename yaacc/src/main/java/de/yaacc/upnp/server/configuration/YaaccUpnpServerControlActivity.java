@@ -23,10 +23,8 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
-import de.yaacc.util.YaaccLogger;
 import android.util.TypedValue;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -52,13 +50,13 @@ import de.yaacc.R;
 import de.yaacc.settings.SettingsActivity;
 import de.yaacc.upnp.server.YaaccUpnpServerService;
 import de.yaacc.upnp.server.contentdirectory.MediaPathFilter;
-import de.yaacc.upnp.server.media.MediaProjectionHelper;
 import de.yaacc.util.AboutActivity;
 import de.yaacc.util.InterfaceResolutionHelper;
 import de.yaacc.util.NotificationId;
 import de.yaacc.util.SafPermissionManager;
 import de.yaacc.util.ThemeHelper;
 import de.yaacc.util.YaaccLogActivity;
+import de.yaacc.util.YaaccLogger;
 
 /**
  * Control activity for the yaacc upnp server
@@ -134,7 +132,7 @@ public class YaaccUpnpServerControlActivity extends AppCompatActivity {
         );
 
         ImageButton safButton = findViewById(R.id.sharedFoldersAddSaf);
-        icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.outline_database_search_32, getTheme()), getTheme());
+        icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_search_bookmark, getTheme()), getTheme());
         safButton.setImageDrawable(icon);
         safButton.setOnClickListener(v -> selectSafContent());
 
@@ -323,7 +321,7 @@ public class YaaccUpnpServerControlActivity extends AppCompatActivity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        
+
         if (requestCode == REQUEST_CODE_OPEN_DOCUMENT_TREE && resultCode == RESULT_OK) {
             if (data != null) {
                 Uri treeUri = data.getData();
