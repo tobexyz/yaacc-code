@@ -24,6 +24,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.IBinder;
@@ -32,13 +33,20 @@ import android.preference.PreferenceManager;
 import android.support.v4.media.session.MediaSessionCompat;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.Player;
+import androidx.media3.common.util.BitmapLoader;
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.session.MediaSession;
 import androidx.media3.session.SessionCommand;
 import androidx.media3.session.SessionCommands;
 import androidx.media3.ui.PlayerNotificationManager;
+
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.SettableFuture;
 
 import org.fourthline.cling.model.action.ActionInvocation;
 import org.fourthline.cling.model.message.UpnpResponse;
@@ -89,6 +97,7 @@ import de.yaacc.upnp.callback.connectionmanager.GetProtocolInfo;
 import de.yaacc.upnp.server.http.YaaccUpnpServerContentHttpHandler;
 import de.yaacc.util.InterfaceResolutionHelper;
 import de.yaacc.util.YaaccLogger;
+import de.yaacc.util.image.IconDownloadCacheHandler;
 import de.yaacc.util.image.ImageDownloader;
 
 /**
@@ -150,10 +159,62 @@ public class AVTransportPlayer extends AbstractPlayer {
 
         // Initialize Media3 Player wrapper
         playerWrapper = new AVTransportPlayerWrapper(this, null);
+        BitmapLoader bitmapLoader = new BitmapLoader() {
+            @Override
+            public ListenableFuture<Bitmap> decodeBitmap(byte[] data) {
+                SettableFuture<Bitmap> future = SettableFuture.create();
+                try {
+                    Bitmap bitmap = android.graphics.BitmapFactory.decodeByteArray(data, 0, data.length);
+                    future.set(bitmap);
+                } catch (Exception e) {
+                    future.setException(e);
+                }
+                return future;
+            }
 
+            @Override
+            public ListenableFuture<Bitmap> loadBitmap(Uri uri) {
+                return loadBitmap(uri, null);
+            }
+
+            @Override
+            public ListenableFuture<Bitmap> loadBitmap(Uri uri, @Nullable BitmapFactory.Options options) {
+                YaaccLogger.e(getClass().getName(), "BitmapLoader.loadBitmap called with uri: " + uri);
+                
+                // Check cache first
+                IconDownloadCacheHandler cache = IconDownloadCacheHandler.getInstance();
+                Bitmap cachedBitmap = cache.getBitmap(uri, 512, 512);
+                if (cachedBitmap != null) {
+                    YaaccLogger.e(getClass().getName(), "Returning cached bitmap: " + cachedBitmap.getWidth() + "x" + cachedBitmap.getHeight());
+                    return Futures.immediateFuture(cachedBitmap);
+                }
+                
+                SettableFuture<Bitmap> future = SettableFuture.create();
+                // Load bitmap in background using ImageDownloader
+                ((Yaacc) getContext().getApplicationContext()).getContentLoadExecutor().execute(() -> {
+                    try {
+                        YaaccLogger.e(getClass().getName(), "Loading bitmap from: " + uri);
+                        Bitmap bitmap = new ImageDownloader().retrieveImageWithCertainSize(uri, 512, 512);
+                        if (bitmap != null) {
+                            cache.addBitmap(uri, 512, 512, bitmap);
+                        }
+                        YaaccLogger.e(getClass().getName(), "Bitmap loaded: " + (bitmap != null ? bitmap.getWidth() + "x" + bitmap.getHeight() : "null"));
+                        future.set(bitmap);
+                        YaaccLogger.e(getClass().getName(), "Future.set() called");
+                    } catch (Exception e) {
+                        YaaccLogger.e(getClass().getName(), "Failed to load bitmap", e);
+                        future.setException(e);
+                    }
+                });
+                return future;
+            }
+
+
+        };
         // Create Media3 MediaSession for the wrapper
         media3Session = new MediaSession.Builder(getContext(), playerWrapper)
                 .setId("avtransport_" + id)
+                // Don't set BitmapLoader - let notification manager handle it via getCurrentLargeIcon()
                 .setCallback(new MediaSession.Callback() {
                     @Override
                     public MediaSession.ConnectionResult onConnect(MediaSession session,
@@ -210,6 +271,40 @@ public class AVTransportPlayer extends AbstractPlayer {
                     @Override
                     public Bitmap getCurrentLargeIcon(Player player,
                                                       PlayerNotificationManager.BitmapCallback callback) {
+                        // Get album art URI from AVTransportPlayer (includes cover.jpg fallback)
+                        URI albumArtJavaUri = getAlbumArt();
+                        YaaccLogger.e(getClass().getName(), "getCurrentLargeIcon called, albumArtUri: " + albumArtJavaUri);
+                        
+                        if (albumArtJavaUri != null) {
+                            android.net.Uri artworkUri = android.net.Uri.parse(albumArtJavaUri.toString());
+                            
+                            // Check cache first - return immediately if available
+                            IconDownloadCacheHandler cache = IconDownloadCacheHandler.getInstance();
+                            Bitmap cachedBitmap = cache.getBitmap(artworkUri, 512, 512);
+                            if (cachedBitmap != null) {
+                                YaaccLogger.e(getClass().getName(), "Returning cached bitmap synchronously: " + cachedBitmap.getWidth() + "x" + cachedBitmap.getHeight());
+                                return cachedBitmap;
+                            }
+                            
+                            // Load bitmap in background thread and use callback
+                            ((Yaacc) getContext().getApplicationContext()).getContentLoadExecutor().execute(() -> {
+                                try {
+                                    YaaccLogger.e(getClass().getName(), "Loading bitmap from: " + artworkUri);
+                                    Bitmap bitmap = new ImageDownloader().retrieveImageWithCertainSize(artworkUri, 512, 512);
+                                    if (bitmap != null) {
+                                        cache.addBitmap(artworkUri, 512, 512, bitmap);
+                                        YaaccLogger.e(getClass().getName(), "Bitmap loaded, calling callback: " + bitmap.getWidth() + "x" + bitmap.getHeight());
+                                        callback.onBitmap(bitmap);
+                                    } else {
+                                        YaaccLogger.e(getClass().getName(), "Bitmap is null");
+                                    }
+                                } catch (Exception e) {
+                                    YaaccLogger.e(getClass().getName(), "Failed to load album art", e);
+                                }
+                            });
+                        } else {
+                            YaaccLogger.e(getClass().getName(), "albumArtUri is null");
+                        }
                         return null;
                     }
                 })
@@ -908,6 +1003,20 @@ public class AVTransportPlayer extends AbstractPlayer {
             }
         };
         executorService.execute(actionCallback);
+    }
+
+    @Override
+    public Bitmap getIcon() {
+        // Try to get album art first
+        if (albumArtUri != null) {
+            IconDownloadCacheHandler cache = IconDownloadCacheHandler.getInstance();
+            Bitmap albumArt = cache.getBitmap(android.net.Uri.parse(albumArtUri.toString()), 512, 512);
+            if (albumArt != null) {
+                return albumArt;
+            }
+        }
+        // Fall back to device icon
+        return super.getIcon();
     }
 
     @Override
