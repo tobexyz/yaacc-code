@@ -1,6 +1,7 @@
 package de.yaacc.upnp.server.contentdirectory;
 
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
 
 import androidx.preference.PreferenceManager;
@@ -75,6 +76,10 @@ public class MediaPathFilter {
         SharedPreferences.Editor editor = prefs.edit();
         editor.putStringSet(context.getString(R.string.settings_saf_tree_uris_pref_key), newPathes);
         editor.apply();
+        
+        // Notify service to restart SAF preloading
+        Intent intent = new Intent("de.yaacc.SAF_PATHS_CHANGED");
+        context.sendBroadcast(intent);
     }
 
 

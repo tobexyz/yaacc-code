@@ -45,6 +45,7 @@ import de.yaacc.browser.TabBrowserActivity;
 import de.yaacc.player.PlayerService;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.server.YaaccUpnpServerService;
+import de.yaacc.util.SAFCacheManager;
 import de.yaacc.util.NotificationId;
 import de.yaacc.util.SafPermissionManager;
 import de.yaacc.util.ShutdownTimerListener;
@@ -145,11 +146,8 @@ public class Yaacc extends Application {
     }
 
     private void clearCache() {
-        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
-        Set<String> tobeDeleted = preferences.getAll().keySet().stream().filter(k -> k.startsWith(getApplicationContext().getString(R.string.settings_duration_format_key))).collect(Collectors.toSet());
-        SharedPreferences.Editor edit = preferences.edit();
-        tobeDeleted.forEach(it -> edit.remove(it));
-        edit.commit();
+        // Trim cache to recommended size using LRU
+        SAFCacheManager.getInstance(this).trimCache();
     }
 
     public void createNotificationChannel() {
