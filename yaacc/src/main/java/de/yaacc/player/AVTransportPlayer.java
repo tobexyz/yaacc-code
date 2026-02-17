@@ -33,7 +33,6 @@ import android.preference.PreferenceManager;
 import android.support.v4.media.session.MediaSessionCompat;
 import android.widget.Toast;
 
-import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.Player;
@@ -122,7 +121,7 @@ public class AVTransportPlayer extends AbstractPlayer {
     private int consecutivePositionFailures = 0;
 
     // Retry tracking for critical commands
-    private static final int MAX_RETRIES = 3;
+    private static final int MAX_RETRIES = 10;
     private final Map<String, Integer> commandRetries = new HashMap<>();
 
 
@@ -180,7 +179,7 @@ public class AVTransportPlayer extends AbstractPlayer {
             @Override
             public ListenableFuture<Bitmap> loadBitmap(Uri uri, @Nullable BitmapFactory.Options options) {
                 YaaccLogger.e(getClass().getName(), "BitmapLoader.loadBitmap called with uri: " + uri);
-                
+
                 // Check cache first
                 IconDownloadCacheHandler cache = IconDownloadCacheHandler.getInstance();
                 Bitmap cachedBitmap = cache.getBitmap(uri, 512, 512);
@@ -188,7 +187,7 @@ public class AVTransportPlayer extends AbstractPlayer {
                     YaaccLogger.e(getClass().getName(), "Returning cached bitmap: " + cachedBitmap.getWidth() + "x" + cachedBitmap.getHeight());
                     return Futures.immediateFuture(cachedBitmap);
                 }
-                
+
                 SettableFuture<Bitmap> future = SettableFuture.create();
                 // Load bitmap in background using ImageDownloader
                 ((Yaacc) getContext().getApplicationContext()).getContentLoadExecutor().execute(() -> {
@@ -274,10 +273,10 @@ public class AVTransportPlayer extends AbstractPlayer {
                         // Get album art URI from AVTransportPlayer (includes cover.jpg fallback)
                         URI albumArtJavaUri = getAlbumArt();
                         YaaccLogger.e(getClass().getName(), "getCurrentLargeIcon called, albumArtUri: " + albumArtJavaUri);
-                        
+
                         if (albumArtJavaUri != null) {
                             android.net.Uri artworkUri = android.net.Uri.parse(albumArtJavaUri.toString());
-                            
+
                             // Check cache first - return immediately if available
                             IconDownloadCacheHandler cache = IconDownloadCacheHandler.getInstance();
                             Bitmap cachedBitmap = cache.getBitmap(artworkUri, 512, 512);
@@ -285,7 +284,7 @@ public class AVTransportPlayer extends AbstractPlayer {
                                 YaaccLogger.e(getClass().getName(), "Returning cached bitmap synchronously: " + cachedBitmap.getWidth() + "x" + cachedBitmap.getHeight());
                                 return cachedBitmap;
                             }
-                            
+
                             // Load bitmap in background thread and use callback
                             ((Yaacc) getContext().getApplicationContext()).getContentLoadExecutor().execute(() -> {
                                 try {
@@ -1127,8 +1126,10 @@ public class AVTransportPlayer extends AbstractPlayer {
                     return;
                 }
 
-                // If not playing and we haven't exceeded retry limit, try Play command again
-                if (info.getCurrentTransportState() != TransportState.PLAYING && playRetryCount < MAX_PLAY_RETRIES) {
+                // Only retry Play if we think we should be playing (not paused by user)
+                if (info.getCurrentTransportState() != TransportState.PLAYING &&
+                        isPlaying() &&
+                        playRetryCount < MAX_RETRIES) {
                     playRetryCount++;
                     YaaccLogger.d(getClass().getName(), "Renderer not playing, sending Play command again (attempt " + playRetryCount + ")");
                     executeCommand(new TimerTask() {
@@ -1197,7 +1198,7 @@ public class AVTransportPlayer extends AbstractPlayer {
 
             // Track device-not-found as position failure
             consecutivePositionFailures++;
-            if (consecutivePositionFailures >= 3 && isPlaying()) {
+            if (consecutivePositionFailures >= MAX_RETRIES && isPlaying()) {
                 YaaccLogger.w(getClass().getName(), "Device lost, stopping playback");
                 consecutivePositionFailures = 0;
                 stop();
@@ -1231,7 +1232,7 @@ public class AVTransportPlayer extends AbstractPlayer {
                 YaaccLogger.w(getClass().getName(), "Position query failed " + consecutivePositionFailures + " times");
 
                 // After 3 consecutive failures, check device state to see if track ended
-                if (consecutivePositionFailures >= 3 && isPlaying()) {
+                if (consecutivePositionFailures >= MAX_RETRIES && isPlaying()) {
                     YaaccLogger.w(getClass().getName(), "Position query failed 3 times, checking transport state");
                     consecutivePositionFailures = 0;
                     getTransportInfo();
