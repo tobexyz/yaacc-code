@@ -121,7 +121,7 @@ public class AVTransportPlayer extends AbstractPlayer {
     private int consecutivePositionFailures = 0;
 
     // Retry tracking for critical commands
-    private static final int MAX_RETRIES = 10;
+    private static final int MAX_RETRIES = 30;
     private final Map<String, Integer> commandRetries = new HashMap<>();
 
 
@@ -725,6 +725,11 @@ public class AVTransportPlayer extends AbstractPlayer {
         }
         DIDLObject.Property<URI> albumArtUriProperty = playableItem.getItem() == null ? null : playableItem.getItem().getFirstProperty(DIDLObject.Property.UPNP.ALBUM_ART_URI.class);
         albumArtUri = (albumArtUriProperty == null) ? null : albumArtUriProperty.getValue();
+        
+        // Trigger notification update with new album art
+        if (albumArtUri != null) {
+            updateMetadataInternal();
+        }
 
         InternalSetAVTransportURI setAVTransportURI = new InternalSetAVTransportURI(
                 service, modifyProxyUrlWithDeviceId(playableItem.getUri().toString()), actionState, metadata,
@@ -1006,13 +1011,28 @@ public class AVTransportPlayer extends AbstractPlayer {
 
     @Override
     public Bitmap getIcon() {
-        // Try to get album art first
+        // Try to get album art from cache only (don't block on download)
         if (albumArtUri != null) {
             IconDownloadCacheHandler cache = IconDownloadCacheHandler.getInstance();
             Bitmap albumArt = cache.getBitmap(android.net.Uri.parse(albumArtUri.toString()), 512, 512);
             if (albumArt != null) {
                 return albumArt;
             }
+
+            // Trigger async download for next notification update
+            android.net.Uri artworkUri = android.net.Uri.parse(albumArtUri.toString());
+            ((Yaacc) getContext().getApplicationContext()).getContentLoadExecutor().execute(() -> {
+                try {
+                    Bitmap bitmap = new ImageDownloader().retrieveImageWithCertainSize(artworkUri, 512, 512);
+                    if (bitmap != null) {
+                        cache.addBitmap(artworkUri, 512, 512, bitmap);
+                        // Trigger notification update by updating metadata
+                        updateMetadataInternal();
+                    }
+                } catch (Exception e) {
+                    YaaccLogger.w(getClass().getName(), "Failed to load album art", e);
+                }
+            });
         }
         // Fall back to device icon
         return super.getIcon();
