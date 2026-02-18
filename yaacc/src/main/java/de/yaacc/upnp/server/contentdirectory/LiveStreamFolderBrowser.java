@@ -103,26 +103,28 @@ public class LiveStreamFolderBrowser extends ContentBrowser {
             de.yaacc.util.YaaccLogger.i(getClass().getName(), "Creating live audio item with URL: " + streamUrl);
 
             MimeType mimeType = MimeType.valueOf("audio/wav");
-            org.fourthline.cling.support.model.ProtocolInfo protocolInfo =
-                    new org.fourthline.cling.support.model.ProtocolInfo(
-                            org.fourthline.cling.support.model.Protocol.HTTP_GET,
-                            org.fourthline.cling.support.model.ProtocolInfo.WILDCARD,
-                            mimeType.toString(),
-                            "DLNA.ORG_OP=01;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=01500000000000000000000000000000");
+            
+            Item audioItem = createItem(
+                ContentDirectoryIDs.LIVE_STREAM_SYSTEM_AUDIO.getId(),
+                ContentDirectoryIDs.LIVE_STREAM_FOLDER.getId(),
+                preferences.getString(getContext().getString(R.string.settings_local_server_name), "YAACC") + " " + getContext().getString(R.string.system_audio_stream),
+                "yaacc",
+                false,
+                mimeType,
+                streamUrl,
+                null,
+                null
+            );
+            
+            // Add custom audio properties
+            if (audioItem.getResources().size() > 0) {
+                Res res = audioItem.getResources().get(0);
+                res.setSampleFrequency(44100L);
+                res.setNrAudioChannels(2L);
+                res.setBitsPerSample(16L);
+            }
 
-            Res res = new Res(protocolInfo, null, streamUrl);
-            res.setSampleFrequency(44100L);
-            res.setNrAudioChannels(2L);
-            res.setBitsPerSample(16L);
-
-            de.yaacc.util.YaaccLogger.i(getClass().getName(), "Res created: " + res.getValue() + " protocol: " + res.getProtocolInfo());
-
-            AudioItem audioItem = new AudioItem(
-                    ContentDirectoryIDs.LIVE_STREAM_SYSTEM_AUDIO.getId(),
-                    ContentDirectoryIDs.LIVE_STREAM_FOLDER.getId(),
-                    preferences.getString(getContext().getString(R.string.settings_local_server_name), "YAACC") + " " + getContext().getString(R.string.system_audio_stream),
-                    "yaacc",
-                    res);
+            de.yaacc.util.YaaccLogger.i(getClass().getName(), "AudioItem created with URL: " + streamUrl);
 
             result.add(audioItem);
         }
@@ -135,27 +137,26 @@ public class LiveStreamFolderBrowser extends ContentBrowser {
             de.yaacc.util.YaaccLogger.i(getClass().getName(), "Creating live video item with URL: " + streamUrl);
 
             MimeType mimeType = MimeType.valueOf("video/mpeg");
-            org.fourthline.cling.support.model.ProtocolInfo protocolInfo =
-                    new org.fourthline.cling.support.model.ProtocolInfo(
-                            org.fourthline.cling.support.model.Protocol.HTTP_GET,
-                            org.fourthline.cling.support.model.ProtocolInfo.WILDCARD,
-                            "video/mpeg",
-                            "DLNA.ORG_OP=00;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=01500000000000000000000000000000");
+            
+            Item videoItem = createItem(
+                ContentDirectoryIDs.LIVE_STREAM_SCREEN_CAST.getId(),
+                ContentDirectoryIDs.LIVE_STREAM_FOLDER.getId(),
+                preferences.getString(getContext().getString(R.string.settings_local_server_name), "YAACC") + " " + getContext().getString(R.string.screen_cast_stream),
+                "yaacc",
+                false,
+                mimeType,
+                streamUrl,
+                null,
+                null
+            );
+            
+            // Add custom video properties
+            if (videoItem.getResources().size() > 0) {
+                Res res = videoItem.getResources().get(0);
+                res.setResolution("1280x720");
+            }
 
-            Res res = new Res(protocolInfo, null, streamUrl);
-            res.setResolution("1280x720");
-
-
-            de.yaacc.util.YaaccLogger.i(getClass().getName(), "Video Res created: " + res.getValue() + " protocol: " + res.getProtocolInfo());
-
-            VideoItem videoItem = new VideoItem(
-                    ContentDirectoryIDs.LIVE_STREAM_SCREEN_CAST.getId(),
-                    ContentDirectoryIDs.LIVE_STREAM_FOLDER.getId(),
-                    preferences.getString(getContext().getString(R.string.settings_local_server_name), "YAACC") + " " + getContext().getString(R.string.screen_cast_stream),
-                    "yaacc",
-                    res);
-
-            de.yaacc.util.YaaccLogger.i(getClass().getName(), "VideoItem created with " + videoItem.getResources().size() + " resources");
+            de.yaacc.util.YaaccLogger.i(getClass().getName(), "VideoItem created with URL: " + streamUrl);
 
             result.add(videoItem);
         }
@@ -189,13 +190,5 @@ public class LiveStreamFolderBrowser extends ContentBrowser {
         }
         */
         return result;
-    }
-
-    private org.fourthline.cling.support.model.ProtocolInfo getProtocolInfo(String mimeType) {
-        return new org.fourthline.cling.support.model.ProtocolInfo(
-                org.fourthline.cling.support.model.Protocol.HTTP_GET,
-                org.fourthline.cling.support.model.ProtocolInfo.WILDCARD,
-                mimeType,
-                org.fourthline.cling.support.model.ProtocolInfo.WILDCARD);
     }
 }

@@ -73,6 +73,8 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
     private ContentListFragment contentListFragment;
     private RecyclerView contentList;
     private ProgressBar progressBar;
+    private SharedPreferences sharedPreferences;
+    private boolean showThumbnails;
 
 
     public BrowseContentItemAdapter(ContentListFragment contentListFragment, RecyclerView contentList, UpnpClient upnpClient, ProgressBar progressBar) {
@@ -83,6 +85,9 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
         asyncTasks = new ArrayList<>();
         allItemsFetched = false;
         this.upnpClient = upnpClient;
+        // Cache SharedPreferences lookup
+        this.sharedPreferences = PreferenceManager.getDefaultSharedPreferences(context);
+        this.showThumbnails = sharedPreferences.getBoolean(context.getString(R.string.settings_thumbnails_chkbx), true);
     }
 
     @Override
@@ -209,9 +214,6 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
 
     @Override
     public void onBindViewHolder(final BrowseContentItemAdapter.ViewHolder holder, final int listPosition) {
-        SharedPreferences preferences = PreferenceManager
-                .getDefaultSharedPreferences(context);
-
         DIDLObject currentObject = (DIDLObject) getItem(listPosition);
         holder.name.setText(currentObject.getTitle());
 
@@ -253,9 +255,7 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
             holder.play.setVisibility(View.VISIBLE);
             holder.download.setVisibility(View.VISIBLE);
             holder.playlistAdd.setVisibility(View.VISIBLE);
-            if (preferences.getBoolean(
-                    context.getString(R.string.settings_thumbnails_chkbx),
-                    true)) {
+            if (showThumbnails) {
                 DIDLObject.Property<URI> albumArtProperties = ((AudioItem) currentObject)
                         .getFirstProperty(DIDLObject.Property.UPNP.ALBUM_ART_URI.class);
                 if (null != albumArtProperties) {
@@ -270,11 +270,9 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
             holder.play.setVisibility(View.VISIBLE);
             holder.download.setVisibility(View.VISIBLE);
             holder.playlistAdd.setVisibility(View.GONE);
-            if (preferences.getBoolean(
-                    context.getString(R.string.settings_thumbnails_chkbx),
-                    true))
+            if (showThumbnails)
                 iconDownloadTask.executeOnExecutor(((Yaacc) getContext().getApplicationContext()).getContentLoadExecutor(),
-                        Uri.parse(((ImageItem) currentObject)
+                        Uri.parse(currentObject
                                 .getFirstResource().getValue()));
         } else if (currentObject instanceof VideoItem) {
             holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_movie_48, getContext().getTheme()), getContext().getTheme()));
@@ -282,9 +280,7 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
             holder.play.setVisibility(View.VISIBLE);
             holder.download.setVisibility(View.VISIBLE);
             holder.playlistAdd.setVisibility(View.VISIBLE);
-            if (preferences.getBoolean(
-                    context.getString(R.string.settings_thumbnails_chkbx),
-                    true)) {
+            if (showThumbnails) {
                 DIDLObject.Property<URI> albumArtProperties = ((VideoItem) currentObject)
                         .getFirstProperty(DIDLObject.Property.UPNP.ALBUM_ART_URI.class);
                 if (null != albumArtProperties) {

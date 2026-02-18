@@ -25,11 +25,6 @@ import android.provider.MediaStore;
 import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.support.model.DIDLObject;
-import org.fourthline.cling.support.model.DIDLObject.Property.UPNP;
-import org.fourthline.cling.support.model.PersonWithRole;
-import org.fourthline.cling.support.model.Protocol;
-import org.fourthline.cling.support.model.ProtocolInfo;
-import org.fourthline.cling.support.model.Res;
 import org.fourthline.cling.support.model.SortCriterion;
 import org.fourthline.cling.support.model.container.Container;
 import org.fourthline.cling.support.model.item.Item;
@@ -135,32 +130,50 @@ public class MusicAllTitleItemBrowser extends ContentBrowser {
                 URI albumArtUri = URI.create("http://"
                         + contentDirectory.getIpAddress() + ":"
                         + YaaccUpnpServerService.PORT + "/album/" + albumId);
-                ProtocolInfo protocolInfo = new ProtocolInfo(Protocol.HTTP_GET, ProtocolInfo.WILDCARD, mimeType.toString(), getDLNAAttributes(mimeType));
-                Res resource = new Res(protocolInfo, size, uri);
-                resource.setDuration(duration);
-                resource.setSampleFrequency(44100L); // Standard for MP3
-                resource.setNrAudioChannels(2L); // Stereo
-                MusicTrack musicTrack = new MusicTrack(
-                        ContentDirectoryIDs.MUSIC_ALL_TITLES_ITEM_PREFIX.getId()
-                                + id,
-                        ContentDirectoryIDs.MUSIC_ALL_TITLES_FOLDER.getId(), title
-                        + "-(" + name + ")", "", album, artist, resource);
-                musicTrack
-                        .replaceFirstProperty(new UPNP.ALBUM_ART_URI(albumArtUri));
-                musicTrack.setArtists(new PersonWithRole[]{new PersonWithRole(artist)});
-                if (trackNumber != null && trackNumber > 0) {
-                    musicTrack.setOriginalTrackNumber(trackNumber);
-                }
-                if (year != null && year > 0) {
-                    musicTrack.setDate(year + "-01-01");
-                }
+                
+                MusicTrack musicTrack = createMusicTrack(
+                    ContentDirectoryIDs.MUSIC_ALL_TITLES_ITEM_PREFIX.getId() + id,
+                    ContentDirectoryIDs.MUSIC_ALL_TITLES_FOLDER.getId(),
+                    title + "-(" + name + ")",
+                    "",
+                    false,
+                    mimeType,
+                    uri,
+                    size,
+                    duration,
+                    album,
+                    artist,
+                    trackNumber,
+                    year != null && year > 0 ? year + "-01-01" : null,
+                    null,
+                    albumArtUri.toString()
+                );
+
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
                     @SuppressLint("Range") String genre = mediaCursor.getString(mediaCursor
                             .getColumnIndex(MediaStore.Audio.Media.GENRE));
-                    @SuppressLint("Range") String bitrate = mediaCursor.getString(mediaCursor
+                    @SuppressLint("Range") String bitrateStr = mediaCursor.getString(mediaCursor
                             .getColumnIndex(MediaStore.Audio.Media.BITRATE));
-                    resource.setBitrate(Long.valueOf(bitrate));
-                    musicTrack.setGenres(new String[]{genre});
+                    Long bitrate = bitrateStr != null ? Long.valueOf(bitrateStr) : null;
+                    // Recreate with genre and bitrate
+                    musicTrack = createMusicTrack(
+                        ContentDirectoryIDs.MUSIC_ALL_TITLES_ITEM_PREFIX.getId() + id,
+                        ContentDirectoryIDs.MUSIC_ALL_TITLES_FOLDER.getId(),
+                        title + "-(" + name + ")",
+                        "",
+                        false,
+                        mimeType,
+                        uri,
+                        size,
+                        duration,
+                        album,
+                        artist,
+                        trackNumber,
+                        year != null && year > 0 ? year + "-01-01" : null,
+                        new String[]{genre},
+                        albumArtUri.toString(),
+                        bitrate
+                    );
                 }
 
                 result = musicTrack;

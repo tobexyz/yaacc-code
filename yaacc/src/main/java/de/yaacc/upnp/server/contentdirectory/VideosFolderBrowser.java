@@ -25,14 +25,10 @@ import android.provider.MediaStore;
 import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.support.model.DIDLObject;
-import org.fourthline.cling.support.model.Protocol;
-import org.fourthline.cling.support.model.ProtocolInfo;
-import org.fourthline.cling.support.model.Res;
 import org.fourthline.cling.support.model.SortCriterion;
 import org.fourthline.cling.support.model.container.Container;
 import org.fourthline.cling.support.model.container.StorageFolder;
 import org.fourthline.cling.support.model.item.Item;
-import org.fourthline.cling.support.model.item.VideoItem;
 import org.seamless.util.MimeType;
 
 import java.util.ArrayList;
@@ -103,10 +99,18 @@ public class VideosFolderBrowser extends ContentBrowser {
                         // file parameter only needed for media players which decide the
                         // ability of playing a file by the file extension
                         String uri = getUriString(contentDirectory, id, mimeType);
-                        ProtocolInfo protocolInfo = new ProtocolInfo(Protocol.HTTP_GET, ProtocolInfo.WILDCARD, mimeType.toString(), getDLNAAttributes(mimeType));
-                        Res resource = new Res(protocolInfo, size, uri);
-                        resource.setDuration(duration);
-                        result.add(new VideoItem(ContentDirectoryIDs.VIDEO_PREFIX.getId() + id, ContentDirectoryIDs.VIDEOS_FOLDER.getId(), name, "", resource));
+                        Item item = createItem(
+                            ContentDirectoryIDs.VIDEO_PREFIX.getId() + id,
+                            ContentDirectoryIDs.VIDEOS_FOLDER.getId(),
+                            name,
+                            "",
+                            false,
+                            mimeType,
+                            uri,
+                            size,
+                            duration
+                        );
+                        result.add(item);
                         YaaccLogger.d(getClass().getName(), "VideoItem: " + id + " Name: " + name + " uri: " + uri);
                         currentCount++;
                     }

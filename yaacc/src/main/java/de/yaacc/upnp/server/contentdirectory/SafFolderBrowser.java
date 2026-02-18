@@ -47,6 +47,8 @@ import java.util.List;
 import java.util.Set;
 
 import de.yaacc.R;
+import de.yaacc.upnp.model.YaaccItem;
+import de.yaacc.upnp.model.YaaccRes;
 import de.yaacc.util.SAFCacheManager;
 import de.yaacc.util.SAFMetadata;
 import de.yaacc.util.FormatHelper;
@@ -305,30 +307,35 @@ public class SafFolderBrowser extends ContentBrowser {
         }
         
         String uri = getUriString(contentDirectory, id, mimeType, path);
-        ProtocolInfo protocolInfo = new ProtocolInfo(Protocol.HTTP_GET, ProtocolInfo.WILDCARD, mimeType.toString(), getDLNAAttributes(mimeType));
+        
+        long protocolStart = System.currentTimeMillis();
+        ProtocolInfo protocolInfo = getProtocolInfo(mimeType);
+        long protocolTime = System.currentTimeMillis() - protocolStart;
         
         String duration = null;
         if (mimeTypeMain.equals("audio") && !restricted) {
             duration = metadata.duration;
         }
         
-        Res res = new Res(protocolInfo, metadata.fileSize, duration, null, uri);
+        // Create lightweight YaaccRes (no Cling overhead)
+        YaaccRes yaaccRes = new YaaccRes(protocolInfo, metadata.fileSize, duration, null, uri);
         
-        Item item = null;
-        if (mimeTypeMain.equals("audio")) {
-            item = new AudioItem(id, parentId, title, "yaacc", res);
-        } else if (mimeTypeMain.equals("video")) {
-            item = new VideoItem(id, parentId, title, "yaacc", res);
-        } else if (mimeTypeMain.equals("image")) {
-            item = new ImageItem(id, parentId, title, "yaacc", res);
-        }
+        // Create lightweight YaaccItem (no Cling Property overhead)
+        long itemStart = System.currentTimeMillis();
+        String clazz = mimeTypeMain.equals("audio") ? "object.item.audioItem" 
+                            : mimeTypeMain.equals("video") ? "object.item.videoItem" 
+                            : "object.item.imageItem";
+        YaaccItem yaaccItem = new YaaccItem(id, parentId, title, "yaacc", restricted, clazz);
+        yaaccItem.addResource(yaaccRes);
+        long itemTime = System.currentTimeMillis() - itemStart;
         
-        if (item != null) {
-            item.setRestricted(restricted);
-        }
+        // Convert to Cling Item only at the end (for UPnP serialization)
+        long convertStart = System.currentTimeMillis();
+        Item item = yaaccItem.toClingItem();
+        long convertTime = System.currentTimeMillis() - convertStart;
         
         long totalTime = System.currentTimeMillis() - createStart;
-        YaaccLogger.d(getClass().getName(), "Item[?] " + fileName + " - createItem=" + totalTime + "ms");
+        YaaccLogger.d(getClass().getName(), "Item[?] " + fileName + " - protocolInfo=" + protocolTime + "ms, YaaccItem=" + itemTime + "ms, convert=" + convertTime + "ms, total=" + totalTime + "ms");
         return item;
     }
 
