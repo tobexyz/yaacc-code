@@ -25,10 +25,6 @@ import android.provider.MediaStore;
 import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.support.model.DIDLObject;
-import org.fourthline.cling.support.model.DIDLObject.Property.UPNP;
-import org.fourthline.cling.support.model.Protocol;
-import org.fourthline.cling.support.model.ProtocolInfo;
-import org.fourthline.cling.support.model.Res;
 import org.fourthline.cling.support.model.SortCriterion;
 import org.fourthline.cling.support.model.container.Container;
 import org.fourthline.cling.support.model.container.StorageFolder;
@@ -36,7 +32,6 @@ import org.fourthline.cling.support.model.item.Item;
 import org.fourthline.cling.support.model.item.Photo;
 import org.seamless.util.MimeType;
 
-import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -125,15 +120,20 @@ public class ImagesByBucketNameFolderBrowser extends ContentBrowser {
                         // file parameter only needed for media players which decide the
                         // ability of playing a file by the file extension
                         String uri = getUriString(contentDirectory, id, mimeType);
-                        ProtocolInfo protocolInfo = new ProtocolInfo(Protocol.HTTP_GET, ProtocolInfo.WILDCARD, mimeType.toString(), getDLNAAttributes(mimeType));
-                        Res resource = new Res(protocolInfo, size, uri);
+                        String albumArtUri = "http://" + contentDirectory.getIpAddress() + ":"
+                                + YaaccUpnpServerService.PORT + "/thumb/" + id;
 
-                        Photo photo = new Photo(ContentDirectoryIDs.IMAGE_BY_BUCKET_PREFIX.getId() + id, myId, name, "", "", resource);
-                        URI albumArtUri = URI.create("http://"
-                                + contentDirectory.getIpAddress() + ":"
-                                + YaaccUpnpServerService.PORT + "/thumb/" + id);
-                        photo.replaceFirstProperty(new UPNP.ALBUM_ART_URI(
-                                albumArtUri));
+                        Photo photo = createPhoto(
+                            ContentDirectoryIDs.IMAGE_BY_BUCKET_PREFIX.getId() + id,
+                            myId,
+                            name,
+                            "",
+                            false,
+                            mimeType,
+                            uri,
+                            size,
+                            albumArtUri
+                        );
 
                         result.add(photo);
                         YaaccLogger.d(getClass().getName(), "Image: " + id + " Name: " + name + " uri: " + uri);

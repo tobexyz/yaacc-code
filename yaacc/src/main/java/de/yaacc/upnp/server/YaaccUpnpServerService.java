@@ -21,8 +21,10 @@ package de.yaacc.upnp.server;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager.NameNotFoundException;
 import android.graphics.Bitmap;
@@ -83,6 +85,7 @@ import de.yaacc.upnp.registry.Registry;
 import de.yaacc.upnp.registry.RegistryImpl;
 import de.yaacc.upnp.server.avtransport.YaaccAVTransportService;
 import de.yaacc.upnp.server.configuration.YaaccUpnpServerControlActivity;
+import de.yaacc.util.SAFCacheManager;
 import de.yaacc.upnp.server.connectionmanager.ConnectionManagerService;
 import de.yaacc.upnp.server.contentdirectory.YaaccContentDirectory;
 import de.yaacc.upnp.server.http.YaaccUpnpServerContentHttpHandler;
@@ -161,8 +164,49 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         // when the service starts, the preferences are initialized
         preferences = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
         preferences.registerOnSharedPreferenceChangeListener(this);
+        
+        // Register broadcast receiver for cache updates
+        registerReceiver(cacheUpdateReceiver, new IntentFilter("de.yaacc.CACHE_PRELOAD_COMPLETE"));
+        registerReceiver(cacheProgressReceiver, new IntentFilter("de.yaacc.CACHE_PRELOAD_PROGRESS"));
+        registerReceiver(safPathsChangedReceiver, new IntentFilter("de.yaacc.SAF_PATHS_CHANGED"));
+        
+        // Start background preloading of SAF durations
+        SAFCacheManager.getInstance(getApplicationContext()).preloadSafDurations();
+        
         YaaccLogger.i(getClass().getName(), "YaaccUpnpServerService onCreate complete");
     }
+    
+    private int cacheFilesIndexed = 0;
+    private String cacheCurrentFolder = "";
+    
+    private final BroadcastReceiver cacheUpdateReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            int total = intent.getIntExtra("files_indexed", 0);
+            cacheFilesIndexed = total;
+            showNotification(); // Update notification with final cache status
+        }
+    };
+    
+    private final BroadcastReceiver cacheProgressReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            cacheFilesIndexed = intent.getIntExtra("files_indexed", 0);
+            cacheCurrentFolder = intent.getStringExtra("current_folder");
+            showNotification(); // Update notification with progress
+        }
+    };
+    
+    private final BroadcastReceiver safPathsChangedReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            // Restart SAF preloading with new paths
+            cacheFilesIndexed = 0;
+            cacheCurrentFolder = "";
+            SAFCacheManager.getInstance(getApplicationContext()).preloadSafDurations();
+            showNotification();
+        }
+    };
 
 
     /*
@@ -211,6 +255,23 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
 
         if (preferences != null) {
             preferences.unregisterOnSharedPreferenceChangeListener(this);
+        }
+        
+        // Unregister broadcast receivers
+        try {
+            unregisterReceiver(cacheUpdateReceiver);
+        } catch (Exception e) {
+            YaaccLogger.w(getClass().getName(), "Error unregistering cache receiver", e);
+        }
+        try {
+            unregisterReceiver(cacheProgressReceiver);
+        } catch (Exception e) {
+            YaaccLogger.w(getClass().getName(), "Error unregistering cache progress receiver", e);
+        }
+        try {
+            unregisterReceiver(safPathsChangedReceiver);
+        } catch (Exception e) {
+            YaaccLogger.w(getClass().getName(), "Error unregistering SAF paths receiver", e);
         }
 
 
@@ -288,6 +349,17 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         // WiFi lock status
         if (networkDeviceListener != null && networkDeviceListener.isWifiLockHeld()) {
             statusBuilder.append(" | ✓ WiFi Lock");
+        }
+        
+        // Duration cache status
+        SAFCacheManager cacheManager = SAFCacheManager.getInstance(this);
+        if (cacheManager.isPreloading()) {
+            statusBuilder.append(" | ⏳ Indexing: ").append(cacheFilesIndexed);
+            if (!cacheCurrentFolder.isEmpty()) {
+                statusBuilder.append(" (").append(cacheCurrentFolder).append(")");
+            }
+        } else if (cacheManager.getCacheSize() > 0) {
+            statusBuilder.append(" | ✓ Cache: ").append(cacheManager.getCacheSize());
         }
 
         NotificationCompat.Builder mBuilder = new NotificationCompat.Builder(this, Yaacc.NOTIFICATION_CHANNEL_ID)
@@ -494,6 +566,13 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
             int aliveInterval = getUpnpNotificationFrequency();
             registry.setAliveInterval(aliveInterval);
             YaaccLogger.d(this.getClass().getName(), "UPnP ALIVE interval updated to: " + aliveInterval + "ms");
+        }
+        
+        // Trigger cache update when SAF paths change
+        if (getApplicationContext().getString(R.string.settings_saf_tree_uris_pref_key).equals(key) ||
+            getApplicationContext().getString(R.string.settings_saf_tree_uris_selected_pref_key).equals(key)) {
+            YaaccLogger.d(this.getClass().getName(), "SAF paths changed, reloading cache");
+            SAFCacheManager.getInstance(getApplicationContext()).preloadSafDurations();
         }
 
         // Handle live streaming toggles (Android 10+)

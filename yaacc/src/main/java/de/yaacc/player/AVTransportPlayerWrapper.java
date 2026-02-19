@@ -18,8 +18,12 @@
 package de.yaacc.player;
 
 import android.content.SharedPreferences;
+import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
+import android.view.SurfaceHolder;
+import android.view.SurfaceView;
+import android.view.TextureView;
 
 import androidx.media3.common.AudioAttributes;
 import androidx.media3.common.DeviceInfo;
@@ -28,9 +32,6 @@ import androidx.media3.common.MediaMetadata;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.PlaybackParameters;
 import androidx.media3.common.Player;
-
-import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
 import androidx.media3.common.Timeline;
 import androidx.media3.common.TrackSelectionParameters;
 import androidx.media3.common.Tracks;
@@ -40,7 +41,11 @@ import androidx.media3.common.util.Size;
 import androidx.media3.common.util.UnstableApi;
 import androidx.preference.PreferenceManager;
 
+import org.fourthline.cling.support.model.DIDLObject;
+
+import java.net.URI;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import de.yaacc.R;
 import de.yaacc.util.YaaccLogger;
@@ -211,7 +216,7 @@ public class AVTransportPlayerWrapper implements Player {
             YaaccLogger.d("AVTransportPlayerWrapper", "getPlaybackState: IDLE (processing)");
             return Player.STATE_IDLE;
         }
-        
+
         boolean playing = avTransportPlayer.isPlaying();
         int state = playing ? Player.STATE_READY : Player.STATE_IDLE;
         YaaccLogger.d("AVTransportPlayerWrapper", "getPlaybackState: " + state + " (playing=" + playing + ")");
@@ -485,18 +490,21 @@ public class AVTransportPlayerWrapper implements Player {
                 avTransportPlayer.getCurrentItemIndex() >= 0 &&
                 avTransportPlayer.getCurrentItemIndex() < avTransportPlayer.getItems().size()) {
             PlayableItem item = avTransportPlayer.getItems().get(avTransportPlayer.getCurrentItemIndex());
-            if (item != null) {
+            if (item != null && item.getItem() != null) {
+                // Use getAlbumArt() which includes cover.jpg fallback
+                URI albumArtJavaUri = avTransportPlayer.getAlbumArt();
                 MediaItem mediaItem = new MediaItem.Builder()
                         .setUri(item.getUri())
                         .setMediaMetadata(new MediaMetadata.Builder()
                                 .setTitle(item.getTitle())
+                                .setArtworkUri(albumArtJavaUri != null ? Uri.parse(albumArtJavaUri.toString()) : null)
                                 .build())
                         .build();
-                YaaccLogger.d("AVTransportPlayerWrapper", "getCurrentMediaItem: " + item.getTitle());
+                YaaccLogger.v(getClass().getName(), "getCurrentMediaItem: " + item.getTitle());
                 return mediaItem;
             }
         }
-        YaaccLogger.w("AVTransportPlayerWrapper", "getCurrentMediaItem: null");
+        YaaccLogger.d(getClass().getName(), "getCurrentMediaItem: null");
         return null;
     }
 
@@ -510,11 +518,14 @@ public class AVTransportPlayerWrapper implements Player {
         if (avTransportPlayer.getItems() != null &&
                 index >= 0 && index < avTransportPlayer.getItems().size()) {
             PlayableItem item = avTransportPlayer.getItems().get(index);
-            if (item != null) {
+            if (item != null && item.getItem() != null) {
+                DIDLObject.Property<URI> albumArtUriProperty = item.getItem().getFirstProperty(DIDLObject.Property.UPNP.ALBUM_ART_URI.class);
+                URI albumArtUri = (albumArtUriProperty == null) ? null : albumArtUriProperty.getValue();
                 return new MediaItem.Builder()
                         .setUri(item.getUri())
                         .setMediaMetadata(new MediaMetadata.Builder()
                                 .setTitle(item.getTitle())
+                                .setArtworkUri(albumArtUri != null ? Uri.parse(albumArtUri.toString()) : null)
                                 .build())
                         .build();
             }
@@ -667,32 +678,32 @@ public class AVTransportPlayerWrapper implements Player {
     }
 
     @Override
-    public void setVideoSurfaceHolder(android.view.SurfaceHolder surfaceHolder) {
+    public void setVideoSurfaceHolder(SurfaceHolder surfaceHolder) {
         // Not supported
     }
 
     @Override
-    public void clearVideoSurfaceHolder(android.view.SurfaceHolder surfaceHolder) {
+    public void clearVideoSurfaceHolder(SurfaceHolder surfaceHolder) {
         // Not supported
     }
 
     @Override
-    public void setVideoSurfaceView(android.view.SurfaceView surfaceView) {
+    public void setVideoSurfaceView(SurfaceView surfaceView) {
         // Not supported
     }
 
     @Override
-    public void clearVideoSurfaceView(android.view.SurfaceView surfaceView) {
+    public void clearVideoSurfaceView(SurfaceView surfaceView) {
         // Not supported
     }
 
     @Override
-    public void setVideoTextureView(android.view.TextureView textureView) {
+    public void setVideoTextureView(TextureView textureView) {
         // Not supported
     }
 
     @Override
-    public void clearVideoTextureView(android.view.TextureView textureView) {
+    public void clearVideoTextureView(TextureView textureView) {
         // Not supported
     }
 

@@ -24,7 +24,6 @@ import android.content.ServiceConnection;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.IBinder;
-import de.yaacc.util.YaaccLogger;
 import android.view.KeyEvent;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -56,6 +55,7 @@ import de.yaacc.upnp.UpnpClient;
 import de.yaacc.util.AboutActivity;
 import de.yaacc.util.ThemeHelper;
 import de.yaacc.util.YaaccLogActivity;
+import de.yaacc.util.YaaccLogger;
 import de.yaacc.util.image.ImageDownloadTask;
 
 /**
@@ -144,15 +144,15 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
 
     protected void initialize() {
         Player player = getPlayer();
-        ImageButton btnPrev = (ImageButton) findViewById(R.id.avtransportPlayerActivityControlPrev);
-        ImageButton btnNext = (ImageButton) findViewById(R.id.avtransportPlayerActivityControlNext);
-        ImageButton btnStop = (ImageButton) findViewById(R.id.avtransportPlayerActivityControlStop);
-        ImageButton btnPlay = (ImageButton) findViewById(R.id.avtransportPlayerActivityControlPlay);
-        ImageButton btnPause = (ImageButton) findViewById(R.id.avtransportPlayerActivityControlPause);
-        ImageButton btnPlaylist = (ImageButton) findViewById(R.id.avtransportPlayerActivityControlPlaylist);
-        ImageButton btnExit = (ImageButton) findViewById(R.id.avtransportPlayerActivityControlExit);
-        ImageButton btnFf = (ImageButton) findViewById(R.id.avtransportPlayerActivityControlFastForward);
-        ImageButton btnFr = (ImageButton) findViewById(R.id.avtransportPlayerActivityControlFastRewind);
+        ImageButton btnPrev = findViewById(R.id.avtransportPlayerActivityControlPrev);
+        ImageButton btnNext = findViewById(R.id.avtransportPlayerActivityControlNext);
+        ImageButton btnStop = findViewById(R.id.avtransportPlayerActivityControlStop);
+        ImageButton btnPlay = findViewById(R.id.avtransportPlayerActivityControlPlay);
+        ImageButton btnPause = findViewById(R.id.avtransportPlayerActivityControlPause);
+        ImageButton btnPlaylist = findViewById(R.id.avtransportPlayerActivityControlPlaylist);
+        ImageButton btnExit = findViewById(R.id.avtransportPlayerActivityControlExit);
+        ImageButton btnFf = findViewById(R.id.avtransportPlayerActivityControlFastForward);
+        ImageButton btnFr = findViewById(R.id.avtransportPlayerActivityControlFastRewind);
         if (player == null) {
             btnPrev.setActivated(false);
             btnNext.setActivated(false);
@@ -420,7 +420,7 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
         position.setText(getPlayer().getPositionString());
         TextView next = findViewById(R.id.avtransportPlayerActivityNextItem);
         next.setText(getPlayer().getNextItemTitle());
-        ImageView albumArtView = (ImageView) findViewById(R.id.avtransportPlayerActivityImageView);
+        ImageView albumArtView = findViewById(R.id.avtransportPlayerActivityImageView);
         URI albumArtUri = getPlayer().getAlbumArt();
 
         if (null != albumArtUri) {

@@ -42,9 +42,7 @@ dependencies {
     implementation 'androidx.lifecycle:lifecycle-livedata-ktx:2.4.1'
     implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.4.1'
     implementation 'org.mp4parser:isoparser:1.9.56'
-//https://developer.android.com/jetpack/androidx/migrate/artifact-mappings
-    //FIXMEimplementation 'androidx.documentfile:documentfile:1.1.0'
-    //https://medium.com/swlh/sample-for-android-storage-access-framework-aka-scoped-storage-for-basic-use-cases-3ee4fee404fc
+
 }
 
 android {

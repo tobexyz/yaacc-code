@@ -25,13 +25,9 @@ import android.provider.MediaStore;
 import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.support.model.DIDLObject;
-import org.fourthline.cling.support.model.Protocol;
-import org.fourthline.cling.support.model.ProtocolInfo;
-import org.fourthline.cling.support.model.Res;
 import org.fourthline.cling.support.model.SortCriterion;
 import org.fourthline.cling.support.model.container.Container;
 import org.fourthline.cling.support.model.item.Item;
-import org.fourthline.cling.support.model.item.VideoItem;
 import org.seamless.util.MimeType;
 
 import java.util.ArrayList;
@@ -51,7 +47,6 @@ public class VideoItemBrowser extends ContentBrowser {
     @Override
     public DIDLObject browseMeta(YaaccContentDirectory contentDirectory,
                                  String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
-        Item result = null;
         String[] projection = {MediaStore.Video.Media._ID, MediaStore.Video.Media.DISPLAY_NAME, MediaStore.Video.Media.MIME_TYPE,
                 MediaStore.Video.Media.SIZE, MediaStore.Video.Media.DURATION};
         String selection = MediaStore.Video.Media._ID + "=?";
@@ -72,19 +67,25 @@ public class VideoItemBrowser extends ContentBrowser {
                 // file parameter only needed for media players which decide the
                 // ability of playing a file by the file extension
                 String uri = getUriString(contentDirectory, id, mimeType);
-                ProtocolInfo protocolInfo = new ProtocolInfo(Protocol.HTTP_GET, ProtocolInfo.WILDCARD, mimeType.toString(), getDLNAAttributes(mimeType));
-                Res resource = new Res(protocolInfo, size, uri);
-                resource.setDuration(duration);
-                result = new VideoItem(ContentDirectoryIDs.VIDEO_PREFIX.getId() + id, ContentDirectoryIDs.VIDEOS_FOLDER.getId(), name, "", resource);
+                Item result = createItem(
+                    ContentDirectoryIDs.VIDEO_PREFIX.getId() + id,
+                    ContentDirectoryIDs.VIDEOS_FOLDER.getId(),
+                    name,
+                    "",
+                    false,
+                    mimeType,
+                    uri,
+                    size,
+                    duration
+                );
                 YaaccLogger.d(getClass().getName(), "VideoItem: " + id + " Name: " + name + " uri: " + uri);
-
-
+                return result;
             } else {
                 YaaccLogger.d(getClass().getName(), "Item " + myId + "  not found.");
             }
         }
 
-        return result;
+        return null;
     }
 
     @Override

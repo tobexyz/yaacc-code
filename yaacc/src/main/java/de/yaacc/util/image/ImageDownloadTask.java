@@ -23,6 +23,8 @@ import android.net.Uri;
 import android.os.AsyncTask;
 import android.widget.ImageView;
 
+import androidx.media3.ui.PlayerNotificationManager;
+
 /**
  * AsyncTask fpr retrieving icons while browsing.
  *
@@ -32,6 +34,7 @@ public class ImageDownloadTask extends AsyncTask<Uri, Integer, Bitmap> {
 
 
     private final ImageView imageView;
+    private final PlayerNotificationManager.BitmapCallback bitmapCallback;
     private final IconDownloadCacheHandler cache;
 
     /**
@@ -41,6 +44,18 @@ public class ImageDownloadTask extends AsyncTask<Uri, Integer, Bitmap> {
      */
     public ImageDownloadTask(ImageView imageView) {
         this.imageView = imageView;
+        this.bitmapCallback = null;
+        this.cache = IconDownloadCacheHandler.getInstance();
+    }
+
+    /**
+     * Initialize a new download with a callback for notification manager
+     *
+     * @param callback bitmap callback
+     */
+    public ImageDownloadTask(PlayerNotificationManager.BitmapCallback callback) {
+        this.imageView = null;
+        this.bitmapCallback = callback;
         this.cache = IconDownloadCacheHandler.getInstance();
     }
 
@@ -52,11 +67,14 @@ public class ImageDownloadTask extends AsyncTask<Uri, Integer, Bitmap> {
      */
     @Override
     protected Bitmap doInBackground(Uri... uri) {
-        if (cache.getBitmap(uri[0], imageView.getWidth(), imageView.getHeight()) == null) {
-            cache.addBitmap(uri[0], imageView.getWidth(), imageView.getHeight(), new ImageDownloader().retrieveImageWithCertainSize(uri[0], imageView.getWidth(), imageView.getHeight()));
+        int width = imageView != null ? imageView.getWidth() : 512;
+        int height = imageView != null ? imageView.getHeight() : 512;
+        
+        if (cache.getBitmap(uri[0], width, height) == null) {
+            cache.addBitmap(uri[0], width, height, new ImageDownloader().retrieveImageWithCertainSize(uri[0], width, height));
         }
 
-        return cache.getBitmap(uri[0], imageView.getWidth(), imageView.getHeight());
+        return cache.getBitmap(uri[0], width, height);
     }
 
     /**
@@ -66,6 +84,10 @@ public class ImageDownloadTask extends AsyncTask<Uri, Integer, Bitmap> {
      */
     @Override
     protected void onPostExecute(Bitmap result) {
-        imageView.setImageBitmap(result);
+        if (imageView != null) {
+            imageView.setImageBitmap(result);
+        } else if (bitmapCallback != null) {
+            bitmapCallback.onBitmap(result);
+        }
     }
 }

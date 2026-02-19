@@ -47,6 +47,10 @@ import java.util.List;
 import java.util.Set;
 
 import de.yaacc.R;
+import de.yaacc.upnp.model.YaaccItem;
+import de.yaacc.upnp.model.YaaccRes;
+import de.yaacc.util.SAFCacheManager;
+import de.yaacc.util.SAFMetadata;
 import de.yaacc.util.FormatHelper;
 import de.yaacc.util.YaaccLogger;
 
@@ -60,7 +64,7 @@ public class SafFolderBrowser extends ContentBrowser {
     public SafFolderBrowser(Context context) {
         super(context);
     }
-
+    
     @Override
     public DIDLObject browseMeta(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
         if (myId.equals(ContentDirectoryIDs.SAF_FOLDER.getId())) {
@@ -113,38 +117,40 @@ public class SafFolderBrowser extends ContentBrowser {
 
     @Override
     public List<Container> browseContainer(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
-        YaaccLogger.d(getClass().getName(), "browseContainer called with myId: " + myId);
+        long browseStart = System.currentTimeMillis();
+        YaaccLogger.d(getClass().getName(), "browseContainer START: myId=" + myId + ", firstResult=" + firstResult + ", maxResults=" + maxResults);
         List<Container> result = new ArrayList<>();
         if (myId.equals(ContentDirectoryIDs.SAF_FOLDER.getId())) {
+            long rootStart = System.currentTimeMillis();
             YaaccLogger.d(getClass().getName(), "Browsing root SAF folder");
             Set<String> safPaths = getSelectedSafPathes();
-            YaaccLogger.d(getClass().getName(), "Found " + safPaths.size() + " SAF paths in preferences");
+            YaaccLogger.d(getClass().getName(), "Found " + safPaths.size() + " SAF paths in preferences (took " + (System.currentTimeMillis() - rootStart) + "ms)");
             List<String> sortedPathes = new ArrayList<>(safPaths);
             Collections.sort(sortedPathes);
 
             int start = (int) Math.max(0, firstResult);
             int end = (int) Math.min(sortedPathes.size(), start + maxResults);
+            YaaccLogger.d(getClass().getName(), "Pagination: start=" + start + ", end=" + end + ", total=" + sortedPathes.size());
 
             for (int i = start; i < end; i++) {
+                long itemStart = System.currentTimeMillis();
                 String path = sortedPathes.get(i);
-                YaaccLogger.d(getClass().getName(), "Processing path " + i + ": " + path);
                 DocumentFile file = DocumentFile.fromTreeUri(getContext(), Uri.parse(path));
-                YaaccLogger.d(getClass().getName(), "DocumentFile: " + (file != null ? "exists" : "null") + ", isDirectory: " + (file != null && file.isDirectory()));
+                YaaccLogger.d(getClass().getName(), "Path[" + i + "] DocumentFile: " + (file != null ? "exists" : "null") + ", isDirectory: " + (file != null && file.isDirectory()) + " (took " + (System.currentTimeMillis() - itemStart) + "ms)");
                 if (file != null && file.isDirectory()) {
                     String title = file.getName() != null ? file.getName() : path;
                     String base64Str = Base64.encodeToString(file.getUri().toString().getBytes(), Base64.NO_WRAP);
                     String folderId = ContentDirectoryIDs.SAF_PREFIX.getId() + base64Str;
-                    YaaccLogger.d(getClass().getName(), "Creating root folder: " + title + " with ID: " + folderId);
                     StorageFolder folder = new StorageFolder(folderId, ContentDirectoryIDs.SAF_FOLDER.getId(), title, "yaacc", 0, null);
                     result.add(folder);
                 }
             }
-            YaaccLogger.d(getClass().getName(), "Returning " + result.size() + " SAF root folders");
+            YaaccLogger.d(getClass().getName(), "Root browse complete: " + result.size() + " folders (total " + (System.currentTimeMillis() - browseStart) + "ms)");
         } else {
             // Browse subfolder
+            long subfolderStart = System.currentTimeMillis();
             YaaccLogger.d(getClass().getName(), "Browsing subfolder with ID: " + myId);
             String pathEnc = myId.substring(ContentDirectoryIDs.SAF_PREFIX.getId().length());
-            YaaccLogger.d(getClass().getName(), "Encoded path: " + pathEnc);
             String path = new String(Base64.decode(pathEnc.getBytes(), Base64.NO_WRAP));
             YaaccLogger.d(getClass().getName(), "Decoded path: " + path);
 
@@ -153,181 +159,184 @@ public class SafFolderBrowser extends ContentBrowser {
 
             // Check if this is a tree URI or document URI
             if (path.contains("/tree/")) {
-                // This is a tree URI, use it directly
+                long treeStart = System.currentTimeMillis();
                 root = DocumentFile.fromTreeUri(getContext(), uri);
-                YaaccLogger.d(getClass().getName(), "Using tree URI: " + path);
+                YaaccLogger.d(getClass().getName(), "Tree URI resolved in " + (System.currentTimeMillis() - treeStart) + "ms");
             } else {
-                // This is a document URI, we need to find it within its parent tree
-                YaaccLogger.d(getClass().getName(), "Document URI detected, finding parent tree: " + path);
-                // For now, skip these problematic folders to avoid showing parent content
-                YaaccLogger.w(getClass().getName(), "Skipping document URI folder to avoid parent content");
+                YaaccLogger.w(getClass().getName(), "Document URI detected, skipping: " + path);
                 return result;
             }
 
             if (root != null && root.isDirectory()) {
+                long listStart = System.currentTimeMillis();
                 DocumentFile[] files = root.listFiles();
-                YaaccLogger.d(getClass().getName(), "Found " + files.length + " files in subfolder");
+                YaaccLogger.d(getClass().getName(), "listFiles() took " + (System.currentTimeMillis() - listStart) + "ms, found " + files.length + " items");
+                
                 int start = (int) Math.max(0, firstResult);
                 int end = (int) Math.min(files.length, start + maxResults);
-                YaaccLogger.d(getClass().getName(), "Parent: " + myId);
+                YaaccLogger.d(getClass().getName(), "Pagination: start=" + start + ", end=" + end + ", total=" + files.length);
+                
                 for (int i = start; i < end; i++) {
+                    long itemStart = System.currentTimeMillis();
                     DocumentFile file = files[i];
                     if (file.isDirectory()) {
-                        YaaccLogger.d(getClass().getName(), "Child: " + file.getUri());
                         String title = file.getName() != null ? file.getName() : file.getUri().toString();
-
-                        // Create tree URI for the child folder so it can be browsed properly
                         try {
                             String authority = file.getUri().getAuthority();
                             String documentId = DocumentsContract.getDocumentId(file.getUri());
                             Uri childTreeUri = DocumentsContract.buildTreeDocumentUri(authority, documentId);
-                            YaaccLogger.d(getClass().getName(), "Child tree URI: " + childTreeUri);
-
-                            // Test if we can access this tree URI
                             DocumentFile testAccess = DocumentFile.fromTreeUri(getContext(), childTreeUri);
                             if (testAccess != null) {
                                 String base64Str = Base64.encodeToString(childTreeUri.toString().getBytes(), Base64.NO_WRAP);
                                 String childId = ContentDirectoryIDs.SAF_PREFIX.getId() + base64Str;
-                                YaaccLogger.d(getClass().getName(), "Creating child folder: " + title + " with ID: " + childId);
                                 if (!testAccess.canRead()) {
-
-                                    title = "[X] " + title; //🔒
+                                    title = "[X] " + title;
                                 }
                                 StorageFolder folder = new StorageFolder(childId, myId, title, "yaacc", 0, null);
                                 folder.setRestricted(testAccess.canRead());
                                 result.add(folder);
+                                YaaccLogger.d(getClass().getName(), "Child[" + i + "] " + title + " (took " + (System.currentTimeMillis() - itemStart) + "ms)");
                             } else {
-                                YaaccLogger.w(getClass().getName(), "Cannot access child tree URI, skipping folder: " + title);
+                                YaaccLogger.w(getClass().getName(), "Cannot access child: " + title);
                             }
                         } catch (Exception e) {
-                            YaaccLogger.e(getClass().getName(), "Error creating tree URI for child, skipping folder: " + title, e);
+                            YaaccLogger.e(getClass().getName(), "Error processing child: " + title, e);
                         }
                     }
                 }
             } else {
-                YaaccLogger.e(getClass().getName(), "Root DocumentFile is null or not a directory for path: " + path);
+                YaaccLogger.e(getClass().getName(), "Root DocumentFile is null or not a directory");
             }
+            YaaccLogger.d(getClass().getName(), "Subfolder browse complete: " + result.size() + " folders (total " + (System.currentTimeMillis() - subfolderStart) + "ms)");
         }
-        YaaccLogger.d(getClass().getName(), "Returning " + result.size() + " containers");
+        YaaccLogger.d(getClass().getName(), "browseContainer END: returning " + result.size() + " containers (total " + (System.currentTimeMillis() - browseStart) + "ms)");
         return result;
     }
 
     @Override
     public List<Item> browseItem(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
-        YaaccLogger.d(getClass().getName(), "browseItem called with myId: " + myId);
+        long browseStart = System.currentTimeMillis();
+        YaaccLogger.d(getClass().getName(), "browseItem START: myId=" + myId + ", firstResult=" + firstResult + ", maxResults=" + maxResults);
         List<Item> result = new ArrayList<>();
         if (myId.equals(ContentDirectoryIDs.SAF_FOLDER.getId())) {
+            long rootStart = System.currentTimeMillis();
             List<String> sortedPathes = new ArrayList<>(getSelectedSafPathes());
             Collections.sort(sortedPathes);
 
             int start = (int) Math.max(0, firstResult);
             int end = (int) Math.min(sortedPathes.size(), start + maxResults);
+            YaaccLogger.d(getClass().getName(), "Root items: pagination start=" + start + ", end=" + end + ", total=" + sortedPathes.size());
 
             for (int i = start; i < end; i++) {
+                long itemStart = System.currentTimeMillis();
                 String path = sortedPathes.get(i);
                 DocumentFile file = DocumentFile.fromSingleUri(getContext(), Uri.parse(path));
                 if (file != null && !file.isDirectory()) {
-                    result.add(createItem(contentDirectory, path, file, myId, !file.canRead()));
+                    Item item = createItem(contentDirectory, path, file, myId, !file.canRead());
+                    if (item != null) result.add(item);
+                    YaaccLogger.d(getClass().getName(), "Item[" + i + "] " + (file.getName() != null ? file.getName() : "unknown") + " (took " + (System.currentTimeMillis() - itemStart) + "ms)");
                 }
             }
+            YaaccLogger.d(getClass().getName(), "Root items complete: " + result.size() + " items (total " + (System.currentTimeMillis() - rootStart) + "ms)");
         } else {
             // Browse subfolder items
+            long subfolderStart = System.currentTimeMillis();
             YaaccLogger.d(getClass().getName(), "Browsing subfolder items for: " + myId);
             String pathEnc = myId.substring(ContentDirectoryIDs.SAF_PREFIX.getId().length());
             String path = new String(Base64.decode(pathEnc.getBytes(), Base64.NO_WRAP));
-            YaaccLogger.d(getClass().getName(), "Decoded path: " + path);
+            
+            long treeStart = System.currentTimeMillis();
             DocumentFile root = DocumentFile.fromTreeUri(getContext(), Uri.parse(path));
+            YaaccLogger.d(getClass().getName(), "Tree URI resolved in " + (System.currentTimeMillis() - treeStart) + "ms");
+            
             if (root != null && root.isDirectory()) {
                 if (root.canRead()) {
+                    long listStart = System.currentTimeMillis();
                     DocumentFile[] files = root.listFiles();
-                    YaaccLogger.d(getClass().getName(), "Found " + files.length + " files in folder");
+                    YaaccLogger.d(getClass().getName(), "listFiles() took " + (System.currentTimeMillis() - listStart) + "ms, found " + files.length + " items");
+                    
                     int start = (int) Math.max(0, firstResult);
                     int end = (int) Math.min(files.length, start + maxResults);
+                    YaaccLogger.d(getClass().getName(), "Pagination: start=" + start + ", end=" + end + ", total=" + files.length);
+                    
                     for (int i = start; i < end; i++) {
+                        long itemStart = System.currentTimeMillis();
                         DocumentFile file = files[i];
                         if (!file.isDirectory()) {
-                            result.add(createItem(contentDirectory, file.getUri().toString(), file, myId, !file.canRead()));
+                            long createStart = System.currentTimeMillis();
+                            Item item = createItem(contentDirectory, file.getUri().toString(), file, myId, !file.canRead());
+                            long createTime = System.currentTimeMillis() - createStart;
+                            if (item != null) result.add(item);
+                            long totalTime = System.currentTimeMillis() - itemStart;
+                            YaaccLogger.d(getClass().getName(), "Item[" + i + "] " + (file.getName() != null ? file.getName() : "unknown") + " - createItem=" + createTime + "ms, total=" + totalTime + "ms");
                         }
                     }
                 } else {
-                    YaaccLogger.w(getClass().getName(), "Cannot access folder, skipping: " + path);
+                    YaaccLogger.w(getClass().getName(), "Cannot read folder: " + path);
                 }
             } else {
-                YaaccLogger.e(getClass().getName(), "Root DocumentFile is null or not a directory for path: " + path);
+                YaaccLogger.e(getClass().getName(), "Root DocumentFile is null or not a directory");
             }
+            YaaccLogger.d(getClass().getName(), "Subfolder items complete: " + result.size() + " items (total " + (System.currentTimeMillis() - subfolderStart) + "ms)");
         }
-        YaaccLogger.d(getClass().getName(), "Returning " + result.size() + " items");
+        YaaccLogger.d(getClass().getName(), "browseItem END: returning " + result.size() + " items (total " + (System.currentTimeMillis() - browseStart) + "ms)");
         return result;
     }
 
     private Item createItem(YaaccContentDirectory contentDirectory, String path, DocumentFile file, String parentId, boolean restricted) {
-        String mimeTypeStr = file.getType();
-
-        // If MIME type is null, try to guess from file extension
-        if (mimeTypeStr == null && file.getName() != null) {
-            String fileName = file.getName().toLowerCase();
-            if (fileName.endsWith(".mp3")) mimeTypeStr = "audio/mpeg";
-            else if (fileName.endsWith(".mp4")) mimeTypeStr = "video/mp4";
-            else if (fileName.endsWith(".jpg") || fileName.endsWith(".jpeg"))
-                mimeTypeStr = "image/jpeg";
-            else if (fileName.endsWith(".png")) mimeTypeStr = "image/png";
-            else if (fileName.endsWith(".flac")) mimeTypeStr = "audio/flac";
-            else if (fileName.endsWith(".m4a")) mimeTypeStr = "audio/mp4";
-            else if (fileName.endsWith(".ogg")) mimeTypeStr = "audio/ogg";
-            else if (fileName.endsWith(".mkv")) mimeTypeStr = "video/x-matroska";
-            else if (fileName.endsWith(".avi")) mimeTypeStr = "video/x-msvideo";
-            YaaccLogger.d(getClass().getName(), "Guessed MIME type from extension: " + mimeTypeStr);
-        }
-
-        long currentTime = System.currentTimeMillis();
-        YaaccLogger.d(getClass().getName(), "Created item for: " + path + " with mime type: " + mimeTypeStr);
+        long createStart = System.currentTimeMillis();
+        String fileName = file.getName() != null ? file.getName() : "unknown";
+        
         if (file.getName() != null && file.getName().endsWith("m3u")) {
-            YaaccLogger.d(getClass().getName(), "Ignoring m3u file");
             return null;
         }
-        if (mimeTypeStr != null) {
-            MimeType mimeType = MimeType.valueOf(mimeTypeStr);
-            String mimeTypeMain = mimeType.getType();
-            String base64enc = new String(Base64.encode(path.getBytes(), Base64.NO_WRAP));
-            String id = ContentDirectoryIDs.SAF_PREFIX.getId() + base64enc;
-            String title = file.getName() != null ? file.getName() : path;
-
-            if (restricted) {
-                title = "[X] " + title; //🔒
-            }
-            // The actual URI for streaming from this server
-            String uri = getUriString(contentDirectory, id, mimeType, path);
-
-            // Create correct ProtocolInfo with DLNA attributes
-            ProtocolInfo protocolInfo = new ProtocolInfo(Protocol.HTTP_GET, ProtocolInfo.WILDCARD, mimeType.toString(), getDLNAAttributes(mimeType));
-
-            // Create resource without duration first for audio files
-
-            String duration = null;
-            if (mimeTypeMain.equals("audio") && !restricted) {
-                YaaccLogger.d(getClass().getName(), "Extracting duration for: " + file.getUri() + " took: " + (System.currentTimeMillis() - currentTime) + "ms");
-                duration = extractDuration(file);
-                YaaccLogger.d(getClass().getName(), "Extracted duration for: " + file.getUri() + " took: " + (System.currentTimeMillis() - currentTime) + "ms");
-            }
-            Res res = new Res(protocolInfo, file.length(), duration, null, uri);
-
-            Item item = null;
-            if (mimeTypeMain.equals("audio")) {
-                item = new AudioItem(id, parentId, title, "yaacc", res);
-            } else if (mimeTypeMain.equals("video")) {
-                item = new VideoItem(id, parentId, title, "yaacc", res);
-            } else if (mimeTypeMain.equals("image")) {
-                item = new ImageItem(id, parentId, title, "yaacc", res);
-            }
-
-            if (item != null) {
-                item.setRestricted(restricted);
-            }
-            YaaccLogger.d(getClass().getName(), "Created item for: " + path + "took: " + (System.currentTimeMillis() - currentTime) + "ms");
-            return item;
-
+        
+        // Get all metadata from cache (duration, MIME type, encoded ID)
+        SAFMetadata metadata = SAFCacheManager.getInstance(getContext()).getMetadata(file);
+        if (metadata == null || metadata.mimeType == null) {
+            return null;
         }
-        return null;
+        
+        MimeType mimeType = MimeType.valueOf(metadata.mimeType);
+        String mimeTypeMain = mimeType.getType();
+        
+        String id = ContentDirectoryIDs.SAF_PREFIX.getId() + metadata.encodedId;
+        String title = file.getName() != null ? file.getName() : path;
+        if (restricted) {
+            title = "[X] " + title;
+        }
+        
+        String uri = getUriString(contentDirectory, id, mimeType, path);
+        
+        long protocolStart = System.currentTimeMillis();
+        ProtocolInfo protocolInfo = getProtocolInfo(mimeType);
+        long protocolTime = System.currentTimeMillis() - protocolStart;
+        
+        String duration = null;
+        if (mimeTypeMain.equals("audio") && !restricted) {
+            duration = metadata.duration;
+        }
+        
+        // Create lightweight YaaccRes (no Cling overhead)
+        YaaccRes yaaccRes = new YaaccRes(protocolInfo, metadata.fileSize, duration, null, uri);
+        
+        // Create lightweight YaaccItem (no Cling Property overhead)
+        long itemStart = System.currentTimeMillis();
+        String clazz = mimeTypeMain.equals("audio") ? "object.item.audioItem" 
+                            : mimeTypeMain.equals("video") ? "object.item.videoItem" 
+                            : "object.item.imageItem";
+        YaaccItem yaaccItem = new YaaccItem(id, parentId, title, "yaacc", restricted, clazz);
+        yaaccItem.addResource(yaaccRes);
+        long itemTime = System.currentTimeMillis() - itemStart;
+        
+        // Convert to Cling Item only at the end (for UPnP serialization)
+        long convertStart = System.currentTimeMillis();
+        Item item = yaaccItem.toClingItem();
+        long convertTime = System.currentTimeMillis() - convertStart;
+        
+        long totalTime = System.currentTimeMillis() - createStart;
+        YaaccLogger.d(getClass().getName(), "Item[?] " + fileName + " - protocolInfo=" + protocolTime + "ms, YaaccItem=" + itemTime + "ms, convert=" + convertTime + "ms, total=" + totalTime + "ms");
+        return item;
     }
 
     /*
@@ -360,37 +369,4 @@ public class SafFolderBrowser extends ContentBrowser {
             }.execute();
         }
     */
-    private String extractDuration(DocumentFile file) {
-        MediaMetadataRetriever retriever = null;
-        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(getContext());
-        if (preferences.contains(getContext().getString(R.string.settings_duration_format_key) + file.getUri())) {
-            YaaccLogger.d(getClass().getName(), "Found duration in cache for: " + file.getUri());
-            return preferences.getString(getContext().getString(R.string.settings_duration_format_key) + file.getUri(), null);
-        }
-        try {
-            retriever = new MediaMetadataRetriever();
-            retriever.setDataSource(getContext(), file.getUri());
-            String durationStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION);
-
-            if (durationStr != null) {
-                long durationMs = Long.parseLong(durationStr);
-                String durationString = FormatHelper.parseMillisToTimeStringTo(durationMs);
-                YaaccLogger.d(getClass().getName(), "Put duration in cache for: " + file.getUri());
-                preferences.edit().putString(getContext().getString(R.string.settings_duration_format_key) + file.getUri(), durationString).apply();
-                return durationString;
-            }
-        } catch (Exception e) {
-            YaaccLogger.w(getClass().getName(), "Could not extract duration from: " + file.getUri(), e);
-        } finally {
-            if (retriever != null) {
-                try {
-                    retriever.release();
-                } catch (Exception e) {
-                    YaaccLogger.w(getClass().getName(), "Error releasing MediaMetadataRetriever", e);
-                }
-            }
-        }
-        // Return null if extraction fails - let UPnP handle unknown duration
-        return null;
-    }
 }

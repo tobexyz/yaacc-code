@@ -237,7 +237,6 @@ public class PlayerService extends MediaSessionService {
     }
 
     public Player getPlayer(int playerId) {
-        YaaccLogger.v(this.getClass().getName(), "Get Player for id " + playerId);
         if (currentActivePlayer.get(playerId) == null) {
             YaaccLogger.v(this.getClass().getName(), "Get Player not found");
         }
