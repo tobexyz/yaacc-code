@@ -31,6 +31,7 @@ import android.view.MenuItem;
 import android.widget.CheckBox;
 import android.widget.ImageButton;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.documentfile.provider.DocumentFile;
@@ -53,10 +54,15 @@ import de.yaacc.upnp.server.contentdirectory.MediaPathFilter;
 import de.yaacc.util.AboutActivity;
 import de.yaacc.util.InterfaceResolutionHelper;
 import de.yaacc.util.NotificationId;
+import de.yaacc.util.SAFCacheManager;
 import de.yaacc.util.SafPermissionManager;
 import de.yaacc.util.ThemeHelper;
 import de.yaacc.util.YaaccLogActivity;
 import de.yaacc.util.YaaccLogger;
+import de.yaacc.util.MediaStoreScanner;
+
+import java.util.Timer;
+import java.util.TimerTask;
 
 /**
  * Control activity for the yaacc upnp server
@@ -135,6 +141,27 @@ public class YaaccUpnpServerControlActivity extends AppCompatActivity {
         icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_search_bookmark, getTheme()), getTheme());
         safButton.setImageDrawable(icon);
         safButton.setOnClickListener(v -> selectSafContent());
+
+        ImageButton clearCacheButton = findViewById(R.id.clearSafCache);
+        icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_refresh_32, getTheme()), getTheme());
+        clearCacheButton.setImageDrawable(icon);
+        clearCacheButton.setOnClickListener(v -> {
+            SAFCacheManager.getInstance(getApplicationContext()).clearCache();
+            SAFCacheManager.getInstance(getApplicationContext()).preloadSafDurations();
+            Toast.makeText(getApplicationContext(), "SAF cache cleared and reindexing started", Toast.LENGTH_SHORT).show();
+        });
+
+        ImageButton mediaStoreRescanButton = findViewById(R.id.mediaStoreRescan);
+        icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_refresh_32, getTheme()), getTheme());
+        mediaStoreRescanButton.setImageDrawable(icon);
+        mediaStoreRescanButton.setOnClickListener(v -> {
+            new Timer().schedule(new TimerTask() {
+                @Override
+                public void run() {
+                    new MediaStoreScanner().scanMediaFiles(YaaccUpnpServerControlActivity.this);
+                }
+            }, 10L);
+        });
 
         TextView localServerControlInterface = findViewById(R.id.localServerControlInterface);
         String[] ipConfig = InterfaceResolutionHelper.getIfAndIpAddress(this);

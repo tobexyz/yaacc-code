@@ -113,7 +113,8 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
                     Manifest.permission.READ_MEDIA_AUDIO,
                     Manifest.permission.READ_MEDIA_IMAGES,
                     Manifest.permission.READ_MEDIA_VIDEO,
-                    Manifest.permission.MANAGE_EXTERNAL_STORAGE
+                    Manifest.permission.MANAGE_EXTERNAL_STORAGE,
+                    Manifest.permission.POST_NOTIFICATIONS
 
             };
         } else if (android.os.Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {

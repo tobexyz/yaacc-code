@@ -763,13 +763,13 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         PlayableItem playableItem = new PlayableItem();
         List<PlayableItem> items = new ArrayList<>();
         if (transport == null) {
-            return playerService.createPlayer(this, items);
+            return playerService.createPlayerForLocalDevice(this, items);
         }
         YaaccLogger.d(getClass().getName(), "TransportId: " + transport.getInstanceId());
         PositionInfo positionInfo = transport.getPositionInfo();
         YaaccLogger.d(getClass().getName(), "positionInfo: " + positionInfo);
         if (positionInfo == null) {
-            return playerService.createPlayer(this, items);
+            return playerService.createPlayerForLocalDevice(this, items);
         }
         DIDLContent metadata = null;
         try {
@@ -812,7 +812,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         YaaccLogger.d(getClass().getName(), "Current duration: " + positionInfo.getTrackDuration());
         YaaccLogger.d(getClass().getName(), "TrackMetaData: " + positionInfo.getTrackMetaData());
         YaaccLogger.d(getClass().getName(), "MimeType: " + playableItem.getMimeType());
-        return playerService.createPlayer(this, items);
+        return playerService.createPlayerForLocalDevice(this, items);
     }
 
     /**

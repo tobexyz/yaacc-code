@@ -23,29 +23,32 @@ package de.yaacc.util;
 public class SAFMetadata {
     public final String duration;      // "HH:MM:SS" format
     public final String mimeType;      // "audio/mpeg", "video/mp4", etc.
-    public final String encodedId;     // Base64 encoded URI
+    public final String encodedId;     // Base64 encoded URI (deprecated)
+    public final String shortId;       // Short numeric ID for UPnP
     public final long fileSize;        // File size in bytes
     public final long timestamp;       // When cached (System.currentTimeMillis())
     
-    public SAFMetadata(String duration, String mimeType, String encodedId, long fileSize) {
+    public SAFMetadata(String duration, String mimeType, String encodedId, String shortId, long fileSize) {
         this.duration = duration;
         this.mimeType = mimeType;
         this.encodedId = encodedId;
+        this.shortId = shortId;
         this.fileSize = fileSize;
         this.timestamp = System.currentTimeMillis();
     }
     
     // For serialization to SharedPreferences
     public String serialize() {
-        return duration + "|" + mimeType + "|" + encodedId + "|" + fileSize + "|" + timestamp;
+        return duration + "|" + mimeType + "|" + encodedId + "|" + shortId + "|" + fileSize + "|" + timestamp;
     }
     
     // For deserialization from SharedPreferences
     public static SAFMetadata deserialize(String data) {
         if (data == null) return null;
-        String[] parts = data.split("\\|", 5);
+        String[] parts = data.split("\\|", 7);
         if (parts.length < 4) return null;
-        long fileSize = parts.length >= 5 ? Long.parseLong(parts[3]) : 0;
-        return new SAFMetadata(parts[0], parts[1], parts[2], fileSize);
+        String shortId = parts.length >= 5 ? parts[3] : null;
+        long fileSize = parts.length >= 6 ? Long.parseLong(parts[4]) : 0;
+        return new SAFMetadata(parts[0], parts[1], parts[2], shortId, fileSize);
     }
 }

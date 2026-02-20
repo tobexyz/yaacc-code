@@ -87,7 +87,6 @@ import de.yaacc.upnp.registry.RegistryImpl;
 import de.yaacc.upnp.server.avtransport.AvTransport;
 import de.yaacc.upnp.server.avtransport.YaaccAVTransportService;
 import de.yaacc.upnp.server.configuration.YaaccUpnpServerControlActivity;
-import de.yaacc.util.SAFCacheManager;
 import de.yaacc.upnp.server.connectionmanager.ConnectionManagerService;
 import de.yaacc.upnp.server.contentdirectory.YaaccContentDirectory;
 import de.yaacc.upnp.server.http.YaaccUpnpServerContentHttpHandler;
@@ -99,6 +98,7 @@ import de.yaacc.upnp.server.media.SystemAudioCaptureService;
 import de.yaacc.upnp.server.renderingcontrol.YaaccAudioRenderingControlService;
 import de.yaacc.util.InterfaceResolutionHelper;
 import de.yaacc.util.NotificationId;
+import de.yaacc.util.SAFCacheManager;
 import de.yaacc.util.YaaccLogger;
 
 /**
@@ -166,21 +166,21 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         // when the service starts, the preferences are initialized
         preferences = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
         preferences.registerOnSharedPreferenceChangeListener(this);
-        
+
         // Register broadcast receiver for cache updates
         registerReceiver(cacheUpdateReceiver, new IntentFilter("de.yaacc.CACHE_PRELOAD_COMPLETE"));
         registerReceiver(cacheProgressReceiver, new IntentFilter("de.yaacc.CACHE_PRELOAD_PROGRESS"));
         registerReceiver(safPathsChangedReceiver, new IntentFilter("de.yaacc.SAF_PATHS_CHANGED"));
-        
+
         // Start background preloading of SAF durations
         SAFCacheManager.getInstance(getApplicationContext()).preloadSafDurations();
-        
+
         YaaccLogger.i(getClass().getName(), "YaaccUpnpServerService onCreate complete");
     }
-    
+
     private int cacheFilesIndexed = 0;
     private String cacheCurrentFolder = "";
-    
+
     private final BroadcastReceiver cacheUpdateReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -189,7 +189,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
             showNotification(); // Update notification with final cache status
         }
     };
-    
+
     private final BroadcastReceiver cacheProgressReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -198,7 +198,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
             showNotification(); // Update notification with progress
         }
     };
-    
+
     private final BroadcastReceiver safPathsChangedReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -258,7 +258,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         if (preferences != null) {
             preferences.unregisterOnSharedPreferenceChangeListener(this);
         }
-        
+
         // Unregister broadcast receivers
         try {
             unregisterReceiver(cacheUpdateReceiver);
@@ -352,7 +352,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         if (networkDeviceListener != null && networkDeviceListener.isWifiLockHeld()) {
             statusBuilder.append(" | ✓ WiFi Lock");
         }
-        
+
         // Duration cache status
         SAFCacheManager cacheManager = SAFCacheManager.getInstance(this);
         if (cacheManager.isPreloading()) {
@@ -496,9 +496,12 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
             }
         }
 
-        if (registry.getDevices().contains(localDevice)) {
+        // Remove old device if it exists (by UDN, not by reference)
+        if (localDevice != null && registry.getDevices().contains(localDevice)) {
+            YaaccLogger.d(this.getClass().getName(), "Removing old device before creating new one");
             registry.removeDevice(localDevice);
         }
+
         try {
             versionName = getApplicationContext().getPackageManager().getPackageInfo(getApplicationContext().getPackageName(), 0).versionName;
         } catch (NameNotFoundException ex) {
@@ -518,46 +521,52 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
 
             List<LocalService<?>> services = new ArrayList();
             services.addAll(Arrays.asList(createCoreServices()));
-            
+
             boolean serverEnabled = preferences.getBoolean(getApplicationContext().getString(R.string.settings_local_server_chkbx), false);
             boolean providerEnabled = preferences.getBoolean(getApplicationContext().getString(R.string.settings_local_server_provider_chkbx), false);
             boolean rendererEnabled = preferences.getBoolean(getApplicationContext().getString(R.string.settings_local_server_receiver_chkbx), false);
-            
+
             DeviceIdentity identity = new DeviceIdentity(new UDN(locaDeviceUuid));
-            
-            // If both server and renderer are enabled, create embedded devices
+
+            // If both server and renderer are enabled, create TWO separate devices
             if (serverEnabled && providerEnabled && rendererEnabled) {
-                // Create services once
-                LocalService<?>[] serverServices = createMediaServerServices();
-                LocalService<?>[] rendererServices = createMediaRendererServices();
-                
-                // Create embedded MediaServer device
+                // Create MediaServer device
+                DeviceDetails serverDetails = new DeviceDetails(
+                        getLocalServerName() + " - Server",
+                        new ManufacturerDetails("yaacc.de", "https://www.yaacc.de"),
+                        new ModelDetails(getLocalServerName() + " - UpnP Server", "Free Android UPnP/DLNA, GNU GPL", versionName),
+                        URI.create("http://" + InterfaceResolutionHelper.getIpAddress(getApplicationContext()) + ":" + PORT)
+                );
+
                 LocalDevice serverDevice = new LocalDevice(
-                    new DeviceIdentity(new UDN(locaDeviceUuid + "-server")),
-                    new UDADeviceType("MediaServer"),
-                    yaaccDetails,
-                    createDeviceIcons(),
-                    serverServices
+                        new DeviceIdentity(new UDN(locaDeviceUuid + "-server")),
+                        new UDADeviceType("MediaServer"),
+                        serverDetails,
+                        createDeviceIcons(),
+                        createMediaServerServices()
                 );
-                
-                // Create embedded MediaRenderer device
+
+                // Create MediaRenderer device
+                DeviceDetails rendererDetails = new DeviceDetails(
+                        getLocalServerName() + " - Renderer",
+                        new ManufacturerDetails("yaacc.de", "https://www.yaacc.de"),
+                        new ModelDetails(getLocalServerName() + " - UpnP Renderer", "Free Android UPnP/DLNA, GNU GPL", versionName),
+                        URI.create("http://" + InterfaceResolutionHelper.getIpAddress(getApplicationContext()) + ":" + PORT)
+                );
+
                 LocalDevice rendererDevice = new LocalDevice(
-                    new DeviceIdentity(new UDN(locaDeviceUuid + "-renderer")),
-                    new UDADeviceType("MediaRenderer"),
-                    yaaccDetails,
-                    createDeviceIcons(),
-                    rendererServices
+                        new DeviceIdentity(new UDN(locaDeviceUuid + "-renderer")),
+                        new UDADeviceType("MediaRenderer"),
+                        rendererDetails,
+                        createDeviceIcons(),
+                        createMediaRendererServices()
                 );
+
+                // Register BOTH devices as separate top-level devices
+                registry.addDevice(serverDevice);
+                registry.addDevice(rendererDevice);
                 
-                // Create root device with embedded devices (core services only in root)
-                localDevice = new LocalDevice(
-                    identity,
-                    new UDADeviceType("Basic", 1),
-                    yaaccDetails,
-                    createDeviceIcons(),
-                    services.toArray(new LocalService<?>[0]),
-                    new LocalDevice[]{serverDevice, rendererDevice}
-                );
+                localDevice = serverDevice; // Track server device for reference
             } else {
                 // Single device type
                 if (serverEnabled && providerEnabled) {
@@ -566,17 +575,17 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
                 if (serverEnabled && rendererEnabled) {
                     services.addAll(Arrays.asList(createMediaRendererServices()));
                 }
-                
+
                 UDADeviceType deviceType;
                 if (rendererEnabled && !providerEnabled) {
                     deviceType = new UDADeviceType("MediaRenderer");
                 } else {
                     deviceType = new UDADeviceType("MediaServer");
                 }
-                
+
                 localDevice = new LocalDevice(identity, deviceType, yaaccDetails, createDeviceIcons(), services.toArray(new LocalService<?>[0]));
+                registry.addDevice(localDevice);
             }
-            registry.addDevice(localDevice);
 
             // Configure ALIVE announcement interval from settings
             int aliveInterval = getUpnpNotificationFrequency();
@@ -585,7 +594,11 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
 
         } catch (ValidationException e) {
             YaaccLogger.e(this.getClass().getName(), "Exception during device creation", e);
-            YaaccLogger.e(this.getClass().getName(), "Exception during device creation Errors:" + e.getErrors());
+            if (e.getErrors() != null) {
+                for (Object error : e.getErrors()) {
+                    YaaccLogger.e(this.getClass().getName(), "Validation error: " + error.toString());
+                }
+            }
             throw new IllegalStateException("Exception during device creation", e);
         }
 
@@ -614,10 +627,10 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
             registry.setAliveInterval(aliveInterval);
             YaaccLogger.d(this.getClass().getName(), "UPnP ALIVE interval updated to: " + aliveInterval + "ms");
         }
-        
+
         // Trigger cache update when SAF paths change
         if (getApplicationContext().getString(R.string.settings_saf_tree_uris_pref_key).equals(key) ||
-            getApplicationContext().getString(R.string.settings_saf_tree_uris_selected_pref_key).equals(key)) {
+                getApplicationContext().getString(R.string.settings_saf_tree_uris_selected_pref_key).equals(key)) {
             YaaccLogger.d(this.getClass().getName(), "SAF paths changed, reloading cache");
             SAFCacheManager.getInstance(getApplicationContext()).preloadSafDurations();
         }
@@ -810,7 +823,6 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
      */
     private LocalService<?>[] createMediaRendererServices() {
         List<LocalService<?>> services = new ArrayList<>();
-        services.add(createConnectionManagerService());
         services.add(createAVTransportService());
         services.add(createRenderingControl());
         return services.toArray(new LocalService[]{});
@@ -852,7 +864,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         if (client != null) {
             AvTransport.setUpnpClient(client);
         }
-        
+
         LocalService<YaaccAVTransportService> avTransportService = new AnnotationLocalServiceBinder().read(YaaccAVTransportService.class);
         avTransportService.setManager(new DefaultServiceManager<>(avTransportService, null) {
             @Override

@@ -193,7 +193,7 @@ public interface Player {
 
     void setIcon(Bitmap icon);
 
-   
+
     boolean getMute();
 
 
@@ -241,4 +241,8 @@ public interface Player {
      * Get the MediaSession for this player (for volume control integration)
      */
     MediaSessionCompat getMediaSession();
+
+    boolean isPaused();
+
+    boolean isStopped();
 }

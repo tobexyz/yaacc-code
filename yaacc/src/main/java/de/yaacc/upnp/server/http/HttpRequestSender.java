@@ -61,7 +61,8 @@ public class HttpRequestSender {
     public HttpRequestSender() {
         PoolingHttpClientConnectionManager connectionManager = new PoolingHttpClientConnectionManager();
         connectionManager.setDefaultConnectionConfig(ConnectionConfig.custom()
-                .setSocketTimeout(Timeout.of(60, TimeUnit.SECONDS))
+                .setConnectTimeout(Timeout.of(5, TimeUnit.SECONDS))  // Connection timeout
+                .setSocketTimeout(Timeout.of(10, TimeUnit.SECONDS))   // Reduced from 60s
                 .setValidateAfterInactivity(TimeValue.of(10, TimeUnit.MILLISECONDS))
                 .build());
         connectionManager.setMaxTotal(10);

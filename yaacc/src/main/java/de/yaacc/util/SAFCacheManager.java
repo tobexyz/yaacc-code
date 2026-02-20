@@ -42,6 +42,7 @@ import de.yaacc.R;
 public class SAFCacheManager {
     private static final int MAX_CACHE_SIZE = 1000;
     private static final String CACHE_PREFIX = "saf_cache_";
+    private static final String ID_COUNTER_KEY = "saf_id_counter";
     
     private static final Map<String, String> MIME_TYPE_BY_EXT = new ConcurrentHashMap<>();
     
@@ -76,6 +77,9 @@ public class SAFCacheManager {
     private final SharedPreferences preferences;
     private final ExecutorService preloadExecutor;
     private final LRUCache lruCache;
+    private final Map<String, String> shortIdToUri = new ConcurrentHashMap<>();
+    private final Map<String, String> uriToShortId = new ConcurrentHashMap<>();
+    private long idCounter = 1;
     
     private int totalFilesIndexed = 0;
     private boolean isPreloading = false;
@@ -98,6 +102,10 @@ public class SAFCacheManager {
             return t;
         });
         this.lruCache = new LRUCache(MAX_CACHE_SIZE);
+        
+        // Restore ID counter from preferences
+        this.idCounter = preferences.getLong(ID_COUNTER_KEY, 1);
+        
         loadCacheIndex();
     }
     
@@ -117,6 +125,14 @@ public class SAFCacheManager {
         if (cached != null) {
             SAFMetadata metadata = SAFMetadata.deserialize(cached);
             if (metadata != null) {
+                // Migrate old entries without shortId
+                if (metadata.shortId == null) {
+                    String shortId = getOrCreateShortId(uri);
+                    metadata = new SAFMetadata(metadata.duration, metadata.mimeType, metadata.encodedId, shortId, metadata.fileSize);
+                    String serialized = metadata.serialize();
+                    lruCache.put(key, serialized);
+                    preferences.edit().putString(key, serialized).apply();
+                }
                 long elapsed = System.currentTimeMillis() - startTime;
                 YaaccLogger.d(getClass().getName(), "CACHE_HIT_MEMORY: " + file.getName() + " (" + elapsed + "ms)");
                 return metadata;
@@ -128,7 +144,16 @@ public class SAFCacheManager {
         if (cached != null) {
             SAFMetadata metadata = SAFMetadata.deserialize(cached);
             if (metadata != null) {
-                lruCache.put(key, cached);
+                // Migrate old entries without shortId
+                if (metadata.shortId == null) {
+                    String shortId = getOrCreateShortId(uri);
+                    metadata = new SAFMetadata(metadata.duration, metadata.mimeType, metadata.encodedId, shortId, metadata.fileSize);
+                    String serialized = metadata.serialize();
+                    lruCache.put(key, serialized);
+                    preferences.edit().putString(key, serialized).apply();
+                } else {
+                    lruCache.put(key, cached);
+                }
                 long elapsed = System.currentTimeMillis() - startTime;
                 YaaccLogger.d(getClass().getName(), "CACHE_HIT_DISK: " + file.getName() + " (" + elapsed + "ms)");
                 return metadata;
@@ -157,11 +182,40 @@ public class SAFCacheManager {
      * Extract all metadata for a file (duration, MIME type, encoded ID).
      */
     private SAFMetadata extractMetadata(DocumentFile file) {
+        String uri = file.getUri().toString();
         String duration = extractDuration(file.getUri());
         String mimeType = extractMimeType(file);
-        String encodedId = encodeUri(file.getUri().toString());
+        String encodedId = encodeUri(uri);
+        String shortId = getOrCreateShortId(uri);
         long fileSize = file.length();
-        return new SAFMetadata(duration, mimeType, encodedId, fileSize);
+        return new SAFMetadata(duration, mimeType, encodedId, shortId, fileSize);
+    }
+    
+    /**
+     * Get or create a short ID for a URI.
+     */
+    public synchronized String getOrCreateShortId(String uri) {
+        String existing = uriToShortId.get(uri);
+        if (existing != null) {
+            return existing;
+        }
+        
+        String id = String.valueOf(idCounter++);
+        uriToShortId.put(uri, id);
+        shortIdToUri.put(id, uri);
+        
+        // Persist counter
+        preferences.edit().putLong(ID_COUNTER_KEY, idCounter).apply();
+        
+        YaaccLogger.d(getClass().getName(), "Created shortId mapping: " + id + " -> " + uri);
+        return id;
+    }
+    
+    /**
+     * Get URI for a short ID.
+     */
+    public String getUriForShortId(String shortId) {
+        return shortIdToUri.get(shortId);
     }
     
     private String extractMimeType(DocumentFile file) {
@@ -260,11 +314,17 @@ public class SAFCacheManager {
                 YaaccLogger.i(getClass().getName(), "PRELOAD_SCANNING: " + safUris.size() + " SAF roots");
                 
                 for (String uriString : safUris) {
+                    // Check timeout (max 5 minutes total)
+                    if (System.currentTimeMillis() - preloadStart > 5 * 60 * 1000) {
+                        YaaccLogger.w(getClass().getName(), "PRELOAD_TIMEOUT: Stopping after 5 minutes");
+                        break;
+                    }
+                    
                     try {
                         Uri safUri = Uri.parse(uriString);
                         DocumentFile root = DocumentFile.fromTreeUri(context, safUri);
                         if (root != null) {
-                            traverseAndCache(root);
+                            traverseAndCache(root, preloadStart);
                         }
                     } catch (Exception e) {
                         YaaccLogger.w(getClass().getName(), "PRELOAD_ERROR: Failed to preload SAF: " + uriString, e);
@@ -292,8 +352,19 @@ public class SAFCacheManager {
         context.sendBroadcast(intent);
     }
     
-    private void traverseAndCache(DocumentFile dir) {
+    private void traverseAndCache(DocumentFile dir, long startTime) {
         if (!dir.isDirectory()) return;
+        
+        // Check timeout
+        if (System.currentTimeMillis() - startTime > 5 * 60 * 1000) {
+            return;
+        }
+        
+        // Check if we can read this directory
+        if (!dir.canRead()) {
+            YaaccLogger.d(getClass().getName(), "PRELOAD_SKIP: No read permission for " + dir.getName());
+            return;
+        }
         
         DocumentFile[] files = dir.listFiles();
         if (files == null) return;
@@ -303,7 +374,7 @@ public class SAFCacheManager {
         
         for (DocumentFile file : files) {
             if (file.isDirectory()) {
-                traverseAndCache(file);
+                traverseAndCache(file, startTime);
             } else if (isMediaFile(file)) {
                 String key = CACHE_PREFIX + file.getUri().toString();
                 if (!preferences.contains(key)) {
@@ -327,7 +398,7 @@ public class SAFCacheManager {
     
     private boolean isMediaFile(DocumentFile file) {
         String type = file.getType();
-        return type != null && (type.startsWith("audio/") || type.startsWith("video/"));
+        return type != null && (type.startsWith("audio/") || type.startsWith("video/") || type.startsWith("image/"));
     }
     
     private String extractAndCache(Uri uri) {
@@ -381,11 +452,30 @@ public class SAFCacheManager {
             String key = entry.getKey();
             if (key.startsWith(CACHE_PREFIX) && entry.getValue() instanceof String) {
                 lruCache.put(key, (String) entry.getValue());
+                
+                // Restore ID mappings from cached metadata
+                SAFMetadata metadata = SAFMetadata.deserialize((String) entry.getValue());
+                if (metadata != null && metadata.shortId != null) {
+                    String uri = key.substring(CACHE_PREFIX.length());
+                    shortIdToUri.put(metadata.shortId, uri);
+                    uriToShortId.put(uri, metadata.shortId);
+                    
+                    // Update counter to avoid ID collisions
+                    try {
+                        long id = Long.parseLong(metadata.shortId);
+                        if (id >= idCounter) {
+                            idCounter = id + 1;
+                        }
+                    } catch (NumberFormatException e) {
+                        // Ignore non-numeric IDs
+                    }
+                }
+                
                 count++;
             }
         }
         long elapsed = System.currentTimeMillis() - loadStart;
-        YaaccLogger.i(getClass().getName(), "CACHE_LOADED: " + count + " entries in " + elapsed + "ms (cache_size=" + lruCache.size() + ")");
+        YaaccLogger.i(getClass().getName(), "CACHE_LOADED: " + count + " entries in " + elapsed + "ms (cache_size=" + lruCache.size() + ", id_mappings=" + shortIdToUri.size() + ")");
     }
     
     /**
@@ -397,6 +487,27 @@ public class SAFCacheManager {
             editor.remove(key);
         }
         editor.apply();
+    }
+    
+    /**
+     * Clear all cached metadata and ID mappings.
+     */
+    public void clearCache() {
+        lruCache.clear();
+        shortIdToUri.clear();
+        uriToShortId.clear();
+        idCounter = 1;
+        
+        SharedPreferences.Editor editor = preferences.edit();
+        Map<String, ?> all = preferences.getAll();
+        for (String key : all.keySet()) {
+            if (key.startsWith(CACHE_PREFIX) || key.equals(ID_COUNTER_KEY)) {
+                editor.remove(key);
+            }
+        }
+        editor.apply();
+        
+        YaaccLogger.i(getClass().getName(), "Cache cleared");
     }
     
     public void shutdown() {

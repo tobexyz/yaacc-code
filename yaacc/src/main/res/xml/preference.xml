@@ -172,7 +172,7 @@
             app:title="@string/settings_local_server_serve_saf_title"
             app:summaryOn="@string/settings_local_server_serve_saf_on"
             app:summaryOff="@string/settings_local_server_serve_saf_off"
-            app:defaultValue="false" />
+            app:defaultValue="true" />
         <ListPreference
             android:defaultValue="30000"
             android:entries="@array/duration_entries_with_never"

@@ -166,12 +166,9 @@ public class BrowseDeviceAdapter extends RecyclerView.Adapter<BrowseDeviceAdapte
     public void onBindViewHolder(final ViewHolder holder, final int listPosition) {
         Device<?, ?, ?> device = getItem(listPosition);
         if (device instanceof RemoteDevice) {
-            holder.scanButton.setVisibility(View.GONE);
-            holder.scanButtonLabel.setVisibility(View.GONE);
             holder.configButton.setVisibility(View.GONE);
             holder.streamAudioButton.setVisibility(View.GONE);
             holder.streamVideoButton.setVisibility(View.GONE);
-            holder.scanButton.setFocusable(false);
             if (device.hasIcons()) {
                 Icon[] icons = device.getIcons();
                 for (Icon icon : icons) {
@@ -189,10 +186,6 @@ public class BrowseDeviceAdapter extends RecyclerView.Adapter<BrowseDeviceAdapte
             }
         } else if (device instanceof LocalDevice) {
             //We know our icon
-            holder.scanButton.setVisibility(View.VISIBLE);
-            holder.scanButton.setFocusable(true);
-            holder.scanButton.setImageDrawable(ThemeHelper.tintDrawable(context.getResources().getDrawable(R.drawable.ic_baseline_refresh_48, context.getTheme()), context.getTheme()));
-            holder.scanButtonLabel.setVisibility(View.VISIBLE);
             holder.icon.setImageResource(R.drawable.yaacc48_24_png);
             holder.configButton.setVisibility(View.VISIBLE);
             holder.configButton.setFocusable(true);
@@ -238,8 +231,6 @@ public class BrowseDeviceAdapter extends RecyclerView.Adapter<BrowseDeviceAdapte
     static class ViewHolder extends RecyclerView.ViewHolder {
         ImageView icon;
         TextView name;
-        ImageButton scanButton;
-        TextView scanButtonLabel;
         ImageButton configButton;
         ImageButton streamAudioButton;
         ImageButton streamVideoButton;
@@ -255,17 +246,6 @@ public class BrowseDeviceAdapter extends RecyclerView.Adapter<BrowseDeviceAdapte
             timer = new Timer();
             this.icon = itemView.findViewById(R.id.browseDeviceItemIcon);
             this.name = itemView.findViewById(R.id.browseDeviceItemName);
-            this.scanButtonLabel = itemView.findViewById(R.id.browseDeviceItemMediaStoreScanLabel);
-            this.scanButton = itemView.findViewById(R.id.browseDeviceItemRescan);
-            scanButton.setOnClickListener((v) -> {
-                timer.schedule(new TimerTask() {
-                    @Override
-                    public void run() {
-                        new MediaStoreScanner().scanMediaFiles(getActivity(v.getContext()));
-                    }
-                }, 10L);
-
-            });
             this.configButton = itemView.findViewById(R.id.browseDeviceItemConfig);
             configButton.setOnClickListener((v) -> {
                 ViewHolder.this.context.startActivity(new Intent(ViewHolder.this.context, YaaccUpnpServerControlActivity.class));

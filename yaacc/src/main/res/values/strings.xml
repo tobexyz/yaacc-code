@@ -38,6 +38,7 @@
     <string name="error_upnp_generic">An unknown error happened while browsing</string>
     <string name="error_upnp_specific">The following error occurred:</string>
     <string name="error_no_receiver_device_found">No receiver device found</string>
+    <string name="error_no_receiver_selected">No receiver device selected. Please select a receiver in the Receiver tab first.</string>
     <string name="error_no_activity_found">No activity found for playing mimetype \'%1$s\'</string>
     <string name="image_viewer_settings_duration">Picture stay duration</string>
     <string name="image_viewer_settings_duration_key" translatable="false">image_viewer_settings_duration_key</string>
@@ -125,6 +126,11 @@
     <string name="reset_shared_folders">reset shared folders</string>
     <string name="shutdown_timer">Shutdown timer</string>
     <string name="add_saf_content">add source</string>
+    <string name="clear_saf_cache">clear SAF cache</string>
     <string name="saf_content">Linked</string>
     <string name="enable_server_side_seeking_for_external_urls">Enable server-side time range management in proxy mode</string>
+    <string name="playing">PLAYING</string>
+    <string name="paused">PAUSED</string>
+    <string name="stopped">STOPPED</string>
+    <string name="no_media">NO MEDIA</string>
 </resources>

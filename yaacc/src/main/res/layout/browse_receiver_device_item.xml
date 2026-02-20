@@ -28,65 +28,143 @@
     android:orientation="vertical">
 
     <androidx.cardview.widget.CardView
+        android:id="@+id/item_container"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        app:cardCornerRadius="6dp"
+        android:layout_height="180dp"
+        app:cardCornerRadius="12dp"
         app:cardUseCompatPadding="true"
-        app:contentPadding="5dp">
+        app:contentPadding="12dp">
 
-        <RelativeLayout
+        <FrameLayout
             android:layout_width="match_parent"
-            android:layout_height="wrap_content">
+            android:layout_height="match_parent">
 
             <ImageView
-                android:id="@+id/browseReceiverDeviceItemIcon"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:contentDescription="@string/icon" />
+                android:id="@+id/browseReceiverDeviceItemAlbumArt"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="centerCrop"
+                android:alpha="0.3"
+                android:contentDescription="Album Art" />
 
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:orientation="vertical">
 
+                <!-- Device name row with status badge -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <ImageView
+                    android:id="@+id/browseReceiverDeviceItemIcon"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:contentDescription="@string/icon" />
+
+                <TextView
+                    android:id="@+id/browseReceiverDeviceItemName"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="8dp"
+                    android:text="@string/all"
+                    android:textAppearance="@android:style/TextAppearance.Material.Medium"
+                    android:textColor="?android:attr/colorForeground" />
+
+                <TextView
+                    android:id="@+id/status_badge"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="PLAYING"
+                    android:textSize="12sp"
+                    android:textColor="@android:color/white"
+                    android:background="?android:attr/colorControlActivated"
+                    android:padding="4dp"
+                    android:visibility="gone" />
+
+                <CheckBox
+                    android:id="@+id/browseReceiverDeviceItemCheckbox"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:layout_marginStart="8dp" />
+            </LinearLayout>
+
+            <!-- Status text (track info) -->
             <TextView
-                android:id="@+id/browseReceiverDeviceItemName"
-                android:layout_width="wrap_content"
+                android:id="@+id/status_text"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="5dp"
-                android:layout_toStartOf="@id/browseReceiverDeviceItemCheckbox"
-                android:layout_toEndOf="@id/browseReceiverDeviceItemIcon"
-                android:gravity="start"
-                android:text="@string/all"
-                android:textAppearance="@android:style/TextAppearance.Material.Medium"
-                android:textColor="?android:attr/colorForeground" />
+                android:layout_marginStart="56dp"
+                android:layout_marginTop="4dp"
+                android:textSize="14sp"
+                android:textColor="?android:attr/textColorSecondary"
+                android:visibility="gone" />
+            
+            <!-- Spacer to push controls to bottom -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1" />
 
-            <CheckBox
-                android:id="@+id/browseReceiverDeviceItemCheckbox"
-                android:layout_width="32dp"
-                android:layout_height="32dp"
-                android:layout_alignTop="@id/browseReceiverDeviceItemIcon"
-                android:layout_alignBottom="@id/browseReceiverDeviceItemIcon"
-                android:layout_alignParentEnd="true"
-                android:nextFocusLeft="@id/browseReceiverDeviceItem"
-                android:nextFocusRight="@id/browseReceiverDeviceItemMute"
-                android:gravity="center_vertical"
-                android:textAppearance="@android:style/TextAppearance.Material.Medium" />
-
-            <CheckBox
-                android:id="@+id/browseReceiverDeviceItemMute"
-                android:layout_width="wrap_content"
+            <!-- Playback controls -->
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_below="@id/browseReceiverDeviceItemName"
-                android:layout_alignStart="@id/browseReceiverDeviceItemName"
-                android:layout_marginTop="5dp"
-                android:nextFocusLeft="@id/browseReceiverDeviceItemCheckbox"
-                android:button="@drawable/sl_mute_32" />
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
 
-            <SeekBar
-                android:id="@+id/browseReceiverDeviceItemMuteVolumeSeekBar"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_alignTop="@id/browseReceiverDeviceItemMute"
-                android:layout_alignBottom="@id/browseReceiverDeviceItemMute"
-                android:layout_toStartOf="@id/browseReceiverDeviceItemCheckbox"
-                android:layout_toEndOf="@id/browseReceiverDeviceItemMute" />
-        </RelativeLayout>
+                <ImageButton
+                    android:id="@+id/btn_play"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:src="@drawable/ic_baseline_play_arrow_32"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="Play" />
+
+                <ImageButton
+                    android:id="@+id/btn_pause"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:src="@drawable/ic_baseline_pause_32"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="Pause" />
+
+                <ImageButton
+                    android:id="@+id/btn_stop"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:src="@drawable/ic_baseline_stop_32"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="Stop" />
+
+                <CheckBox
+                    android:id="@+id/browseReceiverDeviceItemMute"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:button="@drawable/sl_mute_32" />
+
+                <SeekBar
+                    android:id="@+id/browseReceiverDeviceItemMuteVolumeSeekBar"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="4dp"
+                    android:max="100" />
+
+                <TextView
+                    android:id="@+id/volume_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="4dp"
+                    android:text="75%"
+                    android:textSize="12sp" />
+            </LinearLayout>
+            </LinearLayout>
+        </FrameLayout>
     </androidx.cardview.widget.CardView>
 </LinearLayout>

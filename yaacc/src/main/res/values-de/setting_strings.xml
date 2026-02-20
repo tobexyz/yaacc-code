@@ -105,4 +105,10 @@
     <string name="settings_local_server_serve_saf_off">Die Bereitstellung von SAF-Inhalten ist deaktiviert.</string>
     <string name="settings_local_server_serve_saf_on">Die Bereitstellung von SAF-Inhalten ist aktiviert.</string>
     <string name="settings_category_renderer_settings">Renderer-Einstellungen</string>
+    <string name="settings_local_server_serve_system_audio_title">System-Audiostream</string>
+    <string name="settings_local_server_serve_system_audio_off">Der System-Audiostream ist deaktiviert.</string>
+    <string name="settings_local_server_serve_system_audio_on">System-Audiostream ist aktiviert</string>
+    <string name="settings_local_server_serve_screen_cast_title">Screencast-Stream</string>
+    <string name="settings_local_server_serve_screen_cast_off">Die Bildschirmübertragung ist deaktiviert.</string>
+    <string name="settings_local_server_serve_screen_cast_on">Bildschirmübertragung ist aktiviert</string>
 </resources>

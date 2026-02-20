@@ -120,8 +120,13 @@
     <string name="reset_shared_folders">freigegebene Ordner zurücksetzen</string>
     <string name="shutdown_timer">Ausschalttimer</string>
     <string name="add_saf_content">Quelle hinzufügen</string>
+    <string name="clear_saf_cache">SAF-Cache leeren</string>
     <string name="saf_content">verknüpft</string>
     <string name="enable_server_side_seeking_for_external_urls">Aktivieren Sie die serverseitige Zeitbereichsverwaltung im Proxy-Modus.</string>
     <string name="live_streams">Live-Streams</string>
     <string name="system_audio_stream">Geräte-Audiostream</string>
+    <string name="playing">SPIELEN</string>
+    <string name="paused">PAUSE</string>
+    <string name="stopped">GESTOPPT</string>
+    <string name="no_media">KEINE MEDIEN</string>
 </resources>

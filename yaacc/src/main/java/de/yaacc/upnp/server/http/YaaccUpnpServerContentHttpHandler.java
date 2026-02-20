@@ -78,6 +78,7 @@ import de.yaacc.Yaacc;
 import de.yaacc.upnp.server.YaaccUpnpServerService;
 import de.yaacc.upnp.server.contentdirectory.ContentDirectoryIDs;
 import de.yaacc.upnp.server.contentdirectory.MediaPathFilter;
+import de.yaacc.util.SAFCacheManager;
 import de.yaacc.upnp.server.media.SystemAudioCaptureService;
 import de.yaacc.util.HttpRange;
 import de.yaacc.util.YaaccLogger;
@@ -878,22 +879,36 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
     }
 
     private ContentHolder lookupSafContent(String contentKey, String contentEnc, List<HttpRange> ranges) {
+        YaaccLogger.d(getClass().getName(), "lookupSafContent: contentKey=" + contentKey + ", contentEnc=" + contentEnc);
+        
         if (!contentKey.startsWith(ContentDirectoryIDs.SAF_PREFIX.getId())) {
             YaaccLogger.d(getClass().getName(), "SAF content id is unknown: " + contentKey);
             return null;
         }
-        String contentId = contentKey.substring(ContentDirectoryIDs.SAF_PREFIX.getId().length());
+        String shortId = contentKey.substring(ContentDirectoryIDs.SAF_PREFIX.getId().length());
+        YaaccLogger.d(getClass().getName(), "Extracted shortId: " + shortId);
+        
+        // Extract short ID from contentEnc (format: shortId.ext)
         if (contentEnc.indexOf(".") == -1) {
             YaaccLogger.d(getClass().getName(), "SAF content id is invalid: " + contentEnc);
             return null;
         }
-        String contentEncBase64 = contentEnc.substring(0, contentEnc.indexOf("."));
-        if (!contentId.equals(contentEncBase64)) {
-            YaaccLogger.d(getClass().getName(), "SAF content id mismatch: " + contentId + " != " + contentEncBase64);
+        String contentEncShortId = contentEnc.substring(0, contentEnc.indexOf("."));
+        YaaccLogger.d(getClass().getName(), "contentEnc shortId: " + contentEncShortId);
+        
+        if (!shortId.equals(contentEncShortId)) {
+            YaaccLogger.d(getClass().getName(), "SAF content id mismatch: " + shortId + " != " + contentEncShortId);
             return null;
         }
-        String contentUri = new String(
-                Base64.decode(contentEncBase64.getBytes(), Base64.NO_WRAP));
+        
+        // Lookup URI from short ID
+        String contentUri = SAFCacheManager.getInstance(getContext()).getUriForShortId(shortId);
+        YaaccLogger.d(getClass().getName(), "Looked up URI for shortId " + shortId + ": " + contentUri);
+        
+        if (contentUri == null) {
+            YaaccLogger.e(getClass().getName(), "SAF short ID not found in cache: " + shortId);
+            return null;
+        }
 
         DocumentFile file = null;
         try {
