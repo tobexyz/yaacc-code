@@ -28,11 +28,12 @@ public class ContentItemPlayTask extends AsyncTask<Integer, Void, Void> {
     public final static int ADD_TO_PLAYLIST = 2;
     private final ContentListFragment parent;
     private final DIDLObject currentObject;
+    private final Runnable onComplete;
 
-
-    public ContentItemPlayTask(ContentListFragment parent, DIDLObject currentObject) {
+    public ContentItemPlayTask(ContentListFragment parent, DIDLObject currentObject, Runnable onComplete) {
         this.parent = parent;
         this.currentObject = currentObject;
+        this.onComplete = onComplete;
     }
 
     @Override
@@ -48,5 +49,12 @@ public class ContentItemPlayTask extends AsyncTask<Integer, Void, Void> {
             parent.addToPlayList(currentObject);
         }
         return null;
+    }
+
+    @Override
+    protected void onPostExecute(Void result) {
+        if (onComplete != null) {
+            onComplete.run();
+        }
     }
 }

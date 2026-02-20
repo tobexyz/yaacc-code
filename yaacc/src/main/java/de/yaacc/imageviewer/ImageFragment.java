@@ -24,6 +24,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
+import android.widget.ProgressBar;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -42,6 +43,7 @@ public class ImageFragment extends Fragment {
     private static final String ARG_URI = "uri";
     private Uri uri;
     private ImageView imageView;
+    private ProgressBar progressBar;
 
     public static ImageFragment newInstance(Uri uri) {
         ImageFragment fragment = new ImageFragment();
@@ -65,6 +67,7 @@ public class ImageFragment extends Fragment {
                              @Nullable Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_image, container, false);
         imageView = view.findViewById(R.id.imageView);
+        progressBar = view.findViewById(R.id.progressBar);
         
         // Add click listener to toggle controls
         imageView.setOnClickListener(v -> {
@@ -89,12 +92,22 @@ public class ImageFragment extends Fragment {
 
         YaaccLogger.d(getClass().getName(), "Loading image: " + imageUri);
 
+        // Show loading indicator
+        if (progressBar != null) {
+            progressBar.setVisibility(View.VISIBLE);
+        }
+        imageView.setImageBitmap(null);
+
         // Use existing ContentLoadExecutor
         Yaacc app = (Yaacc) requireActivity().getApplication();
         app.getContentLoadExecutor().execute(() -> {
             Bitmap bitmap = loadBitmap(imageUri);
             if (getActivity() != null) {
                 getActivity().runOnUiThread(() -> {
+                    // Hide loading indicator
+                    if (progressBar != null) {
+                        progressBar.setVisibility(View.GONE);
+                    }
                     if (imageView != null && bitmap != null) {
                         imageView.setImageBitmap(bitmap);
                     } else if (imageView != null) {

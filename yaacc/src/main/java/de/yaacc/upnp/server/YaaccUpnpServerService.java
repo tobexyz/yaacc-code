@@ -510,7 +510,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
             // part of ModelDet and version number
             DeviceDetails yaaccDetails = new DeviceDetails(
                     getLocalServerName(), new ManufacturerDetails("yaacc.de",
-                    "http://www.yaacc.de"), new ModelDetails(getLocalServerName() + "- UpnP", "Free Android UPnP AV MediaServer and MediaRenderer, GNU GPL",
+                    "https://www.yaacc.de"), new ModelDetails(getLocalServerName() + "- UpnP", "Free Android UPnP/DLNA, GNU GPL",
                     versionName), URI.create("http://" + InterfaceResolutionHelper.getIpAddress(getApplicationContext()) + ":" + PORT));
 
 

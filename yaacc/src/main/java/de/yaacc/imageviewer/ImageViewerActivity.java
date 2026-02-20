@@ -84,10 +84,12 @@ public class ImageViewerActivity extends AppCompatActivity implements SwipeRecei
         initViewPager();
         loadSettingsDuration();
         loadIntentData(savedInstanceState, getIntent());
+        restoreStateFromPrefs();
 
-        if (viewModel.getState().getValue() != null &&
-            viewModel.getState().getValue().getTotalImages() == 0) {
-            showNoValidUriError();
+        // Ensure ViewPager is at correct position after all data is loaded
+        ImageViewerState state = viewModel.getState().getValue();
+        if (state != null && state.getCurrentIndex() >= 0) {
+            viewPager.setCurrentItem(state.getCurrentIndex(), false);
         }
     }
 
@@ -173,6 +175,13 @@ public class ImageViewerActivity extends AppCompatActivity implements SwipeRecei
                 ImageViewerState state = viewModel.getState().getValue();
                 if (state != null && position != state.getCurrentIndex()) {
                     viewModel.setCurrentIndex(position);
+                    // Also update LocalImagePlayer's current index for reopening
+                    if (playerService != null) {
+                        Player player = playerService.getFirstCurrentPlayerOfType(LocalImagePlayer.class);
+                        if (player instanceof LocalImagePlayer) {
+                            ((LocalImagePlayer) player).setCurrentIndex(position);
+                        }
+                    }
                 }
             }
         });
@@ -196,11 +205,21 @@ public class ImageViewerActivity extends AppCompatActivity implements SwipeRecei
             // Load from intent
             ArrayList<Uri> uris = intent.getParcelableArrayListExtra(URIS);
             if (uris != null) {
-                viewModel.setImageUris(uris);
+                // Only set if we don't already have data from prefs
+                ImageViewerState existingState = viewModel.getState().getValue();
+                if (existingState == null || existingState.getTotalImages() == 0) {
+                    viewModel.setImageUris(uris);
+                }
             } else if (intent.getData() != null) {
                 List<Uri> singleUri = new ArrayList<>();
                 singleUri.add(intent.getData());
                 viewModel.setImageUris(singleUri);
+            }
+            
+            // Restore current index from intent if provided
+            int intentIndex = intent.getIntExtra("currentIndex", -1);
+            if (intentIndex >= 0) {
+                viewModel.setCurrentIndex(intentIndex);
             }
             
             if (intent.getBooleanExtra(AUTO_START_SHOW, false)) {
@@ -238,15 +257,16 @@ public class ImageViewerActivity extends AppCompatActivity implements SwipeRecei
         super.onResume();
         broadcastReceiver = new ImageViewerBroadcastReceiver(this);
         broadcastReceiver.registerReceiver();
+        // Restore state when coming back from background
+        restoreStateFromPrefs();
     }
 
     @Override
-    protected void onPause() {
-        super.onPause();
-        if (broadcastReceiver != null) {
-            unregisterReceiver(broadcastReceiver);
-            broadcastReceiver = null;
-        }
+    public void finish() {
+        // Clear saved state when activity is closed
+        android.content.SharedPreferences prefs = getSharedPreferences("imageviewer_state", MODE_PRIVATE);
+        prefs.edit().clear().apply();
+        super.finish();
     }
 
     @Override
@@ -260,6 +280,13 @@ public class ImageViewerActivity extends AppCompatActivity implements SwipeRecei
     }
 
     @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        loadIntentData(null, intent);
+    }
+
+    @Override
     protected void onSaveInstanceState(Bundle outState) {
         super.onSaveInstanceState(outState);
         ImageViewerState state = viewModel.getState().getValue();
@@ -267,6 +294,49 @@ public class ImageViewerActivity extends AppCompatActivity implements SwipeRecei
             outState.putBoolean("pictureShowActive", state.isPlaying());
             outState.putInt("currentImageIndex", state.getCurrentIndex());
             outState.putParcelableArrayList("imageUris", new ArrayList<>(state.getImageUris()));
+            
+            // Also save to SharedPreferences for persistence across activity restarts
+            saveStateToPrefs(state);
+        }
+    }
+
+    private void saveStateToPrefs(ImageViewerState state) {
+        android.content.SharedPreferences prefs = getSharedPreferences("imageviewer_state", MODE_PRIVATE);
+        android.content.SharedPreferences.Editor editor = prefs.edit();
+        editor.putInt("currentImageIndex", state.getCurrentIndex());
+        editor.putBoolean("isPlaying", state.isPlaying());
+        editor.putInt("imageCount", state.getTotalImages());
+        // Save URIs as string set
+        if (state.getImageUris() != null && !state.getImageUris().isEmpty()) {
+            String[] uriStrings = new String[state.getImageUris().size()];
+            for (int i = 0; i < state.getImageUris().size(); i++) {
+                uriStrings[i] = state.getImageUris().get(i).toString();
+            }
+            editor.putStringSet("imageUris", new java.util.HashSet<>(java.util.Arrays.asList(uriStrings)));
+        }
+        editor.apply();
+    }
+
+    private void restoreStateFromPrefs() {
+        android.content.SharedPreferences prefs = getSharedPreferences("imageviewer_state", MODE_PRIVATE);
+        int index = prefs.getInt("currentImageIndex", -1);
+        java.util.Set<String> uriSet = prefs.getStringSet("imageUris", null);
+        
+        if (uriSet != null && !uriSet.isEmpty()) {
+            // Restore URIs if not already loaded from intent
+            ImageViewerState state = viewModel.getState().getValue();
+            if (state == null || state.getTotalImages() == 0) {
+                ArrayList<Uri> uris = new ArrayList<>();
+                for (String uriString : uriSet) {
+                    uris.add(Uri.parse(uriString));
+                }
+                viewModel.setImageUris(uris);
+            }
+        }
+        
+        if (index >= 0) {
+            viewModel.setCurrentIndex(index);
+            viewPager.setCurrentItem(index, false);
         }
     }
 

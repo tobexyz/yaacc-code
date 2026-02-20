@@ -63,6 +63,8 @@ public class LocalImagePlayer implements Player, ServiceConnection {
     private String shortName;
     private PlayerService playerService;
     private boolean isPlaying;
+    private ArrayList<Uri> imageUris;  // Store URIs for reopening activity
+    private int currentIndex;  // Store current position for resuming slideshow
 
     public LocalImagePlayer(UpnpClient upnpClient, String name, String shortName) {
         this(upnpClient);
@@ -188,6 +190,10 @@ public class LocalImagePlayer implements Player, ServiceConnection {
             uris.add(item.getUri());
         }
         intent.putParcelableArrayListExtra(ImageViewerActivity.URIS, uris);
+        
+        // Store URIs for reopening activity
+        this.imageUris = uris;
+        
         upnpClient.getContext().startActivity(intent);
     }
 
@@ -334,12 +340,31 @@ public class LocalImagePlayer implements Player, ServiceConnection {
         // Create intent to open ImageViewerActivity
         Intent intent = new Intent(upnpClient.getContext(), ImageViewerActivity.class);
         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        
+        // Include stored URIs so activity can reopen with images
+        if (imageUris != null && !imageUris.isEmpty()) {
+            intent.putParcelableArrayListExtra(ImageViewerActivity.URIS, imageUris);
+            intent.putExtra("currentIndex", currentIndex);
+        }
+        
         return PendingIntent.getActivity(
             upnpClient.getContext(), 
             getId(), 
             intent, 
             PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
+    }
+
+    public ArrayList<Uri> getImageUris() {
+        return imageUris;
+    }
+
+    public int getCurrentIndex() {
+        return currentIndex;
+    }
+
+    public void setCurrentIndex(int index) {
+        this.currentIndex = index;
     }
 
     @Override

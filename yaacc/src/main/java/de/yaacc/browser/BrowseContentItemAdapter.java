@@ -222,13 +222,13 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
         asyncTasks.add(iconDownloadTask);
 
         holder.playAll.setOnClickListener((v) -> {
-            new ContentItemPlayTask(contentListFragment, currentObject).execute(ContentItemPlayTask.PLAY_ALL);
+            new ContentItemPlayTask(contentListFragment, currentObject, null).execute(ContentItemPlayTask.PLAY_ALL);
         });
         holder.play.setOnClickListener((v) -> {
-            new ContentItemPlayTask(contentListFragment, currentObject).execute(ContentItemPlayTask.PLAY_CURRENT);
+            new ContentItemPlayTask(contentListFragment, currentObject, null).execute(ContentItemPlayTask.PLAY_CURRENT);
         });
         holder.playlistAdd.setOnClickListener((v) -> {
-            new ContentItemPlayTask(contentListFragment, currentObject).execute(ContentItemPlayTask.ADD_TO_PLAYLIST);
+            new ContentItemPlayTask(contentListFragment, currentObject, null).execute(ContentItemPlayTask.ADD_TO_PLAYLIST);
             Toast toast = Toast.makeText(contentListFragment.getActivity(), R.string.add_to_playlist, Toast.LENGTH_SHORT);
             toast.show();
         });

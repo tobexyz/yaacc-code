@@ -60,7 +60,7 @@
     <string name="title_activity_avtransport_player">YAACC 远程播放器</string>
     <string name="title_activity_multi_content_player">YAACC 默认播放器</string>
     <string name="can_not_start_activity">"无法启动应用！原因： "</string>
-    <string name="app_descrip">用安卓把本地网络的 UPnP 设备聚合到一处。 <a href="http://www.yaacc.de">www.yaacc.de</a>  YAACC 在 GPLv3 许可证下开发。请随意使用和分享，没有任何担保。许可证详情位于 (www.gnu.org/licenses/gpl-3.0)  。进一步许可证：UPnP 实现基于 Cling (https://github.com/4thline/cling) 使用了 Material 设计图标和符号 (https://github.com/google/material-design-icons) 。Android 是 Google Inc 的商标 (developer.android.com/about/index.html )</string>
+    <string name="app_descrip">用安卓把本地网络的 UPnP 设备聚合到一处。 <a href="https://www.yaacc.de">www.yaacc.de</a>  YAACC 在 GPLv3 许可证下开发。请随意使用和分享，没有任何担保。许可证详情位于 (www.gnu.org/licenses/gpl-3.0)  。进一步许可证：UPnP 实现基于 Cling (https://github.com/4thline/cling) 使用了 Material 设计图标和符号 (https://github.com/google/material-design-icons) 。Android 是 Google Inc 的商标 (developer.android.com/about/index.html )</string>
     <string name="title_activity_yaacc_upnp_server_control">YAACC UPnP 服务器控制</string>
     <string name="yaacc_upnp_server_stop_server">停止服务器</string>
     <string name="yaacc_upnp_server_start_server">启动服务器</string>

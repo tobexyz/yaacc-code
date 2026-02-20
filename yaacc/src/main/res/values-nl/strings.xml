@@ -60,7 +60,7 @@
     <string name="title_activity_avtransport_player">YAACC externe speler</string>
     <string name="title_activity_multi_content_player">YAACC standaardspeler</string>
     <string name="can_not_start_activity">Kan app niet starten! Reden: </string>
-    <string name="app_descrip">Breng uw UPnP-apparaten samen met Android in uw lokale netwerk!\n<a href="http://www.yaacc.de">www.yaac.de</a>\n\nYAACC is ontwikkeld onder GPLv3. Voel je vrij om het te gebruiken en te delen zonder enige garantie. Licentiedetails zijn gedocumenteerd op (www.gnu.org/licenses/gpl-3.0)\n\nVerdere licenties zijn:\nDe UPnP-implementatie is gebaseerd op Cling (https://github.com/4thline/cling)\nMateriaalontwerppictogrammen en symbolen worden gebruikt (https://github.com/google/material-design-icons)\n. Android is een handelsmerk van Google Inc (developer.android.com/about/index.html)</string>
+    <string name="app_descrip">Breng uw UPnP-apparaten samen met Android in uw lokale netwerk!\n<a href="https://www.yaacc.de">www.yaac.de</a>\n\nYAACC is ontwikkeld onder GPLv3. Voel je vrij om het te gebruiken en te delen zonder enige garantie. Licentiedetails zijn gedocumenteerd op (www.gnu.org/licenses/gpl-3.0)\n\nVerdere licenties zijn:\nDe UPnP-implementatie is gebaseerd op Cling (https://github.com/4thline/cling)\nMateriaalontwerppictogrammen en symbolen worden gebruikt (https://github.com/google/material-design-icons)\n. Android is een handelsmerk van Google Inc (developer.android.com/about/index.html)</string>
     <string name="title_activity_yaacc_upnp_server_control">YAACC UPnP-servercontrole</string>
     <string name="yaacc_upnp_server_stop_server">server stoppen</string>
     <string name="yaacc_upnp_server_start_server">startserver</string>
