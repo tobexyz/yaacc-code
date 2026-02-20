@@ -44,12 +44,10 @@ public class AvTransportMediaRendererPaused extends PausedPlay<AvTransport> impl
      * Constructor.
      *
      * @param transport  the state holder
-     * @param upnpClient the upnpclient to use
      */
-    public AvTransportMediaRendererPaused(AvTransport transport,
-                                          UpnpClient upnpClient) {
+    public AvTransportMediaRendererPaused(AvTransport transport) {
         super(transport);
-        this.upnpClient = upnpClient;
+        this.upnpClient = AvTransport.getUpnpClient();
     }
 
     /* (non-Javadoc)

@@ -41,10 +41,8 @@ public class AvTransportMediaRendererNoMediaPresent extends
      * Constructor.
      *
      * @param transport  the state holder
-     * @param upnpClient the upnpClient to use
      */
-    public AvTransportMediaRendererNoMediaPresent(AvTransport transport,
-                                                  UpnpClient upnpClient) {
+    public AvTransportMediaRendererNoMediaPresent(AvTransport transport) {
         super(transport);
     }
 

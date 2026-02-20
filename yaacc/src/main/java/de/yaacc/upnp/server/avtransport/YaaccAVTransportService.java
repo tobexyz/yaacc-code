@@ -349,23 +349,34 @@ public class YaaccAVTransportService implements LastChangeDelegator {
                                   @UpnpInputArgument(name = "CurrentURI", stateVariable = "AVTransportURI") String currentURI,
                                   @UpnpInputArgument(name = "CurrentURIMetaData", stateVariable = "AVTransportURIMetaData") String currentURIMetaData) throws AVTransportException {
 
+        YaaccLogger.d(getClass().getName(), "setAVTransportURI called: " + currentURI);
 
         URI uri;
         try {
             uri = new URI(currentURI);
+            YaaccLogger.d(getClass().getName(), "URI parsed successfully: " + uri);
         } catch (Exception ex) {
+            YaaccLogger.e(getClass().getName(), "URI parsing failed", ex);
             throw new AVTransportException(
                     ErrorCode.INVALID_ARGS, "CurrentURI can not be null or malformed"
             );
         }
 
         try {
+            YaaccLogger.d(getClass().getName(), "Finding state machine for instance " + instanceId);
             AVTransportStateMachine transportStateMachine = findStateMachine(instanceId, true);
+            YaaccLogger.d(getClass().getName(), "State machine found: " + transportStateMachine + ", current state: " + transportStateMachine.getCurrentState().getClass().getSimpleName());
+            YaaccLogger.d(getClass().getName(), "Calling setTransportURI on state machine");
             transportStateMachine.setTransportURI(uri, currentURIMetaData);
+            YaaccLogger.d(getClass().getName(), "setTransportURI successful, new state: " + transportStateMachine.getCurrentState().getClass().getSimpleName());
         } catch (TransitionException ex) {
+            YaaccLogger.e(getClass().getName(), "TransitionException in setAVTransportURI", ex);
+            throw new AVTransportException(AVTransportErrorCode.TRANSITION_NOT_AVAILABLE, ex.getMessage());
+        } catch (Exception ex) {
+            YaaccLogger.e(getClass().getName(), "Unexpected exception in setAVTransportURI", ex);
             throw new AVTransportException(AVTransportErrorCode.TRANSITION_NOT_AVAILABLE, ex.getMessage());
         }
-        YaaccLogger.d(getClass().getName(), "setAVTransportURI: " + uri + " currentURIMetaData: " + currentURIMetaData);
+        YaaccLogger.d(getClass().getName(), "setAVTransportURI complete: " + uri);
     }
 
     @UpnpAction
@@ -395,18 +406,23 @@ public class YaaccAVTransportService implements LastChangeDelegator {
     public void setPlayMode(@UpnpInputArgument(name = "InstanceID") UnsignedIntegerFourBytes instanceId,
                             @UpnpInputArgument(name = "NewPlayMode", stateVariable = "CurrentPlayMode") String newPlayMode)
             throws AVTransportException {
-        AVTransport transport = findStateMachine(instanceId).getCurrentState().getTransport();
         try {
-            transport.setTransportSettings(
-                    new TransportSettings(
-                            PlayMode.valueOf(newPlayMode),
-                            transport.getTransportSettings().getRecQualityMode()
-                    )
-            );
-        } catch (IllegalArgumentException ex) {
-            throw new AVTransportException(
-                    AVTransportErrorCode.PLAYMODE_NOT_SUPPORTED, "Unsupported play mode: " + newPlayMode
-            );
+            AVTransport transport = findStateMachine(instanceId).getCurrentState().getTransport();
+            try {
+                transport.setTransportSettings(
+                        new TransportSettings(
+                                PlayMode.valueOf(newPlayMode),
+                                transport.getTransportSettings().getRecQualityMode()
+                        )
+                );
+            } catch (IllegalArgumentException ex) {
+                throw new AVTransportException(
+                        AVTransportErrorCode.PLAYMODE_NOT_SUPPORTED, "Unsupported play mode: " + newPlayMode
+                );
+            }
+        } catch (AVTransportException e) {
+            // Silently ignore when no media is present
+            YaaccLogger.d(getClass().getName(), "setPlayMode called with no media present, ignoring");
         }
     }
 
@@ -442,7 +458,15 @@ public class YaaccAVTransportService implements LastChangeDelegator {
     })
     public MediaInfo getMediaInfo(@UpnpInputArgument(name = "InstanceID") UnsignedIntegerFourBytes instanceId)
             throws AVTransportException {
-        return findStateMachine(instanceId).getCurrentState().getTransport().getMediaInfo();
+        try {
+            AVTransportStateMachine stateMachine = findStateMachine(instanceId);
+            if (stateMachine.getCurrentState() instanceof AvTransportMediaRendererNoMediaPresent) {
+                return new MediaInfo();
+            }
+            return stateMachine.getCurrentState().getTransport().getMediaInfo();
+        } catch (Exception e) {
+            return new MediaInfo();
+        }
     }
 
     @UpnpAction(out = {
@@ -452,7 +476,15 @@ public class YaaccAVTransportService implements LastChangeDelegator {
     })
     public TransportInfo getTransportInfo(@UpnpInputArgument(name = "InstanceID") UnsignedIntegerFourBytes instanceId)
             throws AVTransportException {
-        return findStateMachine(instanceId).getCurrentState().getTransport().getTransportInfo();
+        try {
+            AVTransportStateMachine stateMachine = findStateMachine(instanceId);
+            if (stateMachine.getCurrentState() instanceof AvTransportMediaRendererNoMediaPresent) {
+                return new TransportInfo(TransportState.NO_MEDIA_PRESENT, TransportStatus.OK, "1");
+            }
+            return stateMachine.getCurrentState().getTransport().getTransportInfo();
+        } catch (Exception e) {
+            return new TransportInfo(TransportState.NO_MEDIA_PRESENT, TransportStatus.OK, "1");
+        }
     }
 
     @UpnpAction(out = {
@@ -467,8 +499,21 @@ public class YaaccAVTransportService implements LastChangeDelegator {
     })
     public PositionInfo getPositionInfo(@UpnpInputArgument(name = "InstanceID") UnsignedIntegerFourBytes instanceId)
             throws AVTransportException {
-        YaaccLogger.d(getClass().getName(), "Transport: " + findStateMachine(instanceId).getCurrentState().getTransport() + " PositionInfo: " + findStateMachine(instanceId).getCurrentState().getTransport().getPositionInfo());
-        return findStateMachine(instanceId).getCurrentState().getTransport().getPositionInfo();
+        YaaccLogger.d(getClass().getName(), "getPositionInfo called");
+        try {
+            AVTransportStateMachine stateMachine = findStateMachine(instanceId);
+            // Check if in NoMediaPresent state
+            if (stateMachine.getCurrentState() instanceof AvTransportMediaRendererNoMediaPresent) {
+                YaaccLogger.d(getClass().getName(), "No media present, returning default PositionInfo");
+                return new PositionInfo(1L, "00:00:00", "", "", "00:00:00", "00:00:00", Integer.MAX_VALUE, Integer.MAX_VALUE);
+            }
+            YaaccLogger.d(getClass().getName(), "Transport: " + stateMachine.getCurrentState().getTransport() + " PositionInfo: " + stateMachine.getCurrentState().getTransport().getPositionInfo());
+            return stateMachine.getCurrentState().getTransport().getPositionInfo();
+        } catch (Exception e) {
+            // Return default position info for any error
+            YaaccLogger.d(getClass().getName(), "Exception getting position info: " + e.getMessage() + ", returning default");
+            return new PositionInfo(1L, "00:00:00", "", "", "00:00:00", "00:00:00", Integer.MAX_VALUE, Integer.MAX_VALUE);
+        }
     }
 
     @UpnpAction(out = {
@@ -478,7 +523,15 @@ public class YaaccAVTransportService implements LastChangeDelegator {
     })
     public DeviceCapabilities getDeviceCapabilities(@UpnpInputArgument(name = "InstanceID") UnsignedIntegerFourBytes instanceId)
             throws AVTransportException {
-        return findStateMachine(instanceId).getCurrentState().getTransport().getDeviceCapabilities();
+        try {
+            AVTransportStateMachine stateMachine = findStateMachine(instanceId);
+            if (stateMachine.getCurrentState() instanceof AvTransportMediaRendererNoMediaPresent) {
+                return new DeviceCapabilities(new StorageMedium[]{StorageMedium.NETWORK});
+            }
+            return stateMachine.getCurrentState().getTransport().getDeviceCapabilities();
+        } catch (Exception e) {
+            return new DeviceCapabilities(new StorageMedium[]{StorageMedium.NETWORK});
+        }
     }
 
     @UpnpAction(out = {
@@ -487,7 +540,15 @@ public class YaaccAVTransportService implements LastChangeDelegator {
     })
     public TransportSettings getTransportSettings(@UpnpInputArgument(name = "InstanceID") UnsignedIntegerFourBytes instanceId)
             throws AVTransportException {
-        return findStateMachine(instanceId).getCurrentState().getTransport().getTransportSettings();
+        try {
+            AVTransportStateMachine stateMachine = findStateMachine(instanceId);
+            if (stateMachine.getCurrentState() instanceof AvTransportMediaRendererNoMediaPresent) {
+                return new TransportSettings();
+            }
+            return stateMachine.getCurrentState().getTransport().getTransportSettings();
+        } catch (Exception e) {
+            return new TransportSettings();
+        }
     }
 
     @UpnpAction
