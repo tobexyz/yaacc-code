@@ -73,7 +73,12 @@ public class ContentListClickListener implements View.OnClickListener {
             contentListFragment.populateItemList(true);
         } else if (currentObject instanceof Item) {
             PlayableItem playableItem = new PlayableItem((Item) currentObject, 0);
-            ContentItemPlayTask task = new ContentItemPlayTask(contentListFragment, currentObject);
+            ContentItemPlayTask task = new ContentItemPlayTask(contentListFragment, currentObject, () -> {
+                // Hide loading indicator when done
+                contentListFragment.hideLoading(position);
+            });
+            // Show loading indicator
+            contentListFragment.showLoading(position);
             if (playableItem.getMimeType() != null && playableItem.getMimeType().startsWith("video")) {
                 task.execute(ContentItemPlayTask.PLAY_CURRENT);
             } else {

@@ -53,12 +53,10 @@ public class AvTransportMediaRendererPlaying extends Playing<AvTransport> implem
      * Constructor.
      *
      * @param transport  the state holder
-     * @param upnpClient the upnpclient to use
      */
-    public AvTransportMediaRendererPlaying(AvTransport transport,
-                                           UpnpClient upnpClient) {
+    public AvTransportMediaRendererPlaying(AvTransport transport) {
         super(transport);
-        this.upnpClient = upnpClient;
+        this.upnpClient = AvTransport.getUpnpClient();
     }
 
     /*
@@ -211,14 +209,24 @@ public class AvTransportMediaRendererPlaying extends Playing<AvTransport> implem
 
     private void doSetTrackInfo() {
         for (Player player : players) {
-            if (player != null && !player.getDuration().equals("")) {
-                getTransport().getPositionInfo().setTrackDuration(player.getDuration());
-                getTransport().getPositionInfo().setRelTime(player.getElapsedTime());
-                YaaccLogger.d(getClass().getName(), "doSetTrackInfo: " + getTransport() + "Posinfo:" + getTransport().getPositionInfo() + " RelTime: " + getTransport().getPositionInfo().getRelTime());
+            if (player != null) {
+                // Get duration on main thread for Media3 compatibility
+                final String[] duration = {""};
+                final String[] elapsedTime = {""};
+                
+                new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+                    duration[0] = player.getDuration();
+                    elapsedTime[0] = player.getElapsedTime();
+                    
+                    if (!duration[0].equals("")) {
+                        getTransport().getPositionInfo().setTrackDuration(duration[0]);
+                        getTransport().getPositionInfo().setRelTime(elapsedTime[0]);
+                        YaaccLogger.d(getClass().getName(), "doSetTrackInfo: " + getTransport() + "Posinfo:" + getTransport().getPositionInfo() + " RelTime: " + getTransport().getPositionInfo().getRelTime());
+                    }
+                });
                 break;
             }
         }
-
     }
 
     private void updateTime() {

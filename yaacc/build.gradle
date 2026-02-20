@@ -41,7 +41,12 @@ dependencies {
     }
     implementation 'androidx.lifecycle:lifecycle-livedata-ktx:2.4.1'
     implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.4.1'
+    implementation 'androidx.lifecycle:lifecycle-runtime:2.8.0'
+    implementation 'androidx.lifecycle:lifecycle-viewmodel:2.8.0'
+    implementation 'androidx.lifecycle:lifecycle-livedata:2.8.0'
+    implementation 'androidx.viewpager2:viewpager2:1.1.0'
     implementation 'org.mp4parser:isoparser:1.9.56'
+    implementation 'com.github.chrisbanes:PhotoView:2.3.0'
 
 }
 

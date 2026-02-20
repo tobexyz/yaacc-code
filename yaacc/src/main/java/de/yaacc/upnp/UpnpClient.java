@@ -786,6 +786,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
             List<Item> metadataItems = metadata.getItems();
             for (Item item : metadataItems) {
                 playableItem.setTitle(item.getTitle());
+                playableItem.setItem(item); // Store the DIDL item for album art and other metadata
                 List<Res> metadataResources = item.getResources();
                 for (Res res : metadataResources) {
                     if (res.getProtocolInfo() != null) {

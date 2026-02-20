@@ -80,9 +80,11 @@ import java.util.UUID;
 
 import de.yaacc.R;
 import de.yaacc.Yaacc;
+import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.protocol.UpnpProtocolHandler;
 import de.yaacc.upnp.registry.Registry;
 import de.yaacc.upnp.registry.RegistryImpl;
+import de.yaacc.upnp.server.avtransport.AvTransport;
 import de.yaacc.upnp.server.avtransport.YaaccAVTransportService;
 import de.yaacc.upnp.server.configuration.YaaccUpnpServerControlActivity;
 import de.yaacc.util.SAFCacheManager;
@@ -510,25 +512,70 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
             // part of ModelDet and version number
             DeviceDetails yaaccDetails = new DeviceDetails(
                     getLocalServerName(), new ManufacturerDetails("yaacc.de",
-                    "http://www.yaacc.de"), new ModelDetails(getLocalServerName() + "- UpnP", "Free Android UPnP AV MediaServer and MediaRenderer, GNU GPL",
+                    "https://www.yaacc.de"), new ModelDetails(getLocalServerName() + "- UpnP", "Free Android UPnP/DLNA, GNU GPL",
                     versionName), URI.create("http://" + InterfaceResolutionHelper.getIpAddress(getApplicationContext()) + ":" + PORT));
 
 
             List<LocalService<?>> services = new ArrayList();
-
             services.addAll(Arrays.asList(createCoreServices()));
-            if (preferences.getBoolean(getApplicationContext().getString(R.string.settings_local_server_chkbx), false)) {
-                if (preferences.getBoolean(getApplicationContext().getString(R.string.settings_local_server_provider_chkbx), false)) {
+            
+            boolean serverEnabled = preferences.getBoolean(getApplicationContext().getString(R.string.settings_local_server_chkbx), false);
+            boolean providerEnabled = preferences.getBoolean(getApplicationContext().getString(R.string.settings_local_server_provider_chkbx), false);
+            boolean rendererEnabled = preferences.getBoolean(getApplicationContext().getString(R.string.settings_local_server_receiver_chkbx), false);
+            
+            DeviceIdentity identity = new DeviceIdentity(new UDN(locaDeviceUuid));
+            
+            // If both server and renderer are enabled, create embedded devices
+            if (serverEnabled && providerEnabled && rendererEnabled) {
+                // Create services once
+                LocalService<?>[] serverServices = createMediaServerServices();
+                LocalService<?>[] rendererServices = createMediaRendererServices();
+                
+                // Create embedded MediaServer device
+                LocalDevice serverDevice = new LocalDevice(
+                    new DeviceIdentity(new UDN(locaDeviceUuid + "-server")),
+                    new UDADeviceType("MediaServer"),
+                    yaaccDetails,
+                    createDeviceIcons(),
+                    serverServices
+                );
+                
+                // Create embedded MediaRenderer device
+                LocalDevice rendererDevice = new LocalDevice(
+                    new DeviceIdentity(new UDN(locaDeviceUuid + "-renderer")),
+                    new UDADeviceType("MediaRenderer"),
+                    yaaccDetails,
+                    createDeviceIcons(),
+                    rendererServices
+                );
+                
+                // Create root device with embedded devices (core services only in root)
+                localDevice = new LocalDevice(
+                    identity,
+                    new UDADeviceType("Basic", 1),
+                    yaaccDetails,
+                    createDeviceIcons(),
+                    services.toArray(new LocalService<?>[0]),
+                    new LocalDevice[]{serverDevice, rendererDevice}
+                );
+            } else {
+                // Single device type
+                if (serverEnabled && providerEnabled) {
                     services.addAll(Arrays.asList(createMediaServerServices()));
-
-
                 }
-                if (preferences.getBoolean(getApplicationContext().getString(R.string.settings_local_server_receiver_chkbx), false)) {
+                if (serverEnabled && rendererEnabled) {
                     services.addAll(Arrays.asList(createMediaRendererServices()));
                 }
+                
+                UDADeviceType deviceType;
+                if (rendererEnabled && !providerEnabled) {
+                    deviceType = new UDADeviceType("MediaRenderer");
+                } else {
+                    deviceType = new UDADeviceType("MediaServer");
+                }
+                
+                localDevice = new LocalDevice(identity, deviceType, yaaccDetails, createDeviceIcons(), services.toArray(new LocalService<?>[0]));
             }
-            DeviceIdentity identity = new DeviceIdentity(new UDN(locaDeviceUuid));
-            localDevice = new LocalDevice(identity, new UDADeviceType("MediaServer"), yaaccDetails, createDeviceIcons(), services.toArray(new LocalService<?>[0]));
             registry.addDevice(localDevice);
 
             // Configure ALIVE announcement interval from settings
@@ -763,6 +810,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
      */
     private LocalService<?>[] createMediaRendererServices() {
         List<LocalService<?>> services = new ArrayList<>();
+        services.add(createConnectionManagerService());
         services.add(createAVTransportService());
         services.add(createRenderingControl());
         return services.toArray(new LocalService[]{});
@@ -799,6 +847,12 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
      */
     @SuppressWarnings("unchecked")
     private LocalService<YaaccAVTransportService> createAVTransportService() {
+        // Set upnpClient for state classes to access (may be null during initialization)
+        UpnpClient client = ((Yaacc) getApplicationContext()).getUpnpClient();
+        if (client != null) {
+            AvTransport.setUpnpClient(client);
+        }
+        
         LocalService<YaaccAVTransportService> avTransportService = new AnnotationLocalServiceBinder().read(YaaccAVTransportService.class);
         avTransportService.setManager(new DefaultServiceManager<>(avTransportService, null) {
             @Override

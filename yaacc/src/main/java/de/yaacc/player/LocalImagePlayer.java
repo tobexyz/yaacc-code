@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2013 Tobias Schoene www.yaacc.de
+ * Copyright (C) 2026 Modernization
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -8,12 +9,12 @@
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  */
 package de.yaacc.player;
 
@@ -29,8 +30,6 @@ import android.os.IBinder;
 import android.support.v4.media.session.MediaSessionCompat;
 
 import de.yaacc.util.YaaccLogger;
-
-import androidx.core.app.NotificationCompat;
 
 import java.beans.PropertyChangeListener;
 import java.beans.PropertyChangeSupport;
@@ -50,35 +49,29 @@ import de.yaacc.upnp.UpnpClient;
 import de.yaacc.util.NotificationId;
 
 /**
- * Player for local image viewing activity
+ * Player for local image viewing activity.
+ * Simplified - no notification code, just Player interface + remote control.
  *
  * @author Tobias Schoene (openbit)
  */
 public class LocalImagePlayer implements Player, ServiceConnection {
-
 
     private final UpnpClient upnpClient;
     private final PropertyChangeSupport pcs = new PropertyChangeSupport(this);
     private Timer commandExecutionTimer;
     private String name;
     private String shortName;
-    private PendingIntent notificationIntent;
     private PlayerService playerService;
     private boolean isPlaying;
+    private ArrayList<Uri> imageUris;  // Store URIs for reopening activity
+    private int currentIndex;  // Store current position for resuming slideshow
 
-
-    /**
-     * @param upnpClient upnpClient
-     * @param name       playerName
-     */
     public LocalImagePlayer(UpnpClient upnpClient, String name, String shortName) {
         this(upnpClient);
         setName(name);
         setShortName(shortName);
         startService();
-
     }
-
 
     public LocalImagePlayer(UpnpClient upnpClient) {
         this.upnpClient = upnpClient;
@@ -86,21 +79,21 @@ public class LocalImagePlayer implements Player, ServiceConnection {
 
     public void startService() {
         if (playerService == null) {
-            upnpClient.getContext().startForegroundService(new Intent(upnpClient.getContext(), PlayerService.class));
-            upnpClient.getContext().bindService(new Intent(upnpClient.getContext(), PlayerService.class),
-                    this, Context.BIND_AUTO_CREATE);
+            upnpClient.getContext().startForegroundService(
+                new Intent(upnpClient.getContext(), PlayerService.class));
+            upnpClient.getContext().bindService(
+                new Intent(upnpClient.getContext(), PlayerService.class),
+                this, Context.BIND_AUTO_CREATE);
         }
     }
 
     public void onServiceConnected(ComponentName className, IBinder binder) {
         if (binder instanceof PlayerService.PlayerServiceBinder) {
             YaaccLogger.d("ServiceConnection", "connected");
-
             playerService = ((PlayerService.PlayerServiceBinder) binder).getService();
             playerService.addPlayer(this);
         }
     }
-
 
     public void onServiceDisconnected(ComponentName className) {
         YaaccLogger.d("ServiceConnection", "disconnected");
@@ -118,100 +111,50 @@ public class LocalImagePlayer implements Player, ServiceConnection {
         this.isPlaying = isPlaying;
     }
 
-    /*
-     * (non-Javadoc)
-     *
-     * @see de.yaacc.player.Player#next()
-     */
     @Override
     public void next() {
-        // Communicating with the activity is only possible after the activity
-        // is started
-        // if we send an broadcast event to early the activity won't be up
-        // in order there is no known way to query the activity state
-        // we are sending the command delayed
         commandExecutionTimer = new Timer();
         commandExecutionTimer.schedule(new TimerTask() {
-
             @Override
             public void run() {
                 Intent intent = new Intent();
                 intent.setAction(ImageViewerBroadcastReceiver.ACTION_NEXT);
                 upnpClient.getContext().sendBroadcast(intent);
-
             }
         }, 500L);
-
     }
 
-    /*
-     * (non-Javadoc)
-     *
-     * @see de.yaacc.player.Player#previous()
-     */
     @Override
     public void previous() {
-        // Communicating with the activity is only possible after the activity
-        // is started
-        // if we send an broadcast event to early the activity won't be up
-        // in order there is no known way to query the activity state
-        // we are sending the command delayed
         commandExecutionTimer = new Timer();
         commandExecutionTimer.schedule(new TimerTask() {
-
             @Override
             public void run() {
                 Intent intent = new Intent();
                 intent.setAction(ImageViewerBroadcastReceiver.ACTION_PREVIOUS);
                 upnpClient.getContext().sendBroadcast(intent);
-
             }
         }, 500L);
-
     }
 
-    /*
-     * (non-Javadoc)
-     *
-     * @see de.yaacc.player.Player#pause()
-     */
     @Override
     public void pause() {
-        // Communicating with the activity is only possible after the activity
-        // is started
-        // if we send an broadcast event to early the activity won't be up
-        // in order there is no known way to query the activity state
-        // we are sending the command delayed
         commandExecutionTimer = new Timer();
         commandExecutionTimer.schedule(new TimerTask() {
-
             @Override
             public void run() {
                 Intent intent = new Intent();
                 intent.setAction(ImageViewerBroadcastReceiver.ACTION_PAUSE);
                 upnpClient.getContext().sendBroadcast(intent);
                 setPlaying(false);
-
             }
         }, new Date());
-
     }
 
-    /*
-     * (non-Javadoc)
-     *
-     * @see de.yaacc.player.Player#play()
-     */
     @Override
     public void play() {
-        // Communicating with the activity is only possible after the activity
-        // is started
-        // if we send an broadcast event to early the activity won't be up
-        // in order there is no known way to query the activity state
-        // we are sending the command delayed
         commandExecutionTimer = new Timer();
         commandExecutionTimer.schedule(new TimerTask() {
-
             @Override
             public void run() {
                 YaaccLogger.d(this.getClass().getName(), "send play");
@@ -219,44 +162,24 @@ public class LocalImagePlayer implements Player, ServiceConnection {
                 intent.setAction(ImageViewerBroadcastReceiver.ACTION_PLAY);
                 upnpClient.getContext().sendBroadcast(intent);
                 setPlaying(true);
-
             }
         }, new Date());
-
     }
 
-    /*
-     * (non-Javadoc)
-     *
-     * @see de.yaacc.player.Player#stop()
-     */
     @Override
     public void stop() {
-        // Communicating with the activity is only possible after the activity
-        // is started
-        // if we send an broadcast event to early the activity won't be up
-        // in order there is no known way to query the activity state
-        // we are sending the command delayed
         commandExecutionTimer = new Timer();
         commandExecutionTimer.schedule(new TimerTask() {
-
             @Override
             public void run() {
                 Intent intent = new Intent();
                 intent.setAction(ImageViewerBroadcastReceiver.ACTION_STOP);
                 upnpClient.getContext().sendBroadcast(intent);
                 setPlaying(false);
-
             }
         }, new Date());
-
     }
 
-    /*
-     * (non-Javadoc)
-     *
-     * @see de.yaacc.player.Player#setItems(de.yaacc.player.PlayableItem[])
-     */
     @Override
     public void setItems(PlayableItem... items) {
         Intent intent = new Intent(upnpClient.getContext(), ImageViewerActivity.class);
@@ -266,31 +189,22 @@ public class LocalImagePlayer implements Player, ServiceConnection {
         for (PlayableItem item : items) {
             uris.add(item.getUri());
         }
-        intent.putExtra(ImageViewerActivity.URIS, uris);
+        intent.putParcelableArrayListExtra(ImageViewerActivity.URIS, uris);
+        
+        // Store URIs for reopening activity
+        this.imageUris = uris;
+        
         upnpClient.getContext().startActivity(intent);
-        showNotification(uris);
     }
 
-    /*
-     * (non-Javadoc)
-     *
-     * @see de.yaacc.player.Player#getName()
-     */
     @Override
     public String getName() {
-
         return name;
     }
 
-    /*
-     * (non-Javadoc)
-     *
-     * @see de.yaacc.player.Player#setName(java.lang.String)
-     */
     @Override
     public void setName(String name) {
         this.name = name;
-
     }
 
     @Override
@@ -300,173 +214,53 @@ public class LocalImagePlayer implements Player, ServiceConnection {
 
     @Override
     public void setShortName(String name) {
-        shortName = name;
-
+        this.shortName = name;
     }
 
-    /*
-     * (non-Javadoc)
-     *
-     * @see de.yaacc.player.Player#exit()
-     */
     @Override
     public void exit() {
         if (isPlaying()) {
             stop();
         }
-        playerService.shutdown(this);
-
+        if (playerService != null) {
+            playerService.shutdown(this);
+        }
     }
 
-    /*
-     * (non-Javadoc)
-     *
-     * @see de.yaacc.player.Player#clear()
-     */
     @Override
     public void clear() {
-        // TODO Auto-generated method stub
-
+        // Not implemented
     }
 
-    /*
-     * (non-Javadoc)
-     *
-     * @see de.yaacc.player.Player#onDestroy()
-     */
     @Override
     public void onDestroy() {
-        cancleNotification();
-        // Communicating with the activity is only possible after the activity
-        // is started
-        // if we send an broadcast event to early the activity won't be up
-        // in order there is no known way to query the activity state
-        // we are sending the command delayed
         commandExecutionTimer = new Timer();
         commandExecutionTimer.schedule(new TimerTask() {
-
             @Override
             public void run() {
                 Intent intent = new Intent();
                 intent.setAction(ImageViewerBroadcastReceiver.ACTION_EXIT);
                 upnpClient.getContext().sendBroadcast(intent);
-
             }
         }, 500L);
-
-    }
-
-    /**
-     * Displays the notification.
-     *
-     * @param uris uris
-     */
-    private void showNotification(ArrayList<Uri> uris) {
-
-        NotificationCompat.Builder mBuilder = new NotificationCompat.Builder(
-                upnpClient.getContext(), Yaacc.NOTIFICATION_CHANNEL_ID)
-                .setGroup(Yaacc.NOTIFICATION_GROUP_KEY)
-                .setOngoing(false)
-                .setSilent(true)
-                .setSmallIcon(R.drawable.ic_notification_default)
-                .setLargeIcon(getIcon())
-                .setContentTitle(
-                        "Yaacc player " + (getName() == null ? "" : getName()));
-        // .setContentText("Current Title");
-        PendingIntent contentIntent = getNotificationIntent(uris);
-        if (contentIntent != null) {
-            mBuilder.setContentIntent(contentIntent);
-        }
-        NotificationManager mNotificationManager = (NotificationManager) upnpClient.getContext()
-                .getSystemService(Context.NOTIFICATION_SERVICE);
-        // mId allows you to update the notification later on.
-        mNotificationManager.notify(getNotificationId(), mBuilder.build());
-    }
-
-    /**
-     * Cancels the notification.
-     */
-    private void cancleNotification() {
-        NotificationManager mNotificationManager = (NotificationManager) upnpClient.getContext()
-                .getSystemService(Context.NOTIFICATION_SERVICE);
-        // mId allows you to update the notification later on.
-        mNotificationManager.cancel(getNotificationId());
-
-    }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see de.yaacc.player.AbstractPlayer#getNotificationIntent()
-     */
-    private PendingIntent getNotificationIntent(ArrayList<Uri> uris) {
-        Intent intent = new Intent(upnpClient.getContext(),
-                ImageViewerActivity.class);
-        intent.setData(Uri.parse("http://0.0.0.0/" + Arrays.hashCode(uris.toArray()) + "")); //just for making the intents different http://stackoverflow.com/questions/10561419/scheduling-more-than-one-pendingintent-to-same-activity-using-alarmmanager
-        intent.putExtra(ImageViewerActivity.URIS, uris);
-        notificationIntent = PendingIntent.getActivity(upnpClient.getContext(), 0,
-                intent, PendingIntent.FLAG_IMMUTABLE);
-        return notificationIntent;
-    }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see de.yaacc.player.AbstractPlayer#getNotificationId()
-     */
-    private int getNotificationId() {
-
-        return NotificationId.LOCAL_IMAGE_PLAYER.getId();
-    }
-
-    /* (non-Javadoc)
-     * @see de.yaacc.player.Player#getId()
-     */
-    @Override
-    public int getId() {
-        return getNotificationId();
     }
 
     @Override
-    public void addPropertyChangeListener(PropertyChangeListener listener) {
-        pcs.addPropertyChangeListener(listener);
-    }
-
-    @Override
-    public void removePropertyChangeListener(PropertyChangeListener listener) {
-        pcs.removePropertyChangeListener(listener);
-    }
-
-
-    /**
-     * returns the current item position in the playlist
-     *
-     * @return the position string
-     */
     public String getPositionString() {
         return "";
     }
 
-    /**
-     * returns the title of the current item
-     *
-     * @return the title
-     */
+    @Override
     public String getCurrentItemTitle() {
         return "";
     }
 
+    @Override
     public int getCurrentItemIndex() {
-        //not yet implemented
         return 0;
     }
 
-
-    /**
-     * returns the title of the next current item
-     *
-     * @return the title
-     */
+    @Override
     public String getNextItemTitle() {
         return "";
     }
@@ -498,15 +292,11 @@ public class LocalImagePlayer implements Player, ServiceConnection {
 
     @Override
     public void setIcon(Bitmap icon) {
-
     }
 
-
-    //TODO Refactor not every player has a volume control
     public boolean getMute() {
         return upnpClient.isMute();
     }
-
 
     public void setMute(boolean mute) {
         upnpClient.setMute(mute);
@@ -541,8 +331,40 @@ public class LocalImagePlayer implements Player, ServiceConnection {
     }
 
     @Override
+    public int getId() {
+        return NotificationId.LOCAL_IMAGE_PLAYER.getId();
+    }
+
+    @Override
     public PendingIntent getNotificationIntent() {
-        return notificationIntent;
+        // Create intent to open ImageViewerActivity
+        Intent intent = new Intent(upnpClient.getContext(), ImageViewerActivity.class);
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        
+        // Include stored URIs so activity can reopen with images
+        if (imageUris != null && !imageUris.isEmpty()) {
+            intent.putParcelableArrayListExtra(ImageViewerActivity.URIS, imageUris);
+            intent.putExtra("currentIndex", currentIndex);
+        }
+        
+        return PendingIntent.getActivity(
+            upnpClient.getContext(), 
+            getId(), 
+            intent, 
+            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+        );
+    }
+
+    public ArrayList<Uri> getImageUris() {
+        return imageUris;
+    }
+
+    public int getCurrentIndex() {
+        return currentIndex;
+    }
+
+    public void setCurrentIndex(int index) {
+        this.currentIndex = index;
     }
 
     @Override
@@ -552,7 +374,7 @@ public class LocalImagePlayer implements Player, ServiceConnection {
 
     @Override
     public void addItems(List<PlayableItem> playableItemList) {
-        //Not yet implemented
+        // Not yet implemented
     }
 
     @Override
@@ -562,17 +384,27 @@ public class LocalImagePlayer implements Player, ServiceConnection {
 
     @Override
     public void fastForward(int i) {
-        //Not implemented
+        // Not implemented
     }
 
     @Override
     public void fastRewind(int i) {
-        //Not implemented
+        // Not implemented
     }
 
     @Override
     public MediaSessionCompat getMediaSession() {
         // Image player doesn't use MediaSession
         return null;
+    }
+
+    @Override
+    public void addPropertyChangeListener(PropertyChangeListener listener) {
+        pcs.addPropertyChangeListener(listener);
+    }
+
+    @Override
+    public void removePropertyChangeListener(PropertyChangeListener listener) {
+        pcs.removePropertyChangeListener(listener);
     }
 }

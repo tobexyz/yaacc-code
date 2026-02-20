@@ -286,6 +286,24 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         });
     }
 
+    public void showLoading(int position) {
+        requireActivity().runOnUiThread(() -> {
+            ProgressBar progressBar = requireView().findViewById(R.id.contentListProgressBar);
+            if (progressBar != null) {
+                progressBar.setVisibility(View.VISIBLE);
+            }
+        });
+    }
+
+    public void hideLoading(int position) {
+        requireActivity().runOnUiThread(() -> {
+            ProgressBar progressBar = requireView().findViewById(R.id.contentListProgressBar);
+            if (progressBar != null) {
+                progressBar.setVisibility(View.GONE);
+            }
+        });
+    }
+
     private void clearItemList() {
         requireActivity().runOnUiThread(() -> {
             navigator = new Navigator();

@@ -1,6 +1,6 @@
 /*
- *
  * Copyright (C) 2013 Tobias Schoene www.yaacc.de
+ * Copyright (C) 2026 Modernization
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -22,28 +22,21 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
-import android.content.SharedPreferences;
-import android.graphics.drawable.Drawable;
 import android.net.Uri;
-import android.os.AsyncTask.Status;
 import android.os.Bundle;
 import android.os.IBinder;
-import de.yaacc.util.YaaccLogger;
-import android.view.KeyEvent;
-import android.view.Menu;
-import android.view.MenuItem;
 import android.view.MotionEvent;
 import android.view.View;
-import android.view.WindowManager;
 import android.widget.ImageButton;
-import android.widget.ImageView;
-import android.widget.RelativeLayout;
 import android.widget.Toast;
 
-import androidx.appcompat.app.ActionBar;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.content.res.ResourcesCompat;
-import androidx.preference.PreferenceManager;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
+import androidx.lifecycle.ViewModelProvider;
+import androidx.viewpager2.widget.ViewPager2;
 
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -57,671 +50,443 @@ import de.yaacc.player.LocalImagePlayer;
 import de.yaacc.player.Player;
 import de.yaacc.player.PlayerService;
 import de.yaacc.settings.SettingsActivity;
-import de.yaacc.util.AboutActivity;
 import de.yaacc.util.ActivitySwipeDetector;
+import de.yaacc.util.AboutActivity;
 import de.yaacc.util.SwipeReceiver;
 import de.yaacc.util.ThemeHelper;
 import de.yaacc.util.YaaccLogActivity;
+import de.yaacc.util.YaaccLogger;
 
 /**
- * a simple ImageViewer based on the android ImageView component;
- * <p>
- * you are able to start the activity either by using intnet.setData(anUri) or
- * by intent.putExtra(ImageViewerActivity.URIS, aList<Uri>); in the later case
- * the activity needed to be started with Intent.ACTION_SEND_MULTIPLE
- * <p>
- * <p>
- * The image viewer retrieves all images in a background task
- * (RetrieveImageTask). The images are written in a memory cache. The picture
- * show is processed by the ImageViewerActivity using the images in the cache.
- *
- * @author Tobias Schoene (openbit)
+ * Modern ImageViewer with ViewPager2 slideshow.
  */
 public class ImageViewerActivity extends AppCompatActivity implements SwipeReceiver, ServiceConnection {
     public static final String URIS = "URIS_PARAM";
     public static final String AUTO_START_SHOW = "AUTO_START_SHOW";
-    private ImageView imageView;
-    private RetrieveImageTask retrieveImageTask;
-    private List<Uri> imageUris; // playlist
-    private int currentImageIndex = 0;
-    private boolean pictureShowActive = false;
-    private boolean isProcessingCommand = false; // indicates an command
-    private Timer pictureShowTimer;
-    private ImageViewerBroadcastReceiver imageViewerBroadcastReceiver;
+
+    private ImageViewerViewModel viewModel;
+    private ImagePagerAdapter pagerAdapter;
+    private ViewPager2 viewPager;
     private PlayerService playerService;
-    private Menu menu;
-
-    public void onServiceConnected(ComponentName className, IBinder binder) {
-        if (binder instanceof PlayerService.PlayerServiceBinder) {
-            YaaccLogger.d(getClass().getName(), "PlayerService connected");
-            playerService = ((PlayerService.PlayerServiceBinder) binder).getService();
-            initialize();
-        }
-    }
-
-    public void onServiceDisconnected(ComponentName className) {
-        YaaccLogger.d(getClass().getName(), "PlayerService disconnected");
-        playerService = null;
-    }
-
-    protected void initialize() {
-
-    }
-
+    private ImageViewerBroadcastReceiver broadcastReceiver;
+    private Timer controlHideTimer;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         YaaccLogger.d(this.getClass().getName(), "OnCreate");
         super.onCreate(savedInstanceState);
-        init(savedInstanceState, getIntent());
-        this.bindService(new Intent(this, PlayerService.class),
-                this, Context.BIND_AUTO_CREATE);
-    }
 
-    /*
-     * (non-Javadoc)
-     *
-     * @see android.app.Activity#onNewIntent(android.content.Intent)
-     */
-    @Override
-    protected void onNewIntent(Intent intent) {
-        super.onNewIntent(intent);
-        init(null, intent);
-    }
-
-    private void init(Bundle savedInstanceState, Intent intent) {
-        menuBarsHide();
-        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-        getWindow().clearFlags(
-                WindowManager.LayoutParams.FLAG_ALLOW_LOCK_WHILE_SCREEN_ON);
+        setupEdgeToEdge();
         setContentView(R.layout.activity_image_viewer);
-        imageView = findViewById(R.id.imageView);
-        ActivitySwipeDetector activitySwipeDetector = new ActivitySwipeDetector(
-                this);
-        RelativeLayout layout = findViewById(R.id.layout);
-        layout.setOnTouchListener(activitySwipeDetector);
-        layout.setFocusable(true);
-        layout.setFocusableInTouchMode(false);
-        layout.setOnKeyListener((v, keyCode, event) -> {
-            if (event.getAction() != android.view.KeyEvent.ACTION_DOWN) return false;
-            switch (keyCode) {
-                case android.view.KeyEvent.KEYCODE_DPAD_CENTER:
-                case android.view.KeyEvent.KEYCODE_ENTER:
-                    // Trigger normal click
-                    runOnUiThread(this::menuBarsShow);
-                    startMenuHideTimer();
-                    return true;
 
+        initViewModel();
+        initViews();
+        initViewPager();
+        loadSettingsDuration();
+        loadIntentData(savedInstanceState, getIntent());
+        restoreStateFromPrefs();
+
+        // Ensure ViewPager is at correct position after all data is loaded
+        ImageViewerState state = viewModel.getState().getValue();
+        if (state != null && state.getCurrentIndex() >= 0) {
+            viewPager.setCurrentItem(state.getCurrentIndex(), false);
+        }
+    }
+
+    private void loadSettingsDuration() {
+        android.content.SharedPreferences prefs = 
+            androidx.preference.PreferenceManager.getDefaultSharedPreferences(this);
+        int durationMs = Integer.parseInt(prefs.getString(
+            getString(R.string.image_viewer_settings_duration_key), "5000"));
+        viewModel.setDurationMs(durationMs);
+    }
+
+    private void setupEdgeToEdge() {
+        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+        // Remove title from action bar
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setDisplayShowTitleEnabled(false);
+        }
+    }
+
+    private void initViewModel() {
+        viewModel = new ViewModelProvider(this).get(ImageViewerViewModel.class);
+
+        viewModel.getState().observe(this, state -> {
+            if (state == null) return;
+
+            // Update ViewPager adapter data (don't trigger notifyDataSetChanged)
+            if (pagerAdapter != null && state.getImageUris() != null && !state.getImageUris().isEmpty()) {
+                pagerAdapter.setImageUris(state.getImageUris());
+                // Manually set current item after adapter data is updated
+                if (state.getCurrentIndex() < state.getTotalImages()) {
+                    viewPager.post(() -> viewPager.setCurrentItem(state.getCurrentIndex(), false));
+                }
             }
-            return false;
+
+            // Update action bar visibility (no bottom controls anymore)
+            if (getSupportActionBar() != null) {
+                if (state.isControlsVisible()) {
+                    getSupportActionBar().show();
+                } else {
+                    getSupportActionBar().hide();
+                }
+            }
+
+            // Handle playback state changes
+            if (state.isPlaying() && !viewPager.isUserInputEnabled()) {
+                viewPager.setUserInputEnabled(true);
+            }
         });
-        layout.requestLayout();
-        currentImageIndex = 0;
-        imageUris = new ArrayList<>();
+    }
+
+    private void initViews() {
+        viewPager = findViewById(R.id.viewPager);
+        View rootView = findViewById(R.id.rootLayout);
+
+        // Add touch listener directly to ViewPager to toggle controls
+        viewPager.setOnTouchListener((v, event) -> {
+            if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                viewModel.toggleControls();
+                ImageViewerState state = viewModel.getState().getValue();
+                if (state != null && state.isControlsVisible()) {
+                    resetControlHideTimer();
+                }
+            }
+            return false; // Don't consume, let ViewPager handle swipes
+        });
+
+        // Setup window insets for edge-to-edge
+        ViewCompat.setOnApplyWindowInsetsListener(rootView, (v, windowInsets) -> {
+            Insets insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars());
+            v.setPadding(insets.left, insets.top, insets.right, insets.bottom);
+            return WindowInsetsCompat.CONSUMED;
+        });
+    }
+
+    private void initViewPager() {
+        pagerAdapter = new ImagePagerAdapter(this);
+        viewPager.setAdapter(pagerAdapter);
+
+        viewPager.registerOnPageChangeCallback(new ViewPager2.OnPageChangeCallback() {
+            @Override
+            public void onPageSelected(int position) {
+                super.onPageSelected(position);
+                ImageViewerState state = viewModel.getState().getValue();
+                if (state != null && position != state.getCurrentIndex()) {
+                    viewModel.setCurrentIndex(position);
+                    // Also update LocalImagePlayer's current index for reopening
+                    if (playerService != null) {
+                        Player player = playerService.getFirstCurrentPlayerOfType(LocalImagePlayer.class);
+                        if (player instanceof LocalImagePlayer) {
+                            ((LocalImagePlayer) player).setCurrentIndex(position);
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    @SuppressWarnings("unchecked")
+    private void loadIntentData(Bundle savedInstanceState, Intent intent) {
         if (savedInstanceState != null) {
-            pictureShowActive = savedInstanceState
-                    .getBoolean("pictureShowActive");
-            currentImageIndex = savedInstanceState.getInt("currentImageIndex");
-            imageUris = (List<Uri>) savedInstanceState
-                    .getSerializable("imageUris");
+            // Restore from saved state
+            boolean wasPlaying = savedInstanceState.getBoolean("pictureShowActive", false);
+            int currentIndex = savedInstanceState.getInt("currentImageIndex", 0);
+            ArrayList<Uri> savedUris = savedInstanceState.getParcelableArrayList("imageUris");
+            
+            viewModel.setImageUris(savedUris);
+            viewModel.setCurrentIndex(currentIndex);
+            
+            if (wasPlaying) {
+                viewModel.play();
+            }
         } else {
-            YaaccLogger.d(this.getClass().getName(),
-                    "Received Action View! now setting items ");
-            Serializable urisData = intent.getSerializableExtra(URIS);
-            if (urisData != null) {
-                if (urisData instanceof List) {
-                    currentImageIndex = 0;
-                    imageUris = (List<Uri>) urisData;
-                    YaaccLogger.d(this.getClass().getName(),
-                            "imageUris" + imageUris.toString());
+            // Load from intent
+            ArrayList<Uri> uris = intent.getParcelableArrayListExtra(URIS);
+            if (uris != null) {
+                // Only set if we don't already have data from prefs
+                ImageViewerState existingState = viewModel.getState().getValue();
+                if (existingState == null || existingState.getTotalImages() == 0) {
+                    viewModel.setImageUris(uris);
                 }
-            } else {
-                if (intent.getData() != null) {
-                    currentImageIndex = 0;
-                    imageUris.add(intent.getData());
-                    YaaccLogger.d(this.getClass().getName(), "imageUris.add(i.getData)"
-                            + imageUris.toString());
-                }
+            } else if (intent.getData() != null) {
+                List<Uri> singleUri = new ArrayList<>();
+                singleUri.add(intent.getData());
+                viewModel.setImageUris(singleUri);
             }
-            pictureShowActive = intent.getBooleanExtra(AUTO_START_SHOW, false);
-        }
-        if (imageUris != null && !imageUris.isEmpty()) {
-            loadImage();
-        } else {
-            runOnUiThread(() -> {
-                Toast toast = Toast.makeText(ImageViewerActivity.this,
-                        R.string.no_valid_uri_data_found_to_display,
-                        Toast.LENGTH_LONG);
-                toast.show();
-                menuBarsHide();
-            });
+            
+            // Restore current index from intent if provided
+            int intentIndex = intent.getIntExtra("currentIndex", -1);
+            if (intentIndex >= 0) {
+                viewModel.setCurrentIndex(intentIndex);
+            }
+            
+            if (intent.getBooleanExtra(AUTO_START_SHOW, false)) {
+                viewModel.play();
+            }
         }
     }
 
-    @Override
-    protected void onDestroy() {
-        try {
-            unbindService(this);
-        } catch (IllegalArgumentException iae) {
-            YaaccLogger.d(getClass().getName(), "Ignore exception on unbind service while activity destroy");
-        }
-        super.onDestroy();
-    }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see android.app.Activity#onResume()
-     */
-    @Override
-    protected void onResume() {
-
-        imageViewerBroadcastReceiver = new ImageViewerBroadcastReceiver(this);
-        imageViewerBroadcastReceiver.registerReceiver();
-        this.bindService(new Intent(this, PlayerService.class),
-                this, Context.BIND_AUTO_CREATE);
-        super.onResume();
-    }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see android.app.Activity#onPause()
-     */
-    @Override
-    protected void onPause() {
-        cancleTimer();
-        if (retrieveImageTask != null) {
-            retrieveImageTask.cancel(true);
-            retrieveImageTask = null;
-        }
-        unregisterReceiver(imageViewerBroadcastReceiver);
-        imageViewerBroadcastReceiver = null;
-        super.onPause();
-    }
-
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        getMenuInflater().inflate(R.menu.activity_image_viewer, menu);
-        this.menu = menu;
-        MenuItem pauseItem = menu.findItem(R.id.menu_pause);
-        ImageButton pauseButton = new ImageButton(this);
-        Drawable icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_pause_32, getTheme()), getTheme());
-        pauseButton.setImageDrawable(icon);
-        pauseButton.setFocusable(true);
-        pauseButton.setFocusableInTouchMode(true);
-        pauseButton.setOnTouchListener((v, event) -> {
-            if (event.getAction() == MotionEvent.ACTION_DOWN) {
-                pause();
-            }
-            return false;
-        });
-        pauseButton.setOnClickListener(v -> pause());
-        pauseButton.setOnKeyListener((v, keyCode, event) -> {
-            if (event.getAction() == KeyEvent.ACTION_DOWN &&
-                    (keyCode == KeyEvent.KEYCODE_ENTER || keyCode == KeyEvent.KEYCODE_DPAD_CENTER)) {
-                pause();
-                return true;
-            }
-            return false;
-        });
-        pauseItem.setActionView(pauseButton);
-        MenuItem playItem = menu.findItem(R.id.menu_play);
-        ImageButton playButton = new ImageButton(this);
-        icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_play_arrow_32, getTheme()), getTheme());
-        playButton.setImageDrawable(icon);
-        playButton.setFocusable(true);
-        playButton.setFocusableInTouchMode(true);
-        playButton.setOnTouchListener((v, event) -> {
-            if (event.getAction() == MotionEvent.ACTION_DOWN) {
-                play();
-            }
-            return false;
-        });
-        playButton.setOnClickListener(v -> play());
-        playButton.setOnKeyListener((v, keyCode, event) -> {
-            if (event.getAction() == KeyEvent.ACTION_DOWN &&
-                    (keyCode == KeyEvent.KEYCODE_ENTER || keyCode == KeyEvent.KEYCODE_DPAD_CENTER)) {
-                play();
-                return true;
-            }
-            return false;
-        });
-        playItem.setActionView(playButton);
-        MenuItem stopItem = menu.findItem(R.id.menu_stop);
-        ImageButton stopButton = new ImageButton(this);
-        icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_stop_32, getTheme()), getTheme());
-        stopButton.setImageDrawable(icon);
-        stopButton.setFocusable(true);
-        stopButton.setFocusableInTouchMode(true);
-        stopButton.setFocusableInTouchMode(true);
-        stopButton.setOnTouchListener((v, event) -> {
-            if (event.getAction() == MotionEvent.ACTION_DOWN) {
-                stop();
-            }
-            return false;
-        });
-        stopButton.setOnClickListener(v -> stop());
-        stopButton.setOnKeyListener((v, keyCode, event) -> {
-            if (event.getAction() == KeyEvent.ACTION_DOWN &&
-                    (keyCode == KeyEvent.KEYCODE_ENTER || keyCode == KeyEvent.KEYCODE_DPAD_CENTER)) {
-                stop();
-                return true;
-            }
-            return false;
-        });
-        stopItem.setActionView(stopButton);
-        MenuItem nextItem = menu.findItem(R.id.menu_next);
-        ImageButton nextButton = new ImageButton(this);
-        icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_skip_next_32, getTheme()), getTheme());
-        nextButton.setImageDrawable(icon);
-        nextButton.setFocusable(true);
-        nextButton.setFocusableInTouchMode(true);
-        nextButton.setFocusableInTouchMode(true);
-        nextButton.setOnTouchListener((v, event) -> {
-            if (event.getAction() == MotionEvent.ACTION_DOWN) {
-                next();
-            }
-            return false;
-        });
-        nextButton.setOnClickListener(v -> previous());
-        nextButton.setOnKeyListener((v, keyCode, event) -> {
-            if (event.getAction() == KeyEvent.ACTION_DOWN &&
-                    (keyCode == KeyEvent.KEYCODE_ENTER || keyCode == KeyEvent.KEYCODE_DPAD_CENTER)) {
-                next();
-                return true;
-            }
-            return false;
-        });
-        nextItem.setActionView(nextButton);
-        MenuItem previousItem = menu.findItem(R.id.menu_previous);
-        ImageButton previousButton = new ImageButton(this);
-        icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_skip_previous_32, getTheme()), getTheme());
-        previousButton.setImageDrawable(icon);
-        previousButton.setFocusable(true);
-        previousButton.setFocusableInTouchMode(true);
-        previousButton.setFocusableInTouchMode(true);
-        previousButton.setOnTouchListener((v, event) -> {
-            if (event.getAction() == MotionEvent.ACTION_DOWN) {
-                previous();
-            }
-            return false;
-        });
-        previousButton.setOnClickListener(v -> previous());
-        previousButton.setOnKeyListener((v, keyCode, event) -> {
-            if (event.getAction() == KeyEvent.ACTION_DOWN &&
-                    (keyCode == KeyEvent.KEYCODE_ENTER || keyCode == KeyEvent.KEYCODE_DPAD_CENTER)) {
-                previous();
-                return true;
-            }
-            return false;
-        });
-        previousItem.setActionView(previousButton);
-        MenuItem exitItem = menu.findItem(R.id.menu_exit);
-        ImageButton exitButton = new ImageButton(this);
-        icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_cancel_32, getTheme()), getTheme());
-        exitButton.setImageDrawable(icon);
-        exitButton.setFocusable(true);
-        exitButton.setFocusableInTouchMode(true);
-        exitButton.setFocusableInTouchMode(true);
-        exitButton.setOnTouchListener((v, event) -> {
-            if (event.getAction() == MotionEvent.ACTION_DOWN) {
-                exit();
-            }
-            return false;
-        });
-        exitButton.setOnClickListener(v -> exit());
-        exitButton.setOnKeyListener((v, keyCode, event) -> {
-            if (event.getAction() == KeyEvent.ACTION_DOWN &&
-                    (keyCode == KeyEvent.KEYCODE_ENTER || keyCode == KeyEvent.KEYCODE_DPAD_CENTER)) {
-                exit();
-                return true;
-            }
-            return false;
-        });
-        exitItem.setActionView(exitButton);
-
-        return true;
-    }
-
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        Intent i;
-        if (item.getItemId() == R.id.menu_settings) {
-
-            i = new Intent(this, SettingsActivity.class);
-            startActivity(i);
-            return true;
-        }
-        if (item.getItemId() == R.id.menu_next) {
-            next();
-            return true;
-        }
-        if (item.getItemId() == R.id.menu_pause) {
-            pause();
-            return true;
-        }
-        if (item.getItemId() == R.id.menu_play) {
-            play();
-            return true;
-        }
-        if (item.getItemId() == R.id.menu_previous) {
-            previous();
-            return true;
-        }
-        if (item.getItemId() == R.id.menu_stop) {
-            stop();
-            return true;
-        }
-        if (item.getItemId() == R.id.yaacc_log) {
-            YaaccLogActivity.showLog(this);
-            return true;
-        }
-        if (item.getItemId() == R.id.yaacc_about) {
-            AboutActivity.showAbout(this);
-            return true;
-        }
-        if (item.getItemId() == R.id.menu_exit) {
-            exit();
-            return true;
-        }
-        return super.onOptionsItemSelected(item);
-
-    }
-
-    private void exit() {
-        Player player = playerService.getFirstCurrentPlayerOfType(LocalImagePlayer.class);
-        if (player != null) {
-
-            player.exit();
-        }
+    private void showNoValidUriError() {
+        Toast.makeText(this, R.string.no_valid_uri_data_found_to_display, Toast.LENGTH_LONG).show();
         finish();
     }
 
-    /**
-     * In case of device rotation the activity will be restarted. In this case
-     * the original intent which where used to start the activity won't change.
-     * So we only need to store the state of the activity.
-     */
-    @Override
-    public void onSaveInstanceState(Bundle savedInstanceState) {
-        super.onSaveInstanceState(savedInstanceState);
-        savedInstanceState.putBoolean("pictureShowActive", pictureShowActive);
-        savedInstanceState.putInt("currentImageIndex", currentImageIndex);
-        if (!(imageUris instanceof ArrayList)) {
-            imageUris = new ArrayList<>(imageUris);
+    private void resetControlHideTimer() {
+        if (controlHideTimer != null) {
+            controlHideTimer.cancel();
         }
-        savedInstanceState.putSerializable("imageUris", (ArrayList<Uri>) imageUris);
-    }
-
-    /**
-     * Create and start a timer for the next picture change. The timer runs only
-     * once.
-     */
-    public void startTimer() {
-        pictureShowTimer = new Timer();
-        pictureShowTimer.schedule(new TimerTask() {
+        controlHideTimer = new Timer();
+        controlHideTimer.schedule(new TimerTask() {
             @Override
             public void run() {
-                YaaccLogger.d(getClass().getName(), "TimerEvent" + this);
-                ImageViewerActivity.this.next();
+                runOnUiThread(() -> viewModel.hideControls());
             }
-        }, getDuration());
+        }, 10000);
     }
 
-    /**
-     * Start playing the picture show.
-     */
-    public void play() {
-        if (isProcessingCommand)
-            return;
-        isProcessingCommand = true;
-        if (currentImageIndex < imageUris.size()) {
-// Start the pictureShow
-            pictureShowActive = true;
-            loadImage();
-            isProcessingCommand = false;
+    @Override
+    protected void onStart() {
+        super.onStart();
+        bindService(new Intent(this, PlayerService.class), this, Context.BIND_AUTO_CREATE);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        broadcastReceiver = new ImageViewerBroadcastReceiver(this);
+        broadcastReceiver.registerReceiver();
+        // Restore state when coming back from background
+        restoreStateFromPrefs();
+    }
+
+    @Override
+    public void finish() {
+        // Clear saved state when activity is closed
+        android.content.SharedPreferences prefs = getSharedPreferences("imageviewer_state", MODE_PRIVATE);
+        prefs.edit().clear().apply();
+        super.finish();
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        try {
+            unbindService(this);
+        } catch (IllegalArgumentException e) {
+            YaaccLogger.d(getClass().getName(), "Ignore exception on unbind service");
         }
     }
 
-    /**
-     *
-     */
-    private void loadImage() {
-        if (retrieveImageTask != null
-                && retrieveImageTask.getStatus() == Status.RUNNING) {
-            return;
-        }
-        retrieveImageTask = new RetrieveImageTask(this);
-        YaaccLogger.d(getClass().getName(),
-                "showImage(" + imageUris.get(currentImageIndex) + ")");
-        retrieveImageTask.executeOnExecutor(((Yaacc) getApplicationContext()).getContentLoadExecutor(), imageUris.get(currentImageIndex));
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        loadIntentData(null, intent);
     }
 
-    /**
-     * Stop picture show timer and reset the current playlist index. Display
-     * default image;
-     */
-    public void stop() {
-        if (isProcessingCommand)
-            return;
-        isProcessingCommand = true;
-        cancleTimer();
-        currentImageIndex = 0;
-        showDefaultImage();
-        pictureShowActive = false;
-        isProcessingCommand = false;
-    }
-
-    /**
-     *
-     */
-    private void cancleTimer() {
-        if (pictureShowTimer != null) {
-            pictureShowTimer.cancel();
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+        ImageViewerState state = viewModel.getState().getValue();
+        if (state != null) {
+            outState.putBoolean("pictureShowActive", state.isPlaying());
+            outState.putInt("currentImageIndex", state.getCurrentIndex());
+            outState.putParcelableArrayList("imageUris", new ArrayList<>(state.getImageUris()));
+            
+            // Also save to SharedPreferences for persistence across activity restarts
+            saveStateToPrefs(state);
         }
     }
 
-    /**
-     *
-     */
-    private void showDefaultImage() {
-        imageView.setImageDrawable(ResourcesCompat.getDrawable(getResources(),
-                R.drawable.yaacc192_32, getTheme()));
+    private void saveStateToPrefs(ImageViewerState state) {
+        android.content.SharedPreferences prefs = getSharedPreferences("imageviewer_state", MODE_PRIVATE);
+        android.content.SharedPreferences.Editor editor = prefs.edit();
+        editor.putInt("currentImageIndex", state.getCurrentIndex());
+        editor.putBoolean("isPlaying", state.isPlaying());
+        editor.putInt("imageCount", state.getTotalImages());
+        // Save URIs as string set
+        if (state.getImageUris() != null && !state.getImageUris().isEmpty()) {
+            String[] uriStrings = new String[state.getImageUris().size()];
+            for (int i = 0; i < state.getImageUris().size(); i++) {
+                uriStrings[i] = state.getImageUris().get(i).toString();
+            }
+            editor.putStringSet("imageUris", new java.util.HashSet<>(java.util.Arrays.asList(uriStrings)));
+        }
+        editor.apply();
     }
 
-    /**
-     * Stop the timer.
-     */
-    public void pause() {
-        if (isProcessingCommand)
-            return;
-        isProcessingCommand = true;
-        cancleTimer();
-        pictureShowActive = false;
-        isProcessingCommand = false;
-    }
-
-    /**
-     * show the previous image
-     */
-    public void previous() {
-        if (isProcessingCommand)
-            return;
-        isProcessingCommand = true;
-        cancleTimer();
-        currentImageIndex--;
-        if (currentImageIndex < 0) {
-            if (imageUris.size() > 0) {
-                currentImageIndex = imageUris.size() - 1;
-            } else {
-                currentImageIndex = 0;
+    private void restoreStateFromPrefs() {
+        android.content.SharedPreferences prefs = getSharedPreferences("imageviewer_state", MODE_PRIVATE);
+        int index = prefs.getInt("currentImageIndex", -1);
+        java.util.Set<String> uriSet = prefs.getStringSet("imageUris", null);
+        
+        if (uriSet != null && !uriSet.isEmpty()) {
+            // Restore URIs if not already loaded from intent
+            ImageViewerState state = viewModel.getState().getValue();
+            if (state == null || state.getTotalImages() == 0) {
+                ArrayList<Uri> uris = new ArrayList<>();
+                for (String uriString : uriSet) {
+                    uris.add(Uri.parse(uriString));
+                }
+                viewModel.setImageUris(uris);
             }
         }
-        loadImage();
-        isProcessingCommand = false;
-    }
-
-    /**
-     * show the next image.
-     */
-    public void next() {
-        if (isProcessingCommand)
-            return;
-        isProcessingCommand = true;
-        cancleTimer();
-        currentImageIndex++;
-        if (currentImageIndex > imageUris.size() - 1) {
-            currentImageIndex = 0;
-// pictureShowActive = false; restart after last image
+        
+        if (index >= 0) {
+            viewModel.setCurrentIndex(index);
+            viewPager.setCurrentItem(index, false);
         }
-        loadImage();
-        isProcessingCommand = false;
     }
 
-    /**
-     * Displays an image and start the picture show timer.
-     *
-     * @param image image
-     */
-    public void showImage(final Drawable image) {
-        if (image == null) {
-            showDefaultImage();
-            return;
+    // ServiceConnection
+    @Override
+    public void onServiceConnected(ComponentName name, IBinder binder) {
+        if (binder instanceof PlayerService.PlayerServiceBinder) {
+            YaaccLogger.d(getClass().getName(), "PlayerService connected");
+            playerService = ((PlayerService.PlayerServiceBinder) binder).getService();
         }
-        YaaccLogger.d(this.getClass().getName(), "image bounds: " + image.getBounds());
-        runOnUiThread(new Runnable() {
-            public void run() {
-                YaaccLogger.d(getClass().getName(),
-                        "Start set image: " + System.currentTimeMillis());
-                imageView.setImageDrawable(image);
-                YaaccLogger.d(getClass().getName(),
-                        "End set image: " + System.currentTimeMillis());
-            }
-        });
     }
 
-    /**
-     * Return the configured slide stay duration
-     */
-    private int getDuration() {
-        SharedPreferences preferences = PreferenceManager
-                .getDefaultSharedPreferences(this);
-        return Integer
-                .parseInt(preferences.getString(
-                        getString(R.string.image_viewer_settings_duration_key),
-                        "5000"));
+    @Override
+    public void onServiceDisconnected(ComponentName name) {
+        YaaccLogger.d(getClass().getName(), "PlayerService disconnected");
+        playerService = null;
     }
 
-    // interface SwipeReceiver
+    // SwipeReceiver
     @Override
     public void onRightToLeftSwipe() {
-        if (imageUris.size() > 1) {
-            next();
+        ImageViewerState state = viewModel.getState().getValue();
+        if (state != null && state.hasMultipleImages()) {
+            viewModel.next();
         }
     }
 
     @Override
     public void onLeftToRightSwipe() {
-        if (imageUris.size() > 1) {
-            previous();
+        ImageViewerState state = viewModel.getState().getValue();
+        if (state != null && state.hasMultipleImages()) {
+            viewModel.previous();
         }
     }
 
     @Override
-    public void onTopToBottomSwipe() {
-// do nothing
-    }
+    public void onTopToBottomSwipe() {}
 
     @Override
-    public void onBottomToTopSwipe() {
-// do nothing
-    }
+    public void onBottomToTopSwipe() {}
 
     @Override
     public void beginOnTouchProcessing(View v, MotionEvent event) {
-        runOnUiThread(this::menuBarsShow);
+        viewModel.showControls();
+        resetControlHideTimer();
     }
 
     @Override
     public void endOnTouchProcessing(View v, MotionEvent event) {
-        startMenuHideTimer();
+        resetControlHideTimer();
     }
 
-    /**
-     *
-     */
-    private void startMenuHideTimer() {
-        Timer menuHideTimer = new Timer();
-        menuHideTimer.schedule(new TimerTask() {
-            @Override
-            public void run() {
-                runOnUiThread(() -> menuBarsHide());
-            }
-        }, 10000);
-    }
-
-    public boolean isPictureShowActive() {
-        return pictureShowActive && imageUris != null && imageUris.size() > 1;
-    }
-
-    private String getPositionString() {
-        return " (" + (currentImageIndex + 1) + "/" + imageUris.size() + ")";
-    }
-
-    //FIXME https://stackoverflow.com/questions/26580117/android-how-to-create-overlay-drop-down-menu-similar-to-google-app
-    private void menuBarsHide() {
-        YaaccLogger.d(getClass().getName(), "menuBarsHide");
-        ActionBar actionBar = getSupportActionBar();
-        if (actionBar == null) {
-            YaaccLogger.d(getClass().getName(), "menuBarsHide ActionBar is null");
-            return;
+    // Called from ImageFragment when image is clicked
+    public void toggleControlsFromFragment() {
+        viewModel.toggleControls();
+        ImageViewerState state = viewModel.getState().getValue();
+        if (state != null && state.isControlsVisible()) {
+            resetControlHideTimer();
         }
-
-        actionBar.setDisplayShowTitleEnabled(false);
-        actionBar.setDisplayShowHomeEnabled(false);
-        getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
-        getWindow().clearFlags(
-                WindowManager.LayoutParams.FLAG_FORCE_NOT_FULLSCREEN);
-        getWindow().getDecorView().setSystemUiVisibility(
-                View.SYSTEM_UI_FLAG_LOW_PROFILE);
-        actionBar.hide(); // slides out
     }
 
-    private void menuBarsShow() {
-        YaaccLogger.d(getClass().getName(), "menuBarsShow");
-        ActionBar actionBar = getSupportActionBar();
-        if (actionBar == null) {
-            YaaccLogger.d(getClass().getName(), "menuBarsShow ActionBar is null");
-            return;
+    // Public methods called by BroadcastReceiver
+    public void play() {
+        viewModel.play();
+        Toast.makeText(this, R.string.play, Toast.LENGTH_SHORT).show();
+    }
+
+    public void pause() {
+        viewModel.pause();
+        Toast.makeText(this, R.string.pause, Toast.LENGTH_SHORT).show();
+    }
+
+    public void stop() {
+        viewModel.stop();
+        Toast.makeText(this, R.string.stop, Toast.LENGTH_SHORT).show();
+    }
+
+    public void next() {
+        viewModel.next();
+    }
+
+    public void previous() {
+        viewModel.previous();
+    }
+
+    public void exit() {
+        viewModel.stop();
+        Player player = playerService != null ?
+            playerService.getFirstCurrentPlayerOfType(LocalImagePlayer.class) : null;
+        if (player != null) {
+            player.exit();
         }
-        actionBar.setDisplayShowTitleEnabled(false);
-        actionBar.setDisplayShowHomeEnabled(false);
-        getWindow().addFlags(
-                WindowManager.LayoutParams.FLAG_FORCE_NOT_FULLSCREEN);
-        getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
-        getWindow().getDecorView().setSystemUiVisibility(
-                View.SYSTEM_UI_FLAG_VISIBLE);
-        actionBar.show();
-        focusPauseButton();
+        finish();
+    }
+
+    @Override
+    public boolean onCreateOptionsMenu(android.view.Menu menu) {
+        getMenuInflater().inflate(R.menu.activity_image_viewer, menu);
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(android.view.MenuItem item) {
+        return handleMenuItem(item.getItemId()) || super.onOptionsItemSelected(item);
+    }
+
+    // Menu handling
+    public boolean handleMenuItem(int itemId) {
+        if (itemId == R.id.menu_settings) {
+            startActivity(new Intent(this, SettingsActivity.class));
+            return true;
+        }
+        if (itemId == R.id.menu_next) {
+            next();
+            return true;
+        }
+        if (itemId == R.id.menu_pause) {
+            pause();
+            return true;
+        }
+        if (itemId == R.id.menu_play) {
+            play();
+            return true;
+        }
+        if (itemId == R.id.menu_previous) {
+            previous();
+            return true;
+        }
+        if (itemId == R.id.menu_stop) {
+            stop();
+            return true;
+        }
+        if (itemId == R.id.yaacc_log) {
+            YaaccLogActivity.showLog(this);
+            return true;
+        }
+        if (itemId == R.id.yaacc_about) {
+            AboutActivity.showAbout(this);
+            return true;
+        }
+        if (itemId == R.id.menu_exit) {
+            exit();
+            return true;
+        }
+        return false;
     }
 
     @Override
     public void onBackPressed() {
         super.onBackPressed();
         exit();
-    }
-
-    private void focusPauseButton() {
-        if (menu != null) {
-            final MenuItem pauseItem = menu.findItem(R.id.menu_pause);
-
-            if (pauseItem != null) {
-                final View pauseView = findViewById(pauseItem.getItemId());
-                if (pauseView != null) {
-                    pauseView.requestFocus();
-                }
-            }
-        }
     }
 }

@@ -45,12 +45,10 @@ public class AvTransportMediaRendererStopped extends Stopped<AvTransport> implem
      * Constructor.
      *
      * @param transport  the state holder
-     * @param upnpClient the upnpclient to use
      */
-    public AvTransportMediaRendererStopped(AvTransport transport,
-                                           UpnpClient upnpClient) {
+    public AvTransportMediaRendererStopped(AvTransport transport) {
         super(transport);
-        this.upnpClient = upnpClient;
+        this.upnpClient = AvTransport.getUpnpClient();
     }
 
     /*

@@ -109,7 +109,7 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
         );
 
         mediaSession = new MediaSession.Builder(getContext(), exoPlayer)
-                .setId("local_audio_" + getId())
+                .setId("local_audio_" + getId() + "_" + System.currentTimeMillis())
                 .setSessionActivity(sessionActivity)
                 .build();
 
@@ -235,20 +235,25 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
             pendingIndex = index;
             return;
         }
-        if (exoPlayer.getMediaItemCount() != getItems().size()) {
-            setItems(getItems().toArray(new PlayableItem[0]));
-        }
+        
         DIDLObject.Property<URI> albumArtUriProperty = playableItem.getItem() == null ? null :
                 playableItem.getItem().getFirstProperty(DIDLObject.Property.UPNP.ALBUM_ART_URI.class);
         albumArtUri = (albumArtUriProperty == null) ? null : albumArtUriProperty.getValue();
 
-        // ExoPlayer must be called from main thread
+        // Notify listeners that track changed (for UI updates)
+        firePropertyChange(PROPERTY_ITEM, null, playableItem);
+
+        // ExoPlayer must be called from main thread - move ALL ExoPlayer access inside Handler
         new Handler(Looper.getMainLooper()).post(() -> {
-            if (exoPlayer != null) {
-                exoPlayer.setPlayWhenReady(true);
-                exoPlayer.seekTo(index, 0);
-                exoPlayer.prepare();
-                exoPlayer.play();
+            ExoPlayer player = exoPlayer; // Store local reference to avoid race condition
+            if (player != null) {
+                if (player.getMediaItemCount() != getItems().size()) {
+                    setItems(getItems().toArray(new PlayableItem[0]));
+                }
+                player.setPlayWhenReady(true);
+                player.seekTo(index, 0);
+                player.prepare();
+                player.play();
                 setPlaying(true);
                 showNotificationInternal(); // Show notification
                 YaaccLogger.d(getClass().getName(), "Started playing: " + playableItem.getTitle());

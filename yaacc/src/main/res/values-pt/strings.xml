@@ -61,7 +61,7 @@
     <string name="title_activity_avtransport_player">Leitor remoto YAACC</string>
     <string name="title_activity_multi_content_player">Jogador padrão YAACC</string>
     <string name="can_not_start_activity">Não é possível iniciar o aplicativo! Razão:</string>
-    <string name="app_descrip">Reúna seus dispositivos UPnP em sua rede local com o Android!  <a href="http://www.yaacc.de">www.yaacc.de</a> YAACC é desenvolvido sob GPLv3. Sinta-se à vontade para usá-lo e compartilhá-lo sem qualquer garantia. Os detalhes da licença estão documentados em (www.gnu.org/licenses/gpl-3.0) Outras licenças são: A implementação UPnP é baseada em Cling (https://github.com/4thline/cling) Ícones e símbolos de design de material são usados ​​( https://github.com/google/material-design-icons). Android é uma marca registrada da Google Inc (developer.android.com/about/index.html)</string>
+    <string name="app_descrip">Reúna seus dispositivos UPnP em sua rede local com o Android!  <a href="https://www.yaacc.de">www.yaacc.de</a> YAACC é desenvolvido sob GPLv3. Sinta-se à vontade para usá-lo e compartilhá-lo sem qualquer garantia. Os detalhes da licença estão documentados em (www.gnu.org/licenses/gpl-3.0) Outras licenças são: A implementação UPnP é baseada em Cling (https://github.com/4thline/cling) Ícones e símbolos de design de material são usados ​​( https://github.com/google/material-design-icons). Android é uma marca registrada da Google Inc (developer.android.com/about/index.html)</string>
     <string name="title_activity_yaacc_upnp_server_control">Controle de servidor YAACC UPnP</string>
     <string name="yaacc_upnp_server_stop_server">parar servidor</string>
     <string name="yaacc_upnp_server_start_server">iniciar servidor</string>
