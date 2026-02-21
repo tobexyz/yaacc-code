@@ -15,8 +15,8 @@ tobexyz
 alt="Get it on F-Droid"
 height="80">](https://f-droid.org/packages/de.yaacc/)
 
-<img src="./docs/screenshots/4.4.x/browse_servers.png" alt= “” width="30%" height="30%"> <img src="./docs/screenshots/4.4.x/browse_image_folder.png" alt= “” width="30%" height="30%"> <img src="./docs/screenshots/4.4.x/browse_receiver.png" alt= “” width="30%" height="30%">
-<img src="./docs/screenshots/4.2.x/music_player.png" alt= “” width="30%" height="30%"> <img src="./docs/screenshots/4.4.x/playlist_fully_editable.png" alt= “” width="30%" height="30%"> <img src="./docs/screenshots/4.4.x/image_player_show_menu.png" alt= “” width="30%" height="30%">
+<img src="./docs/screenshots/5.0.x/browse_servers.png" alt= “” width="30%" height="30%"> <img src="./docs/screenshots/5.0.x/browse_image_folder.png" alt= “” width="30%" height="30%"> <img src="./docs/screenshots/5.0.x/browse_receiver.png" alt= “” width="30%" height="30%">
+<img src="./docs/screenshots/5.0.x/music_player.png" alt= “” width="30%" height="30%"> <img src="./docs/screenshots/5.0.x/playlist_fully_editable.png" alt= “” width="30%" height="30%"> <img src="./docs/screenshots/5.0.x/image_player_show_menu.png" alt= “” width="30%" height="30%">
 
 ## Description
 
@@ -29,10 +29,15 @@ in order to play media from your device on any UPnP renderer in your network.
 * UPnP/DLNA Server - share files of your device in the network
 * UPnP/DLNA Client - receive media from other devices on your device
 * UPnP/DLNA Controller - control media renderer in the network
+* Live streaming - stream system audio and screen to network devices (Android 10+)
+* SAF support - browse and share files from external storage, USB drives, SD cards
+* Lock screen controls - hardware volume buttons and media controls
+* Receiver controls - play/pause/stop directly from receiver tab with status display
 * Control multiple media renderer
 * Allow download files to the device
 * Allow sharing of URLs and sending them to the current media renderers
 * Use your device as an proxy if your media renderer can't process https media URLs
+* Battery optimized with smart WiFi lock and foreground service management
 
 ## Configuration
 
