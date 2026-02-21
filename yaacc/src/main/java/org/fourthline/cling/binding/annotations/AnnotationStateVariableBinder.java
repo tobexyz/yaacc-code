@@ -15,7 +15,7 @@
 
 package org.fourthline.cling.binding.annotations;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.binding.AllowedValueProvider;
 import org.fourthline.cling.binding.AllowedValueRangeProvider;
@@ -67,7 +67,7 @@ public class AnnotationStateVariableBinder {
 
     protected StateVariable createStateVariable() throws LocalServiceBindingException {
 
-        Log.v(getClass().getName(), "Creating state variable '" + getName() + "' with accessor: " + getAccessor());
+        YaaccLogger.v(getClass().getName(), "Creating state variable '" + getName() + "' with accessor: " + getAccessor());
 
         // Datatype
         Datatype datatype = createDatatype();
@@ -88,7 +88,7 @@ public class AnnotationStateVariableBinder {
             } else if (getAccessor() != null && getAccessor().getReturnType().isEnum()) {
                 allowedValues = getAllowedValues(getAccessor().getReturnType());
             } else {
-                Log.v(getClass().getName(), "Not restricting allowed values (of string typed state var): " + getName());
+                YaaccLogger.v(getClass().getName(), "Not restricting allowed values (of string typed state var): " + getName());
             }
 
             if (allowedValues != null && defaultValue != null) {
@@ -122,7 +122,7 @@ public class AnnotationStateVariableBinder {
                         getAnnotation().allowedValueStep()
                 );
             } else {
-                Log.v(getClass().getName(), "Not restricting allowed value range (of numeric typed state var): " + getName());
+                YaaccLogger.v(getClass().getName(), "Not restricting allowed value range (of numeric typed state var): " + getName());
             }
 
             // Check if the default value is an allowed value
@@ -157,13 +157,13 @@ public class AnnotationStateVariableBinder {
         int eventMinimumDelta = 0;
         if (sendEvents) {
             if (getAnnotation().eventMaximumRateMilliseconds() > 0) {
-                Log.v(getClass().getName(), "Moderating state variable events using maximum rate (milliseconds): " + getAnnotation().eventMaximumRateMilliseconds());
+                YaaccLogger.v(getClass().getName(), "Moderating state variable events using maximum rate (milliseconds): " + getAnnotation().eventMaximumRateMilliseconds());
                 eventMaximumRateMillis = getAnnotation().eventMaximumRateMilliseconds();
             }
 
             if (getAnnotation().eventMinimumDelta() > 0 && Datatype.Builtin.isNumeric(datatype.getBuiltin())) {
                 // TODO: Doesn't consider floating point types!
-                Log.v(getClass().getName(), "Moderating state variable events using minimum delta: " + getAnnotation().eventMinimumDelta());
+                YaaccLogger.v(getClass().getName(), "Moderating state variable events using minimum delta: " + getAnnotation().eventMinimumDelta());
                 eventMinimumDelta = getAnnotation().eventMinimumDelta();
             }
         }
@@ -183,16 +183,16 @@ public class AnnotationStateVariableBinder {
 
         if (declaredDatatype.length() == 0 && getAccessor() != null) {
             Class returnType = getAccessor().getReturnType();
-            Log.v(getClass().getName(), "Using accessor return type as state variable type: " + returnType);
+            YaaccLogger.v(getClass().getName(), "Using accessor return type as state variable type: " + returnType);
 
             if (ModelUtil.isStringConvertibleType(getStringConvertibleTypes(), returnType)) {
                 // Enums and toString() convertible types are always state variables with type STRING
-                Log.v(getClass().getName(), "Return type is string-convertible, using string datatype");
+                YaaccLogger.v(getClass().getName(), "Return type is string-convertible, using string datatype");
                 return Datatype.Default.STRING.getBuiltinType().getDatatype();
             } else {
                 Datatype.Default defaultDatatype = Datatype.Default.getByJavaType(returnType);
                 if (defaultDatatype != null) {
-                    Log.v(getClass().getName(), "Return type has default UPnP datatype: " + defaultDatatype);
+                    YaaccLogger.v(getClass().getName(), "Return type has default UPnP datatype: " + defaultDatatype);
                     return defaultDatatype.getBuiltinType().getDatatype();
                 }
             }
@@ -201,7 +201,7 @@ public class AnnotationStateVariableBinder {
         // We can also guess that if the allowed values are set then it's a string
         if ((declaredDatatype == null || declaredDatatype.length() == 0) &&
                 (getAnnotation().allowedValues().length > 0 || getAnnotation().allowedValuesEnum() != void.class)) {
-            Log.v(getClass().getName(), "State variable has restricted allowed values, hence using 'string' datatype");
+            YaaccLogger.v(getClass().getName(), "State variable has restricted allowed values, hence using 'string' datatype");
             declaredDatatype = "string";
         }
 
@@ -210,12 +210,12 @@ public class AnnotationStateVariableBinder {
             throw new LocalServiceBindingException("Could not detect datatype of state variable: " + getName());
         }
 
-        Log.v(getClass().getName(), "Trying to find built-in UPnP datatype for detected name: " + declaredDatatype);
+        YaaccLogger.v(getClass().getName(), "Trying to find built-in UPnP datatype for detected name: " + declaredDatatype);
 
         // Now try to find the actual UPnP datatype by mapping the Default to Builtin
         Datatype.Builtin builtin = Datatype.Builtin.getByDescriptorName(declaredDatatype);
         if (builtin != null) {
-            Log.v(getClass().getName(), "Found built-in UPnP datatype: " + builtin);
+            YaaccLogger.v(getClass().getName(), "Found built-in UPnP datatype: " + builtin);
             return builtin.getDatatype();
         } else {
             // TODO
@@ -230,7 +230,7 @@ public class AnnotationStateVariableBinder {
             // The declared default value needs to match the datatype
             try {
                 datatype.valueOf(getAnnotation().defaultValue());
-                Log.v(getClass().getName(), "Found state variable default value: " + getAnnotation().defaultValue());
+                YaaccLogger.v(getClass().getName(), "Found state variable default value: " + getAnnotation().defaultValue());
                 return getAnnotation().defaultValue();
             } catch (Exception ex) {
                 throw new LocalServiceBindingException(
@@ -248,7 +248,7 @@ public class AnnotationStateVariableBinder {
             throw new LocalServiceBindingException("Allowed values type is not an Enum: " + enumType);
         }
 
-        Log.v(getClass().getName(), "Restricting allowed values of state variable to Enum: " + getName());
+        YaaccLogger.v(getClass().getName(), "Restricting allowed values of state variable to Enum: " + getName());
         String[] allowedValueStrings = new String[enumType.getEnumConstants().length];
         for (int i = 0; i < enumType.getEnumConstants().length; i++) {
             Object o = enumType.getEnumConstants()[i];
@@ -257,7 +257,7 @@ public class AnnotationStateVariableBinder {
                         "Allowed value string (that is, Enum constant name) is longer than 32 characters: " + o.toString()
                 );
             }
-            Log.v(getClass().getName(), "Adding allowed value (converted to string): " + o.toString());
+            YaaccLogger.v(getClass().getName(), "Adding allowed value (converted to string): " + o.toString());
             allowedValueStrings[i] = o.toString();
         }
 

@@ -28,7 +28,7 @@ public class PositionInfo {
 
     private UnsignedIntegerFourBytes track = new UnsignedIntegerFourBytes(0);
     private String trackDuration = "00:00:00";
-    private String trackMetaData = "NOT_IMPLEMENTED";
+    private String trackMetaData = "";
     private String trackURI = "";
     private String relTime = "00:00:00";
     private String absTime = "00:00:00"; // TODO: MORE VALUES IN DOMAIN!

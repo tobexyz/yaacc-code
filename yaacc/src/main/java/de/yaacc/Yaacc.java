@@ -30,7 +30,6 @@ import android.content.SharedPreferences;
 import android.os.BatteryManager;
 import android.os.CountDownTimer;
 import android.os.PowerManager;
-import android.util.Log;
 
 import androidx.appcompat.app.AppCompatDelegate;
 import androidx.core.app.NotificationCompat;
@@ -43,14 +42,14 @@ import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
 import de.yaacc.browser.TabBrowserActivity;
-import de.yaacc.musicplayer.BackgroundMusicService;
 import de.yaacc.player.PlayerService;
 import de.yaacc.upnp.UpnpClient;
-import de.yaacc.upnp.UpnpRegistryService;
-import de.yaacc.upnp.server.YaaccAudioRenderingControlService;
 import de.yaacc.upnp.server.YaaccUpnpServerService;
+import de.yaacc.util.SAFCacheManager;
 import de.yaacc.util.NotificationId;
+import de.yaacc.util.SafPermissionManager;
 import de.yaacc.util.ShutdownTimerListener;
+import de.yaacc.util.YaaccLogger;
 
 /**
  * application which holds the global state
@@ -70,7 +69,7 @@ public class Yaacc extends Application {
     @Override
     public void onCreate() {
         super.onCreate();
-        upnpClient = new UpnpClient(this);
+        YaaccLogger.initialize(this);
         createNotificationChannel();
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
         boolean darkMode = preferences.getBoolean(getString(R.string.settings_dark_mode_key), true);
@@ -81,12 +80,25 @@ public class Yaacc extends Application {
         }
 
         int numThreads = Integer.parseInt(preferences.getString(getString(R.string.settings_browse_load_threads_key), "10"));
-        Log.d(getClass().getName(), "Number of Threads used for content loading: " + numThreads);
+        YaaccLogger.d(getClass().getName(), "Number of Threads used for content loading: " + numThreads);
         if (numThreads <= 0) {
-            Log.d(getClass().getName(), "Number of Threads invalid using 10 threads instead: " + numThreads);
+            YaaccLogger.d(getClass().getName(), "Number of Threads invalid using 10 threads instead: " + numThreads);
             numThreads = 10;
         }
         contentLoadThreadPool = Executors.newFixedThreadPool(numThreads);
+
+        // Always start with streaming disabled
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            preferences.edit()
+                    .putBoolean(getString(R.string.settings_local_server_serve_system_audio_chkbx), false)
+                    .putBoolean(getString(R.string.settings_local_server_serve_screen_cast_chkbx), false)
+                    .apply();
+        }
+
+        // Validate and cleanup SAF permissions on app startup
+        SafPermissionManager.validateAndCleanupPermissions(this);
+        startService(new Intent(this, YaaccUpnpServerService.class));
+        upnpClient = new UpnpClient(this);
 
     }
 
@@ -110,7 +122,7 @@ public class Yaacc extends Application {
     }
 
     public void exit() {
-        Log.d(getClass().getName(), "Start shutdown and close");
+        YaaccLogger.d(getClass().getName(), "Start shutdown and close");
         upnpClient.shutdown();
         //clear proxy links from preferences
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
@@ -119,10 +131,8 @@ public class Yaacc extends Application {
         SharedPreferences.Editor editor = preferences.edit();
         proxyLinks.forEach(k -> editor.remove(k).commit());
         stopService(new Intent(this, PlayerService.class));
-        stopService(new Intent(this, BackgroundMusicService.class));
-        stopService(new Intent(this, YaaccAudioRenderingControlService.class));
         stopService(new Intent(this, YaaccUpnpServerService.class));
-        stopService(new Intent(this, UpnpRegistryService.class));
+
 
         //FIXME work around to be fixed with new ui
         NotificationManager mNotificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
@@ -131,7 +141,13 @@ public class Yaacc extends Application {
         mNotificationManager.cancel(NotificationId.YAACC.getId());
         ActivityManager am = (ActivityManager) getApplicationContext().getSystemService(Context.ACTIVITY_SERVICE);
         am.getAppTasks().stream().forEach(t -> t.finishAndRemoveTask());
+        clearCache();
         Runtime.getRuntime().exit(0);
+    }
+
+    private void clearCache() {
+        // Trim cache to recommended size using LRU
+        SAFCacheManager.getInstance(this).trimCache();
     }
 
     public void createNotificationChannel() {
@@ -141,6 +157,7 @@ public class Yaacc extends Application {
         int importance = NotificationManager.IMPORTANCE_DEFAULT;
         NotificationChannel channel = new NotificationChannel(NOTIFICATION_CHANNEL_ID, name, importance);
         channel.setDescription(description);
+        channel.setSound(null, null);
 
 
         // Register the channel with the system; you can't change the importance
@@ -179,7 +196,7 @@ public class Yaacc extends Application {
         shutdownTimer = new CountDownTimer(duration, 1000L) {
             @Override
             public void onTick(long millisUntilFinished) {
-                Log.d(getClass().getName(), "Shutdown in: " + millisUntilFinished + " millis");
+                YaaccLogger.d(getClass().getName(), "Shutdown in: " + millisUntilFinished + " millis");
                 if (getShutdownTimerListener() != null) {
                     getShutdownTimerListener().onTick(millisUntilFinished);
                 }
@@ -188,7 +205,7 @@ public class Yaacc extends Application {
 
             @Override
             public void onFinish() {
-                Log.v(getClass().getName(), "Shutdown timer finished shutting down now!");
+                YaaccLogger.v(getClass().getName(), "Shutdown timer finished shutting down now!");
                 exit();
             }
         };

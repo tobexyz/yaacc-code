@@ -15,7 +15,7 @@
 
 package org.fourthline.cling.model;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.types.Datatype;
 import org.fourthline.cling.model.types.InvalidValueException;
@@ -95,7 +95,7 @@ public class VariableValue {
                     (cp >= 0x20 && cp <= 0xD7FF) ||
                     (cp >= 0xE000 && cp <= 0xFFFD) ||
                     (cp >= 0x10000 && cp <= 0x10FFFF))) {
-                Log.w(getClass().getName(), "Found invalid XML char code: " + cp);
+                YaaccLogger.w(getClass().getName(), "Found invalid XML char code: " + cp);
             }
             i += Character.charCount(cp);
         }

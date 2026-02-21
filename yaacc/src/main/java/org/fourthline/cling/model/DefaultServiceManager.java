@@ -15,7 +15,7 @@
 
 package org.fourthline.cling.model;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.meta.LocalService;
 import org.fourthline.cling.model.meta.StateVariable;
@@ -72,7 +72,7 @@ public class DefaultServiceManager<T> implements ServiceManager<T> {
     protected void lock() {
         try {
             if (lock.tryLock(getLockTimeoutMillis(), TimeUnit.MILLISECONDS)) {
-                Log.v(getClass().getName(), "Acquired lock");
+                YaaccLogger.v(getClass().getName(), "Acquired lock");
             } else {
                 throw new RuntimeException("Failed to acquire lock in milliseconds: " + getLockTimeoutMillis());
             }
@@ -83,7 +83,7 @@ public class DefaultServiceManager<T> implements ServiceManager<T> {
 
     protected void unlock() {
 
-        Log.v(getClass().getName(), "Releasing lock");
+        YaaccLogger.v(getClass().getName(), "Releasing lock");
         lock.unlock();
     }
 
@@ -134,7 +134,7 @@ public class DefaultServiceManager<T> implements ServiceManager<T> {
         try {
             Collection<StateVariableValue> values = readInitialEventedStateVariableValues();
             if (values != null) {
-                Log.v(getClass().getName(), "Obtained initial state variable values for event, skipping individual state variable accessors");
+                YaaccLogger.v(getClass().getName(), "Obtained initial state variable values for event, skipping individual state variable accessors");
                 return values;
             }
             values = new ArrayList<>();
@@ -161,13 +161,13 @@ public class DefaultServiceManager<T> implements ServiceManager<T> {
 
                 StateVariable stateVariable = getService().getStateVariable(variableName);
                 if (stateVariable == null || !stateVariable.getEventDetails().isSendEvents()) {
-                    Log.v(getClass().getName(), "Ignoring unknown or non-evented state variable: " + variableName);
+                    YaaccLogger.v(getClass().getName(), "Ignoring unknown or non-evented state variable: " + variableName);
                     continue;
                 }
 
                 StateVariableAccessor accessor = getService().getAccessor(stateVariable);
                 if (accessor == null) {
-                    Log.w(getClass().getName(), "Ignoring evented state variable without accessor: " + variableName);
+                    YaaccLogger.w(getClass().getName(), "Ignoring evented state variable without accessor: " + variableName);
                     continue;
                 }
                 values.add(accessor.read(stateVariable, getImplementation()));
@@ -179,7 +179,7 @@ public class DefaultServiceManager<T> implements ServiceManager<T> {
     }
 
     protected void init() {
-        Log.v(getClass().getName(), "No service implementation instance available, initializing...");
+        YaaccLogger.v(getClass().getName(), "No service implementation instance available, initializing...");
         try {
             // The actual instance we ware going to use and hold a reference to (1:1 instance for manager)
             serviceImpl = createServiceInstance();
@@ -201,7 +201,7 @@ public class DefaultServiceManager<T> implements ServiceManager<T> {
             // Use this constructor if possible
             return serviceClass.getConstructor(LocalService.class).newInstance(getService());
         } catch (NoSuchMethodException ex) {
-            Log.v(getClass().getName(), "Creating new service implementation instance with no-arg constructor: " + serviceClass.getName());
+            YaaccLogger.v(getClass().getName(), "Creating new service implementation instance with no-arg constructor: " + serviceClass.getName());
             return serviceClass.newInstance();
         }
     }
@@ -210,10 +210,10 @@ public class DefaultServiceManager<T> implements ServiceManager<T> {
         Method m;
         if ((m = Reflections.getGetterMethod(serviceImpl.getClass(), "propertyChangeSupport")) != null &&
                 PropertyChangeSupport.class.isAssignableFrom(m.getReturnType())) {
-            Log.v(getClass().getName(), "Service implementation instance offers PropertyChangeSupport, using that: " + serviceImpl.getClass().getName());
+            YaaccLogger.v(getClass().getName(), "Service implementation instance offers PropertyChangeSupport, using that: " + serviceImpl.getClass().getName());
             return (PropertyChangeSupport) m.invoke(serviceImpl);
         }
-        Log.v(getClass().getName(), "Creating new PropertyChangeSupport for service implementation: " + serviceImpl.getClass().getName());
+        YaaccLogger.v(getClass().getName(), "Creating new PropertyChangeSupport for service implementation: " + serviceImpl.getClass().getName());
         return new PropertyChangeSupport(serviceImpl);
     }
 
@@ -233,13 +233,13 @@ public class DefaultServiceManager<T> implements ServiceManager<T> {
     protected class DefaultPropertyChangeListener implements PropertyChangeListener {
 
         public void propertyChange(PropertyChangeEvent e) {
-            Log.v(getClass().getName(), "Property change event on local service: " + e.getPropertyName());
+            YaaccLogger.v(getClass().getName(), "Property change event on local service: " + e.getPropertyName());
 
             // Prevent recursion
             if (e.getPropertyName().equals(EVENTED_STATE_VARIABLES)) return;
 
             String[] variableNames = ModelUtil.fromCommaSeparatedList(e.getPropertyName());
-            Log.v(getClass().getName(), "Changed variable names: " + Arrays.toString(variableNames));
+            YaaccLogger.v(getClass().getName(), "Changed variable names: " + Arrays.toString(variableNames));
 
             try {
                 Collection<StateVariableValue> currentValues = getCurrentState(variableNames);
@@ -254,7 +254,7 @@ public class DefaultServiceManager<T> implements ServiceManager<T> {
 
             } catch (Exception ex) {
                 // TODO: Is it OK to only log this error? It means we keep running although we couldn't send events?
-                Log.w(getClass().getName(),
+                YaaccLogger.w(getClass().getName(),
                         "Error reading state of service after state variable update event: " + Exceptions.unwrap(ex),
                         ex
                 );

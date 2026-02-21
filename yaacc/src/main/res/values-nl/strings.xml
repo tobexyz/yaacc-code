@@ -60,7 +60,7 @@
     <string name="title_activity_avtransport_player">YAACC externe speler</string>
     <string name="title_activity_multi_content_player">YAACC standaardspeler</string>
     <string name="can_not_start_activity">Kan app niet starten! Reden: </string>
-    <string name="app_descrip">Breng uw UPnP-apparaten samen met Android in uw lokale netwerk!\n<a href="http://www.yaacc.de">www.yaac.de</a>\n\nYAACC is ontwikkeld onder GPLv3. Voel je vrij om het te gebruiken en te delen zonder enige garantie. Licentiedetails zijn gedocumenteerd op (www.gnu.org/licenses/gpl-3.0)\n\nVerdere licenties zijn:\nDe UPnP-implementatie is gebaseerd op Cling (https://github.com/4thline/cling)\nMateriaalontwerppictogrammen en symbolen worden gebruikt (https://github.com/google/material-design-icons)\n. Android is een handelsmerk van Google Inc (developer.android.com/about/index.html)</string>
+    <string name="app_descrip">Breng uw UPnP-apparaten samen met Android in uw lokale netwerk!\n<a href="https://www.yaacc.de">www.yaac.de</a>\n\nYAACC is ontwikkeld onder GPLv3. Voel je vrij om het te gebruiken en te delen zonder enige garantie. Licentiedetails zijn gedocumenteerd op (www.gnu.org/licenses/gpl-3.0)\n\nVerdere licenties zijn:\nDe UPnP-implementatie is gebaseerd op Cling (https://github.com/4thline/cling)\nMateriaalontwerppictogrammen en symbolen worden gebruikt (https://github.com/google/material-design-icons)\n. Android is een handelsmerk van Google Inc (developer.android.com/about/index.html)</string>
     <string name="title_activity_yaacc_upnp_server_control">YAACC UPnP-servercontrole</string>
     <string name="yaacc_upnp_server_stop_server">server stoppen</string>
     <string name="yaacc_upnp_server_start_server">startserver</string>
@@ -80,6 +80,8 @@
     <string name="genres">Genres</string>
     <string name="videos">Video\'s</string>
     <string name="music">Muziek</string>
+    <string name="system_audio_stream">Apparaataudiostream</string>
+    <string name="screen_cast_stream">Schermcaststream</string>
     <string name="title_activity_yaacc_log">Bekijk logboek</string>
     <string name="logContent">De inhoud van het systeemlogboek moet hier worden weergegeven</string>
     <string name="activity_remote_player_mute">Stom</string>
@@ -118,4 +120,13 @@
     <string name="shared_folders">selecteer gedeelde mappen</string>
     <string name="reset_shared_folders">gedeelde mappen opnieuw instellen</string>
     <string name="shutdown_timer">Uitschakeltimer</string>
+    <string name="add_saf_content">bron toevoegen</string>
+    <string name="clear_saf_cache">SAF-cache wissen</string>
+    <string name="saf_content">gekoppeld</string>
+    <string name="enable_server_side_seeking_for_external_urls">Schakel serverzijdig tijdsbereikbeheer in de proxymodus in.</string>
+    <string name="live_streams">Livestreams</string>
+    <string name="playing">SPELEN</string>
+    <string name="paused">GESLOTEN</string>
+    <string name="stopped">GESTOPT</string>
+    <string name="no_media">GEEN MEDIA</string>
 </resources>

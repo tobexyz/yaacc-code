@@ -18,7 +18,7 @@
  */
 package de.yaacc.upnp.callback.contentdirectory;
 
-import org.fourthline.cling.support.contentdirectory.callback.Browse.Status;
+import de.yaacc.upnp.callback.contentdirectory.Browse.Status;
 import org.fourthline.cling.support.model.DIDLContent;
 
 import de.yaacc.upnp.UpnpFailure;

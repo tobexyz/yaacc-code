@@ -1,0 +1,42 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="32dp"
+    android:height="32dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="#FFFFFF">
+    <!-- Device outline -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeWidth="2"
+        android:strokeColor="@android:color/white"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M3.0435094,2.0435094H20.965192c1.095214,0 1.991299,0.9843034 1.991299,2.1873409V19.542237c0,1.203037 -0.896085,2.18734 -1.991299,2.18734h-1.991298"/>
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeWidth="2.08071"
+        android:strokeColor="@android:color/white"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M4.9610431,21.921405H3.0014005c-1.0778034,0 -1.9596426,-0.99417 -1.9596426,-2.209267V4.2472679c0,-1.215097 0.8818392,-2.2092672 1.9596426,-2.2092672"/>
+    
+    <!-- Screen/monitor inside -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeWidth="2.32317"
+        android:strokeColor="@android:color/white"
+        android:pathData="M5.9340757,6.1903937H18.112308V15.053915H5.9340757Z"/>
+    
+    <!-- Monitor stand -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeWidth="2.21976"
+        android:strokeColor="@android:color/white"
+        android:strokeLineCap="round"
+        android:pathData="M12.222718,15.063239v2.606897m-1.890119,0h3.780238"/>
+    
+    <!-- Upload arrow -->
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M11.42406,23.708781v-4.679657l0.0022,0.0026 -0.0022,-0.0026 4.339525,2.339829z"/>
+</vector>

@@ -15,7 +15,7 @@
 
 package org.fourthline.cling.model.meta;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.ServiceReference;
 import org.fourthline.cling.model.ValidationError;
@@ -188,9 +188,9 @@ public abstract class Service<D extends Device, S extends Service> {
                 List<ValidationError> actionErrors = action.validate();
                 if (actionErrors.size() > 0) {
                     actions.remove(action.getName()); // Remove it
-                    Log.w(getClass().getName(), "Discarding invalid action of service '" + getServiceId() + "': " + action.getName());
+                    YaaccLogger.w(getClass().getName(), "Discarding invalid action of service '" + getServiceId() + "': " + action.getName());
                     for (ValidationError actionError : actionErrors) {
-                        Log.w(getClass().getName(), "Invalid action '" + action.getName() + "': " + actionError);
+                        YaaccLogger.w(getClass().getName(), "Invalid action '" + action.getName() + "': " + actionError);
                     }
                 }
             }

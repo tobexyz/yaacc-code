@@ -15,7 +15,7 @@
 
 package org.fourthline.cling.model.meta;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.ModelUtil;
 import org.fourthline.cling.model.Validatable;
@@ -121,11 +121,11 @@ public class ActionArgument<S extends Service> implements Validatable {
                     "Argument without name of: " + getAction()
             ));
         } else if (!ModelUtil.isValidUDAName(getName())) {
-            Log.w(getClass().getName(), "UPnP specification violation of: " + getAction().getService().getDevice());
-            Log.w(getClass().getName(), "Invalid argument name: " + this);
+            YaaccLogger.w(getClass().getName(), "UPnP specification violation of: " + getAction().getService().getDevice());
+            YaaccLogger.w(getClass().getName(), "Invalid argument name: " + this);
         } else if (getName().length() > 32) {
-            Log.w(getClass().getName(), "UPnP specification violation of: " + getAction().getService().getDevice());
-            Log.w(getClass().getName(), "Argument name should be less than 32 characters: " + this);
+            YaaccLogger.w(getClass().getName(), "UPnP specification violation of: " + getAction().getService().getDevice());
+            YaaccLogger.w(getClass().getName(), "Argument name should be less than 32 characters: " + this);
         }
 
         if (getDirection() == null) {

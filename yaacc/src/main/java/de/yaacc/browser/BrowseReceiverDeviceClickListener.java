@@ -17,7 +17,7 @@
  */
 package de.yaacc.browser;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 import android.view.View;
 import android.widget.CheckBox;
 
@@ -48,12 +48,12 @@ public class BrowseReceiverDeviceClickListener implements View.OnClickListener {
                 .findViewById(R.id.browseReceiverDeviceItemCheckbox);
         Device<?, ?, ?> device = (Device<?, ?, ?>) adapter.getItem(recyclerView.getChildAdapterPosition(itemView));
         if (checkBox.isChecked()) {
-            Log.d(getClass().getName(), "isChecked:" + device.getDisplayString());
+            YaaccLogger.d(getClass().getName(), "isChecked:" + device.getDisplayString());
             adapter.removeSelectedDevice(device);
             upnpClient.removeReceiverDevice(device);
             checkBox.setChecked(false);
         } else {
-            Log.d(getClass().getName(), "isNotChecked:" + device.getDisplayString());
+            YaaccLogger.d(getClass().getName(), "isNotChecked:" + device.getDisplayString());
             adapter.addSelectedDevice(device);
             upnpClient.addReceiverDevice(device);
             checkBox.setChecked(true);

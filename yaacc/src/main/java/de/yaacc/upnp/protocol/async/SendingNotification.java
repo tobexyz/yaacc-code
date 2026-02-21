@@ -1,0 +1,199 @@
+/*
+ *
+ * Copyright (C) 2026 Tobias Schoene www.yaacc.de
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 3
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ */
+/*
+ * Copyright (C) 2013 4th Line GmbH, Switzerland
+ *
+ * The contents of this file are subject to the terms of either the GNU
+ * Lesser General Public License Version 2 or later ("LGPL") or the
+ * Common Development and Distribution License Version 1 or later
+ * ("CDDL") (collectively, the "License"). You may not use this file
+ * except in compliance with the License. See LICENSE.txt for more
+ * information.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ */
+
+package de.yaacc.upnp.protocol.async;
+
+import android.content.Context;
+
+import org.fourthline.cling.model.Location;
+import org.fourthline.cling.model.message.discovery.OutgoingNotificationRequest;
+import org.fourthline.cling.model.message.discovery.OutgoingNotificationRequestDeviceType;
+import org.fourthline.cling.model.message.discovery.OutgoingNotificationRequestRootDevice;
+import org.fourthline.cling.model.message.discovery.OutgoingNotificationRequestServiceType;
+import org.fourthline.cling.model.message.discovery.OutgoingNotificationRequestUDN;
+import org.fourthline.cling.model.meta.LocalDevice;
+import org.fourthline.cling.model.types.NotificationSubtype;
+import org.fourthline.cling.model.types.ServiceType;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+
+import de.yaacc.upnp.protocol.SendingAsync;
+import de.yaacc.upnp.protocol.UpnpProtocolHandler;
+import de.yaacc.upnp.server.udp.UdpTransiver;
+import de.yaacc.util.InterfaceResolutionHelper;
+import de.yaacc.util.YaaccLogger;
+
+/**
+ * Sending notification messages for a registered local device.
+ * <p>
+ * Sends all required (dozens) of messages three times, waits between 0 and 150
+ * milliseconds between each bulk sending procedure.
+ * </p>
+ *
+ * @author Christian Bauer
+ */
+public abstract class SendingNotification extends SendingAsync {
+
+
+    private final UdpTransiver udpTransiver;
+    private LocalDevice device;
+    private Context context;
+
+    public SendingNotification(Context context, UdpTransiver udpTransiver, LocalDevice device) {
+        this.context = context;
+        this.device = device;
+        this.udpTransiver = udpTransiver;
+    }
+
+    public LocalDevice getDevice() {
+        return device;
+    }
+
+    protected void execute() throws IOException {
+
+
+        // Prepare it once, it's the same for each repetition
+        List<Location> descriptorLocations = new ArrayList<>();
+        descriptorLocations.add(
+                new Location(
+                        InterfaceResolutionHelper.getNetworkAddress(context),
+                        UpnpProtocolHandler.NAMESPACE.getDescriptorPathString(getDevice())
+                )
+        );
+
+
+        for (int i = 0; i < getBulkRepeat(); i++) {
+            try {
+
+                for (Location descriptorLocation : descriptorLocations) {
+                    sendMessages(descriptorLocation);
+                }
+
+                // UDA 1.0 is silent about this but UDA 1.1 recomments "a few hundred milliseconds"
+                YaaccLogger.v(getClass().getName(), "Sleeping " + getBulkIntervalMilliseconds() + " milliseconds");
+                Thread.sleep(getBulkIntervalMilliseconds());
+
+            } catch (InterruptedException ex) {
+                YaaccLogger.w(getClass().getName(), "Advertisement thread was interrupted: " + ex);
+            }
+        }
+    }
+
+    protected int getBulkRepeat() {
+        return 3; // UDA 1.0 says maximum 3 times for alive messages, let's just do it for all
+    }
+
+    protected int getBulkIntervalMilliseconds() {
+        return 150;
+    }
+
+    public void sendMessages(Location descriptorLocation) throws IOException {
+        YaaccLogger.v(getClass().getName(), "Sending root device messages: " + getDevice());
+        List<OutgoingNotificationRequest> rootDeviceMsgs =
+                createDeviceMessages(getDevice(), descriptorLocation);
+        for (OutgoingNotificationRequest upnpMessage : rootDeviceMsgs) {
+            udpTransiver.send(upnpMessage);
+        }
+
+        if (getDevice().hasEmbeddedDevices()) {
+            for (LocalDevice embeddedDevice : getDevice().findEmbeddedDevices()) {
+                YaaccLogger.v(getClass().getName(), "Sending embedded device messages: " + embeddedDevice);
+                List<OutgoingNotificationRequest> embeddedDeviceMsgs =
+                        createDeviceMessages(embeddedDevice, descriptorLocation);
+                for (OutgoingNotificationRequest upnpMessage : embeddedDeviceMsgs) {
+                    udpTransiver.send(upnpMessage);
+                }
+            }
+        }
+
+        List<OutgoingNotificationRequest> serviceTypeMsgs =
+                createServiceTypeMessages(getDevice(), descriptorLocation);
+        if (serviceTypeMsgs.size() > 0) {
+            YaaccLogger.v(getClass().getName(), "Sending service type messages");
+            for (OutgoingNotificationRequest upnpMessage : serviceTypeMsgs) {
+                udpTransiver.send(upnpMessage);
+            }
+        }
+    }
+
+    protected List<OutgoingNotificationRequest> createDeviceMessages(LocalDevice device,
+                                                                     Location descriptorLocation) {
+        List<OutgoingNotificationRequest> msgs = new ArrayList<>();
+
+        // See the tables in UDA 1.0 section 1.1.2
+
+        if (device.isRoot()) {
+            msgs.add(
+                    new OutgoingNotificationRequestRootDevice(
+                            descriptorLocation,
+                            device,
+                            getNotificationSubtype()
+                    )
+            );
+        }
+
+        msgs.add(
+                new OutgoingNotificationRequestUDN(
+                        descriptorLocation, device, getNotificationSubtype()
+                )
+        );
+        msgs.add(
+                new OutgoingNotificationRequestDeviceType(
+                        descriptorLocation, device, getNotificationSubtype()
+                )
+        );
+
+        return msgs;
+    }
+
+    protected List<OutgoingNotificationRequest> createServiceTypeMessages(LocalDevice device,
+                                                                          Location descriptorLocation) {
+        List<OutgoingNotificationRequest> msgs = new ArrayList<>();
+
+        for (ServiceType serviceType : device.findServiceTypes()) {
+            msgs.add(
+                    new OutgoingNotificationRequestServiceType(
+                            descriptorLocation, device,
+                            getNotificationSubtype(), serviceType
+                    )
+            );
+        }
+
+        return msgs;
+    }
+
+    protected abstract NotificationSubtype getNotificationSubtype();
+
+}

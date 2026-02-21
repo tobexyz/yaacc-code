@@ -38,6 +38,7 @@
     <string name="error_upnp_generic">An unknown error happened while browsing</string>
     <string name="error_upnp_specific">The following error occurred:</string>
     <string name="error_no_receiver_device_found">No receiver device found</string>
+    <string name="error_no_receiver_selected">No receiver device selected. Please select a receiver in the Receiver tab first.</string>
     <string name="error_no_activity_found">No activity found for playing mimetype \'%1$s\'</string>
     <string name="image_viewer_settings_duration">Picture stay duration</string>
     <string name="image_viewer_settings_duration_key" translatable="false">image_viewer_settings_duration_key</string>
@@ -48,6 +49,7 @@
     <string name="stop">stop</string>
     <string name="pause">pause</string>
     <string name="previous">previous</string>
+    <string name="image_viewer_content_description">Image</string>
     <string name="next">next</string>
     <string name="exit">Exit</string>
     <string name="title_activity_music_player">YAACC music player</string>
@@ -61,7 +63,7 @@
     <string name="title_activity_avtransport_player">YAACC remote player</string>
     <string name="title_activity_multi_content_player">YAACC default player</string>
     <string name="can_not_start_activity">"Can not start app! Reason: "</string>
-    <string name="app_descrip">Bring your UPnP devices in your local network together with android!  <a href="http://www.yaacc.de">www.yaacc.de</a>  YAACC is developed under GPLv3. Feel free to use and share it without any warranty. Licence details are documented at (www.gnu.org/licenses/gpl-3.0)  Further licences are: The UPnP implementation is based on Cling (https://github.com/4thline/cling) Material design icons and symbols are used (https://github.com/google/material-design-icons) . Android is a trademark of Google Inc (developer.android.com/about/index.html )</string>
+    <string name="app_descrip">Bring your UPnP devices in your local network together with android!  <a href="https://www.yaacc.de">www.yaacc.de</a>  YAACC is developed under GPLv3. Feel free to use and share it without any warranty. Licence details are documented at (www.gnu.org/licenses/gpl-3.0)  Further licences are: The UPnP implementation is based on Cling (https://github.com/4thline/cling) Material design icons and symbols are used (https://github.com/google/material-design-icons) . Android is a trademark of Google Inc (developer.android.com/about/index.html )</string>
     <string name="title_activity_yaacc_upnp_server_control">YAACC UPnP server control</string>
     <string name="yaacc_upnp_server_stop_server">stop server</string>
     <string name="yaacc_upnp_server_start_server">start server</string>
@@ -82,6 +84,9 @@
     <string name="genres">Genres</string>
     <string name="videos">Videos</string>
     <string name="music">Music</string>
+    <string name="live_streams">Live Streams</string>
+    <string name="system_audio_stream">Device Audio Stream</string>
+    <string name="screen_cast_stream">Screen Cast Stream</string>
     <string name="title_activity_yaacc_log">View log</string>
     <string name="logContent">Content of system log should be shown here</string>
     <string name="activity_remote_player_mute">Mute</string>
@@ -120,4 +125,12 @@
     <string name="shared_folders">select shared folders</string>
     <string name="reset_shared_folders">reset shared folders</string>
     <string name="shutdown_timer">Shutdown timer</string>
+    <string name="add_saf_content">add source</string>
+    <string name="clear_saf_cache">clear SAF cache</string>
+    <string name="saf_content">Linked</string>
+    <string name="enable_server_side_seeking_for_external_urls">Enable server-side time range management in proxy mode</string>
+    <string name="playing">PLAYING</string>
+    <string name="paused">PAUSED</string>
+    <string name="stopped">STOPPED</string>
+    <string name="no_media">NO MEDIA</string>
 </resources>

@@ -15,7 +15,7 @@
 
 package org.fourthline.cling.model.message;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.message.header.UpnpHeader;
 import org.seamless.http.Headers;
@@ -54,21 +54,21 @@ public class UpnpHeaders extends Headers {
     protected void parseHeaders() {
         // This runs as late as possible and only when necessary (getter called and map is dirty)
         parsedHeaders = new LinkedHashMap<>();
-        Log.v(getClass().getName(), "Parsing all HTTP headers for known UPnP headers: " + size());
+        YaaccLogger.v(getClass().getName(), "Parsing all HTTP headers for known UPnP headers: " + size());
         for (Entry<String, List<String>> entry : entrySet()) {
 
             if (entry.getKey() == null) continue; // Oh yes, the JDK has 'null' HTTP headers
 
             UpnpHeader.Type type = UpnpHeader.Type.getByHttpName(entry.getKey());
             if (type == null) {
-                Log.v(getClass().getName(), "Ignoring non-UPNP HTTP header: " + entry.getKey());
+                YaaccLogger.v(getClass().getName(), "Ignoring non-UPNP HTTP header: " + entry.getKey());
                 continue;
             }
 
             for (String value : entry.getValue()) {
                 UpnpHeader upnpHeader = UpnpHeader.newInstance(type, value);
                 if (upnpHeader == null || upnpHeader.getValue() == null) {
-                    Log.v(getClass().getName(),
+                    YaaccLogger.v(getClass().getName(),
                             "Ignoring known but irrelevant header (value violates the UDA specification?) '"
                                     + type.getHttpName()
                                     + "': "
@@ -82,7 +82,7 @@ public class UpnpHeaders extends Headers {
     }
 
     protected void addParsedValue(UpnpHeader.Type type, UpnpHeader value) {
-        Log.v(getClass().getName(), "Adding parsed header: " + value);
+        YaaccLogger.v(getClass().getName(), "Adding parsed header: " + value);
         List<UpnpHeader> list = parsedHeaders.get(type);
         if (list == null) {
             list = new LinkedList<>();
@@ -168,23 +168,23 @@ public class UpnpHeaders extends Headers {
     }
 
     public void log() {
-        Log.v(getClass().getName(), "############################ RAW HEADERS ###########################");
+        YaaccLogger.v(getClass().getName(), "############################ RAW HEADERS ###########################");
         for (Entry<String, List<String>> entry : entrySet()) {
-            Log.v(getClass().getName(), "=== NAME : " + entry.getKey());
+            YaaccLogger.v(getClass().getName(), "=== NAME : " + entry.getKey());
             for (String v : entry.getValue()) {
-                Log.v(getClass().getName(), "VALUE: " + v);
+                YaaccLogger.v(getClass().getName(), "VALUE: " + v);
             }
         }
         if (parsedHeaders != null && parsedHeaders.size() > 0) {
-            Log.v(getClass().getName(), "########################## PARSED HEADERS ##########################");
+            YaaccLogger.v(getClass().getName(), "########################## PARSED HEADERS ##########################");
             for (Map.Entry<UpnpHeader.Type, List<UpnpHeader>> entry : parsedHeaders.entrySet()) {
-                Log.v(getClass().getName(), "=== TYPE: " + entry.getKey());
+                YaaccLogger.v(getClass().getName(), "=== TYPE: " + entry.getKey());
                 for (UpnpHeader upnpHeader : entry.getValue()) {
-                    Log.v(getClass().getName(), "HEADER: " + upnpHeader);
+                    YaaccLogger.v(getClass().getName(), "HEADER: " + upnpHeader);
                 }
             }
         }
-        Log.v(getClass().getName(), "####################################################################");
+        YaaccLogger.v(getClass().getName(), "####################################################################");
 
     }
 

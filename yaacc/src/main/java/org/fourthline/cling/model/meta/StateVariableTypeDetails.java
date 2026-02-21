@@ -16,7 +16,7 @@
 package org.fourthline.cling.model.meta;
 
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.Validatable;
 import org.fourthline.cling.model.ValidationError;
@@ -115,12 +115,12 @@ public class StateVariableTypeDetails implements Validatable {
 
             for (String s : getAllowedValues()) {
                 if (s.length() > 31) {
-                    Log.w(getClass().getName(), "UPnP specification violation, allowed value string must be less than 32 chars: " + s);
+                    YaaccLogger.w(getClass().getName(), "UPnP specification violation, allowed value string must be less than 32 chars: " + s);
                 }
             }
 
             if (!foundDefaultInAllowedValues(defaultValue, allowedValues)) {
-                Log.w(getClass().getName(), "UPnP specification violation, allowed string values " +
+                YaaccLogger.w(getClass().getName(), "UPnP specification violation, allowed string values " +
                         "don't contain default value: " + defaultValue
                 );
             }

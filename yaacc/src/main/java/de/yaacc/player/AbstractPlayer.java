@@ -27,13 +27,22 @@ import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.drawable.Drawable;
 import android.os.Build;
+import android.os.Handler;
 import android.os.IBinder;
-import android.util.Log;
+import android.os.Looper;
+import android.support.v4.media.MediaMetadataCompat;
+import android.support.v4.media.session.MediaSessionCompat;
+import android.support.v4.media.session.PlaybackStateCompat;
 import android.widget.Toast;
 
 import androidx.core.app.NotificationCompat;
 import androidx.core.content.ContextCompat;
+import androidx.core.graphics.drawable.IconCompat;
+import androidx.media.app.NotificationCompat.MediaStyle;
+import androidx.media.session.MediaButtonReceiver;
 import androidx.preference.PreferenceManager;
 
 import java.beans.PropertyChangeListener;
@@ -50,6 +59,8 @@ import java.util.TimerTask;
 import de.yaacc.R;
 import de.yaacc.Yaacc;
 import de.yaacc.upnp.UpnpClient;
+import de.yaacc.util.ThemeHelper;
+import de.yaacc.util.YaaccLogger;
 
 /**
  * @author Tobias Schoene (openbit)
@@ -74,6 +85,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
     private Object loadedItem = null;
     private int currentLoadedIndex = -1;
     private Bitmap icon = null;
+    private MediaSessionCompat mediaSession;
 
     /**
      * @param upnpClient the upnpclient
@@ -82,11 +94,66 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
         super();
         this.upnpClient = upnpClient;
         startService();
+        // Initialize MediaSession on main thread
+        new Handler(Looper.getMainLooper()).post(this::initMediaSession);
+    }
+
+    private void initMediaSession() {
+        mediaSession = new MediaSessionCompat(getContext(), "YaaccPlayer_" + getId());
+        mediaSession.setCallback(new MediaSessionCompat.Callback() {
+            @Override
+            public void onPlay() {
+                YaaccLogger.d(getClass().getName(), "MediaSession callback: onPlay() - isPlaying=" + isPlaying());
+                AbstractPlayer.this.play();
+            }
+
+            @Override
+            public void onPause() {
+                YaaccLogger.d(getClass().getName(), "MediaSession callback: onPause() - isPlaying=" + isPlaying());
+                AbstractPlayer.this.pause();
+            }
+
+            @Override
+            public void onStop() {
+                YaaccLogger.d(getClass().getName(), "MediaSession callback: onStop()");
+                AbstractPlayer.this.stop();
+            }
+
+            @Override
+            public void onSkipToNext() {
+                YaaccLogger.d(getClass().getName(), "MediaSession callback: onSkipToNext()");
+                AbstractPlayer.this.next();
+            }
+
+            @Override
+            public void onSkipToPrevious() {
+                YaaccLogger.d(getClass().getName(), "MediaSession callback: onSkipToPrevious()");
+                AbstractPlayer.this.previous();
+            }
+        });
+        mediaSession.setActive(true);
+
+        // Allow subclasses to configure MediaSession (e.g., for remote volume)
+        configureMediaSession(mediaSession);
+    }
+
+    /**
+     * Override this to configure MediaSession (e.g., set volume provider for remote playback).
+     */
+    protected void configureMediaSession(MediaSessionCompat mediaSession) {
+        // Default: local playback, no special configuration
+    }
+
+    /**
+     * Get the MediaSession for this player.
+     */
+    public MediaSessionCompat getMediaSession() {
+        return mediaSession;
     }
 
     public void onServiceConnected(ComponentName className, IBinder binder) {
         if (binder instanceof PlayerService.PlayerServiceBinder) {
-            Log.d("ServiceConnection", "connected");
+            YaaccLogger.d("ServiceConnection", "connected");
 
             playerService = ((PlayerService.PlayerServiceBinder) binder).getService();
             playerService.addPlayer(this);
@@ -95,7 +162,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
 
 
     public void onServiceDisconnected(ComponentName className) {
-        Log.d("ServiceConnection", "disconnected");
+        YaaccLogger.d("ServiceConnection", "disconnected");
         if (playerService != null) {
             playerService.removePlayer(this);
         }
@@ -127,9 +194,9 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
 
     public void startService() {
         if (playerService == null) {
-            upnpClient.getContext().startForegroundService(new Intent(upnpClient.getContext(), PlayerService.class));
-            upnpClient.getContext().bindService(new Intent(upnpClient.getContext(), PlayerService.class),
-                    this, Context.BIND_AUTO_CREATE);
+            Intent intent = new Intent(upnpClient.getContext(), PlayerService.class);
+            upnpClient.getContext().startForegroundService(intent);
+            upnpClient.getContext().bindService(intent, this, Context.BIND_AUTO_CREATE);
         }
     }
 
@@ -240,9 +307,12 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
                         toast.show();
                     });
                 }
-                isPlaying = false;
+                setPlaying(false);
                 paused = true;
                 doPause();
+                updatePlaybackState(PlaybackStateCompat.STATE_PAUSED);
+                updateMetadata();
+                showNotification();
                 setProcessingCommand(false);
             }
         }, new Date(System.currentTimeMillis()));
@@ -259,12 +329,20 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
             return;
         setProcessingCommand(true);
         int possibleNextIndex = currentIndex;
-        if (possibleNextIndex >= 0 && possibleNextIndex < items.size()) {
-            loadItem(possibleNextIndex);
-        }
+
         executeCommand(new TimerTask() {
             @Override
             public void run() {
+                // Load item asynchronously in background thread
+                if (possibleNextIndex >= 0 && possibleNextIndex < items.size()) {
+                    Object item = loadItem(possibleNextIndex);
+                    if (item == null) {
+                        // Item not ready yet, stop processing
+                        setProcessingCommand(false);
+                        return;
+                    }
+                }
+
                 if (currentIndex < items.size()) {
                     Context context = getUpnpClient().getContext();
                     if (context instanceof Activity) {
@@ -275,12 +353,16 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
                             toast.show();
                         });
                     }
-                    isPlaying = true;
+                    setPlaying(true);
                     if (paused) {
+                        paused = false;  // Clear paused flag when resuming
                         doResume();
                     } else {
                         loadItem(previousIndex, currentIndex);
                     }
+                    updatePlaybackState(PlaybackStateCompat.STATE_PLAYING);
+                    updateMetadata();
+                    showNotification();
                     setProcessingCommand(false);
                 }
             }
@@ -317,8 +399,9 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
                 if (!items.isEmpty()) {
                     stopItem(items.get(currentIndex));
                 }
-                isPlaying = false;
+                setPlaying(false);
                 paused = false;
+                updatePlaybackState(PlaybackStateCompat.STATE_STOPPED);
                 setProcessingCommand(false);
             }
         }, new Date(System.currentTimeMillis()));
@@ -331,7 +414,9 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
      */
 
     protected boolean isShufflePlay() {
-        return false;
+        //FIXME need to be a property in each player
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(getContext());
+        return preferences.getBoolean(getContext().getString(R.string.settings_music_player_shuffle_chkbx), false);
     }
 
     /*
@@ -359,15 +444,30 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
         return isPlaying;
     }
 
+    public boolean isPaused() {
+        return paused;
+    }
+
+    protected void setPaused(boolean paused) {
+        this.paused = paused;
+    }
+
+    public boolean isStopped() {
+        return !(isPlaying || paused);
+    }
+
     public void setPlaying(boolean isPlaying) {
+        boolean wasPlaying = this.isPlaying;
         this.isPlaying = isPlaying;
+
+        // Notify service of state change for foreground management
+        if (wasPlaying != isPlaying) {
+            firePropertyChange("playing", wasPlaying, isPlaying);
+        }
     }
 
-    public int getCurrentIndex() {
-        return currentIndex;
-    }
 
-    public void setCurrentIndex(int currentIndex) {
+    protected void setCurrentIndex(int currentIndex) {
         this.currentIndex = currentIndex;
     }
 
@@ -382,6 +482,9 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
      */
     @Override
     public void setItems(PlayableItem... playableItems) {
+        boolean wasPlaying = isPlaying();
+        cancelTimer(); // Cancel any pending auto-advance timer
+        items.clear(); // Clear existing items before adding new ones
         List<PlayableItem> itemsList = Arrays.asList(playableItems);
 
         if (isShufflePlay()) {
@@ -389,6 +492,11 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
         }
         items.addAll(itemsList);
         showNotification();
+
+        // Restart timer if we were playing
+        if (wasPlaying && items.size() > 1) {
+            updateTimer();
+        }
     }
 
     @Override
@@ -440,13 +548,16 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
 
     protected Object loadItem(int toLoadIndex) {
         if (toLoadIndex == currentLoadedIndex && loadedItem != null) {
-            Log.d(getClass().getName(), "returning already loaded item");
+            YaaccLogger.d(getClass().getName(), "returning already loaded item");
             return loadedItem;
         }
         if (toLoadIndex >= 0 && toLoadIndex <= items.size()) {
-            Log.d(getClass().getName(), "loaded item");
+            YaaccLogger.d(getClass().getName(), "loaded item");
             currentLoadedIndex = toLoadIndex;
-            loadedItem = loadItem(items.get(toLoadIndex));
+
+            PlayableItem playableItem = items.get(toLoadIndex);
+
+            loadedItem = loadItem(playableItem);
             return loadedItem;
         }
         return null;
@@ -459,7 +570,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
         Object loadedItem = loadItem(nextIndex);
         firePropertyChange(PROPERTY_ITEM, items.get(previousIndex),
                 items.get(nextIndex));
-        startItem(playableItem, loadedItem);
+        startItem(playableItem, loadedItem, nextIndex);
         doPostLoadItem(playableItem);
     }
 
@@ -520,10 +631,10 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
                 }
                 millis = millis * 1000;
             } catch (Exception e) {
-                Log.d(getClass().getName(), "ignoring error on parsing to millis of:" + timeString, e);
+                YaaccLogger.d(getClass().getName(), "ignoring error on parsing to millis of:" + timeString, e);
             }
         }
-        Log.v(getClass().getName(), "parsing time string" + timeString + " result millis:" + millis);
+        YaaccLogger.v(getClass().getName(), "parsing time string" + timeString + " result millis:" + millis);
         return millis;
     }
 
@@ -538,7 +649,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
      * @param duration in millis
      */
     public void startTimer(final long duration) {
-        Log.d(getClass().getName(), "Start timer duration: " + duration);
+        YaaccLogger.d(getClass().getName(), "Start timer duration: " + duration);
         cancelTimer();
         Intent intent = new Intent();
         intent.setAction(PlayerServiceBroadcastReceiver.ACTION_NEXT);
@@ -556,14 +667,14 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
                             System.currentTimeMillis() + duration,
                             alarmIntent
                     );
-                    Log.d(getClass().getName(), "ExactAndAllowWhileIdle alarm event in: " + (System.currentTimeMillis() + duration));
+                    YaaccLogger.d(getClass().getName(), "ExactAndAllowWhileIdle alarm event in: " + (System.currentTimeMillis() + duration));
                 } else {
                     alarmManager.setAndAllowWhileIdle(
                             AlarmManager.RTC_WAKEUP,
                             System.currentTimeMillis() + duration,
                             alarmIntent
                     );
-                    Log.d(getClass().getName(), "AndAllowWhileIdle alarm event in: " + (System.currentTimeMillis() + duration));
+                    YaaccLogger.d(getClass().getName(), "AndAllowWhileIdle alarm event in: " + (System.currentTimeMillis() + duration));
                 }
             } else {
                 alarmManager.setExact(
@@ -571,7 +682,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
                         System.currentTimeMillis() + duration,
                         alarmIntent
                 );
-                Log.d(getClass().getName(), "exact alarm event in: " + (System.currentTimeMillis() + duration));
+                YaaccLogger.d(getClass().getName(), "exact alarm event in: " + (System.currentTimeMillis() + duration));
             }
         });
 
@@ -614,18 +725,45 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
      */
     @Override
     public void exit() {
+        YaaccLogger.d(getClass().getName(), "Player.exit() called for player: " + getId());
         if (isPlaying()) {
             stop();
         }
         playerService.shutdown(this);
-
     }
 
     /**
      * Displays the notification.
      */
     private void showNotification() {
+        showNotificationInternal();
+    }
+
+    protected void showNotificationInternal() {
+        // Run on background thread to avoid blocking UI
+        new Thread(() -> showNotificationWithRetry(3)).start();
+    }
+
+    private void showNotificationWithRetry(int retryCount) {
+        // If MediaSession not ready yet, retry after delay (max 10 times = 2 seconds)
+        if (mediaSession == null && retryCount < 10) {
+            try {
+                Thread.sleep(200);
+            } catch (InterruptedException e) {
+                // Ignore
+            }
+            showNotificationWithRetry(retryCount + 1);
+            return;
+        }
+
+        if (mediaSession == null) {
+            YaaccLogger.w(getClass().getName(), "MediaSession not ready after retries, skipping notification");
+            return;
+        }
+
         ((Yaacc) getContext().getApplicationContext()).createYaaccGroupNotification();
+
+        // Create media style notification with controls
         NotificationCompat.Builder mBuilder = new NotificationCompat.Builder(
                 getContext(), Yaacc.NOTIFICATION_CHANNEL_ID).setOngoing(false)
                 .setGroup(Yaacc.NOTIFICATION_GROUP_KEY)
@@ -634,6 +772,43 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
                 .setLargeIcon(getIcon())
                 .setContentTitle("Yaacc player")
                 .setContentText(getShortName() == null ? "" : getShortName());
+
+        // Add progress bar if duration is available
+        try {
+            String durationStr = getDuration();
+            if (durationStr != null && !durationStr.isEmpty()) {
+                // Parse duration string (format: "HH:MM:SS" or "MM:SS")
+                String[] parts = durationStr.split(":");
+                long durationMs = 0;
+                if (parts.length == 3) {
+                    durationMs = (Long.parseLong(parts[0]) * 3600 + Long.parseLong(parts[1]) * 60 + Long.parseLong(parts[2])) * 1000;
+                } else if (parts.length == 2) {
+                    durationMs = (Long.parseLong(parts[0]) * 60 + Long.parseLong(parts[1])) * 1000;
+                }
+                if (durationMs > 0) {
+                    long position = getCurrentPosition();
+                    mBuilder.setProgress((int) durationMs, (int) position, false);
+                }
+            }
+        } catch (Exception e) {
+            // Ignore parsing errors, just don't show progress
+        }
+
+        // Add media controls if MediaSession is ready
+        if (mediaSession != null) {
+            mBuilder.setStyle(new MediaStyle()
+                            .setMediaSession(mediaSession.getSessionToken())
+                            .setShowActionsInCompactView(0, 1, 2))
+                    .addAction(createNotificationAction(R.drawable.ic_baseline_skip_previous_24, "Previous",
+                            PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS))
+                    .addAction(createNotificationAction(
+                            isPlaying() ? R.drawable.ic_baseline_pause_24 : R.drawable.ic_baseline_play_arrow_24,
+                            isPlaying() ? "Pause" : "Play",
+                            isPlaying() ? PlaybackStateCompat.ACTION_PAUSE : PlaybackStateCompat.ACTION_PLAY))
+                    .addAction(createNotificationAction(R.drawable.ic_baseline_skip_next_24, "Next",
+                            PlaybackStateCompat.ACTION_SKIP_TO_NEXT));
+        }
+
         PendingIntent contentIntent = getNotificationIntent();
         if (contentIntent != null) {
             mBuilder.setContentIntent(contentIntent);
@@ -651,10 +826,103 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
         NotificationManager mNotificationManager = (NotificationManager) getContext()
                 .getSystemService(Context.NOTIFICATION_SERVICE);
         // mId allows you to update the notification later on.
-        Log.d(getClass().getName(), "Cancel Notification with ID: " + getNotificationId());
+        YaaccLogger.d(getClass().getName(), "Cancel Notification with ID: " + getNotificationId());
         mNotificationManager.cancel(getNotificationId());
         ((Yaacc) getContext().getApplicationContext()).cancelYaaccGroupNotification();
 
+        if (mediaSession != null) {
+            mediaSession.setActive(false);
+            mediaSession.release();
+            mediaSession = null;
+        }
+    }
+
+    private NotificationCompat.Action createNotificationAction(int iconRes, String title, long action) {
+        Drawable drawable = ContextCompat.getDrawable(getContext(), iconRes);
+        IconCompat icon;
+
+        if (drawable != null) {
+            drawable = ThemeHelper.tintDrawable(drawable, getContext().getTheme());
+            Bitmap bitmap = Bitmap.createBitmap(
+                    drawable.getIntrinsicWidth(),
+                    drawable.getIntrinsicHeight(),
+                    Bitmap.Config.ARGB_8888);
+            Canvas canvas = new Canvas(bitmap);
+            drawable.setBounds(0, 0, canvas.getWidth(), canvas.getHeight());
+            drawable.draw(canvas);
+            icon = IconCompat.createWithBitmap(bitmap);
+        } else {
+            icon = IconCompat.createWithResource(getContext(), iconRes);
+        }
+
+        return new NotificationCompat.Action.Builder(icon, title, createMediaAction(action)).build();
+    }
+
+    private PendingIntent createMediaAction(long action) {
+        Intent intent = new Intent(getContext(), MediaButtonReceiver.class);
+        intent.putExtra(PLAYER_ID, getId());
+        return PendingIntent.getBroadcast(getContext(), (int) action, intent,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+    }
+
+    private void updatePlaybackState(int state) {
+        new Handler(Looper.getMainLooper()).post(() -> this.updatePlaybackStateInternal(state));
+    }
+
+    protected void updatePlaybackStateInternal(int state) {
+        if (mediaSession == null) return;
+
+        long position = getCurrentPosition();
+
+        PlaybackStateCompat.Builder stateBuilder = new PlaybackStateCompat.Builder()
+                .setActions(PlaybackStateCompat.ACTION_PLAY |
+                        PlaybackStateCompat.ACTION_PAUSE |
+                        PlaybackStateCompat.ACTION_PLAY_PAUSE |
+                        PlaybackStateCompat.ACTION_STOP |
+                        PlaybackStateCompat.ACTION_SKIP_TO_NEXT |
+                        PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS)
+                .setState(state, position, 1.0f);
+
+        if (mediaSession != null) {
+            mediaSession.setPlaybackState(stateBuilder.build());
+        }
+    }
+
+    private void updateMetadata() {
+        updateMetadataInternal();
+    }
+
+    protected void updateMetadataInternal() {
+        if (mediaSession == null) return;
+
+        MediaMetadataCompat.Builder metadataBuilder = new MediaMetadataCompat.Builder()
+                .putString(MediaMetadataCompat.METADATA_KEY_TITLE, getCurrentItemTitle() != null ? getCurrentItemTitle() : "")
+                .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, getName() != null ? getName() : "");
+
+        // Add duration if available
+        try {
+            String durationStr = getDuration();
+            if (durationStr != null && !durationStr.isEmpty()) {
+                String[] parts = durationStr.split(":");
+                long durationMs = 0;
+                if (parts.length == 3) {
+                    durationMs = (Long.parseLong(parts[0]) * 3600 + Long.parseLong(parts[1]) * 60 + Long.parseLong(parts[2])) * 1000;
+                } else if (parts.length == 2) {
+                    durationMs = (Long.parseLong(parts[0]) * 60 + Long.parseLong(parts[1])) * 1000;
+                }
+                if (durationMs > 0) {
+                    metadataBuilder.putLong(MediaMetadataCompat.METADATA_KEY_DURATION, durationMs);
+                }
+            }
+        } catch (Exception e) {
+            // Ignore parsing errors
+        }
+
+        if (getIcon() != null) {
+            metadataBuilder.putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, getIcon());
+        }
+
+        mediaSession.setMetadata(metadataBuilder.build());
     }
 
     /**
@@ -679,7 +947,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
     protected abstract Object loadItem(PlayableItem playableItem);
 
     protected abstract void startItem(PlayableItem playableItem,
-                                      Object loadedItem);
+                                      Object loadedItem, int index);
 
     /*
      * (non-Javadoc)
@@ -691,15 +959,23 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
         stop();
         cancelNotification();
         items.clear();
+
+        // Remove player from service
         if (playerService != null) {
+            playerService.removePlayer(this);
             try {
                 playerService.unbindService(this);
             } catch (IllegalArgumentException iex) {
-                Log.d(getClass().getName(), "Exception while unbind service");
+                YaaccLogger.d(getClass().getName(), "Exception while unbind service");
             }
-
         }
 
+        // Release MediaSession
+        if (mediaSession != null) {
+            mediaSession.setActive(false);
+            mediaSession.release();
+            mediaSession = null;
+        }
     }
 
     /*

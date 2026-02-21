@@ -15,7 +15,7 @@
 
 package org.fourthline.cling.model.types;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.Constants;
 
@@ -115,7 +115,7 @@ public class ServiceType {
             matcher = Pattern.compile("urn:(" + Constants.REGEX_NAMESPACE + "):service:(.+?):([0-9]+).*").matcher(s);
             if (matcher.matches() && matcher.groupCount() >= 3) {
                 String cleanToken = matcher.group(2).replaceAll("[^a-zA-Z_0-9\\-]", "-");
-                Log.w(ServiceType.class.getName(),
+                YaaccLogger.w(ServiceType.class.getName(),
                         "UPnP specification violation, replacing invalid service type token '"
                                 + matcher.group(2)
                                 + "' with: "
@@ -129,7 +129,7 @@ public class ServiceType {
             matcher = Pattern.compile("urn:(" + Constants.REGEX_NAMESPACE + "):serviceId:(.+?):([0-9]+).*").matcher(s);
             if (matcher.matches() && matcher.groupCount() >= 3) {
                 String cleanToken = matcher.group(2).replaceAll("[^a-zA-Z_0-9\\-]", "-");
-                Log.w(ServiceType.class.getName(),
+                YaaccLogger.w(ServiceType.class.getName(),
                         "UPnP specification violation, replacing invalid service type token '"
                                 + matcher.group(2)
                                 + "' with: "

@@ -14,7 +14,7 @@
  */
 package org.fourthline.cling.support.model.dlna;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.seamless.util.Exceptions;
 
@@ -56,17 +56,17 @@ public abstract class DLNAAttribute<T> {
         for (int i = 0; i < type.getAttributeTypes().length && attr == null; i++) {
             Class<? extends DLNAAttribute> attributeClass = type.getAttributeTypes()[i];
             try {
-                Log.v(DLNAAttribute.class.getName(), "Trying to parse DLNA '" + type + "' with class: " + attributeClass.getSimpleName());
+                YaaccLogger.v(DLNAAttribute.class.getName(), "Trying to parse DLNA '" + type + "' with class: " + attributeClass.getSimpleName());
                 attr = attributeClass.newInstance();
                 if (attributeValue != null) {
                     attr.setString(attributeValue, contentFormat);
                 }
             } catch (InvalidDLNAProtocolAttributeException ex) {
-                Log.v(DLNAAttribute.class.getName(), "Invalid DLNA attribute value for tested type: " + attributeClass.getSimpleName() + " - " + ex.getMessage());
+                YaaccLogger.v(DLNAAttribute.class.getName(), "Invalid DLNA attribute value for tested type: " + attributeClass.getSimpleName() + " - " + ex.getMessage());
                 attr = null;
             } catch (Exception ex) {
-                Log.e(DLNAAttribute.class.getName(), "Error instantiating DLNA attribute of type '" + type + "' with value: " + attributeValue);
-                Log.e(DLNAAttribute.class.getName(), "Exception root cause: ", Exceptions.unwrap(ex));
+                YaaccLogger.e(DLNAAttribute.class.getName(), "Error instantiating DLNA attribute of type '" + type + "' with value: " + attributeValue);
+                YaaccLogger.e(DLNAAttribute.class.getName(), "Exception root cause: ", Exceptions.unwrap(ex));
             }
         }
         return attr;

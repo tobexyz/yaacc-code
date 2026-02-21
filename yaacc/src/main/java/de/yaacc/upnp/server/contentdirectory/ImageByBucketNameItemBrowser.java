@@ -22,20 +22,15 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.database.Cursor;
 import android.provider.MediaStore;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.support.model.DIDLObject;
-import org.fourthline.cling.support.model.DIDLObject.Property.UPNP;
-import org.fourthline.cling.support.model.Protocol;
-import org.fourthline.cling.support.model.ProtocolInfo;
-import org.fourthline.cling.support.model.Res;
 import org.fourthline.cling.support.model.SortCriterion;
 import org.fourthline.cling.support.model.container.Container;
 import org.fourthline.cling.support.model.item.Item;
 import org.fourthline.cling.support.model.item.Photo;
 import org.seamless.util.MimeType;
 
-import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -59,7 +54,7 @@ public class ImageByBucketNameItemBrowser extends ContentBrowser {
         String[] projection = {MediaStore.Images.Media._ID,
                 MediaStore.Images.Media.DISPLAY_NAME,
                 MediaStore.Images.Media.MIME_TYPE, MediaStore.Images.Media.SIZE, MediaStore.Images.Media.BUCKET_ID, MediaStore.Images.Media.DATE_TAKEN};
-        String selection = MediaStore.Images.Media.BUCKET_ID + "=?";
+        String selection = MediaStore.Images.Media._ID + "=?";
         String[] selectionArgs = new String[]{myId.substring(ContentDirectoryIDs.IMAGE_BY_BUCKET_PREFIX.getId().length())};
         try (Cursor mImageCursor = contentDirectory
                 .getContext()
@@ -78,32 +73,37 @@ public class ImageByBucketNameItemBrowser extends ContentBrowser {
                                 .getColumnIndex(MediaStore.Images.Media.DISPLAY_NAME));
                 @SuppressLint("Range") Long size = Long.valueOf(mImageCursor.getString(mImageCursor
                         .getColumnIndex(MediaStore.Images.Media.SIZE)));
-                @SuppressLint("Range") Long dateTaken = Long.valueOf(mImageCursor.getString(mImageCursor
-                        .getColumnIndex(MediaStore.Images.Media.DATE_TAKEN)));
+                String dateTakenStr = mImageCursor.getString(mImageCursor.getColumnIndex(MediaStore.Images.Media.DATE_TAKEN));
+                @SuppressLint("Range") Long dateTaken = dateTakenStr != null ? Long.valueOf(dateTakenStr) : 0L;
                 @SuppressLint("Range") String mimeTypeString = mImageCursor.getString(mImageCursor
                         .getColumnIndex(MediaStore.Images.Media.MIME_TYPE));
-                Log.d(getClass().getName(),
+                YaaccLogger.d(getClass().getName(),
                         "Mimetype: "
                                 + mimeTypeString);
                 @SuppressLint("Range") MimeType mimeType = MimeType.valueOf(mimeTypeString);
                 // file parameter only needed for media players which decide the
                 // ability of playing a file by the file extension
                 String uri = getUriString(contentDirectory, id, mimeType);
-                ProtocolInfo protocolInfo = new ProtocolInfo(Protocol.HTTP_GET, ProtocolInfo.WILDCARD, mimeType.toString(), getDLNAAttributes(mimeType));
-                Res resource = new Res(protocolInfo, size, uri);
-                result = new Photo(ContentDirectoryIDs.IMAGE_BY_BUCKET_PREFIX.getId() + id,
-                        ContentDirectoryIDs.IMAGES_BY_BUCKET_NAME_PREFIX.getId() + bucketId, name, "", "",
-                        resource);
-                URI albumArtUri = URI.create("http://"
-                        + contentDirectory.getIpAddress() + ":"
-                        + YaaccUpnpServerService.PORT + "/thumb/" + id);
-                result.replaceFirstProperty(new UPNP.ALBUM_ART_URI(
-                        albumArtUri));
-                Log.d(getClass().getName(), "Image: " + id + " Name: " + name
+                String albumArtUri = "http://" + contentDirectory.getIpAddress() + ":"
+                        + YaaccUpnpServerService.PORT + "/thumb/" + id;
+                
+                result = createPhoto(
+                    ContentDirectoryIDs.IMAGE_BY_BUCKET_PREFIX.getId() + id,
+                    ContentDirectoryIDs.IMAGES_BY_BUCKET_NAME_PREFIX.getId() + bucketId,
+                    name,
+                    "",
+                    false,
+                    mimeType,
+                    uri,
+                    size,
+                    albumArtUri
+                );
+
+                YaaccLogger.d(getClass().getName(), "Image: " + id + " Name: " + name
                         + " uri: " + uri);
 
             } else {
-                Log.d(getClass().getName(), "Item " + myId + "  not found.");
+                YaaccLogger.d(getClass().getName(), "Item " + myId + "  not found.");
             }
         }
 

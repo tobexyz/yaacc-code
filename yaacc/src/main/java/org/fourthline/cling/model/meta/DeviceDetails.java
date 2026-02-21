@@ -15,7 +15,7 @@
 
 package org.fourthline.cling.model.meta;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.Validatable;
 import org.fourthline.cling.model.ValidationError;
@@ -203,12 +203,12 @@ public class DeviceDetails implements Validatable {
         if (getUpc() != null) {
             // This is broken in more than half of the devices I've tested, so let's not even bother with a warning
             if (getUpc().length() != 12) {
-                Log.v(getClass().getName(), "UPnP specification violation, UPC must be 12 digits: " + getUpc());
+                YaaccLogger.v(getClass().getName(), "UPnP specification violation, UPC must be 12 digits: " + getUpc());
             } else {
                 try {
                     Long.parseLong(getUpc());
                 } catch (NumberFormatException ex) {
-                    Log.v(getClass().getName(), "UPnP specification violation, UPC must be 12 digits all-numeric: " + getUpc());
+                    YaaccLogger.v(getClass().getName(), "UPnP specification violation, UPC must be 12 digits all-numeric: " + getUpc());
                 }
             }
         }

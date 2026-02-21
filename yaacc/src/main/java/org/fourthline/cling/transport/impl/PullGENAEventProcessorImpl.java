@@ -15,7 +15,7 @@
 
 package org.fourthline.cling.transport.impl;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.UnsupportedDataException;
 import org.fourthline.cling.model.message.gena.IncomingEventRequestMessage;
@@ -43,10 +43,10 @@ public class PullGENAEventProcessorImpl extends GENAEventProcessorImpl {
 
 
     public void readBody(IncomingEventRequestMessage requestMessage) throws UnsupportedDataException {
-        Log.v(getClass().getName(), "Reading body of: " + requestMessage);
-        Log.v(getClass().getName(), "===================================== GENA BODY BEGIN ============================================");
-        Log.v(getClass().getName(), requestMessage.getBody() != null ? requestMessage.getBody().toString() : null);
-        Log.v(getClass().getName(), "-===================================== GENA BODY END ============================================");
+        YaaccLogger.v(getClass().getName(), "Reading body of: " + requestMessage);
+        YaaccLogger.v(getClass().getName(), "===================================== GENA BODY BEGIN ============================================");
+        YaaccLogger.v(getClass().getName(), requestMessage.getBody() != null ? requestMessage.getBody().toString() : null);
+        YaaccLogger.v(getClass().getName(), "-===================================== GENA BODY END ============================================");
 
 
         String body = getMessageBody(requestMessage);
@@ -80,7 +80,7 @@ public class PullGENAEventProcessorImpl extends GENAEventProcessorImpl {
                 String stateVariableName = xpp.getName();
                 for (StateVariable stateVariable : stateVariables) {
                     if (stateVariable.getName().equals(stateVariableName)) {
-                        Log.v(getClass().getName(), "Reading state variable value: " + stateVariableName);
+                        YaaccLogger.v(getClass().getName(), "Reading state variable value: " + stateVariableName);
                         String value = xpp.nextText();
                         message.getStateVariableValues().add(new StateVariableValue(stateVariable, value));
                         break;

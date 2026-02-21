@@ -27,15 +27,15 @@ import java.util.stream.Collectors;
 
 public class HttpRange {
     private String unit;
-    private Integer start;
-    private Integer end;
-    private Integer suffixLength;
+    private Long start;
+    private Long end;
+    private Long suffixLength;
 
     public HttpRange() {
 
     }
 
-    public HttpRange(String unit, Integer start, Integer end, Integer suffixLength) {
+    public HttpRange(String unit, Long start, Long end, Long suffixLength) {
         this.unit = unit;
         this.start = start;
         this.end = end;
@@ -92,10 +92,10 @@ public class HttpRange {
                 if (byteRangeSetMatcher.group("byteRangeSpec") != null) {
                     String start = byteRangeSetMatcher.group("firstBytePos");
                     String end = byteRangeSetMatcher.group("lastBytePos");
-                    range.start = Integer.valueOf(start);
-                    range.end = end == null ? null : Integer.valueOf(end);
+                    range.start = Long.valueOf(start);
+                    range.end = end == null ? null : Long.valueOf(end);
                 } else if (byteRangeSetMatcher.group("suffixByteRangeSpec") != null) {
-                    range.suffixLength = Integer.valueOf(byteRangeSetMatcher.group("suffixLength"));
+                    range.suffixLength = Long.valueOf(byteRangeSetMatcher.group("suffixLength"));
                 } else {
                     throw new RuntimeException("Invalid range header");
                 }
@@ -107,15 +107,15 @@ public class HttpRange {
         return ranges;
     }
 
-    public Integer getStart() {
+    public Long getStart() {
         return start;
     }
 
-    public Integer getSuffixLength() {
+    public Long getSuffixLength() {
         return suffixLength;
     }
 
-    public Integer getEnd() {
+    public Long getEnd() {
         return end;
     }
 }

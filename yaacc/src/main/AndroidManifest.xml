@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
-    android:versionCode="40401"
-    android:versionName="4.4.1">
+    android:versionCode="50000"
+    android:versionName="5.0.0">
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
@@ -31,7 +31,7 @@
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
     <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
 
     <application
         android:name=".Yaacc"
@@ -62,18 +62,18 @@
         </activity>
 
         <service
-            android:name=".upnp.UpnpRegistryService"
-            android:enabled="true" />
-        <service
             android:name=".player.PlayerService"
             android:enabled="true"
-            android:exported="false" />
-        <service
-            android:name=".musicplayer.BackgroundMusicService"
-            android:enabled="true" />
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback">
+            <intent-filter>
+                <action android:name="androidx.media3.session.MediaSessionService" />
+            </intent-filter>
+        </service>
         <service
             android:name=".upnp.server.YaaccUpnpServerService"
-            android:enabled="true" />
+            android:enabled="true"
+            android:foregroundServiceType="mediaProjection" />
 
         <activity
             android:name=".imageviewer.ImageViewerActivity"
@@ -150,7 +150,7 @@
             </intent-filter>
         </activity>
         <activity
-            android:name=".upnp.server.YaaccUpnpServerControlActivity"
+            android:name=".upnp.server.configuration.YaaccUpnpServerControlActivity"
             android:exported="true"
             android:label="@string/title_activity_yaacc_upnp_server_control">
             <intent-filter>

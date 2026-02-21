@@ -22,7 +22,7 @@ import static java.util.Arrays.stream;
 
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import androidx.preference.PreferenceManager;
 
@@ -69,6 +69,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import de.yaacc.R;
+import de.yaacc.util.InterfaceResolutionHelper;
 
 /**
  * a content directory which uses the content of the MediaStore in order to
@@ -103,9 +104,8 @@ public class YaaccContentDirectory {
     @UpnpStateVariable(defaultValue = "0", eventMaximumRateMilliseconds = 200)
     private final UnsignedIntegerFourBytes systemUpdateID = new UnsignedIntegerFourBytes(
             0);
-    private final String ipAddress;
 
-    public YaaccContentDirectory(Context context, String ipAddress) {
+    public YaaccContentDirectory(Context context) {
         this.context = context;
         preferences = PreferenceManager.getDefaultSharedPreferences(context);
 
@@ -114,7 +114,6 @@ public class YaaccContentDirectory {
         }
         this.searchCapabilities = new CSVString();
         this.sortCapabilities = new CSVString();
-        this.ipAddress = ipAddress;
     }
 
     private boolean isUsingTestContent() {
@@ -328,7 +327,7 @@ public class YaaccContentDirectory {
         } catch (ContentDirectoryException ex) {
             throw ex;
         } catch (Exception ex) {
-            Log.d(getClass().getName(), "exception on browse", ex);
+            YaaccLogger.d(getClass().getName(), "exception on browse", ex);
             throw new ContentDirectoryException(ErrorCode.ACTION_FAILED,
                     ex.toString());
         }
@@ -338,7 +337,7 @@ public class YaaccContentDirectory {
                                String filter, long firstResult, long maxResults,
                                SortCriterion[] orderby) throws ContentDirectoryException {
 
-        Log.d(getClass().getName(), "Browse: objectId: " + objectID
+        YaaccLogger.d(getClass().getName(), "Browse: objectId: " + objectID
                 + " browseFlag: " + browseFlag + " filter: " + filter
                 + " firstResult: " + firstResult + " maxResults: " + maxResults
                 + " orderby: " + stream(orderby).map(SortCriterion::toString).collect(Collectors.joining(",")));
@@ -402,7 +401,7 @@ public class YaaccContentDirectory {
         try {
             // Generate output with nested items
             String didlXml = new DIDLParser().generate(didl, false);
-            Log.d(getClass().getName(), "CDResponse: " + didlXml);
+            YaaccLogger.d(getClass().getName(), "CDResponse: " + didlXml);
             result = new BrowseResult(didlXml, childCount, totalMatches);
         } catch (Exception e) {
             throw new ContentDirectoryException(
@@ -457,8 +456,12 @@ public class YaaccContentDirectory {
             result = new ImageByBucketNameItemBrowser(getContext());
         } else if (objectID.startsWith(ContentDirectoryIDs.VIDEO_PREFIX.getId())) {
             result = new VideoItemBrowser(getContext());
+        } else if (objectID.startsWith(ContentDirectoryIDs.SAF_FOLDER.getId()) || objectID.startsWith(ContentDirectoryIDs.SAF_PREFIX.getId())) {
+            result = new SafFolderBrowser(getContext());
+        } else if (ContentDirectoryIDs.LIVE_STREAM_FOLDER.getId().equals(objectID)) {
+            result = new LiveStreamFolderBrowser(getContext());
         } else {
-            Log.d(getClass().getName(), "unknown object id: " + objectID);
+            YaaccLogger.d(getClass().getName(), "unknown object id: " + objectID);
             result = new RootFolderBrowser(getContext());
         }
 
@@ -489,7 +492,7 @@ public class YaaccContentDirectory {
     }
 
     public String getIpAddress() {
-        return ipAddress;
+        return InterfaceResolutionHelper.getIpAddress(context);
     }
 
 }

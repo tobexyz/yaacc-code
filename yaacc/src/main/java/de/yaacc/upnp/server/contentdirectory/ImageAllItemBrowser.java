@@ -22,21 +22,16 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.database.Cursor;
 import android.provider.MediaStore;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 import android.webkit.MimeTypeMap;
 
 import org.fourthline.cling.support.model.DIDLObject;
-import org.fourthline.cling.support.model.DIDLObject.Property.UPNP;
-import org.fourthline.cling.support.model.Protocol;
-import org.fourthline.cling.support.model.ProtocolInfo;
-import org.fourthline.cling.support.model.Res;
 import org.fourthline.cling.support.model.SortCriterion;
 import org.fourthline.cling.support.model.container.Container;
 import org.fourthline.cling.support.model.item.Item;
 import org.fourthline.cling.support.model.item.Photo;
 import org.seamless.util.MimeType;
 
-import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -79,7 +74,7 @@ public class ImageAllItemBrowser extends ContentBrowser {
                         .getColumnIndex(MediaStore.Images.ImageColumns.SIZE)));
                 @SuppressLint("Range") String mimeTypeSTring = mImageCursor.getString(mImageCursor
                         .getColumnIndex(MediaStore.Images.ImageColumns.MIME_TYPE));
-                Log.d(getClass().getName(),
+                YaaccLogger.d(getClass().getName(),
                         "Mimetype: "
                                 + mimeTypeSTring);
                 MimeType mimeType = MimeType
@@ -88,20 +83,25 @@ public class ImageAllItemBrowser extends ContentBrowser {
                 // ability of playing a file by the file extension
                 String uri = "http://" + contentDirectory.getIpAddress() + ":"
                         + YaaccUpnpServerService.PORT + "/?id=" + id + "&f=file." + MimeTypeMap.getSingleton().getExtensionFromMimeType(mimeType.toString());
-                ProtocolInfo protocolInfo = new ProtocolInfo(Protocol.HTTP_GET, ProtocolInfo.WILDCARD, mimeType.toString(), getDLNAAttributes(mimeType));
-                Res resource = new Res(protocolInfo, size, uri);
-                result = new Photo(ContentDirectoryIDs.IMAGE_ALL_PREFIX.getId() + id,
-                        ContentDirectoryIDs.IMAGES_FOLDER.getId(), name, "", "",
-                        resource);
-                URI albumArtUri = URI.create("http://"
-                        + contentDirectory.getIpAddress() + ":"
-                        + YaaccUpnpServerService.PORT + "/thumb/" + id);
-                result.replaceFirstProperty(new UPNP.ALBUM_ART_URI(
-                        albumArtUri));
-                Log.d(getClass().getName(), "Image: " + id + " Name: " + name
+                String albumArtUri = "http://" + contentDirectory.getIpAddress() + ":"
+                        + YaaccUpnpServerService.PORT + "/thumb/" + id;
+                
+                result = createPhoto(
+                    ContentDirectoryIDs.IMAGE_ALL_PREFIX.getId() + id,
+                    ContentDirectoryIDs.IMAGES_FOLDER.getId(),
+                    name,
+                    "",
+                    false,
+                    mimeType,
+                    uri,
+                    size,
+                    albumArtUri
+                );
+
+                YaaccLogger.d(getClass().getName(), "Image: " + id + " Name: " + name
                         + " uri: " + uri);
             } else {
-                Log.d(getClass().getName(), "Item " + myId + "  not found.");
+                YaaccLogger.d(getClass().getName(), "Item " + myId + "  not found.");
             }
         }
         return result;

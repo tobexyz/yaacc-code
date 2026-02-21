@@ -14,13 +14,13 @@
   */
  package org.seamless.statemachine;
 
- import android.util.Log;
-
  import java.lang.reflect.InvocationHandler;
  import java.lang.reflect.Method;
  import java.util.List;
  import java.util.Map;
  import java.util.concurrent.ConcurrentHashMap;
+
+ import de.yaacc.util.YaaccLogger;
 
  /**
   * @author Christian Bauer
@@ -40,7 +40,7 @@
                                    Class[] constructorArgumentTypes,
                                    Object[] constructorArguments) {
 
-         Log.v(getClass().getName(), "Creating state machine with initial state: " + initialStateClass);
+         YaaccLogger.v(getClass().getName(), "Creating state machine with initial state: " + initialStateClass);
 
          this.initialStateClass = initialStateClass;
 
@@ -54,7 +54,7 @@
                                  .newInstance(constructorArguments)
                                  : stateClass.newInstance();
 
-                 Log.v(getClass().getName(), "Adding state instance: " + state.getClass().getName());
+                 YaaccLogger.v(getClass().getName(), "Adding state instance: " + state.getClass().getName());
                  stateObjects.put(stateClass, state);
 
              } catch (NoSuchMethodException ex) {
@@ -93,7 +93,7 @@
                  if (forcedState == null) {
                      throw new TransitionException("Can't force to invalid state: " + args[0]);
                  }
-                 Log.v(getClass().getName(), "Forcing state machine into state: " + forcedState.getClass().getName());
+                 YaaccLogger.v(getClass().getName(), "Forcing state machine into state: " + forcedState.getClass().getName());
                  invokeExitMethod(currentState);
                  currentState = forcedState;
                  invokeEntryMethod(forcedState);
@@ -101,13 +101,13 @@
              }
 
              Method signalMethod = getMethodOfCurrentState(method);
-             Log.v(getClass().getName(), "Invoking signal method of current state: " + signalMethod.toString());
+             YaaccLogger.v(getClass().getName(), "Invoking signal method of current state: " + signalMethod.toString());
              Object methodReturn = signalMethod.invoke(currentState, args);
 
              if (methodReturn != null && methodReturn instanceof Class) {
                  Class nextStateClass = (Class) methodReturn;
                  if (stateObjects.containsKey(nextStateClass)) {
-                     Log.v(getClass().getName(), "Executing transition to next state: " + nextStateClass.getName());
+                     YaaccLogger.v(getClass().getName(), "Executing transition to next state: " + nextStateClass.getName());
                      invokeExitMethod(currentState);
                      currentState = stateObjects.get(nextStateClass);
                      invokeEntryMethod(currentState);
@@ -131,12 +131,12 @@
      }
 
      private void invokeEntryMethod(Object state) {
-         Log.v(getClass().getName(), "Trying to invoke entry method of state: " + state.getClass().getName());
+         YaaccLogger.v(getClass().getName(), "Trying to invoke entry method of state: " + state.getClass().getName());
          try {
              Method onEntryMethod = state.getClass().getMethod(METHOD_ON_ENTRY);
              onEntryMethod.invoke(state);
          } catch (NoSuchMethodException ex) {
-             Log.v(getClass().getName(), "No entry method found on state: " + state.getClass().getName());
+             YaaccLogger.v(getClass().getName(), "No entry method found on state: " + state.getClass().getName());
              // That's OK, just don't call it
          } catch (Exception ex) {
              throw new TransitionException(
@@ -146,12 +146,12 @@
      }
 
      private void invokeExitMethod(Object state) {
-         Log.v(getClass().getName(), "Trying to invoking exit method of state: " + state.getClass().getName());
+         YaaccLogger.v(getClass().getName(), "Trying to invoking exit method of state: " + state.getClass().getName());
          try {
              Method onExitMethod = state.getClass().getMethod(METHOD_ON_EXIT);
              onExitMethod.invoke(state);
          } catch (NoSuchMethodException ex) {
-             Log.v(getClass().getName(), "No exit method found on state: " + state.getClass().getName());
+             YaaccLogger.v(getClass().getName(), "No exit method found on state: " + state.getClass().getName());
              // That's OK, just don't call it
          } catch (Exception ex) {
              throw new TransitionException(

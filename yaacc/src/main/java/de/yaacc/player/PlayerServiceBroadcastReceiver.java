@@ -21,7 +21,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 /**
  * @author tobexyz
@@ -34,7 +34,7 @@ public class PlayerServiceBroadcastReceiver extends BroadcastReceiver {
 
 
     public PlayerServiceBroadcastReceiver(PlayerService playerService) {
-        Log.d(this.getClass().getName(), "Starting Broadcast Receiver...");
+        YaaccLogger.d(this.getClass().getName(), "Starting Broadcast Receiver...");
         assert (playerService != null);
         this.playerService = playerService;
 
@@ -42,23 +42,23 @@ public class PlayerServiceBroadcastReceiver extends BroadcastReceiver {
 
     @Override
     public void onReceive(Context context, Intent intent) {
-        Log.d(this.getClass().getName(), "Received Action: " + intent.getAction());
+        YaaccLogger.d(this.getClass().getName(), "Received Action: " + intent.getAction());
         if (playerService == null) return;
-        Log.d(this.getClass().getName(), "Execute Action on playerService: " + playerService);
+        YaaccLogger.d(this.getClass().getName(), "Execute Action on playerService: " + playerService);
         if (ACTION_NEXT.equals(intent.getAction())) {
             Integer playerId = intent.getIntExtra(AbstractPlayer.PLAYER_ID, -1);
             Player player = playerService.getCurrentPlayerById(playerId);
             if (player != null) {
-                Log.d(this.getClass().getName(), "Player of intent found: " + playerId + " Intent: " + intent);
+                YaaccLogger.d(this.getClass().getName(), "Player of intent found: " + playerId + " Intent: " + intent);
                 player.next();
             } else {
-                Log.d(this.getClass().getName(), "Player of intent not found: " + playerId + " Intent: " + intent);
+                YaaccLogger.d(this.getClass().getName(), "Player of intent not found: " + playerId + " Intent: " + intent);
             }
         }
     }
 
     public void registerReceiver() {
-        Log.d(this.getClass().getName(), "Register PlayerServiceBroadcastReceiver");
+        YaaccLogger.d(this.getClass().getName(), "Register PlayerServiceBroadcastReceiver");
         IntentFilter intentFilter = new IntentFilter();
         intentFilter.addAction(ACTION_NEXT);
         playerService.registerReceiver(this, intentFilter);

@@ -15,7 +15,7 @@
 
 package org.fourthline.cling.model.types;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.Constants;
 
@@ -60,7 +60,7 @@ public class UDAServiceId extends ServiceId {
         // TODO: UPNP VIOLATION: Handle garbage sent by Eyecon Android app
         matcher = Pattern.compile("urn:upnp-orgerviceId:urnchemas-upnp-orgervice:(" + Constants.REGEX_ID + ")").matcher(s);
         if (matcher.matches()) {
-            Log.w(UDAServiceId.class.getName(), "UPnP specification violation, recovering from Eyecon garbage: " + s);
+            YaaccLogger.w(UDAServiceId.class.getName(), "UPnP specification violation, recovering from Eyecon garbage: " + s);
             return new UDAServiceId(matcher.group(1));
         }
 
@@ -69,7 +69,7 @@ public class UDAServiceId extends ServiceId {
                 "ConnectionManager".equals(s) ||
                 "RenderingControl".equals(s) ||
                 "AVTransport".equals(s)) {
-            Log.w(UDAServiceId.class.getName(), "UPnP specification violation, fixing broken Service ID: " + s);
+            YaaccLogger.w(UDAServiceId.class.getName(), "UPnP specification violation, fixing broken Service ID: " + s);
             return new UDAServiceId(s);
         }
 

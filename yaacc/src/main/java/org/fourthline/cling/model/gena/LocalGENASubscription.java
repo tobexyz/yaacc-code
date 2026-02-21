@@ -15,7 +15,7 @@
 
 package org.fourthline.cling.model.gena;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.ServiceManager;
 import org.fourthline.cling.model.UserConstants;
@@ -73,19 +73,19 @@ public abstract class LocalGENASubscription extends GENASubscription<LocalServic
 
         setSubscriptionDuration(requestedDurationSeconds);
 
-        Log.v(getClass().getName(), "Reading initial state of local service at subscription time");
+        YaaccLogger.v(getClass().getName(), "Reading initial state of local service at subscription time");
         long currentTime = new Date().getTime();
         this.currentValues.clear();
 
         Collection<StateVariableValue> values = getService().getManager().getCurrentState();
 
-        Log.v(getClass().getName(), "Got evented state variable values: " + values.size());
+        YaaccLogger.v(getClass().getName(), "Got evented state variable values: " + values.size());
 
         for (StateVariableValue value : values) {
             this.currentValues.put(value.getStateVariable().getName(), value);
 
 
-            Log.v(getClass().getName(), "Read state variable value '" + value.getStateVariable().getName() + "': " + value.toString());
+            YaaccLogger.v(getClass().getName(), "Read state variable value '" + value.getStateVariable().getName() + "': " + value.toString());
 
 
             // Preserve "last sent" state for future moderation
@@ -122,7 +122,7 @@ public abstract class LocalGENASubscription extends GENASubscription<LocalServic
         try {
             getService().getManager().getPropertyChangeSupport().removePropertyChangeListener(this);
         } catch (Exception ex) {
-            Log.w(getClass().getName(), "Removal of local service property change listener failed: " + Exceptions.unwrap(ex));
+            YaaccLogger.w(getClass().getName(), "Removal of local service property change listener failed: " + Exceptions.unwrap(ex));
         }
         ended(reason);
     }
@@ -134,7 +134,7 @@ public abstract class LocalGENASubscription extends GENASubscription<LocalServic
     synchronized public void propertyChange(PropertyChangeEvent e) {
         if (!e.getPropertyName().equals(ServiceManager.EVENTED_STATE_VARIABLES)) return;
 
-        Log.v(getClass().getName(), "Eventing triggered, getting state for subscription: " + getSubscriptionId());
+        YaaccLogger.v(getClass().getName(), "Eventing triggered, getting state for subscription: " + getSubscriptionId());
 
         long currentTime = new Date().getTime();
 
@@ -145,7 +145,7 @@ public abstract class LocalGENASubscription extends GENASubscription<LocalServic
         for (StateVariableValue newValue : newValues) {
             String name = newValue.getStateVariable().getName();
             if (!excludedVariables.contains(name)) {
-                Log.v(getClass().getName(), "Adding state variable value to current values of event: " + newValue.getStateVariable() + " = " + newValue);
+                YaaccLogger.v(getClass().getName(), "Adding state variable value to current values of event: " + newValue.getStateVariable() + " = " + newValue);
                 currentValues.put(newValue.getStateVariable().getName(), newValue);
 
                 // Preserve "last sent" state for future moderation
@@ -157,13 +157,13 @@ public abstract class LocalGENASubscription extends GENASubscription<LocalServic
         }
 
         if (currentValues.size() > 0) {
-            Log.v(getClass().getName(), "Propagating new state variable values to subscription: " + this);
+            YaaccLogger.v(getClass().getName(), "Propagating new state variable values to subscription: " + this);
             // TODO: I'm not happy with this design, this dispatches to a separate thread which _then_
             // is supposed to lock and read the values off this instance. That obviously doesn't work
             // so it's currently a hack in SendingEvent.java
             eventReceived();
         } else {
-            Log.v(getClass().getName(), "No state variable values for event (all moderated out?), not triggering event");
+            YaaccLogger.v(getClass().getName(), "No state variable values for event (all moderated out?), not triggering event");
         }
     }
 
@@ -186,13 +186,13 @@ public abstract class LocalGENASubscription extends GENASubscription<LocalServic
 
             if (stateVariable.getEventDetails().getEventMaximumRateMilliseconds() == 0 &&
                     stateVariable.getEventDetails().getEventMinimumDelta() == 0) {
-                Log.v(getClass().getName(), "Variable is not moderated: " + stateVariable);
+                YaaccLogger.v(getClass().getName(), "Variable is not moderated: " + stateVariable);
                 continue;
             }
 
             // That should actually never happen, because we always "send" it as the initial state/event
             if (!lastSentTimestamp.containsKey(stateVariableName)) {
-                Log.v(getClass().getName(), "Variable is moderated but was never sent before: " + stateVariable);
+                YaaccLogger.v(getClass().getName(), "Variable is moderated but was never sent before: " + stateVariable);
                 continue;
             }
 
@@ -200,7 +200,7 @@ public abstract class LocalGENASubscription extends GENASubscription<LocalServic
                 long timestampLastSent = lastSentTimestamp.get(stateVariableName);
                 long timestampNextSend = timestampLastSent + (stateVariable.getEventDetails().getEventMaximumRateMilliseconds());
                 if (currentTime <= timestampNextSend) {
-                    Log.v(getClass().getName(), "Excluding state variable with maximum rate: " + stateVariable);
+                    YaaccLogger.v(getClass().getName(), "Excluding state variable with maximum rate: " + stateVariable);
                     excludedVariables.add(stateVariableName);
                     continue;
                 }
@@ -213,13 +213,13 @@ public abstract class LocalGENASubscription extends GENASubscription<LocalServic
                 long minDelta = stateVariable.getEventDetails().getEventMinimumDelta();
 
                 if (newValue > oldValue && newValue - oldValue < minDelta) {
-                    Log.v(getClass().getName(), "Excluding state variable with minimum delta: " + stateVariable);
+                    YaaccLogger.v(getClass().getName(), "Excluding state variable with minimum delta: " + stateVariable);
                     excludedVariables.add(stateVariableName);
                     continue;
                 }
 
                 if (newValue < oldValue && oldValue - newValue < minDelta) {
-                    Log.v(getClass().getName(), "Excluding state variable with minimum delta: " + stateVariable);
+                    YaaccLogger.v(getClass().getName(), "Excluding state variable with minimum delta: " + stateVariable);
                     excludedVariables.add(stateVariableName);
                 }
             }

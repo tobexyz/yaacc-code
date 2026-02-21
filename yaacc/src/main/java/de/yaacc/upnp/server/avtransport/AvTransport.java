@@ -22,14 +22,26 @@ import org.fourthline.cling.support.lastchange.LastChange;
 import org.fourthline.cling.support.model.AVTransport;
 import org.fourthline.cling.support.model.StorageMedium;
 
+import de.yaacc.upnp.UpnpClient;
+
 
 /**
  * @author Tobias Schoene (TheOpenBit)
  */
 public class AvTransport extends AVTransport {
 
+    private static UpnpClient upnpClient;
+
     public AvTransport(UnsignedIntegerFourBytes instanceID, LastChange lastChange, StorageMedium possiblePlayMedium) {
         super(instanceID, lastChange, possiblePlayMedium);
+    }
+
+    public static void setUpnpClient(UpnpClient client) {
+        upnpClient = client;
+    }
+
+    public static UpnpClient getUpnpClient() {
+        return upnpClient;
     }
 
 }

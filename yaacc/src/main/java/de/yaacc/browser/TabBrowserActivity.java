@@ -31,7 +31,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.PowerManager;
 import android.provider.Settings;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 import android.util.TypedValue;
 import android.view.ContextMenu;
 import android.view.ContextMenu.ContextMenuInfo;
@@ -96,7 +96,6 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
 
 
     private Intent serverService = null;
-    private Toast volumeToast = null;
 
     //https://developer.android.com/about/versions/14/changes/partial-photo-video-access
     private static String[] getPermissions() {
@@ -114,7 +113,8 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
                     Manifest.permission.READ_MEDIA_AUDIO,
                     Manifest.permission.READ_MEDIA_IMAGES,
                     Manifest.permission.READ_MEDIA_VIDEO,
-                    Manifest.permission.MANAGE_EXTERNAL_STORAGE
+                    Manifest.permission.MANAGE_EXTERNAL_STORAGE,
+                    Manifest.permission.POST_NOTIFICATIONS
 
             };
         } else if (android.os.Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -210,7 +210,7 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
         if (!checkIfAlreadyhavePermission()) {
             requestForSpecificPermission();
         } else {
-            Log.d(getClass().getName(), "All permissions granted");
+            YaaccLogger.d(getClass().getName(), "All permissions granted");
         }
 
         checkBatteryOptimizationEnabled();
@@ -218,7 +218,7 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
         // local server startup
         upnpClient = ((Yaacc) getApplicationContext()).getUpnpClient();
         if (upnpClient == null) {
-            Log.d(getClass().getName(), "Upnp client is null");
+            YaaccLogger.d(getClass().getName(), "Upnp client is null");
             return;
         }
 
@@ -230,7 +230,7 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
         }
 
         checkIfReceivedShareIntent(null);
-        Log.d(this.getClass().getName(), "on create took: " + (System.currentTimeMillis() - start));
+        YaaccLogger.d(this.getClass().getName(), "on create took: " + (System.currentTimeMillis() - start));
     }
 
     private void checkBatteryOptimizationEnabled() {
@@ -244,7 +244,7 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
         try {
             startActivity(intent);
         } catch (ActivityNotFoundException ex) {
-            Log.d(getClass().getName(), "Ignoring exception ActivityNotFoundException during check for battery optimization");
+            YaaccLogger.d(getClass().getName(), "Ignoring exception ActivityNotFoundException during check for battery optimization");
         }
     }
 
@@ -357,7 +357,6 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
         long start = System.currentTimeMillis();
         super.onResume();
         viewPager.setUserInputEnabled(getPreferences().getBoolean(getString(R.string.settings_swipe_chkbx), true));
-        setVolumeControlStream(-1000); //use an invalid audio stream to block controlling default streams
         boolean serverOn = getPreferences().getBoolean(
                 getString(R.string.settings_local_server_chkbx), false);
         if (serverOn) {
@@ -366,13 +365,13 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
                 getApplicationContext().stopService(getYaaccUpnpServerService());
             }
             getApplicationContext().startForegroundService(getYaaccUpnpServerService());
-            Log.d(this.getClass().getName(), "Starting local service");
+            YaaccLogger.d(this.getClass().getName(), "Starting local service");
         } else {
             getApplicationContext().stopService(getYaaccUpnpServerService());
-            Log.d(this.getClass().getName(), "Stopping local service");
+            YaaccLogger.d(this.getClass().getName(), "Stopping local service");
         }
         leftSettings = false;
-        Log.d(this.getClass().getName(), "on on resume took: " + (System.currentTimeMillis() - start));
+        YaaccLogger.d(this.getClass().getName(), "on on resume took: " + (System.currentTimeMillis() - start));
     }
 
 
@@ -391,7 +390,7 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
 
     @Override
     public void onBackPressed() {
-        Log.d(TabBrowserActivity.class.getName(), "onBackPressed() ");
+        YaaccLogger.d(TabBrowserActivity.class.getName(), "onBackPressed() ");
         if (getSupportFragmentManager().getFragments().size() > tabLayout.getSelectedTabPosition()) {
             Fragment fragment = getSupportFragmentManager().getFragments().get(tabLayout.getSelectedTabPosition());
             if (!(fragment instanceof OnBackPressedListener) || !((OnBackPressedListener) fragment).onBackPressed()) {
@@ -445,63 +444,9 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
 
     }
 
-    private Toast createVolumeToast(Drawable icon) {
-        LayoutInflater inflater = getLayoutInflater();
-        View layout = inflater.inflate(R.layout.custom_toast, findViewById(R.id.toast_custom));
-        TypedValue typedValue = new TypedValue();
-        getTheme().resolveAttribute(android.R.attr.colorBackground, typedValue, true);
-        layout.setBackgroundColor(typedValue.data);
-        ImageView imageView = layout.findViewById(R.id.customToastImageView);
-        imageView.setImageDrawable(icon);
-        TextView text = layout.findViewById(R.id.customToastTextView);
-        text.setText("");
-        Toast toast = new Toast(getApplicationContext());
-        toast.setGravity(Gravity.CENTER_VERTICAL, 0, 0);
-        toast.setDuration(Toast.LENGTH_SHORT);
-        toast.setView(layout);
-        return toast;
-    }
-
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        upnpClient.getReceiverDevices().forEach(d -> {
-            if (upnpClient.hasActionGetVolume(d))
-                switch (keyCode) {
-                    case KeyEvent.KEYCODE_VOLUME_UP:
-                        if (upnpClient.getVolume(d) < 100) {
-                            upnpClient.setVolume(d, upnpClient.getVolume(d) + 1);
-                        }
-                        break;
-                    case KeyEvent.KEYCODE_VOLUME_DOWN:
-                        if (upnpClient.getVolume(d) > 0) {
-                            upnpClient.setVolume(d, upnpClient.getVolume(d) - 1);
-                        }
-                        break;
-                }
-        });
-        if (!upnpClient.getReceiverDevices().isEmpty()) {
-            if (KeyEvent.KEYCODE_VOLUME_UP == keyCode || KeyEvent.KEYCODE_VOLUME_DOWN == keyCode) {
-                Drawable icon = keyCode == KeyEvent.KEYCODE_VOLUME_UP ? ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_volume_up_96, getTheme()), getTheme()) : ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_volume_down_96, getTheme()), getTheme());
-                if (volumeToast != null) {
-                    volumeToast.cancel();
-                }
-                volumeToast = createVolumeToast(icon);
-                volumeToast.show();
-                if (viewPager != null && tabLayout != null && tabLayout.getSelectedTabPosition() == BrowserTabs.RECEIVER.ordinal() && tabLayout.getTabAt(tabLayout.getSelectedTabPosition()).view != null) {
-                    List<Fragment> fragments = getSupportFragmentManager().getFragments();
-                    if (fragments.size() > viewPager.getCurrentItem()) {
-                        RecyclerView view = fragments.get(viewPager.getCurrentItem()).getView().findViewById(R.id.receiverList);
-                        if (view != null && view.getAdapter() != null) {
-                            view.getAdapter().notifyDataSetChanged();
-                        }
-                    }
-                }
-            }
-        }
-
-
+        // Let system handle volume keys - shows standard Android volume UI
         return super.onKeyDown(keyCode, event);
     }
-
-
 }

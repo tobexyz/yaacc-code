@@ -17,7 +17,7 @@ package org.fourthline.cling.binding.xml;
 
 import static org.fourthline.cling.binding.xml.Descriptor.Device.ELEMENT;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.binding.staging.MutableDevice;
 import org.fourthline.cling.binding.staging.MutableIcon;
@@ -59,7 +59,7 @@ public class UDA10DeviceDescriptorBinderSAXImpl extends UDA10DeviceDescriptorBin
         }
 
         try {
-            Log.v(getClass().getName(), "Populating device from XML descriptor: " + undescribedDevice);
+            YaaccLogger.v(getClass().getName(), "Populating device from XML descriptor: " + undescribedDevice);
 
             // Read the XML into a mutable descriptor graph
 
@@ -138,7 +138,7 @@ public class UDA10DeviceDescriptorBinderSAXImpl extends UDA10DeviceDescriptorBin
                 case major:
                     String majorVersion = getCharacters().trim();
                     if (!majorVersion.equals("1")) {
-                        Log.w(getClass().getName(), "Unsupported UDA major version, ignoring: " + majorVersion);
+                        YaaccLogger.w(getClass().getName(), "Unsupported UDA major version, ignoring: " + majorVersion);
                         majorVersion = "1";
                     }
                     getInstance().major = Integer.valueOf(majorVersion);
@@ -146,7 +146,7 @@ public class UDA10DeviceDescriptorBinderSAXImpl extends UDA10DeviceDescriptorBin
                 case minor:
                     String minorVersion = getCharacters().trim();
                     if (!minorVersion.equals("0")) {
-                        Log.w(getClass().getName(), "Unsupported UDA minor version, ignoring: " + minorVersion);
+                        YaaccLogger.w(getClass().getName(), "Unsupported UDA minor version, ignoring: " + minorVersion);
                         minorVersion = "0";
                     }
                     getInstance().minor = Integer.valueOf(minorVersion);
@@ -234,7 +234,7 @@ public class UDA10DeviceDescriptorBinderSAXImpl extends UDA10DeviceDescriptorBin
                     try {
                         getInstance().dlnaDocs.add(DLNADoc.valueOf(txt));
                     } catch (InvalidValueException ex) {
-                        Log.v(getClass().getName(), "Invalid X_DLNADOC value, ignoring value: " + txt);
+                        YaaccLogger.v(getClass().getName(), "Invalid X_DLNADOC value, ignoring value: " + txt);
                     }
                     break;
                 case X_DLNACAP:
@@ -293,7 +293,7 @@ public class UDA10DeviceDescriptorBinderSAXImpl extends UDA10DeviceDescriptorBin
                     try {
                         getInstance().depth = Integer.valueOf(getCharacters());
                     } catch (NumberFormatException ex) {
-                        Log.w(getClass().getName(), "Invalid icon depth '" + getCharacters() + "', using 16 as default: " + ex);
+                        YaaccLogger.w(getClass().getName(), "Invalid icon depth '" + getCharacters() + "', using 16 as default: " + ex);
                         getInstance().depth = 16;
                     }
                     break;
@@ -305,7 +305,7 @@ public class UDA10DeviceDescriptorBinderSAXImpl extends UDA10DeviceDescriptorBin
                         getInstance().mimeType = getCharacters();
                         MimeType.valueOf(getInstance().mimeType);
                     } catch (IllegalArgumentException ex) {
-                        Log.w(getClass().getName(), "Ignoring invalid icon mime type: " + getInstance().mimeType);
+                        YaaccLogger.w(getClass().getName(), "Ignoring invalid icon mime type: " + getInstance().mimeType);
                         getInstance().mimeType = "";
                     }
                     break;
@@ -379,7 +379,7 @@ public class UDA10DeviceDescriptorBinderSAXImpl extends UDA10DeviceDescriptorBin
                         break;
                 }
             } catch (InvalidValueException ex) {
-                Log.v(getClass().getName(),
+                YaaccLogger.v(getClass().getName(),
                         "UPnP specification violation, skipping invalid service declaration. " + ex.getMessage()
                 );
             }

@@ -18,7 +18,7 @@
 package de.yaacc.player;
 
 import android.net.Uri;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 import android.webkit.MimeTypeMap;
 
 import org.fourthline.cling.support.model.Res;
@@ -46,7 +46,7 @@ public class PlayableItem {
         this.item = item;
         id = UUID.randomUUID();
         setTitle(item.getTitle());
-        Res resource = item.getFirstResource();
+        Res resource = selectBestResource(item);
         if (resource != null) {
             setUri(Uri.parse(resource.getValue()));
             String mimeType = resource.getProtocolInfo().getContentFormat();
@@ -59,7 +59,7 @@ public class PlayableItem {
             // calculate duration
 
             long millis = defaultDuration;
-            Log.v(getClass().getName(), "resource.getDuration(): " + resource.getDuration());
+            YaaccLogger.v(getClass().getName(), "resource.getDuration(): " + resource.getDuration());
             if (resource.getDuration() != null) {
                 try {
                     String[] tokens = resource.getDuration().split(":");
@@ -72,16 +72,16 @@ public class PlayableItem {
                     if (tokens.length > 2) {
                         String seconds = tokens[2];
                         if (tokens[2].contains(".")) {
-                            Log.d(getClass().getName(), "tokens[2]: " + tokens[2] + "split: " + tokens[2].split("\\.").length);
+                            YaaccLogger.d(getClass().getName(), "tokens[2]: " + tokens[2] + "split: " + tokens[2].split("\\.").length);
                             seconds = tokens[2].split("\\.")[0];
                         }
                         millis += Long.parseLong(seconds);
                     }
                     millis = millis * 1000;
-                    Log.d(getClass().getName(), "resource.getDuration(): " + resource.getDuration() + " millis: " + millis);
+                    YaaccLogger.d(getClass().getName(), "resource.getDuration(): " + resource.getDuration() + " millis: " + millis);
 
                 } catch (Exception e) {
-                    Log.d(getClass().getName(), "bad duration format", e);
+                    YaaccLogger.d(getClass().getName(), "bad duration format", e);
                 }
             }
             setDuration(millis);
@@ -98,6 +98,52 @@ public class PlayableItem {
         duration = 0;
         item = null;
         id = UUID.randomUUID();
+    }
+
+    /**
+     * Select the best playable resource from an item.
+     * Filters out non-media types and prefers higher quality.
+     */
+    private Res selectBestResource(Item item) {
+        if (item.getResources() == null || item.getResources().isEmpty()) {
+            return null;
+        }
+        
+        // Always use first resource as fallback
+        Res bestResource = item.getResources().get(0);
+        long bestBitrate = 0;
+        
+        for (Res resource : item.getResources()) {
+            String contentFormat = resource.getProtocolInfo().getContentFormat();
+            if (contentFormat == null || contentFormat.isEmpty()) {
+                continue;
+            }
+            
+            // Only accept audio, video, image, or streaming playlist types
+            if (!contentFormat.startsWith("audio/") && 
+                !contentFormat.startsWith("video/") && 
+                !contentFormat.startsWith("image/") &&
+                !contentFormat.equals("application/vnd.apple.mpegurl") &&
+                !contentFormat.equals("application/x-mpegURL")) {
+                YaaccLogger.d(getClass().getName(), "Skipping non-media resource: " + contentFormat);
+                continue;
+            }
+            
+            // Prefer higher bitrate
+            Long bitrate = resource.getBitrate();
+            if (bitrate != null && bitrate > bestBitrate) {
+                bestBitrate = bitrate;
+                bestResource = resource;
+            }
+        }
+        
+        if (bestResource != null) {
+            YaaccLogger.d(getClass().getName(), "Selected resource: " + 
+                bestResource.getProtocolInfo().getContentFormat() + 
+                " bitrate: " + bestResource.getBitrate());
+        }
+        
+        return bestResource;
     }
 
 

@@ -15,7 +15,7 @@
 
 package org.fourthline.cling.model;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.meta.Device;
 import org.fourthline.cling.model.meta.Icon;
@@ -158,12 +158,12 @@ public class Namespace {
         Set<Resource> resources = new HashSet<>();
         List<ValidationError> errors = new ArrayList<>();
 
-        Log.v(getClass().getName(), "Discovering local resources of device graph");
+        YaaccLogger.v(getClass().getName(), "Discovering local resources of device graph");
         Resource[] discoveredResources = device.discoverResources(this);
         for (Resource resource : discoveredResources) {
-            Log.v(getClass().getName(), "Discovered: " + resource);
+            YaaccLogger.v(getClass().getName(), "Discovered: " + resource);
             if (!resources.add(resource)) {
-                Log.v(getClass().getName(), "Local resource already exists, queueing validation error");
+                YaaccLogger.v(getClass().getName(), "Local resource already exists, queueing validation error");
                 errors.add(new ValidationError(
                         getClass(),
                         "resources",

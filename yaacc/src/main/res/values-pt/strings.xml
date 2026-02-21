@@ -61,7 +61,7 @@
     <string name="title_activity_avtransport_player">Leitor remoto YAACC</string>
     <string name="title_activity_multi_content_player">Jogador padrão YAACC</string>
     <string name="can_not_start_activity">Não é possível iniciar o aplicativo! Razão:</string>
-    <string name="app_descrip">Reúna seus dispositivos UPnP em sua rede local com o Android!  <a href="http://www.yaacc.de">www.yaacc.de</a> YAACC é desenvolvido sob GPLv3. Sinta-se à vontade para usá-lo e compartilhá-lo sem qualquer garantia. Os detalhes da licença estão documentados em (www.gnu.org/licenses/gpl-3.0) Outras licenças são: A implementação UPnP é baseada em Cling (https://github.com/4thline/cling) Ícones e símbolos de design de material são usados ​​( https://github.com/google/material-design-icons). Android é uma marca registrada da Google Inc (developer.android.com/about/index.html)</string>
+    <string name="app_descrip">Reúna seus dispositivos UPnP em sua rede local com o Android!  <a href="https://www.yaacc.de">www.yaacc.de</a> YAACC é desenvolvido sob GPLv3. Sinta-se à vontade para usá-lo e compartilhá-lo sem qualquer garantia. Os detalhes da licença estão documentados em (www.gnu.org/licenses/gpl-3.0) Outras licenças são: A implementação UPnP é baseada em Cling (https://github.com/4thline/cling) Ícones e símbolos de design de material são usados ​​( https://github.com/google/material-design-icons). Android é uma marca registrada da Google Inc (developer.android.com/about/index.html)</string>
     <string name="title_activity_yaacc_upnp_server_control">Controle de servidor YAACC UPnP</string>
     <string name="yaacc_upnp_server_stop_server">parar servidor</string>
     <string name="yaacc_upnp_server_start_server">iniciar servidor</string>
@@ -81,6 +81,7 @@
     <string name="genres">Gêneros</string>
     <string name="videos">Vídeos</string>
     <string name="music">Música</string>
+    <string name="screen_cast_stream">Screencast-Stream</string>
     <string name="title_activity_yaacc_log">Ver registro</string>
     <string name="logContent">O conteúdo do log do sistema deve ser mostrado aqui</string>
     <string name="activity_remote_player_mute">Mudo</string>
@@ -118,4 +119,14 @@
     <string name="shared_folders">selecione pastas partilhadas</string>
     <string name="reset_shared_folders">repor pastas partilhadas</string>
     <string name="shutdown_timer">Temporizador de desligamento</string>
+    <string name="add_saf_content">adicionar fonte</string>
+    <string name="clear_saf_cache">limpar cache SAF</string>
+    <string name="saf_content">vinculado</string>
+    <string name="enable_server_side_seeking_for_external_urls">Ative a gestão do intervalo de tempo no servidor no modo proxy.</string>
+    <string name="live_streams">Transmissões ao vivo</string>
+    <string name="system_audio_stream">Fluxo de áudio do dispositivo</string>
+    <string name="playing">BRINCAR</string>
+    <string name="paused">PAUSADO</string>
+    <string name="stopped">PAROU</string>
+    <string name="no_media">SEM MÍDIA</string>
 </resources>

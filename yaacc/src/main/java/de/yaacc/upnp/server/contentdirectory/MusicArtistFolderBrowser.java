@@ -22,14 +22,9 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.database.Cursor;
 import android.provider.MediaStore;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.support.model.DIDLObject;
-import org.fourthline.cling.support.model.DIDLObject.Property.UPNP;
-import org.fourthline.cling.support.model.PersonWithRole;
-import org.fourthline.cling.support.model.Protocol;
-import org.fourthline.cling.support.model.ProtocolInfo;
-import org.fourthline.cling.support.model.Res;
 import org.fourthline.cling.support.model.SortCriterion;
 import org.fourthline.cling.support.model.container.Container;
 import org.fourthline.cling.support.model.container.MusicAlbum;
@@ -182,7 +177,17 @@ public class MusicArtistFolderBrowser extends ContentBrowser {
                         @SuppressLint("Range") String duration = mediaCursor.getString(mediaCursor
                                 .getColumnIndex(MediaStore.Audio.Media.DURATION));
                         duration = contentDirectory.formatDuration(duration);
-                        Log.d(getClass().getName(),
+                Integer trackNumber = null;
+                Integer year = null;
+                int trackIdx = mediaCursor.getColumnIndex(MediaStore.Audio.Media.TRACK);
+                if (trackIdx >= 0) {
+                    trackNumber = mediaCursor.getInt(trackIdx);
+                }
+                int yearIdx = mediaCursor.getColumnIndex(MediaStore.Audio.Media.YEAR);
+                if (yearIdx >= 0) {
+                    year = mediaCursor.getInt(yearIdx);
+                }
+                        YaaccLogger.d(getClass().getName(),
                                 "Mimetype: "
                                         + mediaCursor.getString(mediaCursor
                                         .getColumnIndex(MediaStore.Audio.Media.MIME_TYPE)));
@@ -197,28 +202,56 @@ public class MusicArtistFolderBrowser extends ContentBrowser {
                         URI albumArtUri = URI.create("http://"
                                 + contentDirectory.getIpAddress() + ":"
                                 + YaaccUpnpServerService.PORT + "/album/" + albumId);
-                        ProtocolInfo protocolInfo = new ProtocolInfo(Protocol.HTTP_GET, ProtocolInfo.WILDCARD, mimeType.toString(), getDLNAAttributes(mimeType));
-                        Res resource = new Res(protocolInfo, size, uri);
-                        resource.setDuration(duration);
-                        MusicTrack musicTrack = new MusicTrack(
-                                ContentDirectoryIDs.MUSIC_ARTIST_ITEM_PREFIX.getId()
-                                        + id,
-                                ContentDirectoryIDs.MUSIC_ARTIST_PREFIX.getId()
-                                        + artistId, title + "-(" + name + ")", "",
-                                album, artist, resource);
-                        musicTrack
-                                .replaceFirstProperty(new UPNP.ALBUM_ART_URI(albumArtUri));
-                        musicTrack.setArtists(new PersonWithRole[]{new PersonWithRole(artist, "AlbumArtist")});
+                        
+                        MusicTrack musicTrack;
+                        
                         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
                             @SuppressLint("Range") String genre = mediaCursor.getString(mediaCursor
                                     .getColumnIndex(MediaStore.Audio.Media.GENRE));
-                            @SuppressLint("Range") String bitrate = mediaCursor.getString(mediaCursor
+                            @SuppressLint("Range") String bitrateStr = mediaCursor.getString(mediaCursor
                                     .getColumnIndex(MediaStore.Audio.Media.BITRATE));
-                            resource.setBitrate(Long.valueOf(bitrate));
-                            musicTrack.setGenres(new String[]{genre});
+                            Long bitrate = bitrateStr != null ? Long.valueOf(bitrateStr) : null;
+                            
+                            musicTrack = createMusicTrack(
+                                ContentDirectoryIDs.MUSIC_ARTIST_ITEM_PREFIX.getId() + id,
+                                ContentDirectoryIDs.MUSIC_ARTIST_PREFIX.getId() + artistId,
+                                title + "-(" + name + ")",
+                                "",
+                                false,
+                                mimeType,
+                                uri,
+                                size,
+                                duration,
+                                album,
+                                artist,
+                                trackNumber,
+                                year != null && year > 0 ? year + "-01-01" : null,
+                                new String[]{genre},
+                                albumArtUri.toString(),
+                                bitrate
+                            );
+                        } else {
+                            musicTrack = createMusicTrack(
+                                ContentDirectoryIDs.MUSIC_ARTIST_ITEM_PREFIX.getId() + id,
+                                ContentDirectoryIDs.MUSIC_ARTIST_PREFIX.getId() + artistId,
+                                title + "-(" + name + ")",
+                                "",
+                                false,
+                                mimeType,
+                                uri,
+                                size,
+                                duration,
+                                album,
+                                artist,
+                                trackNumber,
+                                year != null && year > 0 ? year + "-01-01" : null,
+                                null,
+                                albumArtUri.toString()
+                            );
                         }
+
                         result.add(musicTrack);
-                        Log.d(getClass().getName(), "MusicTrack: " + id + " Name: "
+                        YaaccLogger.d(getClass().getName(), "MusicTrack: " + id + " Name: "
                                 + name + " uri: " + uri);
                         currentCount++;
                     }
@@ -227,7 +260,7 @@ public class MusicArtistFolderBrowser extends ContentBrowser {
                 }
 
             } else {
-                Log.d(getClass().getName(), "System media store is empty.");
+                YaaccLogger.d(getClass().getName(), "System media store is empty.");
             }
         }
 

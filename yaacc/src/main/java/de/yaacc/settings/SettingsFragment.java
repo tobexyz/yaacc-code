@@ -17,20 +17,31 @@
  */
 package de.yaacc.settings;
 
+import android.os.Build;
 import android.os.Bundle;
 import android.text.InputType;
 
 import androidx.appcompat.app.AppCompatDelegate;
 import androidx.preference.CheckBoxPreference;
 import androidx.preference.EditTextPreference;
+import androidx.preference.PreferenceCategory;
 import androidx.preference.PreferenceFragmentCompat;
 
+import org.fourthline.cling.model.meta.Device;
+import org.fourthline.cling.model.meta.RemoteDevice;
+
+import java.util.Collection;
+
 import de.yaacc.R;
+import de.yaacc.upnp.UpnpClient;
+import de.yaacc.util.YaaccLogger;
 
 /**
  * @author Christoph Hähnel (eyeless)
  */
 public class SettingsFragment extends PreferenceFragmentCompat {
+    public static final String MANAGE_EXTERNAL_SEEKING = "manage_external_seeking_";
+
     @Override
     public void onCreatePreferences(Bundle savedInstanceState, String rootKey) {
         setPreferencesFromResource(R.xml.preference, rootKey);
@@ -57,6 +68,63 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             });
         }
 
+        androidx.preference.ListPreference logLevelPreference = findPreference(getString(R.string.settings_log_level_key));
+        if (logLevelPreference != null) {
+            logLevelPreference.setOnPreferenceChangeListener((preference, newValue) -> {
+                if (newValue instanceof String) {
+                    YaaccLogger.setLogLevel((String) newValue);
+                }
+                return true;
+            });
+        }
+
+        // Populate renderer settings dynamically
+        populateRendererSettings();
+    }
+
+    private void populateRendererSettings() {
+        PreferenceCategory rendererCategory = findPreference("renderer_settings_category");
+        if (rendererCategory == null) return;
+
+        // Clear existing preferences
+        rendererCategory.removeAll();
+
+        // Get UPnP client and discovered devices
+        UpnpClient upnpClient = ((de.yaacc.Yaacc) requireActivity().getApplicationContext()).getUpnpClient();
+        if (upnpClient != null) {
+            Collection<Device<?, ?, ?>> devices = upnpClient.getDevices();
+
+            for (Device<?, ?, ?> device : devices) {
+                if (device instanceof RemoteDevice && device.hasServices()) {
+                    // Check if device has AVTransport service (is a renderer)
+                    if (device.findService(org.fourthline.cling.model.types.ServiceType.valueOf("urn:schemas-upnp-org:service:AVTransport:1")) != null) {
+                        addRendererPreference(rendererCategory, device);
+                    }
+                }
+            }
+        }
+
+        if (rendererCategory.getPreferenceCount() == 0) {
+            // Add info message if no renderers found
+            androidx.preference.Preference infoPreference = new androidx.preference.Preference(getContext());
+            infoPreference.setTitle("No UPnP renderers discovered");
+            infoPreference.setSummary("Renderers will appear here when discovered on the network");
+            infoPreference.setEnabled(false);
+            rendererCategory.addPreference(infoPreference);
+        }
+    }
+
+    private void addRendererPreference(PreferenceCategory category, Device<?, ?, ?> device) {
+        String deviceId = device.getIdentity().getUdn().getIdentifierString();
+        String deviceName = device.getDetails().getFriendlyName();
+
+        CheckBoxPreference preference = new CheckBoxPreference(getContext());
+        preference.setKey(MANAGE_EXTERNAL_SEEKING + deviceId);
+        preference.setTitle(deviceName);
+        preference.setSummary(getString(R.string.enable_server_side_seeking_for_external_urls));
+        preference.setDefaultValue(false);
+
+        category.addPreference(preference);
     }
 
 }

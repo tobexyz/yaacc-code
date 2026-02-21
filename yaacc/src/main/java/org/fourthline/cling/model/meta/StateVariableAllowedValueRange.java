@@ -15,7 +15,7 @@
 
 package org.fourthline.cling.model.meta;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.Validatable;
 import org.fourthline.cling.model.ValidationError;
@@ -42,7 +42,7 @@ public class StateVariableAllowedValueRange implements Validatable {
 
     public StateVariableAllowedValueRange(long minimum, long maximum, long step) {
         if (minimum > maximum) {
-            Log.w(getClass().getName(), "UPnP specification violation, allowed value range minimum '" + minimum
+            YaaccLogger.w(getClass().getName(), "UPnP specification violation, allowed value range minimum '" + minimum
                     + "' is greater than maximum '" + maximum + "', switching values.");
             this.minimum = maximum;
             this.maximum = minimum;

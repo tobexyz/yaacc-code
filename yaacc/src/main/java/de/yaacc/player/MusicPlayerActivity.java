@@ -24,7 +24,8 @@ import android.content.ServiceConnection;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.IBinder;
-import android.util.Log;
+import android.view.KeyEvent;
+import de.yaacc.util.YaaccLogger;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.ImageButton;
@@ -63,7 +64,7 @@ public class MusicPlayerActivity extends AppCompatActivity implements ServiceCon
 
     public void onServiceConnected(ComponentName className, IBinder binder) {
         if (binder instanceof PlayerService.PlayerServiceBinder) {
-            Log.d(getClass().getName(), "PlayerService connected");
+            YaaccLogger.d(getClass().getName(), "PlayerService connected");
             playerService = ((PlayerService.PlayerServiceBinder) binder).getService();
             initialize();
             setTrackInfo();
@@ -72,7 +73,7 @@ public class MusicPlayerActivity extends AppCompatActivity implements ServiceCon
     //binder comes from server to communicate with method's of
 
     public void onServiceDisconnected(ComponentName className) {
-        Log.d(getClass().getName(), "PlayerService disconnected");
+        YaaccLogger.d(getClass().getName(), "PlayerService disconnected");
         playerService = null;
     }
 
@@ -101,7 +102,7 @@ public class MusicPlayerActivity extends AppCompatActivity implements ServiceCon
             btnFr.setActivated(false);
         } else {
             player.addPropertyChangeListener(event -> {
-                if (LocalBackgoundMusicPlayer.PROPERTY_ITEM.equals(event.getPropertyName())) {
+                if (LocalMediaSessionPlayer.PROPERTY_ITEM.equals(event.getPropertyName())) {
                     runOnUiThread(this::setTrackInfo);
 
                 }
@@ -191,10 +192,10 @@ public class MusicPlayerActivity extends AppCompatActivity implements ServiceCon
                     long durationTimeMillis = Objects.requireNonNull(dateFormat.parse(durationString)).getTime();
 
                     int targetPosition = Double.valueOf(durationTimeMillis * ((double) seekBar.getProgress() / 100)).intValue();
-                    Log.d(getClass().getName(), "TargetPosition" + targetPosition);
+                    YaaccLogger.d(getClass().getName(), "TargetPosition" + targetPosition);
                     getPlayer().seekTo(targetPosition);
                 } catch (ParseException pex) {
-                    Log.d(getClass().getName(), "Error while parsing time string", pex);
+                    YaaccLogger.d(getClass().getName(), "Error while parsing time string", pex);
                 }
 
             }
@@ -216,8 +217,7 @@ public class MusicPlayerActivity extends AppCompatActivity implements ServiceCon
     @Override
     protected void onRestart() {
         super.onRestart();
-        this.bindService(new Intent(this, PlayerService.class),
-                this, Context.BIND_AUTO_CREATE);
+        // Don't bind again - already bound in onCreate()
         updateTime = true;
         setTrackInfo();
     }
@@ -225,8 +225,9 @@ public class MusicPlayerActivity extends AppCompatActivity implements ServiceCon
     @Override
     protected void onResume() {
         super.onResume();
-        this.bindService(new Intent(this, PlayerService.class),
-                this, Context.BIND_AUTO_CREATE);
+        // For local playback, use music stream for volume control
+        setVolumeControlStream(android.media.AudioManager.STREAM_MUSIC);
+        // Don't bind again - already bound in onCreate()
         updateTime = true;
         setTrackInfo();
     }
@@ -234,11 +235,13 @@ public class MusicPlayerActivity extends AppCompatActivity implements ServiceCon
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        YaaccLogger.d(getClass().getName(), "Activity onDestroy - unbinding from service");
         updateTime = false;
         try {
             unbindService(this);
+            YaaccLogger.d(getClass().getName(), "Successfully unbound from service");
         } catch (IllegalArgumentException iae) {
-            Log.d(getClass().getName(), "Ignore exception on unbind service while activity destroy");
+            YaaccLogger.d(getClass().getName(), "Ignore exception on unbind service while activity destroy");
         }
     }
 
@@ -252,7 +255,7 @@ public class MusicPlayerActivity extends AppCompatActivity implements ServiceCon
     }
 
     private Player getPlayer() {
-        return playerService == null ? null : playerService.getFirstCurrentPlayerOfType(LocalBackgoundMusicPlayer.class);
+        return playerService == null ? null : playerService.getFirstCurrentPlayerOfType(LocalMediaSessionPlayer.class);
     }
 
     @Override
@@ -288,8 +291,10 @@ public class MusicPlayerActivity extends AppCompatActivity implements ServiceCon
     }
 
     private void exit() {
+        YaaccLogger.d(getClass().getName(), "Exit button pressed");
         Player player = getPlayer();
         if (player != null) {
+            YaaccLogger.d(getClass().getName(), "Calling player.exit() for player: " + player.getId());
             player.stop();
             player.exit();
         }
@@ -335,7 +340,7 @@ public class MusicPlayerActivity extends AppCompatActivity implements ServiceCon
                 seekBar.setProgress(progress);
             }
         } catch (ParseException pex) {
-            Log.d(getClass().getName(), "Error while parsing time string", pex);
+            YaaccLogger.d(getClass().getName(), "Error while parsing time string", pex);
         }
 
 
@@ -356,5 +361,14 @@ public class MusicPlayerActivity extends AppCompatActivity implements ServiceCon
             }
         }, 1000L);
 
+    }
+
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        if (keyCode == KeyEvent.KEYCODE_VOLUME_UP || keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
+            // For local playback, use system volume (AudioManager handles it automatically)
+            return super.onKeyDown(keyCode, event);
+        }
+        return super.onKeyDown(keyCode, event);
     }
 }

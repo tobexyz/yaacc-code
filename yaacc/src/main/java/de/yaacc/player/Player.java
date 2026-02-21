@@ -19,6 +19,7 @@ package de.yaacc.player;
 
 import android.app.PendingIntent;
 import android.graphics.Bitmap;
+import android.support.v4.media.session.MediaSessionCompat;
 
 import java.beans.PropertyChangeListener;
 import java.net.URI;
@@ -192,7 +193,7 @@ public interface Player {
 
     void setIcon(Bitmap icon);
 
-   
+
     boolean getMute();
 
 
@@ -235,4 +236,13 @@ public interface Player {
      * @param i seconds
      */
     void fastRewind(int i);
+
+    /**
+     * Get the MediaSession for this player (for volume control integration)
+     */
+    MediaSessionCompat getMediaSession();
+
+    boolean isPaused();
+
+    boolean isStopped();
 }

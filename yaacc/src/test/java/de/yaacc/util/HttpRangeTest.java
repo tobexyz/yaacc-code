@@ -31,24 +31,24 @@ public class HttpRangeTest {
     public void testRanges() throws Exception {
         String input = "bytes=1-22,-3343,50-,-5785,63-10012";
         List<HttpRange> expected = new ArrayList<>();
-        expected.add(new HttpRange("bytes", 1, 22, null));
-        expected.add(new HttpRange("bytes", null, null, 3343));
-        expected.add(new HttpRange("bytes", 50, null, null));
-        expected.add(new HttpRange("bytes", null, null, 5785));
-        expected.add(new HttpRange("bytes", 63, 10012, null));
+        expected.add(new HttpRange("bytes", 1L, 22L, null));
+        expected.add(new HttpRange("bytes", null, null, 3343L));
+        expected.add(new HttpRange("bytes", 50L, null, null));
+        expected.add(new HttpRange("bytes", null, null, 5785L));
+        expected.add(new HttpRange("bytes", 63L, 10012L, null));
         List<HttpRange> calculated = HttpRange.parseRangeHeader(input);
         assertEquals(expected, calculated);
         assertEquals(input, HttpRange.toHeaderString(calculated));
         input = "bytes=1-22";
         calculated = HttpRange.parseRangeHeader(input);
         expected = new ArrayList<>();
-        expected.add(new HttpRange("bytes", 1, 22, null));
+        expected.add(new HttpRange("bytes", 1L, 22L, null));
         assertEquals(expected, calculated);
         assertEquals(input, HttpRange.toHeaderString(calculated));
         input = "bytes=-1234";
         calculated = HttpRange.parseRangeHeader(input);
         expected = new ArrayList<>();
-        expected.add(new HttpRange("bytes", null, null, 1234));
+        expected.add(new HttpRange("bytes", null, null, 1234L));
         assertEquals(expected, calculated);
         assertEquals(input, HttpRange.toHeaderString(calculated));
         input = null;
@@ -64,7 +64,7 @@ public class HttpRangeTest {
         input = "bytes=6154265-";
         calculated = HttpRange.parseRangeHeader(input);
         expected = new ArrayList<>();
-        expected.add(new HttpRange("bytes", 6154265, null, null));
+        expected.add(new HttpRange("bytes", 6154265L, null, null));
         assertEquals(expected, calculated);
         assertEquals(input, HttpRange.toHeaderString(calculated));
     }

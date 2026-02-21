@@ -15,7 +15,7 @@
 
 package org.fourthline.cling.transport.impl;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.UnsupportedDataException;
 import org.fourthline.cling.model.action.ActionInvocation;
@@ -61,7 +61,7 @@ public class RecoveringSOAPActionProcessorImpl extends PullSOAPActionProcessorIm
             if (!requestMessage.isBodyNonEmptyString())
                 throw ex;
 
-            Log.w(getClass().getName(), "Trying to recover from invalid SOAP XML request: " + ex);
+            YaaccLogger.w(getClass().getName(), "Trying to recover from invalid SOAP XML request: " + ex);
             String body = getMessageBody(requestMessage);
 
             // TODO: UPNP VIOLATION: TwonkyMobile sends unencoded '&' in SetAVTransportURI action calls:
@@ -87,7 +87,7 @@ public class RecoveringSOAPActionProcessorImpl extends PullSOAPActionProcessorIm
             if (!responseMsg.isBodyNonEmptyString())
                 throw ex;
 
-            Log.w(getClass().getName(), "Trying to recover from invalid SOAP XML response: " + ex);
+            YaaccLogger.w(getClass().getName(), "Trying to recover from invalid SOAP XML response: " + ex);
             String body = getMessageBody(responseMsg);
 
             // TODO: UPNP VIOLATION: TwonkyMobile doesn't properly encode '&'

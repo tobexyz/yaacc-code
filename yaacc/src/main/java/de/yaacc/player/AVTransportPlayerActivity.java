@@ -21,25 +21,18 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
-import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.IBinder;
-import android.util.Log;
-import android.util.TypedValue;
-import android.view.Gravity;
 import android.view.KeyEvent;
-import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
-import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.SeekBar;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -62,6 +55,7 @@ import de.yaacc.upnp.UpnpClient;
 import de.yaacc.util.AboutActivity;
 import de.yaacc.util.ThemeHelper;
 import de.yaacc.util.YaaccLogActivity;
+import de.yaacc.util.YaaccLogger;
 import de.yaacc.util.image.ImageDownloadTask;
 
 /**
@@ -77,11 +71,10 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
     private int playerId;
 
     private AVTransportController player;
-    private Toast volumeToast;
 
     public void onServiceConnected(ComponentName className, IBinder binder) {
         if (binder instanceof PlayerService.PlayerServiceBinder) {
-            Log.d(getClass().getName(), "PlayerService connected");
+            YaaccLogger.d(getClass().getName(), "PlayerService connected");
             playerService = ((PlayerService.PlayerServiceBinder) binder).getService();
             initialize();
         }
@@ -89,7 +82,7 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
 
 
     public void onServiceDisconnected(ComponentName className) {
-        Log.d(getClass().getName(), "PlayerService disconnected");
+        YaaccLogger.d(getClass().getName(), "PlayerService disconnected");
         playerService = null;
     }
 
@@ -107,7 +100,7 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
             try {
                 getPlayerService().unbindService(this);
             } catch (IllegalArgumentException iae) {
-                Log.d(getClass().getName(), "Ignore exception on unbind service while activity pause");
+                YaaccLogger.d(getClass().getName(), "Ignore exception on unbind service while activity pause");
             }
         }
     }
@@ -123,7 +116,8 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
     @Override
     protected void onResume() {
         super.onResume();
-        setVolumeControlStream(-1000); //use an invalid audio stream to block controlling default streams
+        // Use music stream for volume control (works for both local and remote)
+        setVolumeControlStream(android.media.AudioManager.STREAM_MUSIC);
         this.bindService(new Intent(this, PlayerService.class),
                 this, Context.BIND_AUTO_CREATE);
         updateTime = true;
@@ -132,48 +126,8 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        if (getPlayer() != null && getPlayer().hasActionGetVolume() && (KeyEvent.KEYCODE_VOLUME_UP == keyCode || KeyEvent.KEYCODE_VOLUME_DOWN == keyCode)) {
-            Drawable icon = null;
-            switch (keyCode) {
-                case KeyEvent.KEYCODE_VOLUME_UP:
-                    if (getPlayer().getVolume() < 100) {
-                        getPlayer().setVolume(getPlayer().getVolume() + 1);
-                    }
-                    icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_volume_up_96, getTheme()), getTheme());
-                    break;
-                case KeyEvent.KEYCODE_VOLUME_DOWN:
-                    if (getPlayer().getVolume() > 0) {
-                        getPlayer().setVolume(getPlayer().getVolume() - 1);
-                    }
-                    icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_volume_down_96, getTheme()), getTheme());
-                    break;
-            }
-            SeekBar volumeSeekBar = (SeekBar) findViewById(R.id.avtransportPlayerActivityControlVolumeSeekBar);
-            volumeSeekBar.setProgress(getPlayer().getVolume());
-            if (volumeToast != null) {
-                volumeToast.cancel();
-            }
-            volumeToast = createVolumeToast(icon, getPlayer().getVolume());
-            volumeToast.show();
-        }
+        // Let system handle all volume keys - shows standard volume UI
         return super.onKeyDown(keyCode, event);
-    }
-
-    private Toast createVolumeToast(Drawable icon, int volume) {
-        LayoutInflater inflater = getLayoutInflater();
-        View layout = inflater.inflate(R.layout.custom_toast, (ViewGroup) findViewById(R.id.toast_custom));
-        TypedValue typedValue = new TypedValue();
-        getTheme().resolveAttribute(android.R.attr.colorBackground, typedValue, true);
-        layout.setBackgroundColor(typedValue.data);
-        ImageView imageView = (ImageView) layout.findViewById(R.id.customToastImageView);
-        imageView.setImageDrawable(icon);
-        TextView text = (TextView) layout.findViewById(R.id.customToastTextView);
-        text.setText("" + volume);
-        Toast toast = new Toast(getApplicationContext());
-        toast.setGravity(Gravity.CENTER_VERTICAL, 0, 0);
-        toast.setDuration(Toast.LENGTH_SHORT);
-        toast.setView(layout);
-        return toast;
     }
 
     @Override
@@ -183,22 +137,22 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
         try {
             unbindService(this);
         } catch (IllegalArgumentException iae) {
-            Log.d(getClass().getName(), "Ignore exception on unbind service while activity destroy");
+            YaaccLogger.d(getClass().getName(), "Ignore exception on unbind service while activity destroy");
         }
 
     }
 
     protected void initialize() {
         Player player = getPlayer();
-        ImageButton btnPrev = (ImageButton) findViewById(R.id.avtransportPlayerActivityControlPrev);
-        ImageButton btnNext = (ImageButton) findViewById(R.id.avtransportPlayerActivityControlNext);
-        ImageButton btnStop = (ImageButton) findViewById(R.id.avtransportPlayerActivityControlStop);
-        ImageButton btnPlay = (ImageButton) findViewById(R.id.avtransportPlayerActivityControlPlay);
-        ImageButton btnPause = (ImageButton) findViewById(R.id.avtransportPlayerActivityControlPause);
-        ImageButton btnPlaylist = (ImageButton) findViewById(R.id.avtransportPlayerActivityControlPlaylist);
-        ImageButton btnExit = (ImageButton) findViewById(R.id.avtransportPlayerActivityControlExit);
-        ImageButton btnFf = (ImageButton) findViewById(R.id.avtransportPlayerActivityControlFastForward);
-        ImageButton btnFr = (ImageButton) findViewById(R.id.avtransportPlayerActivityControlFastRewind);
+        ImageButton btnPrev = findViewById(R.id.avtransportPlayerActivityControlPrev);
+        ImageButton btnNext = findViewById(R.id.avtransportPlayerActivityControlNext);
+        ImageButton btnStop = findViewById(R.id.avtransportPlayerActivityControlStop);
+        ImageButton btnPlay = findViewById(R.id.avtransportPlayerActivityControlPlay);
+        ImageButton btnPause = findViewById(R.id.avtransportPlayerActivityControlPause);
+        ImageButton btnPlaylist = findViewById(R.id.avtransportPlayerActivityControlPlaylist);
+        ImageButton btnExit = findViewById(R.id.avtransportPlayerActivityControlExit);
+        ImageButton btnFf = findViewById(R.id.avtransportPlayerActivityControlFastForward);
+        ImageButton btnFr = findViewById(R.id.avtransportPlayerActivityControlFastRewind);
         if (player == null) {
             btnPrev.setActivated(false);
             btnNext.setActivated(false);
@@ -298,7 +252,7 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
         SeekBar volumeSeekBar = (SeekBar) findViewById(R.id.avtransportPlayerActivityControlVolumeSeekBar);
         volumeSeekBar.setMax(100);
         if (getPlayer() != null && getPlayer().hasActionGetVolume()) {
-            Log.d(getClass().getName(), "Volume:" + getPlayer().getVolume());
+            YaaccLogger.d(getClass().getName(), "Volume:" + getPlayer().getVolume());
             volumeSeekBar.setEnabled(true);
             volumeSeekBar.setProgress(getPlayer().getVolume());
         } else {
@@ -346,10 +300,10 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
                     long durationTimeMillis = Objects.requireNonNull(dateFormat.parse(durationString)).getTime();
 
                     int targetPosition = Double.valueOf(durationTimeMillis * ((double) seekBar.getProgress() / 100)).intValue();
-                    Log.d(getClass().getName(), "TargetPosition" + targetPosition);
+                    YaaccLogger.d(getClass().getName(), "TargetPosition" + targetPosition);
                     getPlayer().seekTo(targetPosition);
                 } catch (ParseException pex) {
-                    Log.d(getClass().getName(), "Error while parsing time string", pex);
+                    YaaccLogger.d(getClass().getName(), "Error while parsing time string", pex);
                 }
 
             }
@@ -358,8 +312,10 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
     }
 
     private void exit() {
+        YaaccLogger.d(getClass().getName(), "Exit button pressed");
         Player player = getPlayer();
         if (player != null) {
+            YaaccLogger.d(getClass().getName(), "Calling player.exit() for player: " + player.getId());
             player.exit();
         }
         finish();
@@ -379,7 +335,7 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
             this.bindService(new Intent(this, PlayerService.class),
                     this, Context.BIND_AUTO_CREATE);
         } catch (Exception ex) {
-            Log.d(getClass().getName(), "ignore exception on service bind during onCreate");
+            YaaccLogger.d(getClass().getName(), "ignore exception on service bind during onCreate");
         }
         // initialize buttons
         playerId = getIntent().getIntExtra(AVTransportPlayer.PLAYER_ID, -1);
@@ -399,7 +355,7 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
                 findViewById(R.id.avtransportPlayerActivitySeparator).setVisibility(View.INVISIBLE);
             }
         }
-        Log.d(getClass().getName(), "Got id from intent: " + playerId);
+        YaaccLogger.d(getClass().getName(), "Got id from intent: " + playerId);
 
     }
 
@@ -464,7 +420,7 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
         position.setText(getPlayer().getPositionString());
         TextView next = findViewById(R.id.avtransportPlayerActivityNextItem);
         next.setText(getPlayer().getNextItemTitle());
-        ImageView albumArtView = (ImageView) findViewById(R.id.avtransportPlayerActivityImageView);
+        ImageView albumArtView = findViewById(R.id.avtransportPlayerActivityImageView);
         URI albumArtUri = getPlayer().getAlbumArt();
 
         if (null != albumArtUri) {
@@ -493,7 +449,7 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
                 seekBar.setProgress(progress);
             }
         } catch (ParseException pex) {
-            Log.d(getClass().getName(), "Error while parsing time string", pex);
+            YaaccLogger.d(getClass().getName(), "Error while parsing time string", pex);
         }
     }
 

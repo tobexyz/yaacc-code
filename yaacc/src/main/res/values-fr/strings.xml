@@ -60,7 +60,7 @@
     <string name="title_activity_avtransport_player">Lecteur distant YAACC</string>
     <string name="title_activity_multi_content_player">Lecteur par défaut YAACC</string>
     <string name="can_not_start_activity">"Impossible de démarrer l'application! Raison: "</string>
-    <string name="app_descrip">Rassemblez vos appareils UPnP sur votre réseau local avec Android!  <a href="http://www.yaacc.de">www.yaacc.de</a> YAACC est développé sous GPLv3. N\'hésitez pas à l\'utiliser et à le partager sans aucune garantie. Les détails de la licence sont documentés sur (www.gnu.org/licenses/gpl-3.0) D\'autres licences sont : L\'implémentation UPnP est basée sur Cling (https://github.com/4thline/cling) Des icônes et des symboles de conception matérielle sont utilisés ( https://github.com/google/material-design-icons) . Android est une marque commerciale de Google Inc (developer.android.com/about/index.html )</string>
+    <string name="app_descrip">Rassemblez vos appareils UPnP sur votre réseau local avec Android!  <a href="https://www.yaacc.de">www.yaacc.de</a> YAACC est développé sous GPLv3. N\'hésitez pas à l\'utiliser et à le partager sans aucune garantie. Les détails de la licence sont documentés sur (www.gnu.org/licenses/gpl-3.0) D\'autres licences sont : L\'implémentation UPnP est basée sur Cling (https://github.com/4thline/cling) Des icônes et des symboles de conception matérielle sont utilisés ( https://github.com/google/material-design-icons) . Android est une marque commerciale de Google Inc (developer.android.com/about/index.html )</string>
     <string name="title_activity_yaacc_upnp_server_control">Contrôle du serveur YAACC UPnP</string>
     <string name="yaacc_upnp_server_stop_server">arrêter le serveur</string>
     <string name="yaacc_upnp_server_start_server">démarrer le serveur</string>
@@ -80,6 +80,7 @@
     <string name="genres">Genre</string>
     <string name="videos">Vidéos</string>
     <string name="music">Musique</string>
+    <string name="screen_cast_stream">Flux de diffusion d\'écran</string>
     <string name="title_activity_yaacc_log">Afficher le journal</string>
     <string name="logContent">Le contenu du journal système doit être affiché ici</string>
     <string name="activity_remote_player_mute">Muet</string>
@@ -118,4 +119,14 @@
     <string name="shared_folders">sélectionner les dossiers partagés</string>
     <string name="reset_shared_folders">reset shared folders</string>
     <string name="shutdown_timer">Minuterie d\'arrêt</string>
+    <string name="add_saf_content">ajouter une source</string>
+    <string name="clear_saf_cache">vider le cache SAF</string>
+    <string name="saf_content">lié</string>
+    <string name="enable_server_side_seeking_for_external_urls">Activer la gestion des plages horaires côté serveur en mode proxy</string>
+    <string name="live_streams">Diffusions en direct</string>
+    <string name="system_audio_stream">Flux audio de l\'appareil</string>
+    <string name="playing">JOUANT</string>
+    <string name="paused">EN PAUSE</string>
+    <string name="stopped">ARRÊTÉ</string>
+    <string name="no_media">PAS DE MÉDIA</string>
 </resources>

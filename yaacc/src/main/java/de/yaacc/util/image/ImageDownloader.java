@@ -22,7 +22,7 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.util.DisplayMetrics;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import java.io.FilterInputStream;
 import java.io.IOException;
@@ -47,7 +47,7 @@ public class ImageDownloader {
      * @return image
      */
     public Bitmap retrieveImageWithCertainSize(Uri imageUri, int imageWidth, int imageHeight) {
-        Log.d(getClass().getName(), "retrieveImage size:" + imageWidth + "x" + imageHeight);
+        YaaccLogger.d(getClass().getName(), "retrieveImage size:" + imageWidth + "x" + imageHeight);
         return decodeSampledBitmapFromStream(imageUri, imageWidth, imageHeight);
     }
 
@@ -67,7 +67,7 @@ public class ImageDownloader {
 
         try {
             InputStream is = getUriAsStream(imageUri);
-            Log.d(this.getClass().getName(), "image uri to load: " + imageUri.toString());
+            YaaccLogger.d(this.getClass().getName(), "image uri to load: " + imageUri.toString());
             final BitmapFactory.Options options = new BitmapFactory.Options();
             options.inJustDecodeBounds = false;
             options.outWidth = reqWidth;
@@ -76,17 +76,17 @@ public class ImageDownloader {
             options.inTempStorage = new byte[7680016];
             options.inSampleSize = 1;
 
-            Log.d(this.getClass().getName(),
+            YaaccLogger.d(this.getClass().getName(),
                     "displaying image size width, height, inSampleSize "
                             + options.outWidth + "," + options.outHeight + ","
                             + options.inSampleSize);
-            Log.d(this.getClass().getName(), "free memory before image load: "
+            YaaccLogger.d(this.getClass().getName(), "free memory before image load: "
                     + Runtime.getRuntime().freeMemory());
 
 
             bitmap = BitmapFactory.decodeStream(new FlushedInputStream(is),
                     null, options);
-            Log.d(this.getClass().getName(), "free memory after image load: "
+            YaaccLogger.d(this.getClass().getName(), "free memory after image load: "
                     + Runtime.getRuntime().freeMemory());
 
 
@@ -104,18 +104,18 @@ public class ImageDownloader {
                     outHeight = reqHeight;
                 }
                 bitmap = Bitmap.createScaledBitmap(bitmap, outWidth, outHeight, false);
-                Log.d(this.getClass().getName(), "free memory after image scaling: "
+                YaaccLogger.d(this.getClass().getName(), "free memory after image scaling: "
                         + Runtime.getRuntime().freeMemory());
 
             }
             if (bitmap == null) {
-                Log.w(this.getClass().getName(), "Bitmap is null !!!");
+                YaaccLogger.w(this.getClass().getName(), "Bitmap is null !!!");
             } else if (bitmap.getHeight() != reqHeight) {
-                Log.w(this.getClass().getName(), "Bitmap has wrong size !!! height: " + bitmap.getHeight() + " width: " + bitmap.getWidth());
+                YaaccLogger.w(this.getClass().getName(), "Bitmap has wrong size !!! height: " + bitmap.getHeight() + " width: " + bitmap.getWidth());
             }
 
         } catch (Exception e) {
-            Log.d(this.getClass().getName(), "while decoding image: " + e.getMessage());
+            YaaccLogger.d(this.getClass().getName(), "while decoding image: " + e.getMessage());
         }
 
         return bitmap;
@@ -132,12 +132,12 @@ public class ImageDownloader {
     private InputStream getUriAsStream(Uri imageUri)
             throws IOException, MalformedURLException {
         InputStream is;
-        Log.d(getClass().getName(), "Start load: " + System.currentTimeMillis());
+        YaaccLogger.d(getClass().getName(), "Start load: " + System.currentTimeMillis());
 
         is = (InputStream) new java.net.URL(imageUri.toString())
                 .getContent();
-        Log.d(getClass().getName(), "Stop load: " + System.currentTimeMillis());
-        Log.d(getClass().getName(), "InputStream: " + is);
+        YaaccLogger.d(getClass().getName(), "Stop load: " + System.currentTimeMillis());
+        YaaccLogger.d(getClass().getName(), "InputStream: " + is);
         return is;
     }
 

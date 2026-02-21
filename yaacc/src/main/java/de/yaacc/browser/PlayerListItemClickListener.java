@@ -20,7 +20,7 @@ package de.yaacc.browser;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 import android.view.View;
 
 import androidx.recyclerview.widget.RecyclerView;
@@ -56,7 +56,7 @@ public class PlayerListItemClickListener implements View.OnClickListener {
 
             } catch (PendingIntent.CanceledException e) {
                 // the stack trace isn't very helpful here.  Just log the exception message.
-                Log.e(this.getClass().getName(), "Sending contentIntent failed", e);
+                YaaccLogger.e(this.getClass().getName(), "Sending contentIntent failed", e);
             }
 
         }

@@ -21,12 +21,12 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.AsyncTask;
-import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageButton;
 import android.widget.ImageView;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -38,7 +38,6 @@ import org.fourthline.cling.support.model.DIDLObject;
 import org.fourthline.cling.support.model.container.Container;
 import org.fourthline.cling.support.model.item.AudioItem;
 import org.fourthline.cling.support.model.item.ImageItem;
-import org.fourthline.cling.support.model.item.Item;
 import org.fourthline.cling.support.model.item.PlaylistItem;
 import org.fourthline.cling.support.model.item.TextItem;
 import org.fourthline.cling.support.model.item.VideoItem;
@@ -54,6 +53,7 @@ import de.yaacc.R;
 import de.yaacc.Yaacc;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.util.ThemeHelper;
+import de.yaacc.util.YaaccLogger;
 import de.yaacc.util.image.IconDownloadTask;
 
 /**
@@ -62,9 +62,6 @@ import de.yaacc.util.image.IconDownloadTask;
  * @author Christoph Haehnel (eyeless)
  */
 public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContentItemAdapter.ViewHolder> {
-    public static final Item LOAD_MORE_FAKE_ITEM = new Item("LoadMoreFakeItem", (String) null, "...", "", (DIDLObject.Class) null);
-
-    private static final Item LOADING_FAKE_ITEM = new Item("LoadingFakeItem", (String) null, "Loading...", "", (DIDLObject.Class) null);
     private boolean loading = false;
 
 
@@ -75,15 +72,22 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
     private UpnpClient upnpClient;
     private ContentListFragment contentListFragment;
     private RecyclerView contentList;
+    private ProgressBar progressBar;
+    private SharedPreferences sharedPreferences;
+    private boolean showThumbnails;
 
 
-    public BrowseContentItemAdapter(ContentListFragment contentListFragment, RecyclerView contentList, UpnpClient upnpClient) {
+    public BrowseContentItemAdapter(ContentListFragment contentListFragment, RecyclerView contentList, UpnpClient upnpClient, ProgressBar progressBar) {
         context = contentListFragment.getContext();
         this.contentListFragment = contentListFragment;
         this.contentList = contentList;
+        this.progressBar = progressBar;
         asyncTasks = new ArrayList<>();
         allItemsFetched = false;
         this.upnpClient = upnpClient;
+        // Cache SharedPreferences lookup
+        this.sharedPreferences = PreferenceManager.getDefaultSharedPreferences(context);
+        this.showThumbnails = sharedPreferences.getBoolean(context.getString(R.string.settings_thumbnails_chkbx), true);
     }
 
     @Override
@@ -110,12 +114,14 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
     }
 
     public void setLoading(boolean loading) {
-        if (loading) {
-            addLoadingItem();
-        } else {
-            removeLoadingItem();
-        }
         this.loading = loading;
+        // Show/hide progress bar
+        if (progressBar != null) {
+            progressBar.setVisibility(loading ? View.VISIBLE : View.GONE);
+            YaaccLogger.d("BrowseContentItemAdapter", "Progress bar visibility set to: " + (loading ? "VISIBLE" : "GONE"));
+        } else {
+            YaaccLogger.e("BrowseContentItemAdapter", "Progress bar is null!");
+        }
     }
 
     @Override
@@ -123,21 +129,16 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
         if (objects == null) {
             return 0;
         }
-        int result = objects.size();
-        if (objects.contains(LOAD_MORE_FAKE_ITEM)) {
-            result--;
-        }
-        if (objects.contains(LOADING_FAKE_ITEM)) {
-            result--;
-        }
-        return result;
+        return objects.size();
     }
 
     public void addAll(Collection<? extends DIDLObject> newObjects) {
-        Log.d(getClass().getName(), "added objects; " + newObjects);
-        int start = objects.size() - 1;
-        objects.addAll(newObjects.stream().filter(it -> !objects.contains(it)).collect(Collectors.toList()));
-        notifyItemRangeInserted(start, objects.size());
+        YaaccLogger.d(getClass().getName(), "added objects; " + newObjects);
+        int start = objects.size();
+        List<DIDLObject> filteredObjects = newObjects.stream().filter(it -> !objects.contains(it)).collect(Collectors.toList());
+        YaaccLogger.d(getClass().getName(), "Adding " + filteredObjects.size() + " new objects (filtered from " + newObjects.size() + " total)");
+        objects.addAll(filteredObjects);
+        notifyItemRangeInserted(start, filteredObjects.size());
     }
 
     public void clear() {
@@ -213,23 +214,21 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
 
     @Override
     public void onBindViewHolder(final BrowseContentItemAdapter.ViewHolder holder, final int listPosition) {
-        SharedPreferences preferences = PreferenceManager
-                .getDefaultSharedPreferences(context);
-
         DIDLObject currentObject = (DIDLObject) getItem(listPosition);
         holder.name.setText(currentObject.getTitle());
+
         IconDownloadTask iconDownloadTask = new IconDownloadTask(holder.icon,
                 this);
         asyncTasks.add(iconDownloadTask);
 
         holder.playAll.setOnClickListener((v) -> {
-            new ContentItemPlayTask(contentListFragment, currentObject).execute(ContentItemPlayTask.PLAY_ALL);
+            new ContentItemPlayTask(contentListFragment, currentObject, null).execute(ContentItemPlayTask.PLAY_ALL);
         });
         holder.play.setOnClickListener((v) -> {
-            new ContentItemPlayTask(contentListFragment, currentObject).execute(ContentItemPlayTask.PLAY_CURRENT);
+            new ContentItemPlayTask(contentListFragment, currentObject, null).execute(ContentItemPlayTask.PLAY_CURRENT);
         });
         holder.playlistAdd.setOnClickListener((v) -> {
-            new ContentItemPlayTask(contentListFragment, currentObject).execute(ContentItemPlayTask.ADD_TO_PLAYLIST);
+            new ContentItemPlayTask(contentListFragment, currentObject, null).execute(ContentItemPlayTask.ADD_TO_PLAYLIST);
             Toast toast = Toast.makeText(contentListFragment.getActivity(), R.string.add_to_playlist, Toast.LENGTH_SHORT);
             toast.show();
         });
@@ -256,9 +255,7 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
             holder.play.setVisibility(View.VISIBLE);
             holder.download.setVisibility(View.VISIBLE);
             holder.playlistAdd.setVisibility(View.VISIBLE);
-            if (preferences.getBoolean(
-                    context.getString(R.string.settings_thumbnails_chkbx),
-                    true)) {
+            if (showThumbnails) {
                 DIDLObject.Property<URI> albumArtProperties = ((AudioItem) currentObject)
                         .getFirstProperty(DIDLObject.Property.UPNP.ALBUM_ART_URI.class);
                 if (null != albumArtProperties) {
@@ -273,11 +270,9 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
             holder.play.setVisibility(View.VISIBLE);
             holder.download.setVisibility(View.VISIBLE);
             holder.playlistAdd.setVisibility(View.GONE);
-            if (preferences.getBoolean(
-                    context.getString(R.string.settings_thumbnails_chkbx),
-                    true))
+            if (showThumbnails)
                 iconDownloadTask.executeOnExecutor(((Yaacc) getContext().getApplicationContext()).getContentLoadExecutor(),
-                        Uri.parse(((ImageItem) currentObject)
+                        Uri.parse(currentObject
                                 .getFirstResource().getValue()));
         } else if (currentObject instanceof VideoItem) {
             holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_movie_48, getContext().getTheme()), getContext().getTheme()));
@@ -285,9 +280,7 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
             holder.play.setVisibility(View.VISIBLE);
             holder.download.setVisibility(View.VISIBLE);
             holder.playlistAdd.setVisibility(View.VISIBLE);
-            if (preferences.getBoolean(
-                    context.getString(R.string.settings_thumbnails_chkbx),
-                    true)) {
+            if (showThumbnails) {
                 DIDLObject.Property<URI> albumArtProperties = ((VideoItem) currentObject)
                         .getFirstProperty(DIDLObject.Property.UPNP.ALBUM_ART_URI.class);
                 if (null != albumArtProperties) {
@@ -308,19 +301,8 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
             holder.play.setVisibility(View.GONE);
             holder.download.setVisibility(View.GONE);
             holder.playlistAdd.setVisibility(View.GONE);
-        } else if (currentObject == LOAD_MORE_FAKE_ITEM) {
-            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_refresh_48, getContext().getTheme()), getContext().getTheme()));
-            holder.playAll.setVisibility(View.GONE);
-            holder.play.setVisibility(View.GONE);
-            holder.download.setVisibility(View.GONE);
-            holder.playlistAdd.setVisibility(View.GONE);
-        } else if (currentObject == LOADING_FAKE_ITEM) {
-            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_download_48, getContext().getTheme()), getContext().getTheme()));
-            holder.playAll.setVisibility(View.GONE);
-            holder.play.setVisibility(View.GONE);
-            holder.download.setVisibility(View.GONE);
-            holder.playlistAdd.setVisibility(View.GONE);
         } else {
+            holder.icon.clearAnimation(); // Clear any previous animation
             holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_question_mark_48, getContext().getTheme()), getContext().getTheme()));
             holder.playAll.setVisibility(View.GONE);
             holder.play.setVisibility(View.GONE);
@@ -345,38 +327,6 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
         }
     }
 
-    public void addLoadMoreItem() {
-        if (!objects.contains(LOAD_MORE_FAKE_ITEM)) {
-            objects.add(LOAD_MORE_FAKE_ITEM);
-            notifyItemInserted(objects.size() - 1);
-        }
-
-    }
-
-    public void addLoadingItem() {
-        if (!objects.contains(LOADING_FAKE_ITEM)) {
-            objects.add(LOADING_FAKE_ITEM);
-            notifyItemInserted(objects.size() - 1);
-        }
-
-    }
-
-    public void removeLoadMoreItem() {
-        int idx = objects.indexOf(LOAD_MORE_FAKE_ITEM);
-        if (idx > -1) {
-            objects.remove(LOAD_MORE_FAKE_ITEM);
-            notifyItemRemoved(idx);
-        }
-    }
-
-    public void removeLoadingItem() {
-        int idx = objects.indexOf(LOADING_FAKE_ITEM);
-        if (idx > -1) {
-            objects.remove(LOADING_FAKE_ITEM);
-            notifyItemRemoved(idx);
-        }
-    }
-
     public DIDLObject getFolder(int position) {
         if (objects == null) {
             return null;
@@ -396,7 +346,7 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
         setLoading(true);
         Long from = (long) getItemCount();
 
-        Log.d(getClass().getName(), "loadMore from: " + from);
+        YaaccLogger.d(getClass().getName(), "loadMore from: " + from);
 
         BrowseItemLoadTask browseItemLoadTask = new BrowseItemLoadTask(this, itemsToLoad, scrollToPositionId);
         asyncTasks.add(browseItemLoadTask);

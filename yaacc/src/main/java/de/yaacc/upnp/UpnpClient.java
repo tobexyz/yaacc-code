@@ -28,18 +28,18 @@ import android.media.AudioManager;
 import android.media.MediaMetadataRetriever;
 import android.net.Uri;
 import android.os.IBinder;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 import android.webkit.MimeTypeMap;
 
 import androidx.annotation.NonNull;
 import androidx.preference.PreferenceManager;
 
-import org.fourthline.cling.UpnpService;
-import org.fourthline.cling.controlpoint.ControlPoint;
 import org.fourthline.cling.model.Namespace;
 import org.fourthline.cling.model.ValidationException;
 import org.fourthline.cling.model.action.ActionInvocation;
 import org.fourthline.cling.model.message.UpnpResponse;
+import org.fourthline.cling.model.message.header.MXHeader;
+import org.fourthline.cling.model.message.header.STAllHeader;
 import org.fourthline.cling.model.meta.Action;
 import org.fourthline.cling.model.meta.Device;
 import org.fourthline.cling.model.meta.DeviceDetails;
@@ -57,10 +57,10 @@ import org.fourthline.cling.model.types.ServiceType;
 import org.fourthline.cling.model.types.UDAServiceId;
 import org.fourthline.cling.model.types.UDAServiceType;
 import org.fourthline.cling.model.types.UDN;
-import org.fourthline.cling.registry.Registry;
-import org.fourthline.cling.registry.RegistryListener;
+import de.yaacc.upnp.registry.Registry;
+import de.yaacc.upnp.registry.RegistryListener;
 import org.fourthline.cling.support.contentdirectory.DIDLParser;
-import org.fourthline.cling.support.contentdirectory.callback.Browse.Status;
+import de.yaacc.upnp.callback.contentdirectory.Browse.Status;
 import org.fourthline.cling.support.model.BrowseFlag;
 import org.fourthline.cling.support.model.DIDLContent;
 import org.fourthline.cling.support.model.DIDLObject;
@@ -73,10 +73,10 @@ import org.fourthline.cling.support.model.item.ImageItem;
 import org.fourthline.cling.support.model.item.Item;
 import org.fourthline.cling.support.model.item.MusicTrack;
 import org.fourthline.cling.support.model.item.VideoItem;
-import org.fourthline.cling.support.renderingcontrol.callback.GetMute;
-import org.fourthline.cling.support.renderingcontrol.callback.GetVolume;
-import org.fourthline.cling.support.renderingcontrol.callback.SetMute;
-import org.fourthline.cling.support.renderingcontrol.callback.SetVolume;
+import de.yaacc.upnp.callback.renderingcontrol.GetMute;
+import de.yaacc.upnp.callback.renderingcontrol.GetVolume;
+import de.yaacc.upnp.callback.renderingcontrol.SetMute;
+import de.yaacc.upnp.callback.renderingcontrol.SetVolume;
 import org.seamless.util.MimeType;
 
 import java.io.IOException;
@@ -93,6 +93,8 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -100,16 +102,18 @@ import de.yaacc.R;
 import de.yaacc.Yaacc;
 import de.yaacc.browser.Position;
 import de.yaacc.browser.TabBrowserActivity;
-import de.yaacc.musicplayer.BackgroundMusicService;
 import de.yaacc.player.PlayableItem;
 import de.yaacc.player.Player;
 import de.yaacc.player.PlayerService;
+import de.yaacc.player.YaaccMediaRouteProvider;
 import de.yaacc.upnp.callback.contentdirectory.ContentDirectoryBrowseActionCallback;
 import de.yaacc.upnp.callback.contentdirectory.ContentDirectoryBrowseResult;
+import de.yaacc.upnp.protocol.async.SendingSearch;
 import de.yaacc.upnp.server.YaaccUpnpServerService;
 import de.yaacc.upnp.server.avtransport.AvTransport;
 import de.yaacc.util.FileDownloader;
 import de.yaacc.util.FormatHelper;
+import de.yaacc.util.InterfaceResolutionHelper;
 import de.yaacc.util.Watchdog;
 
 /**
@@ -121,18 +125,23 @@ import de.yaacc.util.Watchdog;
 public class UpnpClient implements RegistryListener, ServiceConnection {
     public static String LOCAL_UID = "LOCAL_UID";
     private final List<UpnpClientListener> listeners = new ArrayList<>();
+    private final ExecutorService executorService;
     SharedPreferences preferences;
-    private UpnpService upnpService;
+
     private Context context;
 
     private PlayerService playerService;
     private Device<?, ?, ?> localDummyDevice;
+    private YaaccUpnpServerService yaaccUpnpServerService;
+    private YaaccMediaRouteProvider mediaRouteProvider;
 
 
     public UpnpClient() {
+        executorService = Executors.newFixedThreadPool(20);
     }
 
     public UpnpClient(Context context) {
+        this();
         initialize(context);
 
     }
@@ -148,9 +157,15 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         if (context != null) {
             this.context = context;
             this.preferences = PreferenceManager.getDefaultSharedPreferences(context);
+            
+            // Initialize MediaRouteProvider for UPnP devices
+            mediaRouteProvider = new YaaccMediaRouteProvider(context, this);
+            androidx.mediarouter.media.MediaRouter.getInstance(context)
+                .addProvider(mediaRouteProvider);
+            
             // FIXME check if this is right: Context.BIND_AUTO_CREATE kills the
             // service after closing the activity
-            return context.bindService(new Intent(context, UpnpRegistryService.class), this, Context.BIND_AUTO_CREATE);
+            return context.bindService(new Intent(context, YaaccUpnpServerService.class), this, Context.BIND_AUTO_CREATE);
         }
         return false;
     }
@@ -179,10 +194,18 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
 
     private void deviceAdded(@SuppressWarnings("rawtypes") final Device device) {
         fireDeviceAdded(device);
+        // Refresh MediaRouter routes when devices change
+        if (mediaRouteProvider != null) {
+            mediaRouteProvider.refreshRoutes();
+        }
     }
 
     private void deviceRemoved(@SuppressWarnings("rawtypes") final Device device) {
         fireDeviceRemoved(device);
+        // Refresh MediaRouter routes when devices change
+        if (mediaRouteProvider != null) {
+            mediaRouteProvider.refreshRoutes();
+        }
     }
 
     private void deviceUpdated(@SuppressWarnings("rawtypes") final Device device) {
@@ -218,16 +241,23 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      */
     @Override
     public void onServiceConnected(ComponentName className, IBinder service) {
-        if (service instanceof UpnpRegistryService.UpnpRegistryServiceBinder) {
-            setUpnpService(((UpnpRegistryService.UpnpRegistryServiceBinder) service).getService().getUpnpService());
+        if (service instanceof YaaccUpnpServerService.YaaccUpnpServerServiceBinder) {
+            yaaccUpnpServerService = ((YaaccUpnpServerService.YaaccUpnpServerServiceBinder) service).getService();
+            if (yaaccUpnpServerService.isInitialized()) {
+                yaaccUpnpServerService.getRegistry().addListener(this);
+            }
             refreshUpnpDeviceCatalog();
         }
         if (service instanceof PlayerService.PlayerServiceBinder) {
             playerService = ((PlayerService.PlayerServiceBinder) service).getService();
-            Log.e(getClass().getName(), "player service bounded");
+            YaaccLogger.e(getClass().getName(), "player service bounded");
 
         }
 
+    }
+
+    public YaaccUpnpServerService getYaaccUpnpServerService() {
+        return yaaccUpnpServerService;
     }
 
     /*
@@ -239,9 +269,9 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      */
     @Override
     public void onServiceDisconnected(ComponentName componentName) {
-        Log.d(getClass().getName(), "on Service disconnect: " + componentName);
-        if (UpnpRegistryService.class.getName().equals(componentName.getClassName())) {
-            setUpnpService(null);
+        YaaccLogger.d(getClass().getName(), "on Service disconnect: " + componentName);
+        if (YaaccUpnpServerService.class.getName().equals(componentName.getClassName())) {
+            yaaccUpnpServerService = null;
         }
         if (PlayerService.class.getName().equals(componentName.getClassName())) {
             playerService = null;
@@ -265,7 +295,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      */
     @Override
     public void remoteDeviceDiscoveryFailed(Registry registry, RemoteDevice remotedevice, Exception exception) {
-        Log.v(getClass().getName(), "remoteDeviceDiscoveryFailed: " + remotedevice.getDisplayString(), exception);
+        YaaccLogger.v(getClass().getName(), "remoteDeviceDiscoveryFailed: " + remotedevice.getDisplayString(), exception);
     }
 
     /*
@@ -278,7 +308,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      */
     @Override
     public void remoteDeviceAdded(Registry registry, RemoteDevice remotedevice) {
-        Log.v(getClass().getName(), "remoteDeviceAdded: " + remotedevice.getDisplayString());
+        YaaccLogger.v(getClass().getName(), "remoteDeviceAdded: " + remotedevice.getDisplayString());
         deviceAdded(remotedevice);
     }
 
@@ -292,7 +322,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      */
     @Override
     public void remoteDeviceUpdated(Registry registry, RemoteDevice remotedevice) {
-        Log.v(getClass().getName(), "remoteDeviceUpdated: " + remotedevice.getDisplayString());
+        YaaccLogger.v(getClass().getName(), "remoteDeviceUpdated: " + remotedevice.getDisplayString());
         deviceUpdated(remotedevice);
     }
 
@@ -306,7 +336,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      */
     @Override
     public void remoteDeviceRemoved(Registry registry, RemoteDevice remotedevice) {
-        Log.v(getClass().getName(), "remoteDeviceRemoved: " + remotedevice.getDisplayString());
+        YaaccLogger.v(getClass().getName(), "remoteDeviceRemoved: " + remotedevice.getDisplayString());
         deviceRemoved(remotedevice);
     }
 
@@ -319,7 +349,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      */
     @Override
     public void localDeviceAdded(Registry registry, LocalDevice localdevice) {
-        Log.v(getClass().getName(), "localDeviceAdded: " + localdevice.getDisplayString());
+        YaaccLogger.v(getClass().getName(), "localDeviceAdded: " + localdevice.getDisplayString());
         this.getRegistry().addDevice(localdevice);
         this.deviceAdded(localdevice);
     }
@@ -336,9 +366,8 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     public void localDeviceRemoved(Registry registry, LocalDevice localdevice) {
         Registry currentRegistry = this.getRegistry();
         if (localdevice != null && currentRegistry != null) {
-            Log.v(getClass().getName(), "localDeviceRemoved: " + localdevice.getDisplayString());
+            YaaccLogger.v(getClass().getName(), "localDeviceRemoved: " + localdevice.getDisplayString());
             this.deviceRemoved(localdevice);
-            this.getRegistry().removeDevice(localdevice);
         }
     }
 
@@ -351,7 +380,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      */
     @Override
     public void beforeShutdown(Registry registry) {
-        Log.v(getClass().getName(), "beforeShutdown: " + registry);
+        YaaccLogger.v(getClass().getName(), "beforeShutdown: " + registry);
     }
 
     /*
@@ -361,7 +390,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      */
     @Override
     public void afterShutdown() {
-        Log.v(getClass().getName(), "afterShutdown ");
+        YaaccLogger.v(getClass().getName(), "afterShutdown ");
     }
 
     // ****************************************************
@@ -374,13 +403,13 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      */
     public Service<?, ?> getAVTransportService(Device<?, ?, ?> device) {
         if (device == null) {
-            Log.d(getClass().getName(), "Device is null!");
+            YaaccLogger.d(getClass().getName(), "Device is null!");
             return null;
         }
         ServiceId serviceId = new UDAServiceId("AVTransport");
         Service<?, ?> service = device.findService(serviceId);
         if (service != null) {
-            Log.d(getClass().getName(), "Service found: " + service.getServiceId() + " Type: " + service.getServiceType());
+            YaaccLogger.d(getClass().getName(), "Service found: " + service.getServiceId() + " Type: " + service.getServiceType());
         }
         return service;
     }
@@ -393,13 +422,13 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      */
     public Service<?, ?> getRenderingControlService(Device<?, ?, ?> device) {
         if (device == null) {
-            Log.d(getClass().getName(), "Device is null!");
+            YaaccLogger.d(getClass().getName(), "Device is null!");
             return null;
         }
         ServiceId serviceId = new UDAServiceId("RenderingControl");
         Service<?, ?> service = device.findService(serviceId);
         if (service != null) {
-            Log.d(getClass().getName(), "Service found: " + service.getServiceId() + " Type: " + service.getServiceType());
+            YaaccLogger.d(getClass().getName(), "Service found: " + service.getServiceId() + " Type: " + service.getServiceType());
         }
         return service;
     }
@@ -413,25 +442,6 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         listeners.add(listener);
     }
 
-
-    /**
-     * returns the AndroidUpnpService
-     *
-     * @return the service
-     */
-    private UpnpService getUpnpService() {
-        return upnpService;
-    }
-
-    /**
-     * Setting an new upnpRegistryService. If the service is not null, refresh
-     * the device list.
-     *
-     * @param upnpService upnpservice
-     */
-    private void setUpnpService(UpnpService upnpService) {
-        this.upnpService = upnpService;
-    }
 
     /**
      * Returns all registered UpnpDevices.
@@ -499,20 +509,9 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      * @return true or false
      */
     public boolean isInitialized() {
-        return getUpnpService() != null;
+        return yaaccUpnpServerService != null && yaaccUpnpServerService.isInitialized();
     }
 
-    /**
-     * returns the upnp control point
-     *
-     * @return the control point
-     */
-    public ControlPoint getControlPoint() {
-        if (!isInitialized()) {
-            return null;
-        }
-        return upnpService.getControlPoint();
-    }
 
     /**
      * Returns the upnp registry
@@ -523,7 +522,10 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         if (!isInitialized()) {
             return null;
         }
-        return upnpService.getRegistry();
+        if (!yaaccUpnpServerService.getRegistry().getListeners().contains(this)) {
+            yaaccUpnpServerService.getRegistry().addListener(this);
+        }
+        return yaaccUpnpServerService.getRegistry();
     }
 
     /**
@@ -538,12 +540,12 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      */
     private void refreshUpnpDeviceCatalog() {
         if (isInitialized()) {
-            for (Device<?, ?, ?> device : getUpnpService().getRegistry().getDevices()) {
+            for (Device<?, ?, ?> device : getRegistry().getDevices()) {
                 // FIXME: What about removed devices?
                 this.deviceAdded(device);
             }
             // Getting ready for future device advertisements
-            getUpnpService().getRegistry().addListener(this);
+            getRegistry().addListener(this);
             searchDevices();
         }
     }
@@ -608,19 +610,19 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         Service<?, ?> service = device.findService(new UDAServiceId("ContentDirectory"));
         ContentDirectoryBrowseActionCallback actionCallback;
         if (service != null) {
-            Log.d(getClass().getName(), "#####Service found: " + service.getServiceId() + " Type: " + service.getServiceType());
-            actionCallback = new ContentDirectoryBrowseActionCallback(service, objectID, flag, filter, firstResult, maxResults, result, orderBy);
-            getControlPoint().execute(actionCallback);
+            YaaccLogger.d(getClass().getName(), "#####Service found: " + service.getServiceId() + " Type: " + service.getServiceType());
+            actionCallback = new ContentDirectoryBrowseActionCallback(service, objectID, flag, filter, firstResult, maxResults, result, yaaccUpnpServerService.getNetworkDeviceListener().getHttpRequestSender(), orderBy);
+            executorService.execute(actionCallback);
             while (actionCallback.getStatus() == Status.LOADING && actionCallback.getUpnpFailure() == null) {
                 //FIXME implement maybe async model?
                 try {
                     TimeUnit.MILLISECONDS.sleep(100);
                 } catch (InterruptedException e) {
-                    Log.e(getClass().getName(), "InterruptedException", e);
+                    YaaccLogger.e(getClass().getName(), "InterruptedException", e);
                 }
             }
             if (actionCallback.getUpnpFailure() != null) {
-                Log.e(getClass().getName(), "UPnP failure: " + actionCallback.getUpnpFailure());
+                YaaccLogger.e(getClass().getName(), "UPnP failure: " + actionCallback.getUpnpFailure());
             }
         }
 
@@ -684,7 +686,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      */
     public void searchDevices() {
         if (isInitialized()) {
-            getUpnpService().getControlPoint().search();
+            executorService.execute(new SendingSearch(yaaccUpnpServerService.getNetworkDeviceListener().getUdpTransiver(), new STAllHeader(), MXHeader.DEFAULT_VALUE));
         }
     }
 
@@ -732,12 +734,12 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
             //active wait
             i++;
             if (i == 100000) {
-                Log.d(getClass().getName(), "wait for player service start");
+                YaaccLogger.d(getClass().getName(), "wait for player service start");
                 i = 0;
             }
         }
         if (watchdog.hasTimeout()) {
-            Log.d(getClass().getName(), "Timeout occurred");
+            YaaccLogger.d(getClass().getName(), "Timeout occurred");
             return false;
         } else {
             watchdog.cancel();
@@ -761,29 +763,30 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         PlayableItem playableItem = new PlayableItem();
         List<PlayableItem> items = new ArrayList<>();
         if (transport == null) {
-            return playerService.createPlayer(this, items);
+            return playerService.createPlayerForLocalDevice(this, items);
         }
-        Log.d(getClass().getName(), "TransportId: " + transport.getInstanceId());
+        YaaccLogger.d(getClass().getName(), "TransportId: " + transport.getInstanceId());
         PositionInfo positionInfo = transport.getPositionInfo();
-        Log.d(getClass().getName(), "positionInfo: " + positionInfo);
+        YaaccLogger.d(getClass().getName(), "positionInfo: " + positionInfo);
         if (positionInfo == null) {
-            return playerService.createPlayer(this, items);
+            return playerService.createPlayerForLocalDevice(this, items);
         }
         DIDLContent metadata = null;
         try {
             if (positionInfo.getTrackMetaData() != null && !positionInfo.getTrackMetaData().contains("NOT_IMPLEMENTED")) {
                 metadata = new DIDLParser().parse(positionInfo.getTrackMetaData());
             } else {
-                Log.d(getClass().getName(), "Warning unparsable TackMetaData: " + positionInfo.getTrackMetaData());
+                YaaccLogger.d(getClass().getName(), "Warning unparsable TackMetaData: " + positionInfo.getTrackMetaData());
             }
         } catch (Exception e) {
-            Log.d(getClass().getName(), "Exception while parsing metadata: ", e);
+            YaaccLogger.d(getClass().getName(), "Exception while parsing metadata: ", e);
         }
         String mimeType = "";
         if (metadata != null) {
             List<Item> metadataItems = metadata.getItems();
             for (Item item : metadataItems) {
                 playableItem.setTitle(item.getTitle());
+                playableItem.setItem(item); // Store the DIDL item for album art and other metadata
                 List<Res> metadataResources = item.getResources();
                 for (Res res : metadataResources) {
                     if (res.getProtocolInfo() != null) {
@@ -797,19 +800,19 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
             playableItem.setTitle(positionInfo.getTrackURI());
             String fileExtension = MimeTypeMap.getFileExtensionFromUrl(positionInfo.getTrackURI());
             mimeType = MimeTypeMap.getSingleton().getMimeTypeFromExtension(fileExtension);
-            Log.d(getClass().getName(), "fileextension from trackURI: " + fileExtension);
+            YaaccLogger.d(getClass().getName(), "fileextension from trackURI: " + fileExtension);
         }
         playableItem.setMimeType(mimeType);
         playableItem.setUri(Uri.parse(positionInfo.getTrackURI()));
-        Log.d(getClass().getName(), "positionInfo.getTrackURI(): " + positionInfo.getTrackURI());
+        YaaccLogger.d(getClass().getName(), "positionInfo.getTrackURI(): " + positionInfo.getTrackURI());
         // FIXME Duration not supported in receiver yet
         // playableItem.setDuration(duration)
         items.add(playableItem);
-        Log.d(getClass().getName(), "TransportUri: " + positionInfo.getTrackURI());
-        Log.d(getClass().getName(), "Current duration: " + positionInfo.getTrackDuration());
-        Log.d(getClass().getName(), "TrackMetaData: " + positionInfo.getTrackMetaData());
-        Log.d(getClass().getName(), "MimeType: " + playableItem.getMimeType());
-        return playerService.createPlayer(this, items);
+        YaaccLogger.d(getClass().getName(), "TransportUri: " + positionInfo.getTrackURI());
+        YaaccLogger.d(getClass().getName(), "Current duration: " + positionInfo.getTrackDuration());
+        YaaccLogger.d(getClass().getName(), "TrackMetaData: " + positionInfo.getTrackMetaData());
+        YaaccLogger.d(getClass().getName(), "MimeType: " + playableItem.getMimeType());
+        return playerService.createPlayerForLocalDevice(this, items);
     }
 
     /**
@@ -839,7 +842,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
             return Collections.emptyList();
         }
 
-        Log.d(getClass().getName(), "TransportId: " + transport.getInstanceId());
+        YaaccLogger.d(getClass().getName(), "TransportId: " + transport.getInstanceId());
         PositionInfo positionInfo = transport.getPositionInfo();
         if (positionInfo == null) {
             return Collections.emptyList();
@@ -850,7 +853,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
                 metadata = new DIDLParser().parse(positionInfo.getTrackMetaData());
             }
         } catch (Exception e) {
-            Log.d(getClass().getName(), "Exception while parsing metadata: ", e);
+            YaaccLogger.d(getClass().getName(), "Exception while parsing metadata: ", e);
         }
         String mimeType = "";
         PlayableItem playableItem = new PlayableItem();
@@ -876,7 +879,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         }
         playableItem.setMimeType(mimeType);
         playableItem.setUri(Uri.parse(positionInfo.getTrackURI()));
-        Log.d(getClass().getName(), "MimeType: " + playableItem.getMimeType());
+        YaaccLogger.d(getClass().getName(), "MimeType: " + playableItem.getMimeType());
         return playerService.getCurrentPlayersOfType(playerService.getPlayerClassForMimeType(mimeType));
     }
 
@@ -946,7 +949,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     private DIDLContent loadContainer(Container container) {
         ContentDirectoryBrowseResult result = browseSync(getProviderDevice(), container.getId());
         if (result.getUpnpFailure() != null) {
-            Log.e(getClass().getName(), "Error while loading container:" + result.getUpnpFailure().getDefaultMsg());
+            YaaccLogger.e(getClass().getName(), "Error while loading container:" + result.getUpnpFailure().getDefaultMsg());
             return null;
         }
         return result.getResult();
@@ -1021,7 +1024,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         if (receiverDevices == null) return;
         HashSet<String> receiverIds = new HashSet<>();
         for (Device<?, ?, ?> receiver : receiverDevices) {
-            Log.d(this.getClass().getName(), "Receiver: " + receiver);
+            YaaccLogger.d(this.getClass().getName(), "Receiver: " + receiver);
             receiverIds.add(receiver.getIdentity().getUdn().getIdentifierString());
         }
         setReceiverDeviceIds(receiverIds);
@@ -1083,19 +1086,12 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      */
     public void shutdown() {
         // shutdown UpnpRegistry
-        boolean result = getContext().stopService(new Intent(getContext(), UpnpRegistryService.class));
-        Log.d(getClass().getName(), "Stopping UpnpRegistryService succsessful= " + result);
-        // shutdown yaacc server service
-        result = getContext().stopService(new Intent(getContext(), YaaccUpnpServerService.class));
-        Log.d(getClass().getName(), "Stopping YaaccUpnpServerService succsessful= " + result);
+        boolean result = getContext().stopService(new Intent(getContext(), YaaccUpnpServerService.class));
+        YaaccLogger.d(getClass().getName(), "Stopping YaaccUpnpServerService succsessful= " + result);
         // stop all players
         if (playerService != null) {
             playerService.shutdown();
         }
-
-        result = getContext().stopService(new Intent(getContext(), BackgroundMusicService.class));
-        Log.d(getClass().getName(), "Stopping BackgroundMusicService succsessful= " + result);
-
     }
 
     /**
@@ -1124,7 +1120,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
                 localDummyDevice = new LocalDummyDevice(context);
             } catch (ValidationException e) {
                 // Ignore
-                Log.d(this.getClass().getName(), "Something wrong with the LocalDummyDevice...", e);
+                YaaccLogger.d(this.getClass().getName(), "Something wrong with the LocalDummyDevice...", e);
             }
         }
         return localDummyDevice;
@@ -1217,30 +1213,30 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         }
         Service<?, ?> service = getRenderingControlService(device);
         if (service == null) {
-            Log.d(getClass().getName(),
+            YaaccLogger.d(getClass().getName(),
                     "No AVTransport-Service found on Device: "
                             + device.getDisplayString());
             return false;
         }
         if (!hasActionGetMute(service)) {
-            Log.d(getClass().getName(),
+            YaaccLogger.d(getClass().getName(),
                     "No action get mute found on Device: "
                             + device.getDisplayString());
             return false;
         }
-        Log.d(getClass().getName(), "Action get Mute ");
+        YaaccLogger.d(getClass().getName(), "Action get Mute ");
         final ActionState actionState = new ActionState();
         actionState.actionFinished = false;
-        GetMute actionCallback = new GetMute(service) {
+        GetMute actionCallback = new GetMute(service, yaaccUpnpServerService.getNetworkDeviceListener().getHttpRequestSender()) {
             @Override
             public void failure(ActionInvocation actioninvocation,
                                 UpnpResponse upnpresponse, String s) {
-                Log.d(getClass().getName(), "Failure UpnpResponse: "
+                YaaccLogger.d(getClass().getName(), "Failure UpnpResponse: "
                         + upnpresponse);
-                Log.d(getClass().getName(),
+                YaaccLogger.d(getClass().getName(),
                         upnpresponse != null ? "UpnpResponse: "
                                 + upnpresponse.getResponseDetails() : "");
-                Log.d(getClass().getName(), "s: " + s);
+                YaaccLogger.d(getClass().getName(), "s: " + s);
                 actionState.actionFinished = true;
             }
 
@@ -1257,9 +1253,9 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
             }
         };
         try {
-            getControlPoint().execute(actionCallback).get(10000L, TimeUnit.MILLISECONDS);
+            executorService.submit(actionCallback).get(10000L, TimeUnit.MILLISECONDS);
         } catch (Exception ex) {
-            Log.d(getClass().getName(), "Timeout occurred", ex);
+            YaaccLogger.d(getClass().getName(), "Timeout occurred", ex);
         }
         return actionState.result != null && (Boolean) actionState.result;
     }
@@ -1270,7 +1266,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         }
         Service<?, ?> service = getRenderingControlService(device);
         if (service == null) {
-            Log.d(getClass().getName(),
+            YaaccLogger.d(getClass().getName(),
                     "No RenderingControl-Service found on Device: "
                             + device.getDisplayString());
             return false;
@@ -1292,28 +1288,28 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         }
         Service<?, ?> service = getRenderingControlService(device);
         if (service == null) {
-            Log.d(getClass().getName(),
+            YaaccLogger.d(getClass().getName(),
                     "No AVTransport-Service found on Device: "
                             + device.getDisplayString());
             return;
         }
         if (!hasActionSetMute(service)) {
-            Log.d(getClass().getName(),
+            YaaccLogger.d(getClass().getName(),
                     "No action set mute found on Device: "
                             + device.getDisplayString());
             return;
         }
-        Log.d(getClass().getName(), "Action set Mute ");
-        SetMute actionCallback = new SetMute(service, mute) {
+        YaaccLogger.d(getClass().getName(), "Action set Mute ");
+        SetMute actionCallback = new SetMute(service, mute, yaaccUpnpServerService.getNetworkDeviceListener().getHttpRequestSender()) {
             @Override
             public void failure(ActionInvocation actioninvocation,
                                 UpnpResponse upnpresponse, String s) {
-                Log.d(getClass().getName(), "Failure UpnpResponse: "
+                YaaccLogger.d(getClass().getName(), "Failure UpnpResponse: "
                         + upnpresponse);
-                Log.d(getClass().getName(),
+                YaaccLogger.d(getClass().getName(),
                         upnpresponse != null ? "UpnpResponse: "
                                 + upnpresponse.getResponseDetails() : "");
-                Log.d(getClass().getName(), "s: " + s);
+                YaaccLogger.d(getClass().getName(), "s: " + s);
             }
 
             @Override
@@ -1321,7 +1317,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
                 super.success(actioninvocation);
             }
         };
-        getControlPoint().execute(actionCallback);
+        executorService.execute(actionCallback);
     }
 
 
@@ -1339,30 +1335,30 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
 
         Service<?, ?> service = getRenderingControlService(device);
         if (service == null) {
-            Log.d(getClass().getName(),
+            YaaccLogger.d(getClass().getName(),
                     "No RenderingControl-Service found on Device: "
                             + device.getDisplayString());
             return 0;
         }
         if (!hasActionGetVolume(service)) {
-            Log.d(getClass().getName(),
+            YaaccLogger.d(getClass().getName(),
                     "No action get volume found on Device: "
                             + device.getDisplayString());
             return 0;
         }
-        Log.d(getClass().getName(), "Action get Volume ");
+        YaaccLogger.d(getClass().getName(), "Action get Volume ");
         final ActionState actionState = new ActionState();
         actionState.actionFinished = false;
-        GetVolume actionCallback = new GetVolume(service) {
+        GetVolume actionCallback = new GetVolume(service, yaaccUpnpServerService.getNetworkDeviceListener().getHttpRequestSender()) {
             @Override
             public void failure(ActionInvocation actioninvocation,
                                 UpnpResponse upnpresponse, String s) {
-                Log.d(getClass().getName(), "Failure UpnpResponse: "
+                YaaccLogger.d(getClass().getName(), "Failure UpnpResponse: "
                         + upnpresponse);
-                Log.d(getClass().getName(),
+                YaaccLogger.d(getClass().getName(),
                         upnpresponse != null ? "UpnpResponse: "
                                 + upnpresponse.getResponseDetails() : "");
-                Log.d(getClass().getName(), "s: " + s);
+                YaaccLogger.d(getClass().getName(), "s: " + s);
                 actionState.actionFinished = true;
             }
 
@@ -1379,9 +1375,9 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
             }
         };
         try {
-            getControlPoint().execute(actionCallback).get(10000L, TimeUnit.MILLISECONDS);
+            executorService.submit(actionCallback).get(10000L, TimeUnit.MILLISECONDS);
         } catch (Exception ex) {
-            Log.d(getClass().getName(), "Timeout occurred", ex);
+            YaaccLogger.d(getClass().getName(), "Timeout occurred", ex);
         }
         return actionState.result == null ? 0 : (Integer) actionState.result;
 
@@ -1393,7 +1389,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         }
         Service<?, ?> service = getRenderingControlService(device);
         if (service == null) {
-            Log.d(getClass().getName(),
+            YaaccLogger.d(getClass().getName(),
                     "No RenderingControl-Service found on Device: "
                             + device.getDisplayString());
             return false;
@@ -1415,28 +1411,28 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
 
         Service<?, ?> service = getRenderingControlService(device);
         if (service == null) {
-            Log.d(getClass().getName(),
+            YaaccLogger.d(getClass().getName(),
                     "No RenderingControl-Service found on Device: "
                             + device.getDisplayString());
             return;
         }
         if (!hasActionSetVolume(service)) {
-            Log.d(getClass().getName(),
+            YaaccLogger.d(getClass().getName(),
                     "No action set volume found on Device: "
                             + device.getDisplayString());
             return;
         }
-        Log.d(getClass().getName(), "Action set Volume ");
-        SetVolume actionCallback = new SetVolume(service, volume) {
+        YaaccLogger.d(getClass().getName(), "Action set Volume ");
+        SetVolume actionCallback = new SetVolume(service, volume, yaaccUpnpServerService.getNetworkDeviceListener().getHttpRequestSender()) {
             @Override
             public void failure(ActionInvocation actioninvocation,
                                 UpnpResponse upnpresponse, String s) {
-                Log.d(getClass().getName(), "Failure UpnpResponse: "
+                YaaccLogger.d(getClass().getName(), "Failure UpnpResponse: "
                         + upnpresponse);
-                Log.d(getClass().getName(),
+                YaaccLogger.d(getClass().getName(),
                         upnpresponse != null ? "UpnpResponse: "
                                 + upnpresponse.getResponseDetails() : "");
-                Log.d(getClass().getName(), "s: " + s);
+                YaaccLogger.d(getClass().getName(), "s: " + s);
             }
 
             @Override
@@ -1444,7 +1440,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
                 super.success(actioninvocation);
             }
         };
-        getControlPoint().execute(actionCallback);
+        executorService.execute(actionCallback);
     }
 
     public boolean hasActionSetVolume(Service<?, ?> service) {
@@ -1577,7 +1573,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
                 }
             } catch (RuntimeException e) {
                 //no media file with duration
-                Log.d(getClass().getName(), "Can't retrieve duration of media url assume shared image", e);
+                YaaccLogger.d(getClass().getName(), "Can't retrieve duration of media url assume shared image", e);
                 res = new Res(MimeType.valueOf("image/*"), 1L, "");
                 res.setValue(uriString);
                 item.setMimeType("image/*");
@@ -1586,7 +1582,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
             item.setUri(uri);
             if (this.getPreferences().getBoolean(getContext().getString(R.string.settings_local_server_proxy_chkbx), false)) {
                 String contentKey = sha256(uriString);
-                String proxyUrl = "http://" + YaaccUpnpServerService.getIpAddress(getContext()) + ":" + YaaccUpnpServerService.PORT + "/" + YaaccUpnpServerService.PROXY_PATH + "/" + contentKey;
+                String proxyUrl = "http://" + InterfaceResolutionHelper.getIpAddress(getContext()) + ":" + YaaccUpnpServerService.PORT + "/" + YaaccUpnpServerService.PROXY_PATH + "/" + contentKey;
                 this.getPreferences().edit().putString(YaaccUpnpServerService.PROXY_LINK_KEY_PREFIX + contentKey, uriString).apply();
                 this.getPreferences().edit().putString(YaaccUpnpServerService.PROXY_LINK_MIME_TYPE_KEY_PREFIX + contentKey, item.getMimeType()).apply();
                 item.setUri(Uri.parse(proxyUrl));
@@ -1612,7 +1608,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
             }
             return hexString.toString();
         } catch (NoSuchAlgorithmException ex) {
-            Log.e(TabBrowserActivity.class.getName(), "no sha256 found", ex);
+            YaaccLogger.e(TabBrowserActivity.class.getName(), "no sha256 found", ex);
             return input;
         }
     }

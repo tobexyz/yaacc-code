@@ -15,7 +15,7 @@
 
 package org.fourthline.cling.transport.impl;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.UnsupportedDataException;
 import org.fourthline.cling.model.message.IncomingDatagramMessage;
@@ -44,9 +44,9 @@ public class DatagramProcessorImpl implements DatagramProcessor {
 
         try {
 
-            Log.v(getClass().getName(), "===================================== DATAGRAM BEGIN ============================================");
-            Log.v(getClass().getName(), new String(datagram.getData(), "UTF-8"));
-            Log.v(getClass().getName(), "-===================================== DATAGRAM END =============================================");
+            YaaccLogger.v(getClass().getName(), "===================================== DATAGRAM BEGIN ============================================");
+            YaaccLogger.v(getClass().getName(), new String(datagram.getData(), "UTF-8"));
+            YaaccLogger.v(getClass().getName(), "-===================================== DATAGRAM END =============================================");
 
 
             ByteArrayInputStream is = new ByteArrayInputStream(datagram.getData());
@@ -92,10 +92,10 @@ public class DatagramProcessorImpl implements DatagramProcessor {
 
         messageData.append(message.getHeaders().toString()).append("\r\n");
 
-        Log.v(getClass().getName(), "Writing message data for: " + message);
-        Log.v(getClass().getName(), "---------------------------------------------------------------------------------");
-        Log.v(getClass().getName(), messageData.toString().substring(0, messageData.length() - 2)); // Don't print the blank lines
-        Log.v(getClass().getName(), "---------------------------------------------------------------------------------");
+        YaaccLogger.v(getClass().getName(), "Writing message data for: " + message);
+        YaaccLogger.v(getClass().getName(), "---------------------------------------------------------------------------------");
+        YaaccLogger.v(getClass().getName(), messageData.toString().substring(0, messageData.length() - 2)); // Don't print the blank lines
+        YaaccLogger.v(getClass().getName(), "---------------------------------------------------------------------------------");
 
 
         try {
@@ -103,7 +103,7 @@ public class DatagramProcessorImpl implements DatagramProcessor {
             // TODO: Probably should look into escaping rules, too
             byte[] data = messageData.toString().getBytes("US-ASCII");
 
-            Log.v(getClass().getName(), "Writing new datagram packet with " + data.length + " bytes for: " + message);
+            YaaccLogger.v(getClass().getName(), "Writing new datagram packet with " + data.length + " bytes for: " + message);
             return new DatagramPacket(data, data.length, message.getDestinationAddress(), message.getDestinationPort());
 
         } catch (UnsupportedEncodingException ex) {

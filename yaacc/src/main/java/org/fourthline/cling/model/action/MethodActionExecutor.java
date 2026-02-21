@@ -15,7 +15,7 @@
 
 package org.fourthline.cling.model.action;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.meta.ActionArgument;
 import org.fourthline.cling.model.meta.LocalService;
@@ -67,31 +67,31 @@ public class MethodActionExecutor extends AbstractActionExecutor {
 
         // Simple case: no output arguments
         if (!actionInvocation.getAction().hasOutputArguments()) {
-            Log.v(getClass().getName(), "Calling local service method with no output arguments: " + method);
+            YaaccLogger.v(getClass().getName(), "Calling local service method with no output arguments: " + method);
             Reflections.invoke(method, serviceImpl, inputArgumentValues);
             return;
         }
 
         boolean isVoid = method.getReturnType().equals(Void.TYPE);
 
-        Log.v(getClass().getName(), "Calling local service method with output arguments: " + method);
+        YaaccLogger.v(getClass().getName(), "Calling local service method with output arguments: " + method);
         Object result;
         boolean isArrayResultProcessed = true;
         if (isVoid) {
 
-            Log.v(getClass().getName(), "Action method is void, calling declared accessors(s) on service instance to retrieve ouput argument(s)");
+            YaaccLogger.v(getClass().getName(), "Action method is void, calling declared accessors(s) on service instance to retrieve ouput argument(s)");
             Reflections.invoke(method, serviceImpl, inputArgumentValues);
             result = readOutputArgumentValues(actionInvocation.getAction(), serviceImpl);
 
         } else if (isUseOutputArgumentAccessors(actionInvocation)) {
 
-            Log.v(getClass().getName(), "Action method is not void, calling declared accessor(s) on returned instance to retrieve ouput argument(s)");
+            YaaccLogger.v(getClass().getName(), "Action method is not void, calling declared accessor(s) on returned instance to retrieve ouput argument(s)");
             Object returnedInstance = Reflections.invoke(method, serviceImpl, inputArgumentValues);
             result = readOutputArgumentValues(actionInvocation.getAction(), returnedInstance);
 
         } else {
 
-            Log.v(getClass().getName(), "Action method is not void, using returned value as (single) output argument");
+            YaaccLogger.v(getClass().getName(), "Action method is not void, using returned value as (single) output argument");
             result = Reflections.invoke(method, serviceImpl, inputArgumentValues);
             isArrayResultProcessed = false; // We never want to process e.g. byte[] as individual variable values
         }
@@ -100,7 +100,7 @@ public class MethodActionExecutor extends AbstractActionExecutor {
 
         if (isArrayResultProcessed && result instanceof Object[]) {
             Object[] results = (Object[]) result;
-            Log.v(getClass().getName(), "Accessors returned Object[], setting output argument values: " + results.length);
+            YaaccLogger.v(getClass().getName(), "Accessors returned Object[], setting output argument values: " + results.length);
             for (int i = 0; i < outputArgs.length; i++) {
                 setOutputArgumentValue(actionInvocation, outputArgs[i], results[i]);
             }
@@ -156,12 +156,12 @@ public class MethodActionExecutor extends AbstractActionExecutor {
             if (inputCallValueString.length() > 0 && service.isStringConvertibleType(methodParameterType) && !methodParameterType.isEnum()) {
                 try {
                     Constructor<String> ctor = methodParameterType.getConstructor(String.class);
-                    Log.v(getClass().getName(), "Creating new input argument value instance with String.class constructor of type: " + methodParameterType);
+                    YaaccLogger.v(getClass().getName(), "Creating new input argument value instance with String.class constructor of type: " + methodParameterType);
                     Object o = ctor.newInstance(inputCallValueString);
                     values.add(i++, o);
                 } catch (Exception ex) {
-                    Log.w(getClass().getName(), "Error preparing action method call: " + method);
-                    Log.w(getClass().getName(), "Can't convert input argument string to desired type of '" + argument.getName() + "': " + ex);
+                    YaaccLogger.w(getClass().getName(), "Error preparing action method call: " + method);
+                    YaaccLogger.w(getClass().getName(), "Can't convert input argument string to desired type of '" + argument.getName() + "': " + ex);
                     throw new ActionException(
                             ErrorCode.ARGUMENT_VALUE_INVALID, "Can't convert input argument string to desired type of '" + argument.getName() + "': " + ex
                     );
@@ -176,7 +176,7 @@ public class MethodActionExecutor extends AbstractActionExecutor {
                 && RemoteClientInfo.class.isAssignableFrom(method.getParameterTypes()[method.getParameterTypes().length - 1])) {
             if (actionInvocation instanceof RemoteActionInvocation &&
                     ((RemoteActionInvocation) actionInvocation).getRemoteClientInfo() != null) {
-                Log.v(getClass().getName(), "Providing remote client info as last action method input argument: " + method);
+                YaaccLogger.v(getClass().getName(), "Providing remote client info as last action method input argument: " + method);
                 values.add(i, ((RemoteActionInvocation) actionInvocation).getRemoteClientInfo());
             } else {
                 // Local call, no client info available

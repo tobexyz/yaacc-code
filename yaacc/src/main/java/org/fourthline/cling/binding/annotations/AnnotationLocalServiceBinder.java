@@ -15,7 +15,7 @@
 
 package org.fourthline.cling.binding.annotations;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.binding.LocalServiceBinder;
 import org.fourthline.cling.binding.LocalServiceBindingException;
@@ -58,7 +58,7 @@ public class AnnotationLocalServiceBinder implements LocalServiceBinder {
 
 
     public LocalService read(Class<?> clazz) throws LocalServiceBindingException {
-        Log.v(getClass().getName(), "Reading and binding annotations of service implementation class: " + clazz);
+        YaaccLogger.v(getClass().getName(), "Reading and binding annotations of service implementation class: " + clazz);
 
         // Read the service ID and service type from the annotation
         if (clazz.isAnnotationPresent(UpnpService.class)) {
@@ -106,9 +106,9 @@ public class AnnotationLocalServiceBinder implements LocalServiceBinder {
             return new LocalService(type, id, actions, stateVariables, stringConvertibleTypes, supportsQueryStateVariables);
 
         } catch (ValidationException ex) {
-            Log.e(getClass().getName(), "Could not validate device model: " + ex.toString());
+            YaaccLogger.e(getClass().getName(), "Could not validate device model: " + ex.toString());
             for (ValidationError validationError : ex.getErrors()) {
-                Log.e(getClass().getName(), validationError.toString());
+                YaaccLogger.e(getClass().getName(), validationError.toString());
             }
             throw new LocalServiceBindingException("Validation of model failed, check the log");
         }
@@ -168,7 +168,7 @@ public class AnnotationLocalServiceBinder implements LocalServiceBinder {
                 } else if (getter != null) {
                     accessor = new GetterStateVariableAccessor(getter);
                 } else {
-                    Log.v(getClass().getName(), "No field or getter found for state variable, skipping accessor: " + v.name());
+                    YaaccLogger.v(getClass().getName(), "No field or getter found for state variable, skipping accessor: " + v.name());
                 }
 
                 StateVariable stateVar =

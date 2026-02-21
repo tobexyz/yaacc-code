@@ -18,7 +18,7 @@
  */
 package de.yaacc.upnp.server.avtransport;
 
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.support.avtransport.impl.state.AbstractState;
 import org.fourthline.cling.support.avtransport.impl.state.PausedPlay;
@@ -44,12 +44,10 @@ public class AvTransportMediaRendererPaused extends PausedPlay<AvTransport> impl
      * Constructor.
      *
      * @param transport  the state holder
-     * @param upnpClient the upnpclient to use
      */
-    public AvTransportMediaRendererPaused(AvTransport transport,
-                                          UpnpClient upnpClient) {
+    public AvTransportMediaRendererPaused(AvTransport transport) {
         super(transport);
-        this.upnpClient = upnpClient;
+        this.upnpClient = AvTransport.getUpnpClient();
     }
 
     /* (non-Javadoc)
@@ -57,7 +55,7 @@ public class AvTransportMediaRendererPaused extends PausedPlay<AvTransport> impl
      */
     @Override
     public Class<? extends AbstractState<?>> play(String arg0) {
-        Log.d(this.getClass().getName(), "play");
+        YaaccLogger.d(this.getClass().getName(), "play");
         return AvTransportMediaRendererPlaying.class;
     }
 
@@ -66,9 +64,9 @@ public class AvTransportMediaRendererPaused extends PausedPlay<AvTransport> impl
      */
     @Override
     public Class<? extends AbstractState<?>> setTransportURI(URI uri, String metaData) {
-        Log.d(this.getClass().getName(), "setTransportURI");
-        Log.d(this.getClass().getName(), "uri: " + uri);
-        Log.d(this.getClass().getName(), "metaData: " + metaData);
+        YaaccLogger.d(this.getClass().getName(), "setTransportURI");
+        YaaccLogger.d(this.getClass().getName(), "uri: " + uri);
+        YaaccLogger.d(this.getClass().getName(), "metaData: " + metaData);
         getTransport().setMediaInfo(new MediaInfo(uri.toString(), metaData));
 // If you can, you should find and set the duration of the track here!
         getTransport().setPositionInfo(
@@ -93,7 +91,7 @@ public class AvTransportMediaRendererPaused extends PausedPlay<AvTransport> impl
      */
     @Override
     public Class<? extends AbstractState<?>> stop() {
-        Log.d(this.getClass().getName(), "stop");
+        YaaccLogger.d(this.getClass().getName(), "stop");
         return AvTransportMediaRendererStopped.class;
     }
 
@@ -103,7 +101,7 @@ public class AvTransportMediaRendererPaused extends PausedPlay<AvTransport> impl
      */
     @Override
     public void onEntry() {
-        Log.d(this.getClass().getName(), "On Entry");
+        YaaccLogger.d(this.getClass().getName(), "On Entry");
         super.onEntry();
         List<Player> players = upnpClient.getCurrentPlayers(getTransport());
         for (Player player : players) {

@@ -18,7 +18,7 @@
 package de.yaacc.browser;
 
 import android.os.AsyncTask;
-import android.util.Log;
+import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.support.model.DIDLContent;
 
@@ -46,17 +46,16 @@ public class BrowseItemLoadTask extends AsyncTask<Long, Integer, ContentDirector
         }
 
         Long from = params[0];
-        Log.d(getClass().getName(), "loading from:" + from + " chunkSize: " + chunkSize);
+        YaaccLogger.d(getClass().getName(), "loading from:" + from + " chunkSize: " + chunkSize);
         return ((Yaacc) itemAdapter.getContext().getApplicationContext()).getUpnpClient().browseSync(itemAdapter.getNavigator().getCurrentPosition(), from, this.chunkSize);
 
     }
 
     @Override
     protected void onPostExecute(ContentDirectoryBrowseResult result) {
-        Log.d(getClass().getName(), "Ended AsyncTask for loading:" + result);
+        YaaccLogger.d(getClass().getName(), "Ended AsyncTask for loading:" + result);
         if (result == null)
             return;
-        itemAdapter.removeLoadMoreItem();
         int previousItemCount = itemAdapter.getItemCount();
         DIDLContent content = result.getResult();
         if (content != null) {
@@ -65,10 +64,6 @@ public class BrowseItemLoadTask extends AsyncTask<Long, Integer, ContentDirector
             itemAdapter.addAll(content.getItems());
             boolean allItemsFetched = chunkSize != (itemAdapter.getItemCount() - previousItemCount);
             itemAdapter.setAllItemsFetched(allItemsFetched);
-            if (!allItemsFetched) {
-                itemAdapter.addLoadMoreItem();
-            }
-
         } else {
             // If result is null it may be an empty result
             // only in case of an UpnpFailure in the result it is really an
@@ -77,7 +72,7 @@ public class BrowseItemLoadTask extends AsyncTask<Long, Integer, ContentDirector
             if (result.getUpnpFailure() != null) {
                 String text = itemAdapter.getContext().getString(R.string.error_upnp_specific) + " "
                         + result.getUpnpFailure();
-                Log.e("ResolveError", text + "(" + itemAdapter.getNavigator().getCurrentPosition().getObjectId() + ")");
+                YaaccLogger.e("ResolveError", text + "(" + itemAdapter.getNavigator().getCurrentPosition().getObjectId() + ")");
             } else {
             }
             itemAdapter.clear();

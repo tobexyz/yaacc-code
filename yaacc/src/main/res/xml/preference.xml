@@ -148,7 +148,7 @@
             android:title="@string/settings_local_server_media_filter_title"
             android:summaryOff="@string/settings_local_server_media_filter_off"
             android:summaryOn="@string/settings_local_server_media_filter_on"
-            android:defaultValue="true"/>
+            android:defaultValue="true" />
         <CheckBoxPreference
             android:defaultValue="true"
             android:key="@string/settings_local_server_serve_images_chkbx"
@@ -167,6 +167,12 @@
             android:title="@string/settings_local_server_serve_music_title"
             android:summaryOff="@string/settings_local_server_serve_music_off"
             android:summaryOn="@string/settings_local_server_serve_music_on" />
+        <CheckBoxPreference
+            app:key="@string/settings_local_server_serve_saf_chkbx"
+            app:title="@string/settings_local_server_serve_saf_title"
+            app:summaryOn="@string/settings_local_server_serve_saf_on"
+            app:summaryOff="@string/settings_local_server_serve_saf_off"
+            app:defaultValue="true" />
         <ListPreference
             android:defaultValue="30000"
             android:entries="@array/duration_entries_with_never"
@@ -184,11 +190,13 @@
             android:enabled="false"
             app:isPreferenceVisible="false"
             android:inputType="text"
-            android:key="@string/settings_local_server_provider_uuid_key" />
-        <EditTextPreference
-            android:enabled="false"
-            app:isPreferenceVisible="false"
-            android:inputType="text"
-            android:key="@string/settings_local_server_receiver_uuid_key" />
+            android:key="@string/settings_local_device_uuid_key" />
     </PreferenceCategory>
+
+    <PreferenceCategory
+        android:key="renderer_settings_category"
+        android:title="@string/settings_category_renderer_settings">
+        <!-- Dynamic renderer preferences will be added here -->
+    </PreferenceCategory>
+
 </PreferenceScreen>
