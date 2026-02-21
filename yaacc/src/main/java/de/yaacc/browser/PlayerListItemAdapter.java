@@ -114,16 +114,25 @@ public class PlayerListItemAdapter extends RecyclerView.Adapter<PlayerListItemAd
                 }
 
             }
+            
+            // Load album art if available
+            if (player.getAlbumArt() != null) {
+                new de.yaacc.util.image.IconDownloadTask(holder.albumArt, 512, 512).execute(android.net.Uri.parse(player.getAlbumArt().toString()));
+            } else {
+                holder.albumArt.setImageDrawable(null);
+            }
         }
     }
 
     static class ViewHolder extends RecyclerView.ViewHolder {
         ImageView icon;
+        ImageView albumArt;
         TextView name;
 
         public ViewHolder(@NonNull View itemView) {
             super(itemView);
             icon = itemView.findViewById(R.id.browsePlayerItemIcon);
+            albumArt = itemView.findViewById(R.id.browsePlayerItemAlbumArt);
             name = itemView.findViewById(R.id.browsePlayerItemName);
         }
     }

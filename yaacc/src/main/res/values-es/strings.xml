@@ -120,8 +120,13 @@
     <string name="reset_shared_folders">réinitialiser les dossiers partagés</string>
     <string name="shutdown_timer">Temporizador de apagado</string>
     <string name="add_saf_content">agregar fuente</string>
+    <string name="clear_saf_cache">borrar caché SAF</string>
     <string name="saf_content">vinculado</string>
     <string name="enable_server_side_seeking_for_external_urls">Habilitar la administración del rango de tiempo del lado del servidor en modo proxy</string>
     <string name="live_streams">Transmisiones en vivo</string>
     <string name="system_audio_stream">Transmisión de audio del dispositivo</string>
+    <string name="playing">JUGANDO</string>
+    <string name="paused">PAUSADO</string>
+    <string name="stopped">INTERRUMPIDO</string>
+    <string name="no_media">SIN MEDIOS</string>
 </resources>

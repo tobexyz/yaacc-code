@@ -605,10 +605,10 @@ public class AVTransportPlayer extends AbstractPlayer {
                 TransportState state = transportInfo.getCurrentTransportState();
                 YaaccLogger.d(getClass().getName(), "Current state before Play: " + state);
 
-                // Only resume if paused AND not changing tracks (paused flag is true)
-                if (state == TransportState.PAUSED_PLAYBACK) {
-                    YaaccLogger.d(getClass().getName(), "Resuming from pause, sending Play only");
-                    // For paused content, just send Play command without SetAVTransportURI
+                // Only resume if paused AND on the same track
+                if (state == TransportState.PAUSED_PLAYBACK && isPaused()) {
+                    YaaccLogger.d(getClass().getName(), "Resuming from pause on same track, sending Play only");
+                    // For paused content on same track, just send Play command
                     Play playCallback = new Play(service, getHttpRequestSender()) {
                         @Override
                         public void failure(ActionInvocation actioninvocation, UpnpResponse upnpresponse, String s) {
@@ -626,7 +626,7 @@ public class AVTransportPlayer extends AbstractPlayer {
                     };
                     executorService.execute(playCallback);
                 } else {
-                    // For stopped or playing state, do full restart
+                    // For stopped, playing, or paused on different track, do full restart
                     YaaccLogger.d(getClass().getName(), "Sending Stop command to ensure clean state");
                     executeCommand(new TimerTask() {
                         @Override
@@ -725,10 +725,24 @@ public class AVTransportPlayer extends AbstractPlayer {
         }
         DIDLObject.Property<URI> albumArtUriProperty = playableItem.getItem() == null ? null : playableItem.getItem().getFirstProperty(DIDLObject.Property.UPNP.ALBUM_ART_URI.class);
         albumArtUri = (albumArtUriProperty == null) ? null : albumArtUriProperty.getValue();
-        
-        // Trigger notification update with new album art
+
+        // Load album art and update notification
         if (albumArtUri != null) {
             updateMetadataInternal();
+            // Load album art in background and update icon
+            executorService.execute(() -> {
+                try {
+                    Bitmap albumArtBitmap = new ImageDownloader().retrieveImageWithCertainSize(
+                            Uri.parse(albumArtUri.toString()), 512, 512);
+                    if (albumArtBitmap != null) {
+                        setIcon(albumArtBitmap);
+                        // Refresh notification with new icon
+                        showNotificationInternal();
+                    }
+                } catch (Exception e) {
+                    YaaccLogger.e(getClass().getName(), "Failed to load album art for notification", e);
+                }
+            });
         }
 
         InternalSetAVTransportURI setAVTransportURI = new InternalSetAVTransportURI(
@@ -1138,12 +1152,45 @@ public class AVTransportPlayer extends AbstractPlayer {
             public void received(ActionInvocation actioninvocation, TransportInfo info) {
                 YaaccLogger.d(getClass().getName(), "Transport State: " + info.getCurrentTransportState());
 
-                // If device stopped, track ended - advance to next
-                if (info.getCurrentTransportState() == TransportState.STOPPED && isPlaying()) {
-                    YaaccLogger.d(getClass().getName(), "Device stopped, advancing to next track");
-                    consecutivePositionFailures = 0;
-                    next();
+                // If device paused externally, update player state
+                if (info.getCurrentTransportState() == TransportState.PAUSED_PLAYBACK && isPlaying()) {
+                    YaaccLogger.d(getClass().getName(), "Device paused externally, updating state");
+                    setPlaying(false);
+                    setPaused(true);  // Set paused flag so isPaused() returns true
+                    playerWrapper.notifyPlaybackStateChanged();
                     return;
+                }
+
+                // If device stopped, check if track actually ended or device just reconnected
+                if (info.getCurrentTransportState() == TransportState.STOPPED && isPlaying()) {
+                    // Get position to verify track ended (position should be at end or 0:00:00)
+                    getPositionInfo();
+                    if (currentPositionInfo != null) {
+                        String relTime = currentPositionInfo.getRelTime();
+                        String duration = currentPositionInfo.getTrackDuration();
+                        // Only advance if position is at start (track ended and reset) or near end
+                        if ("0:00:00".equals(relTime) || "0:00:01".equals(relTime)) {
+                            YaaccLogger.d(getClass().getName(), "Track ended (position at start), advancing to next");
+                            consecutivePositionFailures = 0;
+                            next();
+                            return;
+                        } else {
+                            YaaccLogger.d(getClass().getName(), "Device stopped but position is " + relTime + ", not advancing (device may have reconnected)");
+                            // Device stopped mid-track - could be pause or reconnection
+                            // Set paused flag to prevent auto-resume on next check
+                            setPlaying(false);
+                            setPaused(true);
+                            playerWrapper.notifyPlaybackStateChanged();
+                            YaaccLogger.d(getClass().getName(), "Set player to paused state");
+                            return;
+                        }
+                    } else {
+                        // No position info, assume track ended
+                        YaaccLogger.d(getClass().getName(), "Device stopped, no position info, advancing to next");
+                        consecutivePositionFailures = 0;
+                        next();
+                        return;
+                    }
                 }
 
                 // Only retry Play if we think we should be playing (not paused by user)
@@ -1253,7 +1300,7 @@ public class AVTransportPlayer extends AbstractPlayer {
 
                 // After 3 consecutive failures, check device state to see if track ended
                 if (consecutivePositionFailures >= MAX_RETRIES && isPlaying()) {
-                    YaaccLogger.w(getClass().getName(), "Position query failed 3 times, checking transport state");
+                    YaaccLogger.w(getClass().getName(), "Position query failed " + MAX_RETRIES + "times, checking transport state");
                     consecutivePositionFailures = 0;
                     getTransportInfo();
                 }

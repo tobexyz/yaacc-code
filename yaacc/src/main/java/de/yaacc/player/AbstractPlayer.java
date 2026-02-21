@@ -355,6 +355,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
                     }
                     setPlaying(true);
                     if (paused) {
+                        paused = false;  // Clear paused flag when resuming
                         doResume();
                     } else {
                         loadItem(previousIndex, currentIndex);
@@ -443,6 +444,18 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
         return isPlaying;
     }
 
+    public boolean isPaused() {
+        return paused;
+    }
+
+    protected void setPaused(boolean paused) {
+        this.paused = paused;
+    }
+
+    public boolean isStopped() {
+        return !(isPlaying || paused);
+    }
+
     public void setPlaying(boolean isPlaying) {
         boolean wasPlaying = this.isPlaying;
         this.isPlaying = isPlaying;
@@ -469,6 +482,9 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
      */
     @Override
     public void setItems(PlayableItem... playableItems) {
+        boolean wasPlaying = isPlaying();
+        cancelTimer(); // Cancel any pending auto-advance timer
+        items.clear(); // Clear existing items before adding new ones
         List<PlayableItem> itemsList = Arrays.asList(playableItems);
 
         if (isShufflePlay()) {
@@ -476,6 +492,11 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
         }
         items.addAll(itemsList);
         showNotification();
+
+        // Restart timer if we were playing
+        if (wasPlaying && items.size() > 1) {
+            updateTimer();
+        }
     }
 
     @Override

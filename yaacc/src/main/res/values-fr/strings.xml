@@ -120,8 +120,13 @@
     <string name="reset_shared_folders">reset shared folders</string>
     <string name="shutdown_timer">Minuterie d\'arrêt</string>
     <string name="add_saf_content">ajouter une source</string>
+    <string name="clear_saf_cache">vider le cache SAF</string>
     <string name="saf_content">lié</string>
     <string name="enable_server_side_seeking_for_external_urls">Activer la gestion des plages horaires côté serveur en mode proxy</string>
     <string name="live_streams">Diffusions en direct</string>
     <string name="system_audio_stream">Flux audio de l\'appareil</string>
+    <string name="playing">JOUANT</string>
+    <string name="paused">EN PAUSE</string>
+    <string name="stopped">ARRÊTÉ</string>
+    <string name="no_media">PAS DE MÉDIA</string>
 </resources>

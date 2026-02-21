@@ -105,4 +105,10 @@
     <string name="settings_local_server_serve_saf_off">Le contenu SAF est désactivé.</string>
     <string name="settings_local_server_serve_saf_on">Le contenu SAF est activé.</string>
     <string name="settings_category_renderer_settings">Paramètres du moteur de rendu</string>
+    <string name="settings_local_server_serve_system_audio_title">flux audio du système</string>
+    <string name="settings_local_server_serve_system_audio_off">Le flux audio du système est désactivé.</string>
+    <string name="settings_local_server_serve_system_audio_on">Le flux audio système est activé.</string>
+    <string name="settings_local_server_serve_screen_cast_title">flux de diffusion d\'écran</string>
+    <string name="settings_local_server_serve_screen_cast_off">La diffusion d\'écran est désactivée.</string>
+    <string name="settings_local_server_serve_screen_cast_on">La diffusion d\'écran est activée</string>
 </resources>

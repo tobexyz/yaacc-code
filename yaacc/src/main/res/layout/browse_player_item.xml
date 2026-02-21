@@ -31,34 +31,50 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:focusable="true"
-        app:cardCornerRadius="6dp"
+        app:cardCornerRadius="12dp"
         app:cardUseCompatPadding="true"
         app:contentPadding="5dp">
 
-        <LinearLayout
+        <FrameLayout
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal">
+            android:layout_height="wrap_content">
 
             <ImageView
-                android:id="@+id/browsePlayerItemIcon"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:contentDescription="@string/icon"
-                app:srcCompat="@drawable/ic_baseline_play_arrow_48"
-                tools:srcCompat="@drawable/ic_baseline_play_arrow_48" />
+                android:id="@+id/browsePlayerItemAlbumArt"
+                android:layout_width="match_parent"
+                android:layout_height="120dp"
+                android:scaleType="centerCrop"
+                android:alpha="0.3"
+                android:contentDescription="Album Art" />
 
-            <TextView
-                android:id="@+id/browsePlayerItemName"
-                android:layout_width="fill_parent"
-                android:layout_height="match_parent"
-                android:layout_marginStart="5dp"
-                android:gravity="start|center_vertical"
-                android:minLines="2"
-                android:text="@string/all"
-                android:textAppearance="@android:style/TextAppearance.Material.Medium"
-                android:textColor="?android:attr/colorForeground" />
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="120dp"
+                android:orientation="horizontal"
+                android:padding="5dp">
 
-        </LinearLayout>
+                <ImageView
+                    android:id="@+id/browsePlayerItemIcon"
+                    android:layout_width="64dp"
+                    android:layout_height="64dp"
+                    android:layout_gravity="center_vertical"
+                    android:contentDescription="@string/icon"
+                    app:srcCompat="@drawable/ic_baseline_play_arrow_48"
+                    tools:srcCompat="@drawable/ic_baseline_play_arrow_48" />
+
+                <TextView
+                    android:id="@+id/browsePlayerItemName"
+                    android:layout_width="fill_parent"
+                    android:layout_height="match_parent"
+                    android:layout_marginStart="8dp"
+                    android:gravity="start|center_vertical"
+                    android:minLines="3"
+                    android:textSize="18sp"
+                    android:text="@string/all"
+                    android:textAppearance="@android:style/TextAppearance.Material.Medium"
+                    android:textColor="?android:attr/colorForeground" />
+
+            </LinearLayout>
+        </FrameLayout>
     </androidx.cardview.widget.CardView>
 </RelativeLayout>

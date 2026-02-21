@@ -7,8 +7,13 @@ YAACC (Yet Another Android Client Controller) allows you to play media from UPNP
 * UPNP/DLNA client - play media from a media server on your device
 * UPNP/DLNA media renderer - stream media from other devices to your device
 * UPNP/DLNA controller - control media renderer in the network
+* Live streaming - stream system audio and screen to network devices (Android 10+)
+* SAF support - browse and share files from external storage, USB drives, SD cards
+* Lock screen controls - hardware volume buttons and media controls
+* Receiver controls - play/pause/stop directly from receiver tab
 * Control multiple media renderer
 * Allow download files from a media server to the device
 * Allow sharing of urls with the app and sending them to the current media renderers
+* Battery optimized with smart WiFi lock and foreground service management
 * Shutdown timer for app
 

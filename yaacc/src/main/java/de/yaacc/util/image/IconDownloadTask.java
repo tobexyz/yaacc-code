@@ -35,18 +35,40 @@ public class IconDownloadTask extends AsyncTask<Uri, Integer, Bitmap> {
     private final ImageView imageView;
     private final IconDownloadCacheHandler cache;
     private final BrowseContentItemAdapter browseContentItemAdapter;
+    private final String deviceId;
+    private final int targetWidth;
+    private final int targetHeight;
 
 
     public IconDownloadTask(ImageView imageView) {
-        this.imageView = imageView;
-        this.browseContentItemAdapter = null;
-        this.cache = IconDownloadCacheHandler.getInstance();
+        this(imageView, 48, 48);
     }
 
     public IconDownloadTask(ImageView imageView, BrowseContentItemAdapter browseContentItemAdapter) {
         this.imageView = imageView;
         this.cache = IconDownloadCacheHandler.getInstance();
         this.browseContentItemAdapter = browseContentItemAdapter;
+        this.deviceId = null;
+        this.targetWidth = 48;
+        this.targetHeight = 48;
+    }
+    
+    public IconDownloadTask(ImageView imageView, String deviceId) {
+        this.imageView = imageView;
+        this.cache = IconDownloadCacheHandler.getInstance();
+        this.browseContentItemAdapter = null;
+        this.deviceId = deviceId;
+        this.targetWidth = 48;
+        this.targetHeight = 48;
+    }
+    
+    public IconDownloadTask(ImageView imageView, int width, int height) {
+        this.imageView = imageView;
+        this.cache = IconDownloadCacheHandler.getInstance();
+        this.browseContentItemAdapter = null;
+        this.deviceId = null;
+        this.targetWidth = width;
+        this.targetHeight = height;
     }
 
 
@@ -58,8 +80,8 @@ public class IconDownloadTask extends AsyncTask<Uri, Integer, Bitmap> {
      */
     @Override
     protected Bitmap doInBackground(Uri... uri) {
-        int defaultHeight = 48;
-        int defaultWidth = 48;
+        int defaultHeight = targetHeight;
+        int defaultWidth = targetWidth;
         Bitmap result = null;
         if (cache != null) {
             result = cache.getBitmap(uri[0], defaultHeight, defaultWidth);
@@ -83,7 +105,15 @@ public class IconDownloadTask extends AsyncTask<Uri, Integer, Bitmap> {
      */
     @Override
     protected void onPostExecute(Bitmap result) {
-        imageView.setImageBitmap(result);
+        // Check if ImageView still belongs to the same device
+        if (deviceId != null && !deviceId.equals(imageView.getTag())) {
+            return; // Skip - ImageView has been recycled for different device
+        }
+        
+        if (result != null) {
+            imageView.setVisibility(android.view.View.VISIBLE);
+            imageView.setImageBitmap(result);
+        }
         if (browseContentItemAdapter != null) {
             browseContentItemAdapter.removeTask(this);
         }

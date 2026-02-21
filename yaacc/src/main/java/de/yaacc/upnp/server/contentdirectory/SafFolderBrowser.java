@@ -100,16 +100,15 @@ public class SafFolderBrowser extends ContentBrowser {
         if (myId.equals(ContentDirectoryIDs.SAF_FOLDER.getId())) {
             return getSelectedSafPathes().size();
         } else {
-            String pathEnc = myId.substring(ContentDirectoryIDs.SAF_PREFIX.getId().length());
-            try {
-                String path = new String(Base64.decode(pathEnc.getBytes(), Base64.NO_WRAP));
+            String shortId = myId.substring(ContentDirectoryIDs.SAF_PREFIX.getId().length());
+            String path = SAFCacheManager.getInstance(getContext()).getUriForShortId(shortId);
+            if (path != null) {
                 DocumentFile file = DocumentFile.fromTreeUri(getContext(), Uri.parse(path));
                 if (file != null && file.isDirectory()) {
                     return file.listFiles().length;
                 }
-            } catch (IllegalArgumentException e) {
-                YaaccLogger.w(getClass().getName(), "Can not decode path from id: " + myId + " returning size 0", e);
-                return 0;
+            } else {
+                YaaccLogger.w(getClass().getName(), "Short ID not found: " + shortId + " for id: " + myId);
             }
         }
         return 0;
@@ -139,8 +138,8 @@ public class SafFolderBrowser extends ContentBrowser {
                 YaaccLogger.d(getClass().getName(), "Path[" + i + "] DocumentFile: " + (file != null ? "exists" : "null") + ", isDirectory: " + (file != null && file.isDirectory()) + " (took " + (System.currentTimeMillis() - itemStart) + "ms)");
                 if (file != null && file.isDirectory()) {
                     String title = file.getName() != null ? file.getName() : path;
-                    String base64Str = Base64.encodeToString(file.getUri().toString().getBytes(), Base64.NO_WRAP);
-                    String folderId = ContentDirectoryIDs.SAF_PREFIX.getId() + base64Str;
+                    String shortId = SAFCacheManager.getInstance(getContext()).getOrCreateShortId(file.getUri().toString());
+                    String folderId = ContentDirectoryIDs.SAF_PREFIX.getId() + shortId;
                     StorageFolder folder = new StorageFolder(folderId, ContentDirectoryIDs.SAF_FOLDER.getId(), title, "yaacc", 0, null);
                     result.add(folder);
                 }
@@ -150,9 +149,15 @@ public class SafFolderBrowser extends ContentBrowser {
             // Browse subfolder
             long subfolderStart = System.currentTimeMillis();
             YaaccLogger.d(getClass().getName(), "Browsing subfolder with ID: " + myId);
-            String pathEnc = myId.substring(ContentDirectoryIDs.SAF_PREFIX.getId().length());
-            String path = new String(Base64.decode(pathEnc.getBytes(), Base64.NO_WRAP));
-            YaaccLogger.d(getClass().getName(), "Decoded path: " + path);
+            String shortId = myId.substring(ContentDirectoryIDs.SAF_PREFIX.getId().length());
+            String path = SAFCacheManager.getInstance(getContext()).getUriForShortId(shortId);
+            
+            if (path == null) {
+                YaaccLogger.e(getClass().getName(), "Short ID not found: " + shortId);
+                return result;
+            }
+            
+            YaaccLogger.d(getClass().getName(), "Resolved path from shortId " + shortId + ": " + path);
 
             Uri uri = Uri.parse(path);
             DocumentFile root = null;
@@ -187,8 +192,8 @@ public class SafFolderBrowser extends ContentBrowser {
                             Uri childTreeUri = DocumentsContract.buildTreeDocumentUri(authority, documentId);
                             DocumentFile testAccess = DocumentFile.fromTreeUri(getContext(), childTreeUri);
                             if (testAccess != null) {
-                                String base64Str = Base64.encodeToString(childTreeUri.toString().getBytes(), Base64.NO_WRAP);
-                                String childId = ContentDirectoryIDs.SAF_PREFIX.getId() + base64Str;
+                                String childShortId = SAFCacheManager.getInstance(getContext()).getOrCreateShortId(childTreeUri.toString());
+                                String childId = ContentDirectoryIDs.SAF_PREFIX.getId() + childShortId;
                                 if (!testAccess.canRead()) {
                                     title = "[X] " + title;
                                 }
@@ -242,8 +247,13 @@ public class SafFolderBrowser extends ContentBrowser {
             // Browse subfolder items
             long subfolderStart = System.currentTimeMillis();
             YaaccLogger.d(getClass().getName(), "Browsing subfolder items for: " + myId);
-            String pathEnc = myId.substring(ContentDirectoryIDs.SAF_PREFIX.getId().length());
-            String path = new String(Base64.decode(pathEnc.getBytes(), Base64.NO_WRAP));
+            String shortId = myId.substring(ContentDirectoryIDs.SAF_PREFIX.getId().length());
+            String path = SAFCacheManager.getInstance(getContext()).getUriForShortId(shortId);
+            
+            if (path == null) {
+                YaaccLogger.e(getClass().getName(), "Short ID not found: " + shortId);
+                return result;
+            }
             
             long treeStart = System.currentTimeMillis();
             DocumentFile root = DocumentFile.fromTreeUri(getContext(), Uri.parse(path));
@@ -291,7 +301,7 @@ public class SafFolderBrowser extends ContentBrowser {
             return null;
         }
         
-        // Get all metadata from cache (duration, MIME type, encoded ID)
+        // Get all metadata from cache (duration, MIME type, short ID)
         SAFMetadata metadata = SAFCacheManager.getInstance(getContext()).getMetadata(file);
         if (metadata == null || metadata.mimeType == null) {
             return null;
@@ -300,13 +310,15 @@ public class SafFolderBrowser extends ContentBrowser {
         MimeType mimeType = MimeType.valueOf(metadata.mimeType);
         String mimeTypeMain = mimeType.getType();
         
-        String id = ContentDirectoryIDs.SAF_PREFIX.getId() + metadata.encodedId;
+        String id = ContentDirectoryIDs.SAF_PREFIX.getId() + metadata.shortId;
         String title = file.getName() != null ? file.getName() : path;
         if (restricted) {
             title = "[X] " + title;
         }
         
-        String uri = getUriString(contentDirectory, id, mimeType, path);
+        // Use shortId in URI instead of Base64-encoded path
+        String uri = getUriString(contentDirectory, id, mimeType, metadata.shortId);
+        YaaccLogger.d(getClass().getName(), "Generated URI for " + title + ": " + uri + " (shortId=" + metadata.shortId + ")");
         
         long protocolStart = System.currentTimeMillis();
         ProtocolInfo protocolInfo = getProtocolInfo(mimeType);

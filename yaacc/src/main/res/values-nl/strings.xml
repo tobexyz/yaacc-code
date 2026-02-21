@@ -121,7 +121,12 @@
     <string name="reset_shared_folders">gedeelde mappen opnieuw instellen</string>
     <string name="shutdown_timer">Uitschakeltimer</string>
     <string name="add_saf_content">bron toevoegen</string>
+    <string name="clear_saf_cache">SAF-cache wissen</string>
     <string name="saf_content">gekoppeld</string>
     <string name="enable_server_side_seeking_for_external_urls">Schakel serverzijdig tijdsbereikbeheer in de proxymodus in.</string>
     <string name="live_streams">Livestreams</string>
+    <string name="playing">SPELEN</string>
+    <string name="paused">GESLOTEN</string>
+    <string name="stopped">GESTOPT</string>
+    <string name="no_media">GEEN MEDIA</string>
 </resources>

@@ -74,36 +74,35 @@
             android:textAppearance="@android:style/TextAppearance.Material.Medium"
             android:text="@string/settings_local_server_proxy_on" />
 
+        <TextView
+            android:id="@+id/mediaStoreLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_below="@+id/proxyEnabled"
+            android:layout_toEndOf="@id/mediaStoreLabel"
+            android:text="@string/media_store_label"
+            android:textAppearance="@android:style/TextAppearance.Material.Medium" />
+
         <CheckBox
             android:id="@+id/filterEnabled"
             android:layout_width="match_parent"
             android:layout_height="48dp"
             android:layout_alignParentStart="true"
-            android:layout_below="@+id/proxyEnabled"
+            android:layout_below="@+id/mediaStoreLabel"
             android:textAppearance="@android:style/TextAppearance.Material.Medium"
             android:text="@string/settings_local_server_media_filter_on" />
 
         <ImageButton
-            android:id="@+id/sharedFoldersReset"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            android:id="@+id/mediaStoreRescan"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_below="@+id/filterEnabled"
             android:layout_alignParentStart="true"
-            android:layout_below="@+id/filterEnabled"
-            android:text="@string/reset_shared_folders"
-            android:src="@drawable/outline_database_off_48"
-            android:contentDescription="@string/reset_shared_folders"
-            android:textAppearance="@android:style/TextAppearance.Material.Medium" />
+            android:layout_marginStart="10dp"
+            android:layout_marginTop="5dp"
+            android:contentDescription="@string/media_store_scan"
+            android:src="@drawable/ic_baseline_refresh_32" />
 
-        <ImageButton
-            android:id="@+id/sharedFoldersAddSaf"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_toEndOf="@+id/sharedFoldersReset"
-            android:layout_below="@+id/filterEnabled"
-            android:text="@string/add_saf_content"
-            android:src="@drawable/ic_search_bookmark"
-            android:contentDescription="@string/add_saf_content"
-            android:textAppearance="@android:style/TextAppearance.Material.Medium" />
 
     </RelativeLayout>
 
@@ -125,6 +124,40 @@
             android:textAppearance="@android:style/TextAppearance.Material.Medium"
             android:textColor="?android:attr/colorForeground" />
 
+        <ImageButton
+            android:id="@+id/sharedFoldersReset"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentStart="true"
+            android:layout_below="@+id/sharedFolders"
+            android:text="@string/reset_shared_folders"
+            android:src="@drawable/outline_database_off_32"
+            android:contentDescription="@string/reset_shared_folders"
+            android:textAppearance="@android:style/TextAppearance.Material.Medium" />
+
+        <ImageButton
+            android:id="@+id/sharedFoldersAddSaf"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_toEndOf="@+id/sharedFoldersReset"
+            android:layout_below="@+id/sharedFolders"
+            android:text="@string/add_saf_content"
+            android:src="@drawable/ic_search_bookmark"
+            android:contentDescription="@string/add_saf_content"
+            android:textAppearance="@android:style/TextAppearance.Material.Medium" />
+
+        <ImageButton
+            android:id="@+id/clearSafCache"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_toEndOf="@id/sharedFoldersAddSaf"
+            android:layout_below="@+id/sharedFolders"
+            android:text="@string/clear_saf_cache"
+            android:src="@drawable/ic_baseline_refresh_32"
+            android:contentDescription="@string/clear_saf_cache"
+            android:textAppearance="@android:style/TextAppearance.Material.Medium" />
+
+
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/folders_recycler_view"
             android:layout_width="wrap_content"
@@ -133,8 +166,7 @@
             android:layout_alignParentStart="true"
             android:layout_alignParentEnd="true"
             android:layout_alignParentBottom="true"
-            android:layout_centerVertical="true"
-            android:layout_below="@+id/sharedFolders"
+            android:layout_below="@+id/sharedFoldersReset"
             android:scrollbarSize="5dp"
             android:textAppearance="@android:style/TextAppearance.Material.Medium"
             android:scrollbars="vertical" />

@@ -142,9 +142,9 @@ public abstract class ContentBrowser {
         }
 
         if (contentUri != null) {
-            String base64enc = new String(Base64.encode(contentUri.getBytes(), Base64.NO_WRAP));
+            // contentUri is now a short ID, not a full URI - don't Base64 encode it
             return "http://" + contentDirectory.getIpAddress() + ":"
-                    + YaaccUpnpServerService.PORT + "/saf/" + id + "/" + base64enc + "." + fileExtension;
+                    + YaaccUpnpServerService.PORT + "/saf/" + id + "/" + contentUri + "." + fileExtension;
         }
         return "http://" + contentDirectory.getIpAddress() + ":"
                 + YaaccUpnpServerService.PORT + "/res/" + id + "/file." + fileExtension;

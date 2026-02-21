@@ -79,7 +79,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
             public void run() {
                 if (upnpClient.getProviderDevice() != null) {
                     currentProvider.setText(upnpClient.getProviderDevice().getDetails().getFriendlyName());
-                    if (navigator != null && navigator.getCurrentPosition().getDeviceId() != null && upnpClient.getProviderDevice().getIdentity().getUdn().getIdentifierString().equals(navigator.getCurrentPosition().getDeviceId())) {
+                    if (navigator != null && navigator.getCurrentPosition() != null && navigator.getCurrentPosition().getDeviceId() != null && upnpClient.getProviderDevice().getIdentity().getUdn().getIdentifierString().equals(navigator.getCurrentPosition().getDeviceId())) {
                         populateItemList(false);
                     } else {
                         showMainFolder();

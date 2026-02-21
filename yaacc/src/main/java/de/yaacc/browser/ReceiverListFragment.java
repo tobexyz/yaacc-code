@@ -19,6 +19,8 @@ package de.yaacc.browser;
 
 import android.graphics.drawable.Drawable;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import de.yaacc.util.YaaccLogger;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -51,6 +53,7 @@ public class ReceiverListFragment extends Fragment implements
     protected RecyclerView contentList;
     private UpnpClient upnpClient = null;
     private BrowseReceiverDeviceAdapter bDeviceAdapter;
+    private RendererStatusMonitor statusMonitor;
 
     @Override
     public void onResume() {
@@ -63,6 +66,51 @@ public class ReceiverListFragment extends Fragment implements
             }
         });
         thread.start();
+        
+        // Start monitoring when fragment visible
+        if (statusMonitor != null) {
+            statusMonitor.startMonitoring(new LinkedList<>(upnpClient.getDevicesProvidingAvTransportService()));
+            // Re-sort after a short delay to allow status updates to arrive
+            if (bDeviceAdapter != null) {
+                new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                    if (bDeviceAdapter != null) {
+                        bDeviceAdapter.sortAndNotify();
+                    }
+                }, 500);
+            }
+        }
+        
+        // Poll local device status every 2 seconds
+        startLocalDevicePolling();
+    }
+    
+    @Override
+    public void onPause() {
+        super.onPause();
+        // Stop monitoring when fragment not visible
+        if (statusMonitor != null) {
+            statusMonitor.stopMonitoring();
+        }
+        stopLocalDevicePolling();
+    }
+    
+    private Handler localDeviceHandler = new Handler(Looper.getMainLooper());
+    private Runnable localDevicePoller = new Runnable() {
+        @Override
+        public void run() {
+            if (bDeviceAdapter != null) {
+                bDeviceAdapter.updateLocalDeviceStatus();
+            }
+            localDeviceHandler.postDelayed(this, 2000);
+        }
+    };
+    
+    private void startLocalDevicePolling() {
+        localDeviceHandler.postDelayed(localDevicePoller, 2000);
+    }
+    
+    private void stopLocalDevicePolling() {
+        localDeviceHandler.removeCallbacks(localDevicePoller);
     }
 
 
@@ -71,10 +119,20 @@ public class ReceiverListFragment extends Fragment implements
         upnpClient = ((Yaacc) getActivity().getApplicationContext()).getUpnpClient();
         contentList = view.findViewById(R.id.receiverList);
         contentList.setLayoutManager(new LinearLayoutManager(getActivity()));
+        contentList.setItemAnimator(null); // Disable animations to prevent flashing
         contentList.setFocusable(true);
         contentList.setFocusableInTouchMode(false); // Good for D-Pad primary interaction
         contentList.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
         upnpClient.addUpnpClientListener(this);
+        
+        // Initialize status monitor
+        statusMonitor = new RendererStatusMonitor();
+        statusMonitor.setListener(status -> {
+            if (bDeviceAdapter != null) {
+                bDeviceAdapter.updateStatus(status);
+            }
+        });
+        
         ImageButton refresh = view.findViewById(R.id.receiverListRefreshButton);
         Drawable icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_refresh_32, getContext().getTheme()), getContext().getTheme());
         refresh.setImageDrawable(icon);

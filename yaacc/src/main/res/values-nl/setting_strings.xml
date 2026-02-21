@@ -105,4 +105,10 @@
     <string name="settings_local_server_serve_saf_off">Het weergeven van SAF-content is uitgeschakeld.</string>
     <string name="settings_local_server_serve_saf_on">Het weergeven van SAF-inhoud is ingeschakeld.</string>
     <string name="settings_category_renderer_settings">Renderer-instellingen</string>
+    <string name="settings_local_server_serve_system_audio_title">systeemaudiostream</string>
+    <string name="settings_local_server_serve_system_audio_off">De systeemaudiostream is uitgeschakeld.</string>
+    <string name="settings_local_server_serve_system_audio_on">De systeemaudiostream is ingeschakeld.</string>
+    <string name="settings_local_server_serve_screen_cast_title">schermcaststream</string>
+    <string name="settings_local_server_serve_screen_cast_off">Schermcaststream is uitgeschakeld</string>
+    <string name="settings_local_server_serve_screen_cast_on">Schermcaststream is ingeschakeld</string>
 </resources>

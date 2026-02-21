@@ -18,7 +18,6 @@
  */
 package de.yaacc.player;
 
-import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.ComponentName;
 import android.content.Context;
@@ -29,24 +28,21 @@ import android.net.Uri;
 import android.os.IBinder;
 import android.support.v4.media.session.MediaSessionCompat;
 
-import de.yaacc.util.YaaccLogger;
-
 import java.beans.PropertyChangeListener;
 import java.beans.PropertyChangeSupport;
 import java.net.URI;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
 
 import de.yaacc.R;
-import de.yaacc.Yaacc;
 import de.yaacc.imageviewer.ImageViewerActivity;
 import de.yaacc.imageviewer.ImageViewerBroadcastReceiver;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.util.NotificationId;
+import de.yaacc.util.YaaccLogger;
 
 /**
  * Player for local image viewing activity.
@@ -63,6 +59,7 @@ public class LocalImagePlayer implements Player, ServiceConnection {
     private String shortName;
     private PlayerService playerService;
     private boolean isPlaying;
+    private boolean isPaused;
     private ArrayList<Uri> imageUris;  // Store URIs for reopening activity
     private int currentIndex;  // Store current position for resuming slideshow
 
@@ -80,10 +77,10 @@ public class LocalImagePlayer implements Player, ServiceConnection {
     public void startService() {
         if (playerService == null) {
             upnpClient.getContext().startForegroundService(
-                new Intent(upnpClient.getContext(), PlayerService.class));
+                    new Intent(upnpClient.getContext(), PlayerService.class));
             upnpClient.getContext().bindService(
-                new Intent(upnpClient.getContext(), PlayerService.class),
-                this, Context.BIND_AUTO_CREATE);
+                    new Intent(upnpClient.getContext(), PlayerService.class),
+                    this, Context.BIND_AUTO_CREATE);
         }
     }
 
@@ -147,9 +144,11 @@ public class LocalImagePlayer implements Player, ServiceConnection {
                 intent.setAction(ImageViewerBroadcastReceiver.ACTION_PAUSE);
                 upnpClient.getContext().sendBroadcast(intent);
                 setPlaying(false);
+                setPaused(true);
             }
         }, new Date());
     }
+
 
     @Override
     public void play() {
@@ -162,6 +161,7 @@ public class LocalImagePlayer implements Player, ServiceConnection {
                 intent.setAction(ImageViewerBroadcastReceiver.ACTION_PLAY);
                 upnpClient.getContext().sendBroadcast(intent);
                 setPlaying(true);
+                setPaused(false);
             }
         }, new Date());
     }
@@ -176,6 +176,7 @@ public class LocalImagePlayer implements Player, ServiceConnection {
                 intent.setAction(ImageViewerBroadcastReceiver.ACTION_STOP);
                 upnpClient.getContext().sendBroadcast(intent);
                 setPlaying(false);
+                setPaused(false);
             }
         }, new Date());
     }
@@ -190,10 +191,10 @@ public class LocalImagePlayer implements Player, ServiceConnection {
             uris.add(item.getUri());
         }
         intent.putParcelableArrayListExtra(ImageViewerActivity.URIS, uris);
-        
+
         // Store URIs for reopening activity
         this.imageUris = uris;
-        
+
         upnpClient.getContext().startActivity(intent);
     }
 
@@ -340,18 +341,18 @@ public class LocalImagePlayer implements Player, ServiceConnection {
         // Create intent to open ImageViewerActivity
         Intent intent = new Intent(upnpClient.getContext(), ImageViewerActivity.class);
         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-        
+
         // Include stored URIs so activity can reopen with images
         if (imageUris != null && !imageUris.isEmpty()) {
             intent.putParcelableArrayListExtra(ImageViewerActivity.URIS, imageUris);
             intent.putExtra("currentIndex", currentIndex);
         }
-        
+
         return PendingIntent.getActivity(
-            upnpClient.getContext(), 
-            getId(), 
-            intent, 
-            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+                upnpClient.getContext(),
+                getId(),
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
     }
 
@@ -406,5 +407,18 @@ public class LocalImagePlayer implements Player, ServiceConnection {
     @Override
     public void removePropertyChangeListener(PropertyChangeListener listener) {
         pcs.removePropertyChangeListener(listener);
+    }
+
+
+    public boolean isPaused() {
+        return isPaused;
+    }
+
+    public boolean isStopped() {
+        return !(isPlaying || isPaused);
+    }
+
+    private void setPaused(boolean b) {
+        isPaused = b;
     }
 }

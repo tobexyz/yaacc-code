@@ -189,6 +189,8 @@ public class PlayerService extends MediaSessionService {
     @Override
     public void onDestroy() {
         YaaccLogger.d(this.getClass().getName(), "On Destroy");
+        // Stop all players before service is destroyed
+        shutdown();
         // MediaSession is owned by players, they will release it
         super.onDestroy();
     }
@@ -276,8 +278,56 @@ public class PlayerService extends MediaSessionService {
 
         }
         YaaccLogger.d(getClass().getName(), "video:" + video + " image: " + image + " audio:" + music);
+        
+        // Check if any receiver device is selected
+        if (upnpClient.getReceiverDevices().isEmpty()) {
+            new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> 
+                Toast.makeText(upnpClient.getContext(), 
+                    R.string.error_no_receiver_selected, 
+                    Toast.LENGTH_LONG).show()
+            );
+            return resultList;
+        }
+        
         for (Device<?, ?, ?> device : upnpClient.getReceiverDevices()) {
             result = createPlayer(upnpClient, device, video, image, music);
+            if (result != null) {
+                addPlayer(result);
+                result.setItems(items.toArray(new PlayableItem[0]));
+                resultList.add(result);
+            }
+        }
+        return resultList;
+    }
+
+    /**
+     * Creates a player for the local device only (used by renderer service)
+     */
+    public List<Player> createPlayerForLocalDevice(UpnpClient upnpClient, List<PlayableItem> items) {
+        YaaccLogger.d(getClass().getName(), "create player for local device...");
+        List<Player> resultList = new ArrayList<>();
+        if (items.isEmpty()) {
+            return resultList;
+        }
+        
+        boolean video = false;
+        boolean image = false;
+        boolean music = false;
+        for (PlayableItem playableItem : items) {
+            if (playableItem.getMimeType() != null) {
+                image = image || playableItem.getMimeType().startsWith("image");
+                video = video || playableItem.getMimeType().startsWith("video");
+                music = music || playableItem.getMimeType().startsWith("audio");
+            } else {
+                image = true;
+                music = true;
+                video = true;
+            }
+        }
+        
+        Device<?, ?, ?> localDevice = upnpClient.getDevice(UpnpClient.LOCAL_UID);
+        if (localDevice != null) {
+            Player result = createPlayer(upnpClient, localDevice, video, image, music);
             if (result != null) {
                 addPlayer(result);
                 result.setItems(items.toArray(new PlayableItem[0]));

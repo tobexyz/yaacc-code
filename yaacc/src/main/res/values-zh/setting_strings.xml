@@ -105,4 +105,10 @@
     <string name="settings_local_server_serve_saf_off">已禁用 SAF 内容服务</string>
     <string name="settings_local_server_serve_saf_on">已启用 SAF 内容服务</string>
     <string name="settings_category_renderer_settings">渲染器设置</string>
+    <string name="settings_local_server_serve_system_audio_title">系统音频流</string>
+    <string name="settings_local_server_serve_system_audio_off">系统音频流已禁用</string>
+    <string name="settings_local_server_serve_system_audio_on">系统音频流已启用</string>
+    <string name="settings_local_server_serve_screen_cast_title">屏幕投射流</string>
+    <string name="settings_local_server_serve_screen_cast_off">屏幕投射流已禁用</string>
+    <string name="settings_local_server_serve_screen_cast_on">屏幕投射流已启用</string>
 </resources>
