@@ -128,7 +128,7 @@ public class SAFCacheManager {
                 // Migrate old entries without shortId
                 if (metadata.shortId == null) {
                     String shortId = getOrCreateShortId(uri);
-                    metadata = new SAFMetadata(metadata.duration, metadata.mimeType, metadata.encodedId, shortId, metadata.fileSize);
+                    metadata = new SAFMetadata(metadata.duration, metadata.mimeType, shortId, metadata.fileSize);
                     String serialized = metadata.serialize();
                     lruCache.put(key, serialized);
                     preferences.edit().putString(key, serialized).apply();
@@ -147,7 +147,7 @@ public class SAFCacheManager {
                 // Migrate old entries without shortId
                 if (metadata.shortId == null) {
                     String shortId = getOrCreateShortId(uri);
-                    metadata = new SAFMetadata(metadata.duration, metadata.mimeType, metadata.encodedId, shortId, metadata.fileSize);
+                    metadata = new SAFMetadata(metadata.duration, metadata.mimeType, shortId, metadata.fileSize);
                     String serialized = metadata.serialize();
                     lruCache.put(key, serialized);
                     preferences.edit().putString(key, serialized).apply();
@@ -179,16 +179,15 @@ public class SAFCacheManager {
     }
     
     /**
-     * Extract all metadata for a file (duration, MIME type, encoded ID).
+     * Extract all metadata for a file (duration, MIME type, short ID).
      */
     private SAFMetadata extractMetadata(DocumentFile file) {
         String uri = file.getUri().toString();
         String duration = extractDuration(file.getUri());
         String mimeType = extractMimeType(file);
-        String encodedId = encodeUri(uri);
         String shortId = getOrCreateShortId(uri);
         long fileSize = file.length();
-        return new SAFMetadata(duration, mimeType, encodedId, shortId, fileSize);
+        return new SAFMetadata(duration, mimeType, shortId, fileSize);
     }
     
     /**
@@ -230,10 +229,6 @@ public class SAFCacheManager {
         }
         // Fall back to system lookup
         return file.getType();
-    }
-    
-    private String encodeUri(String uri) {
-        return new String(android.util.Base64.encode(uri.getBytes(), android.util.Base64.NO_WRAP));
     }
     
     private String extractDuration(Uri uri) {

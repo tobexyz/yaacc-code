@@ -31,13 +31,13 @@ public class SAFMetadataTest {
         SAFMetadata metadata = new SAFMetadata(
             "03:45",
             "audio/mpeg",
-            "aHR0cDovL2V4YW1wbGUuY29tL2ZpbGUubXAz",
+            "1",
             5432100L
         );
         
         assertEquals("03:45", metadata.duration);
         assertEquals("audio/mpeg", metadata.mimeType);
-        assertEquals("aHR0cDovL2V4YW1wbGUuY29tL2ZpbGUubXAz", metadata.encodedId);
+        assertEquals("1", metadata.shortId);
         assertEquals(5432100L, metadata.fileSize);
         assertNotEquals(0L, metadata.timestamp);
     }
@@ -47,30 +47,30 @@ public class SAFMetadataTest {
         SAFMetadata metadata = new SAFMetadata(
             "03:45",
             "audio/mpeg",
-            "encoded_uri",
+            "1",
             1234567L
         );
         
         String serialized = metadata.serialize();
-        // Check format: duration|mimeType|encodedId|fileSize|timestamp
+        // Check format: duration|mimeType|shortId|fileSize|timestamp
         String[] parts = serialized.split("\\|", 5);
         assertEquals("03:45", parts[0]);
         assertEquals("audio/mpeg", parts[1]);
-        assertEquals("encoded_uri", parts[2]);
+        assertEquals("1", parts[2]);
         assertEquals("1234567", parts[3]);
         assertNotNull(parts[4]); // timestamp
     }
 
     @Test
     public void testDeserialize() {
-        String data = "03:45|audio/mpeg|encoded_uri|1234567|1708257600000";
+        String data = "03:45|audio/mpeg|1|1234567|1708257600000";
         
         SAFMetadata metadata = SAFMetadata.deserialize(data);
         
         assertNotNull(metadata);
         assertEquals("03:45", metadata.duration);
         assertEquals("audio/mpeg", metadata.mimeType);
-        assertEquals("encoded_uri", metadata.encodedId);
+        assertEquals("1", metadata.shortId);
         assertEquals(1234567L, metadata.fileSize);
     }
 
@@ -90,7 +90,7 @@ public class SAFMetadataTest {
         SAFMetadata original = new SAFMetadata(
             "01:30:00",
             "video/mp4",
-            "dmlkZW8tbXA0LXVyaQ==",
+            "2",
             9876543L
         );
         
@@ -100,7 +100,7 @@ public class SAFMetadataTest {
         assertNotNull(deserialized);
         assertEquals(original.duration, deserialized.duration);
         assertEquals(original.mimeType, deserialized.mimeType);
-        assertEquals(original.encodedId, deserialized.encodedId);
+        assertEquals(original.shortId, deserialized.shortId);
         assertEquals(original.fileSize, deserialized.fileSize);
     }
 
@@ -110,7 +110,7 @@ public class SAFMetadataTest {
         
         assertNull(metadata.duration);
         assertNull(metadata.mimeType);
-        assertNull(metadata.encodedId);
+        assertNull(metadata.shortId);
         assertEquals(0L, metadata.fileSize);
     }
 
@@ -119,7 +119,7 @@ public class SAFMetadataTest {
         SAFMetadata metadata = new SAFMetadata(
             "02:15:30",
             "video/mp4",
-            "encoded",
+            "3",
             10000000L
         );
         
@@ -131,7 +131,7 @@ public class SAFMetadataTest {
         SAFMetadata metadata = new SAFMetadata(
             null,
             "image/jpeg",
-            "encoded",
+            "4",
             500000L
         );
         
