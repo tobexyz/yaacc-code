@@ -1,0 +1,10 @@
+Version 5.0.0
+- Battery optimization: Smart WiFi lock and foreground service management
+- Live streaming: Stream system audio and screen to network devices (Android 10+)
+- Lock screen controls: Hardware volume buttons and media controls
+- Modern architecture: Media3/ExoPlayer, improved UPnP stack reliability
+- Performance: Faster browsing with metadata caching
+- Receiver controls: Play/pause/stop directly from receiver tab with status display
+- SAF support: Browse and share files from external storage, USB drives, SD cards
+- UI improvements: Modernized browsing and image viewer
+- UPnP fixes: Enhanced network state handling, retry logic for commands

@@ -452,6 +452,26 @@ public class BrowseReceiverDeviceAdapter extends RecyclerView.Adapter<BrowseRece
     }
 
     private void executeAction(Device device, String action) {
+        // Handle local device differently
+        if (device instanceof LocalDevice || device instanceof UpnpClient.LocalDummyDevice) {
+            Player player = getPlayerForDevice(device);
+            if (player == null) return;
+            
+            switch (action) {
+                case ACTION_PLAY:
+                    player.play();
+                    break;
+                case ACTION_PAUSE:
+                    player.pause();
+                    break;
+                case ACTION_STOP:
+                    player.stop();
+                    break;
+            }
+            return;
+        }
+        
+        // Handle remote UPnP device
         org.fourthline.cling.model.meta.Service avTransport = device.findService(new org.fourthline.cling.model.types.UDAServiceId("AVTransport"));
         if (avTransport == null) return;
 

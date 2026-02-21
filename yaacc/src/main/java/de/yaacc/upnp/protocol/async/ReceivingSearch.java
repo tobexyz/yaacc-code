@@ -221,13 +221,20 @@ public class ReceivingSearch extends ReceivingAsync<IncomingSearchRequest> {
                                                                 NetworkAddress activeStreamServer) {
         List<OutgoingSearchResponse> msgs = new ArrayList<>();
 
+        // Check if network is available
+        Location location = getDescriptorLocation(activeStreamServer, device);
+        if (location == null) {
+            YaaccLogger.w(getClass().getName(), "Network unavailable, cannot create device messages");
+            return msgs; // Return empty list
+        }
+
         // See the tables in UDA 1.0 section 1.1.2
 
         if (device.isRoot()) {
             msgs.add(
                     new OutgoingSearchResponseRootDevice(
                             getInputMessage(),
-                            getDescriptorLocation(activeStreamServer, device),
+                            location,
                             device
                     )
             );
@@ -236,7 +243,7 @@ public class ReceivingSearch extends ReceivingAsync<IncomingSearchRequest> {
         msgs.add(
                 new OutgoingSearchResponseUDN(
                         getInputMessage(),
-                        getDescriptorLocation(activeStreamServer, device),
+                        location,
                         device
                 )
         );
@@ -244,7 +251,7 @@ public class ReceivingSearch extends ReceivingAsync<IncomingSearchRequest> {
         msgs.add(
                 new OutgoingSearchResponseDeviceType(
                         getInputMessage(),
-                        getDescriptorLocation(activeStreamServer, device),
+                        location,
                         device
                 )
         );
@@ -259,11 +266,19 @@ public class ReceivingSearch extends ReceivingAsync<IncomingSearchRequest> {
     protected List<OutgoingSearchResponse> createServiceTypeMessages(LocalDevice device,
                                                                      NetworkAddress activeStreamServer) {
         List<OutgoingSearchResponse> msgs = new ArrayList<>();
+        
+        // Check if network is available
+        Location location = getDescriptorLocation(activeStreamServer, device);
+        if (location == null) {
+            YaaccLogger.w(getClass().getName(), "Network unavailable, cannot create service type messages");
+            return msgs; // Return empty list
+        }
+        
         for (ServiceType serviceType : device.findServiceTypes()) {
             OutgoingSearchResponse message =
                     new OutgoingSearchResponseServiceType(
                             getInputMessage(),
-                            getDescriptorLocation(activeStreamServer, device),
+                            location,
                             device,
                             serviceType
                     );
@@ -320,10 +335,15 @@ public class ReceivingSearch extends ReceivingAsync<IncomingSearchRequest> {
                     continue;
 
                 YaaccLogger.v(getClass().getName(), "Sending matching device type search result for: " + device);
+                Location location = getDescriptorLocation(activeStreamServer, (LocalDevice) device);
+                if (location == null) {
+                    YaaccLogger.w(getClass().getName(), "Skipping search response, network unavailable");
+                    continue;
+                }
                 OutgoingSearchResponse message =
                         new OutgoingSearchResponseDeviceType(
                                 getInputMessage(),
-                                getDescriptorLocation(activeStreamServer, (LocalDevice) device),
+                                location,
                                 (LocalDevice) device
                         );
                 prepareOutgoingSearchResponse(message);
@@ -356,6 +376,10 @@ public class ReceivingSearch extends ReceivingAsync<IncomingSearchRequest> {
     }
 
     protected Location getDescriptorLocation(NetworkAddress activeStreamServer, LocalDevice device) {
+        if (activeStreamServer == null || activeStreamServer.getAddress() == null) {
+            YaaccLogger.w(getClass().getName(), "Network address unavailable, cannot create descriptor location");
+            return null;
+        }
         return new Location(
                 activeStreamServer,
                 UpnpProtocolHandler.NAMESPACE.getDescriptorPathString(device)

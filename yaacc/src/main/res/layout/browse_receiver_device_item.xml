@@ -102,6 +102,8 @@
                 android:layout_marginTop="4dp"
                 android:textSize="14sp"
                 android:textColor="?android:attr/textColorSecondary"
+                android:maxLines="2"
+                android:ellipsize="end"
                 android:visibility="gone" />
             
             <!-- Spacer to push controls to bottom -->
