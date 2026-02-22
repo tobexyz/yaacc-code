@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="de.yaacc.test">
+
+    <uses-sdk android:minSdkVersion="27" android:targetSdkVersion="33" />
+
+    <instrumentation
+        android:name="androidx.test.runner.AndroidJUnitRunner"
+        android:targetPackage="de.yaacc"
+        android:label="YAACC Tests" />
+
+</manifest>

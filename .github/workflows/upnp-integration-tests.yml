@@ -1,0 +1,49 @@
+name: YAACC UPnP Integration Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  upnp-integration-tests:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: Run infrastructure test
+      run: |
+        cd testing
+        chmod +x scripts/test-infrastructure.sh
+        ./scripts/test-infrastructure.sh
+        
+    - name: Generate test media
+      run: |
+        cd testing
+        chmod +x scripts/generate-test-media.sh
+        ./scripts/generate-test-media.sh
+        
+    - name: Verify test media
+      run: |
+        find testing/test-media -name "*.mp3" -o -name "*.mp4" -o -name "*.jpg" | wc -l
+        
+    - name: Build Android test container
+      run: |
+        cd testing
+        docker compose -f docker/docker-compose.test.yml build android-test
+        
+    - name: Upload test artifacts
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results
+        path: |
+          testing/reports/
+          testing/test-media/
+        retention-days: 30

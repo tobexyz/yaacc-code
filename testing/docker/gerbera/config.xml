@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<config version="2" xmlns="http://mediatomb.cc/config/2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://mediatomb.cc/config/2 http://mediatomb.cc/config/2.xsd">
+  <server>
+    <ui enabled="yes" show-tooltips="yes">
+      <accounts enabled="no" session-timeout="30">
+        <account user="gerbera" password="gerbera"/>
+      </accounts>
+    </ui>
+    <name>Gerbera Test Server</name>
+    <udn>uuid:f40c2981-7329-40b7-8b04-27f187aecfb5</udn>
+    <home>/var/lib/gerbera</home>
+    <webroot>/usr/share/gerbera/web</webroot>
+    <storage>
+      <sqlite3 enabled="yes">
+        <database-file>gerbera.db</database-file>
+      </sqlite3>
+    </storage>
+    <protocolInfo extend="no"/>
+    <pc-directory upnp-hide="no"/>
+    <import hidden-files="no">
+      <scripting script-charset="UTF-8">
+        <common-script>/usr/share/gerbera/js/common.js</common-script>
+        <playlist-script>/usr/share/gerbera/js/playlists.js</playlist-script>
+        <virtual-layout type="builtin">
+          <import-script>/usr/share/gerbera/js/import.js</import-script>
+        </virtual-layout>
+      </scripting>
+      <mappings>
+        <extension-mimetype ignore-unknown="no">
+          <map from="mp3" to="audio/mpeg"/>
+          <map from="flac" to="audio/flac"/>
+          <map from="ogg" to="audio/ogg"/>
+          <map from="mp4" to="video/mp4"/>
+          <map from="mkv" to="video/x-matroska"/>
+          <map from="jpg" to="image/jpeg"/>
+          <map from="png" to="image/png"/>
+        </extension-mimetype>
+      </mappings>
+    </import>
+    <transcoding enabled="no"/>
+  </server>
+</config>
