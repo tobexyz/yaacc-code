@@ -62,7 +62,7 @@ adb shell pm list instrumentation | grep yaacc
 # Run automated tests
 echo "Running automated UI tests..."
 adb shell am instrument -w -r \
-  -e class de.yaacc.AutomatedUPnPTest \
+  -e class de.yaacc.ServerSelectionTest \
   de.yaacc.test/androidx.test.runner.AndroidJUnitRunner
 
 echo "Tests completed successfully!"

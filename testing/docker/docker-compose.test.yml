@@ -32,6 +32,7 @@ services:
     volumes:
       - ../../yaacc/build/outputs/apk/debug/yaacc-debug.apk:/workspace/yaacc-debug.apk:ro
       - ../../yaacc/build/outputs/apk/androidTest/debug/yaacc-debug-androidTest.apk:/workspace/yaacc-test.apk:ro
+      - ./android-test:/scripts:ro
       - /dev/kvm:/dev/kvm
     privileged: true
     networks:
