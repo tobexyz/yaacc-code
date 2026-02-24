@@ -3,44 +3,36 @@ services:
   # UPnP Media Server
   gerbera:
     image: gerbera/gerbera
-    ports:
-      - "49152:49152"
-      - "1900:1900/udp"
+    container_name: yaacc-gerbera
+    network_mode: host
     volumes:
       - ../test-media:/content:ro
       - ./gerbera:/var/lib/gerbera
-    networks:
-      - upnp-test
+    restart: unless-stopped
 
-  # UPnP Renderer (VLC headless)
-  vlc-renderer:
-    image: jlesage/vlc
-    ports:
-      - "5800:5800"
+  # UPnP Renderer (gmrender-resurrect)
+  upnp-renderer:
+    image: giof71/gmrender-resurrect
+    container_name: yaacc-upnp-renderer
+    network_mode: host
     environment:
-      - DISPLAY_WIDTH=1280
-      - DISPLAY_HEIGHT=720
-      - VNC_PASSWORD=test123
-    networks:
-      - upnp-test
+      - FRIENDLY_NAME=Test UPnP Renderer
+      - UPNP_DEVICE_UUID=12345678-1234-1234-1234-123456789abc
+    restart: unless-stopped
 
   # Android test runner
   android-test:
     build:
       context: ./android-test
       dockerfile: Dockerfile
+    container_name: yaacc-test
     volumes:
       - ../../yaacc/build/outputs/apk/debug/yaacc-debug.apk:/workspace/yaacc-debug.apk:ro
       - ../../yaacc/build/outputs/apk/androidTest/debug/yaacc-debug-androidTest.apk:/workspace/yaacc-test.apk:ro
       - ./android-test:/scripts:ro
       - /dev/kvm:/dev/kvm
     privileged: true
-    networks:
-      - upnp-test
+    network_mode: host
     depends_on:
       - gerbera
-      - vlc-renderer
-
-networks:
-  upnp-test:
-    driver: bridge
+      - upnp-renderer

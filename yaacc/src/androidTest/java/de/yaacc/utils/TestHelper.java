@@ -11,6 +11,9 @@ import android.content.Intent;
 
 public class TestHelper {
     
+    public static final int DEFAULT_TIMEOUT = 10000;
+    public static final int DISCOVERY_TIMEOUT = 15000;
+    
     /**
      * Launch YAACC app and wait for it to load
      */
@@ -23,8 +26,7 @@ public class TestHelper {
         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK);
         context.startActivity(intent);
         
-        // Wait for app to load
-        return device.wait(Until.hasObject(By.pkg("de.yaacc")), 10000);
+        return device.wait(Until.hasObject(By.pkg("de.yaacc")), DEFAULT_TIMEOUT);
     }
     
     /**
@@ -56,5 +58,133 @@ public class TestHelper {
      */
     public static boolean isYAACCRunning(UiDevice device) {
         return device.hasObject(By.pkg("de.yaacc"));
+    }
+    
+    /**
+     * Handle permission dialogs (Allow/Permit/OK)
+     */
+    public static void handlePermissionDialogs(UiDevice device) {
+        try {
+            Thread.sleep(1000);
+            UiObject allowButton = device.findObject(new UiSelector()
+                .textMatches("(?i)(allow|permit|ok)"));
+            if (allowButton.exists()) {
+                allowButton.click();
+                Thread.sleep(500);
+            }
+            if (allowButton.exists()) {
+                allowButton.click();
+                Thread.sleep(500);
+            }
+        } catch (Exception e) {
+            // Ignore if no dialogs
+        }
+    }
+    
+    /**
+     * Take a screenshot with the given name
+     */
+    public static void takeScreenshot(UiDevice device, String name) {
+        try {
+            device.executeShellCommand("screencap -p /sdcard/" + name + ".png");
+            Thread.sleep(500);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+    
+    /**
+     * Select Gerbera server if on Server tab
+     */
+    public static boolean selectGerberaServer(UiDevice device) {
+        try {
+            Thread.sleep(DISCOVERY_TIMEOUT);
+            
+            UiObject serverTab = device.findObject(new UiSelector().text("Server"));
+            if (serverTab.exists() && serverTab.isSelected()) {
+                UiObject serverItem = device.findObject(new UiSelector()
+                    .textContains("Gerbera"));
+                
+                if (serverItem.exists()) {
+                    serverItem.click();
+                    Thread.sleep(2000);
+                    return true;
+                }
+            }
+        } catch (Exception e) {
+            // Selection failed
+        }
+        return false;
+    }
+    
+    /**
+     * Navigate to music folder (PC Directory -> audio -> mp3)
+     */
+    public static boolean navigateToMusicFolder(UiDevice device) {
+        try {
+            UiObject pcDirectory = device.findObject(new UiSelector()
+                .textContains("PC Directory"));
+            if (!pcDirectory.exists()) {
+                return false;
+            }
+            pcDirectory.click();
+            Thread.sleep(2000);
+            
+            UiObject audioFolder = device.findObject(new UiSelector()
+                .textContains("audio"));
+            if (!audioFolder.exists()) {
+                return false;
+            }
+            audioFolder.click();
+            Thread.sleep(2000);
+            
+            UiObject mp3Folder = device.findObject(new UiSelector()
+                .textContains("mp3"));
+            if (!mp3Folder.exists()) {
+                return false;
+            }
+            mp3Folder.click();
+            Thread.sleep(2000);
+            
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+    
+    /**
+     * Open settings menu
+     */
+    public static boolean openSettings(UiDevice device) {
+        try {
+            Thread.sleep(2000);
+            
+            device.pressMenu();
+            Thread.sleep(500);
+            
+            UiObject settingsItem = device.findObject(new UiSelector()
+                .textContains("Settings"));
+            
+            if (!settingsItem.exists()) {
+                UiObject moreOptions = device.findObject(new UiSelector()
+                    .descriptionContains("More options"));
+                if (moreOptions.exists()) {
+                    moreOptions.click();
+                    Thread.sleep(500);
+                }
+            }
+            
+            settingsItem = device.findObject(new UiSelector()
+                .textContains("Settings"));
+            
+            if (settingsItem.exists()) {
+                settingsItem.click();
+                Thread.sleep(1000);
+                return true;
+            }
+        } catch (Exception e) {
+            // Failed to open settings
+        }
+        return false;
     }
 }
