@@ -17,43 +17,9 @@ height="80">](https://f-droid.org/packages/de.yaacc/)
 
 
 
-    dashboard
-    app badges
-    app metrics
-    package details
-    search metrics
-
-🆒 F-Droid App Badges
-
-Generate dynamic badges for F-Droid apps to display monthly download and search statistics. These badges can be embedded in README files, websites, or any platform that supports image embedding.
-
-Badges are delivered via Shields.io for easy integration.
-
-A GitHub Actions workflow runs daily to process raw F-Droid metrics data and generates appwise JSON files.
-
-First we aggregate monthly (and cumulative) data like this:
-
-{
-"package_id": "io.github.kitswas.virtualgamepadmobile",
-"total_downloads": 3204,
-"api_hits": 6507,
-"versions": 2,
-"search_count": 0
-}
-
-Then, we produce badges like these:
-
-Downloads last month Searches last month Downloads (all time)
-Generate Your Badges
-
-Enter the F-Droid App ID (e.g., org.fdroid.fdroid):
-
-Downloads last month
-
 ![Downloads last month](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fgithub.com%2Fkitswas%2Ffdroid-metrics-dashboard%2Fraw%2Frefs%2Fheads%2Fmain%2Fprocessed%2Fmonthly%2Fde.yaacc.json&query=%24.total_downloads&logo=fdroid&label=Downloads%20last%20month)
 
 
-Downloads (all time)
 
 https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fgithub.com%2Fkitswas%2Ffdroid-metrics-dashboard%2Fraw%2Frefs%2Fheads%2Fmain%2Fprocessed%2Ftotal%2Fde.yaacc.json&query=%24.total_downloads&logo=fdroid&label=Downloads%20(all%20time)
 
