@@ -192,6 +192,10 @@ public class ServerListFragment extends Fragment implements
     @Override
     public void onResume() {
         super.onResume();
+        // Trigger UPnP discovery to find new devices (fixes Android 9 compatibility)
+        if (upnpClient != null && upnpClient.isInitialized()) {
+            upnpClient.searchDevices();
+        }
         //refresh device list
         Thread thread = new Thread(this::populateDeviceList);
         thread.start();

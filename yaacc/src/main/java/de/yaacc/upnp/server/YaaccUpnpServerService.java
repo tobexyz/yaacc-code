@@ -229,6 +229,25 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         }
         // App is active when service starts
         networkDeviceListener.setAppInForeground(true);
+        
+        // Trigger UPnP discovery when service starts (fixes Android 9 compatibility)
+        YaaccLogger.d(getClass().getName(), "Triggering UPnP discovery on service start");
+        if (networkDeviceListener.isInitalized()) {
+            new Thread(() -> {
+                try {
+                    Thread.sleep(1000); // Wait a bit for network to stabilize
+                    UpnpClient client = ((Yaacc) getApplicationContext()).getUpnpClient();
+                    if (client != null && client.isInitialized()) {
+                        client.searchDevices();
+                        YaaccLogger.d(getClass().getName(), "UPnP discovery triggered");
+                    }
+                } catch (Exception e) {
+                    YaaccLogger.e(getClass().getName(), "Error triggering UPnP discovery", e);
+                }
+            }).start();
+        } else {
+            YaaccLogger.w(getClass().getName(), "NetworkDeviceListener not initialized, discovery will be triggered when network becomes available");
+        }
 
         locaDeviceUuid = preferences.getString(getApplicationContext().getString(R.string.settings_local_device_uuid_key), null);
         if (locaDeviceUuid == null) {
