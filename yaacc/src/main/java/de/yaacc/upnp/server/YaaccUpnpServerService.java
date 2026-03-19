@@ -351,6 +351,18 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
             statusBuilder.append("⚠ HTTP");
         }
 
+        // Network interface info
+        if (networkDeviceListener != null && networkDeviceListener.isInitalized()) {
+            try {
+                de.yaacc.util.InterfaceResolutionHelper.InterfaceHolder iface = de.yaacc.util.InterfaceResolutionHelper.getNetworkInterface(this);
+                if (iface.inetAddress != null) {
+                    statusBuilder.append(" | ").append(iface.networkInterface.getName()).append(":").append(iface.inetAddress.getHostAddress());
+                }
+            } catch (Exception e) {
+                YaaccLogger.d(getClass().getName(), "Failed to get network interface info", e);
+            }
+        }
+
         // Server/Renderer status
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
         boolean serverEnabled = preferences.getBoolean(getString(R.string.settings_local_server_chkbx), false);

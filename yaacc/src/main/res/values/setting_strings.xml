@@ -69,7 +69,7 @@
     <string name="settings_audio_chkbx" translatable="false">audio_chkbx</string>
     <string name="settings_video_chkbx" translatable="false">video_chkbx</string>
     <string name="settings_image_chkbx" translatable="false">image_chkbx</string>
-    <string name="settings_local_server_title">local server configuration</string>
+    <string name="settings_upnp_server_title">UPnP server and networking</string>
     <string name="settings_local_server_activation_title">local server state</string>
     <string name="settings_local_server_started">local server is started</string>
     <string name="settings_local_server_stopped">local server is stopped</string>
@@ -141,8 +141,8 @@
     <string name="settings_browse_swipe_off">Change tabs on touch</string>
     <string name="settings_browse_swipe_on">Change tabs on swipe and touch</string>
     <string name="settings_browse_swipe_title">Swipe on browse</string>
-    <string name="settings_local_server_if_filter_key" translatable="false">settings_local_server_if_filter_key</string>
-    <string name="settings_local_server_if_filter_names">black listed interfaces for ip address retrieval</string>
+    <string name="settings_upnp_if_filter_key" translatable="false">settings_upnp_if_filter_key</string>
+    <string name="settings_upnp_if_filter_names">blacklisted interfaces for UPnP network interface discovery</string>
     <string name="settings_media_paths_pref_key" translatable="false">settings_media_paths_pref_key</string>
     <string name="settings_shutdown_timer" translatable="false">settings_local_server_shutdown_timer_chkbx</string>
     <string name="settings_saf_tree_uris_pref_key" translatable="false">settings_saf_tree_uris_pref_key</string>
