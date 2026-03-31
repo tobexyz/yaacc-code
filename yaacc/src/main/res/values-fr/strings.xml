@@ -38,6 +38,7 @@
     <string name="error_upnp_generic">Une erreur inconnue s\'est produite lors de la navigation</string>
     <string name="error_upnp_specific">L\'erreur suivante s\'est produite :</string>
     <string name="error_no_receiver_device_found">Aucun appareil récepteur trouvé</string>
+    <string name="error_no_receiver_selected">Aucun périphérique récepteur n\'est sélectionné. Veuillez d\'abord sélectionner un récepteur dans l\'onglet Récepteur.</string>
     <string name="error_no_activity_found">Aucune activité trouvée pour la lecture du type MIME \'%1$s\'</string>
     <string name="image_viewer_settings_duration">Durée du séjour photo</string>
     <string name="yaacc_menu_settings">Paramètres YAACC</string>
@@ -47,6 +48,7 @@
     <string name="stop">arrêt</string>
     <string name="pause">pause</string>
     <string name="previous">précédent</string>
+    <string name="image_viewer_content_description">Image</string>
     <string name="next">suivant</string>
     <string name="exit">Sortie</string>
     <string name="title_activity_music_player">Lecteur de musique YAACC</string>

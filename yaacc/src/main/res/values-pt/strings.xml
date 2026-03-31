@@ -39,6 +39,7 @@
     <string name="error_upnp_generic">Ocorreu um erro desconhecido durante a navegação</string>
     <string name="error_upnp_specific">Ocorreu o seguinte erro:</string>
     <string name="error_no_receiver_device_found">Nenhum dispositivo receptor encontrado</string>
+    <string name="error_no_receiver_selected">Nenhum dispositivo recetor selecionado. Selecione primeiro um recetor no separador Receptor.</string>
     <string name="error_no_activity_found">Nenhuma atividade encontrada para jogar o tipo MIME \'%1$s\'</string>
     <string name="image_viewer_settings_duration">Duração da permanência da imagem</string>
     <string name="yaacc_menu_settings">Configurações YAACC</string>
@@ -48,6 +49,7 @@
     <string name="stop">parar</string>
     <string name="pause">pausa</string>
     <string name="previous">anterior</string>
+    <string name="image_viewer_content_description">Imagem</string>
     <string name="next">próximo</string>
     <string name="exit">Saída</string>
     <string name="title_activity_music_player">Leitor de música YAACC</string>

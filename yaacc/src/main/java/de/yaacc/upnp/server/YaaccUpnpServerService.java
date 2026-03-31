@@ -97,6 +97,7 @@ import de.yaacc.upnp.server.media.ScreenCastCaptureService;
 import de.yaacc.upnp.server.media.SystemAudioCaptureService;
 import de.yaacc.upnp.server.renderingcontrol.YaaccAudioRenderingControlService;
 import de.yaacc.util.InterfaceResolutionHelper;
+import de.yaacc.util.InterfaceResolutionHelper.InterfaceHolder;
 import de.yaacc.util.NotificationId;
 import de.yaacc.util.SAFCacheManager;
 import de.yaacc.util.YaaccLogger;
@@ -230,6 +231,25 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         // App is active when service starts
         networkDeviceListener.setAppInForeground(true);
 
+        // Trigger UPnP discovery when service starts
+        YaaccLogger.d(getClass().getName(), "Triggering UPnP discovery on service start");
+        if (networkDeviceListener.isInitalized()) {
+            new Thread(() -> {
+                try {
+                    Thread.sleep(1000); // Wait a bit for network to stabilize
+                    UpnpClient client = ((Yaacc) getApplicationContext()).getUpnpClient();
+                    if (client != null && client.isInitialized()) {
+                        client.searchDevices();
+                        YaaccLogger.d(getClass().getName(), "UPnP discovery triggered");
+                    }
+                } catch (Exception e) {
+                    YaaccLogger.e(getClass().getName(), "Error triggering UPnP discovery", e);
+                }
+            }).start();
+        } else {
+            YaaccLogger.w(getClass().getName(), "NetworkDeviceListener not initialized, discovery will be triggered when network becomes available");
+        }
+
         locaDeviceUuid = preferences.getString(getApplicationContext().getString(R.string.settings_local_device_uuid_key), null);
         if (locaDeviceUuid == null) {
             locaDeviceUuid = UUID.randomUUID().toString();
@@ -330,6 +350,18 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
             }
         } else {
             statusBuilder.append("⚠ HTTP");
+        }
+
+        // Network interface info
+        if (networkDeviceListener != null && networkDeviceListener.isInitalized()) {
+            try {
+                InterfaceHolder iface = InterfaceResolutionHelper.getNetworkInterface(this);
+                if (iface.inetAddress != null && iface.networkInterface != null) {
+                    statusBuilder.append(" | ").append(iface.networkInterface.getName()).append(":").append(iface.inetAddress.getHostAddress());
+                }
+            } catch (Exception e) {
+                YaaccLogger.d(getClass().getName(), "Failed to get network interface info", e);
+            }
         }
 
         // Server/Renderer status
@@ -565,7 +597,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
                 // Register BOTH devices as separate top-level devices
                 registry.addDevice(serverDevice);
                 registry.addDevice(rendererDevice);
-                
+
                 localDevice = serverDevice; // Track server device for reference
             } else {
                 // Single device type
@@ -1259,7 +1291,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
             return;
         }
 
-        android.media.projection.MediaProjection projection = MediaProjectionHelper.getMediaProjection();
+        MediaProjection projection = MediaProjectionHelper.getMediaProjection();
 
         if (projection == null) {
             YaaccLogger.w(getClass().getName(), "Cannot start combined capture: no MediaProjection");

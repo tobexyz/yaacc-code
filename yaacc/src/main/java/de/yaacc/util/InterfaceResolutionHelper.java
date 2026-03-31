@@ -103,7 +103,7 @@ public class InterfaceResolutionHelper {
     public static InterfaceHolder getNetworkInterface(Context context) {
         InterfaceHolder result = new InterfaceHolder();
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
-        List<String> interfaces = new ArrayList<>(List.of(preferences.getString(context.getString(R.string.settings_local_server_if_filter_key), "lo,dummy,rmnet,ccmni").split(",")));
+        List<String> interfaces = new ArrayList<>(List.of(preferences.getString(context.getString(R.string.settings_upnp_if_filter_key), "lo,dummy,rmnet,ccmni,tun").split(",")));
         interfaces.remove(""); //remove empty string, if there, otherwise we got into trouble finding an network interface in code  below
         try {
             for (Enumeration<NetworkInterface> networkInterfaces = NetworkInterface.getNetworkInterfaces(); networkInterfaces.hasMoreElements(); ) {

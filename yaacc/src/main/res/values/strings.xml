@@ -133,4 +133,6 @@
     <string name="paused">PAUSED</string>
     <string name="stopped">STOPPED</string>
     <string name="no_media">NO MEDIA</string>
+    <string name="settings_local_server_if_filter_names">interfaces blacklisted for obtaining IP addresses</string>
+    <string name="settings_local_server_title">local server configuration</string>
 </resources>

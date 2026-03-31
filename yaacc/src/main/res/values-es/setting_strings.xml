@@ -57,6 +57,7 @@
     <string name="settings_browse_load_threads_summ">Configure la cantidad de subprocesos utilizados para cargar contenido desde el servidor UPnP. Más subprocesos provocan una carga más rápida pero aumentan la posibilidad de errores. Los cambios entran en vigor después del reinicio de yaacc.</string>
     <string name="settings_no_content_found">no se encontró contenido para navegar</string>
     <string name="settings_local_server_title">configuración del servidor local</string>
+    <string name="settings_upnp_server_title">Servidor UPnP y redes</string>
     <string name="settings_local_server_activation_title">estado del servidor local</string>
     <string name="settings_local_server_started">se inicia el servidor local</string>
     <string name="settings_local_server_stopped">el servidor local está detenido</string>
@@ -111,4 +112,5 @@
     <string name="settings_local_server_serve_screen_cast_title">transmisión de pantalla</string>
     <string name="settings_local_server_serve_screen_cast_off">La transmisión de pantalla está deshabilitada</string>
     <string name="settings_local_server_serve_screen_cast_on">La transmisión de pantalla está habilitada</string>
+    <string name="settings_upnp_if_filter_names">Interfaces incluidas en la lista negra para la detección de interfaces de red UPnP</string>
 </resources>
