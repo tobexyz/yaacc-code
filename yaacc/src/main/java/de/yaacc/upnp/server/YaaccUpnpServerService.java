@@ -97,7 +97,6 @@ import de.yaacc.upnp.server.media.ScreenCastCaptureService;
 import de.yaacc.upnp.server.media.SystemAudioCaptureService;
 import de.yaacc.upnp.server.renderingcontrol.YaaccAudioRenderingControlService;
 import de.yaacc.util.InterfaceResolutionHelper;
-import de.yaacc.util.InterfaceResolutionHelper.InterfaceHolder;
 import de.yaacc.util.NotificationId;
 import de.yaacc.util.SAFCacheManager;
 import de.yaacc.util.YaaccLogger;
@@ -225,7 +224,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
             registry = new RegistryImpl();
         }
         if (networkDeviceListener == null) {
-            networkDeviceListener = new NetworkDeviceListener(getApplicationContext(), registry);
+            networkDeviceListener = new NetworkDeviceListener(getApplicationContext(), registry, this);
             registry.setUpnpProtocolHandler(networkDeviceListener.getUpnpProtocolHandler());
         }
         // App is active when service starts
@@ -325,8 +324,8 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         YaaccLogger.d(getClass().getName(), "Task removed - app backgrounded");
         if (networkDeviceListener != null) {
             networkDeviceListener.setAppInForeground(false);
-            updateNotification(); // WiFi lock may have changed
         }
+        updateNotification(); // WiFi lock may have changed
     }
 
     /**
@@ -355,13 +354,17 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         // Network interface info
         if (networkDeviceListener != null && networkDeviceListener.isInitalized()) {
             try {
-                InterfaceHolder iface = InterfaceResolutionHelper.getNetworkInterface(this);
-                if (iface.inetAddress != null && iface.networkInterface != null) {
-                    statusBuilder.append(" | ").append(iface.networkInterface.getName()).append(":").append(iface.inetAddress.getHostAddress());
+                String[] iface = InterfaceResolutionHelper.getIfAndIpAddress(this);
+                if (!"0.0.0.0".equals(iface[0])) {
+                    statusBuilder.append(" | ").append(iface[1]).append(":").append(iface[0]);
+                } else {
+                    statusBuilder.append(" | No usable network interface found");
                 }
             } catch (Exception e) {
                 YaaccLogger.d(getClass().getName(), "Failed to get network interface info", e);
             }
+        } else {
+            statusBuilder.append(" | No usable network interface found");
         }
 
         // Server/Renderer status
@@ -411,7 +414,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
     /**
      * Update notification with current server status.
      */
-    private void updateNotification() {
+    public void updateNotification() {
         showNotification();
     }
 
