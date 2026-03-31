@@ -97,6 +97,7 @@ import de.yaacc.upnp.server.media.ScreenCastCaptureService;
 import de.yaacc.upnp.server.media.SystemAudioCaptureService;
 import de.yaacc.upnp.server.renderingcontrol.YaaccAudioRenderingControlService;
 import de.yaacc.util.InterfaceResolutionHelper;
+import de.yaacc.util.InterfaceResolutionHelper.InterfaceHolder;
 import de.yaacc.util.NotificationId;
 import de.yaacc.util.SAFCacheManager;
 import de.yaacc.util.YaaccLogger;
@@ -229,8 +230,8 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         }
         // App is active when service starts
         networkDeviceListener.setAppInForeground(true);
-        
-        // Trigger UPnP discovery when service starts (fixes Android 9 compatibility)
+
+        // Trigger UPnP discovery when service starts
         YaaccLogger.d(getClass().getName(), "Triggering UPnP discovery on service start");
         if (networkDeviceListener.isInitalized()) {
             new Thread(() -> {
@@ -354,8 +355,8 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         // Network interface info
         if (networkDeviceListener != null && networkDeviceListener.isInitalized()) {
             try {
-                de.yaacc.util.InterfaceResolutionHelper.InterfaceHolder iface = de.yaacc.util.InterfaceResolutionHelper.getNetworkInterface(this);
-                if (iface.inetAddress != null) {
+                InterfaceHolder iface = InterfaceResolutionHelper.getNetworkInterface(this);
+                if (iface.inetAddress != null && iface.networkInterface != null) {
                     statusBuilder.append(" | ").append(iface.networkInterface.getName()).append(":").append(iface.inetAddress.getHostAddress());
                 }
             } catch (Exception e) {
@@ -596,7 +597,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
                 // Register BOTH devices as separate top-level devices
                 registry.addDevice(serverDevice);
                 registry.addDevice(rendererDevice);
-                
+
                 localDevice = serverDevice; // Track server device for reference
             } else {
                 // Single device type
@@ -1290,7 +1291,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
             return;
         }
 
-        android.media.projection.MediaProjection projection = MediaProjectionHelper.getMediaProjection();
+        MediaProjection projection = MediaProjectionHelper.getMediaProjection();
 
         if (projection == null) {
             YaaccLogger.w(getClass().getName(), "Cannot start combined capture: no MediaProjection");

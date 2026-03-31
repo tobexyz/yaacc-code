@@ -57,6 +57,7 @@
     <string name="settings_browse_load_threads_summ">Configure o número de threads usados para carregar conteúdo do servidor UPnP. Mais threads causam um carregamento mais rápido, mas aumentam a possibilidade de erros. As alterações entram em vigor após a reinicialização do yaacc.</string>
     <string name="settings_no_content_found">nenhum conteúdo encontrado para navegar</string>
     <string name="settings_local_server_title">configuração do servidor local</string>
+    <string name="settings_upnp_server_title">Servidor UPnP e redes</string>
     <string name="settings_local_server_activation_title">estado do servidor local</string>
     <string name="settings_local_server_started">o servidor local está iniciado</string>
     <string name="settings_local_server_stopped">o servidor local está parado</string>
@@ -111,4 +112,5 @@
     <string name="settings_local_server_serve_screen_cast_title">fluxo de transmissão do ecrã</string>
     <string name="settings_local_server_serve_screen_cast_off">A transmissão de vídeo do ecrã está desativada.</string>
     <string name="settings_local_server_serve_screen_cast_on">A transmissão de vídeo do ecrã está ativada.</string>
+    <string name="settings_upnp_if_filter_names">Interfaces bloqueadas para descoberta de interfaces de rede UPnP</string>
 </resources>

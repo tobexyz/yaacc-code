@@ -38,6 +38,7 @@
     <string name="error_upnp_generic">浏览时发生未知错误</string>
     <string name="error_upnp_specific">出现下列错误：</string>
     <string name="error_no_receiver_device_found">未找到接收设备</string>
+    <string name="error_no_receiver_selected">未選擇接收器設備。請先在「接收器」標籤中選擇接收器。</string>
     <string name="error_no_activity_found">未找到播放 mimetype \'%1$s\' 的活动</string>
     <string name="image_viewer_settings_duration">图片停留时长</string>
     <string name="yaacc_menu_settings">YAACC 设置</string>
@@ -47,6 +48,7 @@
     <string name="stop">停止</string>
     <string name="pause">暂停</string>
     <string name="previous">上一个</string>
+    <string name="image_viewer_content_description">图像</string>
     <string name="next">下一个</string>
     <string name="exit">退出</string>
     <string name="title_activity_music_player">YAACC 音乐播放器</string>

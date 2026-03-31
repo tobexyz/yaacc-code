@@ -22,7 +22,6 @@ import static com.google.android.material.timepicker.MaterialTimePicker.INPUT_MO
 import android.content.SharedPreferences;
 import android.graphics.drawable.Drawable;
 import android.os.Bundle;
-import de.yaacc.util.YaaccLogger;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -53,6 +52,7 @@ import de.yaacc.upnp.UpnpClientListener;
 import de.yaacc.util.FormatHelper;
 import de.yaacc.util.ShutdownTimerListener;
 import de.yaacc.util.ThemeHelper;
+import de.yaacc.util.YaaccLogger;
 
 /**
  * Activity for browsing devices and folders. Represents the entrypoint for the whole application.
@@ -81,7 +81,7 @@ public class ServerListFragment extends Fragment implements
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        
+
         // Register callback for MediaProjection stop events
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
             de.yaacc.upnp.server.media.MediaProjectionHelper.setStopCallback(() -> {
@@ -90,17 +90,17 @@ public class ServerListFragment extends Fragment implements
                     getActivity().runOnUiThread(() -> {
                         android.content.SharedPreferences prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(requireContext());
                         prefs.edit()
-                            .putBoolean(getString(R.string.settings_local_server_serve_system_audio_chkbx), false)
-                            .putBoolean(getString(R.string.settings_local_server_serve_screen_cast_chkbx), false)
-                            .apply();
-                        
+                                .putBoolean(getString(R.string.settings_local_server_serve_system_audio_chkbx), false)
+                                .putBoolean(getString(R.string.settings_local_server_serve_screen_cast_chkbx), false)
+                                .apply();
+
                         de.yaacc.browser.BrowseDeviceAdapter.setAudioStreaming(false);
                         de.yaacc.browser.BrowseDeviceAdapter.setVideoStreaming(false);
-                        
+
                         if (bDeviceAdapter != null) {
                             bDeviceAdapter.notifyDataSetChanged();
                         }
-                        
+
                         YaaccLogger.i(getClass().getName(), "Streaming disabled - MediaProjection stopped");
                     });
                 }
@@ -192,7 +192,7 @@ public class ServerListFragment extends Fragment implements
     @Override
     public void onResume() {
         super.onResume();
-        // Trigger UPnP discovery to find new devices (fixes Android 9 compatibility)
+        // Trigger UPnP discovery to find new devices
         if (upnpClient != null && upnpClient.isInitialized()) {
             upnpClient.searchDevices();
         }
@@ -349,21 +349,21 @@ public class ServerListFragment extends Fragment implements
     public void onTick(long millisUntilFinished) {
         setShutdownTimerRemainingTime(FormatHelper.parseMillisToTimeStringTo(millisUntilFinished));
     }
-    
+
     @Override
     public void onActivityResult(int requestCode, int resultCode, android.content.Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        
+
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q &&
-            requestCode == de.yaacc.upnp.server.media.MediaProjectionHelper.REQUEST_CODE_MEDIA_PROJECTION) {
-            
+                requestCode == de.yaacc.upnp.server.media.MediaProjectionHelper.REQUEST_CODE_MEDIA_PROJECTION) {
+
             if (de.yaacc.upnp.server.media.MediaProjectionHelper.handlePermissionResult(requireContext(), resultCode, data)) {
                 // Permission granted - enable only the button that requested it
                 YaaccLogger.i(getClass().getName(), "MediaProjection permission granted");
-                
+
                 android.content.SharedPreferences prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(requireContext());
                 android.content.SharedPreferences.Editor editor = prefs.edit();
-                
+
                 // Enable only the button that requested permission
                 if (de.yaacc.browser.BrowseDeviceAdapter.isPendingAudioRequest()) {
                     editor.putBoolean(getString(R.string.settings_local_server_serve_system_audio_chkbx), true);
@@ -374,10 +374,10 @@ public class ServerListFragment extends Fragment implements
                     de.yaacc.browser.BrowseDeviceAdapter.setVideoStreaming(true);
                 }
                 editor.apply();
-                
+
                 // Clear pending flags
                 de.yaacc.browser.BrowseDeviceAdapter.clearPendingRequests();
-                
+
                 // Refresh the adapter to update button states
                 if (bDeviceAdapter != null) {
                     bDeviceAdapter.notifyDataSetChanged();
@@ -385,15 +385,15 @@ public class ServerListFragment extends Fragment implements
             } else {
                 // Permission denied - disable both and clear pending
                 YaaccLogger.w(getClass().getName(), "MediaProjection permission denied");
-                
+
                 de.yaacc.browser.BrowseDeviceAdapter.clearPendingRequests();
-                
+
                 android.content.SharedPreferences prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(requireContext());
                 prefs.edit()
-                    .putBoolean(getString(R.string.settings_local_server_serve_system_audio_chkbx), false)
-                    .putBoolean(getString(R.string.settings_local_server_serve_screen_cast_chkbx), false)
-                    .apply();
-                
+                        .putBoolean(getString(R.string.settings_local_server_serve_system_audio_chkbx), false)
+                        .putBoolean(getString(R.string.settings_local_server_serve_screen_cast_chkbx), false)
+                        .apply();
+
                 // Update adapter state
                 if (bDeviceAdapter != null) {
                     de.yaacc.browser.BrowseDeviceAdapter.setAudioStreaming(false);
