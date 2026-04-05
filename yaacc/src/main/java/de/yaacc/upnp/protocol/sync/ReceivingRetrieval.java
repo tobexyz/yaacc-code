@@ -101,6 +101,13 @@ public class ReceivingRetrieval extends ReceivingSync<StreamRequestMessage, Stre
             }
         }
 
+        // HEAD requests don't need content, just return headers
+        if (getInputMessage().getOperation().getMethod().equals(org.fourthline.cling.model.message.UpnpRequest.Method.HEAD)) {
+            StreamResponseMessage response = new StreamResponseMessage(UpnpResponse.Status.OK);
+            response.getHeaders().add(UpnpHeader.Type.SERVER, new ServerHeader());
+            return response;
+        }
+
         return createResponse(requestedURI, foundResource);
     }
 

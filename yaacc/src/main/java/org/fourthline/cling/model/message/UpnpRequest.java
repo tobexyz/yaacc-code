@@ -16,11 +16,11 @@
 package org.fourthline.cling.model.message;
 
 import java.net.URI;
-import java.net.URL;
 import java.net.URISyntaxException;
+import java.net.URL;
 import java.util.HashMap;
-import java.util.Map;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * A request message, with a method (GET, POST, NOTIFY, etc).
@@ -32,6 +32,7 @@ public class UpnpRequest extends UpnpOperation {
     public static enum Method {
 
         GET("GET"),
+        HEAD("HEAD"),
         POST("POST"),
         NOTIFY("NOTIFY"),
         MSEARCH("M-SEARCH"),
@@ -57,7 +58,7 @@ public class UpnpRequest extends UpnpOperation {
 
         public static Method getByHttpName(String httpName) {
             if (httpName == null) return UNKNOWN;
-        	Method m = byName.get(httpName.toUpperCase(Locale.ROOT));
+            Method m = byName.get(httpName.toUpperCase(Locale.ROOT));
             return m != null ? m : UNKNOWN;
         }
     }
