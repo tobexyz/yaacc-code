@@ -1,9 +1,7 @@
 package de.yaacc.upnp.server.udp;
 
 import android.content.Context;
-import de.yaacc.util.YaaccLogger;
 
-import de.yaacc.util.Exceptions;
 import org.fourthline.cling.model.UnsupportedDataException;
 import org.fourthline.cling.model.message.IncomingDatagramMessage;
 import org.fourthline.cling.model.message.OutgoingDatagramMessage;
@@ -18,7 +16,9 @@ import java.util.concurrent.Executors;
 import de.yaacc.upnp.protocol.ProtocolCreationException;
 import de.yaacc.upnp.protocol.ReceivingAsync;
 import de.yaacc.upnp.protocol.UpnpProtocolHandler;
+import de.yaacc.util.Exceptions;
 import de.yaacc.util.InterfaceResolutionHelper;
+import de.yaacc.util.YaaccLogger;
 
 public class UdpTransiver {
 
@@ -46,15 +46,13 @@ public class UdpTransiver {
     private void initSocket() {
         InterfaceResolutionHelper.InterfaceHolder usableInterface = InterfaceResolutionHelper.getNetworkInterface(context);
         try {
-
-            // TODO: UPNP VIOLATION: The spec does not prohibit using the 1900 port here again, however, the
-            // Netgear ReadyNAS miniDLNA implementation will no longer answer if it has to send search response
-            // back via UDP unicast to port 1900... so we use an ephemeral port
             YaaccLogger.v(getClass().getName(), "Creating bound socket (for datagram input/output) on: " + usableInterface.inetAddress);
             InetSocketAddress localAddress = new InetSocketAddress(usableInterface.inetAddress, 0);
             socket = new MulticastSocket(localAddress);
             socket.setTimeToLive(TTL);
             socket.setReceiveBufferSize(262144); // Keep a backlog of incoming datagrams if we are not fast enough
+            socket.setReuseAddress(true);
+
             YaaccLogger.v(getClass().getName(), "Socket created and bound to: " + socket.getLocalSocketAddress() + " on interface: " + usableInterface.networkInterface.getDisplayName());
         } catch (Exception ex) {
             throw new IllegalStateException("Could not initialize " + getClass().getSimpleName() + ": " + ex);

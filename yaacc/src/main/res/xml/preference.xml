@@ -111,7 +111,7 @@
             android:key="@string/image_viewer_settings_duration_key"
             android:title="@string/image_viewer_settings_duration" />
     </PreferenceCategory>
-    <PreferenceCategory android:title="@string/settings_local_server_title">
+    <PreferenceCategory android:title="@string/settings_upnp_server_title">
         <CheckBoxPreference
             android:key="@string/settings_local_server_chkbx"
             android:title="@string/settings_local_server_activation_title"
@@ -183,9 +183,9 @@
             android:key="@string/settings_local_server_name_key"
             android:title="@string/settings_local_server_name" />
         <EditTextPreference
-            android:key="@string/settings_local_server_if_filter_key"
-            android:title="@string/settings_local_server_if_filter_names"
-            android:defaultValue="lo,dummy,rmnet,ccmni" />
+            android:key="@string/settings_upnp_if_filter_key"
+            android:title="@string/settings_upnp_if_filter_names"
+            android:defaultValue="lo,dummy,rmnet,ccmni,tun" />
         <EditTextPreference
             android:enabled="false"
             app:isPreferenceVisible="false"

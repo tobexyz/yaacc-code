@@ -57,6 +57,7 @@
     <string name="settings_browse_load_threads_summ">配置用于加载来自 UPnP 服务器内容的线程数。线程数多加载速度快，但增加错误的可能性。重启 yaacc 后更改生效。</string>
     <string name="settings_no_content_found">未找到浏览内容</string>
     <string name="settings_local_server_title">本地服务器配置</string>
+    <string name="settings_upnp_server_title">UPnP 服务器和网络</string>
     <string name="settings_local_server_activation_title">本地服务器状态</string>
     <string name="settings_local_server_started">已启动本地服务器</string>
     <string name="settings_local_server_stopped">本地服务器已停止</string>
@@ -111,4 +112,5 @@
     <string name="settings_local_server_serve_screen_cast_title">屏幕投射流</string>
     <string name="settings_local_server_serve_screen_cast_off">屏幕投射流已禁用</string>
     <string name="settings_local_server_serve_screen_cast_on">屏幕投射流已启用</string>
+    <string name="settings_upnp_if_filter_names">UPnP 網路介面發現的黑名單接口</string>
 </resources>

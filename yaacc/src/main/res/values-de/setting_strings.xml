@@ -42,6 +42,7 @@
     <string name="settings_default_duration">Standardanzeigedauer</string>
     <string name="settings_silence_duration">Pausendauer</string>
     <string name="settings_local_server_title">Lokale Serverkonfiguration</string>
+    <string name="settings_upnp_server_title">UPnP-Server und Netzwerk</string>
     <string name="settings_local_server_activation_title">Lokaler Serverstatus</string>
     <string name="settings_local_server_started">Lokaler server ist gestartet</string>
     <string name="settings_local_server_stopped">Lokaler server ist gestoppt</string>
@@ -111,4 +112,5 @@
     <string name="settings_local_server_serve_screen_cast_title">Screencast-Stream</string>
     <string name="settings_local_server_serve_screen_cast_off">Die Bildschirmübertragung ist deaktiviert.</string>
     <string name="settings_local_server_serve_screen_cast_on">Bildschirmübertragung ist aktiviert</string>
+    <string name="settings_upnp_if_filter_names">Sperrliste für die UPnP-Netzwerkschnittstellenerkennung</string>
 </resources>

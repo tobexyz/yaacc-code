@@ -20,7 +20,6 @@ package de.yaacc.util;
 
 import android.content.Context;
 import android.content.SharedPreferences;
-import de.yaacc.util.YaaccLogger;
 
 import androidx.preference.PreferenceManager;
 
@@ -91,8 +90,13 @@ public class InterfaceResolutionHelper {
         String hostAddress = null;
         String[] result = new String[2];
         InterfaceHolder useableInterface = getNetworkInterface(context);
+        if (useableInterface.inetAddress == null || useableInterface.networkInterface == null) {
+            // maybe wifi is off we have to use the loopback device
+            result[0] = "0.0.0.0";
+            result[1] = "lo";
+            return result;
+        }
         hostAddress = useableInterface.inetAddress.getHostAddress();
-
         // maybe wifi is off we have to use the loopback device
         hostAddress = hostAddress == null ? "0.0.0.0" : hostAddress;
         result[0] = hostAddress;
@@ -103,7 +107,7 @@ public class InterfaceResolutionHelper {
     public static InterfaceHolder getNetworkInterface(Context context) {
         InterfaceHolder result = new InterfaceHolder();
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
-        List<String> interfaces = new ArrayList<>(List.of(preferences.getString(context.getString(R.string.settings_local_server_if_filter_key), "lo,dummy,rmnet,ccmni").split(",")));
+        List<String> interfaces = new ArrayList<>(List.of(preferences.getString(context.getString(R.string.settings_upnp_if_filter_key), "lo,dummy,rmnet,ccmni,tun").split(",")));
         interfaces.remove(""); //remove empty string, if there, otherwise we got into trouble finding an network interface in code  below
         try {
             for (Enumeration<NetworkInterface> networkInterfaces = NetworkInterface.getNetworkInterfaces(); networkInterfaces.hasMoreElements(); ) {

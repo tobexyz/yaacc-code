@@ -162,7 +162,8 @@ public class UpnpProtocolHandler {
     public ReceivingSync createReceivingSync(StreamRequestMessage message) throws ProtocolCreationException {
         YaaccLogger.v(getClass().getName(), "Creating protocol for incoming synchronous: " + message);
 
-        if (message.getOperation().getMethod().equals(UpnpRequest.Method.GET)) {
+        if (message.getOperation().getMethod().equals(UpnpRequest.Method.GET) ||
+                message.getOperation().getMethod().equals(UpnpRequest.Method.HEAD)) {
 
             return createReceivingRetrieval(message);
 

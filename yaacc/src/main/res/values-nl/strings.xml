@@ -38,6 +38,7 @@
     <string name="error_upnp_generic">Er is een onbekende fout opgetreden tijdens het browsen</string>
     <string name="error_upnp_specific">De volgende fout is opgetreden:</string>
     <string name="error_no_receiver_device_found">Geen ontvangstapparaat gevonden</string>
+    <string name="error_no_receiver_selected">Er is geen ontvanger geselecteerd. Selecteer eerst een ontvanger in het tabblad Ontvanger.</string>
     <string name="error_no_activity_found">Geen activiteit gevonden voor het spelen van mimetype \'%1$s\'</string>
     <string name="image_viewer_settings_duration">Duur van het beeldverblijf</string>
     <string name="yaacc_menu_settings">YAACC-instellingen</string>
@@ -47,6 +48,7 @@
     <string name="stop">stop</string>
     <string name="pause">pauze</string>
     <string name="previous">vorig</string>
+    <string name="image_viewer_content_description">Afbeelding</string>
     <string name="next">volgende</string>
     <string name="exit">Uitgang</string>
     <string name="title_activity_music_player">YAACC-muziekspeler</string>
