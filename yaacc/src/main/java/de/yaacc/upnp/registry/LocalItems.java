@@ -52,6 +52,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import de.yaacc.upnp.protocol.SendingAsync;
+import de.yaacc.upnp.protocol.UpnpProtocolHandler;
 import de.yaacc.util.YaaccLogger;
 
 /**
@@ -321,12 +322,18 @@ class LocalItems extends RegistryItems<LocalDevice, LocalGENASubscription> {
                 } catch (InterruptedException ex) {
                     YaaccLogger.e(getClass().getName(), "Background execution interrupted: " + ex.getMessage());
                 }
-                registry.getUpnpProtocolHandler().createSendingNotificationAlive(localDevice).run();
+                UpnpProtocolHandler handler = registry.getUpnpProtocolHandler();
+                if (handler != null) {
+                    handler.createSendingNotificationAlive(localDevice).run();
+                }
             }
         });
     }
 
     protected void advertiseByebye(final LocalDevice localDevice, boolean asynchronous) {
+        if (registry.getUpnpProtocolHandler() == null) {
+            return;
+        }
         final SendingAsync prot = registry.getUpnpProtocolHandler().createSendingNotificationByebye(localDevice);
         if (asynchronous) {
             registry.executeAsyncProtocol(prot);

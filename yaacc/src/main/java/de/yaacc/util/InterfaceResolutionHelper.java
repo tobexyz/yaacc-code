@@ -20,7 +20,6 @@ package de.yaacc.util;
 
 import android.content.Context;
 import android.content.SharedPreferences;
-import de.yaacc.util.YaaccLogger;
 
 import androidx.preference.PreferenceManager;
 
@@ -91,8 +90,13 @@ public class InterfaceResolutionHelper {
         String hostAddress = null;
         String[] result = new String[2];
         InterfaceHolder useableInterface = getNetworkInterface(context);
+        if (useableInterface.inetAddress == null || useableInterface.networkInterface == null) {
+            // maybe wifi is off we have to use the loopback device
+            result[0] = "0.0.0.0";
+            result[1] = "lo";
+            return result;
+        }
         hostAddress = useableInterface.inetAddress.getHostAddress();
-
         // maybe wifi is off we have to use the loopback device
         hostAddress = hostAddress == null ? "0.0.0.0" : hostAddress;
         result[0] = hostAddress;

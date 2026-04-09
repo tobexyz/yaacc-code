@@ -29,18 +29,18 @@ import androidx.annotation.NonNull;
 import androidx.preference.PreferenceManager;
 
 import de.yaacc.R;
-import de.yaacc.util.YaaccLogger;
-
 import de.yaacc.upnp.protocol.UpnpProtocolHandler;
 import de.yaacc.upnp.registry.Registry;
 import de.yaacc.upnp.server.http.HttpRequestSender;
 import de.yaacc.upnp.server.udp.MulticastReceiver;
 import de.yaacc.upnp.server.udp.UdpTransiver;
+import de.yaacc.util.YaaccLogger;
 
 public class NetworkDeviceListener {
     private final Context context;
     private final WifiManager wifiManager;
     private final Registry registry;
+    private final YaaccUpnpServerService service;
     private HttpRequestSender httpRequestSender;
     private WifiManager.MulticastLock multicastLock;
     private WifiManager.WifiLock wifiLock;
@@ -54,7 +54,8 @@ public class NetworkDeviceListener {
     private UpnpProtocolHandler upnpProtocolHandler;
 
 
-    public NetworkDeviceListener(Context context, Registry registry) throws IllegalStateException {
+    public NetworkDeviceListener(Context context, Registry registry, YaaccUpnpServerService service) throws IllegalStateException {
+        this.service = service;
         this.context = context;
         this.registry = registry;
         this.wifiManager = ((WifiManager) context.getSystemService(Context.WIFI_SERVICE));
@@ -80,6 +81,15 @@ public class NetworkDeviceListener {
                         YaaccLogger.d(getClass().getName(), String.format("Network disabled %s", currentNetwork));
                     }
                     currentNetwork = network;
+                    if (multicastReceiver == null) {
+                        multicastReceiver = new MulticastReceiver();
+                    }
+                    if (udpTransiver == null) {
+                        udpTransiver = new UdpTransiver();
+                    }
+                    if (httpRequestSender == null) {
+                        httpRequestSender = new HttpRequestSender();
+                    }
                     enable();
                     YaaccLogger.d(getClass().getName(), String.format("Network enabled %s", currentNetwork));
                 }
@@ -113,6 +123,7 @@ public class NetworkDeviceListener {
         multicastReceiver.execute();
         udpTransiver.init(context, upnpProtocolHandler);
         udpTransiver.execute();
+        service.updateNotification();
     }
 
     public void disable() {
@@ -126,6 +137,7 @@ public class NetworkDeviceListener {
         upnpProtocolHandler = null;
         multicastReceiver.cancel();
         udpTransiver.cancel();
+        service.updateNotification();
     }
 
     private boolean isWifi() {
@@ -197,24 +209,24 @@ public class NetworkDeviceListener {
 
     private boolean shouldHoldWifiLock() {
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
-        
+
         // Hold lock if server enabled
         boolean serverEnabled = prefs.getBoolean(context.getString(R.string.settings_local_server_chkbx), false);
-        
+
         // Hold lock if renderer enabled
         boolean rendererEnabled = prefs.getBoolean(context.getString(R.string.settings_local_server_receiver_chkbx), false);
-        
+
         // Hold lock if app in foreground (for discovery)
         boolean needsForDiscovery = isAppInForeground;
-        
+
         boolean shouldHold = serverEnabled || rendererEnabled || needsForDiscovery;
-        
-        YaaccLogger.d(getClass().getName(), 
-            "WiFi lock decision: server=" + serverEnabled + 
-            ", renderer=" + rendererEnabled + 
-            ", foreground=" + isAppInForeground + 
-            " -> " + (shouldHold ? "HOLD" : "RELEASE"));
-        
+
+        YaaccLogger.d(getClass().getName(),
+                "WiFi lock decision: server=" + serverEnabled +
+                        ", renderer=" + rendererEnabled +
+                        ", foreground=" + isAppInForeground +
+                        " -> " + (shouldHold ? "HOLD" : "RELEASE"));
+
         return shouldHold;
     }
 

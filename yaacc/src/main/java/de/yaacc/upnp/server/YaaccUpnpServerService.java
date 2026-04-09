@@ -97,7 +97,6 @@ import de.yaacc.upnp.server.media.ScreenCastCaptureService;
 import de.yaacc.upnp.server.media.SystemAudioCaptureService;
 import de.yaacc.upnp.server.renderingcontrol.YaaccAudioRenderingControlService;
 import de.yaacc.util.InterfaceResolutionHelper;
-import de.yaacc.util.InterfaceResolutionHelper.InterfaceHolder;
 import de.yaacc.util.NotificationId;
 import de.yaacc.util.SAFCacheManager;
 import de.yaacc.util.YaaccLogger;
@@ -225,7 +224,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
             registry = new RegistryImpl();
         }
         if (networkDeviceListener == null) {
-            networkDeviceListener = new NetworkDeviceListener(getApplicationContext(), registry);
+            networkDeviceListener = new NetworkDeviceListener(getApplicationContext(), registry, this);
             registry.setUpnpProtocolHandler(networkDeviceListener.getUpnpProtocolHandler());
         }
         // App is active when service starts
@@ -325,8 +324,8 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         YaaccLogger.d(getClass().getName(), "Task removed - app backgrounded");
         if (networkDeviceListener != null) {
             networkDeviceListener.setAppInForeground(false);
-            updateNotification(); // WiFi lock may have changed
         }
+        updateNotification(); // WiFi lock may have changed
     }
 
     /**
@@ -355,13 +354,17 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         // Network interface info
         if (networkDeviceListener != null && networkDeviceListener.isInitalized()) {
             try {
-                InterfaceHolder iface = InterfaceResolutionHelper.getNetworkInterface(this);
-                if (iface.inetAddress != null && iface.networkInterface != null) {
-                    statusBuilder.append(" | ").append(iface.networkInterface.getName()).append(":").append(iface.inetAddress.getHostAddress());
+                String[] iface = InterfaceResolutionHelper.getIfAndIpAddress(this);
+                if (!"0.0.0.0".equals(iface[0])) {
+                    statusBuilder.append(" | ").append(iface[1]).append(":").append(iface[0]);
+                } else {
+                    statusBuilder.append(" | No usable network interface found");
                 }
             } catch (Exception e) {
                 YaaccLogger.d(getClass().getName(), "Failed to get network interface info", e);
             }
+        } else {
+            statusBuilder.append(" | No usable network interface found");
         }
 
         // Server/Renderer status
@@ -411,7 +414,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
     /**
      * Update notification with current server status.
      */
-    private void updateNotification() {
+    public void updateNotification() {
         showNotification();
     }
 
@@ -436,6 +439,20 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
             }
 
             YaaccLogger.i(getClass().getName(), "initialize() called");
+
+            // Wait for NetworkDeviceListener to be initialized
+            if (!networkDeviceListener.isInitalized()) {
+                YaaccLogger.w(getClass().getName(), "NetworkDeviceListener not initialized, waiting...");
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                if (!networkDeviceListener.isInitalized()) {
+                    YaaccLogger.e(getClass().getName(), "NetworkDeviceListener still not initialized, aborting");
+                    return;
+                }
+            }
 
             // Try to create HTTP server with retries
             boolean serverStarted = false;
@@ -532,6 +549,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         if (localDevice != null && registry.getDevices().contains(localDevice)) {
             YaaccLogger.d(this.getClass().getName(), "Removing old device before creating new one");
             registry.removeDevice(localDevice);
+
         }
 
         try {
@@ -560,45 +578,32 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
 
             DeviceIdentity identity = new DeviceIdentity(new UDN(locaDeviceUuid));
 
-            // If both server and renderer are enabled, create TWO separate devices
+            // If both server and renderer are enabled, create nested device structure
             if (serverEnabled && providerEnabled && rendererEnabled) {
-                // Create MediaServer device
-                DeviceDetails serverDetails = new DeviceDetails(
-                        getLocalServerName() + " - Server",
-                        new ManufacturerDetails("yaacc.de", "https://www.yaacc.de"),
-                        new ModelDetails(getLocalServerName() + " - UpnP Server", "Free Android UPnP/DLNA, GNU GPL", versionName),
-                        URI.create("http://" + InterfaceResolutionHelper.getIpAddress(getApplicationContext()) + ":" + PORT)
-                );
-
-                LocalDevice serverDevice = new LocalDevice(
-                        new DeviceIdentity(new UDN(locaDeviceUuid + "-server")),
-                        new UDADeviceType("MediaServer"),
-                        serverDetails,
-                        createDeviceIcons(),
-                        createMediaServerServices()
-                );
-
-                // Create MediaRenderer device
-                DeviceDetails rendererDetails = new DeviceDetails(
-                        getLocalServerName() + " - Renderer",
-                        new ManufacturerDetails("yaacc.de", "https://www.yaacc.de"),
-                        new ModelDetails(getLocalServerName() + " - UpnP Renderer", "Free Android UPnP/DLNA, GNU GPL", versionName),
-                        URI.create("http://" + InterfaceResolutionHelper.getIpAddress(getApplicationContext()) + ":" + PORT)
-                );
-
+                // Create MediaServer as root with embedded MediaRenderer
                 LocalDevice rendererDevice = new LocalDevice(
                         new DeviceIdentity(new UDN(locaDeviceUuid + "-renderer")),
                         new UDADeviceType("MediaRenderer"),
-                        rendererDetails,
+                        yaaccDetails,
                         createDeviceIcons(),
                         createMediaRendererServices()
                 );
 
-                // Register BOTH devices as separate top-level devices
-                registry.addDevice(serverDevice);
-                registry.addDevice(rendererDevice);
+                List<LocalService<?>> serverServices = new ArrayList<>();
+                serverServices.addAll(Arrays.asList(createCoreServices()));
+                serverServices.addAll(Arrays.asList(createMediaServerServices()));
 
-                localDevice = serverDevice; // Track server device for reference
+                LocalDevice serverDevice = new LocalDevice(
+                        identity,
+                        new UDADeviceType("MediaServer"),
+                        yaaccDetails,
+                        createDeviceIcons(),
+                        serverServices.toArray(new LocalService<?>[0]),
+                        new LocalDevice[]{rendererDevice}
+                );
+
+                registry.addDevice(serverDevice);
+                localDevice = serverDevice;
             } else {
                 // Single device type
                 if (serverEnabled && providerEnabled) {
