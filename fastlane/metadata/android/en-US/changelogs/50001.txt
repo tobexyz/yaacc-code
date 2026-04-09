@@ -1,0 +1,3 @@
+Version 5.0.1
+- fixed crash on startup if no network device is found
+- fixed problems with device lookup  
