@@ -26,9 +26,15 @@ import androidx.preference.CheckBoxPreference;
 import androidx.preference.EditTextPreference;
 import androidx.preference.PreferenceCategory;
 import androidx.preference.PreferenceFragmentCompat;
+import androidx.preference.ListPreference;
 
 import org.fourthline.cling.model.meta.Device;
 import org.fourthline.cling.model.meta.RemoteDevice;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import de.yaacc.util.NetworkInterfaceManager;
 
 import java.util.Collection;
 
@@ -80,6 +86,32 @@ public class SettingsFragment extends PreferenceFragmentCompat {
 
         // Populate renderer settings dynamically
         populateRendererSettings();
+        
+        // Populate network interface list
+        populateNetworkInterfaceList();
+    }
+
+    private void populateNetworkInterfaceList() {
+        ListPreference interfacePreference = 
+            findPreference(getString(R.string.settings_upnp_selected_interface_key));
+        if (interfacePreference == null) return;
+
+        List<NetworkInterfaceManager.NetworkInterfaceInfo> interfaces = 
+            NetworkInterfaceManager.getAvailableInterfaces(requireContext());
+        
+        List<String> entries = new ArrayList<>();
+        List<String> values = new ArrayList<>();
+        
+        entries.add(getString(R.string.settings_upnp_selected_interface_none));
+        values.add("");
+        
+        for (NetworkInterfaceManager.NetworkInterfaceInfo info : interfaces) {
+            entries.add(info.displayName);
+            values.add(info.name);
+        }
+        
+        interfacePreference.setEntries(entries.toArray(new String[0]));
+        interfacePreference.setEntryValues(values.toArray(new String[0]));
     }
 
     private void populateRendererSettings() {

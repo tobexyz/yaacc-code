@@ -106,28 +106,55 @@ public class InterfaceResolutionHelper {
 
     public static InterfaceHolder getNetworkInterface(Context context) {
         InterfaceHolder result = new InterfaceHolder();
+        
+        // Get blacklist of interfaces to exclude
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
-        List<String> interfaces = new ArrayList<>(List.of(preferences.getString(context.getString(R.string.settings_upnp_if_filter_key), "lo,dummy,rmnet,ccmni,tun").split(",")));
-        interfaces.remove(""); //remove empty string, if there, otherwise we got into trouble finding an network interface in code  below
+        String blacklistStr = preferences.getString(context.getString(R.string.settings_upnp_if_filter_key), "lo,dummy,rmnet,ccmni,tun");
+        List<String> blacklist = new ArrayList<>(List.of(blacklistStr.split(",")));
+        blacklist.removeIf(String::isEmpty); // Remove empty strings
+        
+        // Get selected interface (if any)
+        String selectedInterface = NetworkInterfaceManager.getSelectedInterfaceName(context);
+        
         try {
-            for (Enumeration<NetworkInterface> networkInterfaces = NetworkInterface.getNetworkInterfaces(); networkInterfaces.hasMoreElements(); ) {
+            for (Enumeration<NetworkInterface> networkInterfaces = NetworkInterface.getNetworkInterfaces(); 
+                 networkInterfaces.hasMoreElements(); ) {
                 NetworkInterface networkInterface = networkInterfaces.nextElement();
-                if (interfaces.stream().filter(i -> networkInterface.getName().startsWith(i.trim())).collect(Collectors.toList()).isEmpty()) {
-                    for (Enumeration<InetAddress> inetAddresses = networkInterface.getInetAddresses(); inetAddresses.hasMoreElements(); ) {
-                        InetAddress inetAddress = inetAddresses.nextElement();
-                        if (!inetAddress.isLoopbackAddress() && inetAddress
-                                .getHostAddress() != null
-                                && IPV4_PATTERN.matcher(inetAddress
-                                .getHostAddress()).matches()) {
-                            result.inetAddress = inetAddress;
-                            result.networkInterface = networkInterface;
-                        }
+                
+                // Skip blacklisted interfaces
+                if (blacklist.stream().anyMatch(i -> networkInterface.getName().startsWith(i.trim()))) {
+                    continue;
+                }
+                
+                // If specific interface selected, only use that one
+                if (!selectedInterface.isEmpty() && !selectedInterface.equals(networkInterface.getName())) {
+                    continue;
+                }
+                
+                for (Enumeration<InetAddress> inetAddresses = networkInterface.getInetAddresses(); 
+                     inetAddresses.hasMoreElements(); ) {
+                    InetAddress inetAddress = inetAddresses.nextElement();
+                    if (!inetAddress.isLoopbackAddress() && 
+                        inetAddress.getHostAddress() != null && 
+                        IPV4_PATTERN.matcher(inetAddress.getHostAddress()).matches()) {
+                        result.inetAddress = inetAddress;
+                        result.networkInterface = networkInterface;
+                        return result; // Found match, return immediately
                     }
                 }
             }
         } catch (SocketException se) {
             YaaccLogger.d(InterfaceResolutionHelper.class.getName(),
                     "Error while retrieving network interfaces", se);
+        }
+        
+        // Fallback to loopback if nothing found
+        try {
+            result.networkInterface = NetworkInterface.getByName("lo");
+            result.inetAddress = InetAddress.getByName("127.0.0.1");
+        } catch (SocketException | java.net.UnknownHostException e) {
+            YaaccLogger.d(InterfaceResolutionHelper.class.getName(),
+                "Error getting loopback interface", e);
         }
         return result;
     }

@@ -193,6 +193,13 @@
             android:key="@string/settings_local_device_uuid_key" />
     </PreferenceCategory>
 
+        <ListPreference
+            android:key="@string/settings_upnp_selected_interface_key"
+            android:title="@string/settings_upnp_selected_interface_title"
+            android:summary="@string/settings_upnp_selected_interface_summary"
+            android:entries="@array/network_interface_entries"
+            android:entryValues="@array/network_interface_values"
+            android:defaultValue="" />
     <PreferenceCategory
         android:key="renderer_settings_category"
         android:title="@string/settings_category_renderer_settings">
