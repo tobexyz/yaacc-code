@@ -18,6 +18,7 @@
  */
 package de.yaacc.upnp.server;
 
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
@@ -1195,6 +1196,20 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
 
     public Registry getRegistry() {
         return registry;
+    }
+
+
+    public void onNetworkStateChange() {
+        YaaccLogger.d(getClass().getName(), "Network state change - restarting UPnP device");
+        if (isInitialized()) {
+            // Remove old device and create new one
+            if (localDevice != null) {
+                registry.removeDevice(localDevice);
+                localDevice = null;
+            }
+            createUpnpDevice();
+            updateNotification();
+        }
     }
 
     public boolean isInitialized() {
