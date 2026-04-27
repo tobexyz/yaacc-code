@@ -31,7 +31,8 @@ public class UpnpResponse extends UpnpOperation {
         PRECONDITION_FAILED(412, "Precondition Failed"),
         UNSUPPORTED_MEDIA_TYPE(415, "Unsupported Media Type"),
         INTERNAL_SERVER_ERROR(500, "Internal Server Error"),
-        NOT_IMPLEMENTED(501, "Not Implemented");
+        NOT_IMPLEMENTED(501, "Not Implemented"),
+        SERVICE_UNAVAILABLE(503, "Service Unavailable");
 
         private int statusCode;
         private String statusMsg;
