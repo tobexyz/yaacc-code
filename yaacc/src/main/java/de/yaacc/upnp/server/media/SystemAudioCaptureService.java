@@ -64,7 +64,11 @@ public class SystemAudioCaptureService {
 
         try {
             int bufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL_CONFIG, AUDIO_FORMAT);
-            bufferSize *= BUFFER_SIZE_MULTIPLIER; // Increase buffer for stability
+            if (bufferSize <= 0) {
+                YaaccLogger.e(getClass().getName(), "Invalid buffer size: " + bufferSize + ", using default");
+                bufferSize = 4096;
+            }
+            bufferSize *= BUFFER_SIZE_MULTIPLIER;
 
             AudioPlaybackCaptureConfiguration config = new AudioPlaybackCaptureConfiguration.Builder(mediaProjection)
                     .addMatchingUsage(android.media.AudioAttributes.USAGE_MEDIA)
@@ -82,8 +86,57 @@ public class SystemAudioCaptureService {
                     .setBufferSizeInBytes(bufferSize)
                     .build();
 
+            int state = audioRecord.getState();
+            if (state != AudioRecord.STATE_INITIALIZED) {
+                YaaccLogger.e(getClass().getName(), "AudioRecord not initialized, state: " + state);
+                // Try with smaller buffer as fallback
+                return tryStartWithSmallerBuffer(config, mediaProjection);
+            }
+
+            audioRecord.startRecording();
+            isCapturing = true;
+
+            captureThread = new Thread(this::captureLoop);
+            captureThread.setPriority(Thread.MAX_PRIORITY);
+            captureThread.start();
+
+            YaaccLogger.i(getClass().getName(), "Audio capture started, buffer: " + bufferSize);
+            return true;
+
+        } catch (IllegalArgumentException e) {
+            YaaccLogger.e(getClass().getName(), "AudioRecord creation failed (invalid parameters)", e);
+            stopCapture();
+            return false;
+        } catch (Exception e) {
+            YaaccLogger.e(getClass().getName(), "Failed to start audio capture", e);
+            stopCapture();
+            return false;
+        }
+    }
+
+    /**
+     * Fallback: try with smaller buffer if initial attempt fails.
+     */
+    private boolean tryStartWithSmallerBuffer(AudioPlaybackCaptureConfiguration config, MediaProjection mediaProjection) {
+        try {
+            YaaccLogger.w(getClass().getName(), "Trying with minimum buffer size...");
+            int minBuffer = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL_CONFIG, AUDIO_FORMAT);
+            if (minBuffer <= 0) {
+                minBuffer = 4096;
+            }
+
+            audioRecord = new AudioRecord.Builder()
+                    .setAudioPlaybackCaptureConfig(config)
+                    .setAudioFormat(new AudioFormat.Builder()
+                            .setEncoding(AUDIO_FORMAT)
+                            .setSampleRate(SAMPLE_RATE)
+                            .setChannelMask(CHANNEL_CONFIG)
+                            .build())
+                    .setBufferSizeInBytes(minBuffer)
+                    .build();
+
             if (audioRecord.getState() != AudioRecord.STATE_INITIALIZED) {
-                YaaccLogger.e(getClass().getName(), "AudioRecord not initialized");
+                YaaccLogger.e(getClass().getName(), "AudioRecord still not initialized with min buffer");
                 return false;
             }
 
@@ -91,14 +144,14 @@ public class SystemAudioCaptureService {
             isCapturing = true;
 
             captureThread = new Thread(this::captureLoop);
-            captureThread.setPriority(Thread.MAX_PRIORITY); // High priority for audio
+            captureThread.setPriority(Thread.MAX_PRIORITY);
             captureThread.start();
 
-            YaaccLogger.i(getClass().getName(), "Audio capture started with buffer size: " + bufferSize);
+            YaaccLogger.i(getClass().getName(), "Audio capture started with fallback buffer");
             return true;
 
         } catch (Exception e) {
-            YaaccLogger.e(getClass().getName(), "Failed to start audio capture", e);
+            YaaccLogger.e(getClass().getName(), "Fallback audio capture also failed", e);
             stopCapture();
             return false;
         }

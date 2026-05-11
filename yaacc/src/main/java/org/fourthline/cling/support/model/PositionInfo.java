@@ -142,7 +142,11 @@ public class PositionInfo {
     }
        
     public long getTrackDurationSeconds() {
-        return getTrackDuration() == null ? 0 : ModelUtil.fromTimeString(getTrackDuration());
+        String duration = getTrackDuration();
+        if (duration == null || duration.equals("NOT_IMPLEMENTED")) {
+            return 0;
+        }
+        return ModelUtil.fromTimeString(duration);
     }
 
     public long getTrackElapsedSeconds() {

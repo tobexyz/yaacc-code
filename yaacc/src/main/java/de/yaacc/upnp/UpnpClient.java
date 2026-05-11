@@ -498,7 +498,11 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
             return getLocalDummyDevice();
         }
         if (isInitialized()) {
-            return getRegistry().getDevice(new UDN(identifier), false);
+            // Normalize UDN by stripping uuid: prefix if present
+            UDN udn = UDN.valueOf(identifier);
+            Device<?, ?, ?> device = getRegistry().getDevice(udn, false);
+            YaaccLogger.d(getClass().getName(), "getDevice() identifier='" + identifier + "' -> UDN='" + udn.getIdentifierString() + "' found=" + (device != null));
+            return device;
         }
         return null;
     }

@@ -85,20 +85,18 @@ public class FileDownloader extends AsyncTask<DIDLObject, Void, Void> {
                     }
                 }
 
-                try {
-
-                    InputStream is = new URL(playableItem.getUri().toString()).openStream();
-                    FileOutputStream outputStream = new FileOutputStream(file);
-                    byte[] b = new byte[1024];
+                try (InputStream is = new URL(playableItem.getUri().toString()).openStream();
+                     FileOutputStream outputStream = new FileOutputStream(file)) {
+                    byte[] b = new byte[8192];
                     int len;
                     while ((len = is.read(b)) != -1) {
                         outputStream.write(b, 0, len);
                     }
-                    is.close();
-                    outputStream.close();
-
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
+                    YaaccLogger.d(getClass().getName(), "Downloaded: " + file.getAbsolutePath());
+                } catch (java.io.FileNotFoundException e) {
+                    YaaccLogger.e(getClass().getName(), "File not found: " + playableItem.getUri());
+                } catch (java.io.IOException e) {
+                    YaaccLogger.e(getClass().getName(), "Download failed: " + playableItem.getUri());
                 }
 
             }
