@@ -18,6 +18,7 @@ layout: default
 * Allow download files to the device
 * Allow sharing of URLs and sending them to the current media renderers
 * Use your device as an proxy if your media renderer can't process https media URLs
+* Download files to the device for offline access
 * A Shutdown timer stops the running players and the app after a given time
 
 # Usage

@@ -43,6 +43,8 @@ public class InterfaceResolutionHelper {
             Pattern.compile(
                     "^(25[0-5]|2[0-4]\\d|[0-1]?\\d?\\d)(\\.(25[0-5]|2[0-4]\\d|[0-1]?\\d?\\d)){3}$");
 
+    public static final String DEFAULT_BLACKLIST = "lo,dummy,rmnet,ccmni,tun";
+
     public static class InterfaceHolder {
         public NetworkInterface networkInterface;
         public InetAddress inetAddress;
@@ -109,7 +111,7 @@ public class InterfaceResolutionHelper {
         
         // Get blacklist of interfaces to exclude
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
-        String blacklistStr = preferences.getString(context.getString(R.string.settings_upnp_if_filter_key), "lo,dummy,rmnet,ccmni,tun");
+        String blacklistStr = preferences.getString(context.getString(R.string.settings_upnp_if_filter_key), DEFAULT_BLACKLIST);
         List<String> blacklist = new ArrayList<>(List.of(blacklistStr.split(",")));
         blacklist.removeIf(String::isEmpty); // Remove empty strings
         

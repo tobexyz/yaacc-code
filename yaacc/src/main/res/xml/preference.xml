@@ -185,7 +185,7 @@
         <EditTextPreference
             android:key="@string/settings_upnp_if_filter_key"
             android:title="@string/settings_upnp_if_filter_names"
-            android:defaultValue="lo,dummy,rmnet,ccmni,tun" />
+            android:defaultValue="@string/settings_upnp_if_filter_default" />
         <EditTextPreference
             android:enabled="false"
             app:isPreferenceVisible="false"

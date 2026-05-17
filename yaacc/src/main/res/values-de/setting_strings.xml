@@ -113,4 +113,8 @@
     <string name="settings_local_server_serve_screen_cast_off">Die Bildschirmübertragung ist deaktiviert.</string>
     <string name="settings_local_server_serve_screen_cast_on">Bildschirmübertragung ist aktiviert</string>
     <string name="settings_upnp_if_filter_names">Sperrliste für die UPnP-Netzwerkschnittstellenerkennung</string>
+    <string name="settings_upnp_selected_interface_title">UPnP-Netzwerkschnittstelle</string>
+    <string name="settings_upnp_selected_interface_summary">Wählen Sie eine spezifische Netzwerkschnittstelle für UPnP (leer = automatische Erkennung)</string>
+    <string name="settings_upnp_selected_interface_none">Automatische Erkennung (bestmögliche Annäherung)</string>
+    <string name="settings_upnp_selected_interface_blacklisted_warning">⚠️ Die ausgewählte Schnittstelle steht auf der Blacklist. Um sie zu verwenden, müssen Sie sie von der Liste entfernen!</string>
 </resources>
