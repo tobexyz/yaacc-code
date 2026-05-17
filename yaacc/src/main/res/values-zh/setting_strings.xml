@@ -113,4 +113,8 @@
     <string name="settings_local_server_serve_screen_cast_off">屏幕投射流已禁用</string>
     <string name="settings_local_server_serve_screen_cast_on">屏幕投射流已启用</string>
     <string name="settings_upnp_if_filter_names">UPnP 網路介面發現的黑名單接口</string>
+    <string name="settings_upnp_selected_interface_title">UPnP 网络接口</string>
+    <string name="settings_upnp_selected_interface_summary">选择用于 UPnP 的特定网络接口（留空 = 自动检测）</string>
+    <string name="settings_upnp_selected_interface_none">"  自动检测（尽力而为）"</string>
+    <string name="settings_upnp_selected_interface_blacklisted_warning">⚠️ 所选接口已被列入黑名单，若要使用该接口，请将其从列表中移除!</string>
 </resources>

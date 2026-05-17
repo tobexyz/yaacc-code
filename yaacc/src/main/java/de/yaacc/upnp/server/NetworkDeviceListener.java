@@ -18,7 +18,10 @@
  */
 package de.yaacc.upnp.server;
 
+import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.net.ConnectivityManager;
 import android.net.Network;
@@ -53,18 +56,34 @@ public class NetworkDeviceListener {
     private UdpTransiver udpTransiver;
     private UpnpProtocolHandler upnpProtocolHandler;
 
+    private final Object lock = new Object();
+    private boolean isHotspotEnabled = false;
+    private BroadcastReceiver networkStateReceiver;
+
+    private boolean isHotspotEnabled() {
+        try {
+            WifiManager wifiManager = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
+            java.lang.reflect.Method method = wifiManager.getClass().getDeclaredMethod("isWifiApEnabled");
+            return (Boolean) method.invoke(wifiManager);
+        } catch (Exception e) {
+            YaaccLogger.w(getClass().getName(), "Failed to check hotspot state", e);
+            return false;
+        }
+    }
 
     public NetworkDeviceListener(Context context, Registry registry, YaaccUpnpServerService service) throws IllegalStateException {
         this.service = service;
         this.context = context;
         this.registry = registry;
         this.wifiManager = ((WifiManager) context.getSystemService(Context.WIFI_SERVICE));
+        // Check hotspot state on startup
+        isHotspotEnabled = isHotspotEnabled();
         ConnectivityManager connectivityManager = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
         if (!isCellular()) {
             currentNetwork = connectivityManager.getActiveNetwork();
 
         }
-        if (currentNetwork != null) {
+        if (currentNetwork != null || isWifiOrHotspot()) {
             multicastReceiver = new MulticastReceiver();
             udpTransiver = new UdpTransiver();
             httpRequestSender = new HttpRequestSender();
@@ -107,37 +126,74 @@ public class NetworkDeviceListener {
                 }
             }
         });
+
+        // Register for WiFi and access point state changes
+        networkStateReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                String action = intent.getAction();
+                if (WifiManager.WIFI_STATE_CHANGED_ACTION.equals(action)) {
+                    YaaccLogger.d(getClass().getName(), "WiFi state changed");
+                    onNetworkStateChange();
+                } else if ("android.net.wifi.WIFI_AP_STATE_CHANGED".equals(action)) {
+                    int apState = intent.getIntExtra("wifi_state", 0);
+                    isHotspotEnabled = (apState == 13); // WIFI_AP_STATE_ENABLED
+                    YaaccLogger.d(getClass().getName(), "Access point state changed: " + (isHotspotEnabled ? "enabled" : "disabled"));
+                    onNetworkStateChange();
+                }
+            }
+        };
+
+        IntentFilter filter = new IntentFilter();
+        filter.addAction(WifiManager.WIFI_STATE_CHANGED_ACTION);
+        filter.addAction("android.net.wifi.WIFI_AP_STATE_CHANGED");
+        context.registerReceiver(networkStateReceiver, filter);
     }
 
     public void enable() {
-        YaaccLogger.v(getClass().getName(), "in android router enable");
+        synchronized (lock) {
+            YaaccLogger.v(getClass().getName(), "in android router enable");
 
-        // Enable multicast on the WiFi network interface,
-        // requires android.permission.CHANGE_WIFI_MULTICAST_STATE
-        if (isWifi()) {
-            setWiFiMulticastLock(true);
-            setWifiLock(true);
+            // Enable multicast on the WiFi network interface,
+            // requires android.permission.CHANGE_WIFI_MULTICAST_STATE
+            if (isWifiOrHotspot()) {
+                setWiFiMulticastLock(true);
+                setWifiLock(true);
+            }
+            if (multicastReceiver == null) multicastReceiver = new MulticastReceiver();
+            if (udpTransiver == null) udpTransiver = new UdpTransiver();
+            if (httpRequestSender == null) httpRequestSender = new HttpRequestSender();
+            upnpProtocolHandler = new UpnpProtocolHandler(context, registry, udpTransiver, multicastReceiver, httpRequestSender);
+            multicastReceiver.init(context, upnpProtocolHandler);
+            multicastReceiver.execute();
+            udpTransiver.init(context, upnpProtocolHandler);
+            udpTransiver.execute();
+            service.updateNotification();
         }
-        upnpProtocolHandler = new UpnpProtocolHandler(context, registry, udpTransiver, multicastReceiver, httpRequestSender);
-        multicastReceiver.init(context, upnpProtocolHandler);
-        multicastReceiver.execute();
-        udpTransiver.init(context, upnpProtocolHandler);
-        udpTransiver.execute();
-        service.updateNotification();
     }
 
     public void disable() {
-        YaaccLogger.v(getClass().getName(), "in android router disable");
-        // Disable multicast on WiFi network interface,
-        // requires android.permission.CHANGE_WIFI_MULTICAST_STATE
-        if (isWifi()) {
-            setWiFiMulticastLock(false);
-            setWifiLock(false);
+        synchronized (lock) {
+            YaaccLogger.v(getClass().getName(), "in android router disable");
+            // Disable multicast on WiFi network interface,
+            // requires android.permission.CHANGE_WIFI_MULTICAST_STATE
+            if (isWifiOrHotspot()) {
+                setWiFiMulticastLock(false);
+                setWifiLock(false);
+            }
+            if (upnpProtocolHandler != null) {
+                upnpProtocolHandler = null;
+            }
+            if (multicastReceiver != null) {
+                multicastReceiver.cancel();
+                multicastReceiver = null;
+            }
+            if (udpTransiver != null) {
+                udpTransiver.cancel();
+                udpTransiver = null;
+            }
+            service.updateNotification();
         }
-        upnpProtocolHandler = null;
-        multicastReceiver.cancel();
-        udpTransiver.cancel();
-        service.updateNotification();
     }
 
     private boolean isWifi() {
@@ -146,6 +202,10 @@ public class NetworkDeviceListener {
             return false;
         }
         return connectivityManager.getNetworkCapabilities(connectivityManager.getActiveNetwork()).hasTransport(NetworkCapabilities.TRANSPORT_WIFI);
+    }
+
+    private boolean isWifiOrHotspot() {
+        return isWifi() || isHotspotEnabled;
     }
 
     private boolean isCellular() {
@@ -255,5 +315,47 @@ public class NetworkDeviceListener {
 
     public boolean isInitalized() {
         return udpTransiver != null && multicastReceiver != null && upnpProtocolHandler != null;
+    }
+
+    private void onNetworkStateChange() {
+        YaaccLogger.d(getClass().getName(), "Network state change detected");
+        synchronized (lock) {
+            if (isWifiOrHotspot()) {
+                if (!isInitalized()) {
+                    YaaccLogger.d(getClass().getName(), "Reinitializing network components");
+                    if (currentNetwork == null) {
+                        ConnectivityManager connectivityManager = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
+                        currentNetwork = connectivityManager.getActiveNetwork();
+                    }
+                    if (currentNetwork != null) {
+                        if (multicastReceiver == null) multicastReceiver = new MulticastReceiver();
+                        if (udpTransiver == null) udpTransiver = new UdpTransiver();
+                        if (httpRequestSender == null) httpRequestSender = new HttpRequestSender();
+                        enable();
+                        // Notify service to restart UPnP device
+                        if (service != null) {
+                            service.onNetworkStateChange();
+                        }
+                    }
+                }
+            } else {
+                YaaccLogger.d(getClass().getName(), "Not on WiFi or hotspot, disabling");
+                disable();
+                // Notify service to stop UPnP device
+                if (service != null) {
+                    service.onNetworkStateChange();
+                }
+            }
+        }
+    }
+
+    public void cleanup() {
+        if (networkStateReceiver != null) {
+            try {
+                context.unregisterReceiver(networkStateReceiver);
+            } catch (IllegalArgumentException e) {
+                YaaccLogger.w(getClass().getName(), "Receiver not registered");
+            }
+        }
     }
 }

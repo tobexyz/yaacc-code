@@ -46,23 +46,23 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.Timer;
+import java.util.TimerTask;
 
 import de.yaacc.R;
+import de.yaacc.Yaacc;
 import de.yaacc.settings.SettingsActivity;
 import de.yaacc.upnp.server.YaaccUpnpServerService;
 import de.yaacc.upnp.server.contentdirectory.MediaPathFilter;
 import de.yaacc.util.AboutActivity;
 import de.yaacc.util.InterfaceResolutionHelper;
+import de.yaacc.util.MediaStoreScanner;
 import de.yaacc.util.NotificationId;
 import de.yaacc.util.SAFCacheManager;
 import de.yaacc.util.SafPermissionManager;
 import de.yaacc.util.ThemeHelper;
 import de.yaacc.util.YaaccLogActivity;
 import de.yaacc.util.YaaccLogger;
-import de.yaacc.util.MediaStoreScanner;
-
-import java.util.Timer;
-import java.util.TimerTask;
 
 /**
  * Control activity for the yaacc upnp server
@@ -427,10 +427,8 @@ public class YaaccUpnpServerControlActivity extends AppCompatActivity {
 
     private void exit() {
         stop();
-        //FIXME work around to be fixed with new ui
         NotificationManager mNotificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-        // mId allows you to update the notification later on.
         mNotificationManager.cancel(NotificationId.UPNP_SERVER.getId());
-        finish();
+        ((Yaacc) getApplicationContext()).exit();
     }
 }

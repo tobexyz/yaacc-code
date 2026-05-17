@@ -113,4 +113,8 @@
     <string name="settings_local_server_serve_screen_cast_off">La transmisión de pantalla está deshabilitada</string>
     <string name="settings_local_server_serve_screen_cast_on">La transmisión de pantalla está habilitada</string>
     <string name="settings_upnp_if_filter_names">Interfaces incluidas en la lista negra para la detección de interfaces de red UPnP</string>
+    <string name="settings_upnp_selected_interface_title">Interfaz de red UPnP</string>
+    <string name="settings_upnp_selected_interface_summary">Seleccione una interfaz de red específica para UPnP (vacío = autodetección)</string>
+    <string name="settings_upnp_selected_interface_none">Detección automática (mejor esfuerzo)</string>
+    <string name="settings_upnp_selected_interface_blacklisted_warning">⚠️ La interfaz seleccionada está en la lista negra; ¡para utilizarla, elimínela de la lista!</string>
 </resources>

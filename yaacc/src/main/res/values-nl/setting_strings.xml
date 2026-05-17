@@ -113,4 +113,8 @@
     <string name="settings_local_server_serve_screen_cast_off">Schermcaststream is uitgeschakeld</string>
     <string name="settings_local_server_serve_screen_cast_on">Schermcaststream is ingeschakeld</string>
     <string name="settings_upnp_if_filter_names">Interfaces die op de zwarte lijst staan ​​voor UPnP-netwerkinterfacedetectie</string>
+    <string name="settings_upnp_selected_interface_title">UPnP-netwerkinterface</string>
+    <string name="settings_upnp_selected_interface_summary">Selecteer een specifieke netwerkinterface voor UPnP (leeg = automatisch detecteren)</string>
+    <string name="settings_upnp_selected_interface_none">Automatische detectie (naar beste vermogen)</string>
+    <string name="settings_upnp_selected_interface_blacklisted_warning">⚠️ De geselecteerde interface staat op de zwarte lijst; verwijder deze van de lijst om hem te kunnen gebruiken!</string>
 </resources>

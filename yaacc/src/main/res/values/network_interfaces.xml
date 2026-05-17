@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Network interface arrays for UPnP selection -->
+<resources>
+    <string-array name="network_interface_entries">
+        <item>Auto-detect (best effort)</item>
+    </string-array>
+    <string-array name="network_interface_values">
+        <item></item>
+    </string-array>
+</resources>

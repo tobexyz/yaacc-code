@@ -665,6 +665,16 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
             YaaccLogger.d(this.getClass().getName(), "UPnP ALIVE interval updated to: " + aliveInterval + "ms");
         }
 
+        // Restart server when selected interface changes
+        if (getApplicationContext().getString(R.string.settings_upnp_selected_interface_key).equals(key)) {
+            YaaccLogger.d(this.getClass().getName(), "Selected interface changed, restarting server");
+            if (registry != null) {
+                restartServer();
+            } else {
+                YaaccLogger.w(this.getClass().getName(), "Registry not initialized, skipping restart");
+            }
+        }
+
         // Trigger cache update when SAF paths change
         if (getApplicationContext().getString(R.string.settings_saf_tree_uris_pref_key).equals(key) ||
                 getApplicationContext().getString(R.string.settings_saf_tree_uris_selected_pref_key).equals(key)) {
@@ -1197,6 +1207,20 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         return registry;
     }
 
+
+    public void onNetworkStateChange() {
+        YaaccLogger.d(getClass().getName(), "Network state change - restarting UPnP device");
+        if (isInitialized()) {
+            // Remove old device and create new one
+            if (localDevice != null) {
+                registry.removeDevice(localDevice);
+                localDevice = null;
+            }
+            createUpnpDevice();
+            updateNotification();
+        }
+    }
+
     public boolean isInitialized() {
         return registry != null && networkDeviceListener.isInitalized();
     }
@@ -1324,5 +1348,41 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
 
     public CombinedCaptureService getCombinedCapture() {
         return combinedCapture;
+    }
+
+    public void restartServer() {
+        YaaccLogger.d(this.getClass().getName(), "Restarting UPnP server due to interface change");
+
+        // Reset initialization flag
+        synchronized (initLock) {
+            isInitialized = false;
+        }
+
+        // Stop current server
+        networkDeviceListener.disable();
+        if (httpServer != null) {
+            httpServer.initiateShutdown();
+            try {
+                httpServer.awaitShutdown(TimeValue.ofSeconds(3));
+            } catch (InterruptedException e) {
+                YaaccLogger.w(getClass().getName(), "got exception on stream server stop ", e);
+            }
+            httpServer = null;
+        }
+
+        if (localDevice != null && registry != null) {
+            registry.removeDevice(localDevice);
+            localDevice = null;
+        }
+
+        // Trigger network state change to reinitialize listener BEFORE initialize()
+        networkDeviceListener.disable();
+        networkDeviceListener.enable();
+        registry.removeAllLocalDevices();
+        registry.removeAllRemoteDevices();
+        // Re-initialize
+        onNetworkStateChange();
+
+
     }
 }

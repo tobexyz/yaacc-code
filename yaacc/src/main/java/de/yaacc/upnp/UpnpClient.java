@@ -28,7 +28,6 @@ import android.media.AudioManager;
 import android.media.MediaMetadataRetriever;
 import android.net.Uri;
 import android.os.IBinder;
-import de.yaacc.util.YaaccLogger;
 import android.webkit.MimeTypeMap;
 
 import androidx.annotation.NonNull;
@@ -57,10 +56,7 @@ import org.fourthline.cling.model.types.ServiceType;
 import org.fourthline.cling.model.types.UDAServiceId;
 import org.fourthline.cling.model.types.UDAServiceType;
 import org.fourthline.cling.model.types.UDN;
-import de.yaacc.upnp.registry.Registry;
-import de.yaacc.upnp.registry.RegistryListener;
 import org.fourthline.cling.support.contentdirectory.DIDLParser;
-import de.yaacc.upnp.callback.contentdirectory.Browse.Status;
 import org.fourthline.cling.support.model.BrowseFlag;
 import org.fourthline.cling.support.model.DIDLContent;
 import org.fourthline.cling.support.model.DIDLObject;
@@ -73,10 +69,6 @@ import org.fourthline.cling.support.model.item.ImageItem;
 import org.fourthline.cling.support.model.item.Item;
 import org.fourthline.cling.support.model.item.MusicTrack;
 import org.fourthline.cling.support.model.item.VideoItem;
-import de.yaacc.upnp.callback.renderingcontrol.GetMute;
-import de.yaacc.upnp.callback.renderingcontrol.GetVolume;
-import de.yaacc.upnp.callback.renderingcontrol.SetMute;
-import de.yaacc.upnp.callback.renderingcontrol.SetVolume;
 import org.seamless.util.MimeType;
 
 import java.io.IOException;
@@ -106,15 +98,23 @@ import de.yaacc.player.PlayableItem;
 import de.yaacc.player.Player;
 import de.yaacc.player.PlayerService;
 import de.yaacc.player.YaaccMediaRouteProvider;
+import de.yaacc.upnp.callback.contentdirectory.Browse.Status;
 import de.yaacc.upnp.callback.contentdirectory.ContentDirectoryBrowseActionCallback;
 import de.yaacc.upnp.callback.contentdirectory.ContentDirectoryBrowseResult;
+import de.yaacc.upnp.callback.renderingcontrol.GetMute;
+import de.yaacc.upnp.callback.renderingcontrol.GetVolume;
+import de.yaacc.upnp.callback.renderingcontrol.SetMute;
+import de.yaacc.upnp.callback.renderingcontrol.SetVolume;
 import de.yaacc.upnp.protocol.async.SendingSearch;
+import de.yaacc.upnp.registry.Registry;
+import de.yaacc.upnp.registry.RegistryListener;
 import de.yaacc.upnp.server.YaaccUpnpServerService;
 import de.yaacc.upnp.server.avtransport.AvTransport;
 import de.yaacc.util.FileDownloader;
 import de.yaacc.util.FormatHelper;
 import de.yaacc.util.InterfaceResolutionHelper;
 import de.yaacc.util.Watchdog;
+import de.yaacc.util.YaaccLogger;
 
 /**
  * A client facade to the upnp lookup and access framework. This class provides
@@ -157,12 +157,12 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         if (context != null) {
             this.context = context;
             this.preferences = PreferenceManager.getDefaultSharedPreferences(context);
-            
+
             // Initialize MediaRouteProvider for UPnP devices
             mediaRouteProvider = new YaaccMediaRouteProvider(context, this);
             androidx.mediarouter.media.MediaRouter.getInstance(context)
-                .addProvider(mediaRouteProvider);
-            
+                    .addProvider(mediaRouteProvider);
+
             // FIXME check if this is right: Context.BIND_AUTO_CREATE kills the
             // service after closing the activity
             return context.bindService(new Intent(context, YaaccUpnpServerService.class), this, Context.BIND_AUTO_CREATE);
@@ -350,8 +350,10 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     @Override
     public void localDeviceAdded(Registry registry, LocalDevice localdevice) {
         YaaccLogger.v(getClass().getName(), "localDeviceAdded: " + localdevice.getDisplayString());
-        this.getRegistry().addDevice(localdevice);
-        this.deviceAdded(localdevice);
+        if(this.getRegistry() != null){
+            this.getRegistry().addDevice(localdevice);
+            this.deviceAdded(localdevice);
+        }
     }
 
     /*
@@ -498,7 +500,11 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
             return getLocalDummyDevice();
         }
         if (isInitialized()) {
-            return getRegistry().getDevice(new UDN(identifier), true);
+            // Normalize UDN by stripping uuid: prefix if present
+            UDN udn = UDN.valueOf(identifier);
+            Device<?, ?, ?> device = getRegistry().getDevice(udn, false);
+            YaaccLogger.d(getClass().getName(), "getDevice() identifier='" + identifier + "' -> UDN='" + udn.getIdentifierString() + "' found=" + (device != null));
+            return device;
         }
         return null;
     }
