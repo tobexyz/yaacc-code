@@ -350,8 +350,10 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     @Override
     public void localDeviceAdded(Registry registry, LocalDevice localdevice) {
         YaaccLogger.v(getClass().getName(), "localDeviceAdded: " + localdevice.getDisplayString());
-        this.getRegistry().addDevice(localdevice);
-        this.deviceAdded(localdevice);
+        if(this.getRegistry() != null){
+            this.getRegistry().addDevice(localdevice);
+            this.deviceAdded(localdevice);
+        }
     }
 
     /*

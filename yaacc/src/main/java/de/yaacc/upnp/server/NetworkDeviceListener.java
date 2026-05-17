@@ -126,7 +126,7 @@ public class NetworkDeviceListener {
                 }
             }
         });
-        
+
         // Register for WiFi and access point state changes
         networkStateReceiver = new BroadcastReceiver() {
             @Override
@@ -143,7 +143,7 @@ public class NetworkDeviceListener {
                 }
             }
         };
-        
+
         IntentFilter filter = new IntentFilter();
         filter.addAction(WifiManager.WIFI_STATE_CHANGED_ACTION);
         filter.addAction("android.net.wifi.WIFI_AP_STATE_CHANGED");

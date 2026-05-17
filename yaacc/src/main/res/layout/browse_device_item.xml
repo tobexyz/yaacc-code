@@ -90,16 +90,6 @@
                     android:contentDescription="@string/screen_cast_stream"
                     android:visibility="gone"
                     app:srcCompat="@drawable/ic_live_video_stream" />
-
-                <ImageButton
-                    android:id="@+id/browseDeviceItemConfig"
-                    style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
-                    android:layout_width="48dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="2dp"
-                    android:contentDescription="@string/settings"
-                    android:visibility="gone"
-                    app:srcCompat="@drawable/ic_baseline_settings_32" />
             </LinearLayout>
         </LinearLayout>
     </androidx.cardview.widget.CardView>

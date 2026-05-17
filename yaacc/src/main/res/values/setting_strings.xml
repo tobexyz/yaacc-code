@@ -143,9 +143,17 @@
     <string name="settings_browse_swipe_title">Swipe on browse</string>
     <string name="settings_upnp_if_filter_key" translatable="false">settings_upnp_if_filter_key</string>
     <string name="settings_upnp_if_filter_names">blacklisted interfaces for UPnP network interface discovery</string>
+    <string name="settings_upnp_if_filter_default" translatable="false">lo,dummy,rmnet,ccmni,tun</string>
+    <string name="settings_upnp_selected_interface_key" translatable="false">settings_upnp_selected_interface_key</string>
+    <string name="settings_upnp_selected_interface_title">UPnP network interface</string>
+    <string name="settings_upnp_selected_interface_summary">Select specific network interface for UPnP (empty = auto-detect)</string>
+    <string name="settings_upnp_selected_interface_none">Auto-detect (best effort)</string>
     <string name="settings_media_paths_pref_key" translatable="false">settings_media_paths_pref_key</string>
+    <string name="settings_upnp_selected_interface_blacklisted_warning">⚠️ Selected interface is blacklisted and to use it remove it from the list!</string>
     <string name="settings_shutdown_timer" translatable="false">settings_local_server_shutdown_timer_chkbx</string>
     <string name="settings_saf_tree_uris_pref_key" translatable="false">settings_saf_tree_uris_pref_key</string>
     <string name="settings_saf_tree_uris_selected_pref_key" translatable="false">settings_saf_tree_uris_selected_pref_key</string>
     <string name="settings_duration_format_key" translatable="false">settings_duration_format_key</string>
+    <string name="settings_local_server_if_filter_names">interfaces blacklisted for obtaining IP addresses</string>
+    <string name="settings_local_server_title">local server configuration</string>
 </resources>

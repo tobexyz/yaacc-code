@@ -20,7 +20,6 @@ package de.yaacc.browser;
 import android.app.Activity;
 import android.content.Context;
 import android.content.ContextWrapper;
-import android.content.Intent;
 import android.net.Uri;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -41,12 +40,9 @@ import java.net.URL;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Timer;
-import java.util.TimerTask;
 
 import de.yaacc.R;
 import de.yaacc.upnp.UpnpClient;
-import de.yaacc.upnp.server.configuration.YaaccUpnpServerControlActivity;
-import de.yaacc.util.MediaStoreScanner;
 import de.yaacc.util.ThemeHelper;
 import de.yaacc.util.YaaccLogger;
 import de.yaacc.util.image.IconDownloadTask;
@@ -76,9 +72,6 @@ public class BrowseDeviceAdapter extends RecyclerView.Adapter<BrowseDeviceAdapte
 
     private StreamPermissionCallback permissionCallback;
 
-    // Track which button requested permission
-    private static boolean audioButtonRequestedPermission = false;
-    private static boolean videoButtonRequestedPermission = false;
 
     // Public accessors for streaming state
     public static void setAudioStreaming(boolean enabled) {
@@ -148,8 +141,8 @@ public class BrowseDeviceAdapter extends RecyclerView.Adapter<BrowseDeviceAdapte
                 case android.view.KeyEvent.KEYCODE_DPAD_RIGHT:
                     // Focus first visible action button
                     BrowseDeviceAdapter.ViewHolder holder = (BrowseDeviceAdapter.ViewHolder) deviceList.getChildViewHolder(v);
-                    if (holder.configButton.getVisibility() == View.VISIBLE) {
-                        holder.configButton.requestFocus();
+                    if (holder.streamAudioButton.getVisibility() == View.VISIBLE) {
+                        holder.streamAudioButton.requestFocus();
                         return true;
                     }
                     return false;
@@ -166,7 +159,6 @@ public class BrowseDeviceAdapter extends RecyclerView.Adapter<BrowseDeviceAdapte
     public void onBindViewHolder(final ViewHolder holder, final int listPosition) {
         Device<?, ?, ?> device = getItem(listPosition);
         if (device instanceof RemoteDevice) {
-            holder.configButton.setVisibility(View.GONE);
             holder.streamAudioButton.setVisibility(View.GONE);
             holder.streamVideoButton.setVisibility(View.GONE);
             if (device.hasIcons()) {
@@ -187,9 +179,6 @@ public class BrowseDeviceAdapter extends RecyclerView.Adapter<BrowseDeviceAdapte
         } else if (device instanceof LocalDevice) {
             //We know our icon
             holder.icon.setImageResource(R.drawable.yaacc48_24_png);
-            holder.configButton.setVisibility(View.VISIBLE);
-            holder.configButton.setFocusable(true);
-            holder.configButton.setImageDrawable(ThemeHelper.tintDrawable(context.getResources().getDrawable(R.drawable.ic_baseline_settings_32, context.getTheme()), context.getTheme()));
 
             // Show stream buttons only on Android 10+
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
@@ -231,7 +220,6 @@ public class BrowseDeviceAdapter extends RecyclerView.Adapter<BrowseDeviceAdapte
     static class ViewHolder extends RecyclerView.ViewHolder {
         ImageView icon;
         TextView name;
-        ImageButton configButton;
         ImageButton streamAudioButton;
         ImageButton streamVideoButton;
 
@@ -246,10 +234,6 @@ public class BrowseDeviceAdapter extends RecyclerView.Adapter<BrowseDeviceAdapte
             timer = new Timer();
             this.icon = itemView.findViewById(R.id.browseDeviceItemIcon);
             this.name = itemView.findViewById(R.id.browseDeviceItemName);
-            this.configButton = itemView.findViewById(R.id.browseDeviceItemConfig);
-            configButton.setOnClickListener((v) -> {
-                ViewHolder.this.context.startActivity(new Intent(ViewHolder.this.context, YaaccUpnpServerControlActivity.class));
-            });
 
             this.streamAudioButton = itemView.findViewById(R.id.browseDeviceItemStreamAudio);
             this.streamVideoButton = itemView.findViewById(R.id.browseDeviceItemStreamVideo);
@@ -286,7 +270,7 @@ public class BrowseDeviceAdapter extends RecyclerView.Adapter<BrowseDeviceAdapte
                 }
 
                 // TODO: Start/stop audio capture service
-                YaaccLogger.i(getClass().getName(), "Audio streaming: " + isAudioStreaming);
+                YaaccLogger.d(getClass().getName(), "Audio streaming: " + isAudioStreaming);
             });
 
             streamVideoButton.setOnClickListener((v) -> {
@@ -321,7 +305,7 @@ public class BrowseDeviceAdapter extends RecyclerView.Adapter<BrowseDeviceAdapte
                 }
 
                 // TODO: Start/stop video capture service
-                YaaccLogger.i(getClass().getName(), "Video streaming: " + isVideoStreaming);
+                YaaccLogger.d(getClass().getName(), "Video streaming: " + isVideoStreaming);
             });
         }
 

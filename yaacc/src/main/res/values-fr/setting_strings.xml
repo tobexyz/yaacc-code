@@ -113,4 +113,8 @@
     <string name="settings_local_server_serve_screen_cast_off">La diffusion d\'écran est désactivée.</string>
     <string name="settings_local_server_serve_screen_cast_on">La diffusion d\'écran est activée</string>
     <string name="settings_upnp_if_filter_names">interfaces mises sur liste noire pour la découverte d\'interfaces réseau UPnP</string>
+    <string name="settings_upnp_selected_interface_title">Interface réseau UPnP</string>
+    <string name="settings_upnp_selected_interface_summary">Sélectionnez une interface réseau spécifique pour l\'UPnP (vide = détection automatique)</string>
+    <string name="settings_upnp_selected_interface_none">Détection automatique (au mieux)</string>
+    <string name="settings_upnp_selected_interface_blacklisted_warning">⚠️ L\'interface sélectionnée figure sur la liste noire ; pour l\'utiliser, retirez-la de la liste!</string>
 </resources>

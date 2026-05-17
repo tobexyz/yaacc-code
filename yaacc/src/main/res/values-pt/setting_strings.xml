@@ -113,4 +113,8 @@
     <string name="settings_local_server_serve_screen_cast_off">A transmissão de vídeo do ecrã está desativada.</string>
     <string name="settings_local_server_serve_screen_cast_on">A transmissão de vídeo do ecrã está ativada.</string>
     <string name="settings_upnp_if_filter_names">Interfaces bloqueadas para descoberta de interfaces de rede UPnP</string>
+    <string name="settings_upnp_selected_interface_title">Interface de rede UPnP</string>
+    <string name="settings_upnp_selected_interface_summary">Selecione a interface de rede específica para UPnP (vazio = deteção automática)</string>
+    <string name="settings_upnp_selected_interface_none">Detecção automática (melhor esforço)</string>
+    <string name="settings_upnp_selected_interface_blacklisted_warning">⚠️ A interface selecionada está na lista negra e pode não funcionar!</string>
 </resources>

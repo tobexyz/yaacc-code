@@ -17,23 +17,28 @@
  */
 package de.yaacc.settings;
 
-import android.os.Build;
+import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.text.InputType;
 
 import androidx.appcompat.app.AppCompatDelegate;
 import androidx.preference.CheckBoxPreference;
 import androidx.preference.EditTextPreference;
+import androidx.preference.ListPreference;
 import androidx.preference.PreferenceCategory;
 import androidx.preference.PreferenceFragmentCompat;
+import androidx.preference.PreferenceManager;
 
 import org.fourthline.cling.model.meta.Device;
 import org.fourthline.cling.model.meta.RemoteDevice;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 
 import de.yaacc.R;
 import de.yaacc.upnp.UpnpClient;
+import de.yaacc.util.NetworkInterfaceManager;
 import de.yaacc.util.YaaccLogger;
 
 /**
@@ -80,6 +85,57 @@ public class SettingsFragment extends PreferenceFragmentCompat {
 
         // Populate renderer settings dynamically
         populateRendererSettings();
+
+        // Populate network interface list
+        populateNetworkInterfaceList();
+    }
+
+    private void populateNetworkInterfaceList() {
+        ListPreference interfacePreference =
+                findPreference(getString(R.string.settings_upnp_selected_interface_key));
+        if (interfacePreference == null) return;
+
+        List<NetworkInterfaceManager.NetworkInterfaceInfo> interfaces =
+                NetworkInterfaceManager.getAvailableInterfaces(requireContext());
+
+        // Get blacklist
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(requireContext());
+        String blacklistStr = prefs.getString(getString(R.string.settings_upnp_if_filter_key),
+                getString(R.string.settings_upnp_if_filter_default));
+        List<String> blacklist = new ArrayList<>(List.of(blacklistStr.split(",")));
+
+        List<String> entries = new ArrayList<>();
+        List<String> values = new ArrayList<>();
+
+        entries.add(getString(R.string.settings_upnp_selected_interface_none));
+        values.add("");
+
+        for (NetworkInterfaceManager.NetworkInterfaceInfo info : interfaces) {
+            boolean isBlacklisted = blacklist.stream().anyMatch(b -> info.name.startsWith(b.trim()));
+            String displayName = isBlacklisted ? info.displayName + " ⚠️" : info.displayName;
+            entries.add(displayName);
+            values.add(info.name);
+        }
+
+        interfacePreference.setEntries(entries.toArray(new String[0]));
+        interfacePreference.setEntryValues(values.toArray(new String[0]));
+
+        // Update warning when selection changes
+        interfacePreference.setOnPreferenceChangeListener((preference, newValue) -> {
+            String selectedInterface = (String) newValue;
+            if (!selectedInterface.isEmpty() && blacklist.stream().anyMatch(b -> selectedInterface.startsWith(b.trim()))) {
+                interfacePreference.setSummary(getString(R.string.settings_upnp_selected_interface_blacklisted_warning));
+            } else {
+                interfacePreference.setSummary(getString(R.string.settings_upnp_selected_interface_summary));
+            }
+            return true;
+        });
+
+        // Set initial warning summary if selected interface is blacklisted
+        String selectedInterface = prefs.getString(getString(R.string.settings_upnp_selected_interface_key), "");
+        if (!selectedInterface.isEmpty() && blacklist.stream().anyMatch(b -> selectedInterface.startsWith(b.trim()))) {
+            interfacePreference.setSummary(getString(R.string.settings_upnp_selected_interface_blacklisted_warning));
+        }
     }
 
     private void populateRendererSettings() {

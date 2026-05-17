@@ -1,0 +1,5 @@
+Version 5.1.0
+- the network interface the app listens on is now selectable
+- server control settings icon is now always visible in the server tab
+- allow usage of local mobile hotspot
+- fixes
