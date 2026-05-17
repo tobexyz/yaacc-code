@@ -109,6 +109,16 @@
         android:layout_alignParentBottom="true"
         android:layout_marginBottom="10dp" />
 
+    <ImageButton
+        android:id="@+id/serverListLocalServerSettings"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:layout_marginStart="10dp"
+        android:layout_marginBottom="10dp"
+        android:layout_toEndOf="@id/serverListLocalServerEnabled"
+        android:layout_alignParentBottom="true"
+        android:contentDescription="@string/settings"
+        app:srcCompat="@drawable/ic_baseline_settings_42" />
 
     <ImageView
         android:id="@+id/serverListProviderEnabled"
@@ -116,7 +126,7 @@
         android:layout_height="32dp"
         android:layout_marginStart="10dp"
         android:layout_marginBottom="10dp"
-        android:layout_toEndOf="@id/serverListLocalServerEnabled"
+        android:layout_toEndOf="@id/serverListLocalServerSettings"
         android:layout_alignParentBottom="true"
         android:focusable="false"
         android:contentDescription="@string/settings"

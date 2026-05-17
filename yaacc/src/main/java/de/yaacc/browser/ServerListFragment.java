@@ -19,6 +19,7 @@ package de.yaacc.browser;
 
 import static com.google.android.material.timepicker.MaterialTimePicker.INPUT_MODE_KEYBOARD;
 
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.drawable.Drawable;
 import android.os.Bundle;
@@ -49,6 +50,7 @@ import de.yaacc.R;
 import de.yaacc.Yaacc;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.UpnpClientListener;
+import de.yaacc.upnp.server.configuration.YaaccUpnpServerControlActivity;
 import de.yaacc.util.FormatHelper;
 import de.yaacc.util.ShutdownTimerListener;
 import de.yaacc.util.ThemeHelper;
@@ -94,8 +96,8 @@ public class ServerListFragment extends Fragment implements
                                 .putBoolean(getString(R.string.settings_local_server_serve_screen_cast_chkbx), false)
                                 .apply();
 
-                        de.yaacc.browser.BrowseDeviceAdapter.setAudioStreaming(false);
-                        de.yaacc.browser.BrowseDeviceAdapter.setVideoStreaming(false);
+                        BrowseDeviceAdapter.setAudioStreaming(false);
+                        BrowseDeviceAdapter.setVideoStreaming(false);
 
                         if (bDeviceAdapter != null) {
                             bDeviceAdapter.notifyDataSetChanged();
@@ -237,6 +239,13 @@ public class ServerListFragment extends Fragment implements
                 setLocalServerState(view);
             }
         }));
+        ImageButton localServerSettings = view.findViewById(R.id.serverListLocalServerSettings);
+        icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_settings_32, getContext().getTheme()), getContext().getTheme());
+        localServerSettings.setImageDrawable(icon);
+        localServerSettings.setOnClickListener(v -> {
+            Intent intent = new Intent(getContext(), YaaccUpnpServerControlActivity.class);
+            startActivity(intent);
+        });
         TextView shutdowwnRemainingTextView = view.findViewById(R.id.serverListShutdownTimerRemaining);
         if (savedInstanceState != null && savedInstanceState.containsKey(SHUTDOWN_TIMER_REMAINING_TIME)) {
             shutdowwnRemainingTextView.setText(savedInstanceState.getString(SHUTDOWN_TIMER_REMAINING_TIME));
@@ -365,18 +374,18 @@ public class ServerListFragment extends Fragment implements
                 android.content.SharedPreferences.Editor editor = prefs.edit();
 
                 // Enable only the button that requested permission
-                if (de.yaacc.browser.BrowseDeviceAdapter.isPendingAudioRequest()) {
+                if (BrowseDeviceAdapter.isPendingAudioRequest()) {
                     editor.putBoolean(getString(R.string.settings_local_server_serve_system_audio_chkbx), true);
-                    de.yaacc.browser.BrowseDeviceAdapter.setAudioStreaming(true);
+                    BrowseDeviceAdapter.setAudioStreaming(true);
                 }
-                if (de.yaacc.browser.BrowseDeviceAdapter.isPendingVideoRequest()) {
+                if (BrowseDeviceAdapter.isPendingVideoRequest()) {
                     editor.putBoolean(getString(R.string.settings_local_server_serve_screen_cast_chkbx), true);
-                    de.yaacc.browser.BrowseDeviceAdapter.setVideoStreaming(true);
+                    BrowseDeviceAdapter.setVideoStreaming(true);
                 }
                 editor.apply();
 
                 // Clear pending flags
-                de.yaacc.browser.BrowseDeviceAdapter.clearPendingRequests();
+                BrowseDeviceAdapter.clearPendingRequests();
 
                 // Refresh the adapter to update button states
                 if (bDeviceAdapter != null) {
@@ -386,7 +395,7 @@ public class ServerListFragment extends Fragment implements
                 // Permission denied - disable both and clear pending
                 YaaccLogger.w(getClass().getName(), "MediaProjection permission denied");
 
-                de.yaacc.browser.BrowseDeviceAdapter.clearPendingRequests();
+                BrowseDeviceAdapter.clearPendingRequests();
 
                 android.content.SharedPreferences prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(requireContext());
                 prefs.edit()
@@ -396,8 +405,8 @@ public class ServerListFragment extends Fragment implements
 
                 // Update adapter state
                 if (bDeviceAdapter != null) {
-                    de.yaacc.browser.BrowseDeviceAdapter.setAudioStreaming(false);
-                    de.yaacc.browser.BrowseDeviceAdapter.setVideoStreaming(false);
+                    BrowseDeviceAdapter.setAudioStreaming(false);
+                    BrowseDeviceAdapter.setVideoStreaming(false);
                     // Refresh the adapter to update button states
                     bDeviceAdapter.notifyDataSetChanged();
                 }
