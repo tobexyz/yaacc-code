@@ -73,10 +73,18 @@ public class AvTransportMediaRendererPlaying extends Playing<AvTransport> implem
                 || getTransport().getPositionInfo().getTrackURI().equals("")) {
             return;
         }
-        // Try to get existing players first (e.g. when resuming from pause)
+        // Try to get existing players if resuming from pause
         players = upnpClient.getCurrentPlayers(getTransport());
-        if (players == null || players.isEmpty()) {
-            // No existing players, initialize new ones
+        boolean hasPausedPlayer = false;
+        if (players != null && !players.isEmpty()) {
+            for (Player player : players) {
+                if (player != null && player.isPaused()) {
+                    hasPausedPlayer = true;
+                    break;
+                }
+            }
+        }
+        if (!hasPausedPlayer) {
             players = upnpClient.initializePlayers(getTransport());
         }
         for (Player player : players) {
