@@ -682,6 +682,15 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
             SAFCacheManager.getInstance(getApplicationContext()).preloadSafDurations();
         }
 
+        // Notify content directory change when media-type serving preferences change
+        if (getApplicationContext().getString(R.string.settings_local_server_serve_images_chkbx).equals(key) ||
+                getApplicationContext().getString(R.string.settings_local_server_serve_video_chkbx).equals(key) ||
+                getApplicationContext().getString(R.string.settings_local_server_serve_music_chkbx).equals(key) ||
+                getApplicationContext().getString(R.string.settings_local_server_serve_saf_chkbx).equals(key)) {
+            YaaccLogger.d(this.getClass().getName(), "Media serving preference changed, recreating device");
+            createUpnpDevice();
+        }
+
         // Handle live streaming toggles (Android 10+)
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
             if (getApplicationContext().getString(R.string.settings_local_server_serve_system_audio_chkbx).equals(key)) {
