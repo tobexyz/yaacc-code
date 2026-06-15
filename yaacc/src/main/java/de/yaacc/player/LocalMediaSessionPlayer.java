@@ -55,6 +55,7 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
     private URI albumArtUri;
     private PlayableItem pendingItem; // Queue item if service not ready
     private int pendingIndex;
+    private volatile boolean pendingPlay;
 
     public LocalMediaSessionPlayer(UpnpClient upnpClient, String name, String shortName) {
         this(upnpClient);
@@ -180,9 +181,15 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
             if (pendingItem != null) {
                 YaaccLogger.d(getClass().getName(), "Playing pending item: " + pendingItem.getTitle());
                 PlayableItem item = pendingItem;
-                startItem(item, null, pendingIndex);
+                int idx = pendingIndex;
                 pendingItem = null;
                 pendingIndex = -1;
+                pendingPlay = false;
+                startItem(item, null, idx);
+            } else if (pendingPlay) {
+                YaaccLogger.d(getClass().getName(), "Pending play flag set, calling play()");
+                pendingPlay = false;
+                play();
             }
         }
     }
@@ -240,6 +247,7 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
             YaaccLogger.w(getClass().getName(), "ExoPlayer not ready, queuing item");
             pendingItem = playableItem;
             pendingIndex = index;
+            pendingPlay = true;
             return;
         }
         

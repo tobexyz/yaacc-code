@@ -71,6 +71,7 @@ public class Yaacc extends Application {
         super.onCreate();
         YaaccLogger.initialize(this);
         createNotificationChannel();
+        PreferenceManager.setDefaultValues(this, R.xml.preference, false);
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
         boolean darkMode = preferences.getBoolean(getString(R.string.settings_dark_mode_key), true);
         if (darkMode) {
