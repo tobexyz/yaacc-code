@@ -49,7 +49,6 @@ import java.io.UnsupportedEncodingException;
 import java.nio.charset.Charset;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 import de.yaacc.util.YaaccLogger;
@@ -127,16 +126,23 @@ public class HttpRequestSender {
 
 
     protected StreamResponseMessage createResponse(ClassicHttpResponse response) throws IOException {
-        // Status
-        if (UpnpResponse.Status.getByStatusCode(response.getCode()) == null) {
-            throw new IllegalStateException("can't create UpnpResponse.Status from http response status: " + response.getCode());
-        }
         YaaccLogger.d(getClass().getName(), "Received response code: " + response.getCode());
-        UpnpResponse responseOperation =
-                new UpnpResponse(
-                        response.getCode(),
-                        Objects.requireNonNull(UpnpResponse.Status.getByStatusCode(response.getCode())).getStatusMsg()
-                );
+        UpnpResponse.Status mappedStatus = UpnpResponse.Status.getByStatusCode(response.getCode());
+        UpnpResponse responseOperation;
+        if (mappedStatus != null) {
+            responseOperation = new UpnpResponse(response.getCode(), mappedStatus.getStatusMsg());
+        } else {
+            // Some real-world UPnP devices return HTTP statuses outside the small canonical
+            // UpnpResponse.Status enum (e.g. Sky Q DVRs return 401 on description fetches by
+            // design - see issue #232). Synthesize a generic failed UpnpResponse instead of
+            // throwing - the caller path (RetrieveRemoteDescriptors.describe) already treats
+            // isFailed() responses as a per-device skip, so unmapped statuses flow through
+            // the same skip path.
+            YaaccLogger.w(getClass().getName(),
+                    "Unmapped HTTP status " + response.getCode()
+                            + " from upstream UPnP device - treating as non-UPnP failure response, skipping device");
+            responseOperation = new UpnpResponse(response.getCode(), "HTTP " + response.getCode());
+        }
         YaaccLogger.d(getClass().getName(), "Received response: " + responseOperation);
         StreamResponseMessage responseMessage = new StreamResponseMessage(responseOperation);
         // Headers
