@@ -18,6 +18,11 @@
  */
 package de.yaacc.upnp.server.http;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.io.entity.ByteArrayEntity;
 import org.apache.hc.core5.http.message.BasicClassicHttpResponse;
@@ -25,11 +30,6 @@ import org.fourthline.cling.model.message.StreamResponseMessage;
 import org.junit.Test;
 
 import java.nio.charset.StandardCharsets;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
 
 public class HttpRequestSenderTest {
 
@@ -70,8 +70,22 @@ public class HttpRequestSenderTest {
         StreamResponseMessage msg = new HttpRequestSender().createResponse(buildResponse(401, "Unauthorized"));
         assertNotNull(msg);
         assertEquals(401, msg.getOperation().getStatusCode());
-        assertEquals("HTTP 401", msg.getOperation().getStatusMessage());
+        assertEquals("Unauthorized", msg.getOperation().getStatusMessage());
         assertTrue("401 must report isFailed() so the discovery loop skips the device",
+                msg.getOperation().isFailed());
+    }
+
+    /**
+     * Regression for issue #232. A 403 produce a synthetic failed
+     * UpnpResponse so the caller can skip the device.
+     */
+    @Test
+    public void testCreateResponse_403_doesNotThrow() throws Exception {
+        StreamResponseMessage msg = new HttpRequestSender().createResponse(buildResponse(403, "Forbidden"));
+        assertNotNull(msg);
+        assertEquals(403, msg.getOperation().getStatusCode());
+        assertEquals("Forbidden", msg.getOperation().getStatusMessage());
+        assertTrue("403 must report isFailed() so the discovery loop skips the device",
                 msg.getOperation().isFailed());
     }
 
