@@ -1,0 +1,5 @@
+Version 5.2.0
+- fixed app crash on unknown http codes in upnp responses
+- fixed pause/play on yaacc renderer
+- allow stopping the app via action button in notification
+- stop the app completely if idle in background
