@@ -182,7 +182,6 @@ public class Yaacc extends Application {
                 .setContentText("Yet Another Android Client Controller")
                 .setContentIntent(pendingIntent);
         notificationManager.notify(NotificationId.YAACC.getId(), mBuilder.build());
-
     }
 
     public void cancelYaaccGroupNotification() {
