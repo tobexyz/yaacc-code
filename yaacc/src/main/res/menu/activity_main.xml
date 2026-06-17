@@ -37,8 +37,8 @@
         android:title="@string/yaacc_about"/>
     <item
         android:id="@+id/menu_exit"
-        android:icon="@drawable/button_cancel"
+        android:icon="@drawable/ic_exit_to_app_24"
         android:orderInCategory="130"
-        app:showAsAction="never"
+        app:showAsAction="always"
         android:title="@string/exit"/>
 </menu>
