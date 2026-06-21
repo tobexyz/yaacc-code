@@ -229,7 +229,12 @@ public class SafFolderBrowser extends ContentBrowser {
                 DocumentFile file = DocumentFile.fromSingleUri(getContext(), Uri.parse(path));
                 if (file != null && !file.isDirectory()) {
                     Item item = createItem(contentDirectory, path, file, myId, !file.canRead());
-                    if (item != null) result.add(item);
+                    if (item != null) {
+                        result.add(item);
+                        YaaccLogger.d(getClass().getName(), "✓ Added to result: Item[" + (result.size() - 1) + "] " + (file.getName() != null ? file.getName() : "unknown"));
+                    } else {
+                        YaaccLogger.d(getClass().getName(), "✗ Skipped (null item): " + (file.getName() != null ? file.getName() : "unknown"));
+                    }
                     YaaccLogger.d(getClass().getName(), "Item[" + i + "] " + (file.getName() != null ? file.getName() : "unknown") + " (took " + (System.currentTimeMillis() - itemStart) + "ms)");
                 }
             }
@@ -294,15 +299,28 @@ public class SafFolderBrowser extends ContentBrowser {
 
         // Get all metadata from cache (duration, MIME type, short ID)
         SAFMetadata metadata = SAFCacheManager.getInstance(getContext()).getMetadata(file);
-        if (metadata == null || metadata.mimeType == null) {
+        if (metadata == null) {
             return null;
         }
+        
+        // If MIME type is null or invalid, try to guess from filename
+        String mimeTypeStr = metadata.mimeType;
+        if (mimeTypeStr == null || mimeTypeStr.equals("null") || !mimeTypeStr.contains("/")) {
+            mimeTypeStr = SAFCacheManager.getInstance(getContext()).guessMimeTypeFromExtension(file.getName());
+            if (mimeTypeStr == null) {
+                return null;  // Still couldn't determine MIME type
+            }
+        }
 
-        MimeType mimeType = MimeType.valueOf(metadata.mimeType);
+        MimeType mimeType = MimeType.valueOf(mimeTypeStr);
         String mimeTypeMain = mimeType.getType();
 
         String id = ContentDirectoryIDs.SAF_PREFIX.getId() + metadata.shortId;
         String title = file.getName() != null ? file.getName() : extractFilenameFromUri(path);
+        if (file.getName() == null) {
+            YaaccLogger.d(getClass().getName(), "file.getName() is null for URI: " + file.getUri());
+        }
+
         if (restricted) {
             title = "[X] " + title;
         }
