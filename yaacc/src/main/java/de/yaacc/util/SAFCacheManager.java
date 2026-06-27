@@ -180,14 +180,64 @@ public class SAFCacheManager {
     
     /**
      * Extract all metadata for a file (duration, MIME type, short ID).
+     * NEVER extracts duration on current thread - always queues for background.
      */
     private SAFMetadata extractMetadata(DocumentFile file) {
         String uri = file.getUri().toString();
-        String duration = extractDuration(file.getUri());
         String mimeType = extractMimeType(file);
         String shortId = getOrCreateShortId(uri);
         long fileSize = file.length();
-        return new SAFMetadata(duration, mimeType, shortId, fileSize);
+        
+        // Queue duration extraction for background (don't block HTTP thread!)
+        if (mimeType != null && (mimeType.startsWith("audio/") || mimeType.startsWith("video/"))) {
+            queueForDurationExtraction(file.getUri(), mimeType);
+        }
+        
+        // Return immediately with empty duration
+        return new SAFMetadata("", mimeType, shortId, fileSize);
+    }
+    
+    /**
+     * Queue file for background duration extraction.
+     */
+    private void queueForDurationExtraction(Uri uri, String mimeType) {
+        preloadExecutor.execute(() -> {
+            try {
+                String duration;
+                if (mimeType.startsWith("video/")) {
+                    // Try quick extraction first
+                    duration = extractVideoDurationQuick(uri);
+                    if (duration == null || duration.isEmpty()) {
+                        // Full extraction as fallback
+                        duration = extractAudioDuration(uri);
+                    }
+                } else {
+                    // Audio: full extraction
+                    duration = extractAudioDuration(uri);
+                }
+                
+                if (duration != null && !duration.isEmpty()) {
+                    String key = CACHE_PREFIX + uri.toString();
+                    
+                    // Get the cached metadata (without duration) and update it
+                    String serialized = preferences.getString(key, null);
+                    if (serialized != null) {
+                        SAFMetadata metadata = SAFMetadata.deserialize(serialized);
+                        if (metadata != null) {
+                            // Create new metadata with the extracted duration
+                            SAFMetadata updated = new SAFMetadata(duration, metadata.mimeType, metadata.shortId, metadata.fileSize);
+                            String updatedSerialized = updated.serialize();
+                            
+                            lruCache.put(key, updatedSerialized);
+                            preferences.edit().putString(key, updatedSerialized).apply();
+                            YaaccLogger.d(getClass().getName(), "DURATION_EXTRACTED: " + uri.getLastPathSegment() + " -> " + duration);
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                YaaccLogger.w(getClass().getName(), "DURATION_EXTRACT_FAILED: " + uri.getLastPathSegment(), e);
+            }
+        });
     }
     
     /**
@@ -227,10 +277,129 @@ public class SAFCacheManager {
                 if (mimeType != null) return mimeType;
             }
         }
+        
         // Fall back to system lookup
-        return file.getType();
+        String mimeType = file.getType();
+        if (mimeType != null && !mimeType.equals("null") && mimeType.contains("/")) {
+            return mimeType;
+        }
+        
+        // Heuristic: guess from extension (returns null if unknown)
+        return file.getName() != null ? guessMimeTypeFromExtension(file.getName()) : null;
+    }
+
+    public String guessMimeTypeFromExtension(String filename) {
+        if (filename == null) return null;
+        int dotIndex = filename.lastIndexOf('.');
+        if (dotIndex <= 0) return null;
+        
+        String ext = filename.substring(dotIndex + 1).toLowerCase();
+        switch (ext) {
+            case "mp4": case "m4v": case "mov": return "video/mp4";
+            case "avi": case "divx": return "video/x-msvideo";
+            case "mkv": case "webm": return "video/x-matroska";
+            case "mp3": return "audio/mpeg";
+            case "aac": case "m4a": return "audio/aac";
+            case "wav": return "audio/wav";
+            case "ogg": case "oga": return "audio/ogg";
+            case "flac": return "audio/flac";
+            case "jpg": case "jpeg": return "image/jpeg";
+            case "png": return "image/png";
+            case "gif": return "image/gif";
+            default: return null;
+        }
     }
     
+    private String extractAudioDuration(Uri uri) {
+        MediaMetadataRetriever retriever = null;
+        try {
+            retriever = new MediaMetadataRetriever();
+            retriever.setDataSource(context, uri);
+            String durationStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION);
+            if (durationStr != null) {
+                long durationMs = Long.parseLong(durationStr);
+                return FormatHelper.parseMillisToTimeStringTo(durationMs);
+            }
+        } catch (Exception e) {
+            YaaccLogger.d(getClass().getName(), "Duration not available: " + uri.getLastPathSegment());
+        } finally {
+            if (retriever != null) {
+                try { retriever.release(); } catch (Exception ignored) {}
+            }
+        }
+        return "";
+    }
+
+    /**
+     * Quick video duration extraction from first 1MB (MOOV atom).
+     */
+    private String extractVideoDurationQuick(Uri uri) {
+        try (java.io.InputStream is = context.getContentResolver().openInputStream(uri)) {
+            if (is == null) return null;
+            
+            byte[] buffer = new byte[1024 * 1024]; // 1MB
+            int bytesRead = is.read(buffer);
+            
+            // Try to find duration from MP4 MOOV atom
+            String duration = parseMp4Duration(buffer, bytesRead);
+            if (duration != null && !duration.isEmpty()) {
+                YaaccLogger.d(getClass().getName(), "VIDEO_QUICK_EXTRACT: " + uri.getLastPathSegment() + " -> " + duration);
+                return duration;
+            }
+        } catch (Exception e) {
+            YaaccLogger.d(getClass().getName(), "VIDEO_QUICK_EXTRACT_FAILED: " + uri.getLastPathSegment());
+        }
+        return null;
+    }
+
+    /**
+     * Parse MP4 MOOV atom to extract duration.
+     */
+    private String parseMp4Duration(byte[] buffer, int bytesRead) {
+        // Look for 'mvhd' (movie header) atom which contains duration
+        String mvhd = "mvhd";
+        for (int i = 0; i < bytesRead - 20; i++) {
+            if (buffer[i] == 'm' && buffer[i + 1] == 'v' && 
+                buffer[i + 2] == 'h' && buffer[i + 3] == 'd') {
+                
+                // Found mvhd atom, duration is at specific offset
+                try {
+                    // Version at i+4, flags at i+5-7
+                    int version = buffer[i + 4] & 0xFF;
+                    
+                    if (version == 0) {
+                        // 32-bit duration at offset 16
+                        int durationSecs = ((buffer[i + 16] & 0xFF) << 24) |
+                                         ((buffer[i + 17] & 0xFF) << 16) |
+                                         ((buffer[i + 18] & 0xFF) << 8) |
+                                         (buffer[i + 19] & 0xFF);
+                        
+                        if (durationSecs > 0 && durationSecs < 1000000) {
+                            return FormatHelper.parseMillisToTimeStringTo(durationSecs * 1000L);
+                        }
+                    } else if (version == 1) {
+                        // 64-bit duration at offset 28 (different offset in version 1)
+                        long durationSecs = ((long)(buffer[i + 28] & 0xFF) << 56) |
+                                          ((long)(buffer[i + 29] & 0xFF) << 48) |
+                                          ((long)(buffer[i + 30] & 0xFF) << 40) |
+                                          ((long)(buffer[i + 31] & 0xFF) << 32) |
+                                          ((long)(buffer[i + 32] & 0xFF) << 24) |
+                                          ((long)(buffer[i + 33] & 0xFF) << 16) |
+                                          ((long)(buffer[i + 34] & 0xFF) << 8) |
+                                          (buffer[i + 35] & 0xFF);
+                        
+                        if (durationSecs > 0 && durationSecs < 1000000) {
+                            return FormatHelper.parseMillisToTimeStringTo(durationSecs * 1000L);
+                        }
+                    }
+                } catch (Exception e) {
+                    YaaccLogger.d(getClass().getName(), "Error parsing mvhd atom");
+                }
+            }
+        }
+        return null;
+    }
+
     private String extractDuration(Uri uri) {
         MediaMetadataRetriever retriever = null;
         try {

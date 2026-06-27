@@ -19,26 +19,18 @@
 package de.yaacc.upnp.server.contentdirectory;
 
 import android.content.Context;
-import android.content.SharedPreferences;
-import android.media.MediaMetadataRetriever;
 import android.net.Uri;
 import android.provider.DocumentsContract;
 import android.util.Base64;
 
 import androidx.documentfile.provider.DocumentFile;
-import androidx.preference.PreferenceManager;
 
 import org.fourthline.cling.support.model.DIDLObject;
-import org.fourthline.cling.support.model.Protocol;
 import org.fourthline.cling.support.model.ProtocolInfo;
-import org.fourthline.cling.support.model.Res;
 import org.fourthline.cling.support.model.SortCriterion;
 import org.fourthline.cling.support.model.container.Container;
 import org.fourthline.cling.support.model.container.StorageFolder;
-import org.fourthline.cling.support.model.item.AudioItem;
-import org.fourthline.cling.support.model.item.ImageItem;
 import org.fourthline.cling.support.model.item.Item;
-import org.fourthline.cling.support.model.item.VideoItem;
 import org.seamless.util.MimeType;
 
 import java.util.ArrayList;
@@ -51,7 +43,6 @@ import de.yaacc.upnp.model.YaaccItem;
 import de.yaacc.upnp.model.YaaccRes;
 import de.yaacc.util.SAFCacheManager;
 import de.yaacc.util.SAFMetadata;
-import de.yaacc.util.FormatHelper;
 import de.yaacc.util.YaaccLogger;
 
 /**
@@ -64,7 +55,7 @@ public class SafFolderBrowser extends ContentBrowser {
     public SafFolderBrowser(Context context) {
         super(context);
     }
-    
+
     @Override
     public DIDLObject browseMeta(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
         if (myId.equals(ContentDirectoryIDs.SAF_FOLDER.getId())) {
@@ -151,12 +142,12 @@ public class SafFolderBrowser extends ContentBrowser {
             YaaccLogger.d(getClass().getName(), "Browsing subfolder with ID: " + myId);
             String shortId = myId.substring(ContentDirectoryIDs.SAF_PREFIX.getId().length());
             String path = SAFCacheManager.getInstance(getContext()).getUriForShortId(shortId);
-            
+
             if (path == null) {
                 YaaccLogger.e(getClass().getName(), "Short ID not found: " + shortId);
                 return result;
             }
-            
+
             YaaccLogger.d(getClass().getName(), "Resolved path from shortId " + shortId + ": " + path);
 
             Uri uri = Uri.parse(path);
@@ -176,11 +167,11 @@ public class SafFolderBrowser extends ContentBrowser {
                 long listStart = System.currentTimeMillis();
                 DocumentFile[] files = root.listFiles();
                 YaaccLogger.d(getClass().getName(), "listFiles() took " + (System.currentTimeMillis() - listStart) + "ms, found " + files.length + " items");
-                
+
                 int start = (int) Math.max(0, firstResult);
                 int end = (int) Math.min(files.length, start + maxResults);
                 YaaccLogger.d(getClass().getName(), "Pagination: start=" + start + ", end=" + end + ", total=" + files.length);
-                
+
                 for (int i = start; i < end; i++) {
                     long itemStart = System.currentTimeMillis();
                     DocumentFile file = files[i];
@@ -238,7 +229,12 @@ public class SafFolderBrowser extends ContentBrowser {
                 DocumentFile file = DocumentFile.fromSingleUri(getContext(), Uri.parse(path));
                 if (file != null && !file.isDirectory()) {
                     Item item = createItem(contentDirectory, path, file, myId, !file.canRead());
-                    if (item != null) result.add(item);
+                    if (item != null) {
+                        result.add(item);
+                        YaaccLogger.d(getClass().getName(), "✓ Added to result: Item[" + (result.size() - 1) + "] " + (file.getName() != null ? file.getName() : "unknown"));
+                    } else {
+                        YaaccLogger.d(getClass().getName(), "✗ Skipped (null item): " + (file.getName() != null ? file.getName() : "unknown"));
+                    }
                     YaaccLogger.d(getClass().getName(), "Item[" + i + "] " + (file.getName() != null ? file.getName() : "unknown") + " (took " + (System.currentTimeMillis() - itemStart) + "ms)");
                 }
             }
@@ -249,26 +245,26 @@ public class SafFolderBrowser extends ContentBrowser {
             YaaccLogger.d(getClass().getName(), "Browsing subfolder items for: " + myId);
             String shortId = myId.substring(ContentDirectoryIDs.SAF_PREFIX.getId().length());
             String path = SAFCacheManager.getInstance(getContext()).getUriForShortId(shortId);
-            
+
             if (path == null) {
                 YaaccLogger.e(getClass().getName(), "Short ID not found: " + shortId);
                 return result;
             }
-            
+
             long treeStart = System.currentTimeMillis();
             DocumentFile root = DocumentFile.fromTreeUri(getContext(), Uri.parse(path));
             YaaccLogger.d(getClass().getName(), "Tree URI resolved in " + (System.currentTimeMillis() - treeStart) + "ms");
-            
+
             if (root != null && root.isDirectory()) {
                 if (root.canRead()) {
                     long listStart = System.currentTimeMillis();
                     DocumentFile[] files = root.listFiles();
                     YaaccLogger.d(getClass().getName(), "listFiles() took " + (System.currentTimeMillis() - listStart) + "ms, found " + files.length + " items");
-                    
+
                     int start = (int) Math.max(0, firstResult);
                     int end = (int) Math.min(files.length, start + maxResults);
                     YaaccLogger.d(getClass().getName(), "Pagination: start=" + start + ", end=" + end + ", total=" + files.length);
-                    
+
                     for (int i = start; i < end; i++) {
                         long itemStart = System.currentTimeMillis();
                         DocumentFile file = files[i];
@@ -296,59 +292,78 @@ public class SafFolderBrowser extends ContentBrowser {
     private Item createItem(YaaccContentDirectory contentDirectory, String path, DocumentFile file, String parentId, boolean restricted) {
         long createStart = System.currentTimeMillis();
         String fileName = file.getName() != null ? file.getName() : "unknown";
-        
+
         if (file.getName() != null && file.getName().endsWith("m3u")) {
             return null;
         }
-        
+
         // Get all metadata from cache (duration, MIME type, short ID)
         SAFMetadata metadata = SAFCacheManager.getInstance(getContext()).getMetadata(file);
-        if (metadata == null || metadata.mimeType == null) {
+        if (metadata == null) {
             return null;
         }
         
-        MimeType mimeType = MimeType.valueOf(metadata.mimeType);
+        // If MIME type is null or invalid, try to guess from filename
+        String mimeTypeStr = metadata.mimeType;
+        if (mimeTypeStr == null || mimeTypeStr.equals("null") || !mimeTypeStr.contains("/")) {
+            mimeTypeStr = SAFCacheManager.getInstance(getContext()).guessMimeTypeFromExtension(file.getName());
+            if (mimeTypeStr == null) {
+                return null;  // Still couldn't determine MIME type
+            }
+        }
+
+        MimeType mimeType = MimeType.valueOf(mimeTypeStr);
         String mimeTypeMain = mimeType.getType();
-        
+
         String id = ContentDirectoryIDs.SAF_PREFIX.getId() + metadata.shortId;
-        String title = file.getName() != null ? file.getName() : path;
+        String title = file.getName() != null ? file.getName() : extractFilenameFromUri(path);
+        if (file.getName() == null) {
+            YaaccLogger.d(getClass().getName(), "file.getName() is null for URI: " + file.getUri());
+        }
+
         if (restricted) {
             title = "[X] " + title;
         }
-        
+
         // Use shortId in URI instead of Base64-encoded path
         String uri = getUriString(contentDirectory, id, mimeType, metadata.shortId);
         YaaccLogger.d(getClass().getName(), "Generated URI for " + title + ": " + uri + " (shortId=" + metadata.shortId + ")");
-        
+
         long protocolStart = System.currentTimeMillis();
         ProtocolInfo protocolInfo = getProtocolInfo(mimeType);
         long protocolTime = System.currentTimeMillis() - protocolStart;
-        
+
         String duration = null;
         if (mimeTypeMain.equals("audio") && !restricted) {
             duration = metadata.duration;
         }
-        
+
         // Create lightweight YaaccRes (no Cling overhead)
         YaaccRes yaaccRes = new YaaccRes(protocolInfo, metadata.fileSize, duration, null, uri);
-        
+
         // Create lightweight YaaccItem (no Cling Property overhead)
         long itemStart = System.currentTimeMillis();
-        String clazz = mimeTypeMain.equals("audio") ? "object.item.audioItem" 
-                            : mimeTypeMain.equals("video") ? "object.item.videoItem" 
-                            : "object.item.imageItem";
+        String clazz = mimeTypeMain.equals("audio") ? "object.item.audioItem"
+                : mimeTypeMain.equals("video") ? "object.item.videoItem"
+                : "object.item.imageItem";
         YaaccItem yaaccItem = new YaaccItem(id, parentId, title, "yaacc", restricted, clazz);
         yaaccItem.addResource(yaaccRes);
         long itemTime = System.currentTimeMillis() - itemStart;
-        
+
         // Convert to Cling Item only at the end (for UPnP serialization)
         long convertStart = System.currentTimeMillis();
         Item item = yaaccItem.toClingItem();
         long convertTime = System.currentTimeMillis() - convertStart;
-        
+
         long totalTime = System.currentTimeMillis() - createStart;
         YaaccLogger.d(getClass().getName(), "Item[?] " + fileName + " - protocolInfo=" + protocolTime + "ms, YaaccItem=" + itemTime + "ms, convert=" + convertTime + "ms, total=" + totalTime + "ms");
         return item;
+    }
+
+    private String extractFilenameFromUri(String path) {
+        if (path == null) return "unknown";
+        int lastSlash = path.lastIndexOf('/');
+        return lastSlash >= 0 ? path.substring(lastSlash + 1) : path;
     }
 
     /*
