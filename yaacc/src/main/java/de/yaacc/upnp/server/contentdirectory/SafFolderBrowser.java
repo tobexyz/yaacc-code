@@ -326,7 +326,12 @@ public class SafFolderBrowser extends ContentBrowser {
         }
 
         // Use shortId in URI instead of Base64-encoded path
-        String uri = getUriString(contentDirectory, id, mimeType, metadata.shortId);
+        // Include filename to help renderers display proper title
+        String filenameForUri = file.getName() != null ? file.getName() : "file";
+        // Remove extension and special characters for URI path
+        String safeFilename = filenameForUri.replaceAll("[^a-zA-Z0-9._-]", "_");
+        String uriContentId = metadata.shortId + "_" + safeFilename;
+        String uri = getUriString(contentDirectory, id, mimeType, uriContentId);
         YaaccLogger.d(getClass().getName(), "Generated URI for " + title + ": " + uri + " (shortId=" + metadata.shortId + ")");
 
         long protocolStart = System.currentTimeMillis();

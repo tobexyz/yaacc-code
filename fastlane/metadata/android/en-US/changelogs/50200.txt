@@ -1,5 +1,7 @@
 Version 5.2.0
 - fixed app crash on unknown http codes in upnp responses
 - fixed pause/play on yaacc renderer
+- improved media type extraction and fallback title for SAF content
+- server now uses the media filename or title as filename in content url
 - allow stopping the app via action button in notification
 - stop the app completely if idle in background

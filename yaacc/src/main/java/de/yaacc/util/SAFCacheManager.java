@@ -83,6 +83,11 @@ public class SAFCacheManager {
     
     private int totalFilesIndexed = 0;
     private boolean isPreloading = false;
+    private long lastProgressNotifyTime = 0;
+    private static final long PROGRESS_NOTIFY_INTERVAL = 500; // Notify every 500ms
+    private String lastNotifiedFolder = "";
+    private long lastFileIndexedTime = 0;
+    private static final long STALL_TIMEOUT = 30000; // 30 seconds without file progress = stall
     
     private static SAFCacheManager instance;
     
@@ -113,7 +118,15 @@ public class SAFCacheManager {
      * Get complete metadata for a SAF file (duration, MIME type, encoded ID).
      * Returns cached data if available, otherwise extracts synchronously.
      */
+    private final Object preferencesLock = new Object();
+    
     public SAFMetadata getMetadata(DocumentFile file) {
+        synchronized (preferencesLock) {
+            return getMetadataInternal(file);
+        }
+    }
+    
+    private SAFMetadata getMetadataInternal(DocumentFile file) {
         if (file == null) return null;
         
         long startTime = System.currentTimeMillis();
@@ -463,24 +476,38 @@ public class SAFCacheManager {
      */
     public void preloadSafDurations() {
         if (isPreloading) {
-            YaaccLogger.w(getClass().getName(), "PRELOAD_ALREADY_RUNNING");
+            YaaccLogger.d(getClass().getName(), "PRELOAD_ALREADY_RUNNING");
             return;
         }
         
+        YaaccLogger.d(getClass().getName(), "PRELOAD_STARTING - setting isPreloading=true");
         isPreloading = true;
         totalFilesIndexed = 0;
+        lastProgressNotifyTime = 0;
+        lastNotifiedFolder = "";
+        lastFileIndexedTime = System.currentTimeMillis();
         long preloadStart = System.currentTimeMillis();
-        YaaccLogger.i(getClass().getName(), "PRELOAD_START");
+        YaaccLogger.d(getClass().getName(), "PRELOAD_START");
         
         preloadExecutor.execute(() -> {
             try {
+                YaaccLogger.d(getClass().getName(), "PRELOAD_THREAD_STARTED");
                 Set<String> safUris = de.yaacc.upnp.server.contentdirectory.MediaPathFilter.getSafPathes(context);
-                YaaccLogger.i(getClass().getName(), "PRELOAD_SCANNING: " + safUris.size() + " SAF roots");
+                YaaccLogger.d(getClass().getName(), "PRELOAD_SCANNING: " + safUris.size() + " SAF roots");
+                
+                if (safUris.isEmpty()) {
+                    YaaccLogger.d(getClass().getName(), "PRELOAD_NO_PATHS: No SAF paths configured");
+                    isPreloading = false;
+                    notifyPreloadComplete();
+                    return;
+                }
                 
                 for (String uriString : safUris) {
+                    YaaccLogger.d(getClass().getName(), "PRELOAD_PROCESSING_URI: " + uriString);
+                    
                     // Check timeout (max 5 minutes total)
                     if (System.currentTimeMillis() - preloadStart > 5 * 60 * 1000) {
-                        YaaccLogger.w(getClass().getName(), "PRELOAD_TIMEOUT: Stopping after 5 minutes");
+                        YaaccLogger.d(getClass().getName(), "PRELOAD_TIMEOUT: Stopping after 5 minutes");
                         break;
                     }
                     
@@ -488,17 +515,27 @@ public class SAFCacheManager {
                         Uri safUri = Uri.parse(uriString);
                         DocumentFile root = DocumentFile.fromTreeUri(context, safUri);
                         if (root != null) {
+                            YaaccLogger.d(getClass().getName(), "PRELOAD_TRAVERSING: " + root.getName());
                             traverseAndCache(root, preloadStart);
+                        } else {
+                            YaaccLogger.d(getClass().getName(), "PRELOAD_ROOT_NULL: Could not open " + uriString);
                         }
                     } catch (Exception e) {
-                        YaaccLogger.w(getClass().getName(), "PRELOAD_ERROR: Failed to preload SAF: " + uriString, e);
+                        YaaccLogger.d(getClass().getName(), "PRELOAD_ERROR: Exception for URI: " + uriString + " - " + e.getClass().getSimpleName() + ": " + e.getMessage());
+                        e.printStackTrace();
                     }
                 }
                 long elapsed = System.currentTimeMillis() - preloadStart;
-                YaaccLogger.i(getClass().getName(), "PRELOAD_COMPLETE: " + totalFilesIndexed + " files indexed in " + elapsed + "ms (cache_size=" + lruCache.size() + ")");
+                YaaccLogger.d(getClass().getName(), "PRELOAD_COMPLETE: " + totalFilesIndexed + " files indexed in " + elapsed + "ms (cache_size=" + lruCache.size() + ")");
+                isPreloading = false;
+                YaaccLogger.d(getClass().getName(), "PRELOAD_STATE_SET_FALSE: isPreloading now = " + isPreloading);
+                notifyPreloadComplete();
+            } catch (Exception e) {
+                YaaccLogger.d(getClass().getName(), "PRELOAD_EXCEPTION", e);
+                isPreloading = false;
             } finally {
                 isPreloading = false;
-                notifyPreloadComplete();
+                YaaccLogger.d(getClass().getName(), "PRELOAD_FINALLY: isPreloading = " + isPreloading);
             }
         });
     }
@@ -517,45 +554,117 @@ public class SAFCacheManager {
     }
     
     private void traverseAndCache(DocumentFile dir, long startTime) {
+        traverseAndCache(dir, startTime, 0);
+    }
+    
+    private void traverseAndCache(DocumentFile dir, long startTime, int depth) {
         if (!dir.isDirectory()) return;
         
-        // Check timeout
+        // Prevent infinite recursion
+        if (depth > 100) {
+            YaaccLogger.d(getClass().getName(), "PRELOAD_MAX_DEPTH: Stopping at depth " + depth);
+            return;
+        }
+        
+        // Check overall timeout
         if (System.currentTimeMillis() - startTime > 5 * 60 * 1000) {
             return;
         }
         
-        // Check if we can read this directory
-        if (!dir.canRead()) {
+        // Check if stuck (no progress for 30 seconds)
+        long currentTime = System.currentTimeMillis();
+        if (lastFileIndexedTime > 0 && currentTime - lastFileIndexedTime > STALL_TIMEOUT) {
+            YaaccLogger.d(getClass().getName(), "PRELOAD_STALL_DETECTED: No progress for 30 seconds at depth " + depth + ", stopping");
+            return;
+        }
+        
+        // Check if we can read this directory (with timeout)
+        boolean canRead = false;
+        try {
+            long checkStart = System.currentTimeMillis();
+            canRead = dir.canRead();
+            long checkTime = System.currentTimeMillis() - checkStart;
+            if (checkTime > 1000) {
+                YaaccLogger.d(getClass().getName(), "PRELOAD_CANREAD_SLOW: " + dir.getName() + " took " + checkTime + "ms");
+            }
+        } catch (Exception e) {
+            YaaccLogger.d(getClass().getName(), "PRELOAD_CANREAD_ERROR: " + dir.getName() + " - " + e.getClass().getSimpleName());
+            return;
+        }
+        
+        if (!canRead) {
             YaaccLogger.d(getClass().getName(), "PRELOAD_SKIP: No read permission for " + dir.getName());
             return;
         }
         
-        DocumentFile[] files = dir.listFiles();
-        if (files == null) return;
+        DocumentFile[] files = null;
+        try {
+            long listStart = System.currentTimeMillis();
+            files = dir.listFiles();
+            long listTime = System.currentTimeMillis() - listStart;
+            if (listTime > 1000) {
+                YaaccLogger.d(getClass().getName(), "PRELOAD_LISTFILES_SLOW: " + dir.getName() + " took " + listTime + "ms");
+            }
+        } catch (Exception e) {
+            YaaccLogger.d(getClass().getName(), "PRELOAD_LISTFILES_ERROR: " + dir.getName() + " - " + e.getClass().getSimpleName() + ": " + e.getMessage());
+            return;
+        }
+        
+        if (files == null) {
+            YaaccLogger.d(getClass().getName(), "PRELOAD_LISTFILES_NULL: " + dir.getName());
+            return;
+        }
         
         String folderName = dir.getName() != null ? dir.getName() : "Unknown";
-        YaaccLogger.d(getClass().getName(), "PRELOAD_TRAVERSE: " + folderName + " (" + files.length + " items)");
+        YaaccLogger.d(getClass().getName(), "PRELOAD_TRAVERSE: " + folderName + " (" + files.length + " items, depth=" + depth + ")");
         
-        for (DocumentFile file : files) {
-            if (file.isDirectory()) {
-                traverseAndCache(file, startTime);
-            } else if (isMediaFile(file)) {
-                String key = CACHE_PREFIX + file.getUri().toString();
-                if (!preferences.contains(key)) {
-                    long extractStart = System.currentTimeMillis();
-                    extractAndCache(file.getUri());
-                    long elapsed = System.currentTimeMillis() - extractStart;
-                    YaaccLogger.d(getClass().getName(), "PRELOAD_EXTRACTED: " + file.getName() + " (" + elapsed + "ms)");
-                } else {
-                    YaaccLogger.d(getClass().getName(), "PRELOAD_CACHED: " + file.getName());
+        for (int i = 0; i < files.length; i++) {
+            DocumentFile file = files[i];
+            long fileStart = System.currentTimeMillis();
+            YaaccLogger.d(getClass().getName(), "PRELOAD_FILE_START: [" + i + "/" + files.length + "] " + file.getName());
+            
+            try {
+                // Check file operation timeout (5 seconds per file)
+                if (System.currentTimeMillis() - fileStart > 5000) {
+                    YaaccLogger.d(getClass().getName(), "PRELOAD_FILE_TIMEOUT: [" + i + "/" + files.length + "] " + file.getName() + " taking too long, skipping");
+                    continue;
                 }
                 
-                totalFilesIndexed++;
-                
-                // Notify progress every 10 files
-                if (totalFilesIndexed % 10 == 0) {
-                    notifyPreloadProgress(totalFilesIndexed, folderName);
+                if (file.isDirectory()) {
+                    traverseAndCache(file, startTime, depth + 1);
+                } else if (isMediaFile(file)) {
+                    String key = CACHE_PREFIX + file.getUri().toString();
+                    
+                    boolean needsExtraction = !preferences.contains(key);
+                    
+                    if (needsExtraction) {
+                        long extractStart = System.currentTimeMillis();
+                        extractAndCache(file.getUri());
+                        long elapsed = System.currentTimeMillis() - extractStart;
+                        YaaccLogger.d(getClass().getName(), "PRELOAD_EXTRACTED: " + file.getName() + " (" + elapsed + "ms)");
+                    } else {
+                        YaaccLogger.d(getClass().getName(), "PRELOAD_CACHED: " + file.getName());
+                    }
+                    
+                    totalFilesIndexed++;
+                    lastFileIndexedTime = System.currentTimeMillis();
+                    
+                    // Notify progress based on time interval (every 500ms)
+                    long progressCheckTime = System.currentTimeMillis();
+                    if (progressCheckTime - lastProgressNotifyTime > PROGRESS_NOTIFY_INTERVAL) {
+                        notifyPreloadProgress(totalFilesIndexed, folderName);
+                        lastProgressNotifyTime = progressCheckTime;
+                        lastNotifiedFolder = folderName;
+                    }
                 }
+            } catch (Exception e) {
+                long fileElapsed = System.currentTimeMillis() - fileStart;
+                YaaccLogger.d(getClass().getName(), "PRELOAD_FILE_ERROR: [" + i + "/" + files.length + "] " + file.getName() + " after " + fileElapsed + "ms - " + e.getClass().getSimpleName() + ": " + e.getMessage());
+            }
+            
+            long fileElapsed = System.currentTimeMillis() - fileStart;
+            if (fileElapsed > 5000) {
+                YaaccLogger.d(getClass().getName(), "PRELOAD_FILE_SLOW: [" + i + "/" + files.length + "] " + file.getName() + " took " + fileElapsed + "ms");
             }
         }
     }

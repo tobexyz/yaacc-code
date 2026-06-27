@@ -187,6 +187,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         public void onReceive(Context context, Intent intent) {
             int total = intent.getIntExtra("files_indexed", 0);
             cacheFilesIndexed = total;
+            cacheCurrentFolder = ""; // Clear folder when indexing completes
             showNotification(); // Update notification with final cache status
         }
     };
@@ -391,13 +392,20 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
 
         // Duration cache status
         SAFCacheManager cacheManager = SAFCacheManager.getInstance(this);
-        if (cacheManager.isPreloading()) {
+        boolean isPreloading = cacheManager.isPreloading();
+        YaaccLogger.d(getClass().getName(), "showNotification: isPreloading=" + isPreloading + ", cacheSize=" + cacheManager.getCacheSize() + ", filesIndexed=" + cacheFilesIndexed);
+        
+        if (isPreloading) {
             statusBuilder.append(" | ⏳ Indexing: ").append(cacheFilesIndexed);
             if (!cacheCurrentFolder.isEmpty()) {
                 statusBuilder.append(" (").append(cacheCurrentFolder).append(")");
             }
+            YaaccLogger.d(getClass().getName(), "Notification: showing indexing progress - " + cacheFilesIndexed + " files");
         } else if (cacheManager.getCacheSize() > 0) {
             statusBuilder.append(" | ✓ Cache: ").append(cacheManager.getCacheSize());
+            YaaccLogger.d(getClass().getName(), "Notification: showing cache size - " + cacheManager.getCacheSize() + " items");
+        } else {
+            YaaccLogger.d(getClass().getName(), "Notification: no cache or indexing (isPreloading=" + isPreloading + ", cacheSize=" + cacheManager.getCacheSize() + ")");
         }
 
         NotificationCompat.Builder mBuilder = new NotificationCompat.Builder(this, Yaacc.NOTIFICATION_CHANNEL_ID)
