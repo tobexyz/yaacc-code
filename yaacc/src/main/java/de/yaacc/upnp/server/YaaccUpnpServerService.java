@@ -79,6 +79,7 @@ import java.util.List;
 import java.util.UUID;
 
 import de.yaacc.R;
+import de.yaacc.ExitBroadcastReceiver;
 import de.yaacc.Yaacc;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.protocol.UpnpProtocolHandler;
@@ -407,6 +408,12 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
                 .setGroup(Yaacc.NOTIFICATION_GROUP_KEY)
                 .setContentText(statusBuilder.toString());
         mBuilder.setContentIntent(contentIntent);
+
+        Intent closeIntent = new Intent(ExitBroadcastReceiver.ACTION_EXIT);
+        closeIntent.setPackage(getPackageName());
+        PendingIntent closePendingIntent = PendingIntent.getBroadcast(this, 0, closeIntent, PendingIntent.FLAG_IMMUTABLE);
+        mBuilder.addAction(android.R.drawable.ic_menu_close_clear_cancel, getString(R.string.close_yaacc), closePendingIntent);
+
         startForeground(NotificationId.UPNP_SERVER.getId(), mBuilder.build());
 
     }

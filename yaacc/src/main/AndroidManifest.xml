@@ -97,6 +97,15 @@
             android:name=".imageviewer.ImageViewerBroadcastReceiver" />
 
         <receiver
+            android:name=".ExitBroadcastReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="de.yaacc.ACTION_EXIT" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
             android:name=".upnp.server.ServerAutostart"
             android:enabled="true"
             android:exported="true"

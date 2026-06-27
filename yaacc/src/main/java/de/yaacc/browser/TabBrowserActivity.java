@@ -354,6 +354,7 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
 
     @Override
     public void onResume() {
+        cancelBackgroundIdleTimer();
         long start = System.currentTimeMillis();
         super.onResume();
         viewPager.setUserInputEnabled(getPreferences().getBoolean(getString(R.string.settings_swipe_chkbx), true));
@@ -372,6 +373,31 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
         }
         leftSettings = false;
         YaaccLogger.d(this.getClass().getName(), "on on resume took: " + (System.currentTimeMillis() - start));
+    }
+
+    private final android.os.Handler backgroundIdleHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+    private static final long BACKGROUND_IDLE_TIMEOUT_MS = 5 * 60 * 1000L; // 5 minutes
+
+    private final Runnable backgroundIdleRunnable = () -> {
+        Yaacc yaacc = (Yaacc) getApplicationContext();
+        UpnpClient client = yaacc.getUpnpClient();
+        boolean playersActive = client != null && !client.getCurrentPlayers().isEmpty();
+        boolean serverEnabled = getPreferences().getBoolean(getString(R.string.settings_local_server_chkbx), false);
+        boolean rendererEnabled = getPreferences().getBoolean(getString(R.string.settings_local_server_receiver_chkbx), false);
+        boolean proxyEnabled = getPreferences().getBoolean(getString(R.string.settings_local_server_proxy_chkbx), false);
+        if (!playersActive && !serverEnabled && !rendererEnabled && !proxyEnabled) {
+            yaacc.exit();
+        }
+    };
+
+    private void cancelBackgroundIdleTimer() {
+        backgroundIdleHandler.removeCallbacks(backgroundIdleRunnable);
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        backgroundIdleHandler.postDelayed(backgroundIdleRunnable, BACKGROUND_IDLE_TIMEOUT_MS);
     }
 
 
