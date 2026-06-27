@@ -101,7 +101,7 @@ public class ImagesAllFolderBrowser extends ContentBrowser {
                         MimeType mimeType = MimeType.valueOf(mImageCursor.getString(mImageCursor.getColumnIndex(MediaStore.Images.ImageColumns.MIME_TYPE)));
                         // file parameter only needed for media players which decide the
                         // ability of playing a file by the file extension
-                        String uri = getUriString(contentDirectory, id, mimeType);
+                        String uri = getUriString(contentDirectory, id, mimeType, name, null);
                         URI albumArtUri = URI.create("http://"
                                 + contentDirectory.getIpAddress() + ":"
                                 + YaaccUpnpServerService.PORT + "/thumb/" + id);

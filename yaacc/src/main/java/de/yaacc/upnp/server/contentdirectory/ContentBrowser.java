@@ -149,6 +149,26 @@ public abstract class ContentBrowser {
         return "http://" + contentDirectory.getIpAddress() + ":"
                 + YaaccUpnpServerService.PORT + "/res/" + id + "/file." + fileExtension;
     }
+    
+    public String getUriString(YaaccContentDirectory contentDirectory, String id, MimeType mimeType, String filename, String contentUri) {
+        String fileExtension = MimeTypeMap.getSingleton().getExtensionFromMimeType(mimeType.toString());
+        if (fileExtension == null) {
+            fileExtension = mimeType.getSubtype();
+        }
+
+        if (contentUri != null) {
+            // SAF format with filename
+            return "http://" + contentDirectory.getIpAddress() + ":"
+                    + YaaccUpnpServerService.PORT + "/saf/" + id + "/" + contentUri + "." + fileExtension;
+        }
+        
+        // Non-SAF format with filename included for renderer title
+        String safeFilename = filename != null && !filename.isEmpty() 
+            ? filename.replaceAll("[^a-zA-Z0-9._-]", "_")
+            : "file";
+        return "http://" + contentDirectory.getIpAddress() + ":"
+                + YaaccUpnpServerService.PORT + "/res/" + id + "/" + safeFilename + "." + fileExtension;
+    }
 
     public String getDLNAAttributes(MimeType mimetype) {
         String mime = mimetype.toString();

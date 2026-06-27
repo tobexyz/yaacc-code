@@ -718,7 +718,8 @@ public class AVTransportPlayer extends AbstractPlayer {
         String metadata;
         try {
             metadata = new DIDLParser().generate((item == null) ? new DIDLContent() : new DIDLContent().addItem(item), false);
-
+            String itemTitle = item != null ? item.getTitle() : "null";
+            YaaccLogger.d(getClass().getName(), "DIDL Metadata generated - Item title: " + itemTitle + " - Metadata XML: " + metadata.substring(0, Math.min(500, metadata.length())));
         } catch (Exception e) {
             YaaccLogger.d(getClass().getName(), "Error while generating Didl-Item xml: " + e);
             metadata = "";
@@ -750,6 +751,7 @@ public class AVTransportPlayer extends AbstractPlayer {
                 getHttpRequestSender());
         YaaccLogger.d(getClass().getName(), "Original URI: " + playableItem.getUri().toString());
         YaaccLogger.d(getClass().getName(), "Modified URI: " + modifyProxyUrlWithDeviceId(playableItem.getUri().toString()));
+        YaaccLogger.d(getClass().getName(), "SetAVTransportURI - Title: " + (item != null ? item.getTitle() : "null") + ", Metadata length: " + metadata.length());
         executorService.execute(setAVTransportURI);
         waitForActionComplete(actionState);
         int tries = 1;
