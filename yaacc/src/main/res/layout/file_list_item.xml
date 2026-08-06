@@ -9,7 +9,8 @@
         android:layout_width="48dp"
         android:layout_height="48dp"
         android:layout_centerVertical="true"
-        android:src="@drawable/sharp_chevron_right_24" />
+        android:src="@drawable/sharp_chevron_right_24"
+        android:tint="?attr/colorControlNormal" />
 
     <CheckBox
         android:id="@+id/file_checkbox"
@@ -25,7 +26,8 @@
         android:layout_height="48dp"
         android:layout_centerVertical="true"
         android:layout_toEndOf="@id/file_checkbox"
-        android:src="@drawable/ic_baseline_folder_open_48" />
+        android:src="@drawable/ic_baseline_folder_open_48"
+        android:tint="?attr/colorControlNormal" />
 
     <TextView
         android:id="@+id/file_name"
@@ -44,5 +46,6 @@
         android:layout_height="48dp"
         android:layout_centerVertical="true"
         android:layout_alignParentEnd="true"
-        android:src="@drawable/ic_baseline_delete_outline_48" />
+        android:src="@drawable/ic_baseline_delete_outline_48"
+        android:tint="?attr/colorControlNormal" />
 </RelativeLayout>

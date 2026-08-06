@@ -36,7 +36,8 @@
         android:adjustViewBounds="false"
         android:contentDescription="@string/multiContentPlayerActivityImageView"
         android:scaleType="fitCenter"
-        app:srcCompat="@drawable/yaacc192_32" />
+        app:srcCompat="@drawable/yaacc192_32"
+                    app:tint="?attr/colorControlNormal" />
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -54,7 +55,8 @@
             android:layout_marginStart="2dp"
             android:contentDescription="@string/previous"
             android:scaleType="center"
-            app:srcCompat="@drawable/ic_baseline_skip_previous_32" />
+            app:srcCompat="@drawable/ic_baseline_skip_previous_32"
+                    app:tint="?attr/colorControlNormal" />
 
         <ImageButton
             android:id="@+id/multiContentPlayerActivityControlPlay"
@@ -62,7 +64,8 @@
             android:layout_height="48dp"
             android:layout_marginStart="2dp"
             android:contentDescription="@string/play"
-            app:srcCompat="@drawable/ic_baseline_play_arrow_32" />
+            app:srcCompat="@drawable/ic_baseline_play_arrow_32"
+                    app:tint="?attr/colorControlNormal" />
 
         <ImageButton
             android:id="@+id/multiContentPlayerActivityControlPause"
@@ -70,7 +73,8 @@
             android:layout_height="48dp"
             android:layout_marginStart="2dp"
             android:contentDescription="@string/pause"
-            app:srcCompat="@drawable/ic_baseline_pause_32" />
+            app:srcCompat="@drawable/ic_baseline_pause_32"
+                    app:tint="?attr/colorControlNormal" />
 
         <ImageButton
             android:id="@+id/multiContentPlayerActivityControlStop"
@@ -78,7 +82,8 @@
             android:layout_height="48dp"
             android:layout_marginStart="2dp"
             android:contentDescription="@string/stop"
-            app:srcCompat="@drawable/ic_baseline_stop_32" />
+            app:srcCompat="@drawable/ic_baseline_stop_32"
+                    app:tint="?attr/colorControlNormal" />
 
         <ImageButton
             android:id="@+id/multiContentPlayerActivityControlNext"
@@ -86,7 +91,8 @@
             android:layout_height="48dp"
             android:layout_marginStart="2dp"
             android:contentDescription="@string/next"
-            app:srcCompat="@drawable/ic_baseline_skip_next_32" />
+            app:srcCompat="@drawable/ic_baseline_skip_next_32"
+                    app:tint="?attr/colorControlNormal" />
 
         <ImageButton
             android:id="@+id/multiContentPlayerActivityControlPlaylist"
@@ -94,7 +100,8 @@
             android:layout_height="48dp"
             android:layout_marginStart="2dp"
             android:contentDescription="@string/playlist"
-            app:srcCompat="@drawable/ic_baseline_playlist_play_32" />
+            app:srcCompat="@drawable/ic_baseline_playlist_play_32"
+                    app:tint="?attr/colorControlNormal" />
 
 
         <ImageButton
@@ -103,7 +110,8 @@
             android:layout_height="48dp"
             android:layout_marginStart="2dp"
             android:contentDescription="@string/exit"
-            app:srcCompat="@drawable/ic_baseline_cancel_32" />
+            app:srcCompat="@drawable/ic_baseline_cancel_32"
+                    app:tint="?attr/colorControlNormal" />
     </LinearLayout>
 
 

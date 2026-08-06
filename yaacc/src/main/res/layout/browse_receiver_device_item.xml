@@ -124,6 +124,7 @@
                     android:layout_width="40dp"
                     android:layout_height="40dp"
                     android:src="@drawable/ic_baseline_play_arrow_32"
+                    android:tint="?attr/colorControlNormal"
                     android:background="?attr/selectableItemBackgroundBorderless"
                     android:contentDescription="Play" />
 
@@ -132,6 +133,7 @@
                     android:layout_width="40dp"
                     android:layout_height="40dp"
                     android:src="@drawable/ic_baseline_pause_32"
+                    android:tint="?attr/colorControlNormal"
                     android:background="?attr/selectableItemBackgroundBorderless"
                     android:contentDescription="Pause" />
 
@@ -140,6 +142,7 @@
                     android:layout_width="40dp"
                     android:layout_height="40dp"
                     android:src="@drawable/ic_baseline_stop_32"
+                    android:tint="?attr/colorControlNormal"
                     android:background="?attr/selectableItemBackgroundBorderless"
                     android:contentDescription="Stop" />
 
