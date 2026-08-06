@@ -171,6 +171,22 @@ public class BrowseReceiverDeviceAdapter extends RecyclerView.Adapter<BrowseRece
         // Tag the icon with device identity to prevent wrong icon loading
         holder.icon.setTag(device.getIdentity().getUdn().getIdentifierString());
 
+        // Check if device supports volume control
+        boolean supportsVolume = supportsVolumeControl(device);
+        boolean supportsMute = supportsMuteControl(device);
+        
+        // Disable controls if not supported
+        holder.volume.setEnabled(supportsVolume);
+        holder.mute.setEnabled(supportsMute);
+        if (!supportsVolume) {
+            holder.volume.setAlpha(0.5f);
+            holder.volume.setProgress(50); // Show neutral position
+        }
+        if (!supportsMute) {
+            holder.mute.setAlpha(0.5f);
+            holder.mute.setEnabled(false);
+        }
+
         // Check if there's an active player for this device
         Player player = getPlayerForDevice(device);
 
@@ -537,5 +553,21 @@ public class BrowseReceiverDeviceAdapter extends RecyclerView.Adapter<BrowseRece
             itemContainer = itemView.findViewById(R.id.item_container);
             volume.setMax(100);
         }
+    }
+
+    /**
+     * Check if device supports volume control (GetVolume action).
+     */
+    private boolean supportsVolumeControl(Device<?, ?, ?> device) {
+        org.fourthline.cling.model.meta.Service renderingControl = device.findService(new org.fourthline.cling.model.types.UDAServiceId("RenderingControl"));
+        return renderingControl != null && renderingControl.getAction("GetVolume") != null;
+    }
+
+    /**
+     * Check if device supports mute control (GetMute action).
+     */
+    private boolean supportsMuteControl(Device<?, ?, ?> device) {
+        org.fourthline.cling.model.meta.Service renderingControl = device.findService(new org.fourthline.cling.model.types.UDAServiceId("RenderingControl"));
+        return renderingControl != null && renderingControl.getAction("GetMute") != null;
     }
 }
