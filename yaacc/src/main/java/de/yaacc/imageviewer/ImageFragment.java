@@ -18,6 +18,7 @@
 package de.yaacc.imageviewer;
 
 import android.graphics.Bitmap;
+import android.graphics.Matrix;
 import android.net.Uri;
 import android.os.Bundle;
 import android.view.LayoutInflater;
@@ -28,6 +29,7 @@ import android.widget.ProgressBar;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.exifinterface.media.ExifInterface;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.Lifecycle;
 import androidx.lifecycle.LifecycleEventObserver;
@@ -123,19 +125,46 @@ public class ImageFragment extends Fragment {
             if (getActivity() != null) {
                 String scheme = imageUri.getScheme();
                 if ("http".equals(scheme) || "https".equals(scheme)) {
-                    // Download from HTTP
+                    // Download from HTTP - no EXIF support for remote images
                     java.net.URL url = new java.net.URL(imageUri.toString());
                     return android.graphics.BitmapFactory.decodeStream(url.openStream());
                 } else {
                     // Local file via ContentResolver
-                    return android.graphics.BitmapFactory.decodeStream(
+                    Bitmap bitmap = android.graphics.BitmapFactory.decodeStream(
                             getActivity().getContentResolver().openInputStream(imageUri));
+                    return applyExifRotation(bitmap, imageUri);
                 }
             }
         } catch (Exception e) {
             YaaccLogger.e(getClass().getName(), "Failed to load image: " + imageUri, e);
         }
         return null;
+    }
+
+    private Bitmap applyExifRotation(Bitmap bitmap, Uri imageUri) {
+        if (bitmap == null) return null;
+        try {
+            java.io.InputStream inputStream = getActivity().getContentResolver().openInputStream(imageUri);
+            if (inputStream == null) return bitmap;
+            ExifInterface exif = new ExifInterface(inputStream);
+            inputStream.close();
+            int orientation = exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL);
+            int degrees = 0;
+            switch (orientation) {
+                case ExifInterface.ORIENTATION_ROTATE_90:  degrees = 90;  break;
+                case ExifInterface.ORIENTATION_ROTATE_180: degrees = 180; break;
+                case ExifInterface.ORIENTATION_ROTATE_270: degrees = 270; break;
+                default: return bitmap; // No rotation needed
+            }
+            Matrix matrix = new Matrix();
+            matrix.postRotate(degrees);
+            Bitmap rotated = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true);
+            bitmap.recycle();
+            return rotated;
+        } catch (Exception e) {
+            YaaccLogger.e(getClass().getName(), "Failed to read EXIF orientation for: " + imageUri, e);
+            return bitmap;
+        }
     }
 
     public void setImageUri(Uri uri) {
