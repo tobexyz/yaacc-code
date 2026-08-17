@@ -236,7 +236,7 @@ public class BrowseReceiverDeviceAdapter extends RecyclerView.Adapter<BrowseRece
             notifyDataSetChanged();
         });
         holder.checkBox.setChecked(selectedDevices.contains(device));
-        new DeviceVolumeStateLoadTask(holder.volume, upnpClient).execute(device);
+        new DeviceVolumeStateLoadTask(holder.volume, holder.volumeText, upnpClient).execute(device);
         new DeviceMuteStateLoadTask(holder.mute, upnpClient).execute(device);
 
         // Wire up playback controls

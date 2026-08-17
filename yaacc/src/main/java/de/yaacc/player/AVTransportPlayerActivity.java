@@ -27,6 +27,7 @@ import android.os.IBinder;
 import android.view.KeyEvent;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.ImageButton;
@@ -259,22 +260,35 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
             volumeSeekBar.setEnabled(false);
             volumeSeekBar.setProgress(0);
         }
+        
+        // FIX #2: Handle ViewPager2 touch interception for horizontal slider
+        volumeSeekBar.setOnTouchListener((v, event) -> {
+            if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                v.getParent().requestDisallowInterceptTouchEvent(true);
+            } else if (event.getAction() == MotionEvent.ACTION_UP || 
+                       event.getAction() == MotionEvent.ACTION_CANCEL) {
+                v.getParent().requestDisallowInterceptTouchEvent(false);
+            }
+            return false; // Let the SeekBar handle the touch
+        });
+        
         volumeSeekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                if (getPlayer() != null && getPlayer().hasActionGetVolume()) {
+                if (fromUser && getPlayer() != null && getPlayer().hasActionGetVolume()) {
                     getPlayer().setVolume(progress);
                 }
             }
 
             @Override
             public void onStartTrackingTouch(SeekBar seekBar) {
-
+                // Ensure parent doesn't intercept during drag
+                seekBar.getParent().requestDisallowInterceptTouchEvent(true);
             }
 
             @Override
             public void onStopTrackingTouch(SeekBar seekBar) {
-
+                seekBar.getParent().requestDisallowInterceptTouchEvent(false);
             }
         });
 
@@ -450,6 +464,17 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
             }
         } catch (ParseException pex) {
             YaaccLogger.d(getClass().getName(), "Error while parsing time string", pex);
+        }
+        
+        // FIX #1: Update volume slider to prevent flickering
+        // Sync volume slider with device's actual volume every second
+        SeekBar volumeSeekBar = (SeekBar) findViewById(R.id.avtransportPlayerActivityControlVolumeSeekBar);
+        if (getPlayer() != null && getPlayer().hasActionGetVolume() && volumeSeekBar != null) {
+            int currentVolume = getPlayer().getVolume();
+            if (volumeSeekBar.getProgress() != currentVolume) {
+                YaaccLogger.d(getClass().getName(), "Updating volume slider from " + volumeSeekBar.getProgress() + " to " + currentVolume);
+                volumeSeekBar.setProgress(currentVolume);
+            }
         }
     }
 

@@ -37,6 +37,9 @@ public class DeviceMuteStateLoadTask extends AsyncTask<Device<?, ?, ?>, Integer,
             return;
         }
         targetWidget.setEnabled(true);
+        // Restore alpha to full if we successfully got the mute state
+        // (may have been dimmed if the initial supportsMuteControl() check timed out)
+        targetWidget.setAlpha(1.0f);
         targetWidget.setChecked(result);
         targetWidget.setOnClickListener((it) -> {
             upnpClient.setMute(device, targetWidget.isChecked());
