@@ -125,6 +125,13 @@ public class RendererStatusMonitor {
             return;
         }
         
+        // Check if GetVolume action is supported
+        if (renderingControl.getAction("GetVolume") == null) {
+            YaaccLogger.d(getClass().getName(), "GetVolume action not supported by device: " + device.getDisplayString());
+            updateStatus(device, state, trackTitle, 50);
+            return;
+        }
+        
         executorService.execute(new GetVolume(renderingControl, httpRequestSender) {
             @Override
             public void received(ActionInvocation invocation, int currentVolume) {
