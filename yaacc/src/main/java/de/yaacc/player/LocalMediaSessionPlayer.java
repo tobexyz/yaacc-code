@@ -285,6 +285,11 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
                         player.addMediaItem(builder.build());
                     }
                     player.prepare();
+                } else if (player.getPlaybackState() == Player.STATE_IDLE) {
+                    // Player is IDLE after stop() - need to prepare again
+                    // This happens when play() is called after stop()
+                    YaaccLogger.d(getClass().getName(), "Player in IDLE state, re-preparing before play");
+                    player.prepare();
                 }
                 // Now seek and play
                 player.seekTo(index, 0);
@@ -387,6 +392,8 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
         new Handler(Looper.getMainLooper()).post(() -> {
             if (exoPlayer != null) {
                 exoPlayer.stop();
+                // Note: ExoPlayer remains in STOPPED state but retains media items and position
+                // Ready for next play() call (no need to re-prepare unless playlist changed)
             }
             setPlaying(false);
         });
