@@ -70,6 +70,7 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
     protected SeekBar seekBar = null;
     private PlayerService playerService;
     private int playerId;
+    private boolean isBound = false;
 
     private AVTransportController player;
 
@@ -96,22 +97,20 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
     @Override
     protected void onPause() {
         super.onPause();
+        // Do NOT unbind here — unbinding on every pause creates an asymmetry where
+        // the subsequent onResume would call bindService(BIND_AUTO_CREATE), which
+        // restarts a dead service even after the user pressed Exit.
+        // Service binding lifecycle is managed exclusively in onCreate/onDestroy.
         updateTime = false;
-        if (getPlayerService() != null) {
-            try {
-                getPlayerService().unbindService(this);
-            } catch (IllegalArgumentException iae) {
-                YaaccLogger.d(getClass().getName(), "Ignore exception on unbind service while activity pause");
-            }
-        }
     }
 
     @Override
     protected void onRestart() {
         super.onRestart();
-        this.bindService(new Intent(this, PlayerService.class),
-                this, Context.BIND_AUTO_CREATE);
+        // Don't bind again — already bound in onCreate().
+        // Binding here with BIND_AUTO_CREATE would restart a stopped service.
         updateTime = true;
+        setTrackInfo();
     }
 
     @Override
@@ -119,8 +118,8 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
         super.onResume();
         // Use music stream for volume control (works for both local and remote)
         setVolumeControlStream(android.media.AudioManager.STREAM_MUSIC);
-        this.bindService(new Intent(this, PlayerService.class),
-                this, Context.BIND_AUTO_CREATE);
+        // Don't bind again — already bound in onCreate().
+        // Binding here with BIND_AUTO_CREATE would restart a stopped service.
         updateTime = true;
         setTrackInfo();
     }
@@ -135,12 +134,15 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
     protected void onDestroy() {
         super.onDestroy();
         updateTime = false;
-        try {
-            unbindService(this);
-        } catch (IllegalArgumentException iae) {
-            YaaccLogger.d(getClass().getName(), "Ignore exception on unbind service while activity destroy");
+        if (isBound) {
+            try {
+                unbindService(this);
+                isBound = false;
+                YaaccLogger.d(getClass().getName(), "Successfully unbound from PlayerService in onDestroy");
+            } catch (IllegalArgumentException iae) {
+                YaaccLogger.d(getClass().getName(), "Ignore exception on unbind service while activity destroy");
+            }
         }
-
     }
 
     protected void initialize() {
@@ -348,6 +350,7 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
         try {
             this.bindService(new Intent(this, PlayerService.class),
                     this, Context.BIND_AUTO_CREATE);
+            isBound = true;
         } catch (Exception ex) {
             YaaccLogger.d(getClass().getName(), "ignore exception on service bind during onCreate");
         }

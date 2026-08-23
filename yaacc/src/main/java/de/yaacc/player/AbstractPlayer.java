@@ -960,9 +960,14 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
         cancelNotification();
         items.clear();
 
-        // Remove player from service
+        // Unbind from PlayerService.
+        // NOTE: do NOT call playerService.removePlayer(this) here — when this onDestroy() is
+        // invoked via PlayerService.shutdown(player), the player has already been removed from
+        // currentActivePlayer.  Calling removePlayer() again is a harmless no-op, but it also
+        // triggers a second updateForegroundState() call that could race with the first.
+        // If onDestroy() is called independently (edge case / activity crash), the service
+        // connection will be lost and onServiceDisconnected() will fire, which calls removePlayer().
         if (playerService != null) {
-            playerService.removePlayer(this);
             try {
                 playerService.unbindService(this);
             } catch (IllegalArgumentException iex) {

@@ -226,7 +226,11 @@ public class PlayerService extends MediaSessionService {
         updateServiceNotification();
         initialize();
 
-        return START_STICKY;
+        // START_NOT_STICKY: do not auto-restart this service after stopSelf().
+        // PlayerService is started explicitly by AbstractPlayer.startService() whenever
+        // a new player is created; it must not restart itself after all players exit.
+        // Using START_STICKY caused the service to restart immediately after Exit was pressed.
+        return START_NOT_STICKY;
     }
 
     private void initialize() {
