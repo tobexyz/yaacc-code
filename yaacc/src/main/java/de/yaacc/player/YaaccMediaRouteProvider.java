@@ -25,6 +25,7 @@ import android.os.Looper;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.mediarouter.media.MediaControlIntent;
 import androidx.mediarouter.media.MediaRouteDescriptor;
 import androidx.mediarouter.media.MediaRouteProvider;
 import androidx.mediarouter.media.MediaRouteProviderDescriptor;
@@ -49,7 +50,58 @@ public class YaaccMediaRouteProvider extends MediaRouteProvider {
     public YaaccMediaRouteProvider(Context context, UpnpClient upnpClient) {
         super(context);
         this.upnpClient = upnpClient;
-        publishRoutes();
+        
+        // CRITICAL: Android 13+ requires setDescriptor() to be called synchronously in constructor
+        // Push an initial descriptor immediately so the system's MediaRoute2 watcher recognizes us
+        publishInitialDescriptor();
+        
+        // Then refresh asynchronously once UPnP devices are available
+        refreshRoutesAsync();
+    }
+
+    /**
+     * Push initial descriptor immediately (required for Android 13+ MediaRoute2 discovery).
+     * This ensures the system's MediaRoute2ProviderWatcher can bind to us right away.
+     */
+    private void publishInitialDescriptor() {
+        // Create a placeholder route so the provider is registered with the system
+        MediaRouteDescriptor.Builder mockRoute = new MediaRouteDescriptor.Builder("yaacc_placeholder", "YAACC Network Audio")
+                .setDescription("UPnP/DLNA Media Renderer")
+                .setPlaybackType(MediaRouter.RouteInfo.PLAYBACK_TYPE_REMOTE)
+                .setVolumeHandling(MediaRouter.RouteInfo.PLAYBACK_VOLUME_VARIABLE)
+                .setVolumeMax(100)
+                .setVolume(50);
+        
+        // Add control filters with standard Android feature keys (not MediaControlIntent constants)
+        // These are the canonical keys that Android 13+ MediaRoute2 framework expects
+        IntentFilter remotePlaybackFilter = new IntentFilter();
+        remotePlaybackFilter.addCategory("android.media.route.feature.REMOTE_PLAYBACK");
+        mockRoute.addControlFilter(remotePlaybackFilter);
+        
+        IntentFilter liveAudioFilter = new IntentFilter();
+        liveAudioFilter.addCategory("android.media.route.feature.LIVE_AUDIO");
+        mockRoute.addControlFilter(liveAudioFilter);
+        
+        IntentFilter liveVideoFilter = new IntentFilter();
+        liveVideoFilter.addCategory("android.media.route.feature.LIVE_VIDEO");
+        mockRoute.addControlFilter(liveVideoFilter);
+        
+        MediaRouteProviderDescriptor.Builder providerBuilder = new MediaRouteProviderDescriptor.Builder()
+                .addRoute(mockRoute.build());
+        
+        // THIS MUST HAPPEN SYNC IN THE CONSTRUCTOR - no async, no delays
+        setDescriptor(providerBuilder.build());
+        YaaccLogger.d(getClass().getName(), "Initial descriptor published (Android 13+ compatibility)");
+    }
+
+    /**
+     * Refresh routes asynchronously after initial descriptor is published.
+     * Android 13+ requires the initial descriptor to be sync; real devices can be discovered after.
+     */
+    private void refreshRoutesAsync() {
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            publishRoutes();
+        }, 100); // Small delay to allow UPnP client to populate devices
     }
 
     /**
@@ -89,13 +141,31 @@ public class YaaccMediaRouteProvider extends MediaRouteProvider {
         String routeId = device.getIdentity().getUdn().getIdentifierString();
         String name = device.getDetails().getFriendlyName();
 
+        // Remote playback filter: standard remote playback feature key
+        IntentFilter remotePlaybackFilter = new IntentFilter();
+        remotePlaybackFilter.addCategory("android.media.route.feature.REMOTE_PLAYBACK");
+        remotePlaybackFilter.addAction(MediaControlIntent.ACTION_PLAY);
+        remotePlaybackFilter.addAction(MediaControlIntent.ACTION_PAUSE);
+        remotePlaybackFilter.addAction(MediaControlIntent.ACTION_RESUME);
+        remotePlaybackFilter.addAction(MediaControlIntent.ACTION_STOP);
+
+        // Live audio filter: generic audio routing feature key
+        IntentFilter liveAudioFilter = new IntentFilter();
+        liveAudioFilter.addCategory("android.media.route.feature.LIVE_AUDIO");
+
+        // Live video filter: video streaming and mirroring feature key
+        IntentFilter liveVideoFilter = new IntentFilter();
+        liveVideoFilter.addCategory("android.media.route.feature.LIVE_VIDEO");
+
         return new MediaRouteDescriptor.Builder(routeId, name)
                 .setDescription(device.getDetails().getModelDetails().getModelDescription())
                 .setPlaybackType(MediaRouter.RouteInfo.PLAYBACK_TYPE_REMOTE)
                 .setVolumeHandling(MediaRouter.RouteInfo.PLAYBACK_VOLUME_VARIABLE)
                 .setVolumeMax(100)
                 .setVolume(50)
-                .addControlFilter(new IntentFilter("android.media.action.PLAY"))
+                .addControlFilter(remotePlaybackFilter)
+                .addControlFilter(liveAudioFilter)
+                .addControlFilter(liveVideoFilter)
                 .build();
     }
 
@@ -178,13 +248,16 @@ public class YaaccMediaRouteProvider extends MediaRouteProvider {
             }
 
             String action = intent.getAction();
-            if ("android.media.action.PLAY".equals(action)) {
+            if (MediaControlIntent.ACTION_PLAY.equals(action)) {
                 player.play();
                 return true;
-            } else if ("android.media.action.PAUSE".equals(action)) {
+            } else if (MediaControlIntent.ACTION_PAUSE.equals(action)) {
                 player.pause();
                 return true;
-            } else if ("android.media.action.STOP".equals(action)) {
+            } else if (MediaControlIntent.ACTION_RESUME.equals(action)) {
+                player.play();
+                return true;
+            } else if (MediaControlIntent.ACTION_STOP.equals(action)) {
                 player.stop();
                 return true;
             }

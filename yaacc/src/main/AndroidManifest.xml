@@ -32,6 +32,7 @@
     <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <uses-permission android:name="android.permission.BIND_MEDIA_ROUTE_PROVIDER_SERVICE" />
 
     <application
         android:name=".Yaacc"
@@ -74,6 +75,16 @@
             android:name=".upnp.server.YaaccUpnpServerService"
             android:enabled="true"
             android:foregroundServiceType="mediaProjection" />
+
+        <service
+            android:name=".player.YaaccMediaRouteProviderService"
+            android:label="YAACC Cast Receiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.media.MediaRouteProviderService" />
+            </intent-filter>
+        </service>
 
         <activity
             android:name=".imageviewer.ImageViewerActivity"

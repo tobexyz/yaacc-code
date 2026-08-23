@@ -51,6 +51,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
+import androidx.mediarouter.media.MediaRouter;
 import androidx.preference.PreferenceManager;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.viewpager2.adapter.FragmentStateAdapter;
@@ -70,6 +71,7 @@ import de.yaacc.R;
 import de.yaacc.Yaacc;
 import de.yaacc.player.PlayableItem;
 import de.yaacc.player.Player;
+import de.yaacc.player.YaaccSelfDeviceMediaRouteProvider;
 import de.yaacc.settings.SettingsActivity;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.server.YaaccUpnpServerService;
@@ -231,6 +233,17 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
 
         checkIfReceivedShareIntent(null);
         YaaccLogger.d(this.getClass().getName(), "on create took: " + (System.currentTimeMillis() - start));
+        
+        // Register YAACC as a castable device (same place as share intent handling)
+        try {
+            YaaccSelfDeviceMediaRouteProvider castProvider = 
+                new YaaccSelfDeviceMediaRouteProvider(this, upnpClient);
+            MediaRouter mediaRouter = MediaRouter.getInstance(this);
+            mediaRouter.addProvider(castProvider);
+            YaaccLogger.d(getClass().getName(), "Cast device provider registered");
+        } catch (Exception ex) {
+            YaaccLogger.e(getClass().getName(), "Failed to register Cast provider", ex);
+        }
     }
 
     private void checkBatteryOptimizationEnabled() {
