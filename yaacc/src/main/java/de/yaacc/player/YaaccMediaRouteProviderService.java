@@ -17,7 +17,6 @@
  */
 package de.yaacc.player;
 
-import androidx.annotation.NonNull;
 import androidx.mediarouter.media.MediaRouteProvider;
 import androidx.mediarouter.media.MediaRouteProviderService;
 
@@ -40,18 +39,40 @@ public class YaaccMediaRouteProviderService extends MediaRouteProviderService {
 
     @Override
     public MediaRouteProvider onCreateMediaRouteProvider() {
-        YaaccLogger.d(TAG, "Creating MediaRouteProvider for YAACC self-device");
-        
-        // Get the YAACC application context to access UpnpClient
+        YaaccLogger.d(TAG, "onCreateMediaRouteProvider called, thread=" + Thread.currentThread().getName());
+
+        // Try to get UpnpClient
         UpnpClient upnpClient = getUpnpClient();
+
         if (upnpClient == null) {
-            YaaccLogger.e(TAG, "Failed to get UpnpClient - provider will not be created");
-            return null;
+            YaaccLogger.w(TAG, "UpnpClient is null in onCreateMediaRouteProvider, returning empty provider");
+            // Create an empty provider (no routes yet)
+            provider = new YaaccSelfDeviceMediaRouteProvider(this, null);
+
+            // Start a background thread to check when UpnpClient becomes available
+            new Thread(() -> {
+                for (int i = 0; i < 30; i++) {  // Try for up to 15 seconds
+                    try {
+                        Thread.sleep(500);
+                        UpnpClient retryClient = getUpnpClient();
+                        if (retryClient != null) {
+                            YaaccLogger.d(TAG, "UpnpClient became available after " + (i * 500) + "ms, updating provider");
+                            provider.updateUpnpClient(retryClient);
+                            break;
+                        }
+                    } catch (InterruptedException e) {
+                        break;
+                    }
+                }
+            }, "YaaccCastInitializer").start();
+
+            return provider;
         }
 
-        // Create the provider
+        // Create the provider with UpnpClient
+        YaaccLogger.d(TAG, "Creating YaaccSelfDeviceMediaRouteProvider with UpnpClient immediately");
         provider = new YaaccSelfDeviceMediaRouteProvider(this, upnpClient);
-        provider.publishRoute();
+        YaaccLogger.d(TAG, "MediaRouteProvider created: " + provider);
         return provider;
     }
 
@@ -61,11 +82,14 @@ public class YaaccMediaRouteProviderService extends MediaRouteProviderService {
     private UpnpClient getUpnpClient() {
         try {
             Object app = getApplication();
+            android.util.Log.d(TAG, "getUpnpClient: app class = " + (app == null ? "null" : app.getClass().getName()));
             if (app instanceof de.yaacc.Yaacc) {
-                return ((de.yaacc.Yaacc) app).getUpnpClient();
+                UpnpClient client = ((de.yaacc.Yaacc) app).getUpnpClient();
+                android.util.Log.d(TAG, "getUpnpClient: UpnpClient = " + (client == null ? "null" : "available"));
+                return client;
             }
         } catch (Exception e) {
-            YaaccLogger.e(TAG, "Failed to get UpnpClient from application", e);
+            android.util.Log.e(TAG, "Failed to get UpnpClient from application", e);
         }
         return null;
     }

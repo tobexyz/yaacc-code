@@ -17,7 +17,6 @@
  */
 package de.yaacc.player;
 
-import android.os.Bundle;
 import android.content.Context;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
@@ -36,16 +35,16 @@ import de.yaacc.util.YaaccLogger;
 
 /**
  * MediaRouteProvider that exposes YAACC itself as a castable device.
- *
+ * <p>
  * This provider registers YAACC in Android's system Cast picker so that
  * streaming apps (Spotify, YouTube Music, etc.) can discover and cast to YAACC.
  * When selected, cast commands are delegated to {@link YaaccCastController}.
- *
+ * <p>
  * Integration points:
  * - Registered in YaaccUpnpServerService when the UPnP server starts
  * - Unregistered when the UPnP server stops
  * - Cast commands eventually route to the currently selected receiver via UpnpClient
- *
+ * <p>
  * Usage:
  * <pre>
  *   YaaccSelfDeviceMediaRouteProvider provider =
@@ -57,30 +56,38 @@ import de.yaacc.util.YaaccLogger;
  */
 public class YaaccSelfDeviceMediaRouteProvider extends MediaRouteProvider {
 
-    /** Stable route ID for YAACC self-device route. */
+    /**
+     * Stable route ID for YAACC self-device route.
+     */
     public static final String YAACC_ROUTE_ID = "yaacc_self_device";
 
     private static final String TAG = YaaccSelfDeviceMediaRouteProvider.class.getName();
     private static final int DEFAULT_VOLUME = 50;
     private static final int MAX_VOLUME = 100;
-    /** Max characters for the device name shown in Cast picker. */
+    /**
+     * Max characters for the device name shown in Cast picker.
+     */
     private static final int MAX_DEVICE_NAME_LENGTH = 30;
 
-    private final UpnpClient upnpClient;
+    private UpnpClient upnpClient;
     private final String deviceName;
 
     /**
      * Create the provider.
      *
      * @param context    Android context (application or service context)
-     * @param upnpClient YAACC UPnP client for accessing players and receivers
+     * @param upnpClient YAACC UPnP client for accessing players and receivers (may be null if not yet initialized)
      */
     public YaaccSelfDeviceMediaRouteProvider(@NonNull Context context,
-                                              @NonNull UpnpClient upnpClient) {
+                                             @Nullable UpnpClient upnpClient) {
         super(context);
         this.upnpClient = upnpClient;
         this.deviceName = buildDeviceName(context);
-        publishRoute();
+        if (upnpClient != null) {
+            publishRoute();
+        } else {
+            YaaccLogger.d(TAG, "UpnpClient is null, route will be published later");
+        }
     }
 
     /**
@@ -103,37 +110,52 @@ public class YaaccSelfDeviceMediaRouteProvider extends MediaRouteProvider {
      * discover it in the system Cast picker.
      */
     public void publishRoute() {
-        // Remote playback filter: announces that this route handles streaming playback
-        // from a casting app (e.g. Spotify, YouTube Music).
-        IntentFilter remotePlaybackFilter = new IntentFilter();
-        remotePlaybackFilter.addCategory(MediaControlIntent.CATEGORY_REMOTE_PLAYBACK);
-        remotePlaybackFilter.addCategory(MediaControlIntent.CATEGORY_LIVE_VIDEO);
-        remotePlaybackFilter.addCategory(MediaControlIntent.CATEGORY_LIVE_AUDIO);
-        //remotePlaybackFilter.addCategory("com.google.android.gms.cast.CATEGORY_CAST");
-        //remotePlaybackFilter.addCategory("android.media.route.feature.LIVE_VIDEO");
-        //remotePlaybackFilter.addCategory("android.media.route.feature.LIVE_AUDIO");
-        remotePlaybackFilter.addCategory("android.media.route.feature.REMOTE_PLAYBACK");
-        remotePlaybackFilter.addAction(MediaControlIntent.ACTION_PLAY);
-        remotePlaybackFilter.addAction(MediaControlIntent.ACTION_PAUSE);
-        remotePlaybackFilter.addAction(MediaControlIntent.ACTION_RESUME);
-        remotePlaybackFilter.addAction(MediaControlIntent.ACTION_STOP);
-        remotePlaybackFilter.addAction(MediaControlIntent.ACTION_SEEK);
-        remotePlaybackFilter.addAction(MediaControlIntent.ACTION_GET_STATUS);
-        remotePlaybackFilter.addDataScheme("http");
-        remotePlaybackFilter.addDataScheme("https");
-        //remotePlaybackFilter.addDataScheme("cast");
-        //remotePlaybackFilter.addDataAuthority("CC32E753", null); //sptfy
+        if (upnpClient == null) {
+            YaaccLogger.w(TAG, "Cannot publish route - UpnpClient is null");
+            return;
+        }
 
-        // Bundle extras = new Bundle();
-        // extras.putString("com.google.android.gms.cast.EXTRA_CAST_APPLICATION_ID", "CC32E753");
+        YaaccLogger.d(TAG, "Publishing YAACC route: " + deviceName);
 
-        // Live audio filter: generic audio routing category
-        IntentFilter liveAudioFilter = new IntentFilter();
-        liveAudioFilter.addCategory(MediaControlIntent.CATEGORY_LIVE_AUDIO);
+        // Create control filter for remote playback
+        IntentFilter controlFilter = new IntentFilter();
 
-        // Live video filter: video streaming and mirroring category
-        IntentFilter liveVideoFilter = new IntentFilter();
-        liveVideoFilter.addCategory(MediaControlIntent.CATEGORY_LIVE_VIDEO);
+        // Add Google Cast category (CRITICAL - YouTube Music specifically looks for this)
+        controlFilter.addCategory("com.google.android.gms.cast.CATEGORY_CAST");
+
+        // Add standard MediaControl intent categories (required for YouTube Music, Spotify, etc.)
+        controlFilter.addCategory(MediaControlIntent.CATEGORY_REMOTE_PLAYBACK);
+        controlFilter.addCategory(MediaControlIntent.CATEGORY_LIVE_AUDIO);
+        controlFilter.addCategory(MediaControlIntent.CATEGORY_LIVE_VIDEO);
+
+        // Add standard playback actions
+        controlFilter.addAction(MediaControlIntent.ACTION_PLAY);
+        controlFilter.addAction(MediaControlIntent.ACTION_PAUSE);
+        controlFilter.addAction(MediaControlIntent.ACTION_RESUME);
+        controlFilter.addAction(MediaControlIntent.ACTION_STOP);
+        controlFilter.addAction(MediaControlIntent.ACTION_SEEK);
+        controlFilter.addAction(MediaControlIntent.ACTION_GET_STATUS);
+
+        // Add data schemes for media URLs
+        controlFilter.addDataScheme("http");
+        controlFilter.addDataScheme("https");
+
+        // Add data types for common media formats (wrapped in try-catch)
+        try {
+            controlFilter.addDataType("audio/mpeg");
+            controlFilter.addDataType("audio/mp4");
+            controlFilter.addDataType("audio/*");
+            controlFilter.addDataType("video/mp4");
+            controlFilter.addDataType("video/*");
+            controlFilter.addDataType("*/*");
+        } catch (IntentFilter.MalformedMimeTypeException e) {
+            YaaccLogger.w(TAG, "Failed to add data types to control filter: " + e.getMessage());
+        }
+
+        YaaccLogger.d(TAG, "Control filter categories: REMOTE_PLAYBACK, LIVE_AUDIO, LIVE_VIDEO");
+        YaaccLogger.d(TAG, "Control filter actions: PLAY, PAUSE, RESUME, STOP, SEEK, GET_STATUS");
+        YaaccLogger.d(TAG, "Control filter schemes: http, https");
+        YaaccLogger.d(TAG, "Control filter types: audio/*, video/*, */*");
 
         MediaRouteDescriptor route = new MediaRouteDescriptor.Builder(YAACC_ROUTE_ID, deviceName)
                 .setDescription("YAACC Media Player")
@@ -142,10 +164,9 @@ public class YaaccSelfDeviceMediaRouteProvider extends MediaRouteProvider {
                 .setVolumeHandling(android.media.MediaRouter.RouteInfo.PLAYBACK_VOLUME_VARIABLE)
                 .setVolumeMax(MAX_VOLUME)
                 .setVolume(DEFAULT_VOLUME)
-                .addControlFilter(remotePlaybackFilter)
-          //      .setExtras(extras)
-                //.addControlFilter(liveAudioFilter)
-                //.addControlFilter(liveVideoFilter)
+                .addControlFilter(controlFilter)
+                // ✓ Mark as connected to signal readiness to casting apps
+                .setConnectionState(0)  // MediaRouter.RouteInfo.CONNECTION_STATE_CONNECTED = 0
                 .setEnabled(true)
                 .build();
 
@@ -155,7 +176,21 @@ public class YaaccSelfDeviceMediaRouteProvider extends MediaRouteProvider {
                         .build();
 
         setDescriptor(descriptor);
-        YaaccLogger.d(TAG, "Published YAACC cast route: " + deviceName);
+        YaaccLogger.d(TAG, "Published YAACC cast route: " + deviceName + " (connectionState=CONNECTED)");
+    }
+
+    /**
+     * Update the UpnpClient and publish the route.
+     * Called when the UpnpClient becomes available after initialization.
+     *
+     * @param upnpClient The newly initialized UpnpClient
+     */
+    public void updateUpnpClient(@NonNull UpnpClient upnpClient) {
+        this.upnpClient = upnpClient;
+        YaaccLogger.d(TAG, "UpnpClient updated, publishing route");
+        publishRoute();
+        // publishRoute() calls setDescriptor() which notifies the system of the change
+        YaaccLogger.d(TAG, "Descriptor updated, system will re-query the provider");
     }
 
     /**
@@ -165,12 +200,64 @@ public class YaaccSelfDeviceMediaRouteProvider extends MediaRouteProvider {
     @Nullable
     @Override
     public RouteController onCreateRouteController(@NonNull String routeId) {
+        YaaccLogger.d(TAG, "onCreateRouteController called with routeId=" + routeId);
         if (YAACC_ROUTE_ID.equals(routeId)) {
             YaaccLogger.d(TAG, "Creating route controller for YAACC self-device route");
-            return new YaaccCastController(getContext(), upnpClient);
+
+            // Mark the route as CONNECTED so YouTube Music will send playback commands
+            markRouteConnected();
+
+            YaaccCastController controller = new YaaccCastController(getContext(), upnpClient, this);
+            YaaccLogger.d(TAG, "YaaccCastController created: " + controller);
+            return controller;
         }
-        YaaccLogger.d(TAG, "onCreateRouteController: unknown routeId=" + routeId);
+        YaaccLogger.d(TAG, "onCreateRouteController: unknown routeId=" + routeId + " (expected: " + YAACC_ROUTE_ID + ")");
         return null;
+    }
+
+    /**
+     * Mark the route as CONNECTED and republish.
+     * This tells YouTube Music and other apps that we're ready to receive playback commands.
+     */
+    public void markRouteConnected() {
+        if (upnpClient == null) {
+            YaaccLogger.w(TAG, "Cannot mark route connected - UpnpClient is null");
+            return;
+        }
+
+        // Create control filter for remote playback
+        IntentFilter controlFilter = new IntentFilter();
+        controlFilter.addCategory(MediaControlIntent.CATEGORY_REMOTE_PLAYBACK);
+        controlFilter.addCategory(MediaControlIntent.CATEGORY_LIVE_AUDIO);
+        controlFilter.addCategory(MediaControlIntent.CATEGORY_LIVE_VIDEO);
+        controlFilter.addAction(MediaControlIntent.ACTION_PLAY);
+        controlFilter.addAction(MediaControlIntent.ACTION_PAUSE);
+        controlFilter.addAction(MediaControlIntent.ACTION_RESUME);
+        controlFilter.addAction(MediaControlIntent.ACTION_STOP);
+        controlFilter.addAction(MediaControlIntent.ACTION_SEEK);
+        controlFilter.addAction(MediaControlIntent.ACTION_GET_STATUS);
+        controlFilter.addDataScheme("http");
+        controlFilter.addDataScheme("https");
+
+        // Build route with CONNECTED state
+        MediaRouteDescriptor route = new MediaRouteDescriptor.Builder(YAACC_ROUTE_ID, deviceName)
+                .setDescription("YAACC Media Player")
+                .setPlaybackType(android.media.MediaRouter.RouteInfo.PLAYBACK_TYPE_REMOTE)
+                .setPlaybackStream(AudioManager.STREAM_MUSIC)
+                .setVolumeHandling(android.media.MediaRouter.RouteInfo.PLAYBACK_VOLUME_VARIABLE)
+                .setVolumeMax(MAX_VOLUME)
+                .setVolume(DEFAULT_VOLUME)
+                .addControlFilter(controlFilter)
+                .setEnabled(true)
+                .build();
+
+        MediaRouteProviderDescriptor descriptor =
+                new MediaRouteProviderDescriptor.Builder()
+                        .addRoute(route)
+                        .build();
+
+        setDescriptor(descriptor);
+        YaaccLogger.d(TAG, "✓ Route marked CONNECTED - App can now send playback commands");
     }
 
     /**

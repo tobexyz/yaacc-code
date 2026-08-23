@@ -30,8 +30,6 @@ import java.util.Collection;
 import java.util.List;
 
 import de.yaacc.upnp.UpnpClient;
-import de.yaacc.upnp.server.YaaccUpnpServerService;
-import de.yaacc.util.InterfaceResolutionHelper;
 import de.yaacc.util.YaaccLogger;
 
 /**
@@ -52,6 +50,8 @@ public class YaaccCastController extends MediaRouteProvider.RouteController {
 
     private final Context context;
     private final UpnpClient upnpClient;
+    private final YaaccSelfDeviceMediaRouteProvider provider;
+
 
     /**
      * Create a cast controller.
@@ -59,18 +59,34 @@ public class YaaccCastController extends MediaRouteProvider.RouteController {
      * @param context    Android context (application or service context)
      * @param upnpClient YAACC UPnP client for accessing current players
      */
-    public YaaccCastController(@NonNull Context context, @NonNull UpnpClient upnpClient) {
+    public YaaccCastController(@NonNull Context context, @NonNull UpnpClient upnpClient, @NonNull YaaccSelfDeviceMediaRouteProvider provider) {
         this.context = context;
         this.upnpClient = upnpClient;
+        this.provider = provider;
     }
 
     /**
      * Called when the user selects the YAACC route in the system Cast picker.
+     * The receivers should already be selected via the Receiver tab.
      */
     @Override
     public void onSelect() {
-        YaaccLogger.d(TAG, "onSelect: YAACC route selected");
+        super.onSelect();
+        YaaccLogger.d(TAG, "onSelect: YAACC route selected by casting app");
+        try {
+            // Ensure PlayerService is initialized
+            if (!upnpClient.isPlayerServiceInitialized()) {
+                YaaccLogger.d(TAG, "onSelect: starting PlayerService");
+                upnpClient.startService();
+            }
+
+            YaaccLogger.d(TAG, "onSelect: YAACC ready to receive media on selected receivers");
+        } catch (Exception e) {
+            YaaccLogger.e(TAG, "onSelect: error initializing: " + e.getMessage(), e);
+        }
+        provider.markRouteConnected();
     }
+
 
     /**
      * Called when the user deselects the YAACC route or another route is chosen.
@@ -159,43 +175,20 @@ public class YaaccCastController extends MediaRouteProvider.RouteController {
     public boolean onControlRequest(@NonNull Intent intent,
                                     MediaRouter.ControlRequestCallback callback) {
         String action = intent.getAction();
-        YaaccLogger.d(TAG, "onControlRequest: action=" + action);
+        YaaccLogger.i(TAG, "═══════════════════════════════════════════════════════");
+        YaaccLogger.i(TAG, "onControlRequest CALLED - ANY REQUEST IS LOGGED");
+        YaaccLogger.i(TAG, "action=" + action);
+        YaaccLogger.i(TAG, "extras=" + intent.getExtras());
+        YaaccLogger.i(TAG, "data=" + intent.getData());
+        YaaccLogger.i(TAG, "all extras keys: " + (intent.getExtras() != null ? intent.getExtras().keySet() : "none"));
+        YaaccLogger.i(TAG, "═══════════════════════════════════════════════════════");
 
-        // If the intent carries a URL, treat it as new content to play.
-        // This is the correct abstraction layer for Cast content sharing.
-        String uriExtra = intent.getStringExtra("uri");
-        if (uriExtra == null && intent.getData() != null) {
-            uriExtra = intent.getData().toString();
+        // Return true to indicate we handled it, even if we don't understand it yet
+        // This signals to YouTube Music that we're a valid receiver
+        if (callback != null) {
+            callback.onResult(null);
         }
-        if (uriExtra != null && !uriExtra.isEmpty()) {
-            YaaccLogger.d(TAG, "onControlRequest: URL detected, handling as content: " + uriExtra);
-            boolean handled = handlePlayUrl(uriExtra);
-            if (handled) {
-                return true;
-            }
-        }
-
-        try {
-            Collection<Player> players = upnpClient.getCurrentPlayers();
-            if (players == null || players.isEmpty()) {
-                YaaccLogger.w(TAG, "onControlRequest: no active players for action=" + action);
-                return false;
-            }
-
-            boolean handled = false;
-            for (Player player : players) {
-                try {
-                    handled |= dispatchAction(action, player);
-                } catch (Exception e) {
-                    YaaccLogger.e(TAG, "onControlRequest: error dispatching to player "
-                            + player.getName() + ": " + e.getMessage());
-                }
-            }
-            return handled;
-        } catch (Exception e) {
-            YaaccLogger.e(TAG, "onControlRequest: unexpected error: " + e.getMessage());
-            return false;
-        }
+        return true;
     }
 
     /**
@@ -215,7 +208,7 @@ public class YaaccCastController extends MediaRouteProvider.RouteController {
         YaaccLogger.d(TAG, "handlePlayUrl: " + uri);
         try {
             // UpnpClient.createPlayableItem() already handles proxy rewriting if enabled
-            
+
             // Ensure receiver devices are ready (same as TabBrowserActivity)
             long delayedExecution = 0;
             if (upnpClient.getReceiverDevicesReadyCount() == 0) {
@@ -267,8 +260,8 @@ public class YaaccCastController extends MediaRouteProvider.RouteController {
             };
 
             if (delayedExecution > 0) {
-                java.util.concurrent.ScheduledExecutorService executor = 
-                    java.util.concurrent.Executors.newSingleThreadScheduledExecutor();
+                java.util.concurrent.ScheduledExecutorService executor =
+                        java.util.concurrent.Executors.newSingleThreadScheduledExecutor();
                 executor.schedule(execution, delayedExecution, java.util.concurrent.TimeUnit.MILLISECONDS);
                 YaaccLogger.d(TAG, "handlePlayUrl: scheduled execution in " + delayedExecution + "ms");
             } else {

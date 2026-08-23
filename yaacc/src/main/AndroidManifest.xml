@@ -80,7 +80,8 @@
             android:name=".player.YaaccMediaRouteProviderService"
             android:label="YAACC Cast Receiver"
             android:enabled="true"
-            android:exported="true">
+            android:exported="true"
+            android:foregroundServiceType="mediaPlayback">
             <intent-filter>
                 <action android:name="android.media.MediaRouteProviderService" />
             </intent-filter>
