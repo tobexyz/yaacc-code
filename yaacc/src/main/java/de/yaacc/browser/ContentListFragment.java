@@ -103,6 +103,8 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         currentFolderNameView = contentlistView.findViewById(R.id.contentListCurrentFolderName);
         currentReceivers = contentlistView.findViewById(R.id.contentListCurrentReceivers);
         currentProvider = contentlistView.findViewById(R.id.contentListCurrentProvider);
+        tintCompoundDrawables(currentReceivers);
+        tintCompoundDrawables(currentProvider);
         topSeperator = contentlistView.findViewById(R.id.contentListTopSeperator);
         contentList = contentlistView.findViewById(R.id.contentList);
         progressBar = contentlistView.findViewById(R.id.contentListProgressBar);
@@ -137,6 +139,16 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         }
         ;
 
+    }
+
+    private void tintCompoundDrawables(TextView textView) {
+        Drawable[] drawables = textView.getCompoundDrawablesRelative();
+        for (int i = 0; i < drawables.length; i++) {
+            if (drawables[i] != null) {
+                drawables[i] = ThemeHelper.tintDrawable(drawables[i], requireContext().getTheme());
+            }
+        }
+        textView.setCompoundDrawablesRelativeWithIntrinsicBounds(drawables[0], drawables[1], drawables[2], drawables[3]);
     }
 
     @Override

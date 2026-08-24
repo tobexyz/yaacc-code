@@ -438,10 +438,11 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
         URI albumArtUri = getPlayer().getAlbumArt();
 
         if (null != albumArtUri) {
+            albumArtView.setImageTintList(null);
             ImageDownloadTask imageDownloadTask = new ImageDownloadTask(albumArtView);
             imageDownloadTask.executeOnExecutor(((Yaacc) getApplicationContext()).getContentLoadExecutor(), Uri.parse(albumArtUri.toString()));
         } else if (getPlayer().getIcon() != null) {
-
+            albumArtView.setImageTintList(null);
             albumArtView.setImageBitmap(getPlayer().getIcon());
         } else {
             albumArtView.setImageDrawable(ThemeHelper.tintDrawable(albumArtView.getDrawable(), getTheme()));

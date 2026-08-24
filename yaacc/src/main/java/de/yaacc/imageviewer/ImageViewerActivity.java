@@ -435,6 +435,12 @@ public class ImageViewerActivity extends AppCompatActivity implements SwipeRecei
     @Override
     public boolean onCreateOptionsMenu(android.view.Menu menu) {
         getMenuInflater().inflate(R.menu.activity_image_viewer, menu);
+        for (int i = 0; i < menu.size(); i++) {
+            android.view.MenuItem item = menu.getItem(i);
+            if (item.getIcon() != null) {
+                item.setIcon(ThemeHelper.tintDrawable(item.getIcon(), getTheme()));
+            }
+        }
         return true;
     }
 
