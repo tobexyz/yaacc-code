@@ -163,9 +163,9 @@ public class YaaccCastController extends MediaRouteProvider.RouteController {
     /**
      * Handle a playback control request from the casting app.
      *
-     * <p>Handles the standard Android media actions: PLAY, PAUSE, RESUME, STOP, NEXT, PREVIOUS.
-     * If the intent contains a URL (via the "uri" extra or the intent data URI), the URL is
-     * handled as new content via {@link #handlePlayUrl(String)} before dispatching the action.</p>
+     * <p>Note: YouTube Music doesn't call this method when Cast protocol fails.
+     * Instead, it delegates to MediaSessionCompat if one is registered.
+     * The real integration happens via YaaccMediaSessionCallback.</p>
      *
      * @param intent   the control intent with an action describing the command
      * @param callback optional callback to signal success or failure back to the casting app
@@ -174,21 +174,13 @@ public class YaaccCastController extends MediaRouteProvider.RouteController {
     @Override
     public boolean onControlRequest(@NonNull Intent intent,
                                     MediaRouter.ControlRequestCallback callback) {
-        String action = intent.getAction();
-        YaaccLogger.i(TAG, "═══════════════════════════════════════════════════════");
-        YaaccLogger.i(TAG, "onControlRequest CALLED - ANY REQUEST IS LOGGED");
-        YaaccLogger.i(TAG, "action=" + action);
-        YaaccLogger.i(TAG, "extras=" + intent.getExtras());
-        YaaccLogger.i(TAG, "data=" + intent.getData());
-        YaaccLogger.i(TAG, "all extras keys: " + (intent.getExtras() != null ? intent.getExtras().keySet() : "none"));
-        YaaccLogger.i(TAG, "═══════════════════════════════════════════════════════");
-
-        // Return true to indicate we handled it, even if we don't understand it yet
-        // This signals to YouTube Music that we're a valid receiver
+        YaaccLogger.d(TAG, "onControlRequest: YouTube Music attempted custom Cast protocol (not supported)");
+        
+        // Return false - let Android routing fall back to MediaSession
         if (callback != null) {
             callback.onResult(null);
         }
-        return true;
+        return false;
     }
 
     /**

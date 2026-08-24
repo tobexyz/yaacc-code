@@ -100,6 +100,10 @@ public class Yaacc extends Application {
         SafPermissionManager.validateAndCleanupPermissions(this);
         startService(new Intent(this, YaaccUpnpServerService.class));
         upnpClient = new UpnpClient(this);
+        
+        // Register MediaSession for YouTube Music fallback integration
+        registerYaaccMediaSession();
+
 
     }
 
@@ -224,5 +228,27 @@ public class Yaacc extends Application {
 
     public void setShutdownTimerListener(ShutdownTimerListener shutdownTimerListener) {
         this.shutdownTimerListener = shutdownTimerListener;
+    }
+
+    /**
+     * Register YAACC's MediaSession globally so YouTube Music can discover it as a fallback receiver.
+     * When YouTube Music can't use Cast protocol, it will delegate playback commands to this session.
+     */
+    private void registerYaaccMediaSession() {
+        try {
+            // Create MediaSession for app-level integration with YouTube Music
+            android.support.v4.media.session.MediaSessionCompat mediaSession = 
+                    new android.support.v4.media.session.MediaSessionCompat(this, "YaaccMediaSession");
+            
+            // Set the callback to handle YouTube Music's playback requests
+            mediaSession.setCallback(new de.yaacc.player.YaaccMediaSessionCallback(this, upnpClient));
+            
+            // Make session active so YouTube Music can find it
+            mediaSession.setActive(true);
+            
+            YaaccLogger.d("Yaacc.MediaSession", "Registered YAACC MediaSession for YouTube Music integration");
+        } catch (Exception e) {
+            YaaccLogger.e("Yaacc.MediaSession", "Failed to register MediaSession: " + e.getMessage(), e);
+        }
     }
 }
