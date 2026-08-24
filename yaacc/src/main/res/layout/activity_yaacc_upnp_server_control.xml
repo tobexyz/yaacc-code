@@ -95,8 +95,8 @@
         android:layout_marginStart="10dp"
         android:layout_marginTop="5dp"
         android:contentDescription="@string/media_store_scan"
-        android:src="@drawable/ic_baseline_refresh_32" />
-
+        android:src="@drawable/ic_baseline_refresh_32"
+        android:tint="?attr/colorControlNormal" />
 
     <TextView
         android:id="@+id/sharedFolders"
@@ -118,6 +118,7 @@
         android:layout_alignParentStart="true"
         android:contentDescription="@string/reset_shared_folders"
         android:src="@drawable/outline_database_off_32"
+        android:tint="?attr/colorControlNormal"
         android:text="@string/reset_shared_folders"
         android:textAppearance="@android:style/TextAppearance.Material.Medium" />
 
@@ -129,6 +130,7 @@
         android:layout_below="@+id/sharedFolders"
         android:text="@string/add_saf_content"
         android:src="@drawable/ic_search_bookmark"
+        android:tint="?attr/colorControlNormal"
         android:contentDescription="@string/add_saf_content"
         android:textAppearance="@android:style/TextAppearance.Material.Medium" />
 
@@ -140,6 +142,7 @@
         android:layout_below="@+id/sharedFolders"
         android:text="@string/clear_saf_cache"
         android:src="@drawable/ic_baseline_refresh_32"
+        android:tint="?attr/colorControlNormal"
         android:contentDescription="@string/clear_saf_cache"
         android:textAppearance="@android:style/TextAppearance.Material.Medium" />
 

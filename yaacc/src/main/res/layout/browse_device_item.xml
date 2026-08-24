@@ -79,7 +79,8 @@
                     android:layout_marginStart="2dp"
                     android:contentDescription="@string/system_audio_stream"
                     android:visibility="gone"
-                    app:srcCompat="@drawable/ic_live_audio_stream" />
+                    app:srcCompat="@drawable/ic_live_audio_stream"
+                    app:tint="?attr/colorControlNormal" />
 
                 <ImageButton
                     android:id="@+id/browseDeviceItemStreamVideo"
@@ -89,7 +90,8 @@
                     android:layout_marginStart="2dp"
                     android:contentDescription="@string/screen_cast_stream"
                     android:visibility="gone"
-                    app:srcCompat="@drawable/ic_live_video_stream" />
+                    app:srcCompat="@drawable/ic_live_video_stream"
+                    app:tint="?attr/colorControlNormal" />
             </LinearLayout>
         </LinearLayout>
     </androidx.cardview.widget.CardView>

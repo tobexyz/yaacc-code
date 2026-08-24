@@ -10,7 +10,8 @@
         android:layout_height="wrap_content"
         android:layout_gravity="center"
         android:layout_margin="4dp"
-        android:src="@drawable/ic_baseline_volume_up_96" />
+        android:src="@drawable/ic_baseline_volume_up_96"
+        android:tint="?attr/colorControlNormal" />
 
     <TextView
         android:id="@+id/customToastTextView"
