@@ -163,6 +163,16 @@ public class RetrieveRemoteDescriptors implements Runnable {
                             + rd.getIdentity().getDescriptorURL()
                             + " ,exception on send: ", ex);
             return;
+        } catch (RuntimeException ex) {
+            // Defence in depth: a single misbehaving device on the LAN must never be allowed
+            // to kill the discovery worker thread. The cling library has multiple throw sites
+            // for runtime exceptions (e.g. IllegalStateException for unmapped HTTP statuses,
+            // see issue #232 / PR #221 #219) - swallow them all at the worker boundary.
+            YaaccLogger.w(getClass().getName(),
+                    "Device descriptor retrieval failed: "
+                            + rd.getIdentity().getDescriptorURL()
+                            + " ,unexpected runtime exception: ", ex);
+            return;
         }
 
 

@@ -66,7 +66,8 @@
         android:layout_alignBottom="@id/serverList"
         android:layout_alignParentBottom="false"
         android:contentDescription="@string/settings"
-        app:srcCompat="@drawable/ic_baseline_settings_42" />
+        app:srcCompat="@drawable/ic_baseline_settings_42"
+                    app:tint="?attr/colorControlNormal" />
 
     <TextView
         android:id="@+id/serverListShutdownTimerRemaining"
@@ -118,7 +119,8 @@
         android:layout_toEndOf="@id/serverListLocalServerEnabled"
         android:layout_alignParentBottom="true"
         android:contentDescription="@string/settings"
-        app:srcCompat="@drawable/ic_baseline_settings_42" />
+        app:srcCompat="@drawable/ic_baseline_settings_42"
+                    app:tint="?attr/colorControlNormal" />
 
     <ImageView
         android:id="@+id/serverListProviderEnabled"
@@ -130,7 +132,8 @@
         android:layout_alignParentBottom="true"
         android:focusable="false"
         android:contentDescription="@string/settings"
-        app:srcCompat="@drawable/ic_baseline_sensors_32" />
+        app:srcCompat="@drawable/ic_baseline_sensors_32"
+                    app:tint="?attr/colorControlNormal" />
 
     <ImageView
         android:id="@+id/serverListReceiverEnabled"
@@ -142,7 +145,8 @@
         android:layout_alignParentBottom="true"
         android:focusable="false"
         android:contentDescription="@string/settings"
-        app:srcCompat="@drawable/ic_baseline_devices_32" />
+        app:srcCompat="@drawable/ic_baseline_devices_32"
+                    app:tint="?attr/colorControlNormal" />
 
     <ImageView
         android:id="@+id/serverListProxyEnabled"
@@ -154,7 +158,8 @@
         android:layout_alignParentBottom="true"
         android:focusable="false"
         android:contentDescription="@string/settings"
-        app:srcCompat="@drawable/ic_baseline_import_export_32" />
+        app:srcCompat="@drawable/ic_baseline_import_export_32"
+                    app:tint="?attr/colorControlNormal" />
 
 
     <ImageButton
@@ -167,5 +172,6 @@
         android:layout_marginEnd="10dp"
         android:layout_marginBottom="10dp"
         android:contentDescription="@string/icon"
-        app:srcCompat="@drawable/ic_baseline_refresh_32" />
+        app:srcCompat="@drawable/ic_baseline_refresh_32"
+                    app:tint="?attr/colorControlNormal" />
 </RelativeLayout>

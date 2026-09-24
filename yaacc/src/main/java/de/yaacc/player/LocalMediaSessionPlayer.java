@@ -55,6 +55,7 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
     private URI albumArtUri;
     private PlayableItem pendingItem; // Queue item if service not ready
     private int pendingIndex;
+    private volatile boolean pendingPlay;
 
     public LocalMediaSessionPlayer(UpnpClient upnpClient, String name, String shortName) {
         this(upnpClient);
@@ -180,9 +181,15 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
             if (pendingItem != null) {
                 YaaccLogger.d(getClass().getName(), "Playing pending item: " + pendingItem.getTitle());
                 PlayableItem item = pendingItem;
-                startItem(item, null, pendingIndex);
+                int idx = pendingIndex;
                 pendingItem = null;
                 pendingIndex = -1;
+                pendingPlay = false;
+                startItem(item, null, idx);
+            } else if (pendingPlay) {
+                YaaccLogger.d(getClass().getName(), "Pending play flag set, calling play()");
+                pendingPlay = false;
+                play();
             }
         }
     }
@@ -240,6 +247,7 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
             YaaccLogger.w(getClass().getName(), "ExoPlayer not ready, queuing item");
             pendingItem = playableItem;
             pendingIndex = index;
+            pendingPlay = true;
             return;
         }
         
@@ -276,6 +284,11 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
                         }
                         player.addMediaItem(builder.build());
                     }
+                    player.prepare();
+                } else if (player.getPlaybackState() == Player.STATE_IDLE) {
+                    // Player is IDLE after stop() - need to prepare again
+                    // This happens when play() is called after stop()
+                    YaaccLogger.d(getClass().getName(), "Player in IDLE state, re-preparing before play");
                     player.prepare();
                 }
                 // Now seek and play
@@ -379,6 +392,8 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
         new Handler(Looper.getMainLooper()).post(() -> {
             if (exoPlayer != null) {
                 exoPlayer.stop();
+                // Note: ExoPlayer remains in STOPPED state but retains media items and position
+                // Ready for next play() call (no need to re-prepare unless playlist changed)
             }
             setPlaying(false);
         });

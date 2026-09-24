@@ -98,7 +98,7 @@ public class VideosFolderBrowser extends ContentBrowser {
                         MimeType mimeType = MimeType.valueOf(mimeTypeString);
                         // file parameter only needed for media players which decide the
                         // ability of playing a file by the file extension
-                        String uri = getUriString(contentDirectory, id, mimeType);
+                        String uri = getUriString(contentDirectory, id, mimeType, name, null);
                         Item item = createItem(
                             ContentDirectoryIDs.VIDEO_PREFIX.getId() + id,
                             ContentDirectoryIDs.VIDEOS_FOLDER.getId(),

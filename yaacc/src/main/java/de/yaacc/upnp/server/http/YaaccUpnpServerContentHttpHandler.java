@@ -888,12 +888,25 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
         String shortId = contentKey.substring(ContentDirectoryIDs.SAF_PREFIX.getId().length());
         YaaccLogger.d(getClass().getName(), "Extracted shortId: " + shortId);
         
-        // Extract short ID from contentEnc (format: shortId.ext)
+        // Extract short ID from contentEnc (format: shortId_filename.ext or shortId.ext)
         if (contentEnc.indexOf(".") == -1) {
             YaaccLogger.d(getClass().getName(), "SAF content id is invalid: " + contentEnc);
             return null;
         }
-        String contentEncShortId = contentEnc.substring(0, contentEnc.indexOf("."));
+        
+        // Remove extension to get ID part
+        String contentEncWithoutExt = contentEnc.substring(0, contentEnc.lastIndexOf("."));
+        
+        // Handle new format: shortId_filename.ext
+        String contentEncShortId;
+        if (contentEncWithoutExt.contains("_")) {
+            // New format: extract just the numeric short ID
+            contentEncShortId = contentEncWithoutExt.substring(0, contentEncWithoutExt.indexOf("_"));
+        } else {
+            // Old format: just shortId
+            contentEncShortId = contentEncWithoutExt;
+        }
+        
         YaaccLogger.d(getClass().getName(), "contentEnc shortId: " + contentEncShortId);
         
         if (!shortId.equals(contentEncShortId)) {

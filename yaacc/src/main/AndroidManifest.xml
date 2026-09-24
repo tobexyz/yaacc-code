@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
-    android:versionCode="50100"
-    android:versionName="5.1.0">
+    android:versionCode="50300"
+    android:versionName="5.3.0">
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
@@ -95,6 +95,15 @@
         <receiver
             android:enabled="true"
             android:name=".imageviewer.ImageViewerBroadcastReceiver" />
+
+        <receiver
+            android:name=".ExitBroadcastReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="de.yaacc.ACTION_EXIT" />
+            </intent-filter>
+        </receiver>
 
         <receiver
             android:name=".upnp.server.ServerAutostart"

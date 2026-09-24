@@ -157,6 +157,7 @@ public class AVTransportController extends AVTransportPlayer {
     public void play() {
         if (getDevice() == null)
             return;
+
         Service<?, ?> service = getUpnpClient().getAVTransportService(getDevice());
         if (service == null) {
             YaaccLogger.d(getClass().getName(),

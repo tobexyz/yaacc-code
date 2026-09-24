@@ -78,7 +78,8 @@
         android:adjustViewBounds="false"
         android:contentDescription="@string/avtransportPlayerActivityImageView"
         android:scaleType="fitCenter"
-        app:srcCompat="@drawable/ic_baseline_devices_128" />
+        app:srcCompat="@drawable/ic_baseline_devices_128"
+                    app:tint="?attr/colorControlNormal" />
 
     <RelativeLayout
         android:layout_width="match_parent"
@@ -192,7 +193,8 @@
             android:layout_height="48dp"
             android:layout_marginStart="2dp"
             android:contentDescription="@string/play"
-            app:srcCompat="@drawable/ic_baseline_play_arrow_32" />
+            app:srcCompat="@drawable/ic_baseline_play_arrow_32"
+                    app:tint="?attr/colorControlNormal" />
 
         <ImageButton
             android:id="@+id/avtransportPlayerActivityControlPause"
@@ -200,7 +202,8 @@
             android:layout_height="48dp"
             android:layout_marginStart="2dp"
             android:contentDescription="@string/pause"
-            app:srcCompat="@drawable/ic_baseline_pause_32" />
+            app:srcCompat="@drawable/ic_baseline_pause_32"
+                    app:tint="?attr/colorControlNormal" />
 
         <ImageButton
             android:id="@+id/avtransportPlayerActivityControlStop"
@@ -208,7 +211,8 @@
             android:layout_height="48dp"
             android:layout_marginStart="2dp"
             android:contentDescription="@string/stop"
-            app:srcCompat="@drawable/ic_baseline_stop_32" />
+            app:srcCompat="@drawable/ic_baseline_stop_32"
+                    app:tint="?attr/colorControlNormal" />
 
         <ImageButton
             android:id="@+id/avtransportPlayerActivityControlPlaylist"
@@ -216,7 +220,8 @@
             android:layout_height="48dp"
             android:layout_marginStart="2dp"
             android:contentDescription="@string/playlist"
-            app:srcCompat="@drawable/ic_baseline_playlist_play_32" />
+            app:srcCompat="@drawable/ic_baseline_playlist_play_32"
+                    app:tint="?attr/colorControlNormal" />
 
         <ImageButton
             android:id="@+id/avtransportPlayerActivityControlExit"
@@ -224,7 +229,8 @@
             android:layout_height="48dp"
             android:layout_marginStart="2dp"
             android:contentDescription="@string/exit"
-            app:srcCompat="@drawable/ic_baseline_cancel_32" />
+            app:srcCompat="@drawable/ic_baseline_cancel_32"
+                    app:tint="?attr/colorControlNormal" />
     </LinearLayout>
 
     <LinearLayout
@@ -242,7 +248,8 @@
             android:layout_height="48dp"
             android:layout_marginStart="2dp"
             android:contentDescription="@string/previous"
-            app:srcCompat="@drawable/ic_baseline_skip_previous_32" />
+            app:srcCompat="@drawable/ic_baseline_skip_previous_32"
+                    app:tint="?attr/colorControlNormal" />
 
         <ImageButton
             android:id="@+id/avtransportPlayerActivityControlFastRewind"
@@ -250,7 +257,8 @@
             android:layout_height="48dp"
             android:layout_marginStart="2dp"
             android:contentDescription="@string/fast_rewind"
-            app:srcCompat="@drawable/ic_baseline_fast_rewind_32" />
+            app:srcCompat="@drawable/ic_baseline_fast_rewind_32"
+                    app:tint="?attr/colorControlNormal" />
 
 
         <ImageButton
@@ -259,7 +267,8 @@
             android:layout_height="48dp"
             android:layout_marginStart="2dp"
             android:contentDescription="@string/fast_forward"
-            app:srcCompat="@drawable/ic_baseline_fast_forward_32" />
+            app:srcCompat="@drawable/ic_baseline_fast_forward_32"
+                    app:tint="?attr/colorControlNormal" />
 
         <ImageButton
             android:id="@+id/avtransportPlayerActivityControlNext"
@@ -267,7 +276,8 @@
             android:layout_height="48dp"
             android:layout_marginStart="2dp"
             android:contentDescription="@string/next"
-            app:srcCompat="@drawable/ic_baseline_skip_next_32" />
+            app:srcCompat="@drawable/ic_baseline_skip_next_32"
+                    app:tint="?attr/colorControlNormal" />
         
     </LinearLayout>
 

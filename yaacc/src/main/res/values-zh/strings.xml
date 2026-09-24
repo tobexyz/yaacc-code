@@ -47,6 +47,7 @@
     <string name="play">播放</string>
     <string name="stop">停止</string>
     <string name="pause">暂停</string>
+    <string name="close_yaacc">停止 Yaacc</string>
     <string name="previous">上一个</string>
     <string name="image_viewer_content_description">图像</string>
     <string name="next">下一个</string>

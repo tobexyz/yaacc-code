@@ -45,6 +45,7 @@
     <string name="play">spiele</string>
     <string name="stop">stoppe</string>
     <string name="pause">pausiere</string>
+    <string name="close_yaacc">Yaacc beenden</string>
     <string name="previous">vorheriges</string>
     <string name="image_viewer_content_description">Bild</string>
     <string name="next">nächstes</string>

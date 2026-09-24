@@ -83,7 +83,7 @@ public class ImageByBucketNameItemBrowser extends ContentBrowser {
                 @SuppressLint("Range") MimeType mimeType = MimeType.valueOf(mimeTypeString);
                 // file parameter only needed for media players which decide the
                 // ability of playing a file by the file extension
-                String uri = getUriString(contentDirectory, id, mimeType);
+                String uri = getUriString(contentDirectory, id, mimeType, name, null);
                 String albumArtUri = "http://" + contentDirectory.getIpAddress() + ":"
                         + YaaccUpnpServerService.PORT + "/thumb/" + id;
                 

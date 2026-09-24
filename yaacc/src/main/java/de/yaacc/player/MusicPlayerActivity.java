@@ -318,6 +318,7 @@ public class MusicPlayerActivity extends AppCompatActivity implements ServiceCon
         ImageView albumArtView = (ImageView) findViewById(R.id.musicActivityImageView);
         URI albumArtUri = getPlayer().getAlbumArt();
         if (null != albumArtUri) {
+            albumArtView.setImageTintList(null);
             ImageDownloadTask imageDownloadTask = new ImageDownloadTask(albumArtView);
             imageDownloadTask.executeOnExecutor(((Yaacc) getApplicationContext()).getContentLoadExecutor(), Uri.parse(albumArtUri.toString()));
         } else {

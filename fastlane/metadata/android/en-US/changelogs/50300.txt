@@ -1,0 +1,6 @@
+Version 5.3.0
+- images are now displayed based on their EXIF orientation
+- fixed icon tinting in light mode
+- fixed pause/stop/play on the local player
+- reduced flickering of volume controls and fixed volume percentage text misalignment
+- volume/mute controls are now hidden when the device does not support them

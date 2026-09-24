@@ -196,7 +196,7 @@ public class MusicAlbumFolderBrowser extends ContentBrowser {
                                         .getColumnIndex(MediaStore.Audio.Media.MIME_TYPE)));
                         // file parameter only needed for media players which decide
                         // the ability of playing a file by the file extension
-                        String uri = getUriString(contentDirectory, id, mimeType);
+                        String uri = getUriString(contentDirectory, id, mimeType, title, null);
                         URI albumArtUri = URI.create("http://"
                                 + contentDirectory.getIpAddress() + ":"
                                 + YaaccUpnpServerService.PORT + "/album/" + albumId);

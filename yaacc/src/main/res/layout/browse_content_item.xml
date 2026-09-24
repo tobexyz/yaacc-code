@@ -75,7 +75,8 @@
                 android:nextFocusLeft="@id/browseContentItem"
                 android:layout_toStartOf="@id/browseContentItemDownload"
                 android:contentDescription="@string/browse_context_playlist_add"
-                app:srcCompat="@drawable/ic_baseline_playlist_add_32" />
+                app:srcCompat="@drawable/ic_baseline_playlist_add_32"
+                    app:tint="?attr/colorControlNormal" />
 
             <ImageButton
                 android:id="@+id/browseContentItemDownload"
@@ -86,7 +87,8 @@
                 android:layout_toStartOf="@id/browseContentItemPlay"
                 android:contentDescription="@string/browse_context_download"
                 android:nextFocusLeft="@id/browseContentItemPlaylistAdd"
-                app:srcCompat="@drawable/ic_baseline_download_32" />
+                app:srcCompat="@drawable/ic_baseline_download_32"
+                    app:tint="?attr/colorControlNormal" />
 
 
             <ImageButton
@@ -98,7 +100,8 @@
                 android:layout_toStartOf="@id/browseContentItemPlayAll"
                 android:nextFocusLeft="@id/browseContentItemDownload"
                 android:contentDescription="@string/browse_context_play"
-                app:srcCompat="@drawable/ic_baseline_play_arrow_32" />
+                app:srcCompat="@drawable/ic_baseline_play_arrow_32"
+                    app:tint="?attr/colorControlNormal" />
 
             <ImageButton
                 android:id="@+id/browseContentItemPlayAll"
@@ -109,7 +112,8 @@
                 android:nextFocusLeft="@id/browseContentItemPlay"
                 android:layout_marginStart="2dp"
                 android:contentDescription="@string/browse_context_play_all"
-                app:srcCompat="@drawable/ic_baseline_double_arrow_32" />
+                app:srcCompat="@drawable/ic_baseline_double_arrow_32"
+                    app:tint="?attr/colorControlNormal" />
 
         </RelativeLayout>
     </androidx.cardview.widget.CardView>

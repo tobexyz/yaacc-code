@@ -48,6 +48,7 @@
     <string name="play">jogar</string>
     <string name="stop">parar</string>
     <string name="pause">pausa</string>
+    <string name="close_yaacc">Parar Yaacc</string>
     <string name="previous">anterior</string>
     <string name="image_viewer_content_description">Imagem</string>
     <string name="next">próximo</string>

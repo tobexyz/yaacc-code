@@ -79,6 +79,7 @@ import java.util.List;
 import java.util.UUID;
 
 import de.yaacc.R;
+import de.yaacc.ExitBroadcastReceiver;
 import de.yaacc.Yaacc;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.protocol.UpnpProtocolHandler;
@@ -186,6 +187,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         public void onReceive(Context context, Intent intent) {
             int total = intent.getIntExtra("files_indexed", 0);
             cacheFilesIndexed = total;
+            cacheCurrentFolder = ""; // Clear folder when indexing completes
             showNotification(); // Update notification with final cache status
         }
     };
@@ -390,13 +392,20 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
 
         // Duration cache status
         SAFCacheManager cacheManager = SAFCacheManager.getInstance(this);
-        if (cacheManager.isPreloading()) {
+        boolean isPreloading = cacheManager.isPreloading();
+        YaaccLogger.d(getClass().getName(), "showNotification: isPreloading=" + isPreloading + ", cacheSize=" + cacheManager.getCacheSize() + ", filesIndexed=" + cacheFilesIndexed);
+        
+        if (isPreloading) {
             statusBuilder.append(" | ⏳ Indexing: ").append(cacheFilesIndexed);
             if (!cacheCurrentFolder.isEmpty()) {
                 statusBuilder.append(" (").append(cacheCurrentFolder).append(")");
             }
+            YaaccLogger.d(getClass().getName(), "Notification: showing indexing progress - " + cacheFilesIndexed + " files");
         } else if (cacheManager.getCacheSize() > 0) {
             statusBuilder.append(" | ✓ Cache: ").append(cacheManager.getCacheSize());
+            YaaccLogger.d(getClass().getName(), "Notification: showing cache size - " + cacheManager.getCacheSize() + " items");
+        } else {
+            YaaccLogger.d(getClass().getName(), "Notification: no cache or indexing (isPreloading=" + isPreloading + ", cacheSize=" + cacheManager.getCacheSize() + ")");
         }
 
         NotificationCompat.Builder mBuilder = new NotificationCompat.Builder(this, Yaacc.NOTIFICATION_CHANNEL_ID)
@@ -407,6 +416,12 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
                 .setGroup(Yaacc.NOTIFICATION_GROUP_KEY)
                 .setContentText(statusBuilder.toString());
         mBuilder.setContentIntent(contentIntent);
+
+        Intent closeIntent = new Intent(ExitBroadcastReceiver.ACTION_EXIT);
+        closeIntent.setPackage(getPackageName());
+        PendingIntent closePendingIntent = PendingIntent.getBroadcast(this, 0, closeIntent, PendingIntent.FLAG_IMMUTABLE);
+        mBuilder.addAction(android.R.drawable.ic_menu_close_clear_cancel, getString(R.string.close_yaacc), closePendingIntent);
+
         startForeground(NotificationId.UPNP_SERVER.getId(), mBuilder.build());
 
     }
@@ -680,6 +695,15 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
                 getApplicationContext().getString(R.string.settings_saf_tree_uris_selected_pref_key).equals(key)) {
             YaaccLogger.d(this.getClass().getName(), "SAF paths changed, reloading cache");
             SAFCacheManager.getInstance(getApplicationContext()).preloadSafDurations();
+        }
+
+        // Notify content directory change when media-type serving preferences change
+        if (getApplicationContext().getString(R.string.settings_local_server_serve_images_chkbx).equals(key) ||
+                getApplicationContext().getString(R.string.settings_local_server_serve_video_chkbx).equals(key) ||
+                getApplicationContext().getString(R.string.settings_local_server_serve_music_chkbx).equals(key) ||
+                getApplicationContext().getString(R.string.settings_local_server_serve_saf_chkbx).equals(key)) {
+            YaaccLogger.d(this.getClass().getName(), "Media serving preference changed, recreating device");
+            createUpnpDevice();
         }
 
         // Handle live streaming toggles (Android 10+)

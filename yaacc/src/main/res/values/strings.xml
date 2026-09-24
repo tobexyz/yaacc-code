@@ -48,6 +48,7 @@
     <string name="play">play</string>
     <string name="stop">stop</string>
     <string name="pause">pause</string>
+    <string name="close_yaacc">Stop Yaacc</string>
     <string name="previous">previous</string>
     <string name="image_viewer_content_description">Image</string>
     <string name="next">next</string>
