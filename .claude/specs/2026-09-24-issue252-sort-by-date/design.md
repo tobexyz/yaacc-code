@@ -63,23 +63,24 @@ Layer both:
    only fully reorders once `allItemsFetched` is true, avoiding the
    mid-load reshuffle.
 
-## Open questions (need a decision before implementing)
+## Decisions (2026-09-24)
 
-1. **Where does the toggle live?** A per-folder icon next to
-   `contentListCurrentFolderName` in `fragment_content_list.xml` (fits the
-   existing back-button/header layout) vs. a global `Settings` preference
-   (matches `settings_thumbnails_chkbx`/`settings_browse_chunk_size_key`
-   pattern, but far less discoverable — the issue asks for something
-   "within the folder view").
-2. **Persisted or per-session?** Remember last choice across app restarts
-   (SharedPreference) or reset every time you re-enter a folder?
-3. **Does sort-by-date break folder-first grouping**, or should folders
-   always stay pinned to the top regardless of sort mode?
-4. **Fallback when `dc:date` is entirely absent** from an item — hide the
-   sort option for that server, or silently no-op (leave items in original
-   order)?
+1. **Toggle placement**: segmented buttons in the list header row, next to
+   `contentListCurrentFolderName` in `fragment_content_list.xml` — always
+   visible (e.g. "Name" / "Date"), current selection highlighted, one tap to
+   switch. No global Settings preference.
+2. **Persistence**: sort order is saved to SharedPreferences and applied
+   globally across all folders until changed again (does not reset on app
+   restart or folder navigation).
+3. **Folder grouping**: date sort **fully interleaves** containers and items
+   by date — this breaks the current folders-before-items convention when
+   "Date" is selected. (Only applies in Date mode; "Name" mode keeps the
+   existing folders-first alphabetical behavior.)
+4. **Missing `dc:date`**: if items in a folder lack `dc:date` entirely, the
+   Date button is disabled/hidden for that folder/server rather than being
+   offered as a no-op.
 
 ## Not yet decided / not started
 
-No code changes have been made on this branch yet — this file is research
-only. Implementation should start once the open questions above are answered.
+No code changes have been made on this branch yet. Requirements and task
+breakdown are next; implementation starts once `tasks.md` is written.
