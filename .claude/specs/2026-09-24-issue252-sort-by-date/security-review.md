@@ -234,3 +234,193 @@ source, and never ships in a release build. No secrets, no unsafe
 deserialization, no new manifest/permission/network surface, and no new
 dependencies were introduced. Ready to proceed past the security-review
 gate.
+
+## Cycle 2 — 2026-09-25
+
+Reviewing: commit `f9efa83` only (`git diff 21dad94..f9efa83`) — Fix Group 2
+(retry-without-`orderBy` on server sort rejection) and Group 4 (independent
+ascending/descending direction toggle per sort mode). General review passed
+Cycle 3 (`review.md`) for this same commit; this is a fresh security-only
+pass, not a re-review of Cycle 1's already-cleared surface (untouched by this
+commit).
+
+### Critical
+
+None.
+
+### Warning
+
+None.
+
+### Suggestion
+
+- **Retry-without-`orderBy` fires on *any* UPnP action failure of the sorted
+  attempt, not specifically an "unsupported `SortCriteria`" failure**
+  (`yaacc/src/main/java/de/yaacc/browser/BrowseItemLoadTask.java:56-70`).
+  `if (sortedResult != null && sortedResult.getUpnpFailure() == null) { return sortedResult; }`
+  treats every non-`null` `getUpnpFailure()` identically — a device that
+  genuinely rejects `-dc:date`/`dc:date` in `SortCriteria`, a transient
+  network blip, an auth/permission error on that specific action, or a
+  malformed SOAP response from the device all take the same path: log, call
+  `markServerSortRejected()`, retry once without `orderBy`. This is a
+  **correctness/availability** observation, not a vulnerability, and it
+  matches the design's own explicit scope (`requirements.md` item 8: "if a
+  server-side sorted Browse request fails (UPnP action failure...)"), so it
+  is not a deviation introduced by this diff — logging it because the task
+  brief specifically asked whether this could mask a real problem:
+  - **No failure is silently swallowed or misrepresented.** If the cause is
+    transient/unrelated to sorting and the unsorted retry also fails, that
+    second `ContentDirectoryBrowseResult` (with its own `getUpnpFailure()`)
+    is returned as-is from `doInBackground` with no further catching, and
+    `BrowseItemLoadTask.onPostExecute` (unchanged in this diff,
+    lines 87-100) still logs it via `YaaccLogger.e("ResolveError", ...)`
+    with the failure detail and calls `itemAdapter.clear()` — the user sees
+    exactly the same "folder failed to load" outcome they would have without
+    this fix, just after one extra doomed sorted-Browse round trip. Nothing
+    is hidden as a false "just retry unsorted" success.
+  - **No unbounded retry.** `markServerSortRejected()`
+    (`BrowseContentItemAdapter.java:193-195`) is reached unconditionally on
+    every fallback path *before* the unsorted call is made, and
+    `attemptServerSort` (`BrowseItemLoadTask.java:54-55`) is gated on
+    `!itemAdapter.isServerSortRejected()`. Verified: at most 2
+    `browseSync(...)` calls occur for the chunk request that first observes
+    the failure (1 sorted + 1 unsorted), and exactly 1 call for every
+    subsequent chunk request of the same folder load — confirmed both by
+    reading the control flow and by the new
+    `BrowseItemLoadTaskTest.serverRejectionOfSortedBrowseFallsBackToUnsortedContentInsteadOfClearing`
+    test, which asserts `verifySortedAttemptCount(1)` after two chunk
+    requests. `serverSortRejected` resets in `clear()` (folder
+    change/mode/direction change), so it never accumulates across folders or
+    leaks into a different server's session — no cross-folder or cross-device
+    state confusion.
+  - **Residual (non-blocking) UX note, not a security finding:** because the
+    rejection flag is sticky for the rest of that folder load regardless of
+    cause, a transient (non-sort-related) failure on the *first* chunk
+    permanently disables the server-side sort attempt for the *remaining*
+    chunks of that same folder browse, even though the server might have
+    handled `SortCriteria` fine on a retry. This only affects sort
+    *placement* (client-side fallback sort and `isDateSortAvailable()`
+    disabling still function correctly on the unsorted results per the
+    design), never data exposure, access control, or integrity — no action
+    needed to pass this gate.
+
+### Findings by requested area
+
+**1. UPnP action-failure handling / retry-without-`orderBy`** — see Suggestion
+above. No masking of genuine failures; no infinite-retry path; bounded to at
+most one extra request per folder load per the `markServerSortRejected()`
+placement confirmed unconditional-before-fallback.
+
+**2. New SharedPreferences keys (`settings_sort_name_ascending_key`,
+`settings_sort_date_ascending_key`)**
+(`yaacc/src/main/res/values/setting_strings.xml:45-46`,
+`BrowseContentItemAdapter.java:115-116,155-166`)
+- Store only `boolean` values via `SharedPreferences.Editor.putBoolean(...)`
+  — no strings, no serialized objects, nothing PII/credential-shaped.
+- Read via `sharedPreferences.getBoolean(key, default)` with a literal
+  Java `boolean` default (`true` for name, `false` for date) — no custom
+  parsing, no `Boolean.parseBoolean(String)` on a stored string, no
+  reflection, nothing that could throw or misbehave on a corrupted/tampered
+  preferences file beyond Android's own `getBoolean` contract (returns the
+  provided default for a missing key; per platform behavior a value of the
+  wrong underlying type throws `ClassCastException`, a pre-existing
+  framework contract this diff does not touch or make worse — no other key
+  in this file shares the same preference name, so no cross-key type
+  collision is possible). Fails closed to the documented defaults.
+- Storage location is the same `PreferenceManager.getDefaultSharedPreferences(context)`
+  (app-private, `MODE_PRIVATE` by default, unchanged call site) already used
+  for `settings_sort_order_key` and cleared in Cycle 1 — confirmed via
+  `grep` that no new `getSharedPreferences(..., MODE_WORLD_*)` or similar
+  was introduced.
+
+**3. `SortCriterion` direction plumbing**
+(`BrowseItemLoadTask.java:57`: `new SortCriterion(itemAdapter.isDateAscending(), "dc:date")`)
+- Confirmed the only change versus the literal Cycle 1 already cleared
+  (`new SortCriterion(false, "dc:date")`) is that the first argument is now
+  `itemAdapter.isDateAscending()` — a `boolean` sourced from the adapter's
+  own internal field, itself only ever set from `!dateAscending` (a flip) or
+  a `SharedPreferences.getBoolean` read (Finding 2). The second argument
+  remains the fixed string literal `"dc:date"`, unchanged. No new
+  string/object ever reaches the `propertyName` constructor parameter; the
+  vendored `SortCriterion.toString()` (untouched) can now only ever emit
+  `""`, `"dc:date"`, or `"-dc:date"` — still no attacker-influenced content
+  and no way to inject additional `SortCriteria` entries or SOAP-breaking
+  characters. Cycle 1's injection analysis of this API holds unchanged.
+
+**4. New vector drawables**
+(`ic_baseline_date_range_asc_32.xml`, `ic_baseline_sort_by_alpha_desc_32.xml`)
+- Both are static `<vector>` XML resources: a single `<group>` with a fixed
+  180-degree `rotation`/`pivotX`/`pivotY` wrapping one `<path>` with a
+  hardcoded `pathData` string and `fillColor="@android:color/white"`, same
+  `android:tint="#FFFFFF"` pattern as the pre-existing icons. No
+  `<bitmap>`/remote `src`, no `app:layout_*` data binding, no
+  `clip-path`/`animated-vector` scripting hooks, no external references of
+  any kind. Android `VectorDrawable` XML has no code-execution surface.
+  Nothing to flag.
+
+**5. Test-only code**
+(`yaacc/src/test/java/de/yaacc/browser/BrowseItemLoadTaskTest.java`,
+additions to `BrowseContentItemAdapterSortTest.java`)
+- Both files confirmed under `yaacc/src/test/java/...` (plain-JVM unit
+  tests), not `src/main` or `src/androidTest`.
+- `grep -rn "BrowseItemLoadTaskTest\|fixUpAdapterDataObservable" yaacc/src/main yaacc/src/androidTest`
+  returns zero matches in this cycle — unreachable from any production or
+  instrumented-test build artifact, matching Cycle 1's conclusion for the
+  sibling file.
+- The new `BrowseContentItemAdapterSortTest.newAdapter(...)` static overload
+  (exposed for reuse by `BrowseItemLoadTaskTest`) only widens visibility
+  within the test source set (`static` package-visible helper); it is not
+  reachable from `src/main` either.
+
+**6. General OWASP sweep**
+- **Hardcoded secrets**: none — only new constants are UI preference key
+  names, the pre-existing `"dc:date"` literal, and drawable path data.
+- **Unsafe deserialization**: none introduced.
+- **New permissions/manifest changes**: none —
+  `git diff 21dad94..f9efa83 -- '**/AndroidManifest.xml'` is empty.
+- **New network/UPnP action surface**: none — this commit adds a second
+  *call* to the pre-existing `browseSync(...)` overloads (with and without
+  `orderBy`), already reviewed in Cycle 1; no new UPnP action or SOAP
+  endpoint.
+- **New dependencies**: none — no `build.gradle`/`build.gradle.kts` changes
+  in the diff.
+- **Logging**: the one new log line
+  (`YaaccLogger.d(getClass().getName(), "Server rejected sorted (dc:date) Browse request; ...")`,
+  `BrowseItemLoadTask.java:68`) logs only a static message — no `dc:date`
+  value, no preference content, no server response body. Nothing sensitive.
+
+### Verification
+
+- `./gradlew :yaacc:lintDebug` — ran fresh in this cycle: `BUILD SUCCESSFUL`,
+  no new findings (see command output; task graph shows all lint tasks
+  `UP-TO-DATE`/executed cleanly, 28 actionable tasks, 0 failures).
+- Manually traced: `attemptServerSort` gating and `markServerSortRejected()`
+  placement in `BrowseItemLoadTask.doInBackground` (retry-loop-bound claim);
+  every read/write site of the two new SharedPreferences keys; the full
+  `orderBy`/`SortCriterion` construction call site; every path referencing
+  `BrowseItemLoadTaskTest`/`fixUpAdapterDataObservable` repo-wide; the diff's
+  file list against `AndroidManifest.xml` and `build.gradle*` (both absent).
+
+### Verdict: PASS
+
+Zero Critical, zero Warning findings. The retry-without-`orderBy` fallback
+cannot loop unboundedly (`markServerSortRejected()` is unconditionally
+reached before the unsorted call on every fallback path, verified both by
+code reading and by `BrowseItemLoadTaskTest`) and never masks a genuine
+failure from the user — if the underlying cause persists through the
+unsorted retry too, the existing `onPostExecute` failure path (logging +
+`clear()`) still runs exactly as before this diff. Retrying on any UPnP
+failure rather than narrowly on an unsupported-`SortCriteria` failure is a
+documented design choice (`requirements.md` item 8), logged above as a
+non-blocking Suggestion for awareness, not a security gap. The two new
+SharedPreferences keys store only booleans, use the same app-private
+preferences store as the already-cleared `settings_sort_order_key`, and add
+no custom parsing that could behave unexpectedly on a corrupted value. The
+`SortCriterion` direction argument is the only new variable; the
+`propertyName` literal `"dc:date"` is unchanged, so Cycle 1's
+no-injection-path conclusion still holds. The two new vector drawables are
+fully static XML with no dynamic or remote content. Both new/changed test
+files live exclusively under `src/test/` and are unreferenced from any
+production or instrumented-test source. No secrets, no unsafe
+deserialization, no manifest/permission/network/dependency changes. Ready to
+proceed past the security-review gate.
