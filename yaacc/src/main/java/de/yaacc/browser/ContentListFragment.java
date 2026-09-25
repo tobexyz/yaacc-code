@@ -26,7 +26,6 @@ import android.view.View;
 import android.view.View.OnClickListener;
 import android.view.ViewGroup;
 import android.widget.ImageButton;
-import android.widget.RelativeLayout;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -269,7 +268,6 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         backButton.setVisibility(View.GONE);
         currentFolderNameView.setVisibility(View.GONE);
         topSeperator.setVisibility(View.GONE);
-        ((RelativeLayout.LayoutParams) contentList.getLayoutParams()).addRule(RelativeLayout.ALIGN_PARENT_TOP, RelativeLayout.TRUE);
         currentFolderNameView.setText("");
     }
 
@@ -338,7 +336,6 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         backButton.setVisibility(View.VISIBLE);
         currentFolderNameView.setVisibility(View.VISIBLE);
         topSeperator.setVisibility(View.VISIBLE);
-        ((RelativeLayout.LayoutParams) contentList.getLayoutParams()).removeRule(RelativeLayout.ALIGN_PARENT_TOP);
     }
 
 
