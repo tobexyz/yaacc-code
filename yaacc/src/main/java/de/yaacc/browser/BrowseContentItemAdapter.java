@@ -91,6 +91,22 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
     private boolean showThumbnails;
     private SortMode sortMode;
     private boolean dateSortAvailable;
+    private boolean serverSortRejected;
+    /**
+     * Name mode's own direction: true = A-Z (ascending), false = Z-A. Kept
+     * independent of {@link #dateAscending} per issue #252 Group 4 --
+     * switching sort mode never clobbers the other mode's remembered
+     * direction. Defaults to {@code true} (A-Z), preserving current
+     * behavior for existing users until they explicitly toggle it.
+     */
+    private boolean nameAscending;
+    /**
+     * Date mode's own direction: true = oldest-first (ascending), false =
+     * newest-first (descending). Defaults to {@code false} (newest-first),
+     * preserving current behavior for existing users until they explicitly
+     * toggle it.
+     */
+    private boolean dateAscending;
 
 
     public BrowseContentItemAdapter(ContentListFragment contentListFragment, RecyclerView contentList, UpnpClient upnpClient, ProgressBar progressBar) {
@@ -106,6 +122,8 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
         this.showThumbnails = sharedPreferences.getBoolean(context.getString(R.string.settings_thumbnails_chkbx), true);
         this.sortMode = readPersistedSortMode();
         this.dateSortAvailable = false;
+        this.nameAscending = sharedPreferences.getBoolean(context.getString(R.string.settings_sort_name_ascending_key), true);
+        this.dateAscending = sharedPreferences.getBoolean(context.getString(R.string.settings_sort_date_ascending_key), false);
     }
 
     private SortMode readPersistedSortMode() {
@@ -119,6 +137,23 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
 
     public SortMode getSortMode() {
         return sortMode;
+    }
+
+    /**
+     * @return Name mode's own current direction: {@code true} for A-Z
+     * (ascending), {@code false} for Z-A.
+     */
+    public boolean isNameAscending() {
+        return nameAscending;
+    }
+
+    /**
+     * @return Date mode's own current direction: {@code true} for
+     * oldest-first (ascending), {@code false} for newest-first
+     * (descending).
+     */
+    public boolean isDateAscending() {
+        return dateAscending;
     }
 
     /**
@@ -138,12 +173,54 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
     }
 
     /**
+     * Flips the <em>currently-selected</em> mode's own direction (Name:
+     * A-Z &lt;-&gt; Z-A; Date: newest-first &lt;-&gt; oldest-first),
+     * persists it, and reloads -- same as {@link #setSortMode(SortMode)}.
+     * The other (not-currently-selected) mode's direction is left
+     * untouched, per issue #252 Group 4.
+     */
+    public void toggleDirection() {
+        if (sortMode == SortMode.DATE) {
+            dateAscending = !dateAscending;
+            sharedPreferences.edit().putBoolean(context.getString(R.string.settings_sort_date_ascending_key), dateAscending).apply();
+        } else {
+            nameAscending = !nameAscending;
+            sharedPreferences.edit().putBoolean(context.getString(R.string.settings_sort_name_ascending_key), nameAscending).apply();
+        }
+        cancelRunningTasks();
+        clear();
+        loadMore();
+    }
+
+    /**
      * @return true if at least one currently loaded item carries a non-null
      * {@code dc:date} property, i.e. date sorting is meaningful for the
      * current folder.
      */
     public boolean isDateSortAvailable() {
         return dateSortAvailable;
+    }
+
+    /**
+     * @return true once this folder load has already observed the server
+     * reject a sorted ({@code orderBy}-bearing) Browse request (a UPnP
+     * action failure, per issue #252's post-ship bug fix) -- reset in
+     * {@link #clear()}. While true, {@link BrowseItemLoadTask} skips the
+     * doomed sorted attempt entirely for subsequent chunk requests of the
+     * same folder load.
+     */
+    public boolean isServerSortRejected() {
+        return serverSortRejected;
+    }
+
+    /**
+     * Records that the server rejected a sorted Browse request for the
+     * current folder load, so later chunk requests skip straight to the
+     * unsorted request. Reset on {@link #clear()} (i.e. on folder change or
+     * sort mode change).
+     */
+    public void markServerSortRejected() {
+        this.serverSortRejected = true;
     }
 
     @Override
@@ -217,6 +294,7 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
         loading = false;
         allItemsFetched = false;
         dateSortAvailable = false;
+        serverSortRejected = false;
         notifyDataSetChanged();
     }
 
@@ -230,17 +308,18 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
             return;
         }
         if (sortMode == SortMode.DATE) {
-            objects.sort(BrowseContentItemAdapter::compareByDateDescending);
+            objects.sort((a, b) -> compareByDate(a, b, dateAscending));
         } else {
-            objects.sort(BrowseContentItemAdapter::compareByNameGrouped);
+            objects.sort((a, b) -> compareByNameGrouped(a, b, nameAscending));
         }
     }
 
     /**
-     * Name mode (existing/regression behavior): containers before items,
-     * alphabetical by title within each group.
+     * Name mode: containers before items regardless of direction (issue
+     * #252 Group 4 constraint) -- only the alphabetical comparison within
+     * each group reverses with {@code ascending}.
      */
-    private static int compareByNameGrouped(DIDLObject a, DIDLObject b) {
+    private static int compareByNameGrouped(DIDLObject a, DIDLObject b, boolean ascending) {
         boolean aContainer = a instanceof Container;
         boolean bContainer = b instanceof Container;
         if (aContainer != bContainer) {
@@ -248,15 +327,18 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
         }
         String titleA = a.getTitle() == null ? "" : a.getTitle();
         String titleB = b.getTitle() == null ? "" : b.getTitle();
-        return titleA.compareToIgnoreCase(titleB);
+        int comparison = titleA.compareToIgnoreCase(titleB);
+        return ascending ? comparison : -comparison;
     }
 
     /**
-     * Date mode: containers and items fully interleaved, newest {@code
-     * dc:date} first. Items with a missing or unparseable date sort as if
-     * they had no date at all (pushed to the end), never crashing.
+     * Date mode: containers and items fully interleaved, ordered by
+     * {@code dc:date} according to {@code ascending} (oldest-first when
+     * {@code true}, newest-first when {@code false}). Items with a missing
+     * or unparseable date sort last regardless of direction, never
+     * crashing.
      */
-    private static int compareByDateDescending(DIDLObject a, DIDLObject b) {
+    private static int compareByDate(DIDLObject a, DIDLObject b, boolean ascending) {
         Long dateA = parseDateMillis(a);
         Long dateB = parseDateMillis(b);
         if (dateA == null && dateB == null) {
@@ -268,7 +350,7 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
         if (dateB == null) {
             return -1;
         }
-        return dateB.compareTo(dateA);
+        return ascending ? dateA.compareTo(dateB) : dateB.compareTo(dateA);
     }
 
     private static boolean hasDate(DIDLObject object) {

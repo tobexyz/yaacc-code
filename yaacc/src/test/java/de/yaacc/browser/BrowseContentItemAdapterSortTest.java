@@ -102,8 +102,19 @@ public class BrowseContentItemAdapterSortTest {
         Context context = mock(Context.class);
         SharedPreferences sharedPreferences = mock(SharedPreferences.class);
         when(context.getSharedPreferences(anyString(), anyInt())).thenReturn(sharedPreferences);
-        when(sharedPreferences.getBoolean(any(), anyBoolean())).thenReturn(true);
+        // Echo back each call's own default value rather than a hardcoded
+        // constant, so per-key defaults (e.g. nameAscending=true vs
+        // dateAscending=false) are each respected instead of collapsing to
+        // one shared stubbed value.
+        when(sharedPreferences.getBoolean(any(), anyBoolean())).thenAnswer(invocation -> invocation.getArgument(1));
         when(sharedPreferences.getString(any(), any())).thenAnswer(invocation -> invocation.getArgument(1));
+        SharedPreferences.Editor sharedPreferencesEditor = mock(SharedPreferences.Editor.class);
+        when(sharedPreferences.edit()).thenReturn(sharedPreferencesEditor);
+        // context.getString(int) is unstubbed here (returns null), so the
+        // key argument these edits pass is null -- match with any() rather
+        // than anyString(), which does not match null.
+        when(sharedPreferencesEditor.putBoolean(any(), anyBoolean())).thenReturn(sharedPreferencesEditor);
+        when(sharedPreferencesEditor.putString(any(), any())).thenReturn(sharedPreferencesEditor);
 
         contentListFragment = mock(ContentListFragment.class);
         when(contentListFragment.getContext()).thenReturn(context);
@@ -118,6 +129,20 @@ public class BrowseContentItemAdapterSortTest {
     }
 
     private BrowseContentItemAdapter newAdapter() {
+        return newAdapter(contentListFragment, recyclerView, upnpClient, progressBar);
+    }
+
+    /**
+     * Static, parameterized variant of the workaround-wrapped adapter
+     * constructor, reusable from other test classes in this package (e.g.
+     * {@link BrowseItemLoadTaskTest}) that need a real
+     * {@link BrowseContentItemAdapter} instance with the same plain-JVM
+     * {@code RecyclerView.Adapter} notify-safety fix applied. See {@link
+     * #fixUpAdapterDataObservable(BrowseContentItemAdapter)} for why this is
+     * needed.
+     */
+    static BrowseContentItemAdapter newAdapter(ContentListFragment contentListFragment, RecyclerView recyclerView,
+                                                UpnpClient upnpClient, ProgressBar progressBar) {
         BrowseContentItemAdapter adapter = new BrowseContentItemAdapter(contentListFragment, recyclerView, upnpClient, progressBar);
         fixUpAdapterDataObservable(adapter);
         return adapter;
@@ -271,5 +296,110 @@ public class BrowseContentItemAdapterSortTest {
 
         adapter.addAll(java.util.List.of(item("i2", "Song Two", "2024-05-01")));
         assertTrue(adapter.isDateSortAvailable());
+    }
+
+    // ------------------------------------------------------------------
+    // Group 4: ascending/descending direction toggle, red-phase tests.
+    // Name defaults ascending (A-Z, matching current/existing behavior);
+    // Date defaults descending (newest-first, matching current/existing
+    // behavior) -- both preserve behavior for existing users until they
+    // explicitly toggle a direction.
+    // ------------------------------------------------------------------
+
+    // 5a. Direction defaults: name=true (A-Z), date=false (newest-first).
+    @Test
+    public void directionDefaults() {
+        BrowseContentItemAdapter adapter = newAdapter();
+
+        assertTrue(adapter.isNameAscending());
+        assertFalse(adapter.isDateAscending());
+    }
+
+    // 5b. toggleDirection() flips only the currently-selected mode's own
+    // direction; the other mode's direction is untouched. Switching mode
+    // and back shows each mode's direction preserved independently.
+    @Test
+    public void toggleDirectionFlipsOnlyCurrentModesDirectionIndependently() {
+        BrowseContentItemAdapter adapter = newAdapter();
+        assertEquals(BrowseContentItemAdapter.SortMode.NAME, adapter.getSortMode());
+        assertTrue(adapter.isNameAscending());
+        assertFalse(adapter.isDateAscending());
+
+        // Toggling while in NAME mode flips only nameAscending.
+        adapter.toggleDirection();
+        assertFalse(adapter.isNameAscending());
+        assertFalse(adapter.isDateAscending());
+
+        // Switching to DATE mode must not itself change either direction.
+        adapter.setSortMode(BrowseContentItemAdapter.SortMode.DATE);
+        assertFalse(adapter.isNameAscending());
+        assertFalse(adapter.isDateAscending());
+
+        // Toggling while in DATE mode flips only dateAscending -- NAME's
+        // (already-flipped) direction stays untouched.
+        adapter.toggleDirection();
+        assertFalse(adapter.isNameAscending());
+        assertTrue(adapter.isDateAscending());
+
+        // Switching back to NAME mode still shows NAME's own direction
+        // exactly as it was left, unaffected by DATE's toggle.
+        adapter.setSortMode(BrowseContentItemAdapter.SortMode.NAME);
+        assertFalse(adapter.isNameAscending());
+        assertTrue(adapter.isDateAscending());
+    }
+
+    // 5c. Name-mode sort respects nameAscending: Z-A when false, but
+    // containers are still always grouped before items regardless of
+    // direction -- only the alphabetical comparison within each group
+    // reverses.
+    @Test
+    public void nameModeDescendingReversesAlphabeticalOrderWithinGroupsOnly() {
+        BrowseContentItemAdapter adapter = newAdapter();
+        adapter.toggleDirection(); // NAME mode is selected by default -> flips nameAscending to false (Z-A)
+        assertFalse(adapter.isNameAscending());
+
+        adapter.addAll(java.util.List.of(
+                item("i2", "Zebra Song", "2020-01-01"),
+                container("c2", "Zebra Folder"),
+                item("i1", "Apple Song", "2024-01-01"),
+                container("c1", "Apple Folder")
+        ));
+        adapter.setAllItemsFetched(true);
+
+        assertEquals(4, adapter.getItemCount());
+        // Containers still before items, but Z-A within each group.
+        assertEquals("Zebra Folder", adapter.getFolder(0).getTitle());
+        assertEquals("Apple Folder", adapter.getFolder(1).getTitle());
+        assertEquals("Zebra Song", adapter.getFolder(2).getTitle());
+        assertEquals("Apple Song", adapter.getFolder(3).getTitle());
+        assertTrue(adapter.getFolder(0) instanceof Container);
+        assertTrue(adapter.getFolder(1) instanceof Container);
+        assertTrue(adapter.getFolder(2) instanceof Item);
+        assertTrue(adapter.getFolder(3) instanceof Item);
+    }
+
+    // 5d. Date-mode sort respects dateAscending: oldest-first when true,
+    // but missing/unparseable dates still sort last regardless of
+    // direction (existing guarantee, must not break).
+    @Test
+    public void dateModeAscendingSortsOldestFirstButMissingDatesStillSortLast() {
+        BrowseContentItemAdapter adapter = newAdapter();
+        adapter.setSortMode(BrowseContentItemAdapter.SortMode.DATE);
+        adapter.toggleDirection(); // flips dateAscending true -> oldest-first
+        assertTrue(adapter.isDateAscending());
+
+        Item oldItem = item("i1", "Old Song", "2020-01-01");
+        Item newItem = item("i2", "New Song", "2025-01-01");
+        Item noDateItem = item("i3", "No Date Song", null);
+
+        adapter.addAll(java.util.List.of(newItem, noDateItem, oldItem));
+        adapter.setAllItemsFetched(true);
+
+        assertEquals(3, adapter.getItemCount());
+        assertEquals("Old Song", adapter.getFolder(0).getTitle());
+        assertEquals("New Song", adapter.getFolder(1).getTitle());
+        // Missing dc:date still sorts last, even though direction is
+        // ascending (oldest-first) rather than the default descending.
+        assertEquals("No Date Song", adapter.getFolder(2).getTitle());
     }
 }
