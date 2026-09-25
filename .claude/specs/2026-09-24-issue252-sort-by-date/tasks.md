@@ -18,20 +18,12 @@ Plan: `specs/2026-09-24-issue252-sort-by-date/requirements.md` and
     `docs/tech.md` — do not write the `-dc:date` `SortCriterion` call in
     Group 2 tasks until this is confirmed.
 
-- [!] Thread `orderBy` through `UpnpClient.browseSync(Position, Long, Long)` | `yaacc/src/main/java/de/yaacc/upnp/UpnpClient.java`
-  - **Blocked on verification only**: code change is complete (varargs
-    `SortCriterion... orderBy` added to the L581 overload, forwarded to all
-    three call paths that lead to the L610 overload). All existing call
-    sites (`browseSync(pos, firstResult, maxResult)` 3-arg,
-    `browseSync(pos)` 1-arg) confirmed still compile-compatible by
-    inspection (varargs accepts zero args) — see full call-site grep in
-    the handback report. Could not run
-    `./gradlew :yaacc:compileDebugJavaWithJavac` in this session: the
-    environment's network policy denies `dl.google.com` (403, see status
-    below), which is required to resolve the Android Gradle Plugin — this
-    blocks configuring the Gradle build at all, not just this task.
-    Needs `dl.google.com` (Google's Maven repo) allowed in the
-    environment's network settings, then a re-run of the Verify command.
+- [x] Thread `orderBy` through `UpnpClient.browseSync(Position, Long, Long)` | `yaacc/src/main/java/de/yaacc/upnp/UpnpClient.java`
+  - **Verified**: `./gradlew :yaacc:compileDebugJavaWithJavac` → BUILD
+    SUCCESSFUL, once the environment's network policy was opened to
+    `dl.google.com` and `jitpack.io` and a local Android SDK was installed
+    for this session (`ANDROID_HOME=/home/user/android-sdk`,
+    `local.properties` created).
   - **Accept**: `browseSync(Position pos, Long firstResult, Long maxResult,
     SortCriterion... orderBy)` overload added (or the existing L581-596
     overload extended with a varargs `orderBy` parameter, default empty),
@@ -54,22 +46,13 @@ Plan: `specs/2026-09-24-issue252-sort-by-date/requirements.md` and
     a global Settings preference.
   - **Verify**: `grep -n "settings_sort_order_key" yaacc/src/main/res/values/setting_strings.xml`
 
-- [!] Write test skeletons for sort behavior | `yaacc/src/test/java/de/yaacc/browser/BrowseContentItemAdapterSortTest.java`
-  - **Blocked on verification only**: test file written (6 test methods
-    covering all 4 required scenarios, plus one extra positive case for
-    `isDateSortAvailable()`), against the documented `SortMode` /
-    `setSortMode` / `getSortMode` / `isDateSortAvailable` interface (see
-    the Javadoc at the top of the test class, and the handback report).
-    Could not run
-    `./gradlew :yaacc:testDebugUnitTest --tests "de.yaacc.browser.BrowseContentItemAdapterSortTest"`
-    in this session — same `dl.google.com` network-policy block as the
-    task above prevents Gradle from configuring at all, so no Gradle
-    command could be run this session, not even to confirm the expected
-    compile failure. By static inspection the test references
-    `BrowseContentItemAdapter.SortMode`, `getSortMode()`, `setSortMode()`,
-    and `isDateSortAvailable()`, none of which exist on the current
-    `BrowseContentItemAdapter` — so it is expected to fail with
-    `cannot find symbol` for each, which is the intended red-phase state.
+- [x] Write test skeletons for sort behavior | `yaacc/src/test/java/de/yaacc/browser/BrowseContentItemAdapterSortTest.java`
+  - **Verified**: `./gradlew :yaacc:testDebugUnitTest --tests
+    "de.yaacc.browser.BrowseContentItemAdapterSortTest"` → confirmed red
+    phase, fails with `cannot find symbol` for `SortMode`, `getSortMode()`,
+    `setSortMode()`, and `isDateSortAvailable()` on
+    `BrowseContentItemAdapter`, exactly as expected — those four symbols
+    are Group 2's job to implement.
   - **Accept**: new JUnit 4 test class (follow existing convention, e.g.
     `yaacc/src/test/java/de/yaacc/upnp/model/YaaccMusicTrackTest.java` for
     license header/package/import style) with failing (red-phase) test
