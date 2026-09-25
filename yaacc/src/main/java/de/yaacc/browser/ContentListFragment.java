@@ -69,6 +69,9 @@ public class ContentListFragment extends Fragment implements OnClickListener,
     private View topSeperator;
     private TextView currentProvider;
     private ProgressBar progressBar;
+    private ImageButton sortByNameButton;
+    private ImageButton sortByDateButton;
+    private BrowseContentItemAdapter.SortMode currentSortMode = BrowseContentItemAdapter.SortMode.NAME;
 
 
     @Override
@@ -105,6 +108,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         currentProvider = contentlistView.findViewById(R.id.contentListCurrentProvider);
         tintCompoundDrawables(currentReceivers);
         tintCompoundDrawables(currentProvider);
+        initSortToggle(contentlistView);
         topSeperator = contentlistView.findViewById(R.id.contentListTopSeperator);
         contentList = contentlistView.findViewById(R.id.contentList);
         progressBar = contentlistView.findViewById(R.id.contentListProgressBar);
@@ -139,6 +143,71 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         }
         ;
 
+    }
+
+    /**
+     * Wires up the "Name"/"Date" sort toggle (issue #252): finds the
+     * buttons, applies persisted sort order from SharedPreferences as the
+     * initial visual state, and installs click handlers.
+     */
+    private void initSortToggle(View contentlistView) {
+        sortByNameButton = contentlistView.findViewById(R.id.contentListSortByNameButton);
+        sortByDateButton = contentlistView.findViewById(R.id.contentListSortByDateButton);
+        if (sortByNameButton == null || sortByDateButton == null || getContext() == null) {
+            return;
+        }
+        Drawable sortByNameIcon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_sort_by_alpha_32, getContext().getTheme()), getContext().getTheme());
+        sortByNameButton.setImageDrawable(sortByNameIcon);
+        Drawable sortByDateIcon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_date_range_32, getContext().getTheme()), getContext().getTheme());
+        sortByDateButton.setImageDrawable(sortByDateIcon);
+
+        String persisted = PreferenceManager.getDefaultSharedPreferences(getContext())
+                .getString(getString(R.string.settings_sort_order_key), BrowseContentItemAdapter.SortMode.NAME.name());
+        try {
+            currentSortMode = BrowseContentItemAdapter.SortMode.valueOf(persisted);
+        } catch (IllegalArgumentException e) {
+            currentSortMode = BrowseContentItemAdapter.SortMode.NAME;
+        }
+
+        sortByNameButton.setOnClickListener((v) -> onSortModeSelected(BrowseContentItemAdapter.SortMode.NAME));
+        sortByDateButton.setOnClickListener((v) -> onSortModeSelected(BrowseContentItemAdapter.SortMode.DATE));
+        updateSortToggleUi();
+    }
+
+    private void onSortModeSelected(BrowseContentItemAdapter.SortMode mode) {
+        if (mode == currentSortMode) {
+            return;
+        }
+        currentSortMode = mode;
+        if (getContext() != null) {
+            PreferenceManager.getDefaultSharedPreferences(getContext()).edit()
+                    .putString(getString(R.string.settings_sort_order_key), mode.name())
+                    .apply();
+        }
+        if (bItemAdapter != null) {
+            // Equivalent to re-entering the folder in the new mode: clears
+            // and reloads a single fresh chunk, no extra network requests.
+            bItemAdapter.setSortMode(mode);
+        }
+        updateSortToggleUi();
+    }
+
+    /**
+     * Reflects the current sort mode selection and the live
+     * date-sort-availability (issue #252 requirement 5) on the toggle
+     * buttons.
+     */
+    private void updateSortToggleUi() {
+        if (sortByNameButton == null || sortByDateButton == null) {
+            return;
+        }
+        boolean dateAvailable = bItemAdapter != null && bItemAdapter.isDateSortAvailable();
+        boolean dateSelected = currentSortMode == BrowseContentItemAdapter.SortMode.DATE;
+        sortByDateButton.setEnabled(dateAvailable);
+        sortByNameButton.setSelected(!dateSelected);
+        sortByDateButton.setSelected(dateSelected);
+        sortByNameButton.setAlpha(dateSelected ? 0.5f : 1.0f);
+        sortByDateButton.setAlpha(!dateAvailable ? 0.3f : (dateSelected ? 1.0f : 0.5f));
     }
 
     private void tintCompoundDrawables(TextView textView) {
@@ -256,6 +325,22 @@ public class ContentListFragment extends Fragment implements OnClickListener,
                 return;
             }
             bItemAdapter = new BrowseContentItemAdapter(this, itemList, upnpClient, progressBar);
+            // The adapter already reads the same persisted preference on
+            // construction; this call is a no-op unless the two diverge, so
+            // it never triggers an extra network fetch on top of the
+            // initial load.
+            bItemAdapter.setSortMode(currentSortMode);
+            bItemAdapter.registerAdapterDataObserver(new RecyclerView.AdapterDataObserver() {
+                @Override
+                public void onChanged() {
+                    updateSortToggleUi();
+                }
+
+                @Override
+                public void onItemRangeInserted(int positionStart, int itemCount) {
+                    updateSortToggleUi();
+                }
+            });
             itemList.setAdapter(bItemAdapter);
             itemList.addOnScrollListener(new RecyclerView.OnScrollListener() {
                 @Override

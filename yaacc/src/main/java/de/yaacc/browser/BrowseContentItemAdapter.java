@@ -43,6 +43,11 @@ import org.fourthline.cling.support.model.item.TextItem;
 import org.fourthline.cling.support.model.item.VideoItem;
 
 import java.net.URI;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedList;
@@ -62,6 +67,15 @@ import de.yaacc.util.image.IconDownloadTask;
  * @author Christoph Haehnel (eyeless)
  */
 public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContentItemAdapter.ViewHolder> {
+
+    /**
+     * The order in which browsed items are shown. See issue #252.
+     */
+    public enum SortMode {
+        NAME,
+        DATE
+    }
+
     private boolean loading = false;
 
 
@@ -75,6 +89,8 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
     private ProgressBar progressBar;
     private SharedPreferences sharedPreferences;
     private boolean showThumbnails;
+    private SortMode sortMode;
+    private boolean dateSortAvailable;
 
 
     public BrowseContentItemAdapter(ContentListFragment contentListFragment, RecyclerView contentList, UpnpClient upnpClient, ProgressBar progressBar) {
@@ -88,6 +104,45 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
         // Cache SharedPreferences lookup
         this.sharedPreferences = PreferenceManager.getDefaultSharedPreferences(context);
         this.showThumbnails = sharedPreferences.getBoolean(context.getString(R.string.settings_thumbnails_chkbx), true);
+        this.sortMode = readPersistedSortMode();
+        this.dateSortAvailable = false;
+    }
+
+    private SortMode readPersistedSortMode() {
+        String persisted = sharedPreferences.getString(context.getString(R.string.settings_sort_order_key), SortMode.NAME.name());
+        try {
+            return SortMode.valueOf(persisted);
+        } catch (IllegalArgumentException | NullPointerException e) {
+            return SortMode.NAME;
+        }
+    }
+
+    public SortMode getSortMode() {
+        return sortMode;
+    }
+
+    /**
+     * Changes the current sort mode. If the mode actually changes, the
+     * currently loaded items are cleared and reloaded so the new mode can
+     * take effect server-side (see {@link BrowseItemLoadTask}) as well as
+     * client-side (see {@link #sortObjects()}).
+     */
+    public void setSortMode(SortMode sortMode) {
+        if (sortMode == null || sortMode == this.sortMode) {
+            return;
+        }
+        this.sortMode = sortMode;
+        clear();
+        loadMore();
+    }
+
+    /**
+     * @return true if at least one currently loaded item carries a non-null
+     * {@code dc:date} property, i.e. date sorting is meaningful for the
+     * current folder.
+     */
+    public boolean isDateSortAvailable() {
+        return dateSortAvailable;
     }
 
     @Override
@@ -106,7 +161,14 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
 
 
     public void setAllItemsFetched(boolean allItemsFetched) {
+        boolean justCompleted = allItemsFetched && !this.allItemsFetched;
         this.allItemsFetched = allItemsFetched;
+        if (justCompleted) {
+            // The whole folder is now loaded: apply the client-side fallback
+            // sort once, per requirements.md item 3 (no mid-load reshuffle).
+            sortObjects();
+            notifyDataSetChanged();
+        }
     }
 
     public Context getContext() {
@@ -138,6 +200,12 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
         List<DIDLObject> filteredObjects = newObjects.stream().filter(it -> !objects.contains(it)).collect(Collectors.toList());
         YaaccLogger.d(getClass().getName(), "Adding " + filteredObjects.size() + " new objects (filtered from " + newObjects.size() + " total)");
         objects.addAll(filteredObjects);
+        if (!dateSortAvailable) {
+            // Recompute live as chunks arrive so the Date toggle can enable
+            // itself as soon as any loaded item carries a dc:date, without
+            // waiting for the whole folder to finish loading.
+            dateSortAvailable = filteredObjects.stream().anyMatch(BrowseContentItemAdapter::hasDate);
+        }
         notifyItemRangeInserted(start, filteredObjects.size());
     }
 
@@ -147,7 +215,96 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
         }
         loading = false;
         allItemsFetched = false;
+        dateSortAvailable = false;
         notifyDataSetChanged();
+    }
+
+    /**
+     * Client-side fallback sort, applied once the whole folder has been
+     * fetched (see {@link #setAllItemsFetched(boolean)}). Only reorders
+     * what is already loaded -- never triggers additional fetches.
+     */
+    private void sortObjects() {
+        if (objects == null || objects.size() < 2) {
+            return;
+        }
+        if (sortMode == SortMode.DATE) {
+            objects.sort(BrowseContentItemAdapter::compareByDateDescending);
+        } else {
+            objects.sort(BrowseContentItemAdapter::compareByNameGrouped);
+        }
+    }
+
+    /**
+     * Name mode (existing/regression behavior): containers before items,
+     * alphabetical by title within each group.
+     */
+    private static int compareByNameGrouped(DIDLObject a, DIDLObject b) {
+        boolean aContainer = a instanceof Container;
+        boolean bContainer = b instanceof Container;
+        if (aContainer != bContainer) {
+            return aContainer ? -1 : 1;
+        }
+        String titleA = a.getTitle() == null ? "" : a.getTitle();
+        String titleB = b.getTitle() == null ? "" : b.getTitle();
+        return titleA.compareToIgnoreCase(titleB);
+    }
+
+    /**
+     * Date mode: containers and items fully interleaved, newest {@code
+     * dc:date} first. Items with a missing or unparseable date sort as if
+     * they had no date at all (pushed to the end), never crashing.
+     */
+    private static int compareByDateDescending(DIDLObject a, DIDLObject b) {
+        Long dateA = parseDateMillis(a);
+        Long dateB = parseDateMillis(b);
+        if (dateA == null && dateB == null) {
+            return 0;
+        }
+        if (dateA == null) {
+            return 1;
+        }
+        if (dateB == null) {
+            return -1;
+        }
+        return dateB.compareTo(dateA);
+    }
+
+    private static boolean hasDate(DIDLObject object) {
+        return object.getFirstPropertyValue(DIDLObject.Property.DC.DATE.class) != null;
+    }
+
+    /**
+     * Defensively parses a DIDL {@code dc:date} value (format is
+     * server-dependent, not guaranteed to be strict ISO-8601) into epoch
+     * millis for sorting. Returns {@code null} rather than throwing when
+     * the value is missing or cannot be parsed by any of the attempted
+     * formats.
+     */
+    private static Long parseDateMillis(DIDLObject object) {
+        String value = object.getFirstPropertyValue(DIDLObject.Property.DC.DATE.class);
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        if (trimmed.isEmpty()) {
+            return null;
+        }
+        try {
+            return LocalDate.parse(trimmed).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli();
+        } catch (DateTimeParseException dateOnlyFailed) {
+            // Not a plain date, try a full date-time below.
+        }
+        try {
+            return OffsetDateTime.parse(trimmed).toInstant().toEpochMilli();
+        } catch (DateTimeParseException offsetFailed) {
+            // Not an offset date-time either, try a local date-time.
+        }
+        try {
+            return LocalDateTime.parse(trimmed).toInstant(ZoneOffset.UTC).toEpochMilli();
+        } catch (DateTimeParseException localFailed) {
+            return null;
+        }
     }
 
     public Object getItem(int position) {
