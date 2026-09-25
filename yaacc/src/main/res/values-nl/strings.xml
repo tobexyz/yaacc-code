@@ -97,6 +97,8 @@
     <string name="open">open</string>
     <string name="exitActivity">stop</string>
     <string name="icon">icon</string>
+    <string name="sort_by_name">Sorteren op naam</string>
+    <string name="sort_by_date">Sorteren op datum</string>
     <string name="not_yet_implemented">nog niet geïmplementeerd</string>
     <string name="avtransportPlayerActivityNextLabel">Volgende:</string>
     <string name="browse_context_control_device">Controle-apparaat</string>

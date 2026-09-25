@@ -138,6 +138,25 @@ Plan: `specs/2026-09-24-issue252-sort-by-date/requirements.md` and
     re-entering the folder with the new mode, not an additional
     incremental fetch on top of what's already loaded).
 
+## Fix Group 1: Address review cycle 1
+
+Per `review.md` Cycle 1 (FAIL — 1 Critical, 1 Warning).
+
+- [x] Cancel in-flight chunk loads before switching sort mode | `yaacc/src/main/java/de/yaacc/browser/BrowseContentItemAdapter.java`
+  - **Accept**: `setSortMode()` calls `cancelRunningTasks()` before
+    `clear()`/`loadMore()`, matching the existing convention in
+    `ContentListFragment.onBackPressed()`/`populateItemList()`, so a stale
+    `BrowseItemLoadTask` from the previous sort mode can't call `addAll`/
+    `setAllItemsFetched`/`setLoading(false)` against the new mode's list.
+  - **Verify**: `./gradlew :yaacc:compileDebugJavaWithJavac :yaacc:testDebugUnitTest`
+
+- [x] Add missing translations for the new sort-toggle strings | `yaacc/src/main/res/values-{de,es,fr,nl,pt,zh}/strings.xml`
+  - **Accept**: `sort_by_name`/`sort_by_date` translated in all six locale
+    files, matching the surrounding entries' style/placement (next to
+    `icon`).
+  - **Verify**: `./gradlew :yaacc:lintDebug` reports no `MissingTranslation`
+    for these two strings (confirmed: no matches in the lint HTML report).
+
 ## Group 3: Manual verification and documentation update
 
 - [ ] Manually verify the feature against a running server | (no file changes)
