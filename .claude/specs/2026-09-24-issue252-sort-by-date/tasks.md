@@ -201,7 +201,7 @@ it), `ContentDirectoryBrowseResult.getResult()` stays `null`, and
 `BrowseItemLoadTask.onPostExecute` calls `itemAdapter.clear()` —
 emptying the folder instead of falling back to unsorted results.
 
-- [ ] Regression test proving the fallback (red phase) | `yaacc/src/test/java/de/yaacc/browser/BrowseItemLoadTaskTest.java`
+- [x] Regression test proving the fallback (red phase) | `yaacc/src/test/java/de/yaacc/browser/BrowseItemLoadTaskTest.java`
   - **Accept**: new JUnit 4 test class, same package
     (`de.yaacc.browser`) as `BrowseItemLoadTask` so its `protected
     doInBackground`/`onPostExecute` can be called directly (no
@@ -219,7 +219,7 @@ emptying the folder instead of falling back to unsorted results.
     (expected to fail — the fallback/remember-rejection behavior doesn't
     exist yet).
 
-- [ ] Implement the retry-without-orderBy fallback | `yaacc/src/main/java/de/yaacc/browser/BrowseItemLoadTask.java`, `yaacc/src/main/java/de/yaacc/browser/BrowseContentItemAdapter.java`
+- [x] Implement the retry-without-orderBy fallback | `yaacc/src/main/java/de/yaacc/browser/BrowseItemLoadTask.java`, `yaacc/src/main/java/de/yaacc/browser/BrowseContentItemAdapter.java`
   - **Accept**: `BrowseItemLoadTask.doInBackground` retries the same chunk
     request without `orderBy` when the sorted attempt's result is `null`
     or has a non-null `getUpnpFailure()`. On that first rejection,
@@ -243,7 +243,7 @@ already-selected button flips its own direction, tapping the other
 button switches mode using that mode's own remembered direction, icons
 fully swap per direction.
 
-- [ ] Test skeletons for direction toggling and per-mode persistence | `yaacc/src/test/java/de/yaacc/browser/BrowseContentItemAdapterSortTest.java`
+- [x] Test skeletons for direction toggling and per-mode persistence | `yaacc/src/test/java/de/yaacc/browser/BrowseContentItemAdapterSortTest.java`
   - **Accept**: extend the existing test class with red-phase cases for:
     `isNameAscending()`/`isDateAscending()` defaults (name=true/A-Z,
     date=false/newest-first, preserving current behavior for existing
@@ -257,7 +257,7 @@ fully swap per direction.
     (expected to fail — `toggleDirection()`/`isNameAscending()`/
     `isDateAscending()` don't exist yet).
 
-- [ ] Implement direction state, persistence, and server-side direction | `yaacc/src/main/java/de/yaacc/browser/BrowseContentItemAdapter.java`, `yaacc/src/main/java/de/yaacc/browser/BrowseItemLoadTask.java`, `yaacc/src/main/res/values/setting_strings.xml`
+- [x] Implement direction state, persistence, and server-side direction | `yaacc/src/main/java/de/yaacc/browser/BrowseContentItemAdapter.java`, `yaacc/src/main/java/de/yaacc/browser/BrowseItemLoadTask.java`, `yaacc/src/main/res/values/setting_strings.xml`
   - **Accept**: two new SharedPreferences keys
     (`settings_sort_name_ascending_key`, `settings_sort_date_ascending_key`),
     same untranslatable-string pattern as `settings_sort_order_key`. Adapter
@@ -272,7 +272,7 @@ fully swap per direction.
   - **Verify**: `./gradlew :yaacc:testDebugUnitTest --tests "de.yaacc.browser.BrowseContentItemAdapterSortTest"`
     now PASSES.
 
-- [ ] Direction-aware icons and UI wiring | `yaacc/src/main/res/drawable/`, `yaacc/src/main/java/de/yaacc/browser/ContentListFragment.java`
+- [x] Direction-aware icons and UI wiring | `yaacc/src/main/res/drawable/`, `yaacc/src/main/java/de/yaacc/browser/ContentListFragment.java`
   - **Accept**: two new vector drawables (ascending/descending variants of
     `ic_baseline_sort_by_alpha_32` and `ic_baseline_date_range_32`) in the
     same `ic_baseline_*` style as the existing icons. `ContentListFragment`:
