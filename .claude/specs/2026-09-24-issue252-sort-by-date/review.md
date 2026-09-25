@@ -265,6 +265,301 @@ Also re-verified the untouched parts of the diff (`BrowseContentItemAdapter`'s
 files) byte-for-byte against Cycle 1's already-approved diff — identical,
 nothing new.
 
+## Cycle 4 — 2026-09-26
+Reviewing: Fix Group 3, commit `245b6bf` (diff `d65b4d2..245b6bf`) — the
+post-ship UI bug fix for the sort toggle overlapping the content list on
+the root/main folder. Diff touches only
+`yaacc/src/main/res/layout/fragment_content_list.xml` and
+`yaacc/src/main/java/de/yaacc/browser/ContentListFragment.java`
+(`layout-land/fragment_content_list.xml` untouched, plus `decisions.md`/
+`tasks.md`).
+
+### Critical
+
+None.
+
+### Warning
+
+None.
+
+### 1. Does the fix actually work — traced against real AOSP `RelativeLayout` source, not assumption
+
+This is the one finding in this cycle worth real scrutiny, so I verified it
+against the actual framework source rather than trusting the "GONE views
+contribute zero size" one-line explanation in `decisions.md`'s 2026-09-26
+entry. That explanation is correct for `contentListHeaderRow`'s own
+`wrap_content` height (a plain, well-established `RelativeLayout`/
+`LinearLayout` mechanic: GONE **children** are skipped in the loop that
+computes a `wrap_content` parent's size), but it does **not**, by itself,
+explain why `contentList` — positioned via
+`android:layout_below="@+id/contentListTopSeperator"`, where
+`contentListTopSeperator` **itself** is set `GONE` by
+`removeFolderNavigation()` — ends up in the right place. That is a
+different mechanic: a sibling's `layout_below` rule pointing at a view
+that is itself GONE.
+
+Fetched the real AOSP source
+(`https://raw.githubusercontent.com/aosp-mirror/platform_frameworks_base/master/core/java/android/widget/RelativeLayout.java`,
+`android.googlesource.com` is proxy-blocked so used the GitHub mirror) and
+read `RelativeLayout.getRelatedView()` (L1028-1048) directly:
+
+```java
+private View getRelatedView(int[] rules, int relation) {
+    int id = rules[relation];
+    if (id != 0) {
+        DependencyGraph.Node node = mGraph.mKeyNodes.get(id);
+        if (node == null) return null;
+        View v = node.view;
+        // Find the first non-GONE view up the chain
+        while (v.getVisibility() == View.GONE) {
+            rules = ((LayoutParams) v.getLayoutParams()).getRules(v.getLayoutDirection());
+            node = mGraph.mKeyNodes.get((rules[relation]));
+            if (node == null || v == node.view) return null;
+            v = node.view;
+        }
+        return v;
+    }
+    return null;
+}
+```
+
+This is the load-bearing mechanism, and it is exactly why redirecting
+`contentListTopSeperator`'s anchor from `contentListCurrentFolderName` to
+the new `contentListHeaderRow` (this diff's actual XML change, not just
+"wrap three views in a container") is what fixes the bug — not merely
+organizational nesting:
+
+- `contentList`'s `BELOW` rule targets `contentListTopSeperator`. At the
+  root folder, `topSeperator` is `GONE`
+  (`removeFolderNavigation()`, unchanged by this diff). `getRelatedView`
+  detects this and walks up **using `topSeperator`'s own declared rule for
+  the same relation** — i.e. `topSeperator`'s `layout_below` target — which
+  this diff changed from `contentListCurrentFolderName` to
+  `contentListHeaderRow`. `contentListHeaderRow` is never itself `GONE`
+  (only its children toggle), so the walk stops there and `contentList`'s
+  effective anchor becomes `contentListHeaderRow` directly, at its live
+  (correctly wrap_content-collapsed) bottom edge. This is why `contentList`
+  ends up exactly below the header row's real bottom, root or not, first
+  render or not — the walk-up uses `topSeperator`'s **declared XML rule**
+  (static), not any of `topSeperator`'s own runtime-computed bounds
+  (avoiding any "stale bounds from a previous layout pass" concern for the
+  GONE anchor itself).
+- I confirmed this closes an actual gap in the **pre-fix** code, not a
+  bug I invented: `git show d65b4d2:.../fragment_content_list.xml` shows
+  the **old** `contentListCurrentFolderName` had `layout_alignTop`,
+  `layout_toStartOf`, `layout_toEndOf` — **no `layout_below` rule at all**.
+  So in the old code, when `topSeperator` (GONE) walked up looking for a
+  `BELOW`-relation anchor via `contentListCurrentFolderName`,
+  `rules[BELOW]` was `0`, `getRelatedView` returned `null`, and the chain
+  simply broke. With no `BELOW` anchor resolved, `applyVerticalSizeRules`
+  leaves `contentList`'s `mTop` as `VALUE_NOT_SET`; since `contentList`
+  also has `layout_above="@id/contentListBottomSeperator"` (so `mBottom`
+  *is* set), `positionChildVertical`'s fallback
+  (`mTop == VALUE_NOT_SET && mBottom != VALUE_NOT_SET` →
+  `mTop = mBottom - measuredHeight`) takes over — i.e. undefined/
+  fill-from-the-bottom positioning, not a clean top=0. This is almost
+  certainly *why* the original author added the explicit
+  `RelativeLayout.ALIGN_PARENT_TOP` Java-side rule in the first place (to
+  force a defined top), and that forced top=0 is exactly what put
+  `contentList` underneath the always-visible sort toggle (also pinned at
+  y=0 via `alignParentTop`/`alignParentEnd`) — reproducing the reported
+  bug. The fix's real load-bearing change is giving `topSeperator` a
+  `layout_below` target (`contentListHeaderRow`) that is guaranteed to
+  resolve to a live, non-GONE view, so the chain-walk in `getRelatedView`
+  always terminates correctly and the Java-side force-pin becomes
+  genuinely unnecessary, not just redundant.
+- Verified the concrete numbers: with `contentListBackButton` and
+  `contentListCurrentFolderName` both GONE at root, `contentListHeaderRow`'s
+  only visible child is `contentListSortToggle`
+  (`alignParentTop`, 48dp-tall `LinearLayout`, `marginBottom="5dp"`), so
+  `contentListHeaderRow`'s `wrap_content` height resolves to 53dp.
+  `contentListTopSeperator` (`layout_below=contentListHeaderRow`, itself
+  not depending on any GONE view) resolves normally to top=53dp. Via the
+  chain-walk above, `contentList`'s effective top is also 53dp (headerRow's
+  bottom) — i.e. the content list starts exactly where the sort toggle
+  ends, no overlap, no gap.
+- Also traced the **non-root, folder-navigation-visible** case to confirm
+  no regression: with `backButton`/`folderName` `VISIBLE`,
+  `contentListHeaderRow`'s height grows to include them (its
+  `wrap_content` height is now the same value it would have produced
+  under the pre-fix flat layout, since the same views/margins/rules
+  compose it, just nested one level deeper — nesting a `RelativeLayout`
+  inside a `wrap_content`-height `RelativeLayout` does not change how
+  its children's own rules resolve). `topSeperator` (now `VISIBLE`) is
+  processed directly (no GONE chain-walk needed) and resolves to
+  `headerRow.bottom`; `contentList` resolves to `topSeperator.bottom + 1dp`
+  — identical to the pre-fix, already-correct non-root layout.
+
+Conclusion: the fix works as claimed, but the credit belongs specifically
+to redirecting `contentListTopSeperator`'s anchor to the new
+`contentListHeaderRow` container (which is what makes AOSP
+`RelativeLayout`'s documented "find the first non-GONE view up the chain"
+behavior in `getRelatedView` resolve correctly), not merely to the
+`wrap_content`-collapses-with-GONE-children mechanic that `decisions.md`
+cites. Both mechanics are real and both are needed; `decisions.md` only
+documents the first. Logged as a Suggestion below (accurate but
+incomplete rationale in the decision log), not a Warning, since the code
+itself is correct.
+
+### 2. `layout-land` — confirmed structurally unaffected, read directly
+
+Read `yaacc/src/main/res/layout-land/fragment_content_list.xml` in full
+(not just trusted the commit message). `contentList` lives in the
+**second** top-level `RelativeLayout` of the outer `LinearLayout`
+(`android:layout_weight="2"`), which contains only `contentList` and
+`contentListProgressBar` — no `contentListHeaderRow`,
+`contentListTopSeperator`, `contentListBackButton`,
+`contentListCurrentFolderName`, or `contentListSortToggle` reference of any
+kind. Those toggled-visibility views all live in the **first** weighted
+`RelativeLayout` (`layout_weight="1"`), a structurally separate sibling
+column. `contentList`'s own layout params
+(`layout_width="match_parent"`, `layout_height="match_parent"`, no
+`layout_below`/`layout_above` rules at all) are untouched by this diff and
+have zero dependency edges into the first column's view-visibility
+changes. Confirmed: leaving `layout-land` untouched is correct, not an
+oversight.
+
+### 3. Regression check — `showFolderNavigation()`'s remaining job
+
+`showFolderNavigation()` (`ContentListFragment.java:335-339`) now does
+exactly three `setVisibility(View.VISIBLE)` calls and nothing else. Traced
+per point 1 above: since the container's own `wrap_content` sizing and the
+`getRelatedView` chain-walk both resolve correctly in the VISIBLE state
+without any Java-side rule manipulation, this is sufficient on its own.
+Confirmed by symmetry with `removeFolderNavigation()`: previously, the
+Java code added `ALIGN_PARENT_TOP` in `removeFolderNavigation()` and
+explicitly `removeRule(ALIGN_PARENT_TOP)` in `showFolderNavigation()` —
+i.e. `showFolderNavigation()`'s only extra job pre-fix was **undoing**
+`removeFolderNavigation()`'s own hack. With that hack deleted from both
+methods, there is nothing left to undo, so deleting the
+`removeRule` call is a true no-op removal, not a behavior change, for the
+normal (non-root) case. Also independently confirmed via the passing full
+test suite (122/122, unchanged) that nothing else in the fragment's
+lifecycle depends on that removed rule mutation.
+
+### 4. View IDs / `findViewById` resolution
+
+No ID collisions: `contentListHeaderRow` is a new, unique id; the three
+wrapped views (`contentListBackButton`, `contentListSortToggle` and its two
+children, `contentListCurrentFolderName`) keep their original,
+unchanged ids. Confirmed every relevant lookup in `ContentListFragment.java`
+(`init()` L99/105, `initSortToggle()` L153-154) calls
+`contentlistView.findViewById(...)` against the **fragment's root view**
+(the outermost `RelativeLayout` returned by `onCreateView`'s
+`inflater.inflate(...)`), which is a recursive descendant search — nesting
+one extra `RelativeLayout` level changes nothing about resolution. Grepped
+the whole file for any positional/index-based view access
+(`getChildAt`, array/index lookups into the view tree): none exist: every
+view reference in this class goes through `findViewById` by id. Also
+confirmed no `ViewBinding`-generated class (`FragmentContentListBinding`)
+is used anywhere in `yaacc/src/main` for this layout (project has
+`viewBinding true` but this fragment uses plain `findViewById`), so there
+is no generated-binding-field angle to worry about either.
+
+### 5. Code quality
+
+- `RelativeLayout` import removal from `ContentListFragment.java`:
+  confirmed zero remaining references to `RelativeLayout` anywhere in the
+  file (`grep -n RelativeLayout ContentListFragment.java` → no matches) —
+  genuinely unused, correctly removed.
+- No other dead code introduced or left behind by this diff.
+- XML validity: both layout files inflate/compile cleanly
+  (`compileDebugJavaWithJavac`, `lintDebug`, both BUILD SUCCESSFUL — see
+  Tests below); `lintDebug`'s full text report has zero findings against
+  `fragment_content_list.xml` or `contentListHeaderRow` specifically
+  (`grep -n "fragment_content_list\|contentListHeaderRow"
+  lint-results-debug.txt` → no matches other than the two pre-existing,
+  unrelated `UseCompatLoadingForDrawables` hits on
+  `ContentListFragment.java:100/223/224`, none of which are on lines this
+  diff touched).
+- Minor XML nit, pre-existing and untouched by this diff (not worth a
+  Suggestion of its own): `contentListBackButton`'s
+  `app:tint="?attr/colorControlNormal"` attribute is indented with extra
+  leading whitespace relative to its sibling attributes, in both the old
+  and new file — purely cosmetic, carried over unchanged from before this
+  commit.
+
+### Tests
+
+- [x] `./gradlew :yaacc:compileDebugJavaWithJavac` — BUILD SUCCESSFUL.
+- [x] `./gradlew :yaacc:testDebugUnitTest` — BUILD SUCCESSFUL. Verified via
+  the actual JUnit XML reports (not just the Gradle summary): 122 tests
+  total across all 27 `TEST-*.xml` files, 0 failures, 0 errors — full
+  suite unaffected, as expected for a layout-only + dead-code-removal
+  change with no test-relevant production logic touched.
+- [x] `./gradlew :yaacc:lintDebug` — BUILD SUCCESSFUL (non-fatal per
+  `lint { abortOnError false }`). 71 errors / 117 warnings total, same
+  baseline count as Cycles 2-3 — no new lint findings from this diff, and
+  specifically none against either touched file.
+- [x] Manual trace of the `RelativeLayout` measure/layout algorithm against
+  the real AOSP source (see point 1) in lieu of an emulator/screenshot,
+  since this sandbox has no Android emulator or device (same constraint
+  noted in `decisions.md`'s 2026-09-25 Group 3 entry) — confirmed the
+  overlap is actually gone at the root folder, for both a fresh first
+  launch and after returning from a subfolder, not just that the XML
+  "looks plausible."
+- [x] Coverage — no new automated test was added for this fix, which is
+  reasonable: this project has no Robolectric/instrumented layout-testing
+  infrastructure (plain-JVM unit tests only, per `testOptions.unitTests
+  .returnDefaultValues = true`), so a real regression test for
+  `RelativeLayout` pixel-level positioning isn't practical at this test
+  tier, and the task's own `tasks.md` Verify line only calls for
+  compile+test+lint, not a new test. Not counted against this cycle.
+
+### Suggestion
+
+- **`decisions.md`'s 2026-09-26 entry's rationale is accurate but
+  incomplete.** It correctly explains why `contentListHeaderRow` itself
+  collapses to the toggle's height, but doesn't mention that
+  `contentList`'s correct positioning additionally depends on AOSP
+  `RelativeLayout.getRelatedView()`'s "find the first non-GONE view up the
+  chain" behavior, and that redirecting `contentListTopSeperator`'s anchor
+  from `contentListCurrentFolderName` to `contentListHeaderRow` is what
+  makes that chain-walk terminate at a view that's never itself GONE. A
+  future maintainer relying only on the decision log could plausibly
+  "simplify" `contentListTopSeperator`'s `layout_below` target back to
+  something GONE-able (e.g. back to the folder-name `TextView` directly)
+  without realizing it would silently reintroduce the exact bug this cycle
+  fixes, since the existing tests and lint pass either way (no automated
+  layout-position test exists — see the Tests note above). A one-line code
+  comment on `contentListTopSeperator`'s `layout_below` attribute (or an
+  amendment to the decision log) noting "must point at a view that is
+  never itself GONE, for RelativeLayout's GONE-anchor chain-walk to
+  resolve correctly" would make this non-obvious constraint durable.
+- Consider a lightweight Espresso/instrumented test (if/when
+  instrumentation tests are ever added to this project) asserting
+  `contentList.getTop() >= contentListSortToggle.getBottom()` at the root
+  folder — the kind of regression this cycle's fix addresses is exactly
+  the sort of thing that's easy to silently reintroduce via a future
+  layout edit, and no current test tier catches it.
+
+### Verdict: PASS
+
+Zero Critical, zero Warning. Verified the fix's correctness at the
+`RelativeLayout` algorithm level against the actual AOSP source (fetched
+directly, not recalled from memory) rather than trusting the XML's
+plausibility or the decision log's explanation at face value — confirmed
+both (a) the pre-fix root cause (`contentListCurrentFolderName` had no
+`layout_below` rule for `contentListTopSeperator`'s GONE-chain walk to
+follow, so it broke and fell back to the Java-side `ALIGN_PARENT_TOP`
+force-pin that caused the overlap) and (b) the post-fix mechanism
+(`contentListTopSeperator` now anchors to the always-visible
+`contentListHeaderRow`, so `getRelatedView`'s chain-walk always resolves
+correctly, root folder or not, first render or not, making the removed
+Java-side rule manipulation genuinely unnecessary rather than merely
+redundant). Confirmed `layout-land` is structurally untouched and
+correctly unaffected by direct reading, confirmed the non-root case is
+unchanged by tracing both the old and new rule resolution, confirmed no ID
+collisions or positional-lookup risk, and confirmed the removed
+`RelativeLayout` import is genuinely unused. All three requested commands
+(`compileDebugJavaWithJavac`, `testDebugUnitTest`, `lintDebug`) BUILD
+SUCCESSFUL; full 122-test suite green, 0 failures/errors; lint baseline
+unchanged (71 errors/117 warnings, none new, none against the touched
+files). One Suggestion (the decision log's rationale is accurate but
+incomplete, worth a follow-up comment) does not block. Fix Group 3 is
+correctly implemented and ready — no further review cycles needed for
+this group.
+
 ### Tests
 
 - [x] `./gradlew :yaacc:compileDebugJavaWithJavac` — BUILD SUCCESSFUL.
