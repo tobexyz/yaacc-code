@@ -79,7 +79,7 @@ Plan: `specs/2026-09-24-issue252-sort-by-date/requirements.md` and
 
 ## Group 2: Implementation (depends on Group 1)
 
-- [ ] Pass sort mode through `BrowseItemLoadTask` and apply server-side `SortCriterion` | `yaacc/src/main/java/de/yaacc/browser/BrowseItemLoadTask.java`, `yaacc/src/main/java/de/yaacc/browser/BrowseContentItemAdapter.java`
+- [x] Pass sort mode through `BrowseItemLoadTask` and apply server-side `SortCriterion` | `yaacc/src/main/java/de/yaacc/browser/BrowseItemLoadTask.java`, `yaacc/src/main/java/de/yaacc/browser/BrowseContentItemAdapter.java`
   - **Accept**: when the adapter's current sort mode is "Date",
     `BrowseItemLoadTask.doInBackground` calls the new orderBy-accepting
     `browseSync` overload (Group 1) with the verified `-dc:date`
@@ -104,7 +104,7 @@ Plan: `specs/2026-09-24-issue252-sort-by-date/requirements.md` and
     read pattern; treat unparseable/missing date strings as "no date" (do
     not crash on malformed `dc:date`).
 
-- [ ] Add sort-order header toggle UI | `yaacc/src/main/res/layout/fragment_content_list.xml`, `yaacc/src/main/res/layout-land/fragment_content_list.xml`
+- [x] Add sort-order header toggle UI | `yaacc/src/main/res/layout/fragment_content_list.xml`, `yaacc/src/main/res/layout-land/fragment_content_list.xml`
   - **Accept**: a segmented "Name" / "Date" control added to the header
     row near `contentListCurrentFolderName` (above
     `contentListTopSeperator`), in both the portrait and land layout
@@ -120,7 +120,7 @@ Plan: `specs/2026-09-24-issue252-sort-by-date/requirements.md` and
     view IDs so `ContentListFragment` wiring works identically in either
     orientation.
 
-- [ ] Wire the toggle to sort mode, persistence, and enable/disable state | `yaacc/src/main/java/de/yaacc/browser/ContentListFragment.java`
+- [x] Wire the toggle to sort mode, persistence, and enable/disable state | `yaacc/src/main/java/de/yaacc/browser/ContentListFragment.java`
   - **Accept**: on fragment init, read the persisted sort order
     (`settings_sort_order_key`, default "Name") via
     `PreferenceManager.getDefaultSharedPreferences`, set it on the adapter,

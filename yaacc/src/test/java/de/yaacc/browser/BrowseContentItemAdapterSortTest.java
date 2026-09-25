@@ -39,6 +39,9 @@ import org.fourthline.cling.support.model.item.Item;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.lang.reflect.Field;
+import java.util.ArrayList;
+
 import de.yaacc.upnp.UpnpClient;
 
 /**
@@ -115,7 +118,42 @@ public class BrowseContentItemAdapterSortTest {
     }
 
     private BrowseContentItemAdapter newAdapter() {
-        return new BrowseContentItemAdapter(contentListFragment, recyclerView, upnpClient, progressBar);
+        BrowseContentItemAdapter adapter = new BrowseContentItemAdapter(contentListFragment, recyclerView, upnpClient, progressBar);
+        fixUpAdapterDataObservable(adapter);
+        return adapter;
+    }
+
+    /**
+     * Environment workaround, not a test-behavior change: this project's
+     * unit tests run on a plain JVM with {@code unitTests.returnDefaultValues
+     * = true} and no Robolectric shadow layer. Under that setup, AGP's
+     * "mockable android.jar" strips the real constructor body of the
+     * platform class {@code android.database.Observable} (the superclass,
+     * two levels up, of {@code RecyclerView.Adapter}'s internal
+     * {@code AdapterDataObservable}), so its {@code final ArrayList
+     * mObservers} field is left {@code null} instead of being initialized.
+     * Calling any real {@code RecyclerView.Adapter} notify* method (which
+     * this test must do, via {@code addAll}/{@code clear}/{@code
+     * setAllItemsFetched}, to exercise the adapter's real bookkeeping)
+     * would otherwise NPE deep inside androidx/platform code, unrelated to
+     * anything this test or {@link BrowseContentItemAdapter} does. This
+     * reflectively initializes that one platform field so the real
+     * notify* calls are harmless no-op observer notifications, exactly as
+     * they would be against a real, unobserved adapter.
+     */
+    private static void fixUpAdapterDataObservable(BrowseContentItemAdapter adapter) {
+        try {
+            Field mObservableField = RecyclerView.Adapter.class.getDeclaredField("mObservable");
+            mObservableField.setAccessible(true);
+            Object adapterDataObservable = mObservableField.get(adapter);
+
+            Field mObserversField = adapterDataObservable.getClass().getSuperclass().getDeclaredField("mObservers");
+            mObserversField.setAccessible(true);
+            mObserversField.set(adapterDataObservable, new ArrayList<>());
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("Could not work around the android.database.Observable "
+                    + "stub-field limitation of this plain-JVM test environment", e);
+        }
     }
 
     private static Container container(String id, String title) {

@@ -38,6 +38,34 @@
             android:contentDescription="@string/icon"
             app:srcCompat="@drawable/ic_baseline_arrow_back_32" />
 
+        <LinearLayout
+            android:id="@+id/contentListSortToggle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignTop="@id/contentListBackButton"
+            android:layout_alignParentEnd="true"
+            android:layout_marginBottom="5dp"
+            android:orientation="horizontal">
+
+            <ImageButton
+                android:id="@+id/contentListSortByNameButton"
+                style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:contentDescription="@string/sort_by_name"
+                app:srcCompat="@drawable/ic_baseline_sort_by_alpha_32"
+                app:tint="?attr/colorControlNormal" />
+
+            <ImageButton
+                android:id="@+id/contentListSortByDateButton"
+                style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:contentDescription="@string/sort_by_date"
+                app:srcCompat="@drawable/ic_baseline_date_range_32"
+                app:tint="?attr/colorControlNormal" />
+        </LinearLayout>
+
         <TextView
             android:id="@+id/contentListCurrentFolderName"
             android:layout_width="match_parent"
