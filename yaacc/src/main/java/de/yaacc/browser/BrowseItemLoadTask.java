@@ -21,6 +21,7 @@ import android.os.AsyncTask;
 import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.support.model.DIDLContent;
+import org.fourthline.cling.support.model.SortCriterion;
 
 import de.yaacc.R;
 import de.yaacc.Yaacc;
@@ -47,7 +48,10 @@ public class BrowseItemLoadTask extends AsyncTask<Long, Integer, ContentDirector
 
         Long from = params[0];
         YaaccLogger.d(getClass().getName(), "loading from:" + from + " chunkSize: " + chunkSize);
-        return ((Yaacc) itemAdapter.getContext().getApplicationContext()).getUpnpClient().browseSync(itemAdapter.getNavigator().getCurrentPosition(), from, this.chunkSize);
+        SortCriterion[] orderBy = itemAdapter.getSortMode() == BrowseContentItemAdapter.SortMode.DATE
+                ? new SortCriterion[]{new SortCriterion(false, "dc:date")}
+                : new SortCriterion[0];
+        return ((Yaacc) itemAdapter.getContext().getApplicationContext()).getUpnpClient().browseSync(itemAdapter.getNavigator().getCurrentPosition(), from, this.chunkSize, orderBy);
 
     }
 
