@@ -27,12 +27,40 @@ external docs — all APIs involved are already vendored in this repo
   }
   ```
 
-`SortCriterion` is constructed as `new SortCriterion(boolean ascending,
-String propertyName)`; `-dc:date` (newest first) is the descending form —
-confirm exact constructor/`toString` format against
-`org.fourthline.cling.support.model.SortCriterion` before use (vendored
-source, not yet independently re-verified beyond the `Browse.java` call
-site above — do this in task Group 1 before wiring callers).
+**Confirmed (Group 1, `yaacc/src/main/java/org/fourthline/cling/support/model/SortCriterion.java:29-32`):**
+```java
+public class SortCriterion {
+    final protected boolean ascending;
+    final protected String propertyName;
+
+    public SortCriterion(boolean ascending, String propertyName) {   // L29-32
+        this.ascending = ascending;
+        this.propertyName = propertyName;
+    }
+    ...
+    @Override
+    public String toString() {   // L68-74
+        StringBuilder sb = new StringBuilder();
+        sb.append(ascending ? "+" : "-");
+        sb.append(propertyName);
+        return sb.toString();
+    }
+}
+```
+- Two-arg constructor is the only one that takes a boolean/property-name
+  pair; there's also a single-`String` constructor (L34-38) that parses a
+  `+`/`-`-prefixed criterion string, and static `valueOf(String)` /
+  `toString(SortCriterion[])` helpers (L48-66) used by `Browse.java` to
+  serialize the array into the `SortCriteria` UPnP input.
+- **Exact construction call for "descending by dc:date" (newest first)**:
+  ```java
+  new SortCriterion(false, "dc:date")
+  ```
+  `ascending=false` → `toString()` emits `-dc:date`, matching the
+  ContentDirectory `SortCriteria` syntax the requester's server (and the
+  DLNA spec) expects. `ascending=true` would emit `+dc:date` (oldest
+  first) — not used in this feature (no oldest-first mode per
+  requirements.md Non-Goals).
 
 ## `UpnpClient.browseSync` — the orderBy gap
 

@@ -41,6 +41,7 @@
     <string name="settings_browse_image_on">show image files</string>
     <string name="settings_browse_image_off">show no image files</string>
     <string name="settings_thumbnails_chkbx" translatable="false">thumbnails_chkbx</string>
+    <string name="settings_sort_order_key" translatable="false">sort_order_key</string>
     <string name="settings_browse_chunk_size">chunk size when browsing</string>
     <string name="settings_browse_chunk_size_key" translatable="false">browse_chunk_size_key</string>
     <string name="settings_browse_chunk_size_summ">amount of items fetched from server in one request</string>
