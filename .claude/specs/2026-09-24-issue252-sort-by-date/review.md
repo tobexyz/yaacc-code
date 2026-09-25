@@ -175,3 +175,148 @@ pass. Both are narrow, targeted fixes: add `cancelRunningTasks()` to
 `setSortMode()`, and add the two strings to the six locale files (or an
 explicit `tools:ignore`). All tests pass and the rest of the behavior spec
 is faithfully implemented.
+
+## Cycle 2 — 2026-09-25
+Reviewing: fix commit `bd9269d` (on top of `e1ea74c`), addressing Cycle 1's
+Critical + Warning. Full diff re-swept via `git diff bc11586..bd9269d`.
+
+### Critical
+
+None.
+
+### Warning
+
+None.
+
+### Verification of Cycle 1's Critical fix
+
+`git show bd9269d -- yaacc/src/main/java/de/yaacc/browser/BrowseContentItemAdapter.java`
+adds exactly one line: `setSortMode()` now calls `cancelRunningTasks()`
+immediately before `clear()`/`loadMore()`, matching the pattern at every
+other call site (`ContentListFragment.onBackPressed()` L273,
+`populateItemList()` L378).
+
+Traced the actual race-prevention mechanism, not just the textual match to
+convention:
+- `cancelRunningTasks()` (`BrowseContentItemAdapter.java:472-480`) iterates
+  `asyncTasks` and calls `task.cancel(true)` on each, then resets
+  `loading = false` / `allItemsFetched = false`.
+- Per `AsyncTask`'s documented/actual framework behavior, `cancel()` sets
+  the task's internal cancelled flag; when the background computation
+  later finishes, the framework's `finish()` step checks `isCancelled()`
+  and invokes `onCancelled(result)` **instead of** `onPostExecute(result)`.
+  `BrowseItemLoadTask` does not override `onCancelled`, so it is a no-op.
+  This means the stale task's `onPostExecute` body — `itemAdapter.addAll(...)`,
+  `itemAdapter.setAllItemsFetched(...)`, `itemAdapter.setLoading(false)`,
+  `itemAdapter.removeTask(this)` — never executes for a task cancelled this
+  way, regardless of whether `doInBackground`'s blocking network call
+  (`browseSync`) actually stops early. This is exactly the callback that
+  Cycle 1 identified as corrupting state; it is now fully suppressed for
+  every task that was in flight at the moment `setSortMode()` is called.
+- Confirmed the ordering is correct: `cancelRunningTasks()` runs before
+  `clear()`, so by the time `clear()` resets `objects`/`loading`/
+  `allItemsFetched`/`dateSortAvailable` and `loadMore()` re-checks
+  `if (loading || allItemsFetched) return;`, both flags are guaranteed
+  `false` and `getItemCount()` is `0` — the new task starts a clean load
+  from position 0 in the new sort mode, with no possibility of a second
+  task racing it in.
+
+This fully closes the race described in Cycle 1. Verdict on this finding:
+**resolved**.
+
+### Verification of Cycle 1's Warning fix
+
+`git show bd9269d -- yaacc/src/main/res/values-{de,es,fr,nl,pt,zh}/strings.xml`
+adds `sort_by_name`/`sort_by_date` translated entries to all six locale
+files (not placeholder English copies — each is a genuine translation,
+e.g. de: "Nach Name sortieren"/"Nach Datum sortieren", zh: "按名称排序"/
+"按日期排序"). Ran `./gradlew :yaacc:lintDebug --rerun` fresh and inspected
+`yaacc/build/reports/lint-results-debug.html`: zero occurrences of
+`MissingTranslation` and zero occurrences of `sort_by_name`/`sort_by_date`
+anywhere in the report (previously 2 `MissingTranslation` errors for
+exactly these strings). Total lint errors dropped from 73 (Cycle 1) to 71,
+consistent with exactly the two flagged errors being cleared and nothing
+else changing. Verdict on this finding: **resolved**.
+
+### Fresh full-diff pass (`git diff bc11586..bd9269d`)
+
+Confirmed the fix commit's diffstat is *exactly* the Cycle-1-reviewed diff
+(unchanged) plus the one-line `cancelRunningTasks()` call, the six
+translation additions, and spec/doc files (`review.md`, `tasks.md`) — no
+other production file changed. Specifically checked the concern flagged in
+Cycle 1 itself (`cancelRunningTasks()`'s effect on `loading`/
+`allItemsFetched` vs. `clear()`'s effect on the same fields):
+- `cancelRunningTasks()`: `loading = false; allItemsFetched = false;`
+  (does not touch `objects` or `dateSortAvailable`).
+- `clear()`: clears `objects`, `loading = false`, `allItemsFetched = false`,
+  `dateSortAvailable = false`, `notifyDataSetChanged()`.
+- The two are idempotent/additive on the shared fields (both set
+  `loading`/`allItemsFetched` to `false`; `clear()` additionally zeroes
+  `objects`/`dateSortAvailable`), so calling them back-to-back has no
+  conflicting or surprising combined effect, and the sequence is
+  byte-for-byte the same as the pre-existing `onBackPressed()`/
+  `populateItemList()` call sites. No new bug introduced by combining
+  them.
+
+Also re-verified the untouched parts of the diff (`BrowseContentItemAdapter`'s
+`sortObjects`/`compareByDateDescending`/`compareByNameGrouped`/
+`parseDateMillis`/`hasDate`, `ContentListFragment`'s toggle wiring,
+`UpnpClient`/`BrowseItemLoadTask`'s `orderBy` threading, the two layout
+files) byte-for-byte against Cycle 1's already-approved diff — identical,
+nothing new.
+
+### Tests
+
+- [x] `./gradlew :yaacc:compileDebugJavaWithJavac` — BUILD SUCCESSFUL.
+- [x] `./gradlew :yaacc:testDebugUnitTest --rerun` (forced, not UP-TO-DATE) —
+  BUILD SUCCESSFUL, 0 failures/errors across all 30 test classes in the
+  module (checked every `TEST-*.xml` JUnit report individually via
+  `tests=".." failures="0" errors="0"`);
+  `BrowseContentItemAdapterSortTest` 5/5 green, unchanged from Cycle 1.
+- [x] `./gradlew :yaacc:lintDebug --rerun` (forced) — BUILD SUCCESSFUL
+  (non-fatal per `abortOnError false`); `lint-results-debug.html` confirmed
+  to contain zero `MissingTranslation` hits and zero `sort_by_name`/
+  `sort_by_date` hits (down from 2 `MissingTranslation` errors in Cycle 1).
+- [x] Coverage — same as Cycle 1 for the feature's core logic. The
+  concurrent-mode-switch race itself is still not covered by an automated
+  test (still an `AsyncTask`/integration-level concern out of reach of the
+  adapter's plain-JVM unit test, as noted in Cycle 1), but the fix's
+  correctness was verified by tracing `AsyncTask.cancel()`/`finish()`
+  semantics rather than by a new test. Given the narrow, well-understood
+  nature of the one-line fix and the framework-level guarantee it relies
+  on, this is acceptable and does not block — flagged as a residual gap,
+  not a blocker.
+
+### Suggestion
+
+- **`cancelRunningTasks()` never removes cancelled tasks from `asyncTasks`**
+  (`BrowseContentItemAdapter.java:472-480`) — `removeTask(this)` is only
+  called from `BrowseItemLoadTask.onPostExecute`, which (per the analysis
+  above) never runs for a cancelled task, so `asyncTasks` silently
+  accumulates stale, already-finished `AsyncTask` references on every
+  sort-mode toggle (and on every `onBackPressed()`/`populateItemList()`
+  cancel-and-reload, since this is a pre-existing pattern, not something
+  `bd9269d` introduced). Harmless in practice (bounded by how many times a
+  user toggles sort/navigates per session, and the objects are small), but
+  a long-lived session with heavy toggling will leak a growing list of
+  dead task references. Not a regression from this fix — same behavior
+  existed at every other `cancelRunningTasks()` call site before this spec
+  — so not counted as a Warning here, but worth a follow-up
+  (`removeTask` could be called from `onCancelled` too, or
+  `cancelRunningTasks()` could clear the list directly since a fresh
+  `loadMore()` immediately follows in every call site).
+
+### Verdict: PASS
+
+Both Cycle 1 findings are correctly and minimally fixed: `setSortMode()`
+now cancels in-flight tasks before clearing/reloading, and the framework's
+`cancel()`/`onCancelled()` semantics guarantee the stale task's callback
+into the adapter never fires — closing the race outright, not just
+narrowing it. All six locale files now carry genuine translations for the
+two new strings, confirmed absent from lint's `MissingTranslation` output.
+The fresh full-diff pass over `bc11586..bd9269d` found nothing beyond the
+approved Cycle 1 diff plus these two targeted fixes — no scope creep, no
+new side effects from combining `cancelRunningTasks()` with `clear()`.
+`compileDebugJavaWithJavac`, `testDebugUnitTest`, and `lintDebug` all BUILD
+SUCCESSFUL, 0 test failures. Zero Critical, zero Warning. Ready to proceed
+past this spec's review gate (security review next, per the workflow).
