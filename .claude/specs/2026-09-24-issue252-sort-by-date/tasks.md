@@ -159,7 +159,15 @@ Per `review.md` Cycle 1 (FAIL — 1 Critical, 1 Warning).
 
 ## Group 3: Manual verification and documentation update
 
-- [ ] Manually verify the feature against a running server | (no file changes)
+- [!] Manually verify the feature against a running server | (no file changes)
+  - **Blocked**: this cloud sandbox has no Android emulator/device and no
+    real UPnP network to browse, so a live device/server smoke test isn't
+    possible here. User declined the (heavier) emulator + synthetic-DIDL
+    alternative and opted to test this themselves before merging — see
+    `decisions.md` 2026-09-25 entry. All behavior this task would have
+    checked is covered indirectly by `BrowseContentItemAdapterSortTest`
+    (unit-level) and the two review-gate passes, but neither substitutes
+    for exercising it against a real third-party DLNA server.
   - **Accept**: using the `run` skill/build, browse a folder on a server
     that returns `dc:date` (e.g. confirm against a UAPP-compatible test
     server or any DLNA server with dated content) — confirm: Name mode
@@ -172,7 +180,7 @@ Per `review.md` Cycle 1 (FAIL — 1 Critical, 1 Warning).
     unavailable to test against and what was substituted (e.g. a synthetic
     DIDL fixture).
 
-- [ ] Update documentation for the new sort control | `README.md`, `CHANGELOG.md`
+- [x] Update documentation for the new sort control | `README.md`, `CHANGELOG.md`
   - **Accept**: `README.md` mentions the Content-tab sort toggle if it
     documents other browsing UI features (skip if `README.md` doesn't
     describe UI features at this level of detail — check before editing).
