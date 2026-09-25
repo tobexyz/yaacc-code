@@ -286,3 +286,28 @@ fully swap per direction.
   - **Constraints**: match existing icon sizing/tint conventions
     (`ic_baseline_*`, `?attr/colorControlNormal`, 32dp source /48dp touch
     target via the existing `ImageButton` style).
+
+## Fix Group 3: Sort toggle overlaps content list on the root/main folder (post-ship UI bug)
+
+Per `decisions.md`'s 2026-09-26 entry. Root cause: `removeFolderNavigation()`
+force-pins `contentList` to the top of the screen at the root folder
+(where there's no breadcrumb/back-button to show), but never accounted
+for the still-visible sort toggle occupying that same space.
+
+- [x] Wrap the header row and stop force-pinning `contentList` | `yaacc/src/main/res/layout/fragment_content_list.xml`, `yaacc/src/main/java/de/yaacc/browser/ContentListFragment.java`
+  - **Accept**: back button, sort toggle, and folder-name text wrapped in
+    a `contentListHeaderRow` container whose `wrap_content` height
+    naturally shrinks to just the toggle's height when the back
+    button/folder name are `GONE` at the root folder.
+    `contentListTopSeperator` (and `contentList`, below it) positioned
+    below this container instead of below the folder-name text directly,
+    so the content list never overlaps the always-visible sort toggle.
+    `removeFolderNavigation()`/`showFolderNavigation()` no longer
+    manipulate `contentList`'s `RelativeLayout.ALIGN_PARENT_TOP` rule —
+    the container's own sizing does the work. `layout-land` variant
+    unchanged (confirmed `contentList` lives in a separate weighted
+    column there, unaffected by this collapse).
+  - **Verify**: `./gradlew :yaacc:compileDebugJavaWithJavac :yaacc:testDebugUnitTest :yaacc:lintDebug`
+  - **Constraints**: sort toggle must remain visible and functional at the
+    root/main folder level (sorting is meaningful there too, not just in
+    subfolders).
