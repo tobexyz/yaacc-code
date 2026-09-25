@@ -320,3 +320,290 @@ new side effects from combining `cancelRunningTasks()` with `clear()`.
 `compileDebugJavaWithJavac`, `testDebugUnitTest`, and `lintDebug` all BUILD
 SUCCESSFUL, 0 test failures. Zero Critical, zero Warning. Ready to proceed
 past this spec's review gate (security review next, per the workflow).
+
+## Cycle 3 — 2026-09-25
+Reviewing: commit `f9efa83` (diff `21dad94..f9efa83`) — Fix Group 2 (server
+sort-rejection fallback) and Group 4 (ascending/descending direction
+toggle), on top of the already-`PASS`ed Groups 1-2/fix-cycle work. Diff
+touches `BrowseItemLoadTask.java`, `BrowseContentItemAdapter.java`,
+`ContentListFragment.java`, two new drawables, `setting_strings.xml`, and
+two test files (`BrowseItemLoadTaskTest.java` new,
+`BrowseContentItemAdapterSortTest.java` extended).
+
+### Critical
+
+None.
+
+### Warning
+
+None.
+
+### 1. Fix Group 2 — server sort-rejection fallback
+
+`BrowseItemLoadTask.doInBackground` (`yaacc/src/main/java/de/yaacc/browser/BrowseItemLoadTask.java:54-71`):
+`attemptServerSort` gates the sorted attempt on `SortMode.DATE &&
+!itemAdapter.isServerSortRejected()`. On a sorted attempt, it returns the
+result only if `sortedResult != null && sortedResult.getUpnpFailure() ==
+null`; otherwise it calls `itemAdapter.markServerSortRejected()` and falls
+through to an unsorted `browseSync(...)` call. This correctly covers
+**both** failure shapes named in the task brief:
+- **Non-null result with `getUpnpFailure() != null`** — covered directly by
+  `BrowseItemLoadTaskTest.serverRejectionOfSortedBrowseFallsBackToUnsortedContentInsteadOfClearing`
+  (uses `rejectedResult()`, which sets a mocked `UpnpFailure`).
+- **`sortedResult == null`** (the alternative the task's Accept criteria
+  named, e.g. `getProviderDevice() == null` inside
+  `UpnpClient.browseSync`) — **not exercised by the committed test**, so I
+  verified it independently: temporarily edited the test's
+  `stubSortedAttempt(rejectedResult())` call to
+  `stubSortedAttempt(null)` (a scratch, reverted-after edit, not part of
+  this diff) and reran `BrowseItemLoadTaskTest` — it still passed,
+  confirming `sortedResult != null && ...` in the production code correctly
+  falls back on a literal `null` return too. Logging this as a residual
+  test-coverage gap (see Suggestion), not a Warning, since the production
+  code is correct and I independently verified it — the task's Accept
+  criteria used "or" for these two cases, so covering only one is a minor
+  gap, not a failure to implement the fix.
+
+**`markServerSortRejected()`/`isServerSortRejected()`** (`BrowseContentItemAdapter.java:204-222`):
+a per-instance boolean, set once on first rejection, checked before every
+subsequent sorted attempt, and reset in `clear()` (`BrowseContentItemAdapter.java:297`,
+alongside `loading`/`allItemsFetched`/`dateSortAvailable` — correctly fires
+on folder change, sort-mode change, and direction toggle, since all three
+paths call `clear()`). I did **not** just trust the "does not attempt the
+sorted overload again" claim — I mutation-tested it directly: temporarily
+changed `attemptServerSort`'s condition from
+`itemAdapter.getSortMode() == SortMode.DATE && !itemAdapter.isServerSortRejected()`
+to just `itemAdapter.getSortMode() == SortMode.DATE` (dropping the
+rejection check), reran `BrowseItemLoadTaskTest`, and confirmed it now
+**fails** with `TooManyActualInvocations` on the second-call
+`verifySortedAttemptCount(1)` assertion — i.e. the test genuinely catches a
+regression to the "skip repeated sorted attempts" behavior, not a
+false-positive-passing test. Reverted the mutation immediately after
+(`git status` clean, confirmed byte-for-byte restored).
+
+**Mockito vararg-matching gotcha, verified not a false positive**: the task
+brief specifically flagged `isA(SortCriterion.class)` vs `any()` as a
+tricky spot. `UpnpClient.browseSync` has exactly **one** method
+(`browseSync(Position, Long, Long, SortCriterion...)` — confirmed via
+`grep`, no separate 3-arg overload exists), so both `stubSortedAttempt`
+(matches `..., isA(SortCriterion.class)`, i.e. exactly one vararg element)
+and `stubUnsortedAttempt` (matches `...` with zero vararg-matcher
+arguments, i.e. an empty `orderBy` array) are stubbing/verifying against
+the *same* underlying vararg method, distinguished only by element count.
+The mutation test above is direct proof this distinction works as intended
+in this Mockito version: the test would not have caught the "always
+re-attempts sorted" regression if `isA(SortCriterion.class)` were silently
+also matching zero-vararg calls (or vice versa). Confirmed genuine, not a
+false-positive-passing test.
+
+**Genuinely empty unsorted folder still shows empty**
+(`genuinelyEmptyUnsortedFolderStillShowsEmptyNotLoopingOrErroring`): NAME
+mode never sets `attemptServerSort`, so `doInBackground` goes straight to
+the single unsorted `browseSync` call; a successful-but-empty
+`DIDLContent` result reaches `onPostExecute`'s `content != null` branch
+(adds zero items, no `clear()` call), `verifySortedAttemptCount(0)` and
+`verifyUnsortedAttemptCount(1)` both assert no retry/loop machinery
+triggers. Confirmed correct — no infinite retry, no masking of real
+emptiness.
+
+### 2. Group 4 — `toggleDirection()` and comparator correctness
+
+`toggleDirection()` (`BrowseContentItemAdapter.java:180-192`) branches
+strictly on `sortMode == SortMode.DATE` (flip `dateAscending`) vs. the
+`else` (flip `nameAscending`) — the non-selected mode's field is never
+touched in either branch. Rather than trusting the extended test's own
+narrative, I read
+`toggleDirectionFlipsOnlyCurrentModesDirectionIndependently`
+(`BrowseContentItemAdapterSortTest.java`) line by line: it toggles in NAME
+mode (only `nameAscending` flips), switches to DATE (asserts both
+unchanged), toggles again (only `dateAscending` flips, NAME's already-
+flipped value asserted unchanged), switches back to NAME (asserts DATE's
+flip persisted). This is a real, order-sensitive assertion sequence, not a
+single before/after check — it would catch a shared-flag regression. Ran
+it fresh (`testDebugUnitTest --rerun`): green.
+
+**`compareByNameGrouped(a, b, ascending)`**
+(`BrowseContentItemAdapter.java:318-334`): the container-vs-item grouping
+check (`if (aContainer != bContainer) return aContainer ? -1 : 1;`) sits
+*before* and is completely independent of the `ascending`-conditional
+title comparison (`ascending ? comparison : -comparison`) — direction can
+never flip the grouping. Verified against
+`nameModeDescendingReversesAlphabeticalOrderWithinGroupsOnly`, which
+asserts both the Z-A order *and* that positions 0-1 are containers, 2-3
+are items, with `Z-A` direction active — this is the one existing
+invariant test that actually exercises direction combined with grouping,
+not just direction alone.
+
+**`compareByDate(a, b, ascending)`** (`BrowseContentItemAdapter.java:341-358`):
+the null-handling block (`both null → 0`, `a null → 1` i.e. after,
+`b null → -1` i.e. before) executes *before* the final
+`ascending ? dateA.compareTo(dateB) : dateB.compareTo(dateA)` line and
+does not reference `ascending` at all — missing/unparseable dates sort
+last regardless of direction, by construction, not by accident. Verified
+against `dateModeAscendingSortsOldestFirstButMissingDatesStillSortLast`,
+which sets `dateAscending = true` (oldest-first, the non-default
+direction) and still asserts the no-date item lands last. This is the
+correct test to prove the invariant holds under the *non-default*
+direction, not just the default — a weaker test that only checked the
+default descending direction would not have caught a regression here.
+
+### 3. Race conditions — `toggleDirection()` vs. Cycle 1's Critical finding
+
+`toggleDirection()` calls `cancelRunningTasks(); clear(); loadMore();` in
+that exact order (`BrowseContentItemAdapter.java:190-192`), identical to
+`setSortMode()`'s already-`PASS`ed pattern from Cycle 2. Same
+`AsyncTask.cancel(true)` → `onCancelled()` (no-op, not overridden) →
+suppressed `onPostExecute` mechanism applies, so a stale in-flight
+`BrowseItemLoadTask` from before a direction toggle cannot corrupt
+`objects`/`loading`/`allItemsFetched` after the toggle clears and reloads.
+No regression to the Cycle 1 Critical finding.
+
+### 4. UI — `ContentListFragment` click handling and `updateSortToggleUi()`
+
+Click handlers (`initSortToggle`, `ContentListFragment.java:166-181`):
+same-mode tap → `bItemAdapter.toggleDirection()` (only when `bItemAdapter
+!= null`) then `updateSortToggleUi()`; different-mode tap →
+`onSortModeSelected(mode)` (unchanged, already-approved code path). If
+`bItemAdapter` is still `null` (e.g. `initSortToggle` runs before the
+adapter is constructed, a pre-existing lifecycle ordering — see
+`ContentListFragment.java:111` vs. `:350`) and the user taps the
+already-selected button, it falls through to
+`onSortModeSelected(currentSortMode)`, which itself no-ops via its
+existing `if (mode == currentSortMode) return;` guard — safe, no crash,
+no accidental mode switch.
+
+`updateSortToggleUi()` (`ContentListFragment.java:213-230`): guards
+`sortByNameButton == null || sortByDateButton == null || getContext() ==
+null` before touching anything (unchanged guard, extended with the
+pre-existing `getContext()` check now folded in) — null-safe. Icon
+selection reads `bItemAdapter.isNameAscending()`/`isDateAscending()` live
+on every call (falls back to the known defaults `true`/`false` only when
+`bItemAdapter == null`, matching the adapter's own constructor defaults),
+so it reflects live adapter state, not cached/stale UI state, satisfying
+the review brief's specific concern. The one momentary edge case — between
+`initSortToggle()` (adapter not yet constructed, defaults shown) and
+`initBrowsItemAdapter()` constructing the real adapter — is self-corrected
+synchronously by this diff's own added `updateSortToggleUi()` call
+immediately after `bItemAdapter.setSortMode(currentSortMode)`
+(`ContentListFragment.java:353-357`), within the same call stack, before
+any frame is drawn — not a user-visible flicker.
+
+### 5. New drawables
+
+`ic_baseline_date_range_asc_32.xml` / `ic_baseline_sort_by_alpha_desc_32.xml`:
+valid vector-drawable XML — `<group android:pivotX="12" android:pivotY="12"
+android:rotation="180">` wraps the same `<path>` data as the corresponding
+existing icon, correctly closed, single root `<vector>` per file, valid
+namespace declaration. `./gradlew :yaacc:lintDebug --rerun` ran clean
+(BUILD SUCCESSFUL); grepped `lint-results-debug.xml` for both new file
+names directly — zero matches, i.e. lint raised no issue against either
+new drawable specifically. Confirmed no resource-name collision:
+`find yaacc/src/main/res -iname "ic_baseline_date_range_asc_32*" -o -iname
+"ic_baseline_sort_by_alpha_desc_32*"` returns exactly the two new files,
+nothing pre-existing under those names. Total lint error count is 71,
+identical to Cycle 2's baseline (no new lint errors from this diff); the
+lone `IconDuplicates` finding in the report is the pre-existing, unrelated
+`yaacc192_32.png`/`yaacc192png.png` pair, not these two vector drawables.
+`UseCompatLoadingForDrawables` still fires exactly 3 times on
+`ContentListFragment.java` (1 pre-existing for the back-button icon + 2 for
+the sort icons, same count as before this diff — the 2 calls simply moved
+from `initSortToggle` into `updateSortToggleUi`, not added).
+
+### 6. Other
+
+- **The "not in scope" note** (`onPostExecute`'s early-`return` when
+  `doInBackground` itself returns Java `null`, `BrowseItemLoadTask.java:76-77`):
+  confirmed genuinely pre-existing and unrelated to this diff. Read
+  `UpnpClient.browseSync(Position, Long, Long, SortCriterion...)`
+  (`UpnpClient.java:581-593`): it returns `null` only when
+  `getProviderDevice() == null` or (`pos == null || pos.getDeviceId() ==
+  null`) **and** `getProviderDevice() == null` — both purely
+  device/position-availability conditions, entirely independent of
+  `orderBy`/sort mode. Both the sorted attempt (line 58) and the unsorted
+  fallback (line 71) call this exact same overload, so this diff's retry
+  logic does not change when or whether a literal `null` can be returned —
+  it was reachable before this diff (on the single unsorted call) and is
+  reachable after it (on either the sorted or unsorted call), with
+  identical trigger conditions. Not worsened by this diff.
+- **Dead code**: none found — every new method (`isNameAscending`,
+  `isDateAscending`, `toggleDirection`, `isServerSortRejected`,
+  `markServerSortRejected`) is called from either production code
+  (`ContentListFragment`/`BrowseItemLoadTask`) or the test suite.
+- **Test coverage**: adequate. The one gap identified (Fix Group 2's
+  literal-`null`-return branch not covered by the committed test, only by
+  my own scratch verification) is a Suggestion, not a Warning — the
+  production code is correct and the identical code shape
+  (`sortedResult != null && ...`) is exercised via the type-checked
+  `getUpnpFailure() != null` case, so the uncovered branch is a short-
+  circuit variant of already-tested logic, not untested business logic.
+
+### Tests
+
+- [x] `./gradlew :yaacc:compileDebugJavaWithJavac` — BUILD SUCCESSFUL.
+- [x] `./gradlew :yaacc:testDebugUnitTest --rerun` (forced) — BUILD
+  SUCCESSFUL, 0 failures/errors. Fresh JUnit XML reports confirmed:
+  `BrowseItemLoadTaskTest` 2/2 (`serverRejectionOfSortedBrowseFallsBackToUnsortedContentInsteadOfClearing`,
+  `genuinelyEmptyUnsortedFolderStillShowsEmptyNotLoopingOrErroring`);
+  `BrowseContentItemAdapterSortTest` 9/9 (5 pre-existing + 4 new:
+  `directionDefaults`,
+  `toggleDirectionFlipsOnlyCurrentModesDirectionIndependently`,
+  `nameModeDescendingReversesAlphabeticalOrderWithinGroupsOnly`,
+  `dateModeAscendingSortsOldestFirstButMissingDatesStillSortLast`).
+- [x] `./gradlew :yaacc:lintDebug --rerun` (forced) — BUILD SUCCESSFUL,
+  71 total errors (unchanged from Cycle 2's baseline), 0 `MissingTranslation`,
+  0 issues against either new drawable, no new resource collisions.
+- [x] Coverage adequate — both new test classes assert exactly the
+  behaviors the task briefs called for, including the two invariant checks
+  (containers-before-items under Z-A, missing-dates-last under
+  oldest-first) that would be easy to accidentally break while threading
+  `ascending` through the comparators. One minor gap noted above
+  (Suggestion, not blocking).
+
+### Suggestion
+
+- **`BrowseItemLoadTaskTest` does not directly test the literal
+  `sortedResult == null` branch** of `doInBackground`'s fallback condition
+  (`sortedResult != null && sortedResult.getUpnpFailure() == null`) — only
+  the `getUpnpFailure() != null` shape is exercised by the committed test.
+  I verified the `null` branch independently (scratch edit + rerun,
+  reverted), and it works correctly, but a permanent test case (e.g.
+  `stubSortedAttempt(null)` as a third `@Test`) would close this gap for
+  future regressions without relying on a reviewer's one-off check.
+- **`markServerSortRejected()`/`isServerSortRejected()`** naming is clear,
+  but consider a short Javadoc cross-reference from
+  `BrowseItemLoadTask.doInBackground` back to
+  `BrowseContentItemAdapter.clear()` (where the flag resets) — the flag's
+  reset condition is currently only documented on the adapter side, not at
+  the call site that depends on it.
+- Carrying forward from Cycle 2 (still not addressed, still not blocking):
+  `cancelRunningTasks()` never removes cancelled tasks from `asyncTasks`,
+  so `toggleDirection()` (a second call site added by this diff, on top of
+  `setSortMode()`) adds one more way to accumulate stale task references
+  over a long session. Same pre-existing, harmless pattern as before —
+  still just a follow-up candidate, not a new problem introduced here.
+
+### Verdict: PASS
+
+Zero Critical, zero Warning. Both Fix Group 2 (server sort-rejection
+fallback) and Group 4 (ascending/descending direction toggle) are
+correctly implemented and match `design.md`'s "Post-ship bug report and
+feature request" section exactly. I did not take the implementing
+subagent's report at face value for any of the specifically-flagged risk
+areas: the Mockito vararg-matching claim, the "skip repeated sorted
+attempts" claim, and the "toggleDirection only flips the selected mode"
+claim were each independently verified via targeted mutation testing
+(temporarily breaking the relevant production logic and confirming the
+existing tests fail, then reverting), not just read and trusted. The
+`compareByNameGrouped`/`compareByDate` invariants (containers-always-
+before-items; missing-dates-always-last) hold regardless of direction,
+verified both by code reading (the checks execute before/independent of
+the `ascending` branch) and by the tests that exercise them under the
+*non-default* direction specifically. The `toggleDirection()` race-
+prevention pattern matches Cycle 1's Critical-finding fix exactly, with no
+regression. The two new drawables are valid, lint-clean, and collision-
+free. The one pre-existing "not in scope" note (`doInBackground` returning
+literal `null`) is confirmed genuinely unrelated to and unworsened by this
+diff. `compileDebugJavaWithJavac`, `testDebugUnitTest`, and `lintDebug` all
+BUILD SUCCESSFUL. One Suggestion (a missing direct test for the
+`sortedResult == null` branch, already verified correct by hand) does not
+block. Ready to proceed to the security-review gate for this commit.
