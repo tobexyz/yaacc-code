@@ -63,3 +63,25 @@ behavior (RecyclerView would stop being told about data changes) just to
 route around a test-environment quirk — not acceptable. The reflection
 fix is scoped entirely to the test file, touches no shipped code, and is
 a well-known, narrow workaround for this exact AGP-unit-test limitation.
+
+## 2026-09-25 — Group 3: manual live-server verification deferred to user
+
+**Context**: Group 3's first task calls for browsing a real DLNA server
+with `dc:date` content to confirm end-to-end behavior (Name/Date toggle,
+no mid-load reshuffle, persistence across restart, Date disabled when no
+`dc:date` present). This cloud sandbox has neither an Android
+emulator/device nor a real UPnP network, so this can't be exercised here.
+
+**Decision**: offered the user a choice between skipping this step
+(manual testing on their own device before merge) and attempting a
+heavier emulator + yaacc's-own-embedded-server smoke test with synthetic
+`dc:date` content. User chose to skip and test it themselves — see
+`tasks.md` Group 3, marked `[!]`.
+
+**Rationale**: general review (2 cycles, PASS) and security review (PASS)
+both cover the code and `BrowseContentItemAdapterSortTest` unit-tests the
+adapter's sort/availability logic in isolation, but none of that
+substitutes for a real third-party DLNA server smoke test, which the
+issue itself was filed against (the reporter uses UAPP). Documented here
+so it isn't silently missed as "done" — it is explicitly the user's
+follow-up before this branch is considered ready to merge.
