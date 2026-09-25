@@ -3,6 +3,7 @@
 ## [Unreleased] - 2026-02-21
 
 ### Added
+- **Sort by Date (#252)**: Added a "Name"/"Date" sort toggle to the Content tab's folder header. Uses server-side UPnP `SortCriteria` (`-dc:date`) when the browsed server supports it, with a client-side fallback sort once a folder finishes loading for servers that don't. The Date option is disabled when a folder has no `dc:date` metadata at all. The chosen sort order is persisted across app restarts.
 - **SAF Short ID System**: Implemented short numeric ID mapping to fix UPnP browsing errors caused by long ObjectIDs (97% size reduction)
 - **Clear Cache Button**: Added button in Server Control Activity to clear SAF cache and trigger reindexing
 - **Image Preload**: Extended preload indexing to include image files (previously only audio/video)
