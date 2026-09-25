@@ -132,6 +132,7 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
             return;
         }
         this.sortMode = sortMode;
+        cancelRunningTasks();
         clear();
         loadMore();
     }
