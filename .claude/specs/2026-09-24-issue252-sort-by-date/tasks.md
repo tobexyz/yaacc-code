@@ -5,7 +5,7 @@ Plan: `specs/2026-09-24-issue252-sort-by-date/requirements.md` and
 
 ## Group 1: SDK verification, plumbing, and test skeletons
 
-- [ ] Verify `SortCriterion` constructor/format and document it | `docs/tech.md`
+- [x] Verify `SortCriterion` constructor/format and document it | `docs/tech.md`
   - **Accept**: `docs/tech.md` "Cling `SortCriterion`" section states the
     exact constructor signature of
     `org.fourthline.cling.support.model.SortCriterion` and confirms how to
@@ -18,7 +18,20 @@ Plan: `specs/2026-09-24-issue252-sort-by-date/requirements.md` and
     `docs/tech.md` — do not write the `-dc:date` `SortCriterion` call in
     Group 2 tasks until this is confirmed.
 
-- [ ] Thread `orderBy` through `UpnpClient.browseSync(Position, Long, Long)` | `yaacc/src/main/java/de/yaacc/upnp/UpnpClient.java`
+- [!] Thread `orderBy` through `UpnpClient.browseSync(Position, Long, Long)` | `yaacc/src/main/java/de/yaacc/upnp/UpnpClient.java`
+  - **Blocked on verification only**: code change is complete (varargs
+    `SortCriterion... orderBy` added to the L581 overload, forwarded to all
+    three call paths that lead to the L610 overload). All existing call
+    sites (`browseSync(pos, firstResult, maxResult)` 3-arg,
+    `browseSync(pos)` 1-arg) confirmed still compile-compatible by
+    inspection (varargs accepts zero args) — see full call-site grep in
+    the handback report. Could not run
+    `./gradlew :yaacc:compileDebugJavaWithJavac` in this session: the
+    environment's network policy denies `dl.google.com` (403, see status
+    below), which is required to resolve the Android Gradle Plugin — this
+    blocks configuring the Gradle build at all, not just this task.
+    Needs `dl.google.com` (Google's Maven repo) allowed in the
+    environment's network settings, then a re-run of the Verify command.
   - **Accept**: `browseSync(Position pos, Long firstResult, Long maxResult,
     SortCriterion... orderBy)` overload added (or the existing L581-596
     overload extended with a varargs `orderBy` parameter, default empty),
@@ -32,7 +45,7 @@ Plan: `specs/2026-09-24-issue252-sort-by-date/requirements.md` and
     already forwards `orderBy` correctly per `docs/tech.md`. Do not touch
     `Browse.java` — it already accepts and sends `orderBy` correctly.
 
-- [ ] Add persisted sort-order preference key | `yaacc/src/main/res/values/setting_strings.xml`
+- [x] Add persisted sort-order preference key | `yaacc/src/main/res/values/setting_strings.xml`
   - **Accept**: a new untranslatable string resource
     `settings_sort_order_key` (value e.g. `sort_order_key`), following the
     existing pattern of `settings_thumbnails_chkbx` /
@@ -41,7 +54,22 @@ Plan: `specs/2026-09-24-issue252-sort-by-date/requirements.md` and
     a global Settings preference.
   - **Verify**: `grep -n "settings_sort_order_key" yaacc/src/main/res/values/setting_strings.xml`
 
-- [ ] Write test skeletons for sort behavior | `yaacc/src/test/java/de/yaacc/browser/BrowseContentItemAdapterSortTest.java`
+- [!] Write test skeletons for sort behavior | `yaacc/src/test/java/de/yaacc/browser/BrowseContentItemAdapterSortTest.java`
+  - **Blocked on verification only**: test file written (6 test methods
+    covering all 4 required scenarios, plus one extra positive case for
+    `isDateSortAvailable()`), against the documented `SortMode` /
+    `setSortMode` / `getSortMode` / `isDateSortAvailable` interface (see
+    the Javadoc at the top of the test class, and the handback report).
+    Could not run
+    `./gradlew :yaacc:testDebugUnitTest --tests "de.yaacc.browser.BrowseContentItemAdapterSortTest"`
+    in this session — same `dl.google.com` network-policy block as the
+    task above prevents Gradle from configuring at all, so no Gradle
+    command could be run this session, not even to confirm the expected
+    compile failure. By static inspection the test references
+    `BrowseContentItemAdapter.SortMode`, `getSortMode()`, `setSortMode()`,
+    and `isDateSortAvailable()`, none of which exist on the current
+    `BrowseContentItemAdapter` — so it is expected to fail with
+    `cannot find symbol` for each, which is the intended red-phase state.
   - **Accept**: new JUnit 4 test class (follow existing convention, e.g.
     `yaacc/src/test/java/de/yaacc/upnp/model/YaaccMusicTrackTest.java` for
     license header/package/import style) with failing (red-phase) test

@@ -578,21 +578,21 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         return browseSync(pos, 0L, null);
     }
 
-    public ContentDirectoryBrowseResult browseSync(Position pos, Long firstResult, Long maxResult) {
+    public ContentDirectoryBrowseResult browseSync(Position pos, Long firstResult, Long maxResult, SortCriterion... orderBy) {
         if (getProviderDevice() == null) {
             return null;
         }
         if (pos == null || pos.getDeviceId() == null) {
             if (getProviderDevice() != null) {
-                return browseSync(getProviderDevice(), "0", BrowseFlag.DIRECT_CHILDREN, "*", firstResult, maxResult);
+                return browseSync(getProviderDevice(), "0", BrowseFlag.DIRECT_CHILDREN, "*", firstResult, maxResult, orderBy);
             } else {
                 return null;
             }
         }
         if (getProviderDevice() != null && !pos.getDeviceId().equals(getProviderDevice().getIdentity().getUdn().getIdentifierString())) {
-            return browseSync(getProviderDevice(), "0", BrowseFlag.DIRECT_CHILDREN, "*", firstResult, maxResult);
+            return browseSync(getProviderDevice(), "0", BrowseFlag.DIRECT_CHILDREN, "*", firstResult, maxResult, orderBy);
         }
-        return browseSync(getDevice(pos.getDeviceId()), pos.getObjectId(), BrowseFlag.DIRECT_CHILDREN, "*", firstResult, maxResult);
+        return browseSync(getDevice(pos.getDeviceId()), pos.getObjectId(), BrowseFlag.DIRECT_CHILDREN, "*", firstResult, maxResult, orderBy);
     }
 
     /**
