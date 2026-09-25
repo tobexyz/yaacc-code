@@ -80,7 +80,62 @@ Layer both:
    Date button is disabled/hidden for that folder/server rather than being
    offered as a no-op.
 
-## Not yet decided / not started
+## Post-ship bug report and feature request (2026-09-26)
 
-No code changes have been made on this branch yet. Requirements and task
-breakdown are next; implementation starts once `tasks.md` is written.
+After Groups 1-3 shipped and passed both review gates, the user reported
+browsing a folder in Date mode where the server has no `dc:date` support
+showed an **empty** folder, and asked for an ascending/descending toggle
+with per-direction icons.
+
+### Bug root cause
+
+Confirmed by reading `ContentDirectoryBrowseActionCallback.failure(...)`
+(`yaacc/src/main/java/de/yaacc/upnp/callback/contentdirectory/ContentDirectoryBrowseActionCallback.java:77-82`)
+and `ContentDirectoryBrowseResult` (`.../ContentDirectoryBrowseResult.java`):
+on a UPnP action **failure** (which a server can legitimately return for an
+unsupported `SortCriteria` value per the ContentDirectory spec — not every
+server silently ignores it), `browsingResult.setResult(didl)` is never
+called, so `ContentDirectoryBrowseResult.getResult()` stays `null` (its
+constructor default). `BrowseItemLoadTask.onPostExecute` treats a `null`
+`content` as "nothing here" and calls `itemAdapter.clear()` — emptying the
+folder instead of falling back to unsorted results. This was an unstated
+assumption in the original design (`design.md`'s "Two independent levers"
+section only considered servers that *ignore* `SortCriteria`, not ones
+that error on it).
+
+### Bug fix decision
+
+`BrowseItemLoadTask.doInBackground` retries the same chunk request without
+`orderBy` when the sorted attempt's `ContentDirectoryBrowseResult` reports
+a failure (`getUpnpFailure() != null`) or is `null`. On that first
+rejection, `BrowseContentItemAdapter` remembers (a per-adapter-instance
+flag, reset in `clear()`) that this folder's server rejected date sort, so
+subsequent chunk requests within the same folder load skip the doomed
+sorted attempt entirely rather than retrying-and-failing on every page.
+Existing `isDateSortAvailable()` disabling and the client-side fallback
+sort both continue to work unchanged off the (now successfully fetched)
+unsorted results.
+
+### Ascending/descending feature decisions
+
+1. **Scope**: applies to both Name (A-Z ↔ Z-A) and Date (newest-first ↔
+   oldest-first) — not Date-only, per user's explicit choice over the
+   narrower option.
+2. **Interaction model**: tapping the *already-selected* button flips
+   that mode's direction and re-sorts. Tapping the *other* button
+   switches mode, using that mode's own last-remembered direction (not a
+   shared single direction flag) — so switching back and forth between
+   Name and Date doesn't clobber each mode's separately-chosen direction.
+3. **Icons**: each button's icon fully swaps to reflect its own current
+   direction (not a fixed base icon with a separate direction indicator
+   next to it), per user's explicit choice. Four drawables needed:
+   ascending/descending variants of both the existing
+   `ic_baseline_sort_by_alpha_32` and `ic_baseline_date_range_32`.
+4. **Persistence**: two additional SharedPreferences keys (name-ascending,
+   date-ascending) alongside the existing sort-mode key, following the
+   same `setting_strings.xml` pattern, not exposed in the Settings screen.
+5. **Server-side direction**: `SortCriterion`'s `ascending` boolean
+   (`docs/tech.md`: `new SortCriterion(ascending, "dc:date")`,
+   `toString()` prefixes `-` when descending) is already direction-aware —
+   Date mode's server-side attempt just needs to pass the persisted
+   direction instead of always `false`.

@@ -191,3 +191,98 @@ Per `review.md` Cycle 1 (FAIL — 1 Critical, 1 Warning).
     returns no plan-related placeholders.
   - **Constraints**: do not invent a changelog format — match whatever
     style the most recent entries already use.
+
+## Fix Group 2: Server-side sort rejection empties folder (post-ship bug)
+
+Per `design.md`'s "Post-ship bug report and feature request" section.
+Root cause confirmed: on a UPnP Browse action **failure** (a server can
+legitimately reject an unsupported `SortCriteria` rather than ignoring
+it), `ContentDirectoryBrowseResult.getResult()` stays `null`, and
+`BrowseItemLoadTask.onPostExecute` calls `itemAdapter.clear()` —
+emptying the folder instead of falling back to unsorted results.
+
+- [ ] Regression test proving the fallback (red phase) | `yaacc/src/test/java/de/yaacc/browser/BrowseItemLoadTaskTest.java`
+  - **Accept**: new JUnit 4 test class, same package
+    (`de.yaacc.browser`) as `BrowseItemLoadTask` so its `protected
+    doInBackground`/`onPostExecute` can be called directly (no
+    `AsyncTask.execute()`/Looper needed). Mock `UpnpClient.browseSync`
+    (Mockito) so the orderBy-bearing overload call returns a
+    `ContentDirectoryBrowseResult` with `getUpnpFailure()` non-null (or
+    the call itself returns `null`), while the no-orderBy overload call
+    returns a normal successful result with content. Assert: (a) the
+    adapter ends up populated with the fallback content, NOT cleared;
+    (b) a second `doInBackground` call for the same adapter instance (mode
+    still DATE) does not attempt the sorted overload again — verify via
+    Mockito call-count/verification that only the no-orderBy overload is
+    invoked on the second call.
+  - **Verify**: `./gradlew :yaacc:testDebugUnitTest --tests "de.yaacc.browser.BrowseItemLoadTaskTest"`
+    (expected to fail — the fallback/remember-rejection behavior doesn't
+    exist yet).
+
+- [ ] Implement the retry-without-orderBy fallback | `yaacc/src/main/java/de/yaacc/browser/BrowseItemLoadTask.java`, `yaacc/src/main/java/de/yaacc/browser/BrowseContentItemAdapter.java`
+  - **Accept**: `BrowseItemLoadTask.doInBackground` retries the same chunk
+    request without `orderBy` when the sorted attempt's result is `null`
+    or has a non-null `getUpnpFailure()`. On that first rejection,
+    `BrowseContentItemAdapter` records a per-instance
+    "server sort rejected" flag (reset in `clear()`) so later chunk
+    requests for the same folder load skip the doomed sorted attempt.
+    `onPostExecute`'s existing `clear()`-on-null-content path only fires
+    for a genuinely empty/failed *unsorted* result now.
+  - **Verify**: `./gradlew :yaacc:testDebugUnitTest --tests "de.yaacc.browser.BrowseItemLoadTaskTest"`
+    now PASSES; `./gradlew :yaacc:testDebugUnitTest` (full suite) still
+    green.
+  - **Constraints**: do not change behavior for a genuinely empty folder
+    (no items at all, unsorted) — that should still show an empty list,
+    not loop or error.
+
+## Group 4: Ascending/descending sort direction with per-direction icons
+
+Per `design.md`'s "Ascending/descending feature decisions" — applies to
+both Name (A-Z ↔ Z-A) and Date (newest ↔ oldest), tapping the
+already-selected button flips its own direction, tapping the other
+button switches mode using that mode's own remembered direction, icons
+fully swap per direction.
+
+- [ ] Test skeletons for direction toggling and per-mode persistence | `yaacc/src/test/java/de/yaacc/browser/BrowseContentItemAdapterSortTest.java`
+  - **Accept**: extend the existing test class with red-phase cases for:
+    `isNameAscending()`/`isDateAscending()` defaults (name=true/A-Z,
+    date=false/newest-first, preserving current behavior for existing
+    users), `toggleDirection()` flips only the currently-selected mode's
+    direction (switching mode afterward and back shows the other mode's
+    direction untouched), Name-mode sort respects `nameAscending` (Z-A
+    when false, containers still always before items), Date-mode sort
+    respects `dateAscending` (oldest-first when true; missing/unparseable
+    dates still sort last regardless of direction).
+  - **Verify**: `./gradlew :yaacc:testDebugUnitTest --tests "de.yaacc.browser.BrowseContentItemAdapterSortTest"`
+    (expected to fail — `toggleDirection()`/`isNameAscending()`/
+    `isDateAscending()` don't exist yet).
+
+- [ ] Implement direction state, persistence, and server-side direction | `yaacc/src/main/java/de/yaacc/browser/BrowseContentItemAdapter.java`, `yaacc/src/main/java/de/yaacc/browser/BrowseItemLoadTask.java`, `yaacc/src/main/res/values/setting_strings.xml`
+  - **Accept**: two new SharedPreferences keys
+    (`settings_sort_name_ascending_key`, `settings_sort_date_ascending_key`),
+    same untranslatable-string pattern as `settings_sort_order_key`. Adapter
+    exposes `isNameAscending()`/`isDateAscending()` and `toggleDirection()`
+    (flips + persists the current mode's direction, then
+    `cancelRunningTasks()`+`clear()`+`loadMore()` like `setSortMode`).
+    `compareByNameGrouped`/date comparator both take the relevant direction
+    into account (containers-before-items grouping in Name mode is
+    unaffected by direction). `BrowseItemLoadTask` passes
+    `new SortCriterion(itemAdapter.isDateAscending(), "dc:date")` instead of
+    a hardcoded `false`.
+  - **Verify**: `./gradlew :yaacc:testDebugUnitTest --tests "de.yaacc.browser.BrowseContentItemAdapterSortTest"`
+    now PASSES.
+
+- [ ] Direction-aware icons and UI wiring | `yaacc/src/main/res/drawable/`, `yaacc/src/main/java/de/yaacc/browser/ContentListFragment.java`
+  - **Accept**: two new vector drawables (ascending/descending variants of
+    `ic_baseline_sort_by_alpha_32` and `ic_baseline_date_range_32`) in the
+    same `ic_baseline_*` style as the existing icons. `ContentListFragment`:
+    tapping the already-selected mode's button calls
+    `bItemAdapter.toggleDirection()`; tapping the other button keeps the
+    existing `setSortMode(...)` call (uses that mode's remembered
+    direction, untouched). `updateSortToggleUi()` picks each button's icon
+    from the adapter's live `isNameAscending()`/`isDateAscending()` state,
+    independent of which mode is currently selected.
+  - **Verify**: `./gradlew :yaacc:compileDebugJavaWithJavac :yaacc:lintDebug`
+  - **Constraints**: match existing icon sizing/tint conventions
+    (`ic_baseline_*`, `?attr/colorControlNormal`, 32dp source /48dp touch
+    target via the existing `ImageButton` style).
