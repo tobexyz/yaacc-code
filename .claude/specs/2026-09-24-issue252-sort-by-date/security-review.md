@@ -424,3 +424,158 @@ files live exclusively under `src/test/` and are unreferenced from any
 production or instrumented-test source. No secrets, no unsafe
 deserialization, no manifest/permission/network/dependency changes. Ready to
 proceed past the security-review gate.
+
+## Cycle 3 — 2026-09-26
+
+Reviewing: commit `66db0578aadef3e5435112c9e9a5f12c936c76c8` — "fix: stop
+sort toggle overlapping the content list on the root folder" (Fix Group 3),
+current `HEAD~2` on `feat/issue252`. Note per the task brief: the branch's
+author metadata was rewritten and force-pushed after general review Cycle 4
+recorded this commit as `245b6bf`; located the same logical commit under its
+new SHA via `git log --oneline -20` (message and diff content identical —
+confirmed the diffstat below matches the general review's Cycle 4 diffstat
+exactly) and reviewed it directly with `git show`, not the stale SHA. General
+review (`review.md` Cycle 4) already passed for this exact diff; this is a
+fresh security-only pass. Diff touches only
+`yaacc/src/main/res/layout/fragment_content_list.xml`,
+`yaacc/src/main/java/de/yaacc/browser/ContentListFragment.java`, and two spec
+docs (`decisions.md`, `tasks.md`) — `layout-land/fragment_content_list.xml`
+untouched.
+
+### Critical
+
+None.
+
+### Warning
+
+None.
+
+### Characterization check — confirmed accurate, not assumed
+
+Read the full diff directly (`git show 66db0578`) rather than trusting the
+task brief's summary:
+
+- **Layout XML**: the entire `fragment_content_list.xml` change is a pure
+  restructuring — the pre-existing `contentListBackButton`,
+  `contentListSortToggle` (with its two `ImageButton` children unchanged),
+  and `contentListCurrentFolderName` are moved, unmodified attribute-for-
+  attribute, inside a new `contentListHeaderRow` `RelativeLayout` wrapper.
+  Every `id`, `style`, `contentDescription`, `srcCompat`, `tint`,
+  `textAppearance`, `textColor`, and the literal seed text (`@string/all`)
+  is byte-identical to before; only the `layout_alignTop`/`layout_alignParentTop`
+  anchor targets and the wrapper's own `layout_below` target
+  (`contentListCurrentFolderName` → `contentListHeaderRow`) changed, which is
+  exactly the positioning-only claim in the task brief. No new resource,
+  no new drawable, no new string, no new attribute type (e.g. no
+  `android:autoLink`, no `WebView`, no `android:text` sourced from a URI)
+  was introduced anywhere in this file.
+- **Java**: the only changes are deleting one unused import
+  (`android.widget.RelativeLayout`) and two single-line statements —
+  `.addRule(RelativeLayout.ALIGN_PARENT_TOP, ...)` in
+  `removeFolderNavigation()` and the matching `.removeRule(...)` in
+  `showFolderNavigation()`. Confirmed via `git show` that no other line in
+  `ContentListFragment.java` is touched — no new field, method, listener, or
+  data flow of any kind.
+- **Verdict on characterization**: accurate. This is a positioning-only
+  layout restructure plus dead layout-params-manipulation-code removal, with
+  no security-relevant surface.
+
+### Findings by requested area
+
+**1. Hardcoded secrets** — none. Full-file diff contains no new string,
+constant, key, token, URL, or credential of any kind; the only new
+identifier is the layout id `contentListHeaderRow`.
+
+**2. New resource that could be attacker-influenced** — none.
+`contentListHeaderRow` is a static `RelativeLayout` container with no
+dynamic attributes (no `android:text`, no `src`, no data-bound expression);
+its only children are the three pre-existing, unmodified views. No new
+drawable, layout-land variant, or values resource was added or changed.
+
+**3. Rendering of untrusted server data — the specific concern raised in the
+task brief (`navigator.getPathNames()` → `contentListCurrentFolderName`)**
+- Grepped `ContentListFragment.java` for every `currentFolderNameView`
+  reference and every `setText(...)`/`getPathNames()` call site:
+  `currentFolderNameView.setText(navigator.getPathNames().stream()...)`
+  occurs at two call sites (`ContentListFragment.java:320` and `:398` in the
+  current tree) — **both outside the line ranges this diff touches** (the
+  diff's Java hunks are at the `removeFolderNavigation()`/
+  `showFolderNavigation()` rule-manipulation lines only, confirmed by
+  `git show`'s hunk headers). Neither the method that builds the path-name
+  string, its `Collectors.joining(" > ")` formatting, nor either call site
+  is present in this commit's diff at all.
+- Confirmed the `TextView` itself (`contentListCurrentFolderName` in the
+  XML) carries no attribute that would change how its text is interpreted:
+  no `android:autoLink`, no `android:inputType` enabling markup, and the
+  code path uses plain `TextView.setText(CharSequence)` — never
+  `Html.fromHtml(...)`, never a `Spanned`/`SpannableStringBuilder` built from
+  the path names, never routed through a `WebView`. This was true before
+  this diff and remains true after it; this diff does not touch the
+  mechanism, only the view's position within a new parent `RelativeLayout`.
+  Native Android `TextView.setText` on a plain `String` has no HTML/script
+  injection surface regardless of content, so even though `getPathNames()`
+  values ultimately derive from server-supplied DIDL container titles (an
+  untrusted source), this diff neither introduces nor changes any risk here.
+- **Conclusion**: confirmed, not assumed — this diff does not change how or
+  whether the folder-name text is escaped/rendered, only where the
+  `TextView` sits inside the view hierarchy. No new exposure.
+
+**4. Any change to network calls, data handling, permissions, or
+dependencies** — confirmed none. `git show 66db0578 --stat` lists exactly
+the four files above; no `AndroidManifest.xml`, no `build.gradle*`, no
+`UpnpClient`/`Browse`/networking class, no `SharedPreferences` or other data
+store is touched. This matches Cycle 1/2's already-cleared UPnP/SharedPreferences
+surface, which is entirely unaffected by this commit.
+
+**5. Dead-code removal itself** — the two removed
+`RelativeLayout.ALIGN_PARENT_TOP` add/remove-rule calls only ever mutated a
+locally-held `ViewGroup.LayoutParams` object (a purely local UI-layout
+concern, no security boundary crossed); their removal has no
+security-relevant effect, confirmed by the general review's independent
+trace of the AOSP `RelativeLayout` algorithm showing the rule mutation is
+now redundant rather than load-bearing.
+
+**6. General OWASP sweep** — hardcoded secrets: none. Unsafe deserialization:
+none. Injection (SQL/command/XSS-equivalent): none — no new sink for
+`dc:date`, `getPathNames()`, or any other server-derived string; the one
+TextView in scope uses plain, non-HTML `setText`, unchanged by this diff.
+Manifest/permissions: unchanged (`AndroidManifest.xml` not in the diff).
+Dependencies: unchanged (no `build.gradle*` in the diff). Logging: no new
+log statements added or removed by this diff.
+
+### Verification
+
+- `./gradlew :yaacc:compileDebugJavaWithJavac :yaacc:testDebugUnitTest :yaacc:lintDebug`
+  — ran fresh in this cycle against the current working tree (`HEAD` =
+  `66db0578`'s tree content, confirmed via `git status --short` showing a
+  clean tree): `BUILD SUCCESSFUL`. All tasks reported `UP-TO-DATE`, which is
+  expected and consistent with the task brief's note that only commit
+  metadata (author, trailers) was rewritten — the tree content, and
+  therefore Gradle's content-hash-based task outputs, are identical to what
+  general review Cycle 4 already built and tested green. No stale-cache
+  masking risk here: `UP-TO-DATE` reflects a match on file *content* hashes,
+  not commit SHAs, so this is genuine evidence the rewritten history still
+  produces the same, previously-verified build/test/lint results.
+- Re-read `git show 66db0578` in full (not a summary) to independently
+  confirm the diffstat and every hunk before writing the findings above.
+
+### Verdict: PASS
+
+Zero Critical, zero Warning findings. Confirmed — by reading the full diff
+directly, not by trusting the task brief's characterization — that this
+commit is exactly what it claims to be: a positioning-only
+`fragment_content_list.xml` restructure (wrapping three pre-existing,
+attribute-unchanged views in a new `contentListHeaderRow` container) plus
+removal of two now-redundant `RelativeLayout.ALIGN_PARENT_TOP` rule
+mutations and one now-unused import in `ContentListFragment.java`. No
+hardcoded secrets, no new attacker-influenceable resource, and specifically
+no change to how or whether the untrusted, server-derived folder-name text
+(`navigator.getPathNames()`) is rendered or escaped — the `setText` call
+sites and the plain-`TextView` rendering mechanism both sit entirely outside
+this diff's touched lines, and were already safe (no HTML/markup
+interpretation) before it. No manifest, permission, network, or dependency
+changes. `compileDebugJavaWithJavac`, `testDebugUnitTest`, and `lintDebug`
+all ran fresh against the current (history-rewritten) `HEAD` and are `BUILD
+SUCCESSFUL`, matching general review Cycle 4's results exactly — confirming
+the force-push did not alter tree content. Ready to proceed past the
+security-review gate; no further review cycles needed for this group.
