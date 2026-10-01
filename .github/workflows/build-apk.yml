@@ -13,6 +13,7 @@ on:
 permissions:
   contents: read
   actions: write
+  issues: write
 
 jobs:
   build-apk:
@@ -48,6 +49,7 @@ jobs:
           fi
           echo "Resolved artifact name: $name"
           echo "name=${name}" >> "$GITHUB_OUTPUT"
+          echo "issue-number=${issue_num}" >> "$GITHUB_OUTPUT"
 
       - name: Delete previous artifact for this branch
         env:
@@ -67,3 +69,38 @@ jobs:
           path: yaacc/build/outputs/apk/debug/yaacc-debug.apk
           overwrite: true
           if-no-files-found: error
+
+      - name: Comment on issue with build link (first time only)
+        if: steps.artifact-name.outputs.issue-number != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          ISSUE_NUMBER: ${{ steps.artifact-name.outputs.issue-number }}
+          ARTIFACT_NAME: ${{ steps.artifact-name.outputs.name }}
+          RUNS_URL: ${{ github.server_url }}/${{ github.repository }}/actions/workflows/build-apk.yml?query=branch%3A${{ github.ref_name }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          marker="<!-- apk-build-artifact:issue-${ISSUE_NUMBER} -->"
+
+          existing_id=$(MARKER="$marker" gh api "repos/${REPO}/issues/${ISSUE_NUMBER}/comments?per_page=100" \
+            --jq '.[] | select(.body | startswith(env.MARKER)) | .id' | head -n1)
+
+          if [ -n "$existing_id" ]; then
+            echo "Comment already posted on issue #${ISSUE_NUMBER} (id $existing_id); not posting again."
+            exit 0
+          fi
+
+          body=$(cat <<EOF
+          ${marker}
+          **Debug APK builds for this branch**
+
+          Every push to \`${BRANCH}\` builds a debug APK and uploads it as the \`${ARTIFACT_NAME}\` artifact, always under that same name (each push replaces the previous one).
+
+          To get the latest build: open the [workflow runs for this branch](${RUNS_URL}), pick the most recent successful run, and download the \`${ARTIFACT_NAME}\` artifact from its Artifacts section. Downloading requires being signed in to GitHub.
+
+          This comment is posted once and won't be updated on later pushes - the artifact name above always points at the current build.
+          EOF
+          )
+
+          echo "Creating new comment on issue #${ISSUE_NUMBER}"
+          gh api --method POST "repos/${REPO}/issues/${ISSUE_NUMBER}/comments" -f body="$body"
