@@ -13,6 +13,7 @@ on:
 permissions:
   contents: read
   actions: write
+  issues: write
 
 jobs:
   build-apk:
@@ -48,6 +49,7 @@ jobs:
           fi
           echo "Resolved artifact name: $name"
           echo "name=${name}" >> "$GITHUB_OUTPUT"
+          echo "issue-number=${issue_num}" >> "$GITHUB_OUTPUT"
 
       - name: Delete previous artifact for this branch
         env:
@@ -67,3 +69,38 @@ jobs:
           path: yaacc/build/outputs/apk/debug/yaacc-debug.apk
           overwrite: true
           if-no-files-found: error
+
+      - name: Comment on issue with build link
+        if: steps.artifact-name.outputs.issue-number != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          ISSUE_NUMBER: ${{ steps.artifact-name.outputs.issue-number }}
+          ARTIFACT_NAME: ${{ steps.artifact-name.outputs.name }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          BRANCH: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
+        run: |
+          marker="<!-- apk-build-artifact:issue-${ISSUE_NUMBER} -->"
+          short_sha="${SHA:0:7}"
+          timestamp=$(date -u +"%Y-%m-%d %H:%M UTC")
+          body=$(cat <<EOF
+          ${marker}
+          **Debug APK build updated**
+
+          Branch \`${BRANCH}\`, commit \`${short_sha}\`, built ${timestamp}.
+
+          Download: open the [workflow run](${RUN_URL}), then grab the \`${ARTIFACT_NAME}\` artifact listed under that run. Downloading requires being signed in to GitHub. This replaces the previous build for this branch and expires after 90 days.
+          EOF
+          )
+
+          existing_id=$(MARKER="$marker" gh api "repos/${REPO}/issues/${ISSUE_NUMBER}/comments?per_page=100" \
+            --jq '.[] | select(.body | startswith(env.MARKER)) | .id' | head -n1)
+
+          if [ -n "$existing_id" ]; then
+            echo "Updating existing comment $existing_id on issue #${ISSUE_NUMBER}"
+            gh api --method PATCH "repos/${REPO}/issues/comments/${existing_id}" -f body="$body"
+          else
+            echo "Creating new comment on issue #${ISSUE_NUMBER}"
+            gh api --method POST "repos/${REPO}/issues/${ISSUE_NUMBER}/comments" -f body="$body"
+          fi
