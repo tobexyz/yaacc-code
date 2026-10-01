@@ -1,0 +1,69 @@
+name: Build Debug APK
+
+# Builds a debug APK on every push and keeps exactly one artifact per
+# branch/issue: a new push replaces the artifact left by the previous push
+# on the same branch instead of accumulating a new one each time.
+
+on:
+  push:
+    branches:
+      - '**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Change wrapper permissions
+        run: chmod +x ./gradlew
+
+      - name: Build debug APK
+        run: ./gradlew :yaacc:assembleDebug --no-daemon
+
+      - name: Determine artifact name
+        id: artifact-name
+        env:
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          issue_num=$(printf '%s' "$BRANCH" | grep -oiE 'issue[-_]?[0-9]+' | grep -oE '[0-9]+' | head -n1 || true)
+          if [ -n "$issue_num" ]; then
+            name="apk-issue-${issue_num}"
+          else
+            safe_branch=$(printf '%s' "$BRANCH" | tr -c 'a-zA-Z0-9._-' '-')
+            name="apk-branch-${safe_branch}"
+          fi
+          echo "Resolved artifact name: $name"
+          echo "name=${name}" >> "$GITHUB_OUTPUT"
+
+      - name: Delete previous artifact for this branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ARTIFACT_NAME: ${{ steps.artifact-name.outputs.name }}
+        run: |
+          ids=$(gh api "repos/${{ github.repository }}/actions/artifacts?name=${ARTIFACT_NAME}&per_page=100" --jq '.artifacts[].id')
+          for id in $ids; do
+            echo "Deleting previous artifact id $id named $ARTIFACT_NAME"
+            gh api --method DELETE "repos/${{ github.repository }}/actions/artifacts/${id}" || true
+          done
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.artifact-name.outputs.name }}
+          path: yaacc/build/outputs/apk/debug/yaacc-debug.apk
+          overwrite: true
+          if-no-files-found: error
