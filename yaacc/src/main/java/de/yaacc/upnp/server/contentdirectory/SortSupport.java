@@ -62,6 +62,19 @@ public final class SortSupport {
     public static final Set<String> SUPPORTED_PROPERTIES =
             new HashSet<>(Arrays.asList(PROPERTY_TITLE, PROPERTY_DATE));
 
+    /**
+     * Upper bound on how many comma-separated criteria a single {@code
+     * SortCriteria} request string may specify. There are only two
+     * supported properties ({@link #PROPERTY_TITLE}/{@link #PROPERTY_DATE}),
+     * so anything beyond a handful is necessarily redundant; this guards
+     * against an attacker-chosen, arbitrarily long duplicate-criteria chain
+     * turning an {@code O(n)} sort into an {@code O(n * MAX_SORT_CRITERIA)}
+     * (or, for {@code SafFolderBrowser}'s whole-folder in-memory sort,
+     * {@code O(m*log(m)*MAX_SORT_CRITERIA)}) resource-exhaustion vector -
+     * see the issue252 security review (Group 2, Cycle 1).
+     */
+    static final int MAX_SORT_CRITERIA = 8;
+
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE;
 
     private SortSupport() {
@@ -76,11 +89,19 @@ public final class SortSupport {
      *                is a no-op (no sort requested).
      * @throws ContentDirectoryException with error code
      *                                   {@link ContentDirectoryErrorCode#UNSUPPORTED_SORT_CRITERIA}
-     *                                   if any criterion's property isn't supported.
+     *                                   if any criterion's property isn't supported, or if
+     *                                   {@code orderby} specifies more than {@link #MAX_SORT_CRITERIA}
+     *                                   criteria.
      */
     public static void validateSupported(SortCriterion[] orderby) throws ContentDirectoryException {
         if (orderby == null) {
             return;
+        }
+        if (orderby.length > MAX_SORT_CRITERIA) {
+            throw new ContentDirectoryException(
+                    ContentDirectoryErrorCode.UNSUPPORTED_SORT_CRITERIA,
+                    "Too many sort criteria: " + orderby.length
+                            + " (maximum " + MAX_SORT_CRITERIA + " allowed)");
         }
         for (SortCriterion criterion : orderby) {
             if (!SUPPORTED_PROPERTIES.contains(criterion.getPropertyName())) {
