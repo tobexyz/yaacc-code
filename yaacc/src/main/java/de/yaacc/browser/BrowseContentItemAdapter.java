@@ -50,6 +50,7 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -392,6 +393,22 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
 
     public Object getItem(int position) {
         return objects.get(position);
+    }
+
+    /**
+     * Returns the currently-loaded children in their current, on-screen
+     * order -- i.e. already reflecting whatever client-side sort mode and
+     * direction is active (see {@link #sortObjects()}). Used by {@link
+     * ContentListFragment#playAllChildsOfParentFrom(DIDLObject)} (issue
+     * play-all-ignores-sort-order) to build a playback queue that matches
+     * what the user sees and tapped, instead of re-fetching the folder from
+     * the server in its unsorted default order.
+     *
+     * @return an unmodifiable view of the adapter's current backing list;
+     * never {@code null}.
+     */
+    public List<DIDLObject> getObjects() {
+        return Collections.unmodifiableList(objects);
     }
 
     @Override
