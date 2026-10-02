@@ -344,3 +344,138 @@ None.
   finding beyond the existing Warning.
 
 ### Verdict: FAIL
+
+## Cycle 2 — 2026-10-02
+Reviewing: Group 2 (commits `c14950a`, `e40d279`) + Fix Group 1 (`ac9d92b`,
+`0115105`) + Fix Group 2 (`cc76074`), all already PASSed/reviewed above except
+`cc76074`, which is this cycle's subject — the fix for Cycle 1's sole Warning
+(unbounded `SortCriteria` count enabling resource exhaustion via
+`SafFolderBrowser`'s whole-folder comparator chain).
+
+### Critical
+None.
+
+### Warning
+None.
+
+### Suggestion
+
+- **Fix verified: `MAX_SORT_CRITERIA = 8` cap enforced before any
+  downstream processing — `SortSupport.java:76,96-113` closes the Cycle 1
+  Warning.** Read `validateSupported` in full
+  (`SortSupport.java:96-113`): the `orderby.length > MAX_SORT_CRITERIA`
+  check is the very first statement after the `orderby == null` no-op
+  guard, and it throws `ContentDirectoryException(UNSUPPORTED_SORT_CRITERIA,
+  ...)` before the `for` loop that does per-criterion property-name
+  validation even begins — so an oversized array is rejected in `O(1)`
+  (an array-length read) without ever touching
+  `SUPPORTED_PROPERTIES.contains(...)`, let alone reaching
+  `toComparator`/`toMediaStoreSortOrder`. Traced the call site:
+  `YaaccContentDirectory.java:307-337` (the sole live `@UpnpAction`-annotated
+  `browse()` — see "second entry point" check below) parses `orderBy` into
+  `orderByCriteria` (line 318), then calls
+  `SortSupport.validateSupported(orderByCriteria)` at line 324, **before**
+  the dispatch to the per-browser `browse(objectId, browseFlag, filter,
+  firstResult, maxResults, orderByCriteria)` overload at line 327-329 that
+  eventually reaches `SafFolderBrowser.buildAccessorComparator`/
+  `SortSupport.toComparator`/`toMediaStoreSortOrder` in any of the 20
+  browsers. There is no code path from the network-facing `SortCriteria`
+  string to any browser's sort logic that does not first pass through this
+  single `validateSupported` call — confirmed by the existing Cycle 1
+  Suggestion finding (re-verified unchanged) that all 20 browsers are
+  dispatched from this one `browse()` method. The whole-folder comparator
+  chain this Warning was about can therefore never be built from an
+  oversized `SortCriterion[]`; the request is rejected before
+  `SafFolderBrowser` (or any other browser) is ever invoked.
+
+- **Cap value (8) confirmed generous, not a functional regression.**
+  Cross-checked against this spec's own `requirements.md`/`design.md`:
+  `SUPPORTED_PROPERTIES` is exactly `{dc:title, dc:date}` (`SortSupport.java:62-63`,
+  unchanged) — the entire legitimate multi-key sort space is at most 2
+  distinct, non-redundant criteria (e.g. `"+dc:title,-dc:date"` as a
+  tiebreak order). `design.md:36-40`'s own design-alternatives section
+  explicitly reasons about supporting `SortCriterion[]` "in array order,
+  first wins, matching normal multi-key sort semantics" — it never
+  contemplates more than the 2 supported properties, and nothing in
+  `requirements.md`'s acceptance criteria (`requirements.md:78-83`) or any
+  UPnP control point behavior documented in this spec needs more than a
+  2-key sort. A cap of 8 is 4x the realistic maximum and cannot reject any
+  legitimate request a real DLNA control point would send.
+
+- **No other unbounded multiplier left; `m` (folder size) is correctly
+  out of scope, as a separate pre-existing cost floor.** With `N` (criteria
+  count) now capped at 8, the `SafFolderBrowser` cost is
+  `O(m·log(m)·8)` — a constant factor, not an attacker-controlled one.
+  `m` (the number of files in a SAF-mounted folder) remains unbounded, but
+  this is correctly out of this Warning's scope: Fix Group 1's own
+  lazy-pagination design (`review.md`'s Cycle 2 discussion, reconfirmed by
+  reading `SafFolderBrowser.java` again this cycle) already requires a
+  full `O(m·log(m))` sort of the lightweight candidate list on every
+  `Browse` call **even with zero `SortCriteria`** (any `Browse` of a SAF
+  folder needs a deterministic, stable order for pagination to be
+  coherent across successive `start`/`count` calls) — that single-pass
+  sort cost is the pre-spec/pre-fix floor for a plain `Browse` with no
+  sort criteria at all, not something this spec introduced or something
+  the criteria-count cap could or should reduce further. Grepped for any
+  other place a client-controlled count/length feeds into a comparator
+  chain depth, `ORDER BY` clause length, or loop bound — none found beyond
+  the two consumers (`toComparator`, `toMediaStoreSortOrder`) already
+  covered by the single `validateSupported` choke point. No residual
+  amplification vector from the `SortCriteria` angle.
+
+- **`SortSupportTest.java`'s new cases are correct and exercise the real
+  method — no mocking.** `validateSupportedPassesAtMaxCriteria`
+  (`SortSupportTest.java:93-96`) and
+  `validateSupportedThrowsAboveMaxCriteria` (`:98-107`) both call
+  `SortSupport.validateSupported(...)` directly — a `public static` method
+  on a concrete final class, not an interface or mockable seam — with real
+  `SortCriterion` instances built from `criteria(int count)` (`:114-121`),
+  which constructs `new SortCriterion(true, PROPERTY_TITLE/PROPERTY_DATE)`
+  alternately so every entry is independently valid against the property
+  allowlist, isolating the length cap as the only thing under test (no
+  conflation with the unsupported-property path). `MAX_SORT_CRITERIA` is
+  `static` (package-private, not `private`), so the test — in the same
+  `de.yaacc.upnp.server.contentdirectory` package — reads the real
+  constant rather than hardcoding `8`, meaning the test stays correct if
+  the constant is ever retuned. No `Mockito`/test-double usage anywhere in
+  this file (confirmed by import list: `org.junit.Test` only, no mocking
+  framework imports). Full suite run this cycle:
+  `./gradlew :yaacc:testDebugUnitTest --rerun-tasks` → `BUILD SUCCESSFUL`,
+  24 tasks executed; `SortSupportTest`'s own JUnit XML report
+  (`yaacc/build/test-results/testDebugUnitTest/TEST-de.yaacc.upnp.server.contentdirectory.SortSupportTest.xml`)
+  confirms `tests="22" skipped="0" failures="0" errors="0"` — the two new
+  cases plus all prior ones green, consistent with real execution (not a
+  stale/cached report, since `--rerun-tasks` forces re-execution).
+
+- **Full-spec final sweep (Group 1 + Group 2 + Fix Group 1 + Fix Group
+  2) — one dead-code entry point checked and ruled out; nothing else
+  found beyond what Cycle 1 already covered.** Grepped every
+  `SortCriterion.valueOf`/`SortCriterion[]` usage across `yaacc/src/main`
+  looking for a second, un-capped path into a browser's sort logic. Found
+  one candidate worth tracing: the vendored
+  `org.fourthline.cling.support.contentdirectory.AbstractContentDirectoryService`
+  (`AbstractContentDirectoryService.java:169-213`) defines its own
+  `@UpnpAction`-annotated `browse(...)` *and* `search(...)` methods that
+  each independently parse `SortCriterion.valueOf(orderBy)` with no cap —
+  structurally the same shape this Warning was about. Confirmed via grep
+  that **nothing in the codebase extends or instantiates
+  `AbstractContentDirectoryService`** — `YaaccContentDirectory` is a plain
+  class (`public class YaaccContentDirectory` at
+  `YaaccContentDirectory.java:91`, no `extends`) that defines its own
+  `@UpnpAction browse()` independently; `AbstractContentDirectoryService`
+  is dead vendored code with no live call path, so its unguarded
+  `SortCriterion.valueOf` calls are not reachable from the network and are
+  out of scope (pre-existing, unchanged, unused). Also confirmed
+  `YaaccContentDirectory` exposes no `search` UPnP action at all (grep for
+  `search` in the file returns nothing), so the `Search` action — which
+  would be a second `SortCriteria`-bearing entry point per the UPnP
+  ContentDirectory:1 spec — simply isn't implemented/exposed by this
+  service; only `Browse` is, and it's the one `validateSupported` guards.
+  Re-confirmed (unchanged since Cycle 1) the SQL-injection shape, SAF
+  path-scoping, the duplicate-comparator-logic equivalence, and the
+  information-disclosure angle all still hold — `cc76074` touches only
+  `SortSupport.java`, its test, and `tasks.md`; no browser file changed,
+  so none of those Cycle-1-verified properties could have regressed. No
+  new finding.
+
+### Verdict: PASS
