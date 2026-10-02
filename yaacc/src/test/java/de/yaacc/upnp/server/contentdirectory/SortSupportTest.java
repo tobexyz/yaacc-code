@@ -90,6 +90,36 @@ public class SortSupportTest {
         }
     }
 
+    @Test
+    public void validateSupportedPassesAtMaxCriteria() throws ContentDirectoryException {
+        SortSupport.validateSupported(criteria(SortSupport.MAX_SORT_CRITERIA));
+    }
+
+    @Test
+    public void validateSupportedThrowsAboveMaxCriteria() {
+        try {
+            SortSupport.validateSupported(criteria(SortSupport.MAX_SORT_CRITERIA + 1));
+            fail("expected ContentDirectoryException");
+        } catch (ContentDirectoryException ex) {
+            assertEquals(ContentDirectoryErrorCode.UNSUPPORTED_SORT_CRITERIA.getCode(),
+                    ex.getErrorCode());
+        }
+    }
+
+    /**
+     * Builds {@code count} valid criteria (alternating {@code dc:title}/
+     * {@code dc:date}) so the length cap, not the property allowlist, is
+     * what's under test.
+     */
+    private static SortCriterion[] criteria(int count) {
+        SortCriterion[] result = new SortCriterion[count];
+        for (int i = 0; i < count; i++) {
+            result[i] = new SortCriterion(true,
+                    i % 2 == 0 ? SortSupport.PROPERTY_TITLE : SortSupport.PROPERTY_DATE);
+        }
+        return result;
+    }
+
     // --- toMediaStoreSortOrder ---
 
     @Test

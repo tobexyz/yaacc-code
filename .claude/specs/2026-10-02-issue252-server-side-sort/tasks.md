@@ -214,7 +214,7 @@ Per `review.md`'s Group 2 Cycle 1 (FAIL — 1 Critical, 2 Warnings).
 Per `security-review.md`'s Group 2 Cycle 1 (FAIL — 1 Warning, resource
 exhaustion via unbounded `SortCriteria` count).
 
-- [ ] Cap the number of sort criteria a single request may specify | `yaacc/src/main/java/de/yaacc/upnp/server/contentdirectory/SortSupport.java`, `yaacc/src/test/java/de/yaacc/upnp/server/contentdirectory/SortSupportTest.java`
+- [x] Cap the number of sort criteria a single request may specify | `yaacc/src/main/java/de/yaacc/upnp/server/contentdirectory/SortSupport.java`, `yaacc/src/test/java/de/yaacc/upnp/server/contentdirectory/SortSupportTest.java`
   - **Accept**: `SortSupport.validateSupported(SortCriterion[])` rejects
     (with the same `UNSUPPORTED_SORT_CRITERIA` error code it already
     uses for an unsupported property — no new error code) a request
