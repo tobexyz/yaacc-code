@@ -27,7 +27,11 @@ import org.fourthline.cling.support.model.container.StorageFolder;
 import org.fourthline.cling.support.model.item.Item;
 
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
 
 import de.yaacc.R;
 
@@ -60,6 +64,16 @@ public class ImagesFolderBrowser extends ContentBrowser {
         List<Container> result = new ArrayList<>();
         result.add((Container) new ImagesAllFolderBrowser(getContext()).browseMeta(contentDirectory, ContentDirectoryIDs.IMAGES_ALL_FOLDER.getId(), firstResult, maxResults, orderby));
         result.add((Container) new ImagesByBucketNamesFolderBrowser(getContext()).browseMeta(contentDirectory, ContentDirectoryIDs.IMAGES_BY_BUCKET_NAMES_FOLDER.getId(), firstResult, maxResults, orderby));
+
+        Map<String, Function<DIDLObject, String>> accessorMap = new HashMap<>();
+        accessorMap.put(SortSupport.PROPERTY_TITLE, DIDLObject::getTitle);
+        // No natural "default" sort key for this fixed, hand-picked list of top-level
+        // image folders - a no-op comparator relies on List.sort's stability to keep
+        // today's existing fixed order ("All images", "By bucket name") unchanged
+        // when no SortCriteria was requested.
+        Comparator<DIDLObject> defaultComparator = (a, b) -> 0;
+        result.sort(SortSupport.toComparator(orderby, accessorMap, defaultComparator));
+
         int start = firstResult > 0 ? (int) firstResult : 0;
         if (firstResult >= (result.size() - 1)) {
             start = result.size() - 1;

@@ -34,7 +34,9 @@ import org.seamless.util.MimeType;
 
 import java.net.URI;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import de.yaacc.R;
 import de.yaacc.upnp.server.YaaccUpnpServerService;
@@ -84,8 +86,12 @@ public class ImagesAllFolderBrowser extends ContentBrowser {
                 MediaStore.Images.Media.SIZE};
         String selection = "(" + makeLikeClause(MediaStore.Images.Media.DATA, getMediaPathes().size()) + ")";
         String[] selectionArgs = getMediaPathesForLikeClause().toArray(new String[0]);
+        Map<String, String> columnMap = new HashMap<>();
+        columnMap.put(SortSupport.PROPERTY_TITLE, MediaStore.Images.Media.DISPLAY_NAME);
+        columnMap.put(SortSupport.PROPERTY_DATE, MediaStore.Images.Media.DATE_TAKEN);
         try (Cursor mImageCursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, projection, selection,
-                selectionArgs, MediaStore.Images.Media.DISPLAY_NAME + " ASC")) {
+                selectionArgs, SortSupport.toMediaStoreSortOrder(
+                        orderby, columnMap, MediaStore.Images.Media.DISPLAY_NAME + " ASC"))) {
 
             if (mImageCursor != null && mImageCursor.getCount() > 0) {
                 mImageCursor.moveToFirst();

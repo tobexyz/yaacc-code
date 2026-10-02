@@ -31,7 +31,10 @@ import org.fourthline.cling.support.model.container.StorageFolder;
 import org.fourthline.cling.support.model.item.Item;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
 
 import de.yaacc.R;
 
@@ -41,6 +44,19 @@ import de.yaacc.R;
  * @author openbit (Tobias Schoene)
  */
 public class RootFolderBrowser extends ContentBrowser {
+
+    /** Synthetic top-level containers are title-only - no per-row date. */
+    private static final Map<String, Function<DIDLObject, String>> CONTAINER_ACCESSOR_MAP =
+            Map.of(SortSupport.PROPERTY_TITLE, DIDLObject::getTitle);
+
+    /**
+     * No-op comparator used as the {@code defaultComparator} for {@link SortSupport#toComparator}.
+     * {@link List#sort} is a stable sort, so applying this leaves the list - already built in
+     * today's fixed Music/Images/Videos/SAF/LiveStreams order - unchanged when no
+     * {@code SortCriteria} was requested.
+     */
+    private static final Comparator<DIDLObject> STABLE_ORDER = (a, b) -> 0;
+
     public RootFolderBrowser(Context context) {
         super(context);
     }
@@ -94,6 +110,9 @@ public class RootFolderBrowser extends ContentBrowser {
         if (isServingLiveStreams()) {
             result.add((Container) new LiveStreamFolderBrowser(getContext()).browseMeta(contentDirectory, ContentDirectoryIDs.LIVE_STREAM_FOLDER.getId(), 0, 1, orderby));
         }
+        // result is already built in today's fixed default order; STABLE_ORDER preserves
+        // that exactly via stable sort when orderby is empty/null.
+        result.sort(SortSupport.toComparator(orderby, CONTAINER_ACCESSOR_MAP, STABLE_ORDER));
         int start = firstResult > 0 ? (int) firstResult : 0;
         if (firstResult >= (result.size() - 1)) {
             start = result.size() - 1;
