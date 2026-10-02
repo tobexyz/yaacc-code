@@ -32,12 +32,11 @@ github_username: tobexyz
 show_downloads: false
 # Build settings
 theme: jekyll-theme-slate
-remote_theme: pages-themes/slate@v0.2.0
 markdown: kramdown
 
 plugins:
-  - jekyll-remote-theme
   - jekyll-feed
+  - jekyll-seo-tag
 feed:
   path: /feed.atom
 # Exclude from processing.
