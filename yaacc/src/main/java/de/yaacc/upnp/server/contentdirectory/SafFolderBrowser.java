@@ -35,8 +35,11 @@ import org.seamless.util.MimeType;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 import de.yaacc.R;
 import de.yaacc.upnp.model.YaaccItem;
@@ -51,6 +54,23 @@ import de.yaacc.util.YaaccLogger;
  * @author tobexyz
  */
 public class SafFolderBrowser extends ContentBrowser {
+
+    /** Containers (directories) are title-only - no meaningful single date. */
+    private static final Map<String, Function<DIDLObject, String>> CONTAINER_ACCESSOR_MAP =
+            Map.of(SortSupport.PROPERTY_TITLE, DIDLObject::getTitle);
+
+    /** Items (files) also expose {@code dc:date}, sourced from {@link DocumentFile#lastModified()}. */
+    private static final Map<String, Function<DIDLObject, String>> ITEM_ACCESSOR_MAP =
+            Map.of(
+                    SortSupport.PROPERTY_TITLE, DIDLObject::getTitle,
+                    SortSupport.PROPERTY_DATE, item -> item.getFirstPropertyValue(DIDLObject.Property.DC.DATE.class));
+
+    /**
+     * No-op comparator used as the {@code defaultComparator} for {@link SortSupport#toComparator}.
+     * {@link List#sort} is a stable sort, so applying this leaves a list already built in
+     * today's default order unchanged when no {@code SortCriteria} was requested.
+     */
+    private static final Comparator<DIDLObject> STABLE_ORDER = (a, b) -> 0;
 
     public SafFolderBrowser(Context context) {
         super(context);
@@ -118,11 +138,8 @@ public class SafFolderBrowser extends ContentBrowser {
             List<String> sortedPathes = new ArrayList<>(safPaths);
             Collections.sort(sortedPathes);
 
-            int start = (int) Math.max(0, firstResult);
-            int end = (int) Math.min(sortedPathes.size(), start + maxResults);
-            YaaccLogger.d(getClass().getName(), "Pagination: start=" + start + ", end=" + end + ", total=" + sortedPathes.size());
-
-            for (int i = start; i < end; i++) {
+            List<Container> allFolders = new ArrayList<>();
+            for (int i = 0; i < sortedPathes.size(); i++) {
                 long itemStart = System.currentTimeMillis();
                 String path = sortedPathes.get(i);
                 DocumentFile file = DocumentFile.fromTreeUri(getContext(), Uri.parse(path));
@@ -132,9 +149,17 @@ public class SafFolderBrowser extends ContentBrowser {
                     String shortId = SAFCacheManager.getInstance(getContext()).getOrCreateShortId(file.getUri().toString());
                     String folderId = ContentDirectoryIDs.SAF_PREFIX.getId() + shortId;
                     StorageFolder folder = new StorageFolder(folderId, ContentDirectoryIDs.SAF_FOLDER.getId(), title, "yaacc", 0, null);
-                    result.add(folder);
+                    allFolders.add(folder);
                 }
             }
+            // allFolders is already built in today's default (path-alphabetical) order;
+            // STABLE_ORDER preserves that exactly via stable sort when orderby is empty/null.
+            allFolders.sort(SortSupport.toComparator(orderby, CONTAINER_ACCESSOR_MAP, STABLE_ORDER));
+
+            int start = (int) Math.max(0, firstResult);
+            int end = (int) Math.min(allFolders.size(), start + maxResults);
+            YaaccLogger.d(getClass().getName(), "Pagination: start=" + start + ", end=" + end + ", total=" + allFolders.size());
+            result.addAll(allFolders.subList(start, end));
             YaaccLogger.d(getClass().getName(), "Root browse complete: " + result.size() + " folders (total " + (System.currentTimeMillis() - browseStart) + "ms)");
         } else {
             // Browse subfolder
@@ -168,11 +193,8 @@ public class SafFolderBrowser extends ContentBrowser {
                 DocumentFile[] files = root.listFiles();
                 YaaccLogger.d(getClass().getName(), "listFiles() took " + (System.currentTimeMillis() - listStart) + "ms, found " + files.length + " items");
 
-                int start = (int) Math.max(0, firstResult);
-                int end = (int) Math.min(files.length, start + maxResults);
-                YaaccLogger.d(getClass().getName(), "Pagination: start=" + start + ", end=" + end + ", total=" + files.length);
-
-                for (int i = start; i < end; i++) {
+                List<Container> allFolders = new ArrayList<>();
+                for (int i = 0; i < files.length; i++) {
                     long itemStart = System.currentTimeMillis();
                     DocumentFile file = files[i];
                     if (file.isDirectory()) {
@@ -190,7 +212,7 @@ public class SafFolderBrowser extends ContentBrowser {
                                 }
                                 StorageFolder folder = new StorageFolder(childId, myId, title, "yaacc", 0, null);
                                 folder.setRestricted(testAccess.canRead());
-                                result.add(folder);
+                                allFolders.add(folder);
                                 YaaccLogger.d(getClass().getName(), "Child[" + i + "] " + title + " (took " + (System.currentTimeMillis() - itemStart) + "ms)");
                             } else {
                                 YaaccLogger.w(getClass().getName(), "Cannot access child: " + title);
@@ -200,6 +222,14 @@ public class SafFolderBrowser extends ContentBrowser {
                         }
                     }
                 }
+                // allFolders is in listFiles()'s original (unsorted) order, matching today's
+                // behavior; STABLE_ORDER preserves it via stable sort when orderby is empty/null.
+                allFolders.sort(SortSupport.toComparator(orderby, CONTAINER_ACCESSOR_MAP, STABLE_ORDER));
+
+                int start = (int) Math.max(0, firstResult);
+                int end = (int) Math.min(allFolders.size(), start + maxResults);
+                YaaccLogger.d(getClass().getName(), "Pagination: start=" + start + ", end=" + end + ", total=" + allFolders.size());
+                result.addAll(allFolders.subList(start, end));
             } else {
                 YaaccLogger.e(getClass().getName(), "Root DocumentFile is null or not a directory");
             }
@@ -219,25 +249,30 @@ public class SafFolderBrowser extends ContentBrowser {
             List<String> sortedPathes = new ArrayList<>(getSelectedSafPathes());
             Collections.sort(sortedPathes);
 
-            int start = (int) Math.max(0, firstResult);
-            int end = (int) Math.min(sortedPathes.size(), start + maxResults);
-            YaaccLogger.d(getClass().getName(), "Root items: pagination start=" + start + ", end=" + end + ", total=" + sortedPathes.size());
-
-            for (int i = start; i < end; i++) {
+            List<Item> allItems = new ArrayList<>();
+            for (int i = 0; i < sortedPathes.size(); i++) {
                 long itemStart = System.currentTimeMillis();
                 String path = sortedPathes.get(i);
                 DocumentFile file = DocumentFile.fromSingleUri(getContext(), Uri.parse(path));
                 if (file != null && !file.isDirectory()) {
                     Item item = createItem(contentDirectory, path, file, myId, !file.canRead());
                     if (item != null) {
-                        result.add(item);
-                        YaaccLogger.d(getClass().getName(), "✓ Added to result: Item[" + (result.size() - 1) + "] " + (file.getName() != null ? file.getName() : "unknown"));
+                        allItems.add(item);
+                        YaaccLogger.d(getClass().getName(), "✓ Added to result: Item[" + (allItems.size() - 1) + "] " + (file.getName() != null ? file.getName() : "unknown"));
                     } else {
                         YaaccLogger.d(getClass().getName(), "✗ Skipped (null item): " + (file.getName() != null ? file.getName() : "unknown"));
                     }
                     YaaccLogger.d(getClass().getName(), "Item[" + i + "] " + (file.getName() != null ? file.getName() : "unknown") + " (took " + (System.currentTimeMillis() - itemStart) + "ms)");
                 }
             }
+            // allItems is already built in today's default (path-alphabetical) order;
+            // STABLE_ORDER preserves that exactly via stable sort when orderby is empty/null.
+            allItems.sort(SortSupport.toComparator(orderby, ITEM_ACCESSOR_MAP, STABLE_ORDER));
+
+            int start = (int) Math.max(0, firstResult);
+            int end = (int) Math.min(allItems.size(), start + maxResults);
+            YaaccLogger.d(getClass().getName(), "Root items: pagination start=" + start + ", end=" + end + ", total=" + allItems.size());
+            result.addAll(allItems.subList(start, end));
             YaaccLogger.d(getClass().getName(), "Root items complete: " + result.size() + " items (total " + (System.currentTimeMillis() - rootStart) + "ms)");
         } else {
             // Browse subfolder items
@@ -261,22 +296,27 @@ public class SafFolderBrowser extends ContentBrowser {
                     DocumentFile[] files = root.listFiles();
                     YaaccLogger.d(getClass().getName(), "listFiles() took " + (System.currentTimeMillis() - listStart) + "ms, found " + files.length + " items");
 
-                    int start = (int) Math.max(0, firstResult);
-                    int end = (int) Math.min(files.length, start + maxResults);
-                    YaaccLogger.d(getClass().getName(), "Pagination: start=" + start + ", end=" + end + ", total=" + files.length);
-
-                    for (int i = start; i < end; i++) {
+                    List<Item> allItems = new ArrayList<>();
+                    for (int i = 0; i < files.length; i++) {
                         long itemStart = System.currentTimeMillis();
                         DocumentFile file = files[i];
                         if (!file.isDirectory()) {
                             long createStart = System.currentTimeMillis();
                             Item item = createItem(contentDirectory, file.getUri().toString(), file, myId, !file.canRead());
                             long createTime = System.currentTimeMillis() - createStart;
-                            if (item != null) result.add(item);
+                            if (item != null) allItems.add(item);
                             long totalTime = System.currentTimeMillis() - itemStart;
                             YaaccLogger.d(getClass().getName(), "Item[" + i + "] " + (file.getName() != null ? file.getName() : "unknown") + " - createItem=" + createTime + "ms, total=" + totalTime + "ms");
                         }
                     }
+                    // allItems is in listFiles()'s original (unsorted) order, matching today's
+                    // behavior; STABLE_ORDER preserves it via stable sort when orderby is empty/null.
+                    allItems.sort(SortSupport.toComparator(orderby, ITEM_ACCESSOR_MAP, STABLE_ORDER));
+
+                    int start = (int) Math.max(0, firstResult);
+                    int end = (int) Math.min(allItems.size(), start + maxResults);
+                    YaaccLogger.d(getClass().getName(), "Pagination: start=" + start + ", end=" + end + ", total=" + allItems.size());
+                    result.addAll(allItems.subList(start, end));
                 } else {
                     YaaccLogger.w(getClass().getName(), "Cannot read folder: " + path);
                 }
@@ -359,6 +399,13 @@ public class SafFolderBrowser extends ContentBrowser {
         long convertStart = System.currentTimeMillis();
         Item item = yaaccItem.toClingItem();
         long convertTime = System.currentTimeMillis() - convertStart;
+
+        // Attach dc:date from the file's lastModified() so SortSupport can honor
+        // SortCriteria="dc:date" against SAF items (0 means unknown - leave unset).
+        long lastModified = file.lastModified();
+        if (lastModified > 0) {
+            item.addProperty(new DIDLObject.Property.DC.DATE(SortSupport.formatEpochMillisAsDate(lastModified)));
+        }
 
         long totalTime = System.currentTimeMillis() - createStart;
         YaaccLogger.d(getClass().getName(), "Item[?] " + fileName + " - protocolInfo=" + protocolTime + "ms, YaaccItem=" + itemTime + "ms, convert=" + convertTime + "ms, total=" + totalTime + "ms");

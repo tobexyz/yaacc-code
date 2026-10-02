@@ -85,7 +85,7 @@ Plan: `specs/2026-10-02-issue252-server-side-sort/requirements.md` and
     Do not change the `dc:date` *value* music already emits (`YEAR`,
     unchanged format) — only make it an honored sort key.
 
-- [ ] Image browsers + wire `DATE_TAKEN` into `dc:date` | `yaacc/src/main/java/de/yaacc/upnp/server/contentdirectory/ImageAllItemBrowser.java`, `ImageByBucketNameItemBrowser.java`, `ImagesByBucketNameFolderBrowser.java`, `ImagesByBucketNamesFolderBrowser.java`, `ImagesAllFolderBrowser.java`, `ImagesFolderBrowser.java`, `yaacc/src/main/java/de/yaacc/upnp/server/contentdirectory/ContentBrowser.java`
+- [x] Image browsers + wire `DATE_TAKEN` into `dc:date` | `yaacc/src/main/java/de/yaacc/upnp/server/contentdirectory/ImageAllItemBrowser.java`, `ImageByBucketNameItemBrowser.java`, `ImagesByBucketNameFolderBrowser.java`, `ImagesByBucketNamesFolderBrowser.java`, `ImagesAllFolderBrowser.java`, `ImagesFolderBrowser.java`, `yaacc/src/main/java/de/yaacc/upnp/server/contentdirectory/ContentBrowser.java`
   - **Accept**: `ContentBrowser.createPhoto(...)` gets a new additive
     overload taking an optional `Long dateTaken` (millis) that, when
     non-null, sets `dc:date` via
@@ -123,7 +123,7 @@ Plan: `specs/2026-10-02-issue252-server-side-sort/requirements.md` and
     obvious in the diff (named variable, not an inline magic multiply
     buried in a larger expression).
 
-- [ ] SAF browser + remaining synthetic folders | `yaacc/src/main/java/de/yaacc/upnp/server/contentdirectory/SafFolderBrowser.java`, `RootFolderBrowser.java`, `LiveStreamFolderBrowser.java`
+- [x] SAF browser + remaining synthetic folders | `yaacc/src/main/java/de/yaacc/upnp/server/contentdirectory/SafFolderBrowser.java`, `RootFolderBrowser.java`, `LiveStreamFolderBrowser.java`
   - **Accept**: `SafFolderBrowser`'s current unconditional
     `Collections.sort(sortedPathes)` becomes the `defaultComparator`
     passed into `SortSupport.toComparator(orderby, accessorMap, defaultComparator)`
