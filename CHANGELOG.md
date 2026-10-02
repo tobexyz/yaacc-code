@@ -4,6 +4,7 @@
 
 ### Added
 - **Sort by Date (#252)**: Added a "Name"/"Date" sort toggle to the Content tab's folder header. Uses server-side UPnP `SortCriteria` (`-dc:date`) when the browsed server supports it, with a client-side fallback sort once a folder finishes loading for servers that don't. The Date option is disabled when a folder has no `dc:date` metadata at all. The chosen sort order is persisted across app restarts.
+- **Server-side Sort Honoring (#252)**: yaacc's own UPnP/DLNA server now honors the `SortCriteria` other apps/devices send when browsing yaacc's shared media, instead of silently ignoring it. `GetSortCapabilities` now advertises `dc:title,dc:date` instead of an empty list, and a `Browse` request for `+dc:title`/`-dc:title` (name) or `+dc:date`/`-dc:date` (date) returns music, images, video, and SAF-backed folder results in that order across every content type the server exposes. A request for an unsupported sort property is rejected with `UNSUPPORTED_SORT_CRITERIA` rather than being accepted and ignored. Browsing without `SortCriteria` is unaffected and keeps today's existing order.
 - **SAF Short ID System**: Implemented short numeric ID mapping to fix UPnP browsing errors caused by long ObjectIDs (97% size reduction)
 - **Clear Cache Button**: Added button in Server Control Activity to clear SAF cache and trigger reindexing
 - **Image Preload**: Extended preload indexing to include image files (previously only audio/video)
