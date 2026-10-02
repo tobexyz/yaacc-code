@@ -83,7 +83,7 @@ public class ImagesAllFolderBrowser extends ContentBrowser {
         List<Item> result = new ArrayList<>();
         // Query for all images on external storage
         String[] projection = {MediaStore.Images.Media._ID, MediaStore.Images.Media.DISPLAY_NAME, MediaStore.Images.Media.MIME_TYPE,
-                MediaStore.Images.Media.SIZE};
+                MediaStore.Images.Media.SIZE, MediaStore.Images.Media.DATE_TAKEN};
         String selection = "(" + makeLikeClause(MediaStore.Images.Media.DATA, getMediaPathes().size()) + ")";
         String[] selectionArgs = getMediaPathesForLikeClause().toArray(new String[0]);
         Map<String, String> columnMap = new HashMap<>();
@@ -102,6 +102,8 @@ public class ImagesAllFolderBrowser extends ContentBrowser {
                         @SuppressLint("Range") String id = mImageCursor.getString(mImageCursor.getColumnIndex(MediaStore.Images.ImageColumns._ID));
                         @SuppressLint("Range") String name = mImageCursor.getString(mImageCursor.getColumnIndex(MediaStore.Images.ImageColumns.DISPLAY_NAME));
                         @SuppressLint("Range") Long size = Long.valueOf(mImageCursor.getString(mImageCursor.getColumnIndex(MediaStore.Images.ImageColumns.SIZE)));
+                        String dateTakenStr = mImageCursor.getString(mImageCursor.getColumnIndex(MediaStore.Images.Media.DATE_TAKEN));
+                        @SuppressLint("Range") Long dateTaken = dateTakenStr != null ? Long.valueOf(dateTakenStr) : null;
                         YaaccLogger.d(getClass().getName(),
                                 "Mimetype: " + mImageCursor.getString(mImageCursor.getColumnIndex(MediaStore.Images.ImageColumns.MIME_TYPE)));
                         MimeType mimeType = MimeType.valueOf(mImageCursor.getString(mImageCursor.getColumnIndex(MediaStore.Images.ImageColumns.MIME_TYPE)));
@@ -121,7 +123,8 @@ public class ImagesAllFolderBrowser extends ContentBrowser {
                             mimeType,
                             uri,
                             size,
-                            albumArtUri.toString()
+                            albumArtUri.toString(),
+                            dateTaken
                         );
 
                         result.add(photo);

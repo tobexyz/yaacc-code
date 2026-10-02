@@ -72,8 +72,87 @@ public class SafFolderBrowser extends ContentBrowser {
      */
     private static final Comparator<DIDLObject> STABLE_ORDER = (a, b) -> 0;
 
+    /**
+     * Lightweight pairing of a candidate item file with the URI string
+     * {@link #createItem} expects, so a folder's items can be sorted by cheap
+     * {@link DocumentFile} fields (name / lastModified) <em>before</em> the
+     * expensive {@code createItem(...)} pipeline (SAF metadata cache lookup,
+     * MIME sniffing, {@code ProtocolInfo}/URI building) runs - that pipeline
+     * is only run for the page slice actually returned, not the whole folder.
+     */
+    private static final class SafFileEntry {
+        final String uri;
+        final DocumentFile file;
+
+        SafFileEntry(String uri, DocumentFile file) {
+            this.uri = uri;
+            this.file = file;
+        }
+    }
+
+    /**
+     * Cheap accessors for {@link SafFileEntry} - mirrors {@link #ITEM_ACCESSOR_MAP}'s
+     * {@code dc:title}/{@code dc:date} mapping, but reads straight off
+     * {@link DocumentFile} (name / lastModified) instead of a built DIDL item,
+     * so sorting doesn't require {@link #createItem} to have run first.
+     */
+    private static final Map<String, Function<SafFileEntry, String>> ENTRY_ACCESSOR_MAP =
+            Map.of(
+                    SortSupport.PROPERTY_TITLE, entry -> entry.file.getName(),
+                    SortSupport.PROPERTY_DATE, entry -> entry.file.lastModified() > 0
+                            ? SortSupport.formatEpochMillisAsDate(entry.file.lastModified())
+                            : null);
+
+    /** Same idea as {@link #STABLE_ORDER}, but for the {@link SafFileEntry} pre-sort pass. */
+    private static final Comparator<SafFileEntry> STABLE_ENTRY_ORDER = (a, b) -> 0;
+
     public SafFolderBrowser(Context context) {
         super(context);
+    }
+
+    /**
+     * Mirrors {@link SortSupport#toComparator}'s direction/null-handling logic
+     * exactly, but generic over a lightweight sort-key type instead of
+     * {@link DIDLObject} - used here so {@link SafFileEntry} lists can be sorted
+     * before the expensive {@link #createItem} pipeline runs. Kept local to this
+     * class since {@code SortSupport.toComparator}'s signature is fixed to
+     * {@code DIDLObject} for its other (MediaStore/synthetic-list) callers.
+     */
+    private static <T> Comparator<T> buildAccessorComparator(
+            SortCriterion[] orderby,
+            Map<String, Function<T, String>> propertyToAccessor,
+            Comparator<T> defaultComparator) {
+        if (orderby == null || orderby.length == 0) {
+            return defaultComparator;
+        }
+        List<Comparator<T>> comparators = new ArrayList<>();
+        for (SortCriterion criterion : orderby) {
+            Function<T, String> accessor = propertyToAccessor.get(criterion.getPropertyName());
+            if (accessor == null) {
+                continue;
+            }
+            Comparator<T> comparator = Comparator.comparing(
+                    accessor, Comparator.nullsFirst(Comparator.naturalOrder()));
+            if (!criterion.isAscending()) {
+                comparator = comparator.reversed();
+            }
+            comparators.add(comparator);
+        }
+        if (comparators.isEmpty()) {
+            return defaultComparator;
+        }
+        Comparator<T> combined = comparators.get(0);
+        for (int i = 1; i < comparators.size(); i++) {
+            combined = combined.thenComparing(comparators.get(i));
+        }
+        return combined;
+    }
+
+    /** Matches {@link #createItem}'s own playlist-skip check, so m3u files never
+     *  occupy a candidate slot (and therefore never shift pagination/order for
+     *  real items), without having to call createItem to find that out. */
+    private static boolean isPlaylist(DocumentFile file) {
+        return file.getName() != null && file.getName().endsWith("m3u");
     }
 
     @Override
@@ -249,30 +328,41 @@ public class SafFolderBrowser extends ContentBrowser {
             List<String> sortedPathes = new ArrayList<>(getSelectedSafPathes());
             Collections.sort(sortedPathes);
 
-            List<Item> allItems = new ArrayList<>();
+            // Lightweight pass: only resolve each DocumentFile and read its cheap
+            // name/lastModified fields - no SAF metadata cache lookup, MIME sniffing,
+            // or URI/ProtocolInfo building (createItem's expensive pipeline) yet.
+            List<SafFileEntry> candidates = new ArrayList<>();
             for (int i = 0; i < sortedPathes.size(); i++) {
                 long itemStart = System.currentTimeMillis();
                 String path = sortedPathes.get(i);
                 DocumentFile file = DocumentFile.fromSingleUri(getContext(), Uri.parse(path));
-                if (file != null && !file.isDirectory()) {
-                    Item item = createItem(contentDirectory, path, file, myId, !file.canRead());
-                    if (item != null) {
-                        allItems.add(item);
-                        YaaccLogger.d(getClass().getName(), "✓ Added to result: Item[" + (allItems.size() - 1) + "] " + (file.getName() != null ? file.getName() : "unknown"));
-                    } else {
-                        YaaccLogger.d(getClass().getName(), "✗ Skipped (null item): " + (file.getName() != null ? file.getName() : "unknown"));
-                    }
-                    YaaccLogger.d(getClass().getName(), "Item[" + i + "] " + (file.getName() != null ? file.getName() : "unknown") + " (took " + (System.currentTimeMillis() - itemStart) + "ms)");
+                if (file != null && !file.isDirectory() && !isPlaylist(file)) {
+                    candidates.add(new SafFileEntry(path, file));
                 }
+                YaaccLogger.d(getClass().getName(), "Path[" + i + "] resolved (took " + (System.currentTimeMillis() - itemStart) + "ms)");
             }
-            // allItems is already built in today's default (path-alphabetical) order;
-            // STABLE_ORDER preserves that exactly via stable sort when orderby is empty/null.
-            allItems.sort(SortSupport.toComparator(orderby, ITEM_ACCESSOR_MAP, STABLE_ORDER));
+            // candidates is already built in today's default (path-alphabetical) order;
+            // STABLE_ENTRY_ORDER preserves that exactly via stable sort when orderby is empty/null.
+            candidates.sort(buildAccessorComparator(orderby, ENTRY_ACCESSOR_MAP, STABLE_ENTRY_ORDER));
 
             int start = (int) Math.max(0, firstResult);
-            int end = (int) Math.min(allItems.size(), start + maxResults);
-            YaaccLogger.d(getClass().getName(), "Root items: pagination start=" + start + ", end=" + end + ", total=" + allItems.size());
-            result.addAll(allItems.subList(start, end));
+            int end = (int) Math.min(candidates.size(), start + maxResults);
+            YaaccLogger.d(getClass().getName(), "Root items: pagination start=" + start + ", end=" + end + ", total=" + candidates.size());
+
+            // Expensive pass: createItem(...) only for the page slice actually returned.
+            List<Item> allItems = new ArrayList<>();
+            for (int i = start; i < end; i++) {
+                SafFileEntry entry = candidates.get(i);
+                long createStart = System.currentTimeMillis();
+                Item item = createItem(contentDirectory, entry.uri, entry.file, myId, !entry.file.canRead());
+                if (item != null) {
+                    allItems.add(item);
+                    YaaccLogger.d(getClass().getName(), "✓ Added to result: Item[" + (allItems.size() - 1) + "] " + (entry.file.getName() != null ? entry.file.getName() : "unknown") + " (createItem took " + (System.currentTimeMillis() - createStart) + "ms)");
+                } else {
+                    YaaccLogger.d(getClass().getName(), "✗ Skipped (null item): " + (entry.file.getName() != null ? entry.file.getName() : "unknown"));
+                }
+            }
+            result.addAll(allItems);
             YaaccLogger.d(getClass().getName(), "Root items complete: " + result.size() + " items (total " + (System.currentTimeMillis() - rootStart) + "ms)");
         } else {
             // Browse subfolder items
