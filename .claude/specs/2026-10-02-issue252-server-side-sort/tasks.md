@@ -166,7 +166,7 @@ Per `review.md`'s Group 2 Cycle 1 (FAIL — 1 Critical, 2 Warnings).
     HashMap bug doesn't affect the no-criteria default case, only the
     sorted case — don't change default-order behavior while fixing this).
 
-- [ ] Avoid materializing/fully-processing the whole SAF folder before pagination (Warning) | `yaacc/src/main/java/de/yaacc/upnp/server/contentdirectory/SafFolderBrowser.java`
+- [x] Avoid materializing/fully-processing the whole SAF folder before pagination (Warning) | `yaacc/src/main/java/de/yaacc/upnp/server/contentdirectory/SafFolderBrowser.java`
   - **Accept**: the expensive per-item `createItem(...)` pipeline (SAF
     metadata cache lookups, MIME sniffing, `ProtocolInfo`/URI building)
     only runs for the `firstResult`..`firstResult+maxResults` page
