@@ -32,7 +32,9 @@ import org.fourthline.cling.support.model.item.Item;
 import org.seamless.util.MimeType;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import de.yaacc.R;
 
@@ -76,11 +78,15 @@ public class VideosFolderBrowser extends ContentBrowser {
     public List<Item> browseItem(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
         List<Item> result = new ArrayList<>();
         String[] projection = {MediaStore.Video.Media._ID, MediaStore.Video.Media.DISPLAY_NAME, MediaStore.Video.Media.MIME_TYPE,
-                MediaStore.Video.Media.SIZE, MediaStore.Video.Media.DURATION};
+                MediaStore.Video.Media.SIZE, MediaStore.Video.Media.DURATION, MediaStore.Video.Media.DATE_ADDED};
         String selection = "(" + makeLikeClause(MediaStore.Video.Media.DATA, getMediaPathes().size()) + ")";
         String[] selectionArgs = getMediaPathesForLikeClause().toArray(new String[0]);
+        Map<String, String> columnMap = new HashMap<>();
+        columnMap.put(SortSupport.PROPERTY_TITLE, MediaStore.Video.Media.DISPLAY_NAME);
+        columnMap.put(SortSupport.PROPERTY_DATE, MediaStore.Video.Media.DATE_ADDED);
+        String sortOrder = SortSupport.toMediaStoreSortOrder(orderby, columnMap, MediaStore.Video.Media.DISPLAY_NAME + " ASC");
         try (Cursor mediaCursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, projection, selection,
-                selectionArgs, MediaStore.Video.Media.DISPLAY_NAME + " ASC")) {
+                selectionArgs, sortOrder)) {
 
             if (mediaCursor != null && mediaCursor.getCount() > 0) {
                 mediaCursor.moveToFirst();
@@ -96,6 +102,11 @@ public class VideosFolderBrowser extends ContentBrowser {
                         @SuppressLint("Range") String mimeTypeString = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Video.VideoColumns.MIME_TYPE));
                         YaaccLogger.d(getClass().getName(), "Mimetype: " + mimeTypeString);
                         MimeType mimeType = MimeType.valueOf(mimeTypeString);
+                        // MediaStore.Video.Media.DATE_ADDED is SECONDS since epoch (unlike
+                        // DATE_TAKEN for images, which is millis) - convert before formatting.
+                        @SuppressLint("Range") long dateAddedSeconds = mediaCursor.getLong(mediaCursor.getColumnIndex(MediaStore.Video.VideoColumns.DATE_ADDED));
+                        long dateAddedMillis = dateAddedSeconds * 1000L;
+                        String date = SortSupport.formatEpochMillisAsDate(dateAddedMillis);
                         // file parameter only needed for media players which decide the
                         // ability of playing a file by the file extension
                         String uri = getUriString(contentDirectory, id, mimeType, name, null);
@@ -108,7 +119,8 @@ public class VideosFolderBrowser extends ContentBrowser {
                             mimeType,
                             uri,
                             size,
-                            duration
+                            duration,
+                            date
                         );
                         result.add(item);
                         YaaccLogger.d(getClass().getName(), "VideoItem: " + id + " Name: " + name + " uri: " + uri);
