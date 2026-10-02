@@ -209,6 +209,32 @@ Per `review.md`'s Group 2 Cycle 1 (FAIL — 1 Critical, 2 Warnings).
     (a photo with no `DATE_TAKEN` should get `null`, not a bogus
     1970-01-01 date).
 
+## Fix Group 2: Address security review cycle 1 (Group 2)
+
+Per `security-review.md`'s Group 2 Cycle 1 (FAIL — 1 Warning, resource
+exhaustion via unbounded `SortCriteria` count).
+
+- [ ] Cap the number of sort criteria a single request may specify | `yaacc/src/main/java/de/yaacc/upnp/server/contentdirectory/SortSupport.java`, `yaacc/src/test/java/de/yaacc/upnp/server/contentdirectory/SortSupportTest.java`
+  - **Accept**: `SortSupport.validateSupported(SortCriterion[])` rejects
+    (with the same `UNSUPPORTED_SORT_CRITERIA` error code it already
+    uses for an unsupported property — no new error code) a request
+    whose `orderby` array length exceeds a small fixed cap (8, per the
+    security review's recommendation — adjust only with a documented
+    reason if a different number is chosen). This is a single
+    centrally-located guard, so it closes the issue for all 20 browsers
+    at once (`SafFolderBrowser`'s whole-folder comparator chain and
+    every MediaStore `toMediaStoreSortOrder` caller) without touching
+    any browser file individually. New test case(s) in
+    `SortSupportTest.java` cover: exactly-at-the-cap passes, one-over
+    the cap throws, and confirm the existing unsupported-property
+    rejection still works unchanged (regression guard).
+  - **Verify**: `./gradlew :yaacc:testDebugUnitTest --tests "de.yaacc.upnp.server.contentdirectory.SortSupportTest"` passes;
+    `./gradlew :yaacc:testDebugUnitTest` (full suite) still green.
+  - **Constraints**: do not touch any `*Browser.java` file — the whole
+    point of this fix is that one guard in `SortSupport`/
+    `YaaccContentDirectory.browse()` (where `validateSupported` is
+    already called, per Group 1) covers every call site.
+
 ## Group 3: Manual verification and documentation update (depends on Group 2)
 
 - [!] Manually verify against a real or loopback UPnP control point | (no file changes)
