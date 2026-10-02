@@ -257,7 +257,7 @@ exhaustion via unbounded `SortCriteria` count).
   - **Verify**: manual pass/fail notes recorded in `decisions.md` — this
     task cannot be verified by an automated command alone.
 
-- [ ] Documentation update | `CHANGELOG.md`, `docs/tech.md`
+- [x] Documentation update | `CHANGELOG.md`, `docs/tech.md`
   - **Accept**: `CHANGELOG.md` gets an entry for this follow-up under
     issue #252, matching the existing entry format/style (see the prior
     client-side entry already there). `docs/tech.md`'s "server-side
