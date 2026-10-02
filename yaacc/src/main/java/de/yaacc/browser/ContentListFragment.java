@@ -513,10 +513,58 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         play(upnpClient.initializePlayers(item));
     }
 
+    /**
+     * Builds and plays the queue of all playable siblings of {@code item}'s
+     * parent folder, starting at {@code item} -- e.g. tapping an audio item
+     * row, or a row's "play all" button.
+     * <p>
+     * Prefers the {@link BrowseContentItemAdapter}'s own current, already
+     * client-side-sorted list of loaded children (the exact list the user
+     * sees and tapped from) over re-browsing the server, so the resulting
+     * playback order matches the active sort mode/direction instead of the
+     * server's unsorted default order (see issue
+     * play-all-ignores-sort-order). Falls back to the old server re-browse
+     * only when the adapter can't provide that view: no adapter, {@code
+     * item} isn't among its currently-loaded children (e.g. a stale
+     * reference, or the adapter belongs to a different folder than {@code
+     * item}'s parent), or the current folder has no playable items loaded
+     * at all (e.g. a containers-only folder).
+     */
     public void playAllChildsOfParentFrom(DIDLObject item) {
         if (item == null) {
             return;
         }
+        if (bItemAdapter != null) {
+            List<DIDLObject> currentObjects = bItemAdapter.getObjects();
+            if (currentObjects.contains(item)) {
+                List<Item> sortedItems = currentObjects.stream()
+                        .filter(Item.class::isInstance)
+                        .map(Item.class::cast)
+                        .collect(Collectors.toList());
+                if (!sortedItems.isEmpty()) {
+                    Item target = item instanceof Item ? (Item) item : null;
+                    play(upnpClient.initializePlayers(rotateToStart(sortedItems, target)));
+                    return;
+                }
+                // Falls through: current folder has no playable items at
+                // all (e.g. containers-only) -- same edge case the server
+                // re-browse fallback below already handles.
+            }
+            // Falls through: item isn't among the adapter's current
+            // children -- fall back to the server re-browse safety net.
+        }
+        playAllChildsOfParentFromServer(item);
+    }
+
+    /**
+     * Pre-fix fallback: re-browses the parent folder from the server
+     * directly, via the no-{@code orderBy} {@code browseSync} overload, and
+     * rotates the result so {@code item} plays first. Has no knowledge of
+     * the active client-side sort mode, so used only as a safety net when
+     * {@link #playAllChildsOfParentFrom(DIDLObject)} can't build the
+     * playlist from the adapter's own (sorted) current list.
+     */
+    private void playAllChildsOfParentFromServer(DIDLObject item) {
         ContentDirectoryBrowseResult result = upnpClient.browseSync(new Position(0, item.getParentID(), upnpClient.getProviderDevice().getIdentity().getUdn().getIdentifierString(), item.getTitle()));
         if (result == null || (result.getResult() != null && result.getResult().getItems().isEmpty())) {
             if (result != null && result.getResult() != null && !result.getResult().getContainers().isEmpty()) {
@@ -526,16 +574,31 @@ public class ContentListFragment extends Fragment implements OnClickListener,
             }
         } else {
             List<Item> items = result.getResult() == null ? new ArrayList<>() : result.getResult().getItems();
-            int index = items.indexOf(item);
-            if (index > 0) {
-                //sort selected item to the beginning
-                List<Item> tempItems = new ArrayList<>(items.subList(index, items.size()));
-                tempItems.addAll(items.subList(0, index));
-                items = tempItems;
-            }
-
-            play(upnpClient.initializePlayers(items));
+            Item target = item instanceof Item ? (Item) item : null;
+            play(upnpClient.initializePlayers(rotateToStart(items, target)));
         }
+    }
+
+    /**
+     * Pure list-rotation helper: rotates {@code items} so {@code item} is
+     * first, preserving the relative order of everything else (the rest of
+     * the list wraps around). Returns a copy of {@code items} unchanged
+     * (not rotated) when {@code item} is {@code null} or not found, or is
+     * already first. Extracted from {@link #playAllChildsOfParentFrom(DIDLObject)}
+     * so it's unit-testable without any Android/Cling-framework
+     * dependency.
+     */
+    static List<Item> rotateToStart(List<Item> items, Item item) {
+        if (items == null) {
+            return new ArrayList<>();
+        }
+        int index = items.indexOf(item);
+        if (index <= 0) {
+            return new ArrayList<>(items);
+        }
+        List<Item> rotated = new ArrayList<>(items.subList(index, items.size()));
+        rotated.addAll(items.subList(0, index));
+        return rotated;
     }
 
 
