@@ -17,7 +17,7 @@ Plan: `specs/2026-10-02-issue252-server-side-sort/requirements.md` and
   - **Constraints**: later tasks reference this section — do not write
     code against unverified MediaStore column names.
 
-- [ ] `SortSupport` utility class with unit tests | `yaacc/src/main/java/de/yaacc/upnp/server/contentdirectory/SortSupport.java`, `yaacc/src/test/java/de/yaacc/upnp/server/contentdirectory/SortSupportTest.java`
+- [x] `SortSupport` utility class with unit tests | `yaacc/src/main/java/de/yaacc/upnp/server/contentdirectory/SortSupport.java`, `yaacc/src/test/java/de/yaacc/upnp/server/contentdirectory/SortSupportTest.java`
   - **Accept**: new class per `design.md`'s "`SortSupport`" section —
     `PROPERTY_TITLE`/`PROPERTY_DATE` constants, `SUPPORTED_PROPERTIES`,
     `validateSupported(SortCriterion[])` (throws
@@ -51,7 +51,7 @@ Plan: `specs/2026-10-02-issue252-server-side-sort/requirements.md` and
     behavior in plain-JVM unit tests. Do not add a Robolectric
     dependency.
 
-- [ ] Wire real `SortCaps` and request validation | `yaacc/src/main/java/de/yaacc/upnp/server/contentdirectory/YaaccContentDirectory.java`
+- [x] Wire real `SortCaps` and request validation | `yaacc/src/main/java/de/yaacc/upnp/server/contentdirectory/YaaccContentDirectory.java`
   - **Accept**: constructor populates `sortCapabilities` with
     `SortSupport.PROPERTY_TITLE`/`PROPERTY_DATE` instead of leaving it
     empty. `browse(...)`'s existing `SortCriterion.valueOf(orderBy)`
