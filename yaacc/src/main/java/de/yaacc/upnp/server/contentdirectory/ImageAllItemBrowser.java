@@ -54,7 +54,8 @@ public class ImageAllItemBrowser extends ContentBrowser {
         Item result = null;
         String[] projection = {MediaStore.Images.Media._ID,
                 MediaStore.Images.Media.DISPLAY_NAME,
-                MediaStore.Images.Media.MIME_TYPE, MediaStore.Images.Media.SIZE};
+                MediaStore.Images.Media.MIME_TYPE, MediaStore.Images.Media.SIZE,
+                MediaStore.Images.Media.DATE_TAKEN};
         String selection = MediaStore.Images.Media._ID + "= ?";
         String[] selectionArgs = new String[]{myId.substring(ContentDirectoryIDs.IMAGE_ALL_PREFIX.getId().length())};
         try (Cursor mImageCursor = contentDirectory
@@ -72,6 +73,8 @@ public class ImageAllItemBrowser extends ContentBrowser {
                                 .getColumnIndex(MediaStore.Images.ImageColumns.DISPLAY_NAME));
                 @SuppressLint("Range") Long size = Long.valueOf(mImageCursor.getString(mImageCursor
                         .getColumnIndex(MediaStore.Images.ImageColumns.SIZE)));
+                String dateTakenStr = mImageCursor.getString(mImageCursor.getColumnIndex(MediaStore.Images.Media.DATE_TAKEN));
+                @SuppressLint("Range") Long dateTaken = dateTakenStr != null ? Long.valueOf(dateTakenStr) : null;
                 @SuppressLint("Range") String mimeTypeSTring = mImageCursor.getString(mImageCursor
                         .getColumnIndex(MediaStore.Images.ImageColumns.MIME_TYPE));
                 YaaccLogger.d(getClass().getName(),
@@ -95,7 +98,8 @@ public class ImageAllItemBrowser extends ContentBrowser {
                     mimeType,
                     uri,
                     size,
-                    albumArtUri
+                    albumArtUri,
+                    dateTaken
                 );
 
                 YaaccLogger.d(getClass().getName(), "Image: " + id + " Name: " + name

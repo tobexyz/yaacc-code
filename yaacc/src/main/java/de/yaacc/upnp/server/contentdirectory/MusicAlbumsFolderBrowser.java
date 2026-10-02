@@ -34,6 +34,7 @@ import org.fourthline.cling.support.model.item.Item;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -101,7 +102,8 @@ public class MusicAlbumsFolderBrowser extends ContentBrowser {
         String[] projection = {MediaStore.Audio.Albums._ID, MediaStore.Audio.Albums.ALBUM};
         String selection = "";
         String[] selectionArgs = null;
-        Map<String, MusicAlbum> folderMap = new HashMap<>();
+        // LinkedHashMap preserves cursor/SQL order - do not change to HashMap.
+        Map<String, MusicAlbum> folderMap = new LinkedHashMap<>();
         Map<String, String> columnMap = new HashMap<>();
         columnMap.put(SortSupport.PROPERTY_TITLE, MediaStore.Audio.Albums.ALBUM);
         try (Cursor mediaCursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI, projection, selection,

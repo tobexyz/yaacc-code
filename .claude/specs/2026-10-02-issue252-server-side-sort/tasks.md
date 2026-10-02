@@ -149,7 +149,7 @@ Plan: `specs/2026-10-02-issue252-server-side-sort/requirements.md` and
 
 Per `review.md`'s Group 2 Cycle 1 (FAIL — 1 Critical, 2 Warnings).
 
-- [ ] Fix HashMap iteration order discarding the SQL sort order (Critical) | `yaacc/src/main/java/de/yaacc/upnp/server/contentdirectory/MusicAlbumsFolderBrowser.java`, `MusicArtistsFolderBrowser.java`, `MusicGenresFolderBrowser.java`, `ImagesByBucketNamesFolderBrowser.java`
+- [x] Fix HashMap iteration order discarding the SQL sort order (Critical) | `yaacc/src/main/java/de/yaacc/upnp/server/contentdirectory/MusicAlbumsFolderBrowser.java`, `MusicArtistsFolderBrowser.java`, `MusicGenresFolderBrowser.java`, `ImagesByBucketNamesFolderBrowser.java`
   - **Accept**: each file's `HashMap<String, X>` used to dedupe/collect
     cursor rows before iterating into the result list becomes a
     `LinkedHashMap<String, X>` (same put/get usage, just
@@ -185,7 +185,7 @@ Per `review.md`'s Group 2 Cycle 1 (FAIL — 1 Critical, 2 Warnings).
     order (no-`SortCriteria` case) established in Group 2 — re-verify
     it after this change, don't just trust it carried over.
 
-- [ ] Wire `DATE_TAKEN` into the two image browsers Group 2 missed (Warning) | `yaacc/src/main/java/de/yaacc/upnp/server/contentdirectory/ImagesAllFolderBrowser.java`, `ImageAllItemBrowser.java`
+- [x] Wire `DATE_TAKEN` into the two image browsers Group 2 missed (Warning) | `yaacc/src/main/java/de/yaacc/upnp/server/contentdirectory/ImagesAllFolderBrowser.java`, `ImageAllItemBrowser.java`
   - **Accept**: both files were named in Group 2's own task scope but
     left untouched. `ImagesAllFolderBrowser.java`'s listing query adds
     `MediaStore.Images.Media.DATE_TAKEN` to its projection (if not

@@ -33,6 +33,7 @@ import org.fourthline.cling.support.model.item.Item;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -94,7 +95,8 @@ public class ImagesByBucketNamesFolderBrowser extends ContentBrowser {
     @Override
     public List<Container> browseContainer(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
         List<Container> result = new ArrayList<>();
-        Map<String, StorageFolder> folderMap = new HashMap<>();
+        // LinkedHashMap preserves cursor/SQL order - do not change to HashMap.
+        Map<String, StorageFolder> folderMap = new LinkedHashMap<>();
         String[] projection = {MediaStore.Images.Media.BUCKET_ID, MediaStore.Images.Media.BUCKET_DISPLAY_NAME};
         String selection = "(" + makeLikeClause(MediaStore.Images.Media.DATA, getMediaPathes().size()) + ")";
         String[] selectionArgs = getMediaPathesForLikeClause().toArray(new String[0]);
