@@ -114,6 +114,8 @@ public class YaaccContentDirectory {
         }
         this.searchCapabilities = new CSVString();
         this.sortCapabilities = new CSVString();
+        this.sortCapabilities.add(SortSupport.PROPERTY_TITLE);
+        this.sortCapabilities.add(SortSupport.PROPERTY_DATE);
     }
 
     private boolean isUsingTestContent() {
@@ -319,6 +321,7 @@ public class YaaccContentDirectory {
                     ContentDirectoryErrorCode.UNSUPPORTED_SORT_CRITERIA,
                     ex.toString());
         }
+        SortSupport.validateSupported(orderByCriteria);
 
         try {
             return browse(objectId, BrowseFlag.valueOrNullOf(browseFlag),
