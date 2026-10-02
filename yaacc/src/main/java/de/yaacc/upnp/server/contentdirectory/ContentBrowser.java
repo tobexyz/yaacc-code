@@ -240,6 +240,24 @@ public abstract class ContentBrowser {
     }
 
     /**
+     * Creates a lightweight Item (as {@link #createItem(String, String, String, String, boolean, MimeType, String, Long, String)})
+     * and additionally sets {@code dc:date} on it from an already-formatted
+     * {@code "yyyy-MM-dd"} date string (see {@link SortSupport#formatEpochMillisAsDate(long)}).
+     * Additive overload - existing no-date call sites keep compiling unchanged.
+     *
+     * @param date the pre-formatted {@code dc:date} value, or {@code null} to omit it.
+     */
+    protected Item createItem(String id, String parentId, String title, String creator,
+                              boolean restricted, MimeType mimeType, String uri,
+                              Long size, String duration, String date) {
+        Item item = createItem(id, parentId, title, creator, restricted, mimeType, uri, size, duration);
+        if (date != null) {
+            item.replaceFirstProperty(new DIDLObject.Property.DC.DATE(date));
+        }
+        return item;
+    }
+
+    /**
      * Creates a lightweight MusicTrack with additional metadata.
      */
     protected MusicTrack createMusicTrack(String id, String parentId, String title, String creator,
@@ -341,6 +359,21 @@ public abstract class ContentBrowser {
         
         // Convert to Cling Photo for UPnP serialization
         return yaaccPhoto.toClingItem();
+    }
+
+    /**
+     * Creates a lightweight Photo with album art URI and an optional
+     * {@code dc:date} sourced from the MediaStore {@code DATE_TAKEN}
+     * column (epoch millis).
+     */
+    protected Photo createPhoto(String id, String parentId, String title, String creator,
+                                boolean restricted, MimeType mimeType, String uri,
+                                Long size, String albumArtUri, Long dateTaken) {
+        Photo photo = createPhoto(id, parentId, title, creator, restricted, mimeType, uri, size, albumArtUri);
+        if (dateTaken != null) {
+            photo.setDate(SortSupport.formatEpochMillisAsDate(dateTaken));
+        }
+        return photo;
     }
 
 }

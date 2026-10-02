@@ -96,7 +96,8 @@ public class ImageByBucketNameItemBrowser extends ContentBrowser {
                     mimeType,
                     uri,
                     size,
-                    albumArtUri
+                    albumArtUri,
+                    dateTaken
                 );
 
                 YaaccLogger.d(getClass().getName(), "Image: " + id + " Name: " + name
