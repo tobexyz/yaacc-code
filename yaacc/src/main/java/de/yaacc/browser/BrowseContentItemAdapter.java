@@ -404,11 +404,23 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
      * what the user sees and tapped, instead of re-fetching the folder from
      * the server in its unsorted default order.
      *
-     * @return an unmodifiable view of the adapter's current backing list;
-     * never {@code null}.
+     * Returns a defensive snapshot copy (wrapped unmodifiable) rather than a
+     * live view over {@link #objects}, because this method is also called
+     * from a background thread (see {@code ContentListFragment#
+     * playAllChildsOfParentFrom}, invoked from {@code ContentItemPlayTask
+     * #doInBackground}) while {@link #objects} is mutated in place from the
+     * main thread ({@code addAll}/{@code clear}/{@code sortObjects}, driven
+     * by {@code setSortMode}/{@code toggleDirection}/{@code loadMore}). A
+     * live {@code Collections.unmodifiableList(objects)} view does not
+     * protect against that: a concurrent mutation while the background
+     * thread iterates/filters the view can still throw a
+     * {@code ConcurrentModificationException} or yield a torn read.
+     *
+     * @return an unmodifiable snapshot copy of the adapter's current backing
+     * list, taken at the time of the call; never {@code null}.
      */
     public List<DIDLObject> getObjects() {
-        return Collections.unmodifiableList(objects);
+        return Collections.unmodifiableList(new ArrayList<>(objects));
     }
 
     @Override
