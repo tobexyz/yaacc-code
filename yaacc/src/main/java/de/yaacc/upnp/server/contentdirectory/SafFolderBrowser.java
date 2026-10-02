@@ -59,12 +59,6 @@ public class SafFolderBrowser extends ContentBrowser {
     private static final Map<String, Function<DIDLObject, String>> CONTAINER_ACCESSOR_MAP =
             Map.of(SortSupport.PROPERTY_TITLE, DIDLObject::getTitle);
 
-    /** Items (files) also expose {@code dc:date}, sourced from {@link DocumentFile#lastModified()}. */
-    private static final Map<String, Function<DIDLObject, String>> ITEM_ACCESSOR_MAP =
-            Map.of(
-                    SortSupport.PROPERTY_TITLE, DIDLObject::getTitle,
-                    SortSupport.PROPERTY_DATE, item -> item.getFirstPropertyValue(DIDLObject.Property.DC.DATE.class));
-
     /**
      * No-op comparator used as the {@code defaultComparator} for {@link SortSupport#toComparator}.
      * {@link List#sort} is a stable sort, so applying this leaves a list already built in
@@ -91,10 +85,11 @@ public class SafFolderBrowser extends ContentBrowser {
     }
 
     /**
-     * Cheap accessors for {@link SafFileEntry} - mirrors {@link #ITEM_ACCESSOR_MAP}'s
-     * {@code dc:title}/{@code dc:date} mapping, but reads straight off
-     * {@link DocumentFile} (name / lastModified) instead of a built DIDL item,
-     * so sorting doesn't require {@link #createItem} to have run first.
+     * Cheap accessors for {@link SafFileEntry}, mapping {@code dc:title}/{@code dc:date} -
+     * the same two properties {@link #createItem} attaches to the built DIDL item (see
+     * its {@code DIDLObject.Property.DC.DATE} line) - but reading straight off
+     * {@link DocumentFile} (name / lastModified) instead of a built DIDL item, so sorting
+     * doesn't require {@link #createItem} to have run first.
      */
     private static final Map<String, Function<SafFileEntry, String>> ENTRY_ACCESSOR_MAP =
             Map.of(
@@ -386,27 +381,36 @@ public class SafFolderBrowser extends ContentBrowser {
                     DocumentFile[] files = root.listFiles();
                     YaaccLogger.d(getClass().getName(), "listFiles() took " + (System.currentTimeMillis() - listStart) + "ms, found " + files.length + " items");
 
-                    List<Item> allItems = new ArrayList<>();
+                    // Lightweight pass: only the cheap name/lastModified fields are read
+                    // here - createItem's expensive pipeline (SAF metadata cache lookup,
+                    // MIME sniffing, ProtocolInfo/URI building) is deferred until after
+                    // sorting, and only run for the page slice below.
+                    List<SafFileEntry> candidates = new ArrayList<>();
                     for (int i = 0; i < files.length; i++) {
-                        long itemStart = System.currentTimeMillis();
                         DocumentFile file = files[i];
-                        if (!file.isDirectory()) {
-                            long createStart = System.currentTimeMillis();
-                            Item item = createItem(contentDirectory, file.getUri().toString(), file, myId, !file.canRead());
-                            long createTime = System.currentTimeMillis() - createStart;
-                            if (item != null) allItems.add(item);
-                            long totalTime = System.currentTimeMillis() - itemStart;
-                            YaaccLogger.d(getClass().getName(), "Item[" + i + "] " + (file.getName() != null ? file.getName() : "unknown") + " - createItem=" + createTime + "ms, total=" + totalTime + "ms");
+                        if (!file.isDirectory() && !isPlaylist(file)) {
+                            candidates.add(new SafFileEntry(file.getUri().toString(), file));
                         }
                     }
-                    // allItems is in listFiles()'s original (unsorted) order, matching today's
-                    // behavior; STABLE_ORDER preserves it via stable sort when orderby is empty/null.
-                    allItems.sort(SortSupport.toComparator(orderby, ITEM_ACCESSOR_MAP, STABLE_ORDER));
+                    // candidates is in listFiles()'s original (unsorted) order, matching today's
+                    // behavior; STABLE_ENTRY_ORDER preserves it via stable sort when orderby is empty/null.
+                    candidates.sort(buildAccessorComparator(orderby, ENTRY_ACCESSOR_MAP, STABLE_ENTRY_ORDER));
 
                     int start = (int) Math.max(0, firstResult);
-                    int end = (int) Math.min(allItems.size(), start + maxResults);
-                    YaaccLogger.d(getClass().getName(), "Pagination: start=" + start + ", end=" + end + ", total=" + allItems.size());
-                    result.addAll(allItems.subList(start, end));
+                    int end = (int) Math.min(candidates.size(), start + maxResults);
+                    YaaccLogger.d(getClass().getName(), "Pagination: start=" + start + ", end=" + end + ", total=" + candidates.size());
+
+                    // Expensive pass: createItem(...) only for the page slice actually returned.
+                    List<Item> allItems = new ArrayList<>();
+                    for (int i = start; i < end; i++) {
+                        SafFileEntry entry = candidates.get(i);
+                        long createStart = System.currentTimeMillis();
+                        Item item = createItem(contentDirectory, entry.uri, entry.file, myId, !entry.file.canRead());
+                        long createTime = System.currentTimeMillis() - createStart;
+                        if (item != null) allItems.add(item);
+                        YaaccLogger.d(getClass().getName(), "Item[" + i + "] " + (entry.file.getName() != null ? entry.file.getName() : "unknown") + " - createItem=" + createTime + "ms");
+                    }
+                    result.addAll(allItems);
                 } else {
                     YaaccLogger.w(getClass().getName(), "Cannot read folder: " + path);
                 }
