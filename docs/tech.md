@@ -355,3 +355,110 @@ call:
   the cursor is read) is the natural fit for all MediaStore-cursor-backed
   browsers and avoids reading the whole cursor into memory just to sort
   it.
+
+## As shipped: reconciliation with the design above
+
+This section was written during planning, before implementation. The
+feature is now built, reviewed, and security-reviewed (all gates PASS
+— see `.claude/specs/2026-10-02-issue252-server-side-sort/review.md`
+and `security-review.md`). The design above held up well overall; the
+notes below record the points worth a future reader knowing about,
+rather than re-deriving from the diff history.
+
+**`MAX_SORT_CRITERIA` cap (added after the original design, Fix Group
+2).** The security review (Group 2, Cycle 1) flagged the original
+design as an unbounded resource-exhaustion vector: nothing capped how
+many comma-separated criteria a single `SortCriteria` string could
+contain, so an attacker-chosen, arbitrarily long duplicate-criteria
+chain could turn an `O(n)` sort into `O(n * criteria count)` (or, for
+`SafFolderBrowser`'s whole-folder in-memory sort,
+`O(m*log(m)*criteria count)`). The fix adds one constant,
+`SortSupport.MAX_SORT_CRITERIA = 8`
+(`yaacc/src/main/java/de/yaacc/upnp/server/contentdirectory/SortSupport.java:76`),
+enforced inside `SortSupport.validateSupported(SortCriterion[])`: a
+request with more than 8 criteria is rejected with the same
+`UNSUPPORTED_SORT_CRITERIA` error code used for an unsupported
+property (no new error code). Because `validateSupported` is the one
+central guard called from `YaaccContentDirectory.browse()`, this cap
+closes the issue for all 20 browsers at once — no per-browser change
+was needed.
+
+**Per-content-type column mapping table — confirmed as shipped.** Spot
+checked against the actual source (`MusicAllTitlesFolderBrowser`,
+`ImagesAllFolderBrowser`, `VideosFolderBrowser`, plus the other
+MediaStore-backed browsers via a repo-wide grep for `columnMap.put`):
+every `columnMap` matches the design table above exactly — Music maps
+`dc:title`→`Audio.Media.DISPLAY_NAME` / `dc:date`→`Audio.Media.YEAR`;
+Images map `dc:title`→`Images.Media.DISPLAY_NAME` /
+`dc:date`→`Images.Media.DATE_TAKEN`; Video maps
+`dc:title`→`Video.Media.DISPLAY_NAME` /
+`dc:date`→`Video.Media.DATE_ADDED` (with the seconds→millis conversion
+called out in the design, done at the read site before formatting).
+No column choice changed during implementation.
+
+**Deviation 1 — `HashMap` → `LinkedHashMap` in four container-listing
+browsers (Group 2 review Cycle 1, Critical; fixed in Fix Group 1).**
+The design didn't anticipate this: `MusicAlbumsFolderBrowser`,
+`MusicArtistsFolderBrowser`, `MusicGenresFolderBrowser`, and
+`ImagesByBucketNamesFolderBrowser` each read their (now correctly
+SQL-`ORDER BY`-sorted) cursor rows into a `Map` keyed by id to
+de-duplicate, then built the returned container list from the map's
+`entrySet()`. With a plain `HashMap`, iteration order is unrelated to
+insertion order, so the SQL sort was silently discarded one step
+later — these four browsers would ignore `SortCriteria` in practice
+despite doing the sorted query correctly. Fixed by switching the map
+type to `LinkedHashMap` (insertion order == cursor order == SQL-sorted
+order); each site now carries a `// LinkedHashMap preserves
+cursor/SQL order - do not change to HashMap.` comment. A future
+browser that follows this "cursor rows into a map, then
+`entrySet()`-build the result" pattern needs the same `LinkedHashMap`
+choice to actually honor a pushed-down sort order — plain `HashMap` is
+safe only for simple key→value lookups (e.g. the `columnMap`s
+themselves, which are read via `.get()` only and never iterated for
+output order).
+
+**Deviation 2 — `SafFolderBrowser` pagination restructuring (Group 2
+review Cycle 1, Warning; fixed in Fix Group 1).** The original design
+(see "Container-only / no-cursor browsers" above) implied sorting
+`SafFolderBrowser`'s full item list and then slicing the page window,
+without flagging the cost of doing so. Review caught that "full item
+list" meant running the *entire* `createItem(...)` pipeline (SAF
+metadata-cache lookup, MIME-type sniffing, `ProtocolInfo`/URI
+construction) for every file in the folder on every `Browse` call,
+not just the requested page — exactly the "materializing entire large
+collections" risk the design's own Risks section had called out in
+the abstract but not caught concretely for this browser. The shipped
+fix splits sorting from item construction: a lightweight
+`SafFileEntry` (URI + `DocumentFile`, no `createItem` call) is built
+and sorted using cheap accessors read straight off `DocumentFile`
+(`getName()`/`lastModified()`) via a local `buildAccessorComparator`
+helper (functionally identical to `SortSupport.toComparator`, but
+generic over `SafFileEntry` instead of hard-typed to `DIDLObject`,
+since `SortSupport`'s own signature is fixed to `DIDLObject` for its
+other callers) — only the page slice then runs through the full
+`createItem(...)` pipeline. Folder/container listing in the same file
+was left as unconditional full-enumeration-then-sort, confirmed cheap
+on review (container construction there is just a `StorageFolder`
+object plus a `canRead()` check — no metadata-cache, MIME, or
+`ProtocolInfo`/URI work). One accepted, non-blocking trade-off from
+this restructuring: if `createItem` returns `null` for an item inside
+the already-sorted page slice (a SAF metadata-cache miss or
+unresolvable MIME type at a page boundary), that slot is dropped
+without backfilling from the next candidate, so `NumberReturned` can
+come back under `maxResults` even though more valid items exist
+further down the list — allowed by the UPnP `Browse` contract
+(`NumberReturned < RequestedCount` is expected to be followed by a
+continuation request) and not a new regression (the pre-spec baseline
+had the same raw-index-vs-valid-item-count characteristic). See
+`review.md` Cycle 2 for the full trace; a cheap follow-up (backfill
+from `candidates` past the slice until `maxResults` valid items are
+collected) was suggested but not required.
+
+**Everything else matches the design as written** — `SortSupport`'s
+public API (`validateSupported`, `toMediaStoreSortOrder`,
+`toComparator`, `formatEpochMillisAsDate`), its zero-`android.*`-import
+testability property, the `YaaccContentDirectory` constructor/`browse()`
+wiring, and the "default order unchanged when `SortCriteria` is
+absent" regression guarantee all shipped exactly as designed above,
+confirmed by the review cycles' line-by-line comparisons against this
+document.
