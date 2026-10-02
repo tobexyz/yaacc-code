@@ -230,3 +230,128 @@ button and the folder name, above `contentListTopSeperator`).
   `ImageButton`/`ToggleButton` views or a
   `MaterialButtonToggleGroup` (Material Components is already a
   dependency, used via `Widget.MaterialComponents.Button.*` styles).
+
+---
+
+# Technical notes: server-side sort (spec `2026-10-02-issue252-server-side-sort`)
+
+Covers `YaaccContentDirectory` (yaacc acting as a UPnP/DLNA **server**),
+a separate code path from the client-side sort above (which only affects
+yaacc *browsing* other servers).
+
+## `SortCriterion.valueOf(String)` / `.toString()` — already in use server-side
+
+`yaacc/src/main/java/org/fourthline/cling/support/model/SortCriterion.java`
+(full file read, L1-75):
+
+```java
+public SortCriterion(boolean ascending, String propertyName) { ... }   // L29-32
+public boolean isAscending() { return ascending; }                     // L40-42
+public String getPropertyName() { return propertyName; }               // L44-46
+public static SortCriterion[] valueOf(String s) {                      // L48-56
+    if (s == null || s.length() == 0) return new SortCriterion[0];
+    // splits on ",", each token re-parsed via SortCriterion(String):
+    //   requires a leading '+' or '-' or throws IllegalArgumentException
+}
+```
+
+- Empty/`null` input → empty array (no criteria). This is the "no sort
+  requested" case and must keep producing each browser's existing
+  hardcoded default order — do not change default-order behavior.
+- A malformed criterion (missing `+`/`-` prefix) throws
+  `IllegalArgumentException`, already caught in
+  `YaaccContentDirectory.browse()` (L314-321) and converted to a
+  `ContentDirectoryException(UNSUPPORTED_SORT_CRITERIA, ...)` — this
+  existing validate-and-reject behavior is correct per spec and must be
+  preserved unchanged.
+- `getPropertyName()` returns the raw string after the sign, e.g.
+  `"dc:date"` or `"dc:title"` — no normalization/whitespace-trim beyond
+  what `SortCriterion(String)`'s constructor already does
+  (`criterion.trim()` happens in `valueOf`, L53, before the per-criterion
+  constructor runs).
+
+## `CSV<String>` / `CSVString` — populating real `SortCaps`
+
+`yaacc/src/main/java/org/fourthline/cling/model/types/csv/CSV.java` (full
+file read): `CSV<T> extends ArrayList<T>`. `YaaccContentDirectory`'s
+`sortCapabilities` field is already typed `CSV<String>` and constructed
+as `new CSVString()` (empty) in the constructor (L116). Because `CSV`
+*is* an `ArrayList`, populating it is just:
+
+```java
+this.sortCapabilities = new CSVString();
+this.sortCapabilities.add("dc:title");
+this.sortCapabilities.add("dc:date");
+```
+
+No need for the `CSVString(String)` comma-parsing constructor — direct
+`.add()` calls are simpler and match how the field is already
+constructed. `getSortCapabilities()` (L262-265) needs no change; it
+already just returns the field.
+
+## Where `dc:date` is (and isn't) already populated today
+
+Confirmed by grep across all 20 files in
+`de/yaacc/upnp/server/contentdirectory/`:
+
+- **Music** (`MusicAllTitleItemBrowser`, `MusicAlbumItemBrowser`,
+  `MusicArtistItemBrowser`, `MusicGenreItemBrowser`, and their
+  `*FolderBrowser` `browseMeta` counterparts): already read
+  `MediaStore.Audio.Media.YEAR` and call
+  `ContentBrowser.createMusicTrack(..., date, ...)` →
+  `YaaccMusicTrack.setDate(date)`. This is a **4-digit year string**
+  (coarse granularity, e.g. `"2020"`), not a full timestamp — sufficient
+  for lexicographic date-string sorting but coarser than the images path.
+- **Images** (`ImageByBucketNameItemBrowser`,
+  `ImagesByBucketNameFolderBrowser`'s analogous read): already read
+  `MediaStore.Images.Media.DATE_TAKEN` (a `long` millisecond Unix
+  timestamp) but — confirmed by grep — **never actually pass it into
+  `createPhoto(...)`**; `ContentBrowser.createPhoto()` (L320-344) has no
+  `date` parameter at all today, so photo items currently emit **no**
+  `dc:date` property despite the cursor already reading
+  `DATE_TAKEN`. This is a pre-existing gap this spec should close (the
+  value is already queried, just not wired to `dc:date`).
+- **Video** (`VideoItemBrowser`, `VideosFolderBrowser`): projections
+  confirmed via grep — **no date column selected at all** (no
+  `DATE_ADDED`/`DATE_TAKEN` in the projection array), and
+  `ContentBrowser` has no `createVideo(...)`-with-date helper. Adding
+  `dc:date` here means adding `MediaStore.Video.Media.DATE_ADDED` to the
+  existing projection and threading it through.
+- **SAF-backed files** (`SafFolderBrowser`): no MediaStore cursor at all
+  (uses `DocumentFile`/`DocumentsContract` listing) — confirmed no date
+  read. `DocumentFile.lastModified()` is the available equivalent if
+  `dc:date` support is added here (standard `androidx.documentfile`
+  API, already a transitive dependency since `SafFolderBrowser` already
+  uses `DocumentFile`).
+- **Synthetic/folder-only objects** (root, music/images/videos/SAF
+  top-level folders, artist/album/genre container listings): these are
+  containers with no backing media file: title-only sort applies; no
+  `dc:date` is meaningful for them (matches how the client-side feature
+  already treats containers — see Group 2 `compareByNameGrouped` in the
+  `2026-09-24-issue252-sort-by-date` spec, containers group separately
+  from dated items).
+
+## `MediaStore` sort-column reference (standard Android API, platform docs)
+
+Already used (hardcoded, unconditional) by existing browsers today —
+confirmed by grep in each `*FolderBrowser`/`*ItemBrowser`'s `.query(...)`
+call:
+
+- `MusicAllTitlesFolderBrowser.java:120`:
+  `sortOrder = MediaStore.Audio.Media.DISPLAY_NAME + " ASC"` (hardcoded,
+  ignores any client-requested order today — this is the bug this spec
+  fixes).
+- Equivalent title columns for other content types, same constant
+  pattern (`android.provider.MediaStore`, API level already targeted by
+  this project — no new dependency):
+  `MediaStore.Audio.Media.TITLE`, `MediaStore.Images.Media.DISPLAY_NAME`,
+  `MediaStore.Video.Media.DISPLAY_NAME`.
+- Cursor `query(uri, projection, selection, selectionArgs, sortOrder)`
+  accepts a raw SQL `ORDER BY`-clause fragment as `sortOrder` (e.g.
+  `"<column> ASC"` / `"<column> DESC"`) — standard
+  `ContentResolver.query` contract, already relied on by every browser
+  in this package. Pushing the requested sort column + direction into
+  this existing `sortOrder` argument (instead of an in-memory sort after
+  the cursor is read) is the natural fit for all MediaStore-cursor-backed
+  browsers and avoids reading the whole cursor into memory just to sort
+  it.
