@@ -145,6 +145,70 @@ Plan: `specs/2026-10-02-issue252-server-side-sort/requirements.md` and
     regression-sensitive default, verify by inspection/manual diff of
     the comparator logic, not just compilation.
 
+## Fix Group 1: Address review cycle 1 (Group 2)
+
+Per `review.md`'s Group 2 Cycle 1 (FAIL — 1 Critical, 2 Warnings).
+
+- [ ] Fix HashMap iteration order discarding the SQL sort order (Critical) | `yaacc/src/main/java/de/yaacc/upnp/server/contentdirectory/MusicAlbumsFolderBrowser.java`, `MusicArtistsFolderBrowser.java`, `MusicGenresFolderBrowser.java`, `ImagesByBucketNamesFolderBrowser.java`
+  - **Accept**: each file's `HashMap<String, X>` used to dedupe/collect
+    cursor rows before iterating into the result list becomes a
+    `LinkedHashMap<String, X>` (same put/get usage, just
+    insertion-order-preserving), so the SQL `ORDER BY` that
+    `SortSupport.toMediaStoreSortOrder` already pushes into the query
+    is actually reflected in the returned DIDL order. No other logic
+    changes. Add a one-line comment on the `LinkedHashMap` declaration
+    in each file noting why the map type matters here (per the
+    reviewer's Suggestion), e.g. "LinkedHashMap preserves cursor/SQL
+    order — do not change to HashMap."
+  - **Verify**: `./gradlew :yaacc:compileDebugJavaWithJavac :yaacc:testDebugUnitTest`
+  - **Constraints**: when `orderby` is empty/null, behavior must remain
+    exactly as it already is post-Group-2 (the review confirmed the
+    HashMap bug doesn't affect the no-criteria default case, only the
+    sorted case — don't change default-order behavior while fixing this).
+
+- [ ] Avoid materializing/fully-processing the whole SAF folder before pagination (Warning) | `yaacc/src/main/java/de/yaacc/upnp/server/contentdirectory/SafFolderBrowser.java`
+  - **Accept**: the expensive per-item `createItem(...)` pipeline (SAF
+    metadata cache lookups, MIME sniffing, `ProtocolInfo`/URI building)
+    only runs for the `firstResult`..`firstResult+maxResults` page
+    slice actually being returned, not for every file in the folder on
+    every `Browse` call. Sorting itself still necessarily needs the
+    full listing (per `design.md`, you can't correctly sort a slice),
+    but that full-listing pass should only compute the lightweight sort
+    key (file name / `DocumentFile.lastModified()`), not build full
+    DIDL items — build full items only for the page slice, after
+    sorting. Folder/container listing in the same file has the same
+    fix applied if it has an equivalent per-container cost; if container
+    construction is already cheap (just a name/title, no MIME/URI
+    work), note that in your report rather than over-engineering it.
+  - **Verify**: `./gradlew :yaacc:compileDebugJavaWithJavac :yaacc:testDebugUnitTest :yaacc:lintDebug`
+  - **Constraints**: must not change the regression-sensitive default
+    order (no-`SortCriteria` case) established in Group 2 — re-verify
+    it after this change, don't just trust it carried over.
+
+- [ ] Wire `DATE_TAKEN` into the two image browsers Group 2 missed (Warning) | `yaacc/src/main/java/de/yaacc/upnp/server/contentdirectory/ImagesAllFolderBrowser.java`, `ImageAllItemBrowser.java`
+  - **Accept**: both files were named in Group 2's own task scope but
+    left untouched. `ImagesAllFolderBrowser.java`'s listing query adds
+    `MediaStore.Images.Media.DATE_TAKEN` to its projection (if not
+    already present — re-check, the prior task's report says it wasn't)
+    and wires the queried value through to the existing additive
+    `createPhoto(..., Long dateTaken)` overload (added in Group 2,
+    already in `ContentBrowser.java` — do not add another overload).
+    `ImageAllItemBrowser.java` (single-row `_ID=?` lookup) gets the same
+    treatment if it independently builds a `Photo`/calls `createPhoto`
+    — if it actually delegates to another already-fixed browser instead
+    of building its own, note that and skip the redundant change. Once
+    wired, `ImagesAllFolderBrowser`'s existing `columnMap` (which
+    already claims a `dc:title`/`dc:date` mapping per Group 2's report)
+    is now accurate — no columnMap change needed, just make the date
+    actually available.
+  - **Verify**: `./gradlew :yaacc:compileDebugJavaWithJavac :yaacc:testDebugUnitTest :yaacc:lintDebug`
+  - **Constraints**: reuse the existing `createPhoto` overload and
+    `SortSupport.formatEpochMillisAsDate` helper — do not introduce a
+    third date-formatting path. Match the `0L`→`null` fallback fix
+    Group 2 already applied in the sibling "by bucket name" browser
+    (a photo with no `DATE_TAKEN` should get `null`, not a bogus
+    1970-01-01 date).
+
 ## Group 3: Manual verification and documentation update (depends on Group 2)
 
 - [!] Manually verify against a real or loopback UPnP control point | (no file changes)
