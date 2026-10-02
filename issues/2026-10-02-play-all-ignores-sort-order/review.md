@@ -203,3 +203,180 @@ defensive copy rather than a live `Collections.unmodifiableList` view
 (see Warning for details) — this is a small, localized change that
 doesn't require restructuring the fast/fallback dispatch logic, which is
 otherwise correct.
+
+## Cycle 2 — 2026-10-02
+Reviewing: follow-up commit `1ededc9` (on top of `aef648e`), addressing
+the Cycle 1 Warning.
+
+### Critical
+(none)
+
+### Warning
+(none)
+
+### Suggestion
+
+- `yaacc/src/main/java/de/yaacc/browser/BrowseContentItemAdapter.java:422` —
+  the theoretical residual race (main thread mutates `objects` at the
+  exact instant `new ArrayList<>(objects)` is iterating it inside the
+  copy constructor, still a live `LinkedList` with no `Collections
+  .synchronizedList`/lock) is real but has shrunk from "the whole
+  `contains()` + `stream().filter().collect()` read sequence in
+  `playAllChildsOfParentFrom`" to "one list-copy loop inside `getObjects
+  ()`" — see item 3 below for why this doesn't block. Worth a follow-up
+  issue if `BrowseContentItemAdapter` ever gets a real synchronization
+  pass (`getItem`/`getItemCount`/`addAll`/`clear`/`sortObjects` are
+  equally unsynchronized and already read cross-thread elsewhere, e.g.
+  `BrowseItemLoadTask.doInBackground()` calling `itemAdapter
+  .getSortMode()`/`isServerSortRejected()` — see item 3), not something
+  to fix piecemeal in this adapter method alone.
+
+### Findings detail by review item
+
+**1. Diff matches the described change** — `git show 1ededc9` confirms
+exactly one production change: `BrowseContentItemAdapter.java:422`,
+`return Collections.unmodifiableList(objects);` →
+`return Collections.unmodifiableList(new ArrayList<>(objects));`, plus
+an expanded Javadoc on `getObjects()` (see item 4) and a commit message
+explicitly scoping out full synchronization as a documented follow-up.
+No other production file touched; no test file touched (correctly —
+this fix doesn't change any caller-visible behavior in the happy path,
+only the thread-safety characteristics of the accessor, so no new test
+is strictly necessary and the existing `ContentListFragmentPlayAllRotationTest`
+suite + full `testDebugUnitTest` run is the right verification). Both
+`ArrayList` and `Collections` were already imported
+(`BrowseContentItemAdapter.java:51,53`), so this is a clean, minimal,
+compiling change — confirmed by the green build below.
+
+**2. Does the defensive copy meaningfully reduce the Cycle 1 risk, and
+is this the fix that was actually asked for** — Yes to both. Re-reading
+`playAllChildsOfParentFrom` (`ContentListFragment.java:533-553`):
+`bItemAdapter.getObjects()` is called exactly **once**, bound to
+`currentObjects`, and every subsequent operation
+(`currentObjects.contains(item)`, `currentObjects.stream().filter(...)
+.collect(...)`, and the `rotateToStart(sortedItems, target)` call built
+from that filtered copy) operates on that one snapshot — not on `objects`
+live. This was precisely the Cycle 1 complaint: "iterating the adapter's
+`LinkedList` with no synchronization while the main thread can
+concurrently call `addAll`/`clear`/`sortObjects` on the very same list"
+across that whole read sequence (`contains()` possibly seeing one state,
+then `stream().filter()` seeing a different, concurrently-mutated state
+mid-collect — the "torn read" scenario Cycle 1 called out by name). With
+a snapshot copy, that entire sequence now runs against an isolated
+`ArrayList` the main thread has no reference to and cannot touch, so the
+CME-during-iteration and torn-read hazards described in Cycle 1 are both
+eliminated for every line after the copy is made. This is exactly Cycle
+1's option (a) ("have `getObjects()` return a defensive copy... cheap...
+removes the live-aliasing hazard entirely"), which Cycle 1's own verdict
+called "the least invasive" and the one it explicitly recommended in its
+Blocking reason. The implementing agent's scope call — fix the accessor
+that was the actual subject of the Warning, and treat synchronizing the
+adapter's mutators/other read points as a separate, broader concern — is
+not a scope dodge; it's what was asked for. Options (b) (synchronize all
+of `objects`) and (c) (force `playAllChildsOfParentFrom` onto the main
+thread) were offered as alternatives in Cycle 1, not as additional
+requirements on top of (a), and Cycle 1 itself said (a) alone was
+sufficient to resolve the Warning.
+
+**3. Residual risk: CME inside `new ArrayList<>(objects)` itself** —
+Real but narrow, and does not warrant another FAIL. Reasoning:
+  - *Window size*: the exposure is now a single `for`-loop over `objects`
+    inside the `ArrayList` copy constructor (`ArrayList(Collection)`),
+    versus the previous exposure across `contains()` **and** a full
+    `stream().filter().collect()` pipeline **and** whatever the caller
+    did with the live view afterward (unbounded, since it was a view).
+    The constructor loop for a list of "a few hundred entries at most"
+    (Cycle 1's own sizing estimate) is a handful of microseconds. This is
+    a textbook "narrowed the race window by orders of magnitude" fix,
+    which is the standard, accepted shape of a defensive-copy mitigation
+    for benign data races — it does not claim to be a full fix and isn't
+    represented as one anywhere (see item 4).
+  - *Trigger conditions in practice*: for the window to be hit, a user
+    would need to trigger a sort-mode/direction toggle or scroll-driven
+    `loadMore()` (both explicit, deliberate UI actions) at the exact
+    microsecond window while a previously-tapped `PLAY_ALL` background
+    task happens to be inside this one constructor call. This is
+    meaningfully narrower in practice than, say, a background sync timer
+    racing a user action, because one side of the race is itself a
+    direct, singular user tap (`PLAY_ALL`) that completes quickly end to
+    end.
+  - *Consistency with the existing codebase*: `BrowseContentItemAdapter`
+    already has other unsynchronized cross-thread accessors that are
+    *not* in scope for this issue and were never flagged by Cycle 1 —
+    e.g. `BrowseItemLoadTask.doInBackground()`
+    (`BrowseItemLoadTask.java:51-52`) reads `itemAdapter.getSortMode()`
+    and `itemAdapter.isServerSortRejected()` from its own background
+    thread while the main thread can concurrently call
+    `setSortMode()`/mutate `serverSortRejected` via `clear()`/
+    `markServerSortRejected()` — the same unsynchronized-field-read-
+    across-threads pattern, pre-existing and untouched by either commit
+    in this issue. That confirms this is an established, accepted risk
+    class in this codebase's current architecture (`AsyncTask`
+    background workers reading adapter state without synchronization),
+    not a new category of problem this specific fix is uniquely
+    responsible for closing. Holding this one `getObjects()` call to a
+    stricter standard than every other adapter accessor already in
+    production would be inconsistent, not more correct.
+  - *Severity if it did fire*: unchanged from Cycle 1's analysis (a CME
+    would crash the `PLAY_ALL` background task and, via `AsyncTask`'s
+    uncaught-exception propagation, the app) — but the probability is now
+    low enough, and consistent enough with already-accepted risk
+    elsewhere in this file, that it's a **Suggestion**-level follow-up
+    (logged above), not a blocking Warning. A full synchronization pass
+    across `objects`'s read/write points is legitimately a separate,
+    larger piece of work (touches `getItem`, `getItemCount`, `addAll`,
+    `clear`, `sortObjects`, and every call site), and bundling it into
+    this fix would violate the single-responsibility spirit of the
+    original task (fix play-all's sort order; this follow-up fixes the
+    thread-safety regression that introduced). Verdict: accept the
+    tradeoff, track it as a follow-up.
+
+**4. Javadoc accuracy** — Read the new Javadoc
+(`BrowseContentItemAdapter.java:407-421`) in full against the actual
+code and the real call graph. Every claim checks out:
+  - "this method is also called from a background thread... invoked
+    from `ContentItemPlayTask#doInBackground`" — confirmed;
+    `ContentItemPlayTask.java:46` calls `parent.playAllChildsOfParentFrom`
+    inside `doInBackground`, and `AsyncTask.execute()` runs
+    `doInBackground` off the main thread by contract.
+  - "`objects` is mutated in place from the main thread (`addAll`/
+    `clear`/`sortObjects`, driven by `setSortMode`/`toggleDirection`/
+    `loadMore`)" — confirmed by reading those methods
+    (`BrowseContentItemAdapter.java:276-316`); all are reached from UI
+    callbacks.
+  - "A live `Collections.unmodifiableList(objects)` view does not
+    protect against that: a concurrent mutation... can still throw a
+    `ConcurrentModificationException` or yield a torn read" — accurate
+    description of why the Cycle 1 fix was needed; matches Cycle 1's own
+    analysis.
+  - The `@return` line ("an unmodifiable snapshot copy... taken at the
+    time of the call; never `null`") accurately describes the new
+    behavior — it's genuinely a copy now, genuinely taken synchronously
+    at call time, and `objects` is never reassigned to `null` anywhere in
+    the class (only cleared in place via `clear()`), so `getObjects()`
+    can't return `null` here either.
+  - What the Javadoc does **not** claim is "this method is now fully
+    thread-safe" or "this eliminates all concurrency risk" — it correctly
+    scopes its claim to what the fix actually does (removes the
+    live-view hazard) without overselling it. A future maintainer reading
+    this Javadoc would correctly understand both that there's a known
+    cross-thread access pattern here and that this accessor copies rather
+    than aliases — they would not be misled into thinking the adapter as
+    a whole is synchronized. No inaccuracy found.
+
+### Tests
+- [x] All tests passing — `./gradlew :yaacc:testDebugUnitTest --rerun-tasks` → `BUILD SUCCESSFUL`, all per-class JUnit XML reports show `failures="0" errors="0"` across the full suite (34 test classes), including the untouched 7-case `ContentListFragmentPlayAllRotationTest` (unaffected by this commit, which only changes `getObjects()`'s internals, not any method under direct test there).
+- [x] Coverage adequate for this change — the change is a one-line accessor fix plus Javadoc; it has no new caller-visible behavior to unit-test (the single call site's observable contract — "returns the current children in on-screen order" — is unchanged, only the aliasing semantics of the returned reference changed, which isn't practically assertable from a single-threaded JVM unit test without a contrived concurrent-mutation harness that would be disproportionate to the residual risk accepted in item 3).
+
+### Verdict: PASS
+
+The Cycle 1 Warning is resolved: `getObjects()` no longer exposes a live
+view over the adapter's mutable backing list, so the read sequence in
+`playAllChildsOfParentFrom` (the actual site of the original hazard) now
+operates on an isolated snapshot. The theoretical residual window inside
+the copy constructor itself is real but narrow, consistent with an
+already-accepted unsynchronized-cross-thread-read pattern elsewhere in
+this same adapter (`BrowseItemLoadTask`), and explicitly documented as a
+follow-up rather than silently dropped — the right shape of tradeoff for
+a scoped bug fix, not a reason to block. No Critical or Warning findings
+remain; full test suite green.
