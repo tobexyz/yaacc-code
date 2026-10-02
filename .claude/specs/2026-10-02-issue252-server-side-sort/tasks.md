@@ -68,7 +68,7 @@ Plan: `specs/2026-10-02-issue252-server-side-sort/requirements.md` and
 
 ## Group 2: Apply sorting to each content-type browser (depends on Group 1)
 
-- [ ] Music browsers | `yaacc/src/main/java/de/yaacc/upnp/server/contentdirectory/MusicAllTitlesFolderBrowser.java`, `MusicAllTitleItemBrowser.java`, `MusicAlbumFolderBrowser.java`, `MusicAlbumItemBrowser.java`, `MusicArtistFolderBrowser.java`, `MusicArtistItemBrowser.java`, `MusicGenreFolderBrowser.java`, `MusicGenreItemBrowser.java`, `MusicAlbumsFolderBrowser.java`, `MusicArtistsFolderBrowser.java`, `MusicGenresFolderBrowser.java`, `MusicFolderBrowser.java`
+- [x] Music browsers | `yaacc/src/main/java/de/yaacc/upnp/server/contentdirectory/MusicAllTitlesFolderBrowser.java`, `MusicAllTitleItemBrowser.java`, `MusicAlbumFolderBrowser.java`, `MusicAlbumItemBrowser.java`, `MusicArtistFolderBrowser.java`, `MusicArtistItemBrowser.java`, `MusicGenreFolderBrowser.java`, `MusicGenreItemBrowser.java`, `MusicAlbumsFolderBrowser.java`, `MusicArtistsFolderBrowser.java`, `MusicGenresFolderBrowser.java`, `MusicFolderBrowser.java`
   - **Accept**: every MediaStore `.query(...)` listing call (not
     `getSize()`/count-only queries) in these files replaces its
     hardcoded `sortOrder` argument with
@@ -103,7 +103,7 @@ Plan: `specs/2026-10-02-issue252-server-side-sort/requirements.md` and
     — do not apply any unit conversion here (that's specifically the
     video task's concern, not this one).
 
-- [ ] Video browser + add `DATE_ADDED` | `yaacc/src/main/java/de/yaacc/upnp/server/contentdirectory/VideoItemBrowser.java`, `VideosFolderBrowser.java`, `yaacc/src/main/java/de/yaacc/upnp/server/contentdirectory/ContentBrowser.java`
+- [x] Video browser + add `DATE_ADDED` | `yaacc/src/main/java/de/yaacc/upnp/server/contentdirectory/VideoItemBrowser.java`, `VideosFolderBrowser.java`, `yaacc/src/main/java/de/yaacc/upnp/server/contentdirectory/ContentBrowser.java`
   - **Accept**: `MediaStore.Video.Media.DATE_ADDED` added to the
     existing projection array(s) in both files (currently absent —
     confirmed by grep in `docs/tech.md`). A new additive

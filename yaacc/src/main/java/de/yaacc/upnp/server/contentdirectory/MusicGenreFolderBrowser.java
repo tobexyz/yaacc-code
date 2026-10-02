@@ -33,7 +33,9 @@ import org.seamless.util.MimeType;
 
 import java.net.URI;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import de.yaacc.upnp.server.YaaccUpnpServerService;
 
@@ -208,11 +210,15 @@ public class MusicGenreFolderBrowser extends ContentBrowser {
         }
 
 
+        Map<String, String> columnMap = new HashMap<>();
+        columnMap.put(SortSupport.PROPERTY_TITLE, MediaStore.Audio.Media.DISPLAY_NAME);
+        columnMap.put(SortSupport.PROPERTY_DATE, MediaStore.Audio.Media.YEAR);
         try (Cursor mediaCursor = contentDirectory
                 .getContext()
                 .getContentResolver()
                 .query(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, projection,
-                        selection, selectionArgs, MediaStore.Audio.Media.DISPLAY_NAME + " ASC")) {
+                        selection, selectionArgs, SortSupport.toMediaStoreSortOrder(
+                                orderby, columnMap, MediaStore.Audio.Media.DISPLAY_NAME + " ASC"))) {
 
             if (mediaCursor != null && mediaCursor.getCount() > 0) {
                 mediaCursor.moveToFirst();

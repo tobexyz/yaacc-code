@@ -33,7 +33,9 @@ import org.seamless.util.MimeType;
 
 import java.net.URI;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import de.yaacc.upnp.server.YaaccUpnpServerService;
 
@@ -146,11 +148,15 @@ public class MusicAlbumFolderBrowser extends ContentBrowser {
                         .length()));
         selectionArgsList.addAll(getMediaPathesForLikeClause());
         String[] selectionArgs = selectionArgsList.toArray(new String[0]);
+        Map<String, String> columnMap = new HashMap<>();
+        columnMap.put(SortSupport.PROPERTY_TITLE, MediaStore.Audio.Media.DISPLAY_NAME);
+        columnMap.put(SortSupport.PROPERTY_DATE, MediaStore.Audio.Media.YEAR);
         try (Cursor mediaCursor = contentDirectory
                 .getContext()
                 .getContentResolver()
                 .query(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, projection,
-                        selection, selectionArgs, MediaStore.Audio.Media.DISPLAY_NAME + " ASC")) {
+                        selection, selectionArgs, SortSupport.toMediaStoreSortOrder(
+                                orderby, columnMap, MediaStore.Audio.Media.DISPLAY_NAME + " ASC"))) {
 
             if (mediaCursor != null && mediaCursor.getCount() > 0) {
                 mediaCursor.moveToFirst();
@@ -200,16 +206,16 @@ public class MusicAlbumFolderBrowser extends ContentBrowser {
                         URI albumArtUri = URI.create("http://"
                                 + contentDirectory.getIpAddress() + ":"
                                 + YaaccUpnpServerService.PORT + "/album/" + albumId);
-                        
+
                         MusicTrack musicTrack;
-                        
+
                         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
                             @SuppressLint("Range") String genre = mediaCursor.getString(mediaCursor
                                     .getColumnIndex(MediaStore.Audio.Media.GENRE));
                             @SuppressLint("Range") String bitrateStr = mediaCursor.getString(mediaCursor
                                     .getColumnIndex(MediaStore.Audio.Media.BITRATE));
                             Long bitrate = bitrateStr != null ? Long.valueOf(bitrateStr) : null;
-                            
+
                             musicTrack = createMusicTrack(
                                 ContentDirectoryIDs.MUSIC_ALBUM_ITEM_PREFIX.getId() + id,
                                 ContentDirectoryIDs.MUSIC_ALBUM_PREFIX.getId() + albumId,

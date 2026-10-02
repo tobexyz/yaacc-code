@@ -102,8 +102,11 @@ public class MusicAlbumsFolderBrowser extends ContentBrowser {
         String selection = "";
         String[] selectionArgs = null;
         Map<String, MusicAlbum> folderMap = new HashMap<>();
+        Map<String, String> columnMap = new HashMap<>();
+        columnMap.put(SortSupport.PROPERTY_TITLE, MediaStore.Audio.Albums.ALBUM);
         try (Cursor mediaCursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI, projection, selection,
-                selectionArgs, MediaStore.Audio.Albums.ALBUM + " ASC")) {
+                selectionArgs, SortSupport.toMediaStoreSortOrder(
+                        orderby, columnMap, MediaStore.Audio.Albums.ALBUM + " ASC"))) {
 
             if (mediaCursor != null && mediaCursor.getCount() > 0) {
                 mediaCursor.moveToFirst();
