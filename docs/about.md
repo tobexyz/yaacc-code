@@ -19,3 +19,7 @@ tobexyz
 [<img src="https://f-droid.org/badge/get-it-on.png" alt="Get it on F-Droid" height="80">][fdroid]
 
 [fdroid]: https://f-droid.org/packages/de.yaacc/
+
+
+
+| [Screenshots](screenshots/) | [Settings](settings/) |  [About](about/) | [Code](doxygen/html/inherits.html) | [Legal Notice (Impressum)](https://schoenesnetz.de/pages/disclamer_license/about.en.html) | [Privacy Policy](privacy.html)

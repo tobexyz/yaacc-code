@@ -248,7 +248,7 @@ is displayed.
 
 ![shutdown_timer](./screenshots/5.1.x/shutdown_timer.png){:height="30%" width="30%"}
 
-| [Screenshots](screenshots/) | [Settings](settings/) |  [About](about/) | [Code](doxygen/html/inherits.html) | [Legal Notice (Impressum)](https://schoenesnetz.de) | [Privacy Policy](privacy.html)
+| [Screenshots](screenshots/) | [Settings](settings/) |  [About](about/) | [Code](doxygen/html/inherits.html) | [Legal Notice (Impressum)](https://schoenesnetz.de/pages/disclamer_license/about.en.html) | [Privacy Policy](privacy.html)
 
 
 
