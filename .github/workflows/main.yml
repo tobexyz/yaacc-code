@@ -53,7 +53,7 @@ jobs:
           source: ./docs
           destination: ./docs/_site
       - name: Doxygen Action
-        uses: mattnotmitt/doxygen-action@v1.9.8
+        uses: mattnotmitt/doxygen-action@v1.12.0
         with:
           doxyfile-path: ./Doxyfile
           working-directory: ./docs
