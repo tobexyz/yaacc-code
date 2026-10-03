@@ -11,4 +11,4 @@ For more details on how GitHub handles user data, please refer to the [GitHub Pr
 
 
 
-| [Screenshots](screenshots/) | [Settings](settings/) |  [About](about/) | [Code](doxygen/html/inherits.html) | [Legal Notice (Impressum)](https://schoenesnetz.de/pages/disclamer_license/about.en.html) | [Privacy Policy](privacy.html)
+| [Screenshots](../screenshots/) | [Settings](../settings/) |  [About](../about/) | [Code](../doxygen/html/inherits.html) | [Legal Notice (Impressum)](https://schoenesnetz.de/pages/disclamer_license/about.en.html) | [Privacy Policy](../privacy.html)

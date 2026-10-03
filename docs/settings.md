@@ -47,4 +47,4 @@ permalink: settings/
 | enable server-side seeking for external URLs | enable server-side time range management in proxy mode for this renderer. Useful for renderers that cannot handle seeking on external HTTPS URLs. |
 
 
-| [Screenshots](screenshots/) | [Settings](settings/) |  [About](about/) | [Code](doxygen/html/inherits.html) | [Legal Notice (Impressum)](https://schoenesnetz.de/pages/disclamer_license/about.en.html) | [Privacy Policy](privacy.html)
+| [Screenshots](../screenshots/) | [Settings](../settings/) |  [About](../about/) | [Code](doxygen/html/inherits.html) | [Legal Notice (Impressum)](https://schoenesnetz.de/pages/disclamer_license/about.en.html) | [Privacy Policy](../privacy.html)
