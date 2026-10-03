@@ -1,7 +1,7 @@
 buildscript {
 
     dependencies {
-        classpath 'com.android.tools.build:gradle:8.13.2'
+        classpath 'com.android.tools.build:gradle:9.4.0'
 
     }
 }
@@ -10,14 +10,6 @@ buildscript {
 apply plugin: 'com.android.application'
 
 dependencies {
-
-    configurations.all {
-        resolutionStrategy {
-            force 'org.jetbrains.kotlin:kotlin-stdlib:2.4.20'
-            force 'org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.4.20'
-            force 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.4.20'
-        }
-    }
 
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.mockito:mockito-core:4.11.0'
@@ -33,6 +25,7 @@ dependencies {
     implementation 'androidx.exifinterface:exifinterface:1.4.2'
     implementation 'androidx.exifinterface:exifinterface:1.4.2'
     implementation 'androidx.preference:preference:1.1.0'
+    implementation 'androidx.documentfile:documentfile:1.1.0'
     implementation 'androidx.media:media:1.6.0'
     implementation 'androidx.media3:media3-session:1.2.0'
     implementation 'androidx.media3:media3-exoplayer:1.2.0'
@@ -53,7 +46,7 @@ dependencies {
 }
 
 android {
-    compileSdk 34
+    compileSdk 36
 
 
     sourceSets {
