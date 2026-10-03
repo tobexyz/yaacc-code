@@ -148,3 +148,7 @@ permalink: screenshots/
 ![musicPlayer](./up_to_version_2.x.x/1musicPlayer.png){:height="30%" width="30%"}
 ![remotePlayer](./up_to_version_2.x.x/1remotePlayer.png){:height="30%" width="30%"}
 ![ImageViewer](./up_to_version_2.x.x/ImageViewer.png){:height="30%" width="30%"}
+
+
+| [Screenshots](../screenshots/) | [Settings](../settings/) |  [About](../about/) | [Code](doxygen/html/inherits.html) | [Legal Notice (Impressum)](https://schoenesnetz.de/pages/disclamer_license/about.en.html) | [Privacy Policy](../privacy.html)
+
