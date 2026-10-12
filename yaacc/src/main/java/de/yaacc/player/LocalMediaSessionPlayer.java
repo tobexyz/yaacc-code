@@ -150,7 +150,7 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
         notificationManager.setUsePreviousActionInCompactView(true);
 
         notificationManager.setPlayer(exoPlayer);
-        notificationManager.setMediaSessionToken(mediaSession.getSessionCompatToken());
+        notificationManager.setMediaSessionToken(mediaSession.getPlatformToken());
 
         YaaccLogger.d(getClass().getName(), "ExoPlayer, MediaSession and notification initialized");
     }
