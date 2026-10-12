@@ -160,6 +160,11 @@ public class AVTransportPlayer extends AbstractPlayer {
         playerWrapper = new AVTransportPlayerWrapper(this, null);
         BitmapLoader bitmapLoader = new BitmapLoader() {
             @Override
+            public boolean supportsMimeType(String mimeType) {
+                return mimeType != null && mimeType.startsWith("image/");
+            }
+
+            @Override
             public ListenableFuture<Bitmap> decodeBitmap(byte[] data) {
                 SettableFuture<Bitmap> future = SettableFuture.create();
                 try {
@@ -176,7 +181,6 @@ public class AVTransportPlayer extends AbstractPlayer {
                 return loadBitmap(uri, null);
             }
 
-            @Override
             public ListenableFuture<Bitmap> loadBitmap(Uri uri, @Nullable BitmapFactory.Options options) {
                 YaaccLogger.e(getClass().getName(), "BitmapLoader.loadBitmap called with uri: " + uri);
 
@@ -323,7 +327,7 @@ public class AVTransportPlayer extends AbstractPlayer {
         new Handler(Looper.getMainLooper()).post(() -> {
             YaaccLogger.d(getClass().getName(), "Calling notificationManager.setPlayer()");
             notificationManager.setPlayer(playerWrapper);
-            notificationManager.setMediaSessionToken(media3Session.getSessionCompatToken());
+            notificationManager.setMediaSessionToken(media3Session.getPlatformToken());
             YaaccLogger.d(getClass().getName(), "PlayerNotificationManager setup complete");
         });
     }
