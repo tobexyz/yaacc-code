@@ -228,8 +228,8 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         sortByDateButton.setEnabled(dateAvailable);
         sortByNameButton.setSelected(!dateSelected);
         sortByDateButton.setSelected(dateSelected);
-        sortByNameButton.setAlpha(dateSelected ? 0.5f : 1.0f);
-        sortByDateButton.setAlpha(!dateAvailable ? 0.3f : (dateSelected ? 1.0f : 0.5f));
+        sortByNameButton.setAlpha(dateSelected ? 0.6f : 1.0f);
+        sortByDateButton.setAlpha(!dateAvailable ? 0.38f : (dateSelected ? 1.0f : 0.6f));
     }
 
     private void tintCompoundDrawables(TextView textView) {
