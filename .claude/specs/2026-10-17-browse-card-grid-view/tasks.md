@@ -5,7 +5,7 @@ Plan: `specs/2026-10-17-browse-card-grid-view/requirements.md` and
 
 ## Group 1: Shared contract — resources, span-count utility, tests
 
-- [ ] Research and document the RecyclerView/CardView APIs this feature touches | `docs/tech.md`
+- [x] Research and document the RecyclerView/CardView APIs this feature touches | `docs/tech.md`
   - **Accept**: `docs/tech.md` gets a new "Browse card-grid view" section
     confirming, by direct source/API inspection (not assumption):
     `GridLayoutManager.setSpanCount(int)` can be called on a live
@@ -57,7 +57,23 @@ Plan: `specs/2026-10-17-browse-card-grid-view/requirements.md` and
 
 ## Group 2: Implementation (parallel — no shared file writes)
 
-- [ ] `ViewMode` support in `BrowseContentItemAdapter` | `yaacc/src/main/java/de/yaacc/browser/BrowseContentItemAdapter.java`, `yaacc/src/test/java/de/yaacc/browser/BrowseContentItemAdapterTest.java`
+- [ ] `ViewMode` support in `BrowseContentItemAdapter` | `yaacc/src/main/java/de/yaacc/browser/BrowseContentItemAdapter.java`, `yaacc/src/main/java/de/yaacc/util/image/IconDownloadTask.java`, `yaacc/src/test/java/de/yaacc/browser/BrowseContentItemAdapterTest.java`
+  - **Accept (leak fix, found during Group 1 research — see
+    `docs/tech.md`'s "Browse card-grid view" section)**: do **not** call
+    `IconDownloadTask`'s existing `(ImageView, int, int)` constructor
+    from `onBindViewHolder` — that overload unconditionally sets its
+    `browseContentItemAdapter` field to `null`
+    (`IconDownloadTask.java:65-72`), so `onPostExecute`'s
+    `browseContentItemAdapter.removeTask(this)` cleanup never runs and
+    `asyncTasks` grows by one entry per bound row for the adapter's
+    lifetime — a real unbounded-growth leak that doesn't exist today.
+    Instead, add a **new** constructor overload to `IconDownloadTask`:
+    `public IconDownloadTask(ImageView imageView, BrowseContentItemAdapter
+    browseContentItemAdapter, int width, int height)`, setting all four
+    fields (adapter reference preserved for cleanup, plus the custom
+    width/height) — do not change any existing constructor's behavior.
+    Call this new 4-arg constructor from `onBindViewHolder`, not the
+    existing 3-arg one.
   - **Accept**: Add `public enum ViewMode { LIST, CARD }` (mirroring
     `SortMode`'s existing style). New field `viewMode`, initialized in
     the constructor from
@@ -78,7 +94,9 @@ Plan: `specs/2026-10-17-browse-card-grid-view/requirements.md` and
     `ViewHolder`'s own code needs zero changes). In `onBindViewHolder`,
     replace the thumbnail-loading call
     `new IconDownloadTask(holder.icon, this)` with
-    `new IconDownloadTask(holder.icon, iconPixelSize, iconPixelSize)`
+    `new IconDownloadTask(holder.icon, this, iconPixelSize, iconPixelSize)`
+    (the new 4-arg constructor above — keeps the adapter reference for
+    `removeTask` cleanup)
     where `iconPixelSize` is computed from the current `viewMode` (48dp→px
     for `LIST`, the card icon dp size decided in the Group 2 card-layout
     task below, converted to px via the context's display metrics, for
