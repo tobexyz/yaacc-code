@@ -100,3 +100,96 @@ None beyond the Critical above.
   value.
 
 ### Verdict: FAIL
+
+## Cycle 2 — 2026-10-17
+Reviewing: commit `2a59179` (the fix for Cycle 1's Critical finding), independently
+re-verified rather than taken on the commit message's or `decisions.md`'s word.
+
+### Scope check — `git show --stat 2a59179`
+
+Confirmed the fix commit touches exactly four files: `yaacc/build.gradle` and three
+spec docs (`decisions.md`, `security-review.md`, `tasks.md`). No feature Java/XML file
+is touched, so Cycle 1's "Verified — no new risk found" section and its two Suggestions
+(span-count divide guard, `ImageDownloader` full-resolution decode) still stand as-is
+and are not re-litigated here.
+
+### Independent verification performed
+
+1. **Declared versions** (`yaacc/build.gradle:30,38,44`): `httpclient5` is pinned to
+   `5.2.1`, `httpcore5` to `5.4.4`, and `httpcore5-h2` is now explicitly pinned to
+   `5.4.4` as its own `implementation` line (not left to inherit from `httpclient5`'s
+   transitive `5.2` request). All three declarations match what `decisions.md` claims.
+
+2. **Resolved dependency graph** — ran
+   `./gradlew :yaacc:dependencies --configuration releaseRuntimeClasspath --offline`
+   myself (not reused from the prior cycle) and grepped the full output for every
+   `httpcore5`/`httpclient5` occurrence:
+   ```
+   +--- org.apache.httpcomponents.client5:httpclient5:5.2.1
+   |    +--- org.apache.httpcomponents.core5:httpcore5:5.2 -> 5.4.4
+   |    +--- org.apache.httpcomponents.core5:httpcore5-h2:5.2 -> 5.4.4
+   |    |    \--- org.apache.httpcomponents.core5:httpcore5:5.4.4
+   +--- org.apache.httpcomponents.core5:httpcore5:5.4.4
+   +--- org.apache.httpcomponents.core5:httpcore5-h2:5.4.4 (*)
+   ```
+   There is exactly one transitive request path for each artifact (both originating
+   from `httpclient5`'s own POM, requesting `5.2`), and both are overridden to `5.4.4`
+   — confirmed by the `->` conflict-resolution arrow, not just a bare declared number.
+   No second, un-overridden path exists anywhere else in the tree (full-log grep for
+   `core5` returned only these lines plus the identical subtree repeated for the
+   `androidx.appcompat` branch, which pulls the same resolved versions). `5.4.4 ≥
+   5.4.3`, so both CVE-2026-54399 (httpcore5) and CVE-2026-54428 (httpcore5-h2 HPACK)
+   are patched in every resolved copy on the runtime classpath — not merely the
+   top-level declaration.
+
+3. **`httpclient5:5.2.1` jar inspection** — located the actual resolved jar in the
+   Gradle module cache (`~/.gradle/caches/modules-2/files-2.1/.../httpclient5-5.2.1.jar`,
+   hash `c900514d3446d9ce5d9dbd90c21192048125440`), extracted it, and ran
+   `javap -c -p` against
+   `org/apache/hc/client5/http/impl/io/DefaultHttpClientConnectionOperator.class`
+   directly (not trusting the version number or the prior cycle's note alone).
+   Findings:
+   - The class has no `<clinit>` (static initializer) at all in this version.
+   - `grep -rl "jdk/net"` and `grep -rl "ExtendedSocketOptions"` across every `.class`
+     file in the entire extracted jar (not just this one class) both returned zero
+     matches.
+   This independently confirms the Android ART-crashing hidden-API probe genuinely
+   does not exist in the resolved `5.2.1` jar — the fix's premise holds.
+
+4. **Sanity pass for the same/other CVEs elsewhere in the dependency graph** — searched
+   the full `releaseRuntimeClasspath` resolution log for every `org.apache.httpcomponents`
+   occurrence; `httpclient5`, `httpcore5`, and `httpcore5-h2` are the only three
+   artifacts from that group anywhere in the graph (no stray `httpcore5-h2` or
+   `httpasyncclient`/`httpclient5-fluent` pulled in by a different library at an older
+   version). One unrelated, pre-existing observation: `httpclient5` transitively
+   requests `slf4j-api:1.7.36`, which resolves up to `1.8.0-beta4` (pulled in by
+   another dependency elsewhere in the graph) — this predates commit `2a59179`
+   entirely (same resolution appears on the pre-fix `57caa8a` base), is unrelated to
+   either CVE in scope, and is not introduced or touched by this fix, so it's noted
+   but not a finding against this commit. No other new CVE exposure was introduced by
+   this fix itself.
+
+5. **Full build** — ran `./gradlew build --offline` after the fix: `BUILD SUCCESSFUL`
+   (94 actionable tasks, `:yaacc:test`, `:yaacc:lint`, `:yaacc:check`, `:yaacc:build`
+   all completed without failure, `assembleRelease` and `assembleDebug` both produced
+   artifacts).
+
+### Critical
+
+None.
+
+### Warning
+
+None.
+
+### Suggestion
+
+- Carried over from Cycle 1 (unchanged by this commit, still open as non-blocking
+  follow-ups): `CardGridSpanCount.java:38` defensive `Math.max(1, targetCardWidthPx)`
+  guard, and the pre-existing `ImageDownloader` full-resolution-decode-before-downscale
+  resource-exhaustion follow-up ticket.
+- The `slf4j-api` transitive resolution to a beta version (`1.8.0-beta4`, noted in
+  verification step 4 above) is pre-existing and out of this fix's scope, but worth a
+  follow-up to pin it to a stable release at some point.
+
+### Verdict: PASS
