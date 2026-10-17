@@ -205,6 +205,24 @@ Plan: `specs/2026-10-17-browse-card-grid-view/requirements.md` and
     per-layout) is in scope, and it needs no changes since both layouts
     share the same button IDs.
 
+## Fix Group 1: Address security-review Cycle 1 (FAIL — Critical)
+
+- [x] Fix httpcore5 CVE regression inherited from feat/issue252's Android-crash fix | `yaacc/build.gradle`
+  - **Accept**: `httpclient5` stays at `5.2.1` (avoids the Android
+    `jdk.net` crash — confirmed the crashing bytecode lives only in
+    `httpclient5`'s own class, not `httpcore5`); `httpcore5` bumped back
+    to `5.4.4` (fixes CVE-2026-54399); the transitive `httpcore5-h2`
+    module explicitly pinned to `5.4.4` too (fixes CVE-2026-54428 —
+    without an explicit declaration it silently stayed at the vulnerable
+    `5.2` even after plain `httpcore5` was bumped). See `decisions.md`.
+  - **Verify**: `./gradlew build` passes; `./gradlew :yaacc:dependencies --configuration releaseRuntimeClasspath | grep httpcomponents`
+    shows `httpcore5`/`httpcore5-h2` both resolving to `5.4.4` everywhere;
+    re-decompiled the resolved `httpclient5-5.2.1.jar`'s
+    `DefaultHttpClientConnectionOperator.class` — zero `jdk/net`
+    references.
+  - Fixed directly by the orchestrator (build-config/dependency-version
+    correction, not feature code) rather than delegated.
+
 ## Group 3: Documentation update
 
 - [ ] Update documentation for the card-grid view | `docs/tech.md`
