@@ -24,7 +24,7 @@ Plan: `specs/2026-10-17-browse-card-grid-view/requirements.md` and
   - **Constraints**: Group 2 tasks reference this section; do not let
     Group 2 write code against unverified AndroidX API behavior.
 
-- [ ] Shared resources + `CardGridSpanCount` utility with unit tests | `yaacc/src/main/res/values/setting_strings.xml`, `yaacc/src/main/res/values/strings.xml`, `yaacc/src/main/java/de/yaacc/browser/CardGridSpanCount.java`, `yaacc/src/test/java/de/yaacc/browser/CardGridSpanCountTest.java`
+- [x] Shared resources + `CardGridSpanCount` utility with unit tests | `yaacc/src/main/res/values/setting_strings.xml`, `yaacc/src/main/res/values/strings.xml`, `yaacc/src/main/java/de/yaacc/browser/CardGridSpanCount.java`, `yaacc/src/test/java/de/yaacc/browser/CardGridSpanCountTest.java`
   - **Accept**: Adds, by exact name, the contract Group 2 tasks build
     against:
     - `setting_strings.xml`: new untranslatable string constant
