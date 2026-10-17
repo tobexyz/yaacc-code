@@ -225,7 +225,7 @@ Plan: `specs/2026-10-17-browse-card-grid-view/requirements.md` and
 
 ## Group 3: Documentation update
 
-- [ ] Update documentation for the card-grid view | `docs/tech.md`
+- [x] Update documentation for the card-grid view | `docs/tech.md`
   - **Accept**: `docs/tech.md` gets an "as shipped" reconciliation note
     for this spec (matching the existing style for prior specs in that
     file — see the "As shipped: reconciliation with the design above"
