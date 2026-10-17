@@ -737,3 +737,110 @@ protected void onPostExecute(Bitmap result) {
 - `yaacc/src/main/java/de/yaacc/util/image/IconDownloadTask.java:43-120`
   and `yaacc/src/main/java/de/yaacc/browser/BrowseContentItemAdapter.java:85,118,291-299,489-491,583-597,626-629`
   — read directly from this repo's working tree.
+
+## As shipped: reconciliation with the design above (spec `2026-10-17-browse-card-grid-view`)
+
+This section was written during planning/research, before implementation.
+The feature is now built and both review gates have passed (general
+review and security review — see
+`.claude/specs/2026-10-17-browse-card-grid-view/review.md` and
+`security-review.md`; the one security Critical, an inherited
+`httpcore5` CVE regression, is covered below and fully traced in that
+spec's `decisions.md`). The notes below record the concrete numbers and
+gaps a future reader needs, rather than re-deriving them from the diff.
+
+**Card icon size — 96dp, confirmed shipped.** The research above left
+the exact dp value open ("~96-120dp"); the implementation settled on
+the lower end, **96dp**, in two places that must stay in sync:
+`yaacc/src/main/res/layout/browse_content_item_card.xml:67-68`
+(`browseContentItemIcon`'s `layout_width`/`layout_height`, with a
+layout comment explaining the choice) and
+`BrowseContentItemAdapter.CARD_ICON_SIZE_DP = 96`
+(`yaacc/src/main/java/de/yaacc/browser/BrowseContentItemAdapter.java:100`),
+which feeds `dpToPx(...)` to size the `IconDownloadTask`'s requested
+width/height for `CARD` mode (vs. the existing 48dp `LIST_ICON_SIZE_DP`
+for list mode) — this is the actual fix for the fixed-48px thumbnail
+bug `design.md`'s "Thumbnail resolution" section targeted.
+
+**`targetCardWidthPx` / `TARGET_CARD_WIDTH_DP` — 160dp, lives in
+`ContentListFragment`.** The span-count math (`CardGridSpanCount
+.computeSpanCount`) is driven by `ContentListFragment
+.TARGET_CARD_WIDTH_DP = 160`
+(`yaacc/src/main/java/de/yaacc/browser/ContentListFragment.java:85`),
+converted to pixels by the private `targetCardWidthPx()` method
+(`ContentListFragment.java:342-344`, `TARGET_CARD_WIDTH_DP *
+getResources().getDisplayMetrics().density` — density-scaled, not a
+hardcoded pixel constant). Both the initial span-count computation on
+toggle (`ContentListFragment.java:330`) and the width-change listener's
+recompute (`ContentListFragment.java:294`) call this same method, so
+there is one source of truth for the target width.
+
+**Not verified headlessly — needs on-device confirmation.** Per this
+project's existing pattern for runtime-only concerns (see the
+httpclient5 Android-crash issue and the media3 runtime behavior
+documented elsewhere in this file, neither of which a unit test or
+`javap` inspection can exercise), the following are implemented and
+compile/lint clean but have **not** been visually or interactively
+confirmed, and need checking on a real device or emulator before
+calling this feature done end-to-end:
+
+- **Grid visual layout** — card spacing, `CardView` elevation/corner
+  radius consistency with the list row, and whether the four
+  `ImageButton`s fit comfortably under the 96dp icon + title without
+  crowding at the chosen `targetCardWidthPx`.
+- **Thumbnail sharpness** — whether 96dp-requested bitmaps actually
+  render crisp (not upscaled/blurry) at the card's rendered size across
+  density buckets; `IconDownloadTask`'s request size is correct by
+  inspection, but the resulting bitmap's visual quality on screen is
+  not.
+- **DPAD cross-card navigation feel** — per `design.md` decision 4, v1
+  deliberately relies on Android's default focus-search for movement
+  *between* cards (nothing was hand-wired); whether that default
+  behavior actually feels right for grid navigation on a TV/DPAD-driven
+  device is unverified. Within-card button navigation needs no separate
+  check — it reuses the same generic `onCreateViewHolder` wiring the
+  list layout already uses, unchanged.
+
+Flag these three for whoever reviews the PR as open on-device items, not
+as silently assumed-working.
+
+**Column count "scales with screen width" — unit-tested for the
+span-count math only, not tablet-visually-confirmed.** `CardGridSpanCount
+.computeSpanCount` has unit test coverage for its floor-division
+behavior (phone-portrait width → 2, just-under-3× width → still 2,
+wide/tablet-sized width → more than 2, narrower-than-target width →
+never below 2 — see `CardGridSpanCountTest`), and the width-change
+listener wiring that calls it on rotation/resize is implemented. None of
+that has been confirmed by actually running the app on a tablet or a
+resized multi-window on a larger screen — do not read "scales with
+width" as tablet-tested; it is math-tested only.
+
+**Known v1 limitation — no view-mode toggle button in landscape.**
+`yaacc/src/main/res/layout-land/fragment_content_list.xml` has its own
+`contentListSortToggle` row but, unlike the portrait
+`fragment_content_list.xml`, was never given a
+`contentListViewModeToggle` button (confirmed absent by grep — the
+toggle button only exists in the portrait layout,
+`fragment_content_list.xml:69`). `initViewModeToggle()` null-checks and
+returns early in landscape, so nothing crashes, and a mode chosen in
+portrait still *applies* correctly after rotating to landscape (the
+persisted preference and the "set up LayoutManager for the persisted
+mode" step both run regardless of the button's existence) — landscape
+just has no way to *change* the mode via that button. This is a
+deliberate, accepted v1 gap (see `decisions.md`'s "No view-mode toggle
+in the landscape layout" entry), not an oversight silently left
+unfixed; a follow-up to add the button to the landscape layout is
+out of scope for this spec.
+
+**Dependency note — httpcore5 CVE regression, fixed on this branch.**
+This branch inherited an `httpclient5`/`httpcore5` version pairing from
+`feat/issue252` that reintroduced two patched CVEs in `httpcore5`/
+`httpcore5-h2`; Fix Group 1 corrected it by keeping `httpclient5` at
+`5.2.1` (avoids the unrelated Android crash that version pairing was
+chosen for) while bumping `httpcore5` and the transitively-pulled
+`httpcore5-h2` to `5.4.4` (`yaacc/build.gradle:30,38,44`). This is part
+of this branch's shipped state and both review gates passed against it;
+the full CVE identification, decompilation evidence, and rationale are
+already documented in
+`.claude/specs/2026-10-17-browse-card-grid-view/decisions.md` and
+`security-review.md` — not repeated here.
