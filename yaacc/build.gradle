@@ -19,13 +19,29 @@ dependencies {
     implementation 'jakarta.enterprise:jakarta.enterprise.cdi-api:5.0.0'
     implementation 'com.google.android.material:material:1.14.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.2.2'
-    // Pinned below the Dependabot-bumped 5.6.5/5.4.4: DefaultHttpClientConnectionOperator's
-    // static initializer calls jdk.net.Sockets/ExtendedSocketOptions (hidden JDK APIs) to
-    // probe TCP keepalive support, which Android's ART blocks for app code, crashing at
-    // class-init time with NoSuchMethodError on every real device. 5.2.1/5.2 predate this.
+    // httpclient5 pinned below the Dependabot-bumped 5.6.5: its own
+    // DefaultHttpClientConnectionOperator class (confirmed via direct
+    // bytecode inspection - this is httpclient5's own code, not httpcore5's)
+    // gained a static initializer that calls jdk.net.Sockets/ExtendedSocketOptions
+    // (hidden JDK APIs) to probe TCP keepalive support, which Android's ART
+    // blocks for app code, crashing at class-init time with NoSuchMethodError
+    // on every real device. 5.2.1 predates this.
     // See https://github.com/Adyen/adyen-java-api-library/issues/1671
     implementation 'org.apache.httpcomponents.client5:httpclient5:5.2.1'
-    implementation 'org.apache.httpcomponents.core5:httpcore5:5.2'
+    // httpcore5 kept at a patched version (NOT reverted alongside httpclient5):
+    // versions before 5.4.3 are vulnerable to CVE-2026-54399 (HTTP/1.1
+    // header-parsing memory-exhaustion DoS) - a real attack surface here,
+    // since this is yaacc's actual HTTP transport for talking to other UPnP
+    // devices on the LAN (HttpRequestSender). The Android-crashing code
+    // above lives in httpclient5 itself, not httpcore5, so pairing a
+    // patched httpcore5 with the reverted httpclient5 avoids both issues.
+    implementation 'org.apache.httpcomponents.core5:httpcore5:5.4.4'
+    // httpclient5 also transitively pulls httpcore5-h2 (HTTP/2 support,
+    // including the HPACK decoder CVE-2026-54428 targets) - without this
+    // explicit pin it stays at the vulnerable 5.2 even though plain
+    // httpcore5 above gets bumped, since Gradle only overrides a module
+    // it's told about.
+    implementation 'org.apache.httpcomponents.core5:httpcore5-h2:5.4.4'
     implementation 'androidx.appcompat:appcompat:1.8.0'
     implementation 'androidx.exifinterface:exifinterface:1.4.2'
     implementation 'androidx.exifinterface:exifinterface:1.4.2'
