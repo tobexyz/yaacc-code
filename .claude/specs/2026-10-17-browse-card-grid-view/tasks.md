@@ -57,7 +57,7 @@ Plan: `specs/2026-10-17-browse-card-grid-view/requirements.md` and
 
 ## Group 2: Implementation (parallel — no shared file writes)
 
-- [ ] `ViewMode` support in `BrowseContentItemAdapter` | `yaacc/src/main/java/de/yaacc/browser/BrowseContentItemAdapter.java`, `yaacc/src/main/java/de/yaacc/util/image/IconDownloadTask.java`, `yaacc/src/test/java/de/yaacc/browser/BrowseContentItemAdapterTest.java`
+- [x] `ViewMode` support in `BrowseContentItemAdapter` | `yaacc/src/main/java/de/yaacc/browser/BrowseContentItemAdapter.java`, `yaacc/src/main/java/de/yaacc/util/image/IconDownloadTask.java`, `yaacc/src/test/java/de/yaacc/browser/BrowseContentItemAdapterTest.java`
   - **Accept (leak fix, found during Group 1 research — see
     `docs/tech.md`'s "Browse card-grid view" section)**: do **not** call
     `IconDownloadTask`'s existing `(ImageView, int, int)` constructor
@@ -123,7 +123,7 @@ Plan: `specs/2026-10-17-browse-card-grid-view/requirements.md` and
     and the card-layout task below define — do not invent different
     names.
 
-- [ ] New card layout | `yaacc/src/main/res/layout/browse_content_item_card.xml`
+- [x] New card layout | `yaacc/src/main/res/layout/browse_content_item_card.xml`
   - **Accept**: A `CardView`-wrapped layout (reuse the existing
     `androidx.cardview.widget.CardView` wrapper pattern from
     `browse_content_item.xml` — same corner radius/elevation/padding
@@ -161,7 +161,7 @@ Plan: `specs/2026-10-17-browse-card-grid-view/requirements.md` and
     four that already exist on the list row — no new actions, per
     `requirements.md`'s Non-Goals.
 
-- [ ] View-mode toggle button + grid/list switching in `ContentListFragment` | `yaacc/src/main/java/de/yaacc/browser/ContentListFragment.java`, `yaacc/src/main/res/layout/fragment_content_list.xml`
+- [x] View-mode toggle button + grid/list switching in `ContentListFragment` | `yaacc/src/main/java/de/yaacc/browser/ContentListFragment.java`, `yaacc/src/main/res/layout/fragment_content_list.xml`
   - **Accept**: add a third `ImageButton
     android:id="@+id/contentListViewModeToggle"` into the existing
     `contentListSortToggle` `LinearLayout` in

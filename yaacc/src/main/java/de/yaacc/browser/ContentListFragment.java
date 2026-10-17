@@ -31,6 +31,7 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.fragment.app.Fragment;
 import androidx.preference.PreferenceManager;
+import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -71,6 +72,17 @@ public class ContentListFragment extends Fragment implements OnClickListener,
     private ImageButton sortByNameButton;
     private ImageButton sortByDateButton;
     private BrowseContentItemAdapter.SortMode currentSortMode = BrowseContentItemAdapter.SortMode.NAME;
+    private ImageButton viewModeToggleButton;
+    private BrowseContentItemAdapter.ViewMode currentViewMode = BrowseContentItemAdapter.ViewMode.LIST;
+
+    /**
+     * Target width of a single card in CARD mode, in dp -- chosen so a
+     * normal phone portrait width yields exactly 2 columns, matching
+     * design.md decision 3 ("Column count scales with screen width").
+     * Converted to px via the context's {@code DisplayMetrics}, not
+     * hardcoded, so it scales correctly with device density.
+     */
+    private static final int TARGET_CARD_WIDTH_DP = 160;
 
 
     @Override
@@ -116,6 +128,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         contentList.setFocusable(true);
         contentList.setFocusableInTouchMode(false); // Good for D-Pad primary interaction
         contentList.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
+        initViewModeToggle(contentlistView);
         upnpClient.addUpnpClientListener(this);
         if (getActivity() != null) {
             getActivity().runOnUiThread(() -> {
@@ -230,6 +243,120 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         sortByDateButton.setSelected(dateSelected);
         sortByNameButton.setAlpha(dateSelected ? 0.6f : 1.0f);
         sortByDateButton.setAlpha(!dateAvailable ? 0.38f : (dateSelected ? 1.0f : 0.6f));
+    }
+
+    /**
+     * Wires up the list/card view-mode toggle (see the
+     * `2026-10-17-browse-card-grid-view` spec): finds the button, applies
+     * the persisted view mode from SharedPreferences as the initial
+     * state (mirroring {@link #initSortToggle(View)}'s fallback-to-default
+     * pattern for the sort toggle), makes the {@code contentList}'s
+     * {@code LayoutManager} match that initial mode, installs the click
+     * handler, and installs a width-change listener that keeps the grid's
+     * span count correct across rotation/multi-window resize while in CARD
+     * mode (design.md decision 3), without ever recreating the
+     * {@code GridLayoutManager}.
+     */
+    private void initViewModeToggle(View contentlistView) {
+        viewModeToggleButton = contentlistView.findViewById(R.id.contentListViewModeToggle);
+        if (viewModeToggleButton == null || getContext() == null) {
+            return;
+        }
+
+        String persisted = PreferenceManager.getDefaultSharedPreferences(getContext())
+                .getString(getString(R.string.settings_browse_view_mode_key), BrowseContentItemAdapter.ViewMode.LIST.name());
+        try {
+            currentViewMode = BrowseContentItemAdapter.ViewMode.valueOf(persisted);
+        } catch (IllegalArgumentException e) {
+            currentViewMode = BrowseContentItemAdapter.ViewMode.LIST;
+        }
+        applyLayoutManagerForViewMode(currentViewMode);
+
+        viewModeToggleButton.setOnClickListener((v) -> onViewModeToggleClicked());
+        updateViewModeToggleUi();
+
+        // Covers rotation and multi-window resize (design.md decision 3):
+        // only reacts while in CARD mode, and only on an actual width
+        // change, applying the new span count via setSpanCount(...) rather
+        // than recreating the LayoutManager (confirmed safe in
+        // docs/tech.md's "Browse card-grid view" section).
+        contentList.addOnLayoutChangeListener((v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
+            if (currentViewMode != BrowseContentItemAdapter.ViewMode.CARD) {
+                return;
+            }
+            int newWidth = right - left;
+            int oldWidth = oldRight - oldLeft;
+            if (newWidth <= 0 || newWidth == oldWidth) {
+                return;
+            }
+            RecyclerView.LayoutManager layoutManager = contentList.getLayoutManager();
+            if (layoutManager instanceof GridLayoutManager) {
+                ((GridLayoutManager) layoutManager).setSpanCount(CardGridSpanCount.computeSpanCount(newWidth, targetCardWidthPx()));
+            }
+        });
+    }
+
+    private void onViewModeToggleClicked() {
+        BrowseContentItemAdapter.ViewMode newMode = currentViewMode == BrowseContentItemAdapter.ViewMode.LIST
+                ? BrowseContentItemAdapter.ViewMode.CARD
+                : BrowseContentItemAdapter.ViewMode.LIST;
+        currentViewMode = newMode;
+        if (getContext() != null) {
+            PreferenceManager.getDefaultSharedPreferences(getContext()).edit()
+                    .putString(getString(R.string.settings_browse_view_mode_key), newMode.name())
+                    .apply();
+        }
+        if (bItemAdapter != null) {
+            bItemAdapter.setViewMode(newMode);
+        }
+        applyLayoutManagerForViewMode(newMode);
+        updateViewModeToggleUi();
+    }
+
+    /**
+     * Switches {@code contentList}'s {@code LayoutManager} to match
+     * {@code mode}: a plain {@link LinearLayoutManager} for LIST, or a
+     * {@link GridLayoutManager} sized from the RecyclerView's current
+     * width for CARD (design.md decision 3). Subsequent width changes
+     * while already in CARD mode are handled by the listener installed in
+     * {@link #initViewModeToggle(View)} via {@code setSpanCount(...)}, not
+     * by calling this method again.
+     */
+    private void applyLayoutManagerForViewMode(BrowseContentItemAdapter.ViewMode mode) {
+        if (contentList == null || getActivity() == null) {
+            return;
+        }
+        if (mode == BrowseContentItemAdapter.ViewMode.CARD) {
+            int initialSpanCount = CardGridSpanCount.computeSpanCount(contentList.getWidth(), targetCardWidthPx());
+            contentList.setLayoutManager(new GridLayoutManager(getActivity(), initialSpanCount));
+        } else {
+            contentList.setLayoutManager(new LinearLayoutManager(getActivity()));
+        }
+    }
+
+    /**
+     * ~160dp target card width (design.md decision 3), converted to px via
+     * the context's {@code DisplayMetrics} rather than a hardcoded pixel
+     * value, so it scales correctly with device density.
+     */
+    private int targetCardWidthPx() {
+        return (int) (TARGET_CARD_WIDTH_DP * getResources().getDisplayMetrics().density);
+    }
+
+    /**
+     * Reflects the current view mode as the toggle button's selected/alpha
+     * state, same lightweight convention {@link #updateSortToggleUi()}
+     * uses for the sort toggle's mode selection (no second drawable
+     * needed -- the button's single grid icon, set in the layout XML,
+     * represents the toggle action itself).
+     */
+    private void updateViewModeToggleUi() {
+        if (viewModeToggleButton == null) {
+            return;
+        }
+        boolean cardMode = currentViewMode == BrowseContentItemAdapter.ViewMode.CARD;
+        viewModeToggleButton.setSelected(cardMode);
+        viewModeToggleButton.setAlpha(cardMode ? 1.0f : 0.6f);
     }
 
     private void tintCompoundDrawables(TextView textView) {

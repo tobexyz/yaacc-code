@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="utf-8"?><!--
+ *
+ * Copyright (C) 2013 www.yaacc.de
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 3
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/browseContentItem"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:focusable="true"
+    android:focusableInTouchMode="false"
+    android:descendantFocusability="beforeDescendants"
+    android:clickable="true"
+    android:foreground="?attr/selectableItemBackground">
+
+    <androidx.cardview.widget.CardView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:cardBackgroundColor="@android:color/transparent"
+        app:cardCornerRadius="6dp"
+        app:cardElevation="0dp"
+        app:cardUseCompatPadding="false"
+        app:contentPadding="2dp">
+
+        <!--
+             Card content, vertical: icon on top, title below, the four
+             per-entry action buttons in a row at the bottom. Same view
+             IDs as browse_content_item.xml (the list row) so
+             BrowseContentItemAdapter.ViewHolder's findViewById calls and
+             onBindViewHolder's per-content-type visibility logic work
+             unchanged against this layout.
+        -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center_horizontal">
+
+            <!--
+                 Icon size: 96dp square (the lower end of the ~96-120dp
+                 range from design.md). Chosen so the card's total height
+                 stays reasonable once the title (up to 2 lines) and the
+                 48dp-tall button row are stacked below it - a 120dp icon
+                 plus those would push card height close to ~220dp+,
+                 which is too tall for 2+ cards per row to look balanced
+                 on a normal phone portrait width; 96dp keeps the card
+                 compact while still being double the list row's 48dp
+                 icon, matching design.md's "enlarge" intent.
+            -->
+            <ImageView
+                android:id="@+id/browseContentItemIcon"
+                android:layout_width="96dp"
+                android:layout_height="96dp"
+                android:layout_marginTop="4dp"
+                android:focusable="false"
+                android:contentDescription="@string/icon" />
+
+            <TextView
+                android:id="@+id/browseContentItemName"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="5dp"
+                android:layout_marginTop="10dp"
+                android:layout_marginEnd="5dp"
+                android:layout_marginBottom="10dp"
+                android:gravity="center_horizontal"
+                android:ellipsize="end"
+                android:maxLines="2"
+                android:text="@string/all"
+                android:focusable="false"
+                android:textAppearance="@android:style/TextAppearance.Material.Medium"
+                android:textColor="?android:attr/colorForeground" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center">
+
+                <ImageButton
+                    android:id="@+id/browseContentItemPlaylistAdd"
+                    style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+                    android:layout_width="32dp"
+                    android:layout_height="48dp"
+                    android:nextFocusLeft="@id/browseContentItem"
+                    android:contentDescription="@string/browse_context_playlist_add"
+                    app:srcCompat="@drawable/ic_baseline_playlist_add_32"
+                    app:tint="?attr/colorControlNormal" />
+
+                <ImageButton
+                    android:id="@+id/browseContentItemDownload"
+                    style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+                    android:layout_width="32dp"
+                    android:layout_height="48dp"
+                    android:layout_marginStart="2dp"
+                    android:contentDescription="@string/browse_context_download"
+                    android:nextFocusLeft="@id/browseContentItemPlaylistAdd"
+                    app:srcCompat="@drawable/ic_baseline_download_32"
+                    app:tint="?attr/colorControlNormal" />
+
+                <ImageButton
+                    android:id="@+id/browseContentItemPlay"
+                    style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+                    android:layout_width="32dp"
+                    android:layout_height="48dp"
+                    android:layout_marginStart="2dp"
+                    android:nextFocusLeft="@id/browseContentItemDownload"
+                    android:contentDescription="@string/browse_context_play"
+                    app:srcCompat="@drawable/ic_baseline_play_arrow_32"
+                    app:tint="?attr/colorControlNormal" />
+
+                <ImageButton
+                    android:id="@+id/browseContentItemPlayAll"
+                    style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+                    android:layout_width="32dp"
+                    android:layout_height="48dp"
+                    android:layout_marginStart="2dp"
+                    android:nextFocusLeft="@id/browseContentItemPlay"
+                    android:contentDescription="@string/browse_context_play_all"
+                    app:srcCompat="@drawable/ic_baseline_double_arrow_32"
+                    app:tint="?attr/colorControlNormal" />
+
+            </LinearLayout>
+        </LinearLayout>
+    </androidx.cardview.widget.CardView>
+</LinearLayout>

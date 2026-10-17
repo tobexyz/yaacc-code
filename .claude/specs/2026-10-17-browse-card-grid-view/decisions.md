@@ -24,3 +24,21 @@ width/height, and have `onBindViewHolder` call that one instead. Updated
 exactly while still allowing a non-48px size; no existing constructor's
 behavior changes, so no risk to the unrelated `BrowseReceiverDeviceAdapter`
 call site already using the 3-arg constructor for 512×512 album art.
+
+## 2026-10-17 — No view-mode toggle in the landscape layout (known gap, not fixed)
+
+**Context**: the toggle button was added to `fragment_content_list.xml`
+(portrait) only. `yaacc/src/main/res/layout-land/fragment_content_list.xml`
+also has its own `contentListSortToggle` row but was out of this task's
+file scope, so it has no `contentListViewModeToggle` button.
+`initViewModeToggle` null-checks and returns early there (same defensive
+pattern `initSortToggle` already uses for the same reason), so nothing
+crashes — landscape just has no way to switch view mode via that
+button.
+
+**Decision**: accept this gap for v1 rather than silently expanding
+scope. A mode chosen in portrait still applies correctly on rotation to
+landscape (the persisted preference + `initViewModeToggle`'s "apply
+LayoutManager for persisted mode" step both run regardless of whether
+the button itself exists) — so landscape *respects* whatever was chosen,
+it just can't *change* it. Documented as a known follow-up in Group 3.
