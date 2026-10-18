@@ -82,3 +82,59 @@ dependency graph, and `httpclient5:5.2.1`'s resolved jar still has zero
 independent problems in two separate artifacts that don't need to be
 traded off against each other — pinning each artifact to its own safe
 version resolves both simultaneously.
+
+## 2026-10-18 — Correction: the Cycle 1/2 fix above was incomplete; httpcore5 itself also has the crash
+
+**Context**: the fix above (pairing `httpclient5:5.2.1` with
+`httpcore5:5.4.4`/`httpcore5-h2:5.4.4`) was wrong — verified only that
+the crashing `jdk.net` probe lived in `httpclient5`'s own class, but
+never checked whether `httpcore5` independently reimplements the same
+probe in its own code. It does: `httpcore5`'s `ReflectionUtils` class
+was rewritten in the 5.4 line to add the identical unconditional
+`jdk.net.Sockets`/`ExtendedSocketOptions` probe (confirmed via direct
+`javap` decompilation of the resolved jar), used by
+`SingleCoreIOReactor.prepareSocket` — part of yaacc's embedded UPnP HTTP
+server. This is what actually crashed on the user's device after Cycle
+2 passed and the branch was tested on-device (`FATAL EXCEPTION` in
+`org.apache.hc.core5.util.ReflectionUtils.<clinit>`, not
+`DefaultHttpClientConnectionOperator` this time).
+
+**Investigation**: confirmed the exact boundary for both libraries by
+decompiling multiple versions directly:
+- `httpcore5`: 5.3.6 and earlier have the old, generic `ReflectionUtils`
+  (zero `jdk/net` references); `5.4` (GA, not just later patches) is
+  where the keepalive-probing rewrite landed, present through at least
+  `5.4.4`.
+- `httpclient5`: `5.3.1` and earlier have a clean
+  `DefaultHttpClientConnectionOperator` (zero `jdk/net` references);
+  `5.4`+ has the probe (previously confirmed with `5.6.5`).
+- **No upstream httpcore5 release satisfies both constraints**: versions
+  <5.4 avoid the Android crash but are confirmed still vulnerable to
+  both CVE-2026-54399 and CVE-2026-54428 (verified via a third-party
+  bug report that `httpcore5:5.3.6` specifically is still listed as
+  affected — no 5.3.x security backport exists); versions ≥5.4.3 fix
+  the CVEs but reintroduce the crash. The two problems were introduced
+  in the same 5.4 rewrite and can't be separated by version choice
+  alone.
+
+**Decision**: per the user's explicit instruction, pin to the **newest**
+Android-safe version of each artifact: `httpclient5:5.3.1`,
+`httpcore5:5.3.6`, `httpcore5-h2:5.3.6` (all newer than the original
+pre-Dependabot 5.2.1/5.2 pins, all confirmed clean). This knowingly
+leaves the two httpcore5 CVEs unpatched — documented as an accepted
+residual risk, not a resolved one. Full build (compile + lint + unit
+tests) passes with this combination.
+
+**Follow-up options for actually closing the CVE gap** (not done now,
+tracked here for later): (a) ship a local shim class
+`org.apache.hc.core5.util.ReflectionUtils` in yaacc's own source tree
+that wraps the `jdk.net` probe in a try/catch, overriding the one
+bundled in the jar — requires a custom Gradle step to exclude the
+class from the dependency's jar at build time (AGP/D8 will otherwise
+reject two classes with the same fully-qualified name as a duplicate-
+class build error) and re-verification on every httpcore5 version bump;
+or (b) restructure yaacc's embedded UPnP HTTP server to avoid
+httpcore5's async `IOReactor` stack (`SingleCoreIOReactor`) entirely, if
+the classic/blocking server implementation doesn't reach the same
+`ReflectionUtils.<clinit>` path — unconfirmed, would need its own
+investigation. Both are real engineering efforts, not quick fixes.
