@@ -24,7 +24,7 @@ dependencies {
     // probe TCP keepalive support, which Android's ART blocks for app code, crashing at
     // class-init time with NoSuchMethodError on every real device. 5.2.1/5.2 predate this.
     // See https://github.com/Adyen/adyen-java-api-library/issues/1671
-    implementation 'org.apache.httpcomponents.client5:httpclient5:5.2.1'
+    implementation 'org.apache.httpcomponents.client5:httpclient5:5.6.5'
     implementation 'org.apache.httpcomponents.core5:httpcore5:5.2'
     implementation 'androidx.appcompat:appcompat:1.8.0'
     implementation 'androidx.exifinterface:exifinterface:1.4.2'
