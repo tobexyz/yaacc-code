@@ -272,7 +272,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
      * {@link #updateFolderNavigationUi()} once the new navigator exists.
      */
     private void hideFolderNavigationControls() {
-        backButton.setVisibility(View.INVISIBLE);
+        backButton.setVisibility(View.GONE);
         topSeperator.setVisibility(View.GONE);
     }
 
@@ -288,21 +288,35 @@ public class ContentListFragment extends Fragment implements OnClickListener,
      * keeps it on one line, truncated from the left so the most specific
      * (rightmost) part of the path stays visible.
      */
+    /** Matches contentListBackButton's layout_width in both layouts. */
+    private static final int BACK_BUTTON_WIDTH_DP = 48;
+    /** Matches the small layout_marginStart other header labels use. */
+    private static final int FOLDER_NAME_BASE_MARGIN_START_DP = 5;
+
     private void updateFolderNavigationUi() {
         boolean atRoot = navigator == null || navigator.getCurrentPosition() == null
                 || Navigator.ITEM_ROOT_OBJECT_ID.equals(navigator.getCurrentPosition().getObjectId());
-        // INVISIBLE, not GONE: the path label's layout_toEndOf/alignTop/
-        // alignBottom anchor to this button in fragment_content_list.xml, and
-        // anchoring a visible view to a GONE sibling is unreliable across
-        // Android skins (observed: the label jumping to the right at root on
-        // at least one real device). INVISIBLE keeps the 48dp slot reserved
-        // so the anchor math never changes between root/non-root. The button
-        // stays tappable either way; onBackPressed() already handles root
-        // correctly (switches to the Sender tab), so this is harmless.
-        backButton.setVisibility(atRoot ? View.INVISIBLE : View.VISIBLE);
+        // GONE correctly reclaims the back button's space at root -- the
+        // path label no longer anchors to it for position at all (see
+        // below), so there's no RelativeLayout anchor-to-a-hidden-sibling
+        // risk here.
+        backButton.setVisibility(atRoot ? View.GONE : View.VISIBLE);
         topSeperator.setVisibility(atRoot ? View.GONE : View.VISIBLE);
         currentFolderNameView.setVisibility(View.VISIBLE);
         currentFolderNameView.setText(buildPathDisplayText());
+        // The label's start margin is set here instead of via a
+        // layout_toEndOf="@id/contentListBackButton" anchor: anchoring a
+        // visible view to a GONE sibling was unreliable across Android
+        // skins (observed: the label jumping to the right at root on a real
+        // device). At root there's no back button, so the label starts at
+        // the same small margin other header labels use; otherwise it needs
+        // to clear the button's width too.
+        int marginStartDp = atRoot ? FOLDER_NAME_BASE_MARGIN_START_DP
+                : BACK_BUTTON_WIDTH_DP + FOLDER_NAME_BASE_MARGIN_START_DP;
+        ViewGroup.MarginLayoutParams folderNameLayoutParams =
+                (ViewGroup.MarginLayoutParams) currentFolderNameView.getLayoutParams();
+        folderNameLayoutParams.setMarginStart(Math.round(marginStartDp * getResources().getDisplayMetrics().density));
+        currentFolderNameView.setLayoutParams(folderNameLayoutParams);
     }
 
     private String buildPathDisplayText() {
