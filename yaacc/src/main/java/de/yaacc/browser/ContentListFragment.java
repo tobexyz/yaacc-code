@@ -288,11 +288,6 @@ public class ContentListFragment extends Fragment implements OnClickListener,
      * keeps it on one line, truncated from the left so the most specific
      * (rightmost) part of the path stays visible.
      */
-    /** Matches contentListBackButton's layout_width in both layouts. */
-    private static final int BACK_BUTTON_WIDTH_DP = 48;
-    /** Matches the small layout_marginStart other header labels use. */
-    private static final int FOLDER_NAME_BASE_MARGIN_START_DP = 5;
-
     private void updateFolderNavigationUi() {
         boolean atRoot = navigator == null || navigator.getCurrentPosition() == null
                 || Navigator.ITEM_ROOT_OBJECT_ID.equals(navigator.getCurrentPosition().getObjectId());
@@ -308,14 +303,17 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         // layout_toEndOf="@id/contentListBackButton" anchor: anchoring a
         // visible view to a GONE sibling was unreliable across Android
         // skins (observed: the label jumping to the right at root on a real
-        // device). At root there's no back button, so the label starts at
-        // the same small margin other header labels use; otherwise it needs
-        // to clear the button's width too.
-        int marginStartDp = atRoot ? FOLDER_NAME_BASE_MARGIN_START_DP
-                : BACK_BUTTON_WIDTH_DP + FOLDER_NAME_BASE_MARGIN_START_DP;
+        // device). Always set explicitly (never "restored" from XML, which
+        // isn't possible once mutated) via resources that differ by
+        // orientation: portrait places the label beside the button (needs
+        // to clear its width), landscape places it below (doesn't) -- see
+        // values/dimens.xml and values-land/dimens.xml.
+        int marginStartDimenRes = atRoot
+                ? R.dimen.folder_name_margin_start_base
+                : R.dimen.folder_name_margin_start_with_back;
         ViewGroup.MarginLayoutParams folderNameLayoutParams =
                 (ViewGroup.MarginLayoutParams) currentFolderNameView.getLayoutParams();
-        folderNameLayoutParams.setMarginStart(Math.round(marginStartDp * getResources().getDisplayMetrics().density));
+        folderNameLayoutParams.setMarginStart(getResources().getDimensionPixelSize(marginStartDimenRes));
         currentFolderNameView.setLayoutParams(folderNameLayoutParams);
     }
 

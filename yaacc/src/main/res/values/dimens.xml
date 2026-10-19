@@ -5,4 +5,14 @@
     <dimen name="appbar_padding">16dp</dimen>
     <dimen name="fab_margin">16dp</dimen>
     <dimen name="appbar_padding_top">8dp</dimen>
+
+    <!-- contentListCurrentFolderName's start margin at root, where there's
+         no back button to clear - same in every orientation. -->
+    <dimen name="folder_name_margin_start_base">5dp</dimen>
+    <!-- contentListCurrentFolderName's start margin when the back button is
+         shown. Portrait (fragment_content_list.xml) places the label beside
+         the button, so it needs to clear the button's 48dp width plus the
+         base margin above; see values-land/dimens.xml for why landscape
+         overrides this to just the base margin. -->
+    <dimen name="folder_name_margin_start_with_back">53dp</dimen>
 </resources>
