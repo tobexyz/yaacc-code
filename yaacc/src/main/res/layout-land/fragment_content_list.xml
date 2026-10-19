@@ -74,9 +74,8 @@
             android:layout_alignParentStart="true"
             android:layout_marginStart="5dp"
             android:layout_marginBottom="10dp"
-            android:maxLines="4"
-            android:minLines="2"
-            android:singleLine="false"
+            android:maxLines="1"
+            android:ellipsize="start"
             android:text="@string/all"
             android:textAppearance="@android:style/TextAppearance.Material.Medium"
             android:textColor="?android:attr/colorForeground" />

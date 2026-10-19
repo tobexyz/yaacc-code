@@ -255,7 +255,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
     private void showMainFolder() {
         if (getActivity() != null) {
             getActivity().runOnUiThread(() -> {
-                removeFolderNavigation();
+                hideFolderNavigationControls();
             });
         }
         navigator = new Navigator();
@@ -264,11 +264,51 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         populateItemList(true);
     }
 
-    private void removeFolderNavigation() {
+    /**
+     * Hides just the back button / separator while a device switch is in
+     * progress and the navigator is about to be replaced. The path label
+     * itself is left alone here -- {@link #populateItemList(boolean)} (always
+     * called right after) sets it correctly via
+     * {@link #updateFolderNavigationUi()} once the new navigator exists.
+     */
+    private void hideFolderNavigationControls() {
         backButton.setVisibility(View.GONE);
-        currentFolderNameView.setVisibility(View.GONE);
         topSeperator.setVisibility(View.GONE);
-        currentFolderNameView.setText("");
+    }
+
+    /**
+     * Reflects the current navigation position: the back button/separator
+     * are shown only below the root (nothing to go back to from root), while
+     * the path label itself is always visible, showing the provider device's
+     * friendly name followed by any folder names below it (e.g. "MyServer"
+     * at root, "MyServer &gt; Music &gt; Artists" further down) -- see issue
+     * about always showing the server name and truncating long paths. The
+     * label's own layout (ellipsize="start", maxLines="1" in both
+     * fragment_content_list.xml and layout-land/fragment_content_list.xml)
+     * keeps it on one line, truncated from the left so the most specific
+     * (rightmost) part of the path stays visible.
+     */
+    private void updateFolderNavigationUi() {
+        boolean atRoot = navigator == null || navigator.getCurrentPosition() == null
+                || Navigator.ITEM_ROOT_OBJECT_ID.equals(navigator.getCurrentPosition().getObjectId());
+        backButton.setVisibility(atRoot ? View.GONE : View.VISIBLE);
+        topSeperator.setVisibility(atRoot ? View.GONE : View.VISIBLE);
+        currentFolderNameView.setVisibility(View.VISIBLE);
+        currentFolderNameView.setText(buildPathDisplayText());
+    }
+
+    private String buildPathDisplayText() {
+        List<String> segments = new ArrayList<>();
+        if (upnpClient != null && upnpClient.getProviderDevice() != null && upnpClient.getProviderDevice().getDetails() != null) {
+            String serverName = upnpClient.getProviderDevice().getDetails().getFriendlyName();
+            if (serverName != null && !serverName.isEmpty()) {
+                segments.add(serverName);
+            }
+        }
+        if (navigator != null) {
+            segments.addAll(navigator.getPathNames());
+        }
+        return segments.stream().collect(Collectors.joining(" > "));
     }
 
     @Override
@@ -297,7 +337,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         if (Navigator.ITEM_ROOT_OBJECT_ID.equals(currentObjectId)) {
             if (getActivity() != null) {
                 getActivity().runOnUiThread(() -> {
-                            removeFolderNavigation();
+                            updateFolderNavigationUi();
                         }
 
                 );
@@ -312,14 +352,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
             final RecyclerView itemList = contentList;
             Position lastPosition = navigator.popPosition(); // First pop is our
             if (getActivity() != null) {
-                getActivity().runOnUiThread(() -> {
-                    if (Navigator.ITEM_ROOT_OBJECT_ID.equals(navigator.getCurrentPosition().getObjectId())) {
-                        removeFolderNavigation();
-                    } else {
-                        showFolderNavigation();
-                        currentFolderNameView.setText(navigator.getPathNames().stream().collect(Collectors.joining(" > ")));
-                    }
-                });
+                getActivity().runOnUiThread(this::updateFolderNavigationUi);
             }
             // currentPosition
             initBrowsItemAdapter(itemList);
@@ -330,12 +363,6 @@ public class ContentListFragment extends Fragment implements OnClickListener,
 
         }
         return true;
-    }
-
-    private void showFolderNavigation() {
-        backButton.setVisibility(View.VISIBLE);
-        currentFolderNameView.setVisibility(View.VISIBLE);
-        topSeperator.setVisibility(View.VISIBLE);
     }
 
 
@@ -391,12 +418,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
      */
     public void populateItemList(boolean clear) {
         requireActivity().runOnUiThread(() -> {
-            if (Navigator.ITEM_ROOT_OBJECT_ID.equals(navigator.getCurrentPosition().getObjectId())) {
-                removeFolderNavigation();
-            } else {
-                showFolderNavigation();
-                currentFolderNameView.setText(navigator.getPathNames().stream().collect(Collectors.joining(" > ")));
-            }
+            updateFolderNavigationUi();
 
             if (bItemAdapter != null) {
                 bItemAdapter.cancelRunningTasks();
