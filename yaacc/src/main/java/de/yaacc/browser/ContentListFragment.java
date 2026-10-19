@@ -272,7 +272,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
      * {@link #updateFolderNavigationUi()} once the new navigator exists.
      */
     private void hideFolderNavigationControls() {
-        backButton.setVisibility(View.GONE);
+        backButton.setVisibility(View.INVISIBLE);
         topSeperator.setVisibility(View.GONE);
     }
 
@@ -291,7 +291,15 @@ public class ContentListFragment extends Fragment implements OnClickListener,
     private void updateFolderNavigationUi() {
         boolean atRoot = navigator == null || navigator.getCurrentPosition() == null
                 || Navigator.ITEM_ROOT_OBJECT_ID.equals(navigator.getCurrentPosition().getObjectId());
-        backButton.setVisibility(atRoot ? View.GONE : View.VISIBLE);
+        // INVISIBLE, not GONE: the path label's layout_toEndOf/alignTop/
+        // alignBottom anchor to this button in fragment_content_list.xml, and
+        // anchoring a visible view to a GONE sibling is unreliable across
+        // Android skins (observed: the label jumping to the right at root on
+        // at least one real device). INVISIBLE keeps the 48dp slot reserved
+        // so the anchor math never changes between root/non-root. The button
+        // stays tappable either way; onBackPressed() already handles root
+        // correctly (switches to the Sender tab), so this is harmless.
+        backButton.setVisibility(atRoot ? View.INVISIBLE : View.VISIBLE);
         topSeperator.setVisibility(atRoot ? View.GONE : View.VISIBLE);
         currentFolderNameView.setVisibility(View.VISIBLE);
         currentFolderNameView.setText(buildPathDisplayText());
