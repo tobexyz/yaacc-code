@@ -93,11 +93,23 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
      */
     private static final int LIST_ICON_SIZE_DP = 48;
     /**
-     * Thumbnail/icon pixel size requested in CARD mode, matching
-     * {@code browse_content_item_card.xml}'s 96dp icon (see design.md's
-     * "Icon/thumbnail size in card mode" decision).
+     * Thumbnail/icon pixel HEIGHT requested in CARD mode, matching
+     * {@code browse_content_item_card.xml}'s 96dp-tall image area (see
+     * design.md's "Icon/thumbnail size in card mode" decision).
      */
     private static final int CARD_ICON_SIZE_DP = 96;
+    /**
+     * Thumbnail pixel WIDTH requested in CARD mode. The card's image area
+     * is full card width (not square like the original 96dp-square design),
+     * displayed with {@code centerCrop} -- requesting a generously wide
+     * decode size (rather than reusing the square {@link #CARD_ICON_SIZE_DP}
+     * for both dimensions) avoids visibly upscaling/softening thumbnails
+     * once they're stretched to cover a card noticeably wider than it is
+     * tall. 320dp comfortably covers realistic per-card widths across the
+     * card-grid's span-count range (see CardGridSpanCount) without
+     * requesting an unreasonably large decode for a thumbnail.
+     */
+    private static final int CARD_IMAGE_WIDTH_DP = 320;
 
     private boolean loading = false;
 
@@ -547,10 +559,22 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
         DIDLObject currentObject = (DIDLObject) getItem(listPosition);
         holder.name.setText(currentObject.getTitle());
 
-        int iconPixelSize = dpToPx(viewMode == ViewMode.CARD ? CARD_ICON_SIZE_DP : LIST_ICON_SIZE_DP);
+        int iconHeightPx = dpToPx(viewMode == ViewMode.CARD ? CARD_ICON_SIZE_DP : LIST_ICON_SIZE_DP);
+        int iconWidthPx = viewMode == ViewMode.CARD ? dpToPx(CARD_IMAGE_WIDTH_DP) : iconHeightPx;
         IconDownloadTask iconDownloadTask = new IconDownloadTask(holder.icon,
-                this, iconPixelSize, iconPixelSize);
+                this, iconWidthPx, iconHeightPx);
         asyncTasks.add(iconDownloadTask);
+        // Reset every bind (RecyclerView view recycling) rather than only
+        // when a thumbnail loads: CARD mode's fallback type-icon glyph
+        // should stay at its natural size, centered on the tinted
+        // background (browse_content_item_card.xml) -- CENTER_CROP would
+        // stretch it to fill the whole width instead. Switched to
+        // CENTER_CROP below, only at the point a real thumbnail load is
+        // actually kicked off. LIST mode is untouched (default scaleType),
+        // unaffected by this card-only change.
+        if (viewMode == ViewMode.CARD) {
+            holder.icon.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+        }
 
         holder.playAll.setOnClickListener((v) -> {
             new ContentItemPlayTask(contentListFragment, currentObject, null).execute(ContentItemPlayTask.PLAY_ALL);
@@ -590,6 +614,9 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
                 DIDLObject.Property<URI> albumArtProperties = ((AudioItem) currentObject)
                         .getFirstProperty(DIDLObject.Property.UPNP.ALBUM_ART_URI.class);
                 if (null != albumArtProperties) {
+                    if (viewMode == ViewMode.CARD) {
+                        holder.icon.setScaleType(ImageView.ScaleType.CENTER_CROP);
+                    }
                     iconDownloadTask.executeOnExecutor(((Yaacc) getContext().getApplicationContext()).getContentLoadExecutor(),
                             Uri.parse(albumArtProperties
                                     .getValue().toString()));
@@ -601,10 +628,14 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
             holder.play.setVisibility(View.VISIBLE);
             holder.download.setVisibility(View.VISIBLE);
             holder.playlistAdd.setVisibility(View.GONE);
-            if (showThumbnails)
+            if (showThumbnails) {
+                if (viewMode == ViewMode.CARD) {
+                    holder.icon.setScaleType(ImageView.ScaleType.CENTER_CROP);
+                }
                 iconDownloadTask.executeOnExecutor(((Yaacc) getContext().getApplicationContext()).getContentLoadExecutor(),
                         Uri.parse(currentObject
                                 .getFirstResource().getValue()));
+            }
         } else if (currentObject instanceof VideoItem) {
             holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_movie_48, getContext().getTheme()), getContext().getTheme()));
             holder.playAll.setVisibility(View.VISIBLE);
@@ -615,6 +646,9 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
                 DIDLObject.Property<URI> albumArtProperties = ((VideoItem) currentObject)
                         .getFirstProperty(DIDLObject.Property.UPNP.ALBUM_ART_URI.class);
                 if (null != albumArtProperties) {
+                    if (viewMode == ViewMode.CARD) {
+                        holder.icon.setScaleType(ImageView.ScaleType.CENTER_CROP);
+                    }
                     iconDownloadTask.executeOnExecutor(((Yaacc) getContext().getApplicationContext()).getContentLoadExecutor(),
                             Uri.parse(albumArtProperties
                                     .getValue().toString()));

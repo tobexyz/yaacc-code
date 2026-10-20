@@ -28,12 +28,20 @@
     android:clickable="true"
     android:foreground="?attr/selectableItemBackground">
 
-    <androidx.cardview.widget.CardView
+    <!--
+         Material "explicit containment" card: a visible surface + subtle
+         shadow distinguishes it from the page background (not a hard
+         border line) - see
+         https://m2.material.io/components/cards#explicit-containment.
+         MaterialCardView (not plain CardView) so app:cardElevation gets a
+         real Material surface color by default instead of this layout's
+         previous transparent/flat styling.
+    -->
+    <com.google.android.material.card.MaterialCardView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        app:cardBackgroundColor="@android:color/transparent"
         app:cardCornerRadius="6dp"
-        app:cardElevation="0dp"
+        app:cardElevation="2dp"
         app:cardUseCompatPadding="false"
         app:contentPadding="2dp">
 
@@ -52,21 +60,24 @@
             android:gravity="center_horizontal">
 
             <!--
-                 Icon size: 96dp square (the lower end of the ~96-120dp
-                 range from design.md). Chosen so the card's total height
-                 stays reasonable once the title (up to 2 lines) and the
-                 48dp-tall button row are stacked below it - a 120dp icon
-                 plus those would push card height close to ~220dp+,
-                 which is too tall for 2+ cards per row to look balanced
-                 on a normal phone portrait width; 96dp keeps the card
-                 compact while still being double the list row's 48dp
-                 icon, matching design.md's "enlarge" intent.
+                 96dp tall (the already-settled height from design.md's
+                 ~96-120dp range - unchanged, still keeps total card height
+                 reasonable with the title + 48dp button row below it), but
+                 now full card width instead of a 96dp square, matching
+                 Material's explicit-containment card image
+                 (https://m2.material.io/components/cards#explicit-containment).
+                 scaleType/background are set per-bind in
+                 BrowseContentItemAdapter.onBindViewHolder: CENTER_CROP
+                 (fills edge-to-edge) once a real thumbnail loads, else
+                 CENTER_INSIDE so the fallback type-icon glyph stays at its
+                 natural size, centered on this tinted backdrop rather than
+                 being stretched to fill the whole width.
             -->
             <ImageView
                 android:id="@+id/browseContentItemIcon"
-                android:layout_width="96dp"
+                android:layout_width="match_parent"
                 android:layout_height="96dp"
-                android:layout_marginTop="4dp"
+                android:background="?attr/colorControlHighlight"
                 android:focusable="false"
                 android:contentDescription="@string/icon" />
 
@@ -137,5 +148,5 @@
 
             </LinearLayout>
         </LinearLayout>
-    </androidx.cardview.widget.CardView>
+    </com.google.android.material.card.MaterialCardView>
 </LinearLayout>
