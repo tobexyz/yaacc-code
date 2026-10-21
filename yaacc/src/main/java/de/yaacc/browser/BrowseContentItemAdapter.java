@@ -43,8 +43,14 @@ import org.fourthline.cling.support.model.item.TextItem;
 import org.fourthline.cling.support.model.item.VideoItem;
 
 import java.net.URI;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -62,6 +68,15 @@ import de.yaacc.util.image.IconDownloadTask;
  * @author Christoph Haehnel (eyeless)
  */
 public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContentItemAdapter.ViewHolder> {
+
+    /**
+     * The order in which browsed items are shown. See issue #252.
+     */
+    public enum SortMode {
+        NAME,
+        DATE
+    }
+
     private boolean loading = false;
 
 
@@ -75,6 +90,24 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
     private ProgressBar progressBar;
     private SharedPreferences sharedPreferences;
     private boolean showThumbnails;
+    private SortMode sortMode;
+    private boolean dateSortAvailable;
+    private boolean serverSortRejected;
+    /**
+     * Name mode's own direction: true = A-Z (ascending), false = Z-A. Kept
+     * independent of {@link #dateAscending} per issue #252 Group 4 --
+     * switching sort mode never clobbers the other mode's remembered
+     * direction. Defaults to {@code true} (A-Z), preserving current
+     * behavior for existing users until they explicitly toggle it.
+     */
+    private boolean nameAscending;
+    /**
+     * Date mode's own direction: true = oldest-first (ascending), false =
+     * newest-first (descending). Defaults to {@code false} (newest-first),
+     * preserving current behavior for existing users until they explicitly
+     * toggle it.
+     */
+    private boolean dateAscending;
 
 
     public BrowseContentItemAdapter(ContentListFragment contentListFragment, RecyclerView contentList, UpnpClient upnpClient, ProgressBar progressBar) {
@@ -88,6 +121,107 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
         // Cache SharedPreferences lookup
         this.sharedPreferences = PreferenceManager.getDefaultSharedPreferences(context);
         this.showThumbnails = sharedPreferences.getBoolean(context.getString(R.string.settings_thumbnails_chkbx), true);
+        this.sortMode = readPersistedSortMode();
+        this.dateSortAvailable = false;
+        this.nameAscending = sharedPreferences.getBoolean(context.getString(R.string.settings_sort_name_ascending_key), true);
+        this.dateAscending = sharedPreferences.getBoolean(context.getString(R.string.settings_sort_date_ascending_key), false);
+    }
+
+    private SortMode readPersistedSortMode() {
+        String persisted = sharedPreferences.getString(context.getString(R.string.settings_sort_order_key), SortMode.NAME.name());
+        try {
+            return SortMode.valueOf(persisted);
+        } catch (IllegalArgumentException | NullPointerException e) {
+            return SortMode.NAME;
+        }
+    }
+
+    public SortMode getSortMode() {
+        return sortMode;
+    }
+
+    /**
+     * @return Name mode's own current direction: {@code true} for A-Z
+     * (ascending), {@code false} for Z-A.
+     */
+    public boolean isNameAscending() {
+        return nameAscending;
+    }
+
+    /**
+     * @return Date mode's own current direction: {@code true} for
+     * oldest-first (ascending), {@code false} for newest-first
+     * (descending).
+     */
+    public boolean isDateAscending() {
+        return dateAscending;
+    }
+
+    /**
+     * Changes the current sort mode. If the mode actually changes, the
+     * currently loaded items are cleared and reloaded so the new mode can
+     * take effect server-side (see {@link BrowseItemLoadTask}) as well as
+     * client-side (see {@link #sortObjects()}).
+     */
+    public void setSortMode(SortMode sortMode) {
+        if (sortMode == null || sortMode == this.sortMode) {
+            return;
+        }
+        this.sortMode = sortMode;
+        cancelRunningTasks();
+        clear();
+        loadMore();
+    }
+
+    /**
+     * Flips the <em>currently-selected</em> mode's own direction (Name:
+     * A-Z &lt;-&gt; Z-A; Date: newest-first &lt;-&gt; oldest-first),
+     * persists it, and reloads -- same as {@link #setSortMode(SortMode)}.
+     * The other (not-currently-selected) mode's direction is left
+     * untouched, per issue #252 Group 4.
+     */
+    public void toggleDirection() {
+        if (sortMode == SortMode.DATE) {
+            dateAscending = !dateAscending;
+            sharedPreferences.edit().putBoolean(context.getString(R.string.settings_sort_date_ascending_key), dateAscending).apply();
+        } else {
+            nameAscending = !nameAscending;
+            sharedPreferences.edit().putBoolean(context.getString(R.string.settings_sort_name_ascending_key), nameAscending).apply();
+        }
+        cancelRunningTasks();
+        clear();
+        loadMore();
+    }
+
+    /**
+     * @return true if at least one currently loaded item carries a non-null
+     * {@code dc:date} property, i.e. date sorting is meaningful for the
+     * current folder.
+     */
+    public boolean isDateSortAvailable() {
+        return dateSortAvailable;
+    }
+
+    /**
+     * @return true once this folder load has already observed the server
+     * reject a sorted ({@code orderBy}-bearing) Browse request (a UPnP
+     * action failure, per issue #252's post-ship bug fix) -- reset in
+     * {@link #clear()}. While true, {@link BrowseItemLoadTask} skips the
+     * doomed sorted attempt entirely for subsequent chunk requests of the
+     * same folder load.
+     */
+    public boolean isServerSortRejected() {
+        return serverSortRejected;
+    }
+
+    /**
+     * Records that the server rejected a sorted Browse request for the
+     * current folder load, so later chunk requests skip straight to the
+     * unsorted request. Reset on {@link #clear()} (i.e. on folder change or
+     * sort mode change).
+     */
+    public void markServerSortRejected() {
+        this.serverSortRejected = true;
     }
 
     @Override
@@ -106,7 +240,14 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
 
 
     public void setAllItemsFetched(boolean allItemsFetched) {
+        boolean justCompleted = allItemsFetched && !this.allItemsFetched;
         this.allItemsFetched = allItemsFetched;
+        if (justCompleted) {
+            // The whole folder is now loaded: apply the client-side fallback
+            // sort once, per requirements.md item 3 (no mid-load reshuffle).
+            sortObjects();
+            notifyDataSetChanged();
+        }
     }
 
     public Context getContext() {
@@ -138,6 +279,12 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
         List<DIDLObject> filteredObjects = newObjects.stream().filter(it -> !objects.contains(it)).collect(Collectors.toList());
         YaaccLogger.d(getClass().getName(), "Adding " + filteredObjects.size() + " new objects (filtered from " + newObjects.size() + " total)");
         objects.addAll(filteredObjects);
+        if (!dateSortAvailable) {
+            // Recompute live as chunks arrive so the Date toggle can enable
+            // itself as soon as any loaded item carries a dc:date, without
+            // waiting for the whole folder to finish loading.
+            dateSortAvailable = filteredObjects.stream().anyMatch(BrowseContentItemAdapter::hasDate);
+        }
         notifyItemRangeInserted(start, filteredObjects.size());
     }
 
@@ -147,11 +294,133 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
         }
         loading = false;
         allItemsFetched = false;
+        dateSortAvailable = false;
+        serverSortRejected = false;
         notifyDataSetChanged();
+    }
+
+    /**
+     * Client-side fallback sort, applied once the whole folder has been
+     * fetched (see {@link #setAllItemsFetched(boolean)}). Only reorders
+     * what is already loaded -- never triggers additional fetches.
+     */
+    private void sortObjects() {
+        if (objects == null || objects.size() < 2) {
+            return;
+        }
+        if (sortMode == SortMode.DATE) {
+            objects.sort((a, b) -> compareByDate(a, b, dateAscending));
+        } else {
+            objects.sort((a, b) -> compareByNameGrouped(a, b, nameAscending));
+        }
+    }
+
+    /**
+     * Name mode: containers before items regardless of direction (issue
+     * #252 Group 4 constraint) -- only the alphabetical comparison within
+     * each group reverses with {@code ascending}.
+     */
+    private static int compareByNameGrouped(DIDLObject a, DIDLObject b, boolean ascending) {
+        boolean aContainer = a instanceof Container;
+        boolean bContainer = b instanceof Container;
+        if (aContainer != bContainer) {
+            return aContainer ? -1 : 1;
+        }
+        String titleA = a.getTitle() == null ? "" : a.getTitle();
+        String titleB = b.getTitle() == null ? "" : b.getTitle();
+        int comparison = titleA.compareToIgnoreCase(titleB);
+        return ascending ? comparison : -comparison;
+    }
+
+    /**
+     * Date mode: containers and items fully interleaved, ordered by
+     * {@code dc:date} according to {@code ascending} (oldest-first when
+     * {@code true}, newest-first when {@code false}). Items with a missing
+     * or unparseable date sort last regardless of direction, never
+     * crashing.
+     */
+    private static int compareByDate(DIDLObject a, DIDLObject b, boolean ascending) {
+        Long dateA = parseDateMillis(a);
+        Long dateB = parseDateMillis(b);
+        if (dateA == null && dateB == null) {
+            return 0;
+        }
+        if (dateA == null) {
+            return 1;
+        }
+        if (dateB == null) {
+            return -1;
+        }
+        return ascending ? dateA.compareTo(dateB) : dateB.compareTo(dateA);
+    }
+
+    private static boolean hasDate(DIDLObject object) {
+        return object.getFirstPropertyValue(DIDLObject.Property.DC.DATE.class) != null;
+    }
+
+    /**
+     * Defensively parses a DIDL {@code dc:date} value (format is
+     * server-dependent, not guaranteed to be strict ISO-8601) into epoch
+     * millis for sorting. Returns {@code null} rather than throwing when
+     * the value is missing or cannot be parsed by any of the attempted
+     * formats.
+     */
+    private static Long parseDateMillis(DIDLObject object) {
+        String value = object.getFirstPropertyValue(DIDLObject.Property.DC.DATE.class);
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        if (trimmed.isEmpty()) {
+            return null;
+        }
+        try {
+            return LocalDate.parse(trimmed).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli();
+        } catch (DateTimeParseException dateOnlyFailed) {
+            // Not a plain date, try a full date-time below.
+        }
+        try {
+            return OffsetDateTime.parse(trimmed).toInstant().toEpochMilli();
+        } catch (DateTimeParseException offsetFailed) {
+            // Not an offset date-time either, try a local date-time.
+        }
+        try {
+            return LocalDateTime.parse(trimmed).toInstant(ZoneOffset.UTC).toEpochMilli();
+        } catch (DateTimeParseException localFailed) {
+            return null;
+        }
     }
 
     public Object getItem(int position) {
         return objects.get(position);
+    }
+
+    /**
+     * Returns the currently-loaded children in their current, on-screen
+     * order -- i.e. already reflecting whatever client-side sort mode and
+     * direction is active (see {@link #sortObjects()}). Used by {@link
+     * ContentListFragment#playAllChildsOfParentFrom(DIDLObject)} (issue
+     * play-all-ignores-sort-order) to build a playback queue that matches
+     * what the user sees and tapped, instead of re-fetching the folder from
+     * the server in its unsorted default order.
+     *
+     * Returns a defensive snapshot copy (wrapped unmodifiable) rather than a
+     * live view over {@link #objects}, because this method is also called
+     * from a background thread (see {@code ContentListFragment#
+     * playAllChildsOfParentFrom}, invoked from {@code ContentItemPlayTask
+     * #doInBackground}) while {@link #objects} is mutated in place from the
+     * main thread ({@code addAll}/{@code clear}/{@code sortObjects}, driven
+     * by {@code setSortMode}/{@code toggleDirection}/{@code loadMore}). A
+     * live {@code Collections.unmodifiableList(objects)} view does not
+     * protect against that: a concurrent mutation while the background
+     * thread iterates/filters the view can still throw a
+     * {@code ConcurrentModificationException} or yield a torn read.
+     *
+     * @return an unmodifiable snapshot copy of the adapter's current backing
+     * list, taken at the time of the call; never {@code null}.
+     */
+    public List<DIDLObject> getObjects() {
+        return Collections.unmodifiableList(new ArrayList<>(objects));
     }
 
     @Override

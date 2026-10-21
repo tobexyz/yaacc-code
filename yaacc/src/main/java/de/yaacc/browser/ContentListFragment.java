@@ -26,7 +26,6 @@ import android.view.View;
 import android.view.View.OnClickListener;
 import android.view.ViewGroup;
 import android.widget.ImageButton;
-import android.widget.RelativeLayout;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -69,6 +68,9 @@ public class ContentListFragment extends Fragment implements OnClickListener,
     private View topSeperator;
     private TextView currentProvider;
     private ProgressBar progressBar;
+    private ImageButton sortByNameButton;
+    private ImageButton sortByDateButton;
+    private BrowseContentItemAdapter.SortMode currentSortMode = BrowseContentItemAdapter.SortMode.NAME;
 
 
     @Override
@@ -105,6 +107,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         currentProvider = contentlistView.findViewById(R.id.contentListCurrentProvider);
         tintCompoundDrawables(currentReceivers);
         tintCompoundDrawables(currentProvider);
+        initSortToggle(contentlistView);
         topSeperator = contentlistView.findViewById(R.id.contentListTopSeperator);
         contentList = contentlistView.findViewById(R.id.contentList);
         progressBar = contentlistView.findViewById(R.id.contentListProgressBar);
@@ -141,6 +144,94 @@ public class ContentListFragment extends Fragment implements OnClickListener,
 
     }
 
+    /**
+     * Wires up the "Name"/"Date" sort toggle (issue #252): finds the
+     * buttons, applies persisted sort order from SharedPreferences as the
+     * initial visual state, and installs click handlers.
+     */
+    private void initSortToggle(View contentlistView) {
+        sortByNameButton = contentlistView.findViewById(R.id.contentListSortByNameButton);
+        sortByDateButton = contentlistView.findViewById(R.id.contentListSortByDateButton);
+        if (sortByNameButton == null || sortByDateButton == null || getContext() == null) {
+            return;
+        }
+
+        String persisted = PreferenceManager.getDefaultSharedPreferences(getContext())
+                .getString(getString(R.string.settings_sort_order_key), BrowseContentItemAdapter.SortMode.NAME.name());
+        try {
+            currentSortMode = BrowseContentItemAdapter.SortMode.valueOf(persisted);
+        } catch (IllegalArgumentException e) {
+            currentSortMode = BrowseContentItemAdapter.SortMode.NAME;
+        }
+
+        // Tapping the already-selected mode's button flips that mode's own
+        // direction; tapping the other button switches mode, using that
+        // mode's own last-remembered direction (issue #252 Group 4).
+        sortByNameButton.setOnClickListener((v) -> {
+            if (currentSortMode == BrowseContentItemAdapter.SortMode.NAME && bItemAdapter != null) {
+                bItemAdapter.toggleDirection();
+                updateSortToggleUi();
+            } else {
+                onSortModeSelected(BrowseContentItemAdapter.SortMode.NAME);
+            }
+        });
+        sortByDateButton.setOnClickListener((v) -> {
+            if (currentSortMode == BrowseContentItemAdapter.SortMode.DATE && bItemAdapter != null) {
+                bItemAdapter.toggleDirection();
+                updateSortToggleUi();
+            } else {
+                onSortModeSelected(BrowseContentItemAdapter.SortMode.DATE);
+            }
+        });
+        updateSortToggleUi();
+    }
+
+    private void onSortModeSelected(BrowseContentItemAdapter.SortMode mode) {
+        if (mode == currentSortMode) {
+            return;
+        }
+        currentSortMode = mode;
+        if (getContext() != null) {
+            PreferenceManager.getDefaultSharedPreferences(getContext()).edit()
+                    .putString(getString(R.string.settings_sort_order_key), mode.name())
+                    .apply();
+        }
+        if (bItemAdapter != null) {
+            // Equivalent to re-entering the folder in the new mode: clears
+            // and reloads a single fresh chunk, no extra network requests.
+            bItemAdapter.setSortMode(mode);
+        }
+        updateSortToggleUi();
+    }
+
+    /**
+     * Reflects the current sort mode selection, the live
+     * date-sort-availability (issue #252 requirement 5), and each button's
+     * own current direction icon (issue #252 Group 4) on the toggle
+     * buttons. Each icon reflects the adapter's live
+     * {@code isNameAscending()}/{@code isDateAscending()} state
+     * independently of which mode is currently selected.
+     */
+    private void updateSortToggleUi() {
+        if (sortByNameButton == null || sortByDateButton == null || getContext() == null) {
+            return;
+        }
+        boolean nameAscending = bItemAdapter == null || bItemAdapter.isNameAscending();
+        boolean dateAscending = bItemAdapter != null && bItemAdapter.isDateAscending();
+        int sortByNameIconRes = nameAscending ? R.drawable.ic_baseline_sort_by_alpha_32 : R.drawable.ic_baseline_sort_by_alpha_desc_32;
+        int sortByDateIconRes = dateAscending ? R.drawable.ic_baseline_date_range_asc_32 : R.drawable.ic_baseline_date_range_32;
+        sortByNameButton.setImageDrawable(ThemeHelper.tintDrawable(getResources().getDrawable(sortByNameIconRes, getContext().getTheme()), getContext().getTheme()));
+        sortByDateButton.setImageDrawable(ThemeHelper.tintDrawable(getResources().getDrawable(sortByDateIconRes, getContext().getTheme()), getContext().getTheme()));
+
+        boolean dateAvailable = bItemAdapter != null && bItemAdapter.isDateSortAvailable();
+        boolean dateSelected = currentSortMode == BrowseContentItemAdapter.SortMode.DATE;
+        sortByDateButton.setEnabled(dateAvailable);
+        sortByNameButton.setSelected(!dateSelected);
+        sortByDateButton.setSelected(dateSelected);
+        sortByNameButton.setAlpha(dateSelected ? 0.6f : 1.0f);
+        sortByDateButton.setAlpha(!dateAvailable ? 0.38f : (dateSelected ? 1.0f : 0.6f));
+    }
+
     private void tintCompoundDrawables(TextView textView) {
         Drawable[] drawables = textView.getCompoundDrawablesRelative();
         for (int i = 0; i < drawables.length; i++) {
@@ -164,7 +255,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
     private void showMainFolder() {
         if (getActivity() != null) {
             getActivity().runOnUiThread(() -> {
-                removeFolderNavigation();
+                hideFolderNavigationControls();
             });
         }
         navigator = new Navigator();
@@ -173,12 +264,71 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         populateItemList(true);
     }
 
-    private void removeFolderNavigation() {
+    /**
+     * Hides just the back button / separator while a device switch is in
+     * progress and the navigator is about to be replaced. The path label
+     * itself is left alone here -- {@link #populateItemList(boolean)} (always
+     * called right after) sets it correctly via
+     * {@link #updateFolderNavigationUi()} once the new navigator exists.
+     */
+    private void hideFolderNavigationControls() {
         backButton.setVisibility(View.GONE);
-        currentFolderNameView.setVisibility(View.GONE);
         topSeperator.setVisibility(View.GONE);
-        ((RelativeLayout.LayoutParams) contentList.getLayoutParams()).addRule(RelativeLayout.ALIGN_PARENT_TOP, RelativeLayout.TRUE);
-        currentFolderNameView.setText("");
+    }
+
+    /**
+     * Reflects the current navigation position: the back button/separator
+     * are shown only below the root (nothing to go back to from root), while
+     * the path label itself is always visible, showing the provider device's
+     * friendly name followed by any folder names below it (e.g. "MyServer"
+     * at root, "MyServer &gt; Music &gt; Artists" further down) -- see issue
+     * about always showing the server name and truncating long paths. The
+     * label's own layout (ellipsize="start", maxLines="1" in both
+     * fragment_content_list.xml and layout-land/fragment_content_list.xml)
+     * keeps it on one line, truncated from the left so the most specific
+     * (rightmost) part of the path stays visible.
+     */
+    private void updateFolderNavigationUi() {
+        boolean atRoot = navigator == null || navigator.getCurrentPosition() == null
+                || Navigator.ITEM_ROOT_OBJECT_ID.equals(navigator.getCurrentPosition().getObjectId());
+        // GONE correctly reclaims the back button's space at root -- the
+        // path label no longer anchors to it for position at all (see
+        // below), so there's no RelativeLayout anchor-to-a-hidden-sibling
+        // risk here.
+        backButton.setVisibility(atRoot ? View.GONE : View.VISIBLE);
+        topSeperator.setVisibility(atRoot ? View.GONE : View.VISIBLE);
+        currentFolderNameView.setVisibility(View.VISIBLE);
+        currentFolderNameView.setText(buildPathDisplayText());
+        // The label's start margin is set here instead of via a
+        // layout_toEndOf="@id/contentListBackButton" anchor: anchoring a
+        // visible view to a GONE sibling was unreliable across Android
+        // skins (observed: the label jumping to the right at root on a real
+        // device). Always set explicitly (never "restored" from XML, which
+        // isn't possible once mutated) via resources that differ by
+        // orientation: portrait places the label beside the button (needs
+        // to clear its width), landscape places it below (doesn't) -- see
+        // values/dimens.xml and values-land/dimens.xml.
+        int marginStartDimenRes = atRoot
+                ? R.dimen.folder_name_margin_start_base
+                : R.dimen.folder_name_margin_start_with_back;
+        ViewGroup.MarginLayoutParams folderNameLayoutParams =
+                (ViewGroup.MarginLayoutParams) currentFolderNameView.getLayoutParams();
+        folderNameLayoutParams.setMarginStart(getResources().getDimensionPixelSize(marginStartDimenRes));
+        currentFolderNameView.setLayoutParams(folderNameLayoutParams);
+    }
+
+    private String buildPathDisplayText() {
+        List<String> segments = new ArrayList<>();
+        if (upnpClient != null && upnpClient.getProviderDevice() != null && upnpClient.getProviderDevice().getDetails() != null) {
+            String serverName = upnpClient.getProviderDevice().getDetails().getFriendlyName();
+            if (serverName != null && !serverName.isEmpty()) {
+                segments.add(serverName);
+            }
+        }
+        if (navigator != null) {
+            segments.addAll(navigator.getPathNames());
+        }
+        return segments.stream().collect(Collectors.joining(" > "));
     }
 
     @Override
@@ -207,7 +357,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         if (Navigator.ITEM_ROOT_OBJECT_ID.equals(currentObjectId)) {
             if (getActivity() != null) {
                 getActivity().runOnUiThread(() -> {
-                            removeFolderNavigation();
+                            updateFolderNavigationUi();
                         }
 
                 );
@@ -222,14 +372,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
             final RecyclerView itemList = contentList;
             Position lastPosition = navigator.popPosition(); // First pop is our
             if (getActivity() != null) {
-                getActivity().runOnUiThread(() -> {
-                    if (Navigator.ITEM_ROOT_OBJECT_ID.equals(navigator.getCurrentPosition().getObjectId())) {
-                        removeFolderNavigation();
-                    } else {
-                        showFolderNavigation();
-                        currentFolderNameView.setText(navigator.getPathNames().stream().collect(Collectors.joining(" > ")));
-                    }
-                });
+                getActivity().runOnUiThread(this::updateFolderNavigationUi);
             }
             // currentPosition
             initBrowsItemAdapter(itemList);
@@ -242,13 +385,6 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         return true;
     }
 
-    private void showFolderNavigation() {
-        backButton.setVisibility(View.VISIBLE);
-        currentFolderNameView.setVisibility(View.VISIBLE);
-        topSeperator.setVisibility(View.VISIBLE);
-        ((RelativeLayout.LayoutParams) contentList.getLayoutParams()).removeRule(RelativeLayout.ALIGN_PARENT_TOP);
-    }
-
 
     private void initBrowsItemAdapter(RecyclerView itemList) {
         if (bItemAdapter == null) {
@@ -256,6 +392,26 @@ public class ContentListFragment extends Fragment implements OnClickListener,
                 return;
             }
             bItemAdapter = new BrowseContentItemAdapter(this, itemList, upnpClient, progressBar);
+            // The adapter already reads the same persisted preference on
+            // construction; this call is a no-op unless the two diverge, so
+            // it never triggers an extra network fetch on top of the
+            // initial load.
+            bItemAdapter.setSortMode(currentSortMode);
+            // Reflect the newly-constructed adapter's own persisted
+            // direction state (isNameAscending()/isDateAscending()) right
+            // away, rather than waiting for the first data-change callback.
+            updateSortToggleUi();
+            bItemAdapter.registerAdapterDataObserver(new RecyclerView.AdapterDataObserver() {
+                @Override
+                public void onChanged() {
+                    updateSortToggleUi();
+                }
+
+                @Override
+                public void onItemRangeInserted(int positionStart, int itemCount) {
+                    updateSortToggleUi();
+                }
+            });
             itemList.setAdapter(bItemAdapter);
             itemList.addOnScrollListener(new RecyclerView.OnScrollListener() {
                 @Override
@@ -282,12 +438,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
      */
     public void populateItemList(boolean clear) {
         requireActivity().runOnUiThread(() -> {
-            if (Navigator.ITEM_ROOT_OBJECT_ID.equals(navigator.getCurrentPosition().getObjectId())) {
-                removeFolderNavigation();
-            } else {
-                showFolderNavigation();
-                currentFolderNameView.setText(navigator.getPathNames().stream().collect(Collectors.joining(" > ")));
-            }
+            updateFolderNavigationUi();
 
             if (bItemAdapter != null) {
                 bItemAdapter.cancelRunningTasks();
@@ -404,10 +555,58 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         play(upnpClient.initializePlayers(item));
     }
 
+    /**
+     * Builds and plays the queue of all playable siblings of {@code item}'s
+     * parent folder, starting at {@code item} -- e.g. tapping an audio item
+     * row, or a row's "play all" button.
+     * <p>
+     * Prefers the {@link BrowseContentItemAdapter}'s own current, already
+     * client-side-sorted list of loaded children (the exact list the user
+     * sees and tapped from) over re-browsing the server, so the resulting
+     * playback order matches the active sort mode/direction instead of the
+     * server's unsorted default order (see issue
+     * play-all-ignores-sort-order). Falls back to the old server re-browse
+     * only when the adapter can't provide that view: no adapter, {@code
+     * item} isn't among its currently-loaded children (e.g. a stale
+     * reference, or the adapter belongs to a different folder than {@code
+     * item}'s parent), or the current folder has no playable items loaded
+     * at all (e.g. a containers-only folder).
+     */
     public void playAllChildsOfParentFrom(DIDLObject item) {
         if (item == null) {
             return;
         }
+        if (bItemAdapter != null) {
+            List<DIDLObject> currentObjects = bItemAdapter.getObjects();
+            if (currentObjects.contains(item)) {
+                List<Item> sortedItems = currentObjects.stream()
+                        .filter(Item.class::isInstance)
+                        .map(Item.class::cast)
+                        .collect(Collectors.toList());
+                if (!sortedItems.isEmpty()) {
+                    Item target = item instanceof Item ? (Item) item : null;
+                    play(upnpClient.initializePlayers(rotateToStart(sortedItems, target)));
+                    return;
+                }
+                // Falls through: current folder has no playable items at
+                // all (e.g. containers-only) -- same edge case the server
+                // re-browse fallback below already handles.
+            }
+            // Falls through: item isn't among the adapter's current
+            // children -- fall back to the server re-browse safety net.
+        }
+        playAllChildsOfParentFromServer(item);
+    }
+
+    /**
+     * Pre-fix fallback: re-browses the parent folder from the server
+     * directly, via the no-{@code orderBy} {@code browseSync} overload, and
+     * rotates the result so {@code item} plays first. Has no knowledge of
+     * the active client-side sort mode, so used only as a safety net when
+     * {@link #playAllChildsOfParentFrom(DIDLObject)} can't build the
+     * playlist from the adapter's own (sorted) current list.
+     */
+    private void playAllChildsOfParentFromServer(DIDLObject item) {
         ContentDirectoryBrowseResult result = upnpClient.browseSync(new Position(0, item.getParentID(), upnpClient.getProviderDevice().getIdentity().getUdn().getIdentifierString(), item.getTitle()));
         if (result == null || (result.getResult() != null && result.getResult().getItems().isEmpty())) {
             if (result != null && result.getResult() != null && !result.getResult().getContainers().isEmpty()) {
@@ -417,16 +616,31 @@ public class ContentListFragment extends Fragment implements OnClickListener,
             }
         } else {
             List<Item> items = result.getResult() == null ? new ArrayList<>() : result.getResult().getItems();
-            int index = items.indexOf(item);
-            if (index > 0) {
-                //sort selected item to the beginning
-                List<Item> tempItems = new ArrayList<>(items.subList(index, items.size()));
-                tempItems.addAll(items.subList(0, index));
-                items = tempItems;
-            }
-
-            play(upnpClient.initializePlayers(items));
+            Item target = item instanceof Item ? (Item) item : null;
+            play(upnpClient.initializePlayers(rotateToStart(items, target)));
         }
+    }
+
+    /**
+     * Pure list-rotation helper: rotates {@code items} so {@code item} is
+     * first, preserving the relative order of everything else (the rest of
+     * the list wraps around). Returns a copy of {@code items} unchanged
+     * (not rotated) when {@code item} is {@code null} or not found, or is
+     * already first. Extracted from {@link #playAllChildsOfParentFrom(DIDLObject)}
+     * so it's unit-testable without any Android/Cling-framework
+     * dependency.
+     */
+    static List<Item> rotateToStart(List<Item> items, Item item) {
+        if (items == null) {
+            return new ArrayList<>();
+        }
+        int index = items.indexOf(item);
+        if (index <= 0) {
+            return new ArrayList<>(items);
+        }
+        List<Item> rotated = new ArrayList<>(items.subList(index, items.size()));
+        rotated.addAll(items.subList(0, index));
+        return rotated;
     }
 
 

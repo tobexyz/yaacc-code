@@ -27,7 +27,11 @@ import org.fourthline.cling.support.model.container.StorageFolder;
 import org.fourthline.cling.support.model.item.Item;
 
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
 
 import de.yaacc.R;
 
@@ -62,6 +66,16 @@ public class MusicFolderBrowser extends ContentBrowser {
         result.add((Container) new MusicAlbumsFolderBrowser(getContext()).browseMeta(contentDirectory, ContentDirectoryIDs.MUSIC_ALBUMS_FOLDER.getId(), 0, 1, orderby));
         result.add((Container) new MusicArtistsFolderBrowser(getContext()).browseMeta(contentDirectory, ContentDirectoryIDs.MUSIC_ARTISTS_FOLDER.getId(), 0, 1, orderby));
         result.add((Container) new MusicGenresFolderBrowser(getContext()).browseMeta(contentDirectory, ContentDirectoryIDs.MUSIC_GENRES_FOLDER.getId(), 0, 1, orderby));
+
+        Map<String, Function<DIDLObject, String>> accessorMap = new HashMap<>();
+        accessorMap.put(SortSupport.PROPERTY_TITLE, DIDLObject::getTitle);
+        // No natural "default" sort key for this fixed, hand-picked list of top-level
+        // music folders - a no-op comparator relies on List.sort's stability to keep
+        // today's existing fixed order ("All titles", "Albums", "Artists", "Genres")
+        // unchanged when no SortCriteria was requested.
+        Comparator<DIDLObject> defaultComparator = (a, b) -> 0;
+        result.sort(SortSupport.toComparator(orderby, accessorMap, defaultComparator));
+
         int start = firstResult > 0 ? (int) firstResult : 0;
         if (firstResult >= (result.size() - 1)) {
             start = result.size() - 1;

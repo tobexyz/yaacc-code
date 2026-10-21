@@ -34,7 +34,10 @@ import org.fourthline.cling.support.model.item.VideoItem;
 import org.seamless.util.MimeType;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
 
 import de.yaacc.R;
 
@@ -45,6 +48,18 @@ import de.yaacc.R;
  * @author Tobias Schoene (tobexyz)
  */
 public class LiveStreamFolderBrowser extends ContentBrowser {
+
+    /** Live stream items are title-only - there is no meaningful per-stream date. */
+    private static final Map<String, Function<DIDLObject, String>> ITEM_ACCESSOR_MAP =
+            Map.of(SortSupport.PROPERTY_TITLE, DIDLObject::getTitle);
+
+    /**
+     * No-op comparator used as the {@code defaultComparator} for {@link SortSupport#toComparator}.
+     * {@link List#sort} is a stable sort, so applying this leaves the list - already built in
+     * today's fixed system-audio-then-screen-cast order - unchanged when no
+     * {@code SortCriteria} was requested.
+     */
+    private static final Comparator<DIDLObject> STABLE_ORDER = (a, b) -> 0;
 
     public LiveStreamFolderBrowser(Context context) {
         super(context);
@@ -160,6 +175,9 @@ public class LiveStreamFolderBrowser extends ContentBrowser {
 
             result.add(videoItem);
         }
+        // result is already built in today's fixed default order; STABLE_ORDER preserves
+        // that exactly via stable sort when orderby is empty/null.
+        result.sort(SortSupport.toComparator(orderby, ITEM_ACCESSOR_MAP, STABLE_ORDER));
         //FIXME experimental not stable working
         // Combined video+audio stream (MPEG-TS)
         /*

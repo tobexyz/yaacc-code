@@ -96,6 +96,8 @@
     <string name="title_activity_yaacc_log">Zeige Log</string>
     <string name="logContent">Der Inhalt des Systemlogs sollte hier angezeigt werden</string>
     <string name="icon">Icon</string>
+    <string name="sort_by_name">Nach Name sortieren</string>
+    <string name="sort_by_date">Nach Datum sortieren</string>
     <string name="not_yet_implemented">not yet implemented</string>
     <string name="avtransportPlayerActivityNextLabel">Nächstes:</string>
     <string name="browse_context_control_device">Gerät steuern</string>
