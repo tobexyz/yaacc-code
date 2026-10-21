@@ -18,14 +18,19 @@
 package de.yaacc.imageviewer;
 
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Matrix;
 import android.net.Uri;
 import android.os.Bundle;
+import android.util.DisplayMetrics;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
 import android.widget.ProgressBar;
+
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -37,6 +42,7 @@ import androidx.lifecycle.LifecycleEventObserver;
 import de.yaacc.R;
 import de.yaacc.Yaacc;
 import de.yaacc.util.YaaccLogger;
+import de.yaacc.util.image.BitmapSampling;
 
 /**
  * Fragment for displaying a single image in ViewPager2.
@@ -120,19 +126,46 @@ public class ImageFragment extends Fragment {
         });
     }
 
+    /**
+     * Upper bound (per axis) for the decoded bitmap, regardless of screen
+     * size. Keeps memory/time bounded for very high-resolution photos while
+     * still giving the PhotoView pinch-zoom viewer real detail to zoom into
+     * -- also comfortably under the ~4096px texture-size limit most GPUs
+     * enforce (avoids a "Canvas: trying to draw too large bitmap" crash on
+     * some devices for extreme-resolution sources).
+     */
+    private static final int MAX_DECODE_DIMENSION_PX = 4096;
+
+    /**
+     * Loads the full image into memory once (as compressed bytes, not a
+     * decoded bitmap) and decodes it downsampled to a size based on the
+     * screen -- previously this decoded the bitmap at full native
+     * resolution with no size hint at all, which for a 20-50MP photo means
+     * allocating/decoding a 100MB+ bitmap just to display it shrunk to fit
+     * a phone screen. The compressed bytes are far smaller than even a
+     * downsampled bitmap, so buffering them first is a large net memory
+     * win, not a cost, versus the previous direct-decode-from-stream
+     * approach.
+     */
     private Bitmap loadBitmap(Uri imageUri) {
         try {
             if (getActivity() != null) {
                 String scheme = imageUri.getScheme();
+                byte[] imageBytes;
                 if ("http".equals(scheme) || "https".equals(scheme)) {
-                    // Download from HTTP - no EXIF support for remote images
-                    java.net.URL url = new java.net.URL(imageUri.toString());
-                    return android.graphics.BitmapFactory.decodeStream(url.openStream());
+                    // No EXIF support for remote images (pre-existing
+                    // limitation, unrelated to this fix).
+                    try (InputStream in = new java.net.URL(imageUri.toString()).openStream()) {
+                        imageBytes = BitmapSampling.readAllBytes(in);
+                    }
+                    return decodeSampledBitmap(imageBytes);
                 } else {
-                    // Local file via ContentResolver
-                    Bitmap bitmap = android.graphics.BitmapFactory.decodeStream(
-                            getActivity().getContentResolver().openInputStream(imageUri));
-                    return applyExifRotation(bitmap, imageUri);
+                    try (InputStream in = getActivity().getContentResolver().openInputStream(imageUri)) {
+                        if (in == null) return null;
+                        imageBytes = BitmapSampling.readAllBytes(in);
+                    }
+                    Bitmap bitmap = decodeSampledBitmap(imageBytes);
+                    return applyExifRotation(bitmap, imageBytes);
                 }
             }
         } catch (Exception e) {
@@ -141,13 +174,32 @@ public class ImageFragment extends Fragment {
         return null;
     }
 
-    private Bitmap applyExifRotation(Bitmap bitmap, Uri imageUri) {
+    /**
+     * Two-pass decode: first pass reads only the image's dimensions
+     * ({@code inJustDecodeBounds}, no pixel memory allocated), then the
+     * real decode requests the smallest power-of-two {@code inSampleSize}
+     * that still covers the target size -- the decoder itself skips pixels
+     * while decoding, rather than decoding every pixel and scaling down
+     * afterward (the standard Android pattern for this; see
+     * "Loading Large Bitmaps Efficiently" in the Android developer guide).
+     */
+    private Bitmap decodeSampledBitmap(byte[] imageBytes) {
+        DisplayMetrics metrics = getResources().getDisplayMetrics();
+        int target = Math.min(Math.max(metrics.widthPixels, metrics.heightPixels) * 2, MAX_DECODE_DIMENSION_PX);
+
+        BitmapFactory.Options boundsOptions = new BitmapFactory.Options();
+        boundsOptions.inJustDecodeBounds = true;
+        BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.length, boundsOptions);
+
+        BitmapFactory.Options decodeOptions = new BitmapFactory.Options();
+        decodeOptions.inSampleSize = BitmapSampling.computeInSampleSizeForMaxDimension(boundsOptions, target);
+        return BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.length, decodeOptions);
+    }
+
+    private Bitmap applyExifRotation(Bitmap bitmap, byte[] imageBytes) {
         if (bitmap == null) return null;
-        try {
-            java.io.InputStream inputStream = getActivity().getContentResolver().openInputStream(imageUri);
-            if (inputStream == null) return bitmap;
-            ExifInterface exif = new ExifInterface(inputStream);
-            inputStream.close();
+        try (InputStream in = new ByteArrayInputStream(imageBytes)) {
+            ExifInterface exif = new ExifInterface(in);
             int orientation = exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL);
             int degrees = 0;
             switch (orientation) {
@@ -162,7 +214,7 @@ public class ImageFragment extends Fragment {
             bitmap.recycle();
             return rotated;
         } catch (Exception e) {
-            YaaccLogger.e(getClass().getName(), "Failed to read EXIF orientation for: " + imageUri, e);
+            YaaccLogger.e(getClass().getName(), "Failed to read EXIF orientation", e);
             return bitmap;
         }
     }

@@ -67,9 +67,17 @@ public class ImageDownloadTask extends AsyncTask<Uri, Integer, Bitmap> {
      */
     @Override
     protected Bitmap doInBackground(Uri... uri) {
-        int width = imageView != null ? imageView.getWidth() : 512;
-        int height = imageView != null ? imageView.getHeight() : 512;
-        
+        // imageView.getWidth()/getHeight() report 0 until the view has been
+        // through a layout pass - if this task is kicked off before that
+        // (e.g. right after setContentView, before the first layout),
+        // requesting a 0x0 decode size defeats downsampling entirely
+        // (BitmapSampling.computeInSampleSize can't produce a sane sample
+        // size for a 0 target), reproducing the original full-resolution-
+        // decode bug (issue #285) through a different trigger. Same 512
+        // fallback already used below for a null imageView.
+        int width = (imageView != null && imageView.getWidth() > 0) ? imageView.getWidth() : 512;
+        int height = (imageView != null && imageView.getHeight() > 0) ? imageView.getHeight() : 512;
+
         if (cache.getBitmap(uri[0], width, height) == null) {
             cache.addBitmap(uri[0], width, height, new ImageDownloader().retrieveImageWithCertainSize(uri[0], width, height));
         }
