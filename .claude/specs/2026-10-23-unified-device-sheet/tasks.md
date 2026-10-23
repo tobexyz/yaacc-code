@@ -29,7 +29,7 @@ Plan: `specs/2026-10-23-unified-device-sheet/requirements.md` and `specs/2026-10
 - [ ] Implement `DeviceSessionGrouper` | `yaacc/src/main/java/de/yaacc/browser/DeviceSessionGrouper.java`
   - **Accept**: all `DeviceSessionGrouperTest` cases pass
   - **Verify**: `./gradlew :yaacc:testDebugUnitTest --tests '*DeviceSessionGrouperTest*'`
-  - **Constraints**: no `android.*` imports; no Java records (keep plain classes)
+  - **Constraints**: no `android.*` imports; no Java records (keep plain classes); replace the stub's `primarySession` Javadoc (still the old rule) with design.md's wording (review cycle 2 suggestion)
 - [ ] Extract `ReceiverRowBinder` from `BrowseReceiverDeviceAdapter`, fix first-match bug | `yaacc/src/main/java/de/yaacc/browser/BrowseReceiverDeviceAdapter.java`, `yaacc/src/main/java/de/yaacc/browser/ReceiverRowBinder.java`
   - **Accept**: Receiver tab looks and behaves the same; `getPlayerForDevice` is gone and the row's player comes from `DeviceSessionGrouper.primarySession(...)` built from `Player#getDeviceId()` (not `instanceof` checks)
   - **Verify**: `./gradlew :yaacc:assembleDebug :yaacc:testDebugUnitTest`

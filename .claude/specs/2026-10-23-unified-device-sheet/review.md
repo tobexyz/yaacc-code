@@ -41,3 +41,28 @@ Spot-checks performed against the cached
 Other checks: the stub and the test have no `android.*` imports and no records. The stub's public API matches design.md (plus the `PlayerRef` accessors). `material:1.14.0` is at `yaacc/build.gradle:20` and no dependencies were added.
 
 ### Verdict: FAIL
+
+## Cycle 2 — 2026-10-23
+Reviewing: Group 1 tasks + Fix Group 1 (commits 9cfdb3c2, 3d42fac8)
+
+Resolution of cycle 1 findings:
+- **W1 (multiple playing sessions): resolved.** design.md "Interfaces & Contracts" and "Fix for finding 3" now say: highest playerId among the playing sessions, else highest playerId overall, else null, regardless of input order. The new test `primarySessionPicksHighestPlayerIdAmongSeveralPlayingSessionsRegardlessOfInputOrder` (ids 4 playing, 8 playing, 9 idle, in two input orders, expecting 8) rejects every wrong implementation I tried: first-playing-in-input-order (gives 4 in order 1), last-playing-in-input-order (gives 4 in order 2), lowest playing id (4), and highest id overall (9). The existing primarySession tests (prefer playing over a higher idle id, fallback 3/7/5 -> 7, other devices ignored, null) still match the new rule.
+- **W2 (per-device grouping not discriminated): resolved.** GONE_TOO is now 7, between GONE 6 and 9. A global playerId sort gives 6, 7, 9, so `gone6 + 1 == gone9` fails. The assertion now checks contiguity and order through indices, not just presence.
+- **W3 (double removal): resolved.** `docs/tech.md` §6 documents both directions, citing `PlayerService.java:519-525` and `AbstractPlayer.java:958-965`, which I checked against the source in cycle 1. design.md Risks and the Group 2 listener task now say "added" fires only when `put` returns null and "removed" only when `remove` returns non-null. Verify now requires a test where `onDestroy()` calls back into `removePlayer`.
+- **Suggestion (IndexOutOfBounds): resolved.** A `rows.size() == 5` assertion now comes before `subList`. All 11 red failures are `java.lang.AssertionError` (checked in the test-results XML).
+
+### Critical
+- None.
+
+### Warning
+- None.
+
+### Suggestion
+- [yaacc/src/main/java/de/yaacc/browser/DeviceSessionGrouper.java:109] The stub's `primarySession` Javadoc still has the old wording ("Playing session first, else highest playerId"), which no longer matches design.md. The Fix Group deliberately left the stub alone, so the Group 2 implementer should copy design.md's Javadoc in when implementing.
+- Carried over from cycle 1, still open and non-blocking: copy the "no RECEIVER row for unknown devices / no receivers still lists every session" decisions into design.md's contract Javadoc, and document the value of `Row.playerId()` for RECEIVER rows.
+
+### Tests
+- [x] All tests passing: `./gradlew :yaacc:testDebugUnitTest` reports 171 tests, 11 failed, all in `DeviceSessionGrouperTest`. All 11 are `AssertionError`s, which is the expected red phase. No other suite fails.
+- [x] Coverage adequate for the change: cases (a)-(g) are covered, and the cycle 1 gaps that let an incorrect Group 2 implementation pass are closed.
+
+### Verdict: PASS
