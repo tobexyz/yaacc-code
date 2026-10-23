@@ -60,6 +60,11 @@ in Group 3 review cycle 1).
 - The sheet doesn't refresh when receivers appear or disappear on the
   network while it's open (status of known receivers does update).
 - After rotation, the sheet returns to its initial half/full position.
+- One slow-answering renderer stalls status polling for every receiver
+  (security review Group 3): `RendererStatusMonitor` polls on a single
+  thread. This predates the branch (the tab's monitor was single-threaded
+  too); now the tab and the sheet share that one thread. Play/pause/stop
+  are unaffected. A per-device timeout or a small pool would fix it.
 - Hardening outside this spec (security review Group 2): drop remote devices
   that claim `LOCAL_UID` at registration; the unused mutable
   `PlayerService#getPlayer()`; `IconDownloadTask` accepts any URL scheme

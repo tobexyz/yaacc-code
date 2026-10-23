@@ -199,3 +199,117 @@ exported components in the diff.
   pre-existing `ImageDownloader` scheme allowlist and size cap follow-up.
 
 ### Verdict: PASS
+
+## Cycle 1 — 2026-10-23
+Reviewing: Group 3
+
+Scope: `git diff 02751ed0..HEAD -- yaacc`, which covers `DeviceSheetFragment`,
+`DeviceSheetAdapter`, `ReceiverBarLabel`, `MonitorSubscriptions`,
+`RendererStatusMonitor` (now shared), `ReceiverRowBinder`, `UpnpClient`, the
+Content and Receiver fragments, the play entry points, layouts, styles,
+strings and tests. Context came from decisions.md (shared monitor;
+`UpnpClient` keeping player-list listeners across rebinding). Test results
+on disk: `MonitorSubscriptionsTest` 10/10 and `ReceiverBarLabelTest` 7/7,
+with 0 failures and 0 errors.
+
+Earlier suggestions aimed at Group 3:
+- **Untrusted strings rendered as plain text: honored.** Session name,
+  title and orphan device id use `setText` only
+  (`DeviceSheetAdapter.java:321-331`). The receiver bar uses
+  `ReceiverBarLabel.build(...)`, which builds a plain `String.join`, then
+  `setText` (`ContentListFragment.java:384-390`). Receiver rows still go
+  through `ReceiverRowBinder`. The new layouts have no `autoLink`, no
+  `Html.fromHtml` and no `Linkify`, and every LAN string view is limited by
+  `maxLines` and `ellipsize`. No untrusted value is used as a format string.
+- **Album art only through `IconDownloadTask`: honored**
+  (`DeviceSheetAdapter.java:347-350`, with a recycle-guard tag).
+- **Listener lifecycle: honored.** The sheet subscribes in `onStart` and
+  drops the monitor listener, the player-list listener and the local poller
+  in `onStop`, with `onDestroyView` as a backstop
+  (`DeviceSheetFragment.java:164-215`). Every callback null-checks
+  `adapter`, which is cleared in `onDestroyView`. Nothing is delivered after
+  unregistering:
+  - `MonitorSubscriptions.deliver` checks the generation and membership;
+  - `PlayerListChangeNotifier` re-checks membership;
+  - the poller checks `liveUpdatesRunning` and is removed with
+    `removeCallbacks`.
+
+  `UpnpClient`'s retained list (`CopyOnWriteArrayList`) is emptied by the
+  same `removePlayerListChangeListener` call that detaches the listener from
+  the service. So the app-scoped `UpnpClient` holds the fragment (an inner
+  class) only from `onStart` to `onStop`. Every `onStart` is paired with an
+  `onStop` before destruction, so no dead fragment is retained. Re-attaching
+  on rebind is de-duplicated (`addIfAbsent`/`contains`). The shared monitor
+  holds no `Context`.
+- **Binder executor shut down: honored.** `DeviceSheetAdapter.release()`
+  calls `ReceiverRowBinder.shutdown()` from `onDestroyView`, and later
+  transport taps check `isShutdown()`. That leaves one thread per open view,
+  which is released when the view goes away.
+- **Receivers resolved via `UpnpClient.getDevice(id)`: honored**
+  (`DeviceSheetAdapter.java:116-125`), de-duplicated by id. A rogue
+  `uuid:LOCAL_UID` device therefore resolves to the local dummy device and
+  can't own the local row in the sheet. This is stricter than the Receiver
+  tab.
+- **No exported components: honored.** The manifest diff is empty and
+  there are no new intent filters. The sheet is shown only by
+  `ContentListFragment.showDeviceSheet()` through `getChildFragmentManager()`.
+  Its callers are the receiver bar's click listener and the UI click
+  handlers in `BrowseContentItemAdapter` (play, play-all) and
+  `ContentListClickListener`.
+- **Session tap: honored.** `ReceiverRowBinder.openPlayer` sends the
+  player's own `getNotificationIntent()` (explicit, `FLAG_IMMUTABLE`) with
+  an empty fill-in. No new intent is built.
+
+No-receiver prompt: `openDeviceSheetIfNoReceiverSelected()` is reachable only
+from those three UI click handlers. The renderer-service path
+(`AvTransportMediaRendererPlaying` → `PlayerService`) and remote control
+points never reach `ContentListFragment`, so a LAN peer cannot pop the
+sheet or any other UI. The non-UI fallback is still `PlayerService`'s toast.
+`show()` also refuses when the state is saved or the sheet is already
+showing.
+
+Shared monitor, cross-subscriber effects: subscribers can't affect each
+other's delivery. Unsubscribing a listener stops polling only when it was
+the last one, and in-flight results from an older generation are dropped.
+The availability question is covered in the first Suggestion below.
+
+No secrets, credentials, local paths or new dependencies in the diff.
+
+### Critical
+- None.
+
+### Warning
+- None.
+
+### Suggestion
+- [RendererStatusMonitor.java:65 (single-thread executor), HttpRequestSender.java:63-64]
+  A hostile LAN renderer can stall status polling for every receiver. All
+  polls run serially on one executor thread. The HTTP client's 10 s socket
+  timeout is an *inactivity* timeout, so a device that accepts the
+  connection and trickles a byte every few seconds can hold that thread
+  indefinitely. Every other receiver's status then freezes in both the
+  Receiver tab and the sheet. Impact is limited to status display:
+  transport and volume actions run on other executors, and no data is
+  exposed. The single executor isn't new; the shared monitor extends the
+  stall to the sheet. Two follow-up options:
+  - add an overall per-request deadline (for example, cancel the future
+    after N seconds);
+  - poll on a small bounded pool and skip a device whose previous poll is
+    still in flight.
+
+  The same applies within one `ReceiverRowBinder`: its single transport
+  executor serializes play/pause/stop across devices (pre-existing).
+- [ReceiverBarLabel.java:43-56] Optional hardening: strip Unicode bidi
+  controls (U+202A-U+202E, U+2066-U+2069) and other format characters from
+  names before joining. As it stands, one device's name can visually reorder
+  or disguise the other selected receivers' names in the bar. This is
+  cosmetic only, since the label drives no action.
+- Carried forward, still open:
+  - `PlayerService.getPlayer()` (`:252-254`) still returns the mutable
+    live `values()` view, which bypasses the notifier (no callers).
+  - `ImageDownloader` scheme allowlist and size cap.
+  - Ignore remote devices whose UDN identifier equals `LOCAL_UID` at
+    `UpnpClient` ingress. The sheet is safe either way, but the Receiver tab
+    still special-cases the string.
+
+### Verdict: PASS
