@@ -16,6 +16,15 @@ Plan: `specs/2026-10-23-unified-device-sheet/requirements.md` and `specs/2026-10
   - **Verify**: `./gradlew :yaacc:testDebugUnitTest --tests '*DeviceSessionGrouperTest*'` (expected: fails to compile or fails assertions)
   - **Constraints**: plain JVM, no Robolectric, no `android.*` imports
 
+## Fix Group 1: Address review cycle 1
+- [ ] Tighten `DeviceSessionGrouperTest` | `yaacc/src/test/java/de/yaacc/browser/DeviceSessionGrouperTest.java`
+  - **Accept**: (W1) a test with two playing sessions on one device expects the higher playerId, run with both input orders; (W2) the unknown-device grouping test uses interleaved playerIds across devices, so "just sort all unknown sessions by playerId" fails it; (Suggestion) list-index assertions are preceded by a size assertion, so every red failure is an `AssertionError`, not an `IndexOutOfBoundsException`
+  - **Verify**: `./gradlew :yaacc:testDebugUnitTest` - only `DeviceSessionGrouperTest` fails, every failure an `AssertionError` (grep the test-results XML)
+  - **Constraints**: test file only; the stub stays a stub
+- [ ] Correct `docs/tech.md` on double removal | `docs/tech.md`
+  - **Accept**: the "Unified device sheet" player add/remove notes say removal can also happen twice (`shutdown(Player)` → `onDestroy()` → `removePlayer`, `AbstractPlayer.java:958-965`) and that the listener must fire only when `remove` returns non-null
+  - **Verify**: `grep -n "958" docs/tech.md`
+
 ## Group 2: Pure logic and shared binder
 - [ ] Implement `DeviceSessionGrouper` | `yaacc/src/main/java/de/yaacc/browser/DeviceSessionGrouper.java`
   - **Accept**: all `DeviceSessionGrouperTest` cases pass
@@ -26,8 +35,8 @@ Plan: `specs/2026-10-23-unified-device-sheet/requirements.md` and `specs/2026-10
   - **Verify**: `./gradlew :yaacc:assembleDebug :yaacc:testDebugUnitTest`
   - **Constraints**: no visual or behavior change to the Receiver tab beyond the deterministic session pick; depends on `DeviceSessionGrouper`, so do it after the task above within this group
 - [ ] Add a player-list change listener to `PlayerService` | `yaacc/src/main/java/de/yaacc/player/PlayerService.java`, `yaacc/src/test/java/de/yaacc/player/PlayerServiceListenerTest.java`
-  - **Accept**: `addPlayerListChangeListener(...)` / `removePlayerListChangeListener(...)` exist; listeners fire once when a player is genuinely added (not when `addPlayer` is called again for a player already present - see `docs/tech.md` "Unified device sheet" §player add/remove) and once when one is removed via `removePlayer` or `shutdown(Player)`; callbacks are delivered on the main thread; a removed listener no longer fires
-  - **Verify**: `./gradlew :yaacc:testDebugUnitTest`
+  - **Accept**: `addPlayerListChangeListener(...)` / `removePlayerListChangeListener(...)` exist; "added" fires exactly once per genuinely new player (only when the map `put` returns null - `addPlayer` can be called again for a player already present); "removed" fires exactly once per player (only when the map `remove` returns non-null - `shutdown(Player)` removes it and then `player.onDestroy()` calls `removePlayer` again, `AbstractPlayer.java:958-965`); callbacks are delivered on the main thread; a removed listener no longer fires
+  - **Verify**: `./gradlew :yaacc:testDebugUnitTest`, including a test where the player's `onDestroy()` calls back into `removePlayer` and the listener still fires only once
   - **Constraints**: touches only `PlayerService` (plus its test); existing Player tab behavior unchanged; if `PlayerService` can't be unit-tested on the plain JVM, extract the listener bookkeeping into a small plain-Java helper and test that instead
 
 ## Group 3: Sheet and entry points

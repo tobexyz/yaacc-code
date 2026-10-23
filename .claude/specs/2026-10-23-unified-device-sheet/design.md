@@ -82,9 +82,11 @@ Alternatives rejected:
 
 ### Fix for finding 3
 `getPlayerForDevice` is replaced by `DeviceSessionGrouper`. The Receiver
-tab's single status row then picks deterministically: a playing session
-first, otherwise the most recently created (highest player id). The sheet
-lists all sessions.
+tab's single status row then picks deterministically: the newest (highest
+player id) playing session, otherwise the newest session overall. The tie
+between two playing sessions is the case that matters most (image show
+plus background music on the local device), so the rule must not depend on
+input order. The sheet lists all sessions.
 
 ## Interfaces & Contracts
 
@@ -102,7 +104,10 @@ public final class DeviceSessionGrouper {
      *  (ascending playerId); sessions with an unknown deviceId go last,
      *  grouped per device. Never drops a session. */
     public static List<Row> group(List<String> receiverDeviceIds, List<PlayerRef> players);
-    /** Playing session first, else highest playerId; null if none. */
+    /** Among the device's playing sessions, the highest playerId; if none
+     *  is playing, the highest playerId overall; null if the device has no
+     *  sessions. Independent of input order (players arrive in HashMap
+     *  order). */
     public static PlayerRef primarySession(String deviceId, List<PlayerRef> players);
 }
 ```
@@ -166,8 +171,12 @@ Top level (server list):                   Inside a server:
   by sharing the existing `RendererStatusMonitor` instance.
 - **Player add/remove notification:** traced in Group 1 - there is none.
   The Player tab only re-reads `getCurrentPlayers()` on view creation and
-  `onResume`. Group 2 adds a listener to `PlayerService`; it must ignore
-  repeat `addPlayer` calls for a player already present.
+  `onResume`. Group 2 adds a listener to `PlayerService`. It must ignore
+  repeat calls in both directions: `addPlayer` can run twice for the same
+  player, and `shutdown(Player)` removes the player and then calls
+  `player.onDestroy()`, which calls `removePlayer` again
+  (`AbstractPlayer.java:958-965`). So "added" fires only when `put`
+  returns null, and "removed" only when `remove` returns non-null.
 - **Bottom-sheet details found in Group 1** (see `docs/tech.md`): the
   half-expanded state only works if `setFitToContents(false)` comes first;
   `AppTheme` has no `bottomSheetDialogTheme`, so without one the sheet
