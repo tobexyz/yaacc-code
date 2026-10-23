@@ -36,3 +36,31 @@ behavior change outside this spec), and is noted as an open question.
 through an `AVTransportPlayer`, so its tap used to open that player.
 **Decision**: The no-op applies only when the device id equals
 `UpnpClient.LOCAL_UID`, matching the old behavior exactly.
+
+## 2026-10-23 - One shared RendererStatusMonitor for the tab and the sheet
+**Context**: design.md assumed an app-wide `RendererStatusMonitor` instance
+existed for the sheet to reuse. It didn't: the Receiver tab owned its own.
+**Decision**: `RendererStatusMonitor.getShared()` with subscribe/unsubscribe,
+starting on the first subscriber and stopping on the last; the Receiver tab
+was switched to it too, despite phase 1 promising "tabs unchanged".
+**Rationale**: two monitors polling the same renderers when both screens are
+alive would double the network traffic. Review cycles 1-2 of Group 3 found
+the tab's behavior equivalent (slightly stricter about stopping), and the
+bookkeeping is unit-tested in `MonitorSubscriptions`.
+
+## 2026-10-23 - UpnpClient keeps player-list listeners across service rebinding
+**Context**: the sheet can open before `PlayerService` is bound, and the
+service can rebind; listeners registered directly on the service would be
+lost.
+**Decision**: `UpnpClient.addPlayerListChangeListener` stores the listeners
+and re-attaches them when the service (re)binds, with no duplicates (checked
+in Group 3 review cycle 1).
+
+## 2026-10-23 - Follow-ups noted, not in this phase
+- The sheet doesn't refresh when receivers appear or disappear on the
+  network while it's open (status of known receivers does update).
+- After rotation, the sheet returns to its initial half/full position.
+- Hardening outside this spec (security review Group 2): drop remote devices
+  that claim `LOCAL_UID` at registration; the unused mutable
+  `PlayerService#getPlayer()`; `IconDownloadTask` accepts any URL scheme
+  with no size cap.

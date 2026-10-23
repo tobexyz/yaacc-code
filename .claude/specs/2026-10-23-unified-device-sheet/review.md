@@ -184,3 +184,39 @@ What I checked:
 - [ ] Coverage adequate for the change: there are no tests for the shared monitor bookkeeping (see Warning). The sheet, adapter and layouts are Android UI and are covered by the pending manual phone and TV checks in tasks.md, which still need to happen before the tasks are marked `[x]`.
 
 ### Verdict: FAIL
+
+## Cycle 2 — 2026-10-23
+Reviewing: Group 3 tasks + Fix Group 3 (commit 49181bc7; `git diff 60c1bd7f..HEAD`)
+
+Resolution of cycle 1 findings:
+- **W1 (sheet polls while hidden): resolved.** `startLiveUpdates()` runs in `onStart` and `stopLiveUpdates()` in `onStop`, guarded by `liveUpdatesRunning`. `onDestroyView` still calls `stopLiveUpdates()` as a backstop. While the sheet is stopped, nothing keeps it subscribed: the monitor subscription, the player-list listener and the local poller are all released, and the poller also checks `liveUpdatesRunning` before rescheduling itself.
+- **W2 (untested monitor bookkeeping): resolved.** Listener set, polled-device dedupe, generation and delivery now live in the plain-Java `MonitorSubscriptions`. `RendererStatusMonitor` delegates to it, with `pollDevice` passed in as the `PollStarter`. Its 10 tests cover the cases listed in cycle 1: per-device dedupe, a second subscriber not restarting chains, duplicate subscribe, last-unsubscriber stop with in-flight results dropped, re-subscribe in a new generation, removal during delivery (by itself and by another listener), plus the unknown/no-op and null cases.
+
+Is the monitor's behavior unchanged? Yes, apart from the two stated no-ops:
+- Subscribe, `isCurrent` and `deliver` match the old inline code exactly. A stale result is still dropped without rescheduling, and a current one still delivers and then schedules the next poll.
+- **Unsubscribing an unknown listener:** the old code bumped the generation whenever the listener list was empty afterwards. The new code skips the bump only when nothing was subscribed and nothing was polled. In that state the old bump had no effect, because no chain or callback existed to invalidate. If devices are polled with no listener (`subscribe(null, devices)`), the new code still stops them, as before.
+- **Null device list:** the old code threw `NullPointerException`; the new code ignores it. Neither caller can pass null: the Receiver tab and the sheet both pass `getDevicesProvidingAvTransportService()`, which always returns a list.
+- Neither caller relied on the old behavior. The tab's `onPause` unsubscribes unconditionally, and with the sheet still subscribed the list isn't empty, so old and new both do nothing.
+
+Lifecycle edge cases:
+- **Rotation with the sheet open:** the old instance runs `onStop` (unsubscribe, which stops monitoring when it is the last listener) and then `onDestroyView` (a no-op, since the flag is false). The new instance goes `onViewCreated` (list built, `listFresh`) → `onStart` (first start, no second refresh, subscribe gives an immediate poll). There is no double subscribe, and the old instance gets no callback after its view is destroyed. `sheetStateApplied` belongs to each instance, so the sheet returns to its initial half or full state after rotating (see Suggestion).
+- **Player activity on top, then back:** `onStop` stops everything, and `onStart` sees `listFresh == false` and calls `adapter.refresh()` before re-subscribing. So players that started or ended meanwhile appear, and the drag state is kept.
+- **Dismiss or destroy while stopped:** `stopLiveUpdates()` is already a no-op, `adapter.release()` shuts down the binder executor, and the adapter is nulled.
+- **Late callbacks:** a status or player event queued before `stopLiveUpdates()` is dropped. The monitor's `deliver` and the player-list notifier both skip unregistered listeners, and every callback also checks `adapter != null`.
+- **`listFresh`:** set only in `onViewCreated` and cleared on the first start, so every later start refreshes. A player event in the gap between `onViewCreated` and the first `onStart` would be missed, but that gap is a single main-thread lifecycle pass, so I accept the risk.
+
+### Critical
+- None.
+
+### Warning
+- None.
+
+### Suggestion
+- [yaacc/src/main/java/de/yaacc/browser/DeviceSheetFragment.java:156-158] After rotation the sheet goes back to its initial state, because `sheetStateApplied` is per instance. If keeping the drag state matters, save `behavior.getState()` in `onSaveInstanceState` and restore it.
+- Still open from cycle 1, non-blocking: record the shared-monitor and `UpnpClient` listener deviations in decisions.md (it still has only three entries); refresh the sheet on `deviceAdded`/`deviceRemoved`; optionally gate "Add to playlist" too; and correct the manual checklist's "newest first" to "oldest first".
+
+### Tests
+- [x] All tests passing: `./gradlew :yaacc:assembleDebug :yaacc:testDebugUnitTest :yaacc:lintDebug` reports BUILD SUCCESSFUL, with 211 tests, 0 failures and 0 errors (`MonitorSubscriptionsTest` adds 10). Lint's total is unchanged at 191, with no hits in `DeviceSheetFragment`, `MonitorSubscriptions` or `RendererStatusMonitor`.
+- [x] Coverage adequate for the change. The fragment lifecycle wiring is Android UI and is covered by the pending manual phone and TV checks. Those checks should now include rotating with the sheet open, opening a session and pressing Back, and pressing Home and returning.
+
+### Verdict: PASS
