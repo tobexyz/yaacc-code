@@ -742,6 +742,25 @@ Check both day and night on device.
     **"removed" only when `currentActivePlayer.remove(...)` returns
     non-null**, meaning the player was actually still in the map.
     Otherwise one player start or stop would notify twice.
+- **Group 2: threads that write `currentActivePlayer`, and the fix.** The
+  map is written off the main thread. `ContentItemPlayTask.doInBackground`
+  calls `ContentListFragment.play(upnpClient.initializePlayers(...))`,
+  which reaches `PlayerService.createPlayer` and then `addPlayer` on a
+  background thread. The renderer path does the same
+  (`AvTransportMediaRendererPlaying.java:88`). Meanwhile the Player tab
+  reads the live `getCurrentPlayers()` view on the main thread. As a
+  `HashMap`, the map could throw `ConcurrentModificationException` or
+  lose entries. It is now a `ConcurrentHashMap`. Its `values()`
+  iteration is weakly consistent and never throws, and `put`/`remove`
+  are atomic, so the "added"/"removed" decision taken from their return
+  values (`PlayerListChangeNotifier`) is reliable. Keys are `int` ids,
+  and every put site dereferences the player before the put, so there
+  are no null keys or values. `getCurrentPlayerById(null)` returns null
+  explicitly. The listener API is
+  `PlayerService.addPlayerListChangeListener(PlayerListChangeNotifier.Listener)`
+  / `removePlayerListChangeListener(...)`. Callbacks are posted to the
+  main thread. A listener removed before a queued delivery runs is not
+  called.
 
 ### 7. `DeviceSessionGrouper`: Group 1 state
 
