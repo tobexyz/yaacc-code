@@ -67,6 +67,14 @@ Plan: `specs/2026-10-23-unified-device-sheet/requirements.md` and `specs/2026-10
   - **Verify**: `./gradlew :yaacc:assembleDebug`; manual: deselect all receivers, tap play
 
   - **Status**: automated verification passed 2026-10-23 (assembleDebug, 201 unit tests, lintDebug no new issues); manual phone/TV checks pending with the user
+## Fix Group 3: Address review cycle 1
+- [ ] Stop the sheet's polling while it isn't visible | `DeviceSheetFragment.java`
+  - **Accept**: the shared `RendererStatusMonitor` subscription, the player-list listener and the 2 s local poll start in `onStart`/`onResume` and stop in `onStop`/`onPause` (mirroring `ReceiverListFragment`'s `onResume`/`onPause`); pressing Home or opening a player with the sheet open stops all network polling; returning restarts it and refreshes the list once; `onDestroyView` still releases the adapter and the binder's executor; no double subscribe across stop/start cycles
+  - **Verify**: `./gradlew :yaacc:assembleDebug :yaacc:testDebugUnitTest`
+- [ ] Unit-test the shared monitor's subscription bookkeeping | `RendererStatusMonitor.java`, new plain-Java helper, new test
+  - **Accept**: the subscribe/unsubscribe/start-when-first/stop-when-last bookkeeping lives in a plain-Java helper (same pattern as `PlayerListChangeNotifier`) with JVM tests for: first subscriber starts, last unsubscriber stops, a second subscriber doesn't restart, unsubscribing an unknown listener is a no-op, a re-subscribe after stop starts again, a listener unsubscribing during delivery doesn't break others; `RendererStatusMonitor` behavior unchanged
+  - **Verify**: `./gradlew :yaacc:testDebugUnitTest`
+
 ## Group 4: Documentation update
 - [ ] Update documentation for plan changes | `docs/index.md`, `CHANGELOG.md`, `docs/tech.md`
   - **Accept**: `docs/index.md` "Receiver controls" describes the sheet and how to open it; `CHANGELOG.md` has an Unreleased entry; `docs/tech.md` reflects the as-built design
