@@ -71,6 +71,26 @@ public class IconDownloadTask extends AsyncTask<Uri, Integer, Bitmap> {
         this.targetHeight = height;
     }
 
+    /**
+     * Same as {@link #IconDownloadTask(ImageView, int, int)} but also keeps
+     * the {@code browseContentItemAdapter} reference, so that {@link
+     * #onPostExecute(Bitmap)}'s {@code removeTask(this)} cleanup still runs.
+     * The plain {@code (ImageView, int, int)} constructor unconditionally
+     * sets that reference to {@code null}, which would otherwise leak one
+     * {@code asyncTasks} entry per bound row for the adapter's lifetime --
+     * see {@code docs/tech.md}'s "Browse card-grid view" section and
+     * {@code decisions.md} in the `2026-10-17-browse-card-grid-view` spec
+     * for why this overload exists instead of reusing that one.
+     */
+    public IconDownloadTask(ImageView imageView, BrowseContentItemAdapter browseContentItemAdapter, int width, int height) {
+        this.imageView = imageView;
+        this.cache = IconDownloadCacheHandler.getInstance();
+        this.browseContentItemAdapter = browseContentItemAdapter;
+        this.deviceId = null;
+        this.targetWidth = width;
+        this.targetHeight = height;
+    }
+
 
     /**
      * Download image and convert it to icon

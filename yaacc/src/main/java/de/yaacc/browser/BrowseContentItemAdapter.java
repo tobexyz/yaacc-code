@@ -77,6 +77,35 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
         DATE
     }
 
+    /**
+     * Which layout presents the currently-loaded items. See the
+     * `2026-10-17-browse-card-grid-view` spec -- this only changes how
+     * already-loaded items are drawn, never what data is loaded.
+     */
+    public enum ViewMode {
+        LIST,
+        CARD
+    }
+
+    /**
+     * Thumbnail/icon pixel size requested in LIST mode, matching
+     * {@code browse_content_item.xml}'s 48dp icon.
+     */
+    private static final int LIST_ICON_SIZE_DP = 48;
+    /**
+     * Thumbnail/icon pixel size (both dimensions) requested in CARD mode,
+     * matching {@code browse_content_item_card.xml}'s square
+     * {@code SquareImageView} image area (width == height, enforced at
+     * measure time since the card's actual width varies by span
+     * count/screen size/density). A fixed non-square request here would
+     * mismatch that square display area - either upscaling/softening one
+     * axis or requesting more resolution than ever gets displayed on the
+     * other. 320dp comfortably covers realistic per-card widths across the
+     * card-grid's span-count range (see CardGridSpanCount) without
+     * requesting an unreasonably large decode for a thumbnail.
+     */
+    private static final int CARD_ICON_SIZE_DP = 320;
+
     private boolean loading = false;
 
 
@@ -108,6 +137,12 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
      * toggle it.
      */
     private boolean dateAscending;
+    /**
+     * Which layout ({@link ViewMode#LIST}/{@link ViewMode#CARD}) presents
+     * the currently-loaded items. Persisted the same way {@link #sortMode}
+     * is.
+     */
+    private ViewMode viewMode;
 
 
     public BrowseContentItemAdapter(ContentListFragment contentListFragment, RecyclerView contentList, UpnpClient upnpClient, ProgressBar progressBar) {
@@ -122,6 +157,7 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
         this.sharedPreferences = PreferenceManager.getDefaultSharedPreferences(context);
         this.showThumbnails = sharedPreferences.getBoolean(context.getString(R.string.settings_thumbnails_chkbx), true);
         this.sortMode = readPersistedSortMode();
+        this.viewMode = readPersistedViewMode();
         this.dateSortAvailable = false;
         this.nameAscending = sharedPreferences.getBoolean(context.getString(R.string.settings_sort_name_ascending_key), true);
         this.dateAscending = sharedPreferences.getBoolean(context.getString(R.string.settings_sort_date_ascending_key), false);
@@ -138,6 +174,35 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
 
     public SortMode getSortMode() {
         return sortMode;
+    }
+
+    private ViewMode readPersistedViewMode() {
+        String persisted = sharedPreferences.getString(context.getString(R.string.settings_browse_view_mode_key), ViewMode.LIST.name());
+        try {
+            return ViewMode.valueOf(persisted);
+        } catch (IllegalArgumentException | NullPointerException e) {
+            return ViewMode.LIST;
+        }
+    }
+
+    public ViewMode getViewMode() {
+        return viewMode;
+    }
+
+    /**
+     * Changes which layout presents the currently-loaded items. Unlike
+     * {@link #setSortMode(SortMode)}, this never clears/reloads -- the
+     * backing data doesn't change, only how it's drawn, so a plain
+     * {@link #notifyDataSetChanged()} is enough. No-op if {@code mode}
+     * already matches the current mode.
+     */
+    public void setViewMode(ViewMode mode) {
+        if (mode == null || mode == this.viewMode) {
+            return;
+        }
+        this.viewMode = mode;
+        sharedPreferences.edit().putString(context.getString(R.string.settings_browse_view_mode_key), mode.name()).apply();
+        notifyDataSetChanged();
     }
 
     /**
@@ -231,7 +296,7 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
 
     @Override
     public int getItemViewType(int position) {
-        return position;
+        return viewMode.ordinal();
     }
 
     public Navigator getNavigator() {
@@ -426,8 +491,11 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
     @Override
     public BrowseContentItemAdapter.ViewHolder onCreateViewHolder(ViewGroup parent,
                                                                   int viewType) {
+        int layoutRes = viewType == ViewMode.CARD.ordinal()
+                ? R.layout.browse_content_item_card
+                : R.layout.browse_content_item;
         View view = LayoutInflater.from(parent.getContext())
-                .inflate(R.layout.browse_content_item, parent, false);
+                .inflate(layoutRes, parent, false);
         ContentListClickListener bItemClickListener = new ContentListClickListener(upnpClient, contentListFragment, contentList, this);
         view.setOnClickListener(bItemClickListener);
         view.setOnKeyListener((v, keyCode, event) -> {
@@ -486,9 +554,22 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
         DIDLObject currentObject = (DIDLObject) getItem(listPosition);
         holder.name.setText(currentObject.getTitle());
 
+        int iconHeightPx = dpToPx(viewMode == ViewMode.CARD ? CARD_ICON_SIZE_DP : LIST_ICON_SIZE_DP);
+        int iconWidthPx = iconHeightPx;
         IconDownloadTask iconDownloadTask = new IconDownloadTask(holder.icon,
-                this);
+                this, iconWidthPx, iconHeightPx);
         asyncTasks.add(iconDownloadTask);
+        // Reset every bind (RecyclerView view recycling) rather than only
+        // when a thumbnail loads: CARD mode's fallback type-icon glyph
+        // should stay at its natural size, centered on the tinted
+        // background (browse_content_item_card.xml) -- CENTER_CROP would
+        // stretch it to fill the whole width instead. Switched to
+        // CENTER_CROP below, only at the point a real thumbnail load is
+        // actually kicked off. LIST mode is untouched (default scaleType),
+        // unaffected by this card-only change.
+        if (viewMode == ViewMode.CARD) {
+            holder.icon.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+        }
 
         holder.playAll.setOnClickListener((v) -> {
             new ContentItemPlayTask(contentListFragment, currentObject, null).execute(ContentItemPlayTask.PLAY_ALL);
@@ -528,6 +609,9 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
                 DIDLObject.Property<URI> albumArtProperties = ((AudioItem) currentObject)
                         .getFirstProperty(DIDLObject.Property.UPNP.ALBUM_ART_URI.class);
                 if (null != albumArtProperties) {
+                    if (viewMode == ViewMode.CARD) {
+                        holder.icon.setScaleType(ImageView.ScaleType.CENTER_CROP);
+                    }
                     iconDownloadTask.executeOnExecutor(((Yaacc) getContext().getApplicationContext()).getContentLoadExecutor(),
                             Uri.parse(albumArtProperties
                                     .getValue().toString()));
@@ -539,10 +623,14 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
             holder.play.setVisibility(View.VISIBLE);
             holder.download.setVisibility(View.VISIBLE);
             holder.playlistAdd.setVisibility(View.GONE);
-            if (showThumbnails)
+            if (showThumbnails) {
+                if (viewMode == ViewMode.CARD) {
+                    holder.icon.setScaleType(ImageView.ScaleType.CENTER_CROP);
+                }
                 iconDownloadTask.executeOnExecutor(((Yaacc) getContext().getApplicationContext()).getContentLoadExecutor(),
                         Uri.parse(currentObject
                                 .getFirstResource().getValue()));
+            }
         } else if (currentObject instanceof VideoItem) {
             holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_movie_48, getContext().getTheme()), getContext().getTheme()));
             holder.playAll.setVisibility(View.VISIBLE);
@@ -553,6 +641,9 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
                 DIDLObject.Property<URI> albumArtProperties = ((VideoItem) currentObject)
                         .getFirstProperty(DIDLObject.Property.UPNP.ALBUM_ART_URI.class);
                 if (null != albumArtProperties) {
+                    if (viewMode == ViewMode.CARD) {
+                        holder.icon.setScaleType(ImageView.ScaleType.CENTER_CROP);
+                    }
                     iconDownloadTask.executeOnExecutor(((Yaacc) getContext().getApplicationContext()).getContentLoadExecutor(),
                             Uri.parse(albumArtProperties
                                     .getValue().toString()));
@@ -626,6 +717,16 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
     public void scrollToPositionId(Integer id) {
         if (id == null) return;
         ((LinearLayoutManager) contentList.getLayoutManager()).scrollToPositionWithOffset(id, 0);
+    }
+
+    /**
+     * Converts a dp value to pixels using the adapter's own
+     * {@link Context}'s display metrics, for sizing thumbnail/icon
+     * download requests per {@link #viewMode} (see {@code design.md}'s
+     * "Thumbnail resolution" section).
+     */
+    private int dpToPx(int dp) {
+        return Math.round(dp * context.getResources().getDisplayMetrics().density);
     }
 
     static class ViewHolder extends RecyclerView.ViewHolder {

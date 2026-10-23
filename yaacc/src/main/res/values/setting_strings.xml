@@ -44,6 +44,7 @@
     <string name="settings_sort_order_key" translatable="false">sort_order_key</string>
     <string name="settings_sort_name_ascending_key" translatable="false">sort_name_ascending_key</string>
     <string name="settings_sort_date_ascending_key" translatable="false">sort_date_ascending_key</string>
+    <string name="settings_browse_view_mode_key" translatable="false">browse_view_mode_key</string>
     <string name="settings_browse_chunk_size">chunk size when browsing</string>
     <string name="settings_browse_chunk_size_key" translatable="false">browse_chunk_size_key</string>
     <string name="settings_browse_chunk_size_summ">amount of items fetched from server in one request</string>

@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="utf-8"?><!--
+ *
+ * Copyright (C) 2013 www.yaacc.de
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 3
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/browseContentItem"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:focusable="true"
+    android:focusableInTouchMode="false"
+    android:descendantFocusability="beforeDescendants"
+    android:clickable="true"
+    android:foreground="?attr/selectableItemBackground">
+
+    <!--
+         Material "explicit containment" card: a visible surface + subtle
+         shadow distinguishes it from the page background (not a hard
+         border line) - see
+         https://m2.material.io/components/cards#explicit-containment.
+         MaterialCardView (not plain CardView) so app:cardElevation gets a
+         real Material surface color by default instead of this layout's
+         previous transparent/flat styling.
+    -->
+    <com.google.android.material.card.MaterialCardView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:cardCornerRadius="6dp"
+        app:cardElevation="2dp"
+        app:cardUseCompatPadding="false"
+        app:contentPadding="2dp">
+
+        <!--
+             Card content, vertical: icon on top, title below, the four
+             per-entry action buttons in a row at the bottom. Same view
+             IDs as browse_content_item.xml (the list row) so
+             BrowseContentItemAdapter.ViewHolder's findViewById calls and
+             onBindViewHolder's per-content-type visibility logic work
+             unchanged against this layout.
+        -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center_horizontal">
+
+            <!--
+                 Square (width == height, enforced by SquareImageView,
+                 since the card's actual width varies by span count/screen
+                 size/density): a fixed height unrelated to that width
+                 forced CENTER_CROP to crop away a large, inconsistent
+                 chunk of square album art (the common case) - 1:1 keeps
+                 the crop close to what CENTER_CROP actually needs for a
+                 square source image, full card width, matching Material's
+                 explicit-containment card image
+                 (https://m2.material.io/components/cards#explicit-containment).
+                 scaleType/background are set per-bind in
+                 BrowseContentItemAdapter.onBindViewHolder: CENTER_CROP
+                 (fills edge-to-edge) once a real thumbnail loads, else
+                 CENTER_INSIDE so the fallback type-icon glyph stays at its
+                 natural size, centered on this tinted backdrop rather than
+                 being stretched to fill the whole width.
+            -->
+            <de.yaacc.util.image.SquareImageView
+                android:id="@+id/browseContentItemIcon"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="?attr/colorControlHighlight"
+                android:focusable="false"
+                android:contentDescription="@string/icon" />
+
+            <TextView
+                android:id="@+id/browseContentItemName"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="5dp"
+                android:layout_marginTop="10dp"
+                android:layout_marginEnd="5dp"
+                android:layout_marginBottom="10dp"
+                android:gravity="center_horizontal"
+                android:ellipsize="end"
+                android:maxLines="2"
+                android:text="@string/all"
+                android:focusable="false"
+                android:textAppearance="@android:style/TextAppearance.Material.Medium"
+                android:textColor="?android:attr/colorForeground" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center">
+
+                <ImageButton
+                    android:id="@+id/browseContentItemPlaylistAdd"
+                    style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+                    android:layout_width="32dp"
+                    android:layout_height="48dp"
+                    android:nextFocusLeft="@id/browseContentItem"
+                    android:contentDescription="@string/browse_context_playlist_add"
+                    app:srcCompat="@drawable/ic_baseline_playlist_add_32"
+                    app:tint="?attr/colorControlNormal" />
+
+                <ImageButton
+                    android:id="@+id/browseContentItemDownload"
+                    style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+                    android:layout_width="32dp"
+                    android:layout_height="48dp"
+                    android:layout_marginStart="2dp"
+                    android:contentDescription="@string/browse_context_download"
+                    android:nextFocusLeft="@id/browseContentItemPlaylistAdd"
+                    app:srcCompat="@drawable/ic_baseline_download_32"
+                    app:tint="?attr/colorControlNormal" />
+
+                <ImageButton
+                    android:id="@+id/browseContentItemPlay"
+                    style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+                    android:layout_width="32dp"
+                    android:layout_height="48dp"
+                    android:layout_marginStart="2dp"
+                    android:nextFocusLeft="@id/browseContentItemDownload"
+                    android:contentDescription="@string/browse_context_play"
+                    app:srcCompat="@drawable/ic_baseline_play_arrow_32"
+                    app:tint="?attr/colorControlNormal" />
+
+                <ImageButton
+                    android:id="@+id/browseContentItemPlayAll"
+                    style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+                    android:layout_width="32dp"
+                    android:layout_height="48dp"
+                    android:layout_marginStart="2dp"
+                    android:nextFocusLeft="@id/browseContentItemPlay"
+                    android:contentDescription="@string/browse_context_play_all"
+                    app:srcCompat="@drawable/ic_baseline_double_arrow_32"
+                    app:tint="?attr/colorControlNormal" />
+
+            </LinearLayout>
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+</LinearLayout>

@@ -5,7 +5,7 @@ Plan: `specs/2026-10-17-browse-card-grid-view/requirements.md` and
 
 ## Group 1: Shared contract — resources, span-count utility, tests
 
-- [ ] Research and document the RecyclerView/CardView APIs this feature touches | `docs/tech.md`
+- [x] Research and document the RecyclerView/CardView APIs this feature touches | `docs/tech.md`
   - **Accept**: `docs/tech.md` gets a new "Browse card-grid view" section
     confirming, by direct source/API inspection (not assumption):
     `GridLayoutManager.setSpanCount(int)` can be called on a live
@@ -24,7 +24,7 @@ Plan: `specs/2026-10-17-browse-card-grid-view/requirements.md` and
   - **Constraints**: Group 2 tasks reference this section; do not let
     Group 2 write code against unverified AndroidX API behavior.
 
-- [ ] Shared resources + `CardGridSpanCount` utility with unit tests | `yaacc/src/main/res/values/setting_strings.xml`, `yaacc/src/main/res/values/strings.xml`, `yaacc/src/main/java/de/yaacc/browser/CardGridSpanCount.java`, `yaacc/src/test/java/de/yaacc/browser/CardGridSpanCountTest.java`
+- [x] Shared resources + `CardGridSpanCount` utility with unit tests | `yaacc/src/main/res/values/setting_strings.xml`, `yaacc/src/main/res/values/strings.xml`, `yaacc/src/main/java/de/yaacc/browser/CardGridSpanCount.java`, `yaacc/src/test/java/de/yaacc/browser/CardGridSpanCountTest.java`
   - **Accept**: Adds, by exact name, the contract Group 2 tasks build
     against:
     - `setting_strings.xml`: new untranslatable string constant
@@ -57,7 +57,23 @@ Plan: `specs/2026-10-17-browse-card-grid-view/requirements.md` and
 
 ## Group 2: Implementation (parallel — no shared file writes)
 
-- [ ] `ViewMode` support in `BrowseContentItemAdapter` | `yaacc/src/main/java/de/yaacc/browser/BrowseContentItemAdapter.java`, `yaacc/src/test/java/de/yaacc/browser/BrowseContentItemAdapterTest.java`
+- [x] `ViewMode` support in `BrowseContentItemAdapter` | `yaacc/src/main/java/de/yaacc/browser/BrowseContentItemAdapter.java`, `yaacc/src/main/java/de/yaacc/util/image/IconDownloadTask.java`, `yaacc/src/test/java/de/yaacc/browser/BrowseContentItemAdapterTest.java`
+  - **Accept (leak fix, found during Group 1 research — see
+    `docs/tech.md`'s "Browse card-grid view" section)**: do **not** call
+    `IconDownloadTask`'s existing `(ImageView, int, int)` constructor
+    from `onBindViewHolder` — that overload unconditionally sets its
+    `browseContentItemAdapter` field to `null`
+    (`IconDownloadTask.java:65-72`), so `onPostExecute`'s
+    `browseContentItemAdapter.removeTask(this)` cleanup never runs and
+    `asyncTasks` grows by one entry per bound row for the adapter's
+    lifetime — a real unbounded-growth leak that doesn't exist today.
+    Instead, add a **new** constructor overload to `IconDownloadTask`:
+    `public IconDownloadTask(ImageView imageView, BrowseContentItemAdapter
+    browseContentItemAdapter, int width, int height)`, setting all four
+    fields (adapter reference preserved for cleanup, plus the custom
+    width/height) — do not change any existing constructor's behavior.
+    Call this new 4-arg constructor from `onBindViewHolder`, not the
+    existing 3-arg one.
   - **Accept**: Add `public enum ViewMode { LIST, CARD }` (mirroring
     `SortMode`'s existing style). New field `viewMode`, initialized in
     the constructor from
@@ -78,7 +94,9 @@ Plan: `specs/2026-10-17-browse-card-grid-view/requirements.md` and
     `ViewHolder`'s own code needs zero changes). In `onBindViewHolder`,
     replace the thumbnail-loading call
     `new IconDownloadTask(holder.icon, this)` with
-    `new IconDownloadTask(holder.icon, iconPixelSize, iconPixelSize)`
+    `new IconDownloadTask(holder.icon, this, iconPixelSize, iconPixelSize)`
+    (the new 4-arg constructor above — keeps the adapter reference for
+    `removeTask` cleanup)
     where `iconPixelSize` is computed from the current `viewMode` (48dp→px
     for `LIST`, the card icon dp size decided in the Group 2 card-layout
     task below, converted to px via the context's display metrics, for
@@ -105,7 +123,7 @@ Plan: `specs/2026-10-17-browse-card-grid-view/requirements.md` and
     and the card-layout task below define — do not invent different
     names.
 
-- [ ] New card layout | `yaacc/src/main/res/layout/browse_content_item_card.xml`
+- [x] New card layout | `yaacc/src/main/res/layout/browse_content_item_card.xml`
   - **Accept**: A `CardView`-wrapped layout (reuse the existing
     `androidx.cardview.widget.CardView` wrapper pattern from
     `browse_content_item.xml` — same corner radius/elevation/padding
@@ -143,7 +161,7 @@ Plan: `specs/2026-10-17-browse-card-grid-view/requirements.md` and
     four that already exist on the list row — no new actions, per
     `requirements.md`'s Non-Goals.
 
-- [ ] View-mode toggle button + grid/list switching in `ContentListFragment` | `yaacc/src/main/java/de/yaacc/browser/ContentListFragment.java`, `yaacc/src/main/res/layout/fragment_content_list.xml`
+- [x] View-mode toggle button + grid/list switching in `ContentListFragment` | `yaacc/src/main/java/de/yaacc/browser/ContentListFragment.java`, `yaacc/src/main/res/layout/fragment_content_list.xml`
   - **Accept**: add a third `ImageButton
     android:id="@+id/contentListViewModeToggle"` into the existing
     `contentListSortToggle` `LinearLayout` in
@@ -187,9 +205,27 @@ Plan: `specs/2026-10-17-browse-card-grid-view/requirements.md` and
     per-layout) is in scope, and it needs no changes since both layouts
     share the same button IDs.
 
+## Fix Group 1: Address security-review Cycle 1 (FAIL — Critical)
+
+- [x] Fix httpcore5 CVE regression inherited from feat/issue252's Android-crash fix | `yaacc/build.gradle`
+  - **Accept**: `httpclient5` stays at `5.2.1` (avoids the Android
+    `jdk.net` crash — confirmed the crashing bytecode lives only in
+    `httpclient5`'s own class, not `httpcore5`); `httpcore5` bumped back
+    to `5.4.4` (fixes CVE-2026-54399); the transitive `httpcore5-h2`
+    module explicitly pinned to `5.4.4` too (fixes CVE-2026-54428 —
+    without an explicit declaration it silently stayed at the vulnerable
+    `5.2` even after plain `httpcore5` was bumped). See `decisions.md`.
+  - **Verify**: `./gradlew build` passes; `./gradlew :yaacc:dependencies --configuration releaseRuntimeClasspath | grep httpcomponents`
+    shows `httpcore5`/`httpcore5-h2` both resolving to `5.4.4` everywhere;
+    re-decompiled the resolved `httpclient5-5.2.1.jar`'s
+    `DefaultHttpClientConnectionOperator.class` — zero `jdk/net`
+    references.
+  - Fixed directly by the orchestrator (build-config/dependency-version
+    correction, not feature code) rather than delegated.
+
 ## Group 3: Documentation update
 
-- [ ] Update documentation for the card-grid view | `docs/tech.md`
+- [x] Update documentation for the card-grid view | `docs/tech.md`
   - **Accept**: `docs/tech.md` gets an "as shipped" reconciliation note
     for this spec (matching the existing style for prior specs in that
     file — see the "As shipped: reconciliation with the design above"
