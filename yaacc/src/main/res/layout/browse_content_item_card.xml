@@ -85,7 +85,7 @@
                 android:id="@+id/browseContentItemIcon"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:background="?attr/colorSecondary"
+                android:background="?attr/colorControlHighlight"
                 android:focusable="false"
                 android:contentDescription="@string/icon" />
 
