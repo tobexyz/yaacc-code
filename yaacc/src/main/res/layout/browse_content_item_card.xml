@@ -94,6 +94,7 @@
                 android:layout_marginBottom="10dp"
                 android:gravity="center_horizontal"
                 android:ellipsize="end"
+                android:minLines="2"
                 android:maxLines="2"
                 android:text="@string/all"
                 android:focusable="false"
