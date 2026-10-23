@@ -85,6 +85,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -96,6 +97,7 @@ import de.yaacc.browser.Position;
 import de.yaacc.browser.TabBrowserActivity;
 import de.yaacc.player.PlayableItem;
 import de.yaacc.player.Player;
+import de.yaacc.player.PlayerListChangeNotifier;
 import de.yaacc.player.PlayerService;
 import de.yaacc.player.YaaccMediaRouteProvider;
 import de.yaacc.upnp.callback.contentdirectory.Browse.Status;
@@ -125,6 +127,9 @@ import de.yaacc.util.YaaccLogger;
 public class UpnpClient implements RegistryListener, ServiceConnection {
     public static String LOCAL_UID = "LOCAL_UID";
     private final List<UpnpClientListener> listeners = new ArrayList<>();
+    // Kept here as well as in PlayerService, so a listener registered before the
+    // player service is bound (or after it was rebound) still gets attached.
+    private final List<PlayerListChangeNotifier.Listener> playerListChangeListeners = new CopyOnWriteArrayList<>();
     private final ExecutorService executorService;
     SharedPreferences preferences;
 
@@ -251,6 +256,9 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         if (service instanceof PlayerService.PlayerServiceBinder) {
             playerService = ((PlayerService.PlayerServiceBinder) service).getService();
             YaaccLogger.e(getClass().getName(), "player service bounded");
+            for (PlayerListChangeNotifier.Listener listener : playerListChangeListeners) {
+                playerService.addPlayerListChangeListener(listener);
+            }
 
         }
 
@@ -831,6 +839,31 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
             return Collections.emptyList();
         }
         return playerService.getCurrentPlayers();
+    }
+
+    /**
+     * Registers a listener for players being added to or removed from the
+     * player service; see {@link PlayerService#addPlayerListChangeListener}.
+     * Works before the service is bound: the listener is attached once it is.
+     * Callers must call {@link #removePlayerListChangeListener} when done.
+     */
+    public void addPlayerListChangeListener(PlayerListChangeNotifier.Listener listener) {
+        if (listener == null || playerListChangeListeners.contains(listener)) {
+            return;
+        }
+        playerListChangeListeners.add(listener);
+        PlayerService service = playerService;
+        if (service != null) {
+            service.addPlayerListChangeListener(listener);
+        }
+    }
+
+    public void removePlayerListChangeListener(PlayerListChangeNotifier.Listener listener) {
+        playerListChangeListeners.remove(listener);
+        PlayerService service = playerService;
+        if (service != null) {
+            service.removePlayerListChangeListener(listener);
+        }
     }
 
     /**

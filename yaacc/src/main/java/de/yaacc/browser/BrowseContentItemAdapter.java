@@ -578,9 +578,15 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
         }
 
         holder.playAll.setOnClickListener((v) -> {
+            if (contentListFragment.openDeviceSheetIfNoReceiverSelected()) {
+                return; // no receiver: let the user pick one first
+            }
             new ContentItemPlayTask(contentListFragment, currentObject, null).execute(ContentItemPlayTask.PLAY_ALL);
         });
         holder.play.setOnClickListener((v) -> {
+            if (contentListFragment.openDeviceSheetIfNoReceiverSelected()) {
+                return; // no receiver: let the user pick one first
+            }
             new ContentItemPlayTask(contentListFragment, currentObject, null).execute(ContentItemPlayTask.PLAY_CURRENT);
         });
         holder.playlistAdd.setOnClickListener((v) -> {

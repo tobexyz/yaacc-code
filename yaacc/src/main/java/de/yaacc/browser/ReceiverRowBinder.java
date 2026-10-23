@@ -320,20 +320,43 @@ final class ReceiverRowBinder {
      * every other device, including yaacc's own renderer (a {@code LocalDevice}
      * controlled through an {@code AVTransportPlayer}), opens its player.
      */
-    @OptIn(markerClass = UnstableApi.class)
     void openPlayerActivity(Context context, Device<?, ?, ?> device) {
         if (UpnpClient.LOCAL_UID.equals(device.getIdentity().getUdn().getIdentifierString())) {
             return;
         }
         Player player = primaryPlayer(device);
-        if (player == null || player.getNotificationIntent() == null) {
-            return; // No active player found - do nothing
+        if (player != null) {
+            openPlayer(context, player);
+        }
+    }
+
+    /**
+     * Opens a player's full activity the way the Player tab does
+     * ({@code PlayerListItemClickListener}): by sending the player's own
+     * explicit, immutable notification {@code PendingIntent}. No new intent is
+     * built, so nothing outside the player decides where it goes.
+     */
+    @OptIn(markerClass = UnstableApi.class)
+    static void openPlayer(Context context, Player player) {
+        PendingIntent intent = player.getNotificationIntent();
+        if (intent == null) {
+            return; // No activity to open - do nothing
         }
         try {
-            player.getNotificationIntent().send(context, 0, new Intent());
+            intent.send(context, 0, new Intent());
         } catch (PendingIntent.CanceledException e) {
-            YaaccLogger.e(getClass().getName(), "Failed to open player activity", e);
+            YaaccLogger.e(ReceiverRowBinder.class.getName(), "Failed to open player activity", e);
         }
+    }
+
+    /**
+     * Stops the transport-action thread once queued actions have run. A host
+     * that is created and destroyed repeatedly (the device sheet) must call
+     * this when its view goes away; afterwards remote play/pause/stop taps are
+     * ignored.
+     */
+    void shutdown() {
+        executorService.shutdown();
     }
 
     /**
@@ -404,6 +427,10 @@ final class ReceiverRowBinder {
                     break;
             }
             return;
+        }
+
+        if (executorService.isShutdown()) {
+            return; // host is gone (see shutdown())
         }
 
         // Handle remote UPnP device: talk to its AVTransport service directly,

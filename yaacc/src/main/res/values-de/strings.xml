@@ -139,4 +139,7 @@
     <string name="paused">PAUSE</string>
     <string name="stopped">GESTOPPT</string>
     <string name="no_media">KEINE MEDIEN</string>
+    <string name="device_sheet_title">Wiedergabe auf</string>
+    <string name="receiver_bar_none_selected">Kein Empfänger ausgewählt. Zum Auswählen tippen</string>
+    <string name="receiver_bar_description">Empfänger auswählen</string>
 </resources>

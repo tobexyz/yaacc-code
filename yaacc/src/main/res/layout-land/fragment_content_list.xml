@@ -72,8 +72,7 @@
              root folder (ContentListFragment#updateFolderNavigationUi),
              and a GONE view's position collapses to a zero-size point at
              its original top edge, so layout_below="@id/contentListBackButton"
-             would snap this label (and everything below it - the
-             separator, provider and receiver rows) up to overlap the icon
+             would snap this label (and everything below it) up to overlap the icon
              row instead of sitting below it. contentListSortToggle is
              never hidden, so it's a stable anchor regardless of
              navigation depth. -->
@@ -95,42 +94,37 @@
             android:id="@+id/contentListBottomSeperator"
             android:layout_width="match_parent"
             android:layout_height="1dp"
-            android:layout_above="@id/contentListCurrentProvider"
+            android:layout_above="@id/contentListCurrentReceivers"
             android:background="?android:attr/colorForeground" />
 
-        <TextView
-            android:id="@+id/contentListCurrentProvider"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_above="@id/contentListCurrentReceivers"
-            android:layout_below="@id/contentListCurrentFolderName"
-            android:layout_alignParentStart="true"
-            android:layout_marginStart="5dp"
-            android:layout_toStartOf="@id/contentListTopSeperator"
-            android:drawablePadding="5dp"
-            android:gravity="center_vertical"
-            android:minLines="2"
-            android:singleLine="false"
-            android:text="@string/all"
-            android:textAppearance="@android:style/TextAppearance.Material.Medium"
-            android:textColor="?android:attr/colorForeground"
-            app:drawableStartCompat="@drawable/ic_baseline_sensors_32" />
-
+        <!-- Receiver bar: selected receivers' names; tap or D-pad select opens
+             the device sheet (ContentListFragment#showDeviceSheet). Positioned
+             against the parent only: contentListTopSeperator (its old
+             toStartOf anchor) is set GONE during a device switch
+             (ContentListFragment#hideFolderNavigationControls). The 1dp end
+             margin keeps it clear of that vertical separator, as before. -->
         <TextView
             android:id="@+id/contentListCurrentReceivers"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_alignParentStart="true"
+            android:layout_alignParentEnd="true"
             android:layout_alignParentBottom="true"
-            android:layout_marginStart="5dp"
-            android:layout_toStartOf="@id/contentListTopSeperator"
+            android:layout_marginEnd="1dp"
+            android:background="?attr/selectableItemBackground"
+            android:clickable="true"
             android:drawablePadding="5dp"
+            android:ellipsize="end"
+            android:focusable="true"
             android:gravity="center_vertical"
-            android:minLines="2"
-            android:singleLine="false"
-            android:text="@string/all"
+            android:maxLines="3"
+            android:minHeight="48dp"
+            android:paddingStart="5dp"
+            android:paddingEnd="8dp"
+            android:text="@string/receiver_bar_none_selected"
             android:textAppearance="@android:style/TextAppearance.Material.Medium"
             android:textColor="?android:attr/colorForeground"
+            app:drawableEndCompat="@drawable/ic_baseline_expand_less_24"
             app:drawableStartCompat="@drawable/ic_baseline_devices_32" />
 
         <View

@@ -30,9 +30,13 @@ import org.fourthline.cling.support.model.PositionInfo;
 import org.fourthline.cling.support.model.TransportInfo;
 import org.fourthline.cling.support.model.item.Item;
 
-import java.util.HashMap;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -44,116 +48,171 @@ import de.yaacc.util.YaaccLogger;
 
 /**
  * Monitors UPnP renderer status by polling AVTransport and RenderingControl services.
+ * <p>
+ * One app-wide instance ({@link #getShared()}) serves the Receiver tab and the
+ * device sheet, so opening the sheet doesn't start a second poller. Polling
+ * runs while at least one listener is subscribed; each device is polled by at
+ * most one chain. Unsubscribing the last listener bumps a generation counter,
+ * so requests still in flight neither notify anyone nor reschedule themselves.
+ * All public methods must be called on the main thread.
  */
 public class RendererStatusMonitor {
     private static final int POLL_INTERVAL_MS = 10000; // Reduced frequency to 10 seconds
-    
+
+    private static RendererStatusMonitor shared;
+
     private final Handler handler = new Handler(Looper.getMainLooper());
-    private final Map<Device, RendererStatus> statusMap = new HashMap<>();
+    // Written from the executor thread, read on the main thread.
+    private final Map<Device, RendererStatus> statusMap = new ConcurrentHashMap<>();
     private final ExecutorService executorService = Executors.newSingleThreadExecutor();
     private final HttpRequestSender httpRequestSender = new HttpRequestSender();
-    private StatusListener listener;
-    
+    private final CopyOnWriteArrayList<StatusListener> listeners = new CopyOnWriteArrayList<>();
+    // Main thread only.
+    private final Set<Device> polledDevices = new HashSet<>();
+    private int generation;
+
     public interface StatusListener {
         void onStatusChanged(RendererStatus status);
     }
-    
-    public void setListener(StatusListener listener) {
-        this.listener = listener;
+
+    /**
+     * The app-wide monitor. Holds no {@code Context}; listeners are held only
+     * until they {@link #unsubscribe}.
+     */
+    public static RendererStatusMonitor getShared() {
+        if (shared == null) {
+            shared = new RendererStatusMonitor();
+        }
+        return shared;
     }
-    
-    public void startMonitoring(List<Device> devices) {
+
+    RendererStatusMonitor() {
+    }
+
+    /**
+     * Registers the listener and starts polling every given device that isn't
+     * polled yet. Subscribing an already subscribed listener only adds devices.
+     */
+    public void subscribe(StatusListener listener, Collection<? extends Device> devices) {
+        if (listener != null) {
+            listeners.addIfAbsent(listener);
+        }
         for (Device device : devices) {
-            pollDevice(device);
+            if (device != null && polledDevices.add(device)) {
+                pollDevice(device, generation);
+            }
         }
     }
-    
-    public void stopMonitoring() {
-        handler.removeCallbacksAndMessages(null);
+
+    /**
+     * Removes the listener; it is not called again, even for results already
+     * queued. Polling stops once no listener is left.
+     */
+    public void unsubscribe(StatusListener listener) {
+        listeners.remove(listener);
+        if (listeners.isEmpty()) {
+            generation++;
+            polledDevices.clear();
+            handler.removeCallbacksAndMessages(null);
+        }
     }
-    
+
     public RendererStatus getStatus(Device device) {
         return statusMap.get(device);
     }
-    
-    private void pollDevice(Device device) {
+
+    private void pollDevice(Device device, int pollGeneration) {
+        if (pollGeneration != generation) {
+            return; // monitoring stopped since this poll was scheduled
+        }
         Service avTransport = device.findService(new UDAServiceId("AVTransport"));
         if (avTransport == null) {
-            handler.postDelayed(() -> pollDevice(device), POLL_INTERVAL_MS);
+            scheduleNextPoll(device, pollGeneration);
             return;
         }
-        
+
         executorService.execute(new GetTransportInfo(avTransport, httpRequestSender) {
             @Override
             public void received(ActionInvocation invocation, TransportInfo transportInfo) {
                 String state = transportInfo.getCurrentTransportState().getValue();
-                getTrackTitleAndVolume(device, state);
+                getTrackTitleAndVolume(device, state, pollGeneration);
             }
-            
+
             @Override
             public void failure(ActionInvocation invocation, UpnpResponse response, String msg) {
                 YaaccLogger.e(getClass().getName(), "GetTransportInfo failed: " + msg);
-                handler.postDelayed(() -> pollDevice(device), POLL_INTERVAL_MS);
+                scheduleNextPoll(device, pollGeneration);
             }
         });
     }
-    
-    private void getTrackTitleAndVolume(Device device, String state) {
+
+    private void scheduleNextPoll(Device device, int pollGeneration) {
+        handler.postDelayed(() -> pollDevice(device, pollGeneration), POLL_INTERVAL_MS);
+    }
+
+    private void getTrackTitleAndVolume(Device device, String state, int pollGeneration) {
         if ("PLAYING".equals(state) || "PAUSED_PLAYBACK".equals(state)) {
             Service avTransport = device.findService(new UDAServiceId("AVTransport"));
             executorService.execute(new GetPositionInfo(avTransport, httpRequestSender) {
                 @Override
                 public void received(ActionInvocation invocation, PositionInfo positionInfo) {
                     String title = parseTrackTitle(positionInfo.getTrackMetaData());
-                    getVolume(device, state, title);
+                    getVolume(device, state, title, pollGeneration);
                 }
                 
                 @Override
                 public void failure(ActionInvocation invocation, UpnpResponse response, String msg) {
-                    getVolume(device, state, null);
+                    getVolume(device, state, null, pollGeneration);
                 }
             });
         } else {
-            getVolume(device, state, null);
+            getVolume(device, state, null, pollGeneration);
         }
     }
     
-    private void getVolume(Device device, String state, String trackTitle) {
+    private void getVolume(Device device, String state, String trackTitle, int pollGeneration) {
         Service renderingControl = device.findService(new UDAServiceId("RenderingControl"));
         if (renderingControl == null) {
-            updateStatus(device, state, trackTitle, 50);
+            updateStatus(device, state, trackTitle, 50, pollGeneration);
             return;
         }
         
         // Check if GetVolume action is supported
         if (renderingControl.getAction("GetVolume") == null) {
             YaaccLogger.d(getClass().getName(), "GetVolume action not supported by device: " + device.getDisplayString());
-            updateStatus(device, state, trackTitle, 50);
+            updateStatus(device, state, trackTitle, 50, pollGeneration);
             return;
         }
         
         executorService.execute(new GetVolume(renderingControl, httpRequestSender) {
             @Override
             public void received(ActionInvocation invocation, int currentVolume) {
-                updateStatus(device, state, trackTitle, currentVolume);
+                updateStatus(device, state, trackTitle, currentVolume, pollGeneration);
             }
             
             @Override
             public void failure(ActionInvocation invocation, UpnpResponse response, String msg) {
-                updateStatus(device, state, trackTitle, 50);
+                updateStatus(device, state, trackTitle, 50, pollGeneration);
             }
         });
     }
     
-    private void updateStatus(Device device, String state, String trackTitle, int volume) {
+    private void updateStatus(Device device, String state, String trackTitle, int volume, int pollGeneration) {
         RendererStatus status = new RendererStatus(device, state, trackTitle, volume);
         statusMap.put(device, status);
-        
-        if (listener != null) {
-            handler.post(() -> listener.onStatusChanged(status));
-        }
-        
-        handler.postDelayed(() -> pollDevice(device), POLL_INTERVAL_MS);
+
+        handler.post(() -> {
+            if (pollGeneration != generation) {
+                return; // result of a poll from before monitoring stopped
+            }
+            for (StatusListener listener : listeners) {
+                // Skip listeners that unsubscribed earlier in this loop.
+                if (listeners.contains(listener)) {
+                    listener.onStatusChanged(status);
+                }
+            }
+            scheduleNextPoll(device, pollGeneration);
+        });
     }
     
     private String parseTrackTitle(String trackMetaData) {

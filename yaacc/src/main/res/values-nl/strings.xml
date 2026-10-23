@@ -139,4 +139,7 @@
     <string name="paused">GESLOTEN</string>
     <string name="stopped">GESTOPT</string>
     <string name="no_media">GEEN MEDIA</string>
+    <string name="device_sheet_title">Afspelen op</string>
+    <string name="receiver_bar_none_selected">Geen ontvanger geselecteerd. Tik om te kiezen</string>
+    <string name="receiver_bar_description">Ontvangers kiezen</string>
 </resources>

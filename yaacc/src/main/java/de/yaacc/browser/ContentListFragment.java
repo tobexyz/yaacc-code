@@ -29,6 +29,9 @@ import android.widget.ImageButton;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
+import androidx.core.view.AccessibilityDelegateCompat;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 import androidx.fragment.app.Fragment;
 import androidx.preference.PreferenceManager;
 import androidx.recyclerview.widget.GridLayoutManager;
@@ -67,7 +70,6 @@ public class ContentListFragment extends Fragment implements OnClickListener,
     private ImageButton backButton;
     private TextView currentFolderNameView;
     private View topSeperator;
-    private TextView currentProvider;
     private ProgressBar progressBar;
     private ImageButton sortByNameButton;
     private ImageButton sortByDateButton;
@@ -92,7 +94,6 @@ public class ContentListFragment extends Fragment implements OnClickListener,
             @Override
             public void run() {
                 if (upnpClient.getProviderDevice() != null) {
-                    currentProvider.setText(upnpClient.getProviderDevice().getDetails().getFriendlyName());
                     if (navigator != null && navigator.getCurrentPosition() != null && navigator.getCurrentPosition().getDeviceId() != null && upnpClient.getProviderDevice().getIdentity().getUdn().getIdentifierString().equals(navigator.getCurrentPosition().getDeviceId())) {
                         populateItemList(false);
                     } else {
@@ -116,9 +117,8 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         });
         currentFolderNameView = contentlistView.findViewById(R.id.contentListCurrentFolderName);
         currentReceivers = contentlistView.findViewById(R.id.contentListCurrentReceivers);
-        currentProvider = contentlistView.findViewById(R.id.contentListCurrentProvider);
         tintCompoundDrawables(currentReceivers);
-        tintCompoundDrawables(currentProvider);
+        initReceiverBar();
         initSortToggle(contentlistView);
         topSeperator = contentlistView.findViewById(R.id.contentListTopSeperator);
         contentList = contentlistView.findViewById(R.id.contentList);
@@ -133,11 +133,8 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         if (getActivity() != null) {
             getActivity().runOnUiThread(() -> {
 
-                if (upnpClient.getReceiverDevices() != null) {
-                    currentReceivers.setText(upnpClient.getReceiverDevices().stream().map(it -> it.getDetails().getFriendlyName()).collect(Collectors.joining("; ")));
-                }
+                updateReceiverBar();
                 if (upnpClient.getProviderDevice() != null) {
-                    currentProvider.setText(upnpClient.getProviderDevice().getDetails().getFriendlyName());
                     if (savedInstanceState == null || savedInstanceState.getSerializable(CONTENT_LIST_NAVIGATOR) == null) {
                         showMainFolder();
                     } else {
@@ -357,6 +354,65 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         boolean cardMode = currentViewMode == BrowseContentItemAdapter.ViewMode.CARD;
         viewModeToggleButton.setSelected(cardMode);
         viewModeToggleButton.setAlpha(cardMode ? 1.0f : 0.6f);
+    }
+
+    /**
+     * The receiver bar opens the device sheet on tap or D-pad select (it is
+     * clickable and focusable in both layouts). TalkBack announces the click
+     * action as "Choose receivers".
+     */
+    private void initReceiverBar() {
+        currentReceivers.setOnClickListener(v -> showDeviceSheet());
+        ViewCompat.setAccessibilityDelegate(currentReceivers, new AccessibilityDelegateCompat() {
+            @Override
+            public void onInitializeAccessibilityNodeInfo(@NonNull View host, @NonNull AccessibilityNodeInfoCompat info) {
+                super.onInitializeAccessibilityNodeInfo(host, info);
+                info.addAction(new AccessibilityNodeInfoCompat.AccessibilityActionCompat(
+                        AccessibilityNodeInfoCompat.ACTION_CLICK, getString(R.string.receiver_bar_description)));
+            }
+        });
+    }
+
+    /**
+     * Shows the selected receivers' names in the receiver bar. Called on
+     * creation and whenever UpnpClient reports a receiver selection change,
+     * including changes made in the device sheet.
+     */
+    private void updateReceiverBar() {
+        if (!isAdded() || currentReceivers == null || upnpClient == null) {
+            return;
+        }
+        List<String> names = new ArrayList<>();
+        for (Device<?, ?, ?> receiver : upnpClient.getReceiverDevices()) {
+            if (receiver.getDetails() != null) {
+                names.add(receiver.getDetails().getFriendlyName());
+            }
+        }
+        // Untrusted LAN names: plain text only.
+        currentReceivers.setText(ReceiverBarLabel.build(names, getString(R.string.receiver_bar_none_selected)));
+    }
+
+    /** Opens the device sheet (receivers and their running players). */
+    public void showDeviceSheet() {
+        if (isAdded()) {
+            DeviceSheetFragment.show(getChildFragmentManager());
+        }
+    }
+
+    /**
+     * Play entry points call this first: with no receiver selected, the
+     * device sheet opens instead of starting playback, so the user can pick a
+     * receiver and tap play again. {@code PlayerService}'s
+     * "no receiver selected" toast stays as the fallback for non-UI callers.
+     *
+     * @return true if the sheet was opened and playback must not start
+     */
+    public boolean openDeviceSheetIfNoReceiverSelected() {
+        if (upnpClient != null && upnpClient.getReceiverDevices().isEmpty()) {
+            showDeviceSheet();
+            return true;
+        }
+        return false;
     }
 
     private void tintCompoundDrawables(TextView textView) {
@@ -635,22 +691,14 @@ public class ContentListFragment extends Fragment implements OnClickListener,
     @Override
     public void receiverDeviceRemoved(Device<?, ?, ?> device) {
         if (getActivity() != null) {
-            getActivity().runOnUiThread(() -> {
-                if (upnpClient.getReceiverDevices() != null) {
-                    currentReceivers.setText(upnpClient.getReceiverDevices().stream().map(it -> it.getDetails().getFriendlyName()).collect(Collectors.joining("; ")));
-                }
-            });
+            getActivity().runOnUiThread(this::updateReceiverBar);
         }
     }
 
     @Override
     public void receiverDeviceAdded(Device<?, ?, ?> device) {
         if (getActivity() != null) {
-            getActivity().runOnUiThread(() -> {
-                if (upnpClient.getReceiverDevices() != null) {
-                    currentReceivers.setText(upnpClient.getReceiverDevices().stream().map(it -> it.getDetails().getFriendlyName()).collect(Collectors.joining("; ")));
-                }
-            });
+            getActivity().runOnUiThread(this::updateReceiverBar);
         }
     }
 
