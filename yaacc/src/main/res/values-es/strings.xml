@@ -24,6 +24,10 @@
     <string name="browse_context_play">Reproducir elemento</string>
     <string name="browse_context_download">Descargar elemento</string>
     <string name="browse_context_share">Compartir elemento</string>
+    <string name="browse_share_menu_file">Compartir archivo</string>
+    <string name="browse_share_menu_link">Compartir enlace</string>
+    <string name="browse_share_preparing">Preparando archivo para compartir…</string>
+    <string name="browse_share_failed">No se puede compartir el elemento: %1$s</string>
     <string name="browse_context_add_to_playplist">Agregar elemento a la lista de reproducción</string>
     <string name="browse_no_content_found">No se encontraron datos</string>
     <string name="browse_button_devices">Dispositivos remitentes</string>

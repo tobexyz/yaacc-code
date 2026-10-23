@@ -24,6 +24,10 @@
     <string name="browse_context_play">Play item</string>
     <string name="browse_context_download">Download item</string>
     <string name="browse_context_share">Share item</string>
+    <string name="browse_share_menu_file">Share file</string>
+    <string name="browse_share_menu_link">Share link</string>
+    <string name="browse_share_preparing">Preparing file to share…</string>
+    <string name="browse_share_failed">Can\'t share item: %1$s</string>
     <string name="browse_context_add_to_playplist">Add item to playlist</string>
     <string name="browse_no_content_found">No data found</string>
     <string name="browse_button_devices">Sender Devices</string>
