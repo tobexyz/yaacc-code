@@ -23,6 +23,7 @@
     <string name="browse_context_title">Actions disponibles</string>
     <string name="browse_context_play">Lire l\'élément</string>
     <string name="browse_context_download">Télécharger l\'article</string>
+    <string name="browse_context_share">Partager l\'élément</string>
     <string name="browse_context_add_to_playplist">Ajouter un élément à la playlist</string>
     <string name="browse_no_content_found">Aucune donnée trouvée</string>
     <string name="browse_button_devices">Périphériques expéditeurs</string>

@@ -23,6 +23,7 @@
     <string name="browse_context_title">Beschikbare acties</string>
     <string name="browse_context_play">Speel item af</string>
     <string name="browse_context_download">Artikel downloaden</string>
+    <string name="browse_context_share">Item delen</string>
     <string name="browse_context_add_to_playplist">Voeg item toe aan afspeellijst</string>
     <string name="browse_no_content_found">Geen gegevens gevonden</string>
     <string name="browse_button_devices">Afzenderapparaten</string>

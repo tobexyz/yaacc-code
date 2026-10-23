@@ -18,6 +18,7 @@
 package de.yaacc.browser;
 
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.AsyncTask;
@@ -592,11 +593,30 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
                 toast.show();
             }
         });
+        holder.share.setOnClickListener((v) -> {
+            try {
+                // Shares the item's resource URL as plain text (e.g. via a
+                // chat app, browser, or another player), not the file
+                // itself - no FileProvider/download step needed, and it
+                // mirrors the existing "receive a shared URL" feature in
+                // the other direction.
+                String resourceUrl = currentObject.getFirstResource().getValue();
+                Intent shareIntent = new Intent(Intent.ACTION_SEND);
+                shareIntent.setType("text/plain");
+                shareIntent.putExtra(Intent.EXTRA_SUBJECT, currentObject.getTitle());
+                shareIntent.putExtra(Intent.EXTRA_TEXT, resourceUrl);
+                getContext().startActivity(Intent.createChooser(shareIntent, getContext().getString(R.string.browse_context_share)));
+            } catch (Exception ex) {
+                Toast toast = Toast.makeText(contentListFragment.getActivity(), "Can't share item: " + ex.getMessage(), Toast.LENGTH_SHORT);
+                toast.show();
+            }
+        });
         if (currentObject instanceof Container) {
             holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_folder_open_48, context.getTheme()), getContext().getTheme()));
             holder.playAll.setVisibility(View.VISIBLE);
             holder.play.setVisibility(View.VISIBLE);
             holder.download.setVisibility(View.GONE);
+            holder.share.setVisibility(View.GONE);
             holder.playlistAdd.setVisibility(View.GONE);
 
         } else if (currentObject instanceof AudioItem) {
@@ -604,6 +624,7 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
             holder.playAll.setVisibility(View.VISIBLE);
             holder.play.setVisibility(View.VISIBLE);
             holder.download.setVisibility(View.VISIBLE);
+            holder.share.setVisibility(View.VISIBLE);
             holder.playlistAdd.setVisibility(View.VISIBLE);
             if (showThumbnails) {
                 DIDLObject.Property<URI> albumArtProperties = ((AudioItem) currentObject)
@@ -622,6 +643,7 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
             holder.playAll.setVisibility(View.VISIBLE);
             holder.play.setVisibility(View.VISIBLE);
             holder.download.setVisibility(View.VISIBLE);
+            holder.share.setVisibility(View.VISIBLE);
             holder.playlistAdd.setVisibility(View.GONE);
             if (showThumbnails) {
                 if (viewMode == ViewMode.CARD) {
@@ -636,6 +658,7 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
             holder.playAll.setVisibility(View.VISIBLE);
             holder.play.setVisibility(View.VISIBLE);
             holder.download.setVisibility(View.VISIBLE);
+            holder.share.setVisibility(View.VISIBLE);
             holder.playlistAdd.setVisibility(View.VISIBLE);
             if (showThumbnails) {
                 DIDLObject.Property<URI> albumArtProperties = ((VideoItem) currentObject)
@@ -654,12 +677,14 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
             holder.playAll.setVisibility(View.GONE);
             holder.play.setVisibility(View.GONE);
             holder.download.setVisibility(View.GONE);
+            holder.share.setVisibility(View.GONE);
             holder.playlistAdd.setVisibility(View.GONE);
         } else if (currentObject instanceof TextItem) {
             holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_text_snippet_48, getContext().getTheme()), getContext().getTheme()));
             holder.playAll.setVisibility(View.GONE);
             holder.play.setVisibility(View.GONE);
             holder.download.setVisibility(View.GONE);
+            holder.share.setVisibility(View.GONE);
             holder.playlistAdd.setVisibility(View.GONE);
         } else {
             holder.icon.clearAnimation(); // Clear any previous animation
@@ -667,6 +692,7 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
             holder.playAll.setVisibility(View.GONE);
             holder.play.setVisibility(View.GONE);
             holder.download.setVisibility(View.GONE);
+            holder.share.setVisibility(View.GONE);
             holder.playlistAdd.setVisibility(View.GONE);
         }
     }
@@ -736,6 +762,7 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
         ImageButton playAll;
         ImageButton download;
         ImageButton playlistAdd;
+        ImageButton share;
 
         public ViewHolder(View itemView) {
             super(itemView);
@@ -745,6 +772,7 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
             playAll = itemView.findViewById(R.id.browseContentItemPlayAll);
             download = itemView.findViewById(R.id.browseContentItemDownload);
             playlistAdd = itemView.findViewById(R.id.browseContentItemPlaylistAdd);
+            share = itemView.findViewById(R.id.browseContentItemShare);
             // Ensure buttons are reachable via DPAD when focused from row
             View.OnKeyListener actionKeyListener = (v, keyCode, event) -> {
                 if (event.getAction() != android.view.KeyEvent.ACTION_DOWN) return false;
@@ -764,6 +792,7 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
             playAll.setOnKeyListener(actionKeyListener);
             download.setOnKeyListener(actionKeyListener);
             playlistAdd.setOnKeyListener(actionKeyListener);
+            share.setOnKeyListener(actionKeyListener);
         }
     }
 }

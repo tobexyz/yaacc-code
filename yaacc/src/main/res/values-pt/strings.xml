@@ -24,6 +24,7 @@
     <string name="browse_context_title">Ações disponíveis</string>
     <string name="browse_context_play">Item de reprodução</string>
     <string name="browse_context_download">Baixar item</string>
+    <string name="browse_context_share">Compartilhar item</string>
     <string name="browse_context_add_to_playplist">Adicionar item à lista de reprodução</string>
     <string name="browse_no_content_found">Nenhum dado encontrado</string>
     <string name="browse_button_devices">Dispositivos remetentes</string>

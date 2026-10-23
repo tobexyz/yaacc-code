@@ -23,6 +23,7 @@
     <string name="browse_context_title">Mögliche Aktionen</string>
     <string name="browse_context_play">Spiele Eintrag ab</string>
     <string name="browse_context_download">Lade Eintrag herunter</string>
+    <string name="browse_context_share">Eintrag teilen</string>
     <string name="browse_context_add_to_playplist">Füge Eintrag zu Wiedergabeliste hinzu</string>
     <string name="browse_no_content_found">Keine anzeigbaren Daten gefunden</string>
     <string name="browse_button_devices">Sender</string>
