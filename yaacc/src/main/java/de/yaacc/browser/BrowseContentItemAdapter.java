@@ -18,14 +18,17 @@
 package de.yaacc.browser;
 
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.view.LayoutInflater;
+import android.view.Menu;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageButton;
 import android.widget.ImageView;
+import android.widget.PopupMenu;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -38,6 +41,7 @@ import org.fourthline.cling.support.model.DIDLObject;
 import org.fourthline.cling.support.model.container.Container;
 import org.fourthline.cling.support.model.item.AudioItem;
 import org.fourthline.cling.support.model.item.ImageItem;
+import org.fourthline.cling.support.model.item.Item;
 import org.fourthline.cling.support.model.item.PlaylistItem;
 import org.fourthline.cling.support.model.item.TextItem;
 import org.fourthline.cling.support.model.item.VideoItem;
@@ -57,7 +61,9 @@ import java.util.stream.Collectors;
 
 import de.yaacc.R;
 import de.yaacc.Yaacc;
+import de.yaacc.player.PlayableItem;
 import de.yaacc.upnp.UpnpClient;
+import de.yaacc.util.ShareFileTask;
 import de.yaacc.util.ThemeHelper;
 import de.yaacc.util.YaaccLogger;
 import de.yaacc.util.image.IconDownloadTask;
@@ -592,11 +598,56 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
                 toast.show();
             }
         });
+        holder.share.setOnClickListener((v) -> {
+            // Only Item subtypes (Audio/Image/Video) ever show this button
+            // (see the per-type visibility below) - safe to treat
+            // currentObject as an Item here.
+            PlayableItem playableItem = new PlayableItem((Item) currentObject, 0);
+            if (playableItem.getUri() == null) {
+                // No resolvable resource on this item (selectBestResource
+                // found none) - nothing either menu option could actually
+                // do, so fail here rather than showing a menu that can
+                // only lead to a broken share.
+                Toast.makeText(getContext(), getContext().getString(R.string.browse_share_failed, "no resource"), Toast.LENGTH_SHORT).show();
+                return;
+            }
+            // A single tap doesn't commit to one behavior: a folder's
+            // resource URL is frequently only reachable on the local
+            // network (this device's own embedded server, or another
+            // server on the same LAN), which silently fails for a remote
+            // recipient - but sharing the file itself costs a download
+            // first. Offering both, chosen per tap, beats guessing once
+            // globally (a hidden setting) or always paying the download
+            // cost just in case.
+            PopupMenu popupMenu = new PopupMenu(getContext(), v);
+            popupMenu.getMenu().add(Menu.NONE, 0, 0, R.string.browse_share_menu_file);
+            popupMenu.getMenu().add(Menu.NONE, 1, 1, R.string.browse_share_menu_link);
+            popupMenu.setOnMenuItemClickListener(menuItem -> {
+                if (menuItem.getItemId() == 0) {
+                    Toast.makeText(getContext(), R.string.browse_share_preparing, Toast.LENGTH_SHORT).show();
+                    new ShareFileTask(getContext(), playableItem.getUri(),
+                            playableItem.getTitle(), playableItem.getMimeType()).execute();
+                } else {
+                    try {
+                        Intent shareIntent = new Intent(Intent.ACTION_SEND);
+                        shareIntent.setType("text/plain");
+                        shareIntent.putExtra(Intent.EXTRA_SUBJECT, playableItem.getTitle());
+                        shareIntent.putExtra(Intent.EXTRA_TEXT, playableItem.getUri().toString());
+                        getContext().startActivity(Intent.createChooser(shareIntent, getContext().getString(R.string.browse_context_share)));
+                    } catch (Exception ex) {
+                        Toast.makeText(getContext(), getContext().getString(R.string.browse_share_failed, ex.getMessage()), Toast.LENGTH_SHORT).show();
+                    }
+                }
+                return true;
+            });
+            popupMenu.show();
+        });
         if (currentObject instanceof Container) {
             holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_folder_open_48, context.getTheme()), getContext().getTheme()));
             holder.playAll.setVisibility(View.VISIBLE);
             holder.play.setVisibility(View.VISIBLE);
             holder.download.setVisibility(View.GONE);
+            holder.share.setVisibility(View.GONE);
             holder.playlistAdd.setVisibility(View.GONE);
 
         } else if (currentObject instanceof AudioItem) {
@@ -604,6 +655,7 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
             holder.playAll.setVisibility(View.VISIBLE);
             holder.play.setVisibility(View.VISIBLE);
             holder.download.setVisibility(View.VISIBLE);
+            holder.share.setVisibility(View.VISIBLE);
             holder.playlistAdd.setVisibility(View.VISIBLE);
             if (showThumbnails) {
                 DIDLObject.Property<URI> albumArtProperties = ((AudioItem) currentObject)
@@ -622,6 +674,7 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
             holder.playAll.setVisibility(View.VISIBLE);
             holder.play.setVisibility(View.VISIBLE);
             holder.download.setVisibility(View.VISIBLE);
+            holder.share.setVisibility(View.VISIBLE);
             holder.playlistAdd.setVisibility(View.GONE);
             if (showThumbnails) {
                 if (viewMode == ViewMode.CARD) {
@@ -636,6 +689,7 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
             holder.playAll.setVisibility(View.VISIBLE);
             holder.play.setVisibility(View.VISIBLE);
             holder.download.setVisibility(View.VISIBLE);
+            holder.share.setVisibility(View.VISIBLE);
             holder.playlistAdd.setVisibility(View.VISIBLE);
             if (showThumbnails) {
                 DIDLObject.Property<URI> albumArtProperties = ((VideoItem) currentObject)
@@ -654,12 +708,14 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
             holder.playAll.setVisibility(View.GONE);
             holder.play.setVisibility(View.GONE);
             holder.download.setVisibility(View.GONE);
+            holder.share.setVisibility(View.GONE);
             holder.playlistAdd.setVisibility(View.GONE);
         } else if (currentObject instanceof TextItem) {
             holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_text_snippet_48, getContext().getTheme()), getContext().getTheme()));
             holder.playAll.setVisibility(View.GONE);
             holder.play.setVisibility(View.GONE);
             holder.download.setVisibility(View.GONE);
+            holder.share.setVisibility(View.GONE);
             holder.playlistAdd.setVisibility(View.GONE);
         } else {
             holder.icon.clearAnimation(); // Clear any previous animation
@@ -667,6 +723,7 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
             holder.playAll.setVisibility(View.GONE);
             holder.play.setVisibility(View.GONE);
             holder.download.setVisibility(View.GONE);
+            holder.share.setVisibility(View.GONE);
             holder.playlistAdd.setVisibility(View.GONE);
         }
     }
@@ -736,6 +793,7 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
         ImageButton playAll;
         ImageButton download;
         ImageButton playlistAdd;
+        ImageButton share;
 
         public ViewHolder(View itemView) {
             super(itemView);
@@ -745,6 +803,7 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
             playAll = itemView.findViewById(R.id.browseContentItemPlayAll);
             download = itemView.findViewById(R.id.browseContentItemDownload);
             playlistAdd = itemView.findViewById(R.id.browseContentItemPlaylistAdd);
+            share = itemView.findViewById(R.id.browseContentItemShare);
             // Ensure buttons are reachable via DPAD when focused from row
             View.OnKeyListener actionKeyListener = (v, keyCode, event) -> {
                 if (event.getAction() != android.view.KeyEvent.ACTION_DOWN) return false;
@@ -764,6 +823,7 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
             playAll.setOnKeyListener(actionKeyListener);
             download.setOnKeyListener(actionKeyListener);
             playlistAdd.setOnKeyListener(actionKeyListener);
+            share.setOnKeyListener(actionKeyListener);
         }
     }
 }

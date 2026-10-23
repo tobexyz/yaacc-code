@@ -23,6 +23,11 @@
     <string name="browse_context_title">Actions disponibles</string>
     <string name="browse_context_play">Lire l\'élément</string>
     <string name="browse_context_download">Télécharger l\'article</string>
+    <string name="browse_context_share">Partager l\'élément</string>
+    <string name="browse_share_menu_file">Partager le fichier</string>
+    <string name="browse_share_menu_link">Partager le lien</string>
+    <string name="browse_share_preparing">Préparation du fichier à partager…</string>
+    <string name="browse_share_failed">Impossible de partager l\'élément : %1$s</string>
     <string name="browse_context_add_to_playplist">Ajouter un élément à la playlist</string>
     <string name="browse_no_content_found">Aucune donnée trouvée</string>
     <string name="browse_button_devices">Périphériques expéditeurs</string>

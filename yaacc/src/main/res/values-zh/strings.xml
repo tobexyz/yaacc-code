@@ -23,6 +23,11 @@
     <string name="browse_context_title">可用操作</string>
     <string name="browse_context_play">播放项目</string>
     <string name="browse_context_download">下载项目</string>
+    <string name="browse_context_share">分享项目</string>
+    <string name="browse_share_menu_file">分享文件</string>
+    <string name="browse_share_menu_link">分享链接</string>
+    <string name="browse_share_preparing">正在准备要分享的文件…</string>
+    <string name="browse_share_failed">无法分享项目：%1$s</string>
     <string name="browse_context_add_to_playplist">添加项目到播放列表</string>
     <string name="browse_no_content_found">未找到数据</string>
     <string name="browse_button_devices">发送设备</string>
