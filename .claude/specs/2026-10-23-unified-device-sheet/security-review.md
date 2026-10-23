@@ -95,3 +95,107 @@ Existing code paths the design reuses were checked and are sound:
   unchanged by this spec.)
 
 ### Verdict: PASS
+
+## Cycle 1 — 2026-10-23
+Reviewing: Group 2
+
+Scope: `git diff 8423351b..HEAD -- yaacc docs`, which covers
+`DeviceSessionGrouper` (implemented), `ReceiverRowBinder` (extracted),
+`BrowseReceiverDeviceAdapter`, `PlayerListChangeNotifier`, `PlayerService`,
+`UpnpClient#getPlayerCreationSequence`, the two test classes and
+`docs/tech.md`. Context came from decisions.md and the Group 2 cycles in
+review.md. Test results on disk: `DeviceSessionGrouperTest` 22/22 and
+`PlayerServiceListenerTest` 14/14, with 0 failures and 0 errors.
+
+Group 1 suggestions that Group 2 owned:
+- **Duplicate, null and spoofed device ids: honored.** `group()` treats ids
+  as opaque. A duplicate receiver id is listed only at its first occurrence,
+  a null receiver id is skipped, null-`deviceId` sessions form a trailing
+  group, and null lists count as empty. `primarySession` tolerates null ids.
+  Tests cover each case, including `remoteDeviceSpoofingLocalUidIsGroupedLikeAnyOtherId`.
+- **A spoofed `LOCAL_UID` can't take control of local players.** A
+  `RemoteDevice` advertising `uuid:LOCAL_UID` gets the local
+  `primarySession` for display only. In `ReceiverRowBinder`:
+  - play/pause/stop route by type (`isLocalDevice`: `LocalDevice` or
+    `LocalDummyDevice`, `ReceiverRowBinder.java:358-360, 391`), so a rogue
+    remote row sends AVTransport actions to itself, never to a local
+    `Player`;
+  - tap is a no-op for any `LOCAL_UID` string (`:325-327`), so it can't
+    open a local player's intent;
+  - checking the rogue row stores the id string, and
+    `UpnpClient.getDevice("LOCAL_UID")` resolves to the dummy device
+    (`UpnpClient.java:499-501`).
+
+  What's left is cosmetic: an attacker-named row can mirror local track
+  title and album art. That was already true of the old
+  `getPlayerForDevice` string match, so it isn't new.
+- **Listener API: honored.** `Listener` takes only `Player`. The notifier
+  holds a main-looper `Handler::post` executor and no `Context`.
+  Listeners sit in a `CopyOnWriteArrayList`, so a listener can unregister
+  itself mid-callback. Delivery re-checks `listeners.contains(...)`, so a
+  listener removed before a queued delivery runs is not called. Tests
+  cover self-unregistration, removal before delivery and double
+  registration. The strong reference held until unregister is documented
+  on `PlayerService#addPlayerListChangeListener`.
+- **Every map write goes through the notifier: honored.** All
+  `currentActivePlayer` mutations (`PlayerService.java:119, 132, 564`) go
+  through `putAndNotify`/`removeAndNotify`. `remove(id, player)` stops a
+  stale instance from evicting its replacement. The `ConcurrentHashMap`
+  switch resolves the Group 1 concurrent-write note. The one remaining
+  bypass is `getPlayer()` (see Suggestions).
+
+Tap path: `openPlayerActivity` now matches any `Player` by `getDeviceId()`
+instead of only `AVTransportPlayer`. Non-AVTransport players all report
+`LOCAL_UID`, which returns early, so a remote device can't reach them. The
+send is still `getNotificationIntent().send(context, 0, new Intent())` on
+explicit, `FLAG_IMMUTABLE` PendingIntents, so the fill-in can't alter the
+target. No change of security relevance.
+
+Untrusted strings: the extraction adds no new place where they are
+rendered. Friendly name, track title and status still go through
+`TextView#setText`. Album art and device icons still go through
+`IconDownloadTask`. There is no `Html.fromHtml`, no `Linkify`/`autoLink`,
+and no untrusted format string.
+
+No secrets, credentials, local paths, new dependencies, manifest changes or
+exported components in the diff.
+
+### Critical
+- None.
+
+### Warning
+- None.
+
+### Suggestion
+- [PlayerService.java:252-254] `getPlayer()` returns the live mutable
+  `currentActivePlayer.values()`. A `values().remove(...)` through it would
+  bypass the notifier and leave a stale creation sequence. It has no
+  callers. Remove it, or return
+  `Collections.unmodifiableCollection(...)` like `getCurrentPlayers()`
+  (`:486`), so "every write goes through the notifier" can't regress.
+- [Group 3, DeviceSheetAdapter] Constraint: when turning a RECEIVER `Row`
+  back into a `Device`, resolve its id with `UpnpClient.getDevice(id)`, which
+  short-circuits `LOCAL_UID` to the dummy device. Don't use an id→device map
+  built from the registry list. `group()` keeps only the first occurrence of
+  a duplicate id. If a rogue `uuid:LOCAL_UID` device sorts first, a map
+  lookup would bind the real local sessions under the attacker's row and
+  hide the dummy-device row.
+- [ReceiverRowBinder.java:122] Each binder owns a
+  `newSingleThreadExecutor()` that is never shut down. That's harmless for
+  the single adapter of the Receiver tab. If Group 3 creates a binder per
+  sheet open, each open leaks an idle thread. Share one binder, or add a
+  `release()` that calls `executorService.shutdown()` from the sheet's
+  `onDestroyView`.
+- [BrowseReceiverDeviceAdapter.java:198-211, ReceiverRowBinder.java:234]
+  The local-status poll and the synthesized local status pick devices by the
+  `LOCAL_UID` string, so a spoofed device can receive (and, if sorted first,
+  take over) the local row's status display. This is cosmetic only, as noted
+  above, and pre-existing. The root fix is a follow-up: ignore remote
+  devices whose UDN identifier equals `LOCAL_UID` in
+  `UpnpClient#remoteDeviceAdded`/`deviceAdded`, rather than special-casing
+  it at every consumer.
+- Carried forward from Group 1, still open for Group 3: plain-text
+  rendering of LAN strings in the new session row and receiver bar, and the
+  pre-existing `ImageDownloader` scheme allowlist and size cap follow-up.
+
+### Verdict: PASS
