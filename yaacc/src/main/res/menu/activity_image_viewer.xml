@@ -51,6 +51,12 @@
         android:title="@string/next"
         app:showAsAction="always" />
     <item
+        android:id="@+id/menu_share"
+        android:icon="@drawable/ic_baseline_share_32"
+        android:orderInCategory="110"
+        android:title="@string/browse_context_share"
+        app:showAsAction="always" />
+    <item
         android:id="@+id/menu_exit"
         android:icon="@drawable/ic_baseline_cancel_48"
         android:orderInCategory="110"

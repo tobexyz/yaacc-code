@@ -625,7 +625,7 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
             popupMenu.setOnMenuItemClickListener(menuItem -> {
                 if (menuItem.getItemId() == 0) {
                     Toast.makeText(getContext(), R.string.browse_share_preparing, Toast.LENGTH_SHORT).show();
-                    new ShareFileTask(getContext(), playableItem.getUri().toString(),
+                    new ShareFileTask(getContext(), playableItem.getUri(),
                             playableItem.getTitle(), playableItem.getMimeType()).execute();
                 } else {
                     try {

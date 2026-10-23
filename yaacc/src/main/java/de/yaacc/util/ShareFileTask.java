@@ -35,28 +35,37 @@ import java.net.URL;
 import de.yaacc.R;
 
 /**
- * Downloads a single browsed item's resource to the app's cache (not the
+ * Copies a single item's resource into the app's cache (not the
  * user-visible Downloads folder - this copy only exists to be handed to
  * another app, not for the user to keep) and hands it off to the system
  * share sheet as a {@code content://} URI via {@link FileProvider}, rather
- * than just sharing the item's resource URL as text - the URL is often
- * only reachable on the local network (this device's own embedded UPnP
- * server, or another server on the same LAN), so the receiving app/person
- * frequently can't actually resolve it.
+ * than just sharing the resource's own URI as text - an http(s) URL is
+ * often only reachable on the local network (this device's own embedded
+ * UPnP server, or another server on the same LAN), and a {@code content://}
+ * URI isn't a shareable link at all, so the receiving app/person
+ * frequently can't actually resolve either as plain text.
+ * <p>
+ * {@code sourceUri} may be {@code http(s)://} (fetched via a plain
+ * connection, same as {@link de.yaacc.util.FileDownloader}) or a local
+ * {@code content://}/{@code file://} URI (read via the
+ * {@link android.content.ContentResolver}, same as
+ * {@code de.yaacc.imageviewer.ImageFragment}'s non-http branch) - callers
+ * don't need to know which.
  *
  * @see de.yaacc.browser.BrowseContentItemAdapter
+ * @see de.yaacc.imageviewer.ImageViewerActivity
  */
 public class ShareFileTask extends AsyncTask<Void, Void, File> {
 
     private final Context context;
-    private final String resourceUrl;
+    private final Uri sourceUri;
     private final String title;
     private final String mimeType;
     private Exception error;
 
-    public ShareFileTask(Context context, String resourceUrl, String title, String mimeType) {
+    public ShareFileTask(Context context, Uri sourceUri, String title, String mimeType) {
         this.context = context.getApplicationContext();
-        this.resourceUrl = resourceUrl;
+        this.sourceUri = sourceUri;
         this.title = title;
         this.mimeType = mimeType;
     }
@@ -74,8 +83,15 @@ public class ShareFileTask extends AsyncTask<Void, Void, File> {
                 filename += "." + extension;
             }
             File file = new File(shareDir, filename);
-            try (InputStream in = new URL(resourceUrl).openStream();
+            String scheme = sourceUri.getScheme();
+            boolean isRemote = "http".equals(scheme) || "https".equals(scheme);
+            try (InputStream in = isRemote
+                    ? new URL(sourceUri.toString()).openStream()
+                    : context.getContentResolver().openInputStream(sourceUri);
                  FileOutputStream out = new FileOutputStream(file)) {
+                if (in == null) {
+                    throw new java.io.IOException("Can't open source: " + sourceUri);
+                }
                 byte[] buffer = new byte[8192];
                 int len;
                 while ((len = in.read(buffer)) != -1) {
