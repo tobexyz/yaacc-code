@@ -834,6 +834,17 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     }
 
     /**
+     * Creation sequence of an active player (higher = added later), or 0 if the
+     * player isn't active or the player service isn't bound.
+     */
+    public long getPlayerCreationSequence(Player player) {
+        if (playerService == null) {
+            return 0;
+        }
+        return playerService.getPlayerCreationSequence(player);
+    }
+
+    /**
      * Returns all current player instances for the given transport object
      *
      * @param transport the object which describes the content to be played

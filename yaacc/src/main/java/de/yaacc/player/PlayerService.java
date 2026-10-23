@@ -21,8 +21,10 @@ import android.app.Notification;
 import android.app.PendingIntent;
 import android.content.Intent;
 import android.os.Binder;
+import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
+import android.os.Looper;
 import android.os.PowerManager;
 import android.widget.Toast;
 
@@ -37,10 +39,10 @@ import org.fourthline.cling.model.meta.Device;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import de.yaacc.R;
 import de.yaacc.Yaacc;
@@ -56,8 +58,15 @@ public class PlayerService extends MediaSessionService {
 
     private final IBinder binder = new PlayerServiceBinder();
     private PlayerServiceBroadcastReceiver playerServiceBroadcastReceiver;
-    private final Map<Integer, Player> currentActivePlayer = new HashMap<>();
+    // Concurrent: players are added from background threads (ContentItemPlayTask,
+    // AvTransportMediaRendererPlaying) while the UI iterates the live values() view on
+    // the main thread. Also keeps put/remove return values atomic for the change notifier.
+    private final Map<Integer, Player> currentActivePlayer = new ConcurrentHashMap<>();
     private HandlerThread playerHandlerThread;
+    // Map writes can happen off the main thread (createPlayer... runs on the caller's
+    // thread); only the resulting notification is posted to the main thread.
+    private final PlayerListChangeNotifier playerListChangeNotifier =
+            new PlayerListChangeNotifier(new Handler(Looper.getMainLooper())::post);
 
     private PowerManager.WakeLock wakeLock;
 
@@ -107,7 +116,7 @@ public class PlayerService extends MediaSessionService {
         if (player.getId() == 0) {
             return;
         }
-        currentActivePlayer.put(player.getId(), player);
+        playerListChangeNotifier.putAndNotify(currentActivePlayer, player);
 
         // Listen for playing state changes
         player.addPropertyChangeListener(evt -> {
@@ -120,8 +129,38 @@ public class PlayerService extends MediaSessionService {
     }
 
     public void removePlayer(Player player) {
-        currentActivePlayer.remove(player.getId());
+        playerListChangeNotifier.removeAndNotify(currentActivePlayer, player);
         updateForegroundState();
+    }
+
+    /**
+     * Registers a listener that is told when a player is added to or removed from
+     * the active players. Callbacks are delivered on the main thread, at most once
+     * per player for each direction. Registering the same listener twice has no
+     * effect.
+     * <p>
+     * The service keeps a strong reference to the listener until
+     * {@link #removePlayerListChangeListener} is called, so callers tied to a view
+     * or fragment must unregister when it goes away. A notification queued before
+     * unregistering is not delivered to that listener.
+     */
+    public void addPlayerListChangeListener(PlayerListChangeNotifier.Listener listener) {
+        playerListChangeNotifier.addListener(listener);
+    }
+
+    public void removePlayerListChangeListener(PlayerListChangeNotifier.Listener listener) {
+        playerListChangeNotifier.removeListener(listener);
+    }
+
+    /**
+     * Creation sequence of an active player: higher means added later. Player ids
+     * can't tell that ({@code AVTransportPlayer} ids are random, local ids are fixed
+     * per type).
+     *
+     * @return the sequence (&gt; 0), or 0 if the player is not active
+     */
+    public long getPlayerCreationSequence(Player player) {
+        return playerListChangeNotifier.creationSequence(player);
     }
 
     private void updateForegroundState() {
@@ -448,7 +487,10 @@ public class PlayerService extends MediaSessionService {
     }
 
     public Player getCurrentPlayerById(Integer id) {
-
+        // ConcurrentHashMap.get(null) throws; keep the old HashMap "not found" result.
+        if (id == null) {
+            return null;
+        }
         return currentActivePlayer.get(id);
     }
 
@@ -519,7 +561,7 @@ public class PlayerService extends MediaSessionService {
     public void shutdown(Player player) {
         assert (player != null);
         YaaccLogger.d(getClass().getName(), "Shutting down player: " + player.getId());
-        currentActivePlayer.remove(player.getId());
+        playerListChangeNotifier.removeAndNotify(currentActivePlayer, player);
         player.onDestroy();
         updateForegroundState();
     }
