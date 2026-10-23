@@ -66,3 +66,40 @@ Resolution of cycle 1 findings:
 - [x] Coverage adequate for the change: cases (a)-(g) are covered, and the cycle 1 gaps that let an incorrect Group 2 implementation pass are closed.
 
 ### Verdict: PASS
+
+## Cycle 1 — 2026-10-23
+Reviewing: Group 2 tasks (commits 0e02f2cf, 0817afd4; `git diff 8423351b..HEAD -- yaacc docs`)
+
+What I checked:
+- Old `BrowseReceiverDeviceAdapter` (at 8423351b) against the new adapter plus `ReceiverRowBinder`, line by line. Unchanged: volume/mute support checks, the `DeviceVolumeStateLoadTask`/`DeviceMuteStateLoadTask` calls (3-arg in `bind`, 2-arg in `refreshVolumeAndMute`), icon and album-art binding, status-map handling in `bind`/`updateStatus`/`updateLocalDeviceStatus`, remote AVTransport actions, `ViewHolder` view lookups, click/key listeners, and recycling. Everything is still bound on every `onBindViewHolder` as before; the `statusMap` and executor moved into the binder, one per adapter, as before.
+- Checkbox order (`upnpClient.add/removeReceiverDevice` now runs before the adapter's selection list is updated): there is no visible effect. `fireReceiverDeviceAdded/Removed` reaches only `ReceiverListFragment` (empty callbacks) and `ContentListFragment` (updates the footer text from `upnpClient`). Neither reads the adapter's `selectedDevices`.
+- Notifier: every write to `currentActivePlayer` goes through `putAndNotify`/`removeAndNotify` (`PlayerService.java:119, 132, 553`). `addPlayer`'s id-0 early return neither puts nor notifies, which is consistent. The added/removed decision comes from the atomic `ConcurrentHashMap.put`/`remove` return value on the mutating thread. Only delivery is posted to the main looper, and a queued delivery skips listeners that have since been unregistered. `CopyOnWriteArrayList` tolerates a listener removing itself mid-callback. Adding the `"playing"` property listener after `putAndNotify` is harmless, because delivery is asynchronous and independent of it.
+- `ConcurrentHashMap`: no caller can pass a null key or value. `addPlayer` dereferences `player.getId()`, `getPlayer(int)` autoboxes, and `getCurrentPlayerById(null)` is now guarded. No caller relies on iteration order, which `HashMap` never guaranteed either.
+- `DeviceSessionGrouper`: the implementation matches design.md and the security constraints (duplicate, null and spoofed `LOCAL_UID` ids), with no `android.*` imports and no records. The `primarySession` Javadoc was updated as cycle 2 asked.
+
+### Critical
+- None.
+
+### Warning
+- [yaacc/src/main/java/de/yaacc/browser/ReceiverRowBinder.java:323] **Behavior change on the yaacc renderer row.** `openPlayerActivity` now returns early on `isLocalDevice(device)` (`instanceof LocalDevice || LocalDummyDevice`). The old code only skipped devices for which no `AVTransportPlayer` matched, which in practice meant only the `LOCAL_UID` dummy. yaacc's own MediaRenderer is a cling `LocalDevice` with its own UDN (`<uuid>-renderer`, or the root UDN when only the renderer is enabled) and an AVTransport service (`YaaccUpnpServerService.java:599-605, 638`). It appears in the Receiver tab through `getDevicesProvidingAvTransportService()`, and playing to it creates an `AVTransportPlayer` keyed on that UDN (`PlayerService.java:397`). Before the extraction, tapping that row opened the player activity; now the tap does nothing. The builder was right to keep the `LOCAL_UID` row's tap a no-op, which is what "no behavior change" requires, but the check that does it is wrong. Fix: guard on `UpnpClient.LOCAL_UID.equals(deviceId)` instead of `isLocalDevice(device)`. `executeAction` keeps its pre-existing `instanceof` check, which is fine because the old code had it too and `primaryPlayer` still resolves the renderer's `AVTransportPlayer` by UDN.
+- [.claude/specs/2026-10-23-unified-device-sheet/design.md "Fix for finding 3" and "Interfaces & Contracts"; ReceiverRowBinder.java:337-341] **"Highest playerId = newest" is false.** I missed this in Group 1 cycle 1. `AVTransportPlayer` ids are `Math.abs(UUID.randomUUID().hashCode())` (`AVTransportPlayer.java:158`). Local player ids are fixed per type through `NotificationId`: music 1, image 3, multi 4 (`LocalMediaSessionPlayer.java:472`, `LocalImagePlayer.java:335`, `MultiContentPlayer.java:135`). `primarySession` is deterministic, which fixes finding 3, but it does not pick the newest session:
+  - On a renderer with an idle music player and an idle image player, the row shows a random one of the two.
+  - On the local device, "multi > image > music" wins by type, not by recency.
+  - The sheet's "ascending playerId" session order (Group 3) will look random for remote devices.
+
+  The orchestrator needs to choose one of two fixes:
+  - (a) Correct design.md, the `DeviceSessionGrouper` Javadoc and the binder comment to "deterministic, by player id", and drop "newest". This is a documentation-only change.
+  - (b) Give each player a monotonically increasing creation sequence in `PlayerService` (assigned on the first successful `put`) and build `PlayerRef` from that instead of `getId()`.
+
+  Either way, the spec's stated behavior and the code must agree before Group 3 builds the session ordering on top of it.
+
+### Suggestion
+- [yaacc/src/main/java/de/yaacc/player/PlayerService.java:119, 132, 553] **Same-id replacement (pre-existing map bug, now visible to listeners).** `MultiContentPlayer` always has id 4, and the mixed-content branch of `createPlayer` creates a new one without shutting down the old one. `put` then silently replaces the old player: no "removed" for the old object, no "added" for the new one. When the orphaned old player later exits, `removeAndNotify(map, 4)` removes the *new* player and fires "removed" for it while it is still playing. `HashMap` behaved the same before, but the Group 3 sheet would now drop a live session row. Suggested fix: use `currentActivePlayer.remove(id, player)` (the two-argument `ConcurrentHashMap` remove) in `removePlayer`/`shutdown`, and in `putAndNotify` treat `previous != null && previous != player` as removed(previous) plus added(player). Add one notifier test for each.
+- [yaacc/src/main/java/de/yaacc/player/AVTransportPlayer.java:158] Pre-existing: `Math.abs(hashCode())` can return 0, which `addPlayer` silently ignores, or `Integer.MIN_VALUE`, which stays negative. The odds are negligible, but switching to option (b) above would remove both cases.
+- [yaacc/src/main/java/de/yaacc/browser/ReceiverRowBinder.java:343-353] The Player-to-`PlayerRef` mapping in `primaryPlayer` has no automated test, because it is Android-bound. Keep it in the Group 3 manual check: start an image show plus background music on the local device, and the row should show and control the same session on every rebind.
+
+### Tests
+- [x] All tests passing: `./gradlew :yaacc:assembleDebug :yaacc:testDebugUnitTest :yaacc:lintDebug` reports BUILD SUCCESSFUL, with 186 tests, 0 failures and 0 errors (`DeviceSessionGrouperTest` has 20 tests, `PlayerServiceListenerTest` has 8). Lint flags 8 issues in the changed files (`MissingSuperCall` and 3 `UnsafeOptInUsageError` in `PlayerService`, `UseCompatLoadingForDrawables` in `ReceiverRowBinder:180`, 3 `NotifyDataSetChanged` in the adapter). All of them are in pre-existing code that moved or shifted lines, so there are no new lint issues.
+- [x] Coverage adequate for the change: the notifier covers double add, the re-entrant remove, unknown remove, unregistration (including before a queued delivery), duplicate registration and self-removal mid-callback. The grouper covers ordering, unknown and null devices, duplicate ids and the `LOCAL_UID` spoof. The binder is verified by manual check only (see Suggestion).
+
+### Verdict: FAIL
