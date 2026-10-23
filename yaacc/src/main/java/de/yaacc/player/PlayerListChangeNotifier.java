@@ -19,12 +19,17 @@ package de.yaacc.player;
 
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Tracks {@link Listener}s for the set of active players and notifies them when a
- * player is added to or removed from that set.
+ * player is added to or removed from that set. Also gives every genuinely added
+ * player a creation sequence, so "newest" can be decided without relying on player
+ * ids (which are random for {@code AVTransportPlayer} and fixed per type for local
+ * players).
  * <p>
  * Plain Java (no Android types) so the bookkeeping can be unit-tested on the JVM.
  * {@link PlayerService} passes a main-thread executor; tests pass a synchronous one.
@@ -47,6 +52,9 @@ public final class PlayerListChangeNotifier {
     // callback, and registration may happen on a different thread than delivery.
     private final CopyOnWriteArrayList<Listener> listeners = new CopyOnWriteArrayList<>();
     private final Executor deliveryExecutor;
+    // Keyed by instance: Player implementations don't override equals/hashCode.
+    private final Map<Player, Long> creationSequences = new ConcurrentHashMap<>();
+    private final AtomicLong sequenceCounter = new AtomicLong();
 
     PlayerListChangeNotifier(Executor deliveryExecutor) {
         this.deliveryExecutor = Objects.requireNonNull(deliveryExecutor, "deliveryExecutor");
@@ -63,31 +71,59 @@ public final class PlayerListChangeNotifier {
     }
 
     /**
-     * Puts the player into the map and notifies "added" only if the map held no
-     * player under that id before. {@code addPlayer} is called more than once for
-     * the same player, so the decision must come from this {@code put}.
+     * Puts the player into the map and notifies "added" only if the map did not
+     * already hold this exact instance. {@code addPlayer} is called more than once
+     * for the same player, so the decision must come from this {@code put}.
+     * <p>
+     * If the map held a <em>different</em> player under the same id (local players
+     * have fixed ids), that player is replaced: "removed" fires for it, then
+     * "added" for the new one.
      */
     void putAndNotify(Map<Integer, Player> players, Player player) {
+        // Assigned before the put so a reader never sees the player without a
+        // sequence; computeIfAbsent keeps the sequence of a re-added instance.
+        creationSequences.computeIfAbsent(player, p -> sequenceCounter.incrementAndGet());
         Player previous = players.put(player.getId(), player);
-        if (previous == null) {
-            post(player, true);
+        if (previous == player) {
+            return;
         }
+        if (previous != null) {
+            creationSequences.remove(previous);
+            post(previous, false);
+        }
+        post(player, true);
     }
 
     /**
-     * Removes the player with the given id and notifies "removed" only if the map
+     * Removes this exact player instance and notifies "removed" only if the map
      * actually held it. {@code shutdown(Player)} removes the player and then
      * {@code onDestroy()} calls {@code removePlayer} again, so the decision must
-     * come from this {@code remove}.
+     * come from this {@code remove}. A player that was already replaced by another
+     * one with the same id neither removes that replacement nor fires.
      *
-     * @return the removed player, or {@code null} if none was registered
+     * @return true if the player was removed
      */
-    Player removeAndNotify(Map<Integer, Player> players, int playerId) {
-        Player removed = players.remove(playerId);
-        if (removed != null) {
-            post(removed, false);
+    boolean removeAndNotify(Map<Integer, Player> players, Player player) {
+        if (!players.remove(player.getId(), player)) {
+            return false;
         }
-        return removed;
+        creationSequences.remove(player);
+        post(player, false);
+        return true;
+    }
+
+    /**
+     * Creation sequence of an active player: strictly increasing in the order
+     * players were genuinely added, so a higher value means a newer player.
+     *
+     * @return the sequence (always &gt; 0), or 0 if the player is not active
+     */
+    long creationSequence(Player player) {
+        if (player == null) {
+            return 0;
+        }
+        Long sequence = creationSequences.get(player);
+        return sequence == null ? 0 : sequence;
     }
 
     private void post(Player player, boolean added) {

@@ -129,7 +129,7 @@ public class PlayerService extends MediaSessionService {
     }
 
     public void removePlayer(Player player) {
-        playerListChangeNotifier.removeAndNotify(currentActivePlayer, player.getId());
+        playerListChangeNotifier.removeAndNotify(currentActivePlayer, player);
         updateForegroundState();
     }
 
@@ -150,6 +150,17 @@ public class PlayerService extends MediaSessionService {
 
     public void removePlayerListChangeListener(PlayerListChangeNotifier.Listener listener) {
         playerListChangeNotifier.removeListener(listener);
+    }
+
+    /**
+     * Creation sequence of an active player: higher means added later. Player ids
+     * can't tell that ({@code AVTransportPlayer} ids are random, local ids are fixed
+     * per type).
+     *
+     * @return the sequence (&gt; 0), or 0 if the player is not active
+     */
+    public long getPlayerCreationSequence(Player player) {
+        return playerListChangeNotifier.creationSequence(player);
     }
 
     private void updateForegroundState() {
@@ -550,7 +561,7 @@ public class PlayerService extends MediaSessionService {
     public void shutdown(Player player) {
         assert (player != null);
         YaaccLogger.d(getClass().getName(), "Shutting down player: " + player.getId());
-        playerListChangeNotifier.removeAndNotify(currentActivePlayer, player.getId());
+        playerListChangeNotifier.removeAndNotify(currentActivePlayer, player);
         player.onDestroy();
         updateForegroundState();
     }

@@ -778,5 +778,8 @@ Check both day and night on device.
      A receiver row means bound device controls, which a vanished device
      can't have. The adapter labels the trailing group from the session
      row's `deviceId()`. Those sessions stay contiguous per device, in
-     ascending playerId order, after all receiver groups.
+     ascending creation-sequence order (oldest first), after all receiver
+     groups. As built in Group 2 (fix cycle 1), sessions are ordered by the
+     creation sequence `PlayerService#getPlayerCreationSequence` assigns,
+     not by player id (see the spec's decisions.md).
   2. With no receivers at all, every session is still listed.

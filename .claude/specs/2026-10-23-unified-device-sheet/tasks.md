@@ -40,14 +40,14 @@ Plan: `specs/2026-10-23-unified-device-sheet/requirements.md` and `specs/2026-10
   - **Constraints**: touches only `PlayerService` (plus its test); existing Player tab behavior unchanged; if `PlayerService` can't be unit-tested on the plain JVM, extract the listener bookkeeping into a small plain-Java helper and test that instead; listener list must tolerate a listener unregistering itself mid-callback (e.g. `CopyOnWriteArrayList`); the listener API takes no `Context` and holds nothing but the listeners; `currentActivePlayer` is a plain `HashMap` that may be written off the main thread - decide "added"/"removed" from the `put`/`remove` return value at the point of mutation, then post only the notification to the main thread (security review cycle 1)
 
 ## Fix Group 2: Address review cycle 1 (see decisions.md)
-- [ ] Order sessions by creation sequence | `PlayerService.java`, `PlayerListChangeNotifier.java`, `DeviceSessionGrouper.java`, `ReceiverRowBinder.java`, their tests
+- [x] Order sessions by creation sequence | `PlayerService.java`, `PlayerListChangeNotifier.java`, `DeviceSessionGrouper.java`, `ReceiverRowBinder.java`, their tests
   - **Accept**: `PlayerService` assigns a monotonically increasing sequence to each genuinely added player (a re-add of the same instance keeps its sequence) and exposes it for the binder; `PlayerRef` carries it; `group` orders sessions within a device, and trailing groups, by sequence; `primarySession` = playing session with the highest sequence, else highest sequence, else null; player id remains the lookup key only; design.md's "Interfaces & Contracts", "Fix for finding 3" and the Javadoc no longer say "highest playerId"
   - **Verify**: `./gradlew :yaacc:testDebugUnitTest` - grouper tests use sequences that disagree with id order (e.g. id 900 created before id 3), so an id-based implementation fails
-- [ ] Notifier handles same-id replacement | `PlayerListChangeNotifier.java`, `PlayerService.java`, `PlayerServiceListenerTest.java`
+- [x] Notifier handles same-id replacement | `PlayerListChangeNotifier.java`, `PlayerService.java`, `PlayerServiceListenerTest.java`
   - **Accept**: when `put` returns a different instance, "removed" fires for it and then "added" for the new player; removal uses `remove(id, player)`, so removing the old instance after it was replaced neither removes the new one nor fires; `removePlayer`/`shutdown` pass the player, not just its id
   - **Verify**: `./gradlew :yaacc:testDebugUnitTest` including tests for both cases
   - **Constraints**: don't change which players `createPlayer` shuts down (open question, decisions.md)
-- [ ] Restore tap-to-open for yaacc's own renderer row | `ReceiverRowBinder.java`
+- [x] Restore tap-to-open for yaacc's own renderer row | `ReceiverRowBinder.java`
   - **Accept**: the tap no-op applies only when the device id equals `UpnpClient.LOCAL_UID`; any other device, including a `LocalDevice` such as yaacc's `<uuid>-renderer`, opens its primary session's player as before the extraction
   - **Verify**: `./gradlew :yaacc:assembleDebug`; `grep -n "instanceof LocalDevice" yaacc/src/main/java/de/yaacc/browser/ReceiverRowBinder.java` shows no tap-path use
 

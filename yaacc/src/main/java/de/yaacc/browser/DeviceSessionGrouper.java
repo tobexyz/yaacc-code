@@ -47,19 +47,24 @@ public final class DeviceSessionGrouper {
     }
 
     /**
-     * Android-free snapshot of a running player: its id, the id of the
-     * device it plays on ({@code Player#getDeviceId()}), and whether it is
-     * currently playing.
+     * Android-free snapshot of a running player: its id (identity only, used
+     * to look the player up again), the id of the device it plays on
+     * ({@code Player#getDeviceId()}), whether it is currently playing, and its
+     * creation sequence ({@code PlayerService#getPlayerCreationSequence}),
+     * where higher means added later. Player ids say nothing about age:
+     * {@code AVTransportPlayer} ids are random and local ids are fixed per type.
      */
     public static final class PlayerRef {
         private final int playerId;
         private final String deviceId;
         private final boolean playing;
+        private final long sequence;
 
-        public PlayerRef(int playerId, String deviceId, boolean playing) {
+        public PlayerRef(int playerId, String deviceId, boolean playing, long sequence) {
             this.playerId = playerId;
             this.deviceId = deviceId;
             this.playing = playing;
+            this.sequence = sequence;
         }
 
         public int playerId() {
@@ -72,6 +77,10 @@ public final class DeviceSessionGrouper {
 
         public boolean playing() {
             return playing;
+        }
+
+        public long sequence() {
+            return sequence;
         }
     }
 
@@ -107,23 +116,24 @@ public final class DeviceSessionGrouper {
     }
 
     /**
-     * Receivers in the given order, each followed by its sessions
-     * (ascending playerId); sessions with an unknown deviceId go last,
-     * grouped per device. Never drops a session.
+     * Receivers in the given order, each followed by its sessions, oldest
+     * first (ascending creation sequence); sessions with an unknown deviceId
+     * go last, grouped per device. Never drops a session.
      * <p>
      * Unknown-device sessions get no RECEIVER row (the caller labels them
      * from {@link Row#deviceId()}); their device groups are ordered by each
-     * group's lowest playerId. A duplicate receiver id is listed only at its
+     * group's oldest session. Equal sequences fall back to playerId so the
+     * result never depends on input order. A duplicate receiver id is listed only at its
      * first occurrence, a {@code null} receiver id is skipped, and sessions
      * with a {@code null} deviceId form their own trailing group. With no
      * receivers at all, every session is still listed. {@code null} lists
      * are treated as empty.
      */
     public static List<Row> group(List<String> receiverDeviceIds, List<PlayerRef> players) {
-        // Sorting once up front gives ascending playerId inside every group
-        // and orders the trailing groups by their lowest playerId.
+        // Sorting once up front gives creation order inside every group and
+        // orders the trailing groups by their oldest session.
         Map<String, List<PlayerRef>> sessionsByDevice = new LinkedHashMap<>();
-        for (PlayerRef player : sortedByPlayerId(players)) {
+        for (PlayerRef player : sortedOldestFirst(players)) {
             List<PlayerRef> sessions = sessionsByDevice.get(player.deviceId());
             if (sessions == null) {
                 sessions = new ArrayList<>();
@@ -154,10 +164,10 @@ public final class DeviceSessionGrouper {
     }
 
     /**
-     * Among the device's playing sessions, the highest playerId; if none
-     * is playing, the highest playerId overall; null if the device has no
-     * sessions. Independent of input order (players arrive in HashMap
-     * order).
+     * Among the device's playing sessions, the newest (highest creation
+     * sequence); if none is playing, the newest session overall; null if the
+     * device has no sessions. Independent of input order (players arrive in
+     * HashMap order); equal sequences fall back to the higher playerId.
      */
     public static PlayerRef primarySession(String deviceId, List<PlayerRef> players) {
         if (players == null) {
@@ -175,14 +185,17 @@ public final class DeviceSessionGrouper {
         return best;
     }
 
+    private static final Comparator<PlayerRef> OLDEST_FIRST =
+            Comparator.comparingLong(PlayerRef::sequence).thenComparingInt(PlayerRef::playerId);
+
     private static boolean ranksAbove(PlayerRef candidate, PlayerRef current) {
         if (candidate.playing() != current.playing()) {
             return candidate.playing();
         }
-        return candidate.playerId() > current.playerId();
+        return OLDEST_FIRST.compare(candidate, current) > 0;
     }
 
-    private static List<PlayerRef> sortedByPlayerId(List<PlayerRef> players) {
+    private static List<PlayerRef> sortedOldestFirst(List<PlayerRef> players) {
         List<PlayerRef> sorted = new ArrayList<>();
         if (players != null) {
             for (PlayerRef player : players) {
@@ -191,7 +204,7 @@ public final class DeviceSessionGrouper {
                 }
             }
         }
-        sorted.sort(Comparator.comparingInt(PlayerRef::playerId));
+        sorted.sort(OLDEST_FIRST);
         return sorted;
     }
 

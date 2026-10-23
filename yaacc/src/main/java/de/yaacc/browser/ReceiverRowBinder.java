@@ -315,12 +315,14 @@ final class ReceiverRowBinder {
     }
 
     /**
-     * Opens the full player activity of a remote device's primary session.
-     * Local-device rows do nothing on tap, as before the extraction.
+     * Opens the full player activity of the device's primary session. The
+     * {@code LOCAL_UID} row does nothing on tap, as before the extraction;
+     * every other device, including yaacc's own renderer (a {@code LocalDevice}
+     * controlled through an {@code AVTransportPlayer}), opens its player.
      */
     @OptIn(markerClass = UnstableApi.class)
     void openPlayerActivity(Context context, Device<?, ?, ?> device) {
-        if (isLocalDevice(device)) {
+        if (UpnpClient.LOCAL_UID.equals(device.getIdentity().getUdn().getIdentifierString())) {
             return;
         }
         Player player = primaryPlayer(device);
@@ -345,7 +347,8 @@ final class ReceiverRowBinder {
         List<PlayerRef> refs = new ArrayList<>();
         Map<Integer, Player> playersById = new HashMap<>();
         for (Player player : upnpClient.getCurrentPlayers()) {
-            refs.add(new PlayerRef(player.getId(), player.getDeviceId(), player.isPlaying()));
+            refs.add(new PlayerRef(player.getId(), player.getDeviceId(), player.isPlaying(),
+                    upnpClient.getPlayerCreationSequence(player)));
             playersById.put(player.getId(), player);
         }
         PlayerRef primary = DeviceSessionGrouper.primarySession(deviceId, refs);

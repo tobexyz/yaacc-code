@@ -39,6 +39,11 @@ import de.yaacc.upnp.UpnpClient;
  * not 1:1: the local device keeps one player per content type and a remote
  * renderer gets one {@code AVTransportPlayer} per content type, so a device
  * can carry several sessions at once. Plain JVM, no Android runtime.
+ * <p>
+ * Sessions are ordered by creation sequence, not player id: AVTransportPlayer
+ * ids are random and local ids are fixed per type. The fixtures therefore use
+ * ids that run against the sequence (e.g. id 900 created before id 3), so an
+ * id-based implementation fails.
  */
 public class DeviceSessionGrouperTest {
 
@@ -50,8 +55,9 @@ public class DeviceSessionGrouperTest {
     private static final String GONE = "uuid:dropped-off-network";
     private static final String GONE_TOO = "uuid:also-dropped";
 
-    private static PlayerRef player(int id, String deviceId, boolean playing) {
-        return new PlayerRef(id, deviceId, playing);
+    /** A session created {@code seq}-th (higher = newer) with player id {@code id}. */
+    private static PlayerRef session(long seq, int id, String deviceId, boolean playing) {
+        return new PlayerRef(id, deviceId, playing, seq);
     }
 
     /** Renders rows as "R:device" / "P:device:playerId" for readable assertions. */
@@ -78,36 +84,38 @@ public class DeviceSessionGrouperTest {
     }
 
     @Test
-    public void localDeviceWithImageAndMusicSessionsListsBothInAscendingPlayerIdOrder() {
-        // Image player created after the music player, but passed in first:
-        // order must come from playerId, not from input order.
+    public void localDeviceWithImageAndMusicSessionsListsBothOldestFirst() {
+        // Music (fixed id 1) started after the image show (fixed id 3), and
+        // the input order is newest first: order must come from the creation
+        // sequence, not from id or input order.
         List<PlayerRef> players = Arrays.asList(
-                player(7, LOCAL, false),   // image show
-                player(3, LOCAL, true));   // background music
+                session(2, 1, LOCAL, true),    // background music, newer
+                session(1, 3, LOCAL, false));  // image show, older
 
         List<Row> rows = DeviceSessionGrouper.group(Collections.singletonList(LOCAL), players);
 
-        assertEquals(Arrays.asList("R:" + LOCAL, "P:" + LOCAL + ":3", "P:" + LOCAL + ":7"),
+        assertEquals(Arrays.asList("R:" + LOCAL, "P:" + LOCAL + ":3", "P:" + LOCAL + ":1"),
                 describe(rows));
     }
 
     @Test
-    public void remoteRendererWithMusicAndImageSessionsNestsBothUnderThatRenderer() {
+    public void remoteRendererWithMusicAndImageSessionsNestsBothUnderThatRendererOldestFirst() {
+        // Random AVTransportPlayer ids: the older session has the larger id.
         List<PlayerRef> players = Arrays.asList(
-                player(12, TV, true),     // music AVTransportPlayer
-                player(11, TV, false));   // image AVTransportPlayer
+                session(6, 12, TV, true),      // music, newer
+                session(5, 900, TV, false));   // image, older
 
         List<Row> rows = DeviceSessionGrouper.group(Arrays.asList(LOCAL, TV), players);
 
-        assertEquals(Arrays.asList("R:" + LOCAL, "R:" + TV, "P:" + TV + ":11", "P:" + TV + ":12"),
+        assertEquals(Arrays.asList("R:" + LOCAL, "R:" + TV, "P:" + TV + ":900", "P:" + TV + ":12"),
                 describe(rows));
     }
 
     @Test
     public void sessionOnUnknownDeviceGoesToTrailingGroupAndIsNeverDropped() {
         List<PlayerRef> players = Arrays.asList(
-                player(5, GONE, true),
-                player(2, LOCAL, false));
+                session(1, 5, GONE, true),
+                session(2, 2, LOCAL, false));
 
         List<Row> rows = DeviceSessionGrouper.group(Arrays.asList(LOCAL, TV), players);
 
@@ -117,27 +125,28 @@ public class DeviceSessionGrouperTest {
 
     @Test
     public void unknownDevicesGetNoReceiverRowAndTheirSessionsStayContiguousPerDevice() {
-        // GONE_TOO's id (7) lies between GONE's ids (6, 9): an implementation
-        // that just sorts all unknown-device sessions by playerId would put
-        // 7 between 6 and 9 and split the GONE group.
+        // GONE_TOO's sequence (7) lies between GONE's (6, 9): an
+        // implementation that just sorts all unknown-device sessions would put
+        // it between them and split the GONE group. Ids run against the
+        // sequence, so sorting by id splits it too.
         List<PlayerRef> players = Arrays.asList(
-                player(9, GONE, false),
-                player(7, GONE_TOO, true),
-                player(6, GONE, true),
-                player(1, KITCHEN, false));
+                session(9, 10, GONE, false),
+                session(7, 20, GONE_TOO, true),
+                session(6, 30, GONE, true),
+                session(1, 40, KITCHEN, false));
 
         List<String> rows = describe(DeviceSessionGrouper.group(
                 Collections.singletonList(KITCHEN), players));
 
         assertEquals("one receiver row plus every session exactly once: " + rows, 5, rows.size());
-        assertEquals(Arrays.asList("R:" + KITCHEN, "P:" + KITCHEN + ":1"), rows.subList(0, 2));
+        assertEquals(Arrays.asList("R:" + KITCHEN, "P:" + KITCHEN + ":40"), rows.subList(0, 2));
         List<String> trailing = rows.subList(2, rows.size());
-        assertTrue("missing GONE_TOO session 7: " + trailing, trailing.contains("P:" + GONE_TOO + ":7"));
-        // Both GONE sessions next to each other, ascending playerId.
-        int gone6 = trailing.indexOf("P:" + GONE + ":6");
-        int gone9 = trailing.indexOf("P:" + GONE + ":9");
-        assertTrue("missing GONE session 6: " + trailing, gone6 >= 0);
-        assertEquals("GONE sessions must be contiguous, 6 before 9: " + trailing, gone6 + 1, gone9);
+        assertTrue("missing GONE_TOO session: " + trailing, trailing.contains("P:" + GONE_TOO + ":20"));
+        // Both GONE sessions next to each other, oldest (seq 6, id 30) first.
+        int older = trailing.indexOf("P:" + GONE + ":30");
+        int newer = trailing.indexOf("P:" + GONE + ":10");
+        assertTrue("missing older GONE session: " + trailing, older >= 0);
+        assertEquals("GONE sessions must be contiguous, oldest first: " + trailing, older + 1, newer);
         for (String row : trailing) {
             assertTrue("no receiver row for a device that isn't a receiver: " + row,
                     row.startsWith("P:"));
@@ -145,10 +154,23 @@ public class DeviceSessionGrouperTest {
     }
 
     @Test
+    public void trailingGroupsAreOrderedByTheirOldestSession() {
+        List<PlayerRef> players = Arrays.asList(
+                session(8, 1, GONE, false),
+                session(3, 2, GONE_TOO, false),
+                session(5, 3, GONE, true));
+
+        List<Row> rows = DeviceSessionGrouper.group(Collections.emptyList(), players);
+
+        assertEquals(Arrays.asList("P:" + GONE_TOO + ":2", "P:" + GONE + ":3", "P:" + GONE + ":1"),
+                describe(rows));
+    }
+
+    @Test
     public void receiverOrderIsPreservedNotSorted() {
         List<PlayerRef> players = Arrays.asList(
-                player(1, LOCAL, true),
-                player(2, KITCHEN, false));
+                session(1, 1, LOCAL, true),
+                session(2, 2, KITCHEN, false));
 
         List<Row> rows = DeviceSessionGrouper.group(Arrays.asList(TV, LOCAL, KITCHEN), players);
 
@@ -168,7 +190,7 @@ public class DeviceSessionGrouperTest {
 
     @Test
     public void noReceiversStillListsEverySession() {
-        List<PlayerRef> players = Arrays.asList(player(3, LOCAL, false), player(8, TV, true));
+        List<PlayerRef> players = Arrays.asList(session(1, 3, LOCAL, false), session(2, 8, TV, true));
 
         List<String> rows = describe(DeviceSessionGrouper.group(Collections.emptyList(), players));
 
@@ -177,12 +199,26 @@ public class DeviceSessionGrouperTest {
         assertTrue(rows.contains("P:" + TV + ":8"));
     }
 
+    @Test
+    public void equalSequencesFallBackToPlayerIdRegardlessOfInputOrder() {
+        // Sequence 0 = not (or no longer) registered in PlayerService.
+        PlayerRef a = session(0, 7, TV, false);
+        PlayerRef b = session(0, 4, TV, false);
+
+        assertEquals(Arrays.asList("R:" + TV, "P:" + TV + ":4", "P:" + TV + ":7"),
+                describe(DeviceSessionGrouper.group(Collections.singletonList(TV), Arrays.asList(a, b))));
+        assertEquals(Arrays.asList("R:" + TV, "P:" + TV + ":4", "P:" + TV + ":7"),
+                describe(DeviceSessionGrouper.group(Collections.singletonList(TV), Arrays.asList(b, a))));
+        assertSame(a, DeviceSessionGrouper.primarySession(TV, Arrays.asList(a, b)));
+        assertSame(a, DeviceSessionGrouper.primarySession(TV, Arrays.asList(b, a)));
+    }
+
     // --- untrusted device ids (security review cycle 1) ---------------------
 
     @Test
     public void duplicateReceiverIdIsListedOnlyAtItsFirstOccurrence() {
         // Two LAN devices can advertise the same UDN.
-        List<PlayerRef> players = Arrays.asList(player(1, TV, true), player(2, KITCHEN, false));
+        List<PlayerRef> players = Arrays.asList(session(1, 1, TV, true), session(2, 2, KITCHEN, false));
 
         List<Row> rows = DeviceSessionGrouper.group(Arrays.asList(TV, KITCHEN, TV), players);
 
@@ -194,7 +230,7 @@ public class DeviceSessionGrouperTest {
 
     @Test
     public void nullReceiverIdIsSkippedAndDoesNotCaptureNullDeviceSessions() {
-        List<PlayerRef> players = Arrays.asList(player(4, null, true), player(3, TV, false));
+        List<PlayerRef> players = Arrays.asList(session(2, 4, null, true), session(1, 3, TV, false));
 
         List<Row> rows = DeviceSessionGrouper.group(Arrays.asList(null, TV), players);
 
@@ -204,13 +240,13 @@ public class DeviceSessionGrouperTest {
     @Test
     public void sessionsWithNullDeviceIdGoToTrailingGroupAndAreNeverDropped() {
         List<PlayerRef> players = Arrays.asList(
-                player(8, null, false),
-                player(2, LOCAL, false),
-                player(5, null, true));
+                session(3, 5, null, false),
+                session(1, 2, LOCAL, false),
+                session(2, 8, null, true));
 
         List<Row> rows = DeviceSessionGrouper.group(Collections.singletonList(LOCAL), players);
 
-        assertEquals(Arrays.asList("R:" + LOCAL, "P:" + LOCAL + ":2", "P:null:5", "P:null:8"),
+        assertEquals(Arrays.asList("R:" + LOCAL, "P:" + LOCAL + ":2", "P:null:8", "P:null:5"),
                 describe(rows));
     }
 
@@ -218,7 +254,7 @@ public class DeviceSessionGrouperTest {
     public void nullListsAreTreatedAsEmpty() {
         assertTrue(DeviceSessionGrouper.group(null, null).isEmpty());
         assertEquals(Collections.singletonList("P:" + TV + ":1"),
-                describe(DeviceSessionGrouper.group(null, Collections.singletonList(player(1, TV, true)))));
+                describe(DeviceSessionGrouper.group(null, Collections.singletonList(session(1, 1, TV, true)))));
         assertNull(DeviceSessionGrouper.primarySession(TV, null));
     }
 
@@ -227,7 +263,7 @@ public class DeviceSessionGrouperTest {
         // A remote device advertising uuid:LOCAL_UID collides with the local
         // dummy device. LOCAL_UID gets no special treatment: it isn't hoisted
         // to the top, the duplicate is listed once, and its sessions appear once.
-        List<PlayerRef> players = Arrays.asList(player(1, LOCAL, true), player(2, TV, false));
+        List<PlayerRef> players = Arrays.asList(session(1, 1, LOCAL, true), session(2, 2, TV, false));
 
         List<Row> rows = DeviceSessionGrouper.group(
                 Arrays.asList(TV, UpnpClient.LOCAL_UID, UpnpClient.LOCAL_UID), players);
@@ -240,7 +276,7 @@ public class DeviceSessionGrouperTest {
 
     @Test
     public void localUidSessionWithoutLocalReceiverGoesToTrailingGroupLikeAnyUnknownId() {
-        List<PlayerRef> players = Arrays.asList(player(1, LOCAL, true), player(2, TV, false));
+        List<PlayerRef> players = Arrays.asList(session(1, 1, LOCAL, true), session(2, 2, TV, false));
 
         List<Row> rows = DeviceSessionGrouper.group(Collections.singletonList(TV), players);
 
@@ -249,8 +285,8 @@ public class DeviceSessionGrouperTest {
 
     @Test
     public void primarySessionToleratesNullDeviceIds() {
-        PlayerRef localIdle = player(2, LOCAL, false);
-        PlayerRef orphanPlaying = player(9, null, true);
+        PlayerRef localIdle = session(1, 2, LOCAL, false);
+        PlayerRef orphanPlaying = session(2, 9, null, true);
         List<PlayerRef> players = Arrays.asList(orphanPlaying, localIdle);
 
         assertSame(localIdle, DeviceSessionGrouper.primarySession(LOCAL, players));
@@ -260,46 +296,48 @@ public class DeviceSessionGrouperTest {
     // --- primarySession(...) ------------------------------------------------
 
     @Test
-    public void primarySessionPrefersPlayingSessionOverHigherPlayerId() {
-        PlayerRef playingMusic = player(3, LOCAL, true);
-        List<PlayerRef> players = Arrays.asList(playingMusic, player(7, LOCAL, false));
+    public void primarySessionPrefersPlayingSessionOverNewerIdleOne() {
+        PlayerRef playingMusic = session(1, 900, LOCAL, true);
+        List<PlayerRef> players = Arrays.asList(playingMusic, session(2, 3, LOCAL, false));
 
         assertSame(playingMusic, DeviceSessionGrouper.primarySession(LOCAL, players));
     }
 
     @Test
-    public void primarySessionPicksHighestPlayerIdAmongSeveralPlayingSessionsRegardlessOfInputOrder() {
+    public void primarySessionPicksNewestAmongSeveralPlayingSessionsRegardlessOfInputOrder() {
         // Players arrive in HashMap order, so the pick must not depend on
-        // which playing session comes first in the list.
-        PlayerRef olderPlaying = player(4, LOCAL, true);
-        PlayerRef newerPlaying = player(8, LOCAL, true);
-        PlayerRef newestIdle = player(9, LOCAL, false);
+        // which playing session comes first in the list. Ids run against the
+        // sequence: highest-id or lowest-id picks both fail.
+        PlayerRef olderPlaying = session(1, 900, LOCAL, true);
+        PlayerRef newerPlaying = session(2, 3, LOCAL, true);
+        PlayerRef newestIdle = session(3, 50, LOCAL, false);
 
-        assertSame("lower id first", newerPlaying, DeviceSessionGrouper.primarySession(
+        assertSame("older first", newerPlaying, DeviceSessionGrouper.primarySession(
                 LOCAL, Arrays.asList(olderPlaying, newerPlaying, newestIdle)));
-        assertSame("higher id first", newerPlaying, DeviceSessionGrouper.primarySession(
+        assertSame("newer first", newerPlaying, DeviceSessionGrouper.primarySession(
                 LOCAL, Arrays.asList(newestIdle, newerPlaying, olderPlaying)));
     }
 
     @Test
-    public void primarySessionFallsBackToHighestPlayerIdWhenNothingIsPlaying() {
-        PlayerRef newest = player(7, LOCAL, false);
-        List<PlayerRef> players = Arrays.asList(player(3, LOCAL, false), newest, player(5, LOCAL, false));
+    public void primarySessionFallsBackToNewestSessionWhenNothingIsPlaying() {
+        PlayerRef newest = session(3, 1, LOCAL, false);
+        List<PlayerRef> players = Arrays.asList(
+                session(1, 900, LOCAL, false), newest, session(2, 7, LOCAL, false));
 
         assertSame(newest, DeviceSessionGrouper.primarySession(LOCAL, players));
     }
 
     @Test
     public void primarySessionIgnoresSessionsOfOtherDevices() {
-        PlayerRef tvImage = player(2, TV, false);
-        List<PlayerRef> players = Arrays.asList(player(9, LOCAL, true), tvImage);
+        PlayerRef tvImage = session(1, 2, TV, false);
+        List<PlayerRef> players = Arrays.asList(session(2, 9, LOCAL, true), tvImage);
 
         assertSame(tvImage, DeviceSessionGrouper.primarySession(TV, players));
     }
 
     @Test
     public void primarySessionIsNullWhenDeviceHasNoSessions() {
-        List<PlayerRef> players = Collections.singletonList(player(4, TV, true));
+        List<PlayerRef> players = Collections.singletonList(session(1, 4, TV, true));
 
         assertNull(DeviceSessionGrouper.primarySession(KITCHEN, players));
         assertNull(DeviceSessionGrouper.primarySession(KITCHEN, Collections.emptyList()));

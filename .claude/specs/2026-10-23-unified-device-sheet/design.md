@@ -82,32 +82,41 @@ Alternatives rejected:
 
 ### Fix for finding 3
 `getPlayerForDevice` is replaced by `DeviceSessionGrouper`. The Receiver
-tab's single status row then picks deterministically: the newest (highest
-player id) playing session, otherwise the newest session overall. The tie
-between two playing sessions is the case that matters most (image show
-plus background music on the local device), so the rule must not depend on
-input order. The sheet lists all sessions.
+tab's single status row then picks deterministically: the newest playing
+session, otherwise the newest session overall. "Newest" is the creation
+sequence `PlayerService` assigns to each genuinely added player
+(`getPlayerCreationSequence`, also on `UpnpClient`), not the player id:
+`AVTransportPlayer` ids are random and local ids are fixed per type (see
+decisions.md). The tie between two playing sessions is the case that matters
+most (image show plus background music on the local device), so the rule
+must not depend on input order. The sheet lists all sessions, oldest first.
 
 ## Interfaces & Contracts
 
 ```java
 // de.yaacc.browser.DeviceSessionGrouper - plain Java, no android.* imports
 public final class DeviceSessionGrouper {
-    public static final class PlayerRef {      // playerId, deviceId, playing
-        public PlayerRef(int playerId, String deviceId, boolean playing) { ... }
+    public static final class PlayerRef {      // playerId (lookup key only), deviceId, playing, sequence
+        public PlayerRef(int playerId, String deviceId, boolean playing, long sequence) { ... }
+        public int playerId(); public String deviceId(); public boolean playing(); public long sequence();
     }
     public static final class Row {            // kind + ids, no Android types
         public enum Kind { RECEIVER, PLAYER_SESSION }
-        public Kind kind(); public String deviceId(); public int playerId();
+        public Kind kind(); public String deviceId(); public int playerId();  // playerId 0 on RECEIVER rows
     }
-    /** Receivers in the given order, each followed by its sessions
-     *  (ascending playerId); sessions with an unknown deviceId go last,
-     *  grouped per device. Never drops a session. */
+    /** Receivers in the given order, each followed by its sessions, oldest
+     *  first (ascending creation sequence); sessions with an unknown
+     *  deviceId go last, grouped per device, with no RECEIVER row, groups
+     *  ordered by their oldest session. With no receivers every session is
+     *  still listed. Never drops a session. Duplicate receiver ids are
+     *  listed once, null receiver ids are skipped, null-device sessions form
+     *  their own trailing group. */
     public static List<Row> group(List<String> receiverDeviceIds, List<PlayerRef> players);
-    /** Among the device's playing sessions, the highest playerId; if none
-     *  is playing, the highest playerId overall; null if the device has no
-     *  sessions. Independent of input order (players arrive in HashMap
-     *  order). */
+    /** Among the device's playing sessions, the newest (highest creation
+     *  sequence); if none is playing, the newest session overall; null if
+     *  the device has no sessions. Independent of input order (players
+     *  arrive in HashMap order); equal sequences fall back to the higher
+     *  playerId. */
     public static PlayerRef primarySession(String deviceId, List<PlayerRef> players);
 }
 ```
