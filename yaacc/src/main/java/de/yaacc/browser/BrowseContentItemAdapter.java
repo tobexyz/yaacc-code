@@ -93,23 +93,18 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
      */
     private static final int LIST_ICON_SIZE_DP = 48;
     /**
-     * Thumbnail/icon pixel HEIGHT requested in CARD mode, matching
-     * {@code browse_content_item_card.xml}'s 96dp-tall image area (see
-     * design.md's "Icon/thumbnail size in card mode" decision).
-     */
-    private static final int CARD_ICON_SIZE_DP = 96;
-    /**
-     * Thumbnail pixel WIDTH requested in CARD mode. The card's image area
-     * is full card width (not square like the original 96dp-square design),
-     * displayed with {@code centerCrop} -- requesting a generously wide
-     * decode size (rather than reusing the square {@link #CARD_ICON_SIZE_DP}
-     * for both dimensions) avoids visibly upscaling/softening thumbnails
-     * once they're stretched to cover a card noticeably wider than it is
-     * tall. 320dp comfortably covers realistic per-card widths across the
+     * Thumbnail/icon pixel size (both dimensions) requested in CARD mode,
+     * matching {@code browse_content_item_card.xml}'s square
+     * {@code SquareImageView} image area (width == height, enforced at
+     * measure time since the card's actual width varies by span
+     * count/screen size/density). A fixed non-square request here would
+     * mismatch that square display area - either upscaling/softening one
+     * axis or requesting more resolution than ever gets displayed on the
+     * other. 320dp comfortably covers realistic per-card widths across the
      * card-grid's span-count range (see CardGridSpanCount) without
      * requesting an unreasonably large decode for a thumbnail.
      */
-    private static final int CARD_IMAGE_WIDTH_DP = 320;
+    private static final int CARD_ICON_SIZE_DP = 320;
 
     private boolean loading = false;
 
@@ -560,7 +555,7 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
         holder.name.setText(currentObject.getTitle());
 
         int iconHeightPx = dpToPx(viewMode == ViewMode.CARD ? CARD_ICON_SIZE_DP : LIST_ICON_SIZE_DP);
-        int iconWidthPx = viewMode == ViewMode.CARD ? dpToPx(CARD_IMAGE_WIDTH_DP) : iconHeightPx;
+        int iconWidthPx = iconHeightPx;
         IconDownloadTask iconDownloadTask = new IconDownloadTask(holder.icon,
                 this, iconWidthPx, iconHeightPx);
         asyncTasks.add(iconDownloadTask);

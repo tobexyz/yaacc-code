@@ -60,11 +60,14 @@
             android:gravity="center_horizontal">
 
             <!--
-                 96dp tall (the already-settled height from design.md's
-                 ~96-120dp range - unchanged, still keeps total card height
-                 reasonable with the title + 48dp button row below it), but
-                 now full card width instead of a 96dp square, matching
-                 Material's explicit-containment card image
+                 Square (width == height, enforced by SquareImageView,
+                 since the card's actual width varies by span count/screen
+                 size/density): a fixed height unrelated to that width
+                 forced CENTER_CROP to crop away a large, inconsistent
+                 chunk of square album art (the common case) - 1:1 keeps
+                 the crop close to what CENTER_CROP actually needs for a
+                 square source image, full card width, matching Material's
+                 explicit-containment card image
                  (https://m2.material.io/components/cards#explicit-containment).
                  scaleType/background are set per-bind in
                  BrowseContentItemAdapter.onBindViewHolder: CENTER_CROP
@@ -73,10 +76,10 @@
                  natural size, centered on this tinted backdrop rather than
                  being stretched to fill the whole width.
             -->
-            <ImageView
+            <de.yaacc.util.image.SquareImageView
                 android:id="@+id/browseContentItemIcon"
                 android:layout_width="match_parent"
-                android:layout_height="96dp"
+                android:layout_height="wrap_content"
                 android:background="?attr/colorControlHighlight"
                 android:focusable="false"
                 android:contentDescription="@string/icon" />
