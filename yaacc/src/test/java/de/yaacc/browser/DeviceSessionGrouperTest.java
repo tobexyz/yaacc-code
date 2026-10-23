@@ -31,6 +31,7 @@ import java.util.List;
 
 import de.yaacc.browser.DeviceSessionGrouper.PlayerRef;
 import de.yaacc.browser.DeviceSessionGrouper.Row;
+import de.yaacc.upnp.UpnpClient;
 
 /**
  * Unit tests for {@link DeviceSessionGrouper}, which nests running player
@@ -41,9 +42,9 @@ import de.yaacc.browser.DeviceSessionGrouper.Row;
  */
 public class DeviceSessionGrouperTest {
 
-    // Same value as UpnpClient.LOCAL_UID; UpnpClient itself isn't referenced
-    // because it pulls in Android classes.
-    private static final String LOCAL = "LOCAL_UID";
+    // UpnpClient loads on the plain JVM (android.jar stubs, returnDefaultValues),
+    // so the real constant is used rather than a copy of its value.
+    private static final String LOCAL = UpnpClient.LOCAL_UID;
     private static final String TV = "uuid:living-room-tv";
     private static final String KITCHEN = "uuid:kitchen-speaker";
     private static final String GONE = "uuid:dropped-off-network";
@@ -174,6 +175,86 @@ public class DeviceSessionGrouperTest {
         assertEquals(2, rows.size());
         assertTrue(rows.contains("P:" + LOCAL + ":3"));
         assertTrue(rows.contains("P:" + TV + ":8"));
+    }
+
+    // --- untrusted device ids (security review cycle 1) ---------------------
+
+    @Test
+    public void duplicateReceiverIdIsListedOnlyAtItsFirstOccurrence() {
+        // Two LAN devices can advertise the same UDN.
+        List<PlayerRef> players = Arrays.asList(player(1, TV, true), player(2, KITCHEN, false));
+
+        List<Row> rows = DeviceSessionGrouper.group(Arrays.asList(TV, KITCHEN, TV), players);
+
+        assertEquals(Arrays.asList(
+                        "R:" + TV, "P:" + TV + ":1",
+                        "R:" + KITCHEN, "P:" + KITCHEN + ":2"),
+                describe(rows));
+    }
+
+    @Test
+    public void nullReceiverIdIsSkippedAndDoesNotCaptureNullDeviceSessions() {
+        List<PlayerRef> players = Arrays.asList(player(4, null, true), player(3, TV, false));
+
+        List<Row> rows = DeviceSessionGrouper.group(Arrays.asList(null, TV), players);
+
+        assertEquals(Arrays.asList("R:" + TV, "P:" + TV + ":3", "P:null:4"), describe(rows));
+    }
+
+    @Test
+    public void sessionsWithNullDeviceIdGoToTrailingGroupAndAreNeverDropped() {
+        List<PlayerRef> players = Arrays.asList(
+                player(8, null, false),
+                player(2, LOCAL, false),
+                player(5, null, true));
+
+        List<Row> rows = DeviceSessionGrouper.group(Collections.singletonList(LOCAL), players);
+
+        assertEquals(Arrays.asList("R:" + LOCAL, "P:" + LOCAL + ":2", "P:null:5", "P:null:8"),
+                describe(rows));
+    }
+
+    @Test
+    public void nullListsAreTreatedAsEmpty() {
+        assertTrue(DeviceSessionGrouper.group(null, null).isEmpty());
+        assertEquals(Collections.singletonList("P:" + TV + ":1"),
+                describe(DeviceSessionGrouper.group(null, Collections.singletonList(player(1, TV, true)))));
+        assertNull(DeviceSessionGrouper.primarySession(TV, null));
+    }
+
+    @Test
+    public void remoteDeviceSpoofingLocalUidIsGroupedLikeAnyOtherId() {
+        // A remote device advertising uuid:LOCAL_UID collides with the local
+        // dummy device. LOCAL_UID gets no special treatment: it isn't hoisted
+        // to the top, the duplicate is listed once, and its sessions appear once.
+        List<PlayerRef> players = Arrays.asList(player(1, LOCAL, true), player(2, TV, false));
+
+        List<Row> rows = DeviceSessionGrouper.group(
+                Arrays.asList(TV, UpnpClient.LOCAL_UID, UpnpClient.LOCAL_UID), players);
+
+        assertEquals(Arrays.asList(
+                        "R:" + TV, "P:" + TV + ":2",
+                        "R:" + LOCAL, "P:" + LOCAL + ":1"),
+                describe(rows));
+    }
+
+    @Test
+    public void localUidSessionWithoutLocalReceiverGoesToTrailingGroupLikeAnyUnknownId() {
+        List<PlayerRef> players = Arrays.asList(player(1, LOCAL, true), player(2, TV, false));
+
+        List<Row> rows = DeviceSessionGrouper.group(Collections.singletonList(TV), players);
+
+        assertEquals(Arrays.asList("R:" + TV, "P:" + TV + ":2", "P:" + LOCAL + ":1"), describe(rows));
+    }
+
+    @Test
+    public void primarySessionToleratesNullDeviceIds() {
+        PlayerRef localIdle = player(2, LOCAL, false);
+        PlayerRef orphanPlaying = player(9, null, true);
+        List<PlayerRef> players = Arrays.asList(orphanPlaying, localIdle);
+
+        assertSame(localIdle, DeviceSessionGrouper.primarySession(LOCAL, players));
+        assertSame(orphanPlaying, DeviceSessionGrouper.primarySession(null, players));
     }
 
     // --- primarySession(...) ------------------------------------------------

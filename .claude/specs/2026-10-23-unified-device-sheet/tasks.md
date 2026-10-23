@@ -26,11 +26,11 @@ Plan: `specs/2026-10-23-unified-device-sheet/requirements.md` and `specs/2026-10
   - **Verify**: `grep -n "958" docs/tech.md`
 
 ## Group 2: Pure logic and shared binder
-- [ ] Implement `DeviceSessionGrouper` | `yaacc/src/main/java/de/yaacc/browser/DeviceSessionGrouper.java`
+- [x] Implement `DeviceSessionGrouper` | `yaacc/src/main/java/de/yaacc/browser/DeviceSessionGrouper.java`
   - **Accept**: all `DeviceSessionGrouperTest` cases pass
   - **Verify**: `./gradlew :yaacc:testDebugUnitTest --tests '*DeviceSessionGrouperTest*'`
   - **Constraints**: no `android.*` imports; no Java records (keep plain classes); replace the stub's `primarySession` Javadoc (still the old rule) with design.md's wording (review cycle 2 suggestion); device ids come from untrusted LAN devices, so handle them deterministically and add tests for it: a duplicate receiver id keeps only its first occurrence, a `null` receiver or session device id never throws and never drops a session (null-device sessions go in the trailing group), and a remote device spoofing `UpnpClient.LOCAL_UID` is grouped like any other id (security review cycle 1)
-- [ ] Extract `ReceiverRowBinder` from `BrowseReceiverDeviceAdapter`, fix first-match bug | `yaacc/src/main/java/de/yaacc/browser/BrowseReceiverDeviceAdapter.java`, `yaacc/src/main/java/de/yaacc/browser/ReceiverRowBinder.java`
+- [x] Extract `ReceiverRowBinder` from `BrowseReceiverDeviceAdapter`, fix first-match bug | `yaacc/src/main/java/de/yaacc/browser/BrowseReceiverDeviceAdapter.java`, `yaacc/src/main/java/de/yaacc/browser/ReceiverRowBinder.java`
   - **Accept**: Receiver tab looks and behaves the same; `getPlayerForDevice` is gone and the row's player comes from `DeviceSessionGrouper.primarySession(...)` built from `Player#getDeviceId()` (not `instanceof` checks)
   - **Verify**: `./gradlew :yaacc:assembleDebug :yaacc:testDebugUnitTest`
   - **Constraints**: no visual or behavior change to the Receiver tab beyond the deterministic session pick; depends on `DeviceSessionGrouper`, so do it after the task above within this group

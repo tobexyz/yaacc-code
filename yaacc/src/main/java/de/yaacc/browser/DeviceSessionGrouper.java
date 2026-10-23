@@ -17,8 +17,14 @@
  */
 package de.yaacc.browser;
 
-import java.util.Collections;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 
 /**
  * Groups running player sessions under the receiver device they play on.
@@ -30,8 +36,10 @@ import java.util.List;
  * precedent as {@link CardGridSpanCount} - so it can be unit-tested on the
  * plain JVM without Robolectric.
  * <p>
- * STUB (spec 2026-10-23-unified-device-sheet, Group 1): the API is final,
- * the behavior is implemented in Group 2.
+ * Device ids come from untrusted LAN devices (SSDP/UDN), so they are treated
+ * as opaque strings: {@code UpnpClient.LOCAL_UID} gets no special handling,
+ * a duplicate receiver id is only listed at its first occurrence, and a
+ * {@code null} id never throws.
  */
 public final class DeviceSessionGrouper {
 
@@ -69,6 +77,8 @@ public final class DeviceSessionGrouper {
 
     /**
      * One row of the grouped list: either a receiver or a player session.
+     * {@link #playerId()} is 0 for RECEIVER rows ({@code PlayerService}
+     * never registers a player with id 0).
      */
     public static final class Row {
         public enum Kind { RECEIVER, PLAYER_SESSION }
@@ -100,15 +110,97 @@ public final class DeviceSessionGrouper {
      * Receivers in the given order, each followed by its sessions
      * (ascending playerId); sessions with an unknown deviceId go last,
      * grouped per device. Never drops a session.
+     * <p>
+     * Unknown-device sessions get no RECEIVER row (the caller labels them
+     * from {@link Row#deviceId()}); their device groups are ordered by each
+     * group's lowest playerId. A duplicate receiver id is listed only at its
+     * first occurrence, a {@code null} receiver id is skipped, and sessions
+     * with a {@code null} deviceId form their own trailing group. With no
+     * receivers at all, every session is still listed. {@code null} lists
+     * are treated as empty.
      */
     public static List<Row> group(List<String> receiverDeviceIds, List<PlayerRef> players) {
-        return Collections.emptyList();
+        // Sorting once up front gives ascending playerId inside every group
+        // and orders the trailing groups by their lowest playerId.
+        Map<String, List<PlayerRef>> sessionsByDevice = new LinkedHashMap<>();
+        for (PlayerRef player : sortedByPlayerId(players)) {
+            List<PlayerRef> sessions = sessionsByDevice.get(player.deviceId());
+            if (sessions == null) {
+                sessions = new ArrayList<>();
+                sessionsByDevice.put(player.deviceId(), sessions);
+            }
+            sessions.add(player);
+        }
+
+        Set<String> receivers = new LinkedHashSet<>();
+        if (receiverDeviceIds != null) {
+            for (String receiverId : receiverDeviceIds) {
+                if (receiverId != null) {
+                    receivers.add(receiverId);
+                }
+            }
+        }
+
+        List<Row> rows = new ArrayList<>();
+        for (String receiverId : receivers) {
+            rows.add(new Row(Row.Kind.RECEIVER, receiverId, 0));
+            addSessionRows(rows, sessionsByDevice.remove(receiverId));
+        }
+        // Whatever is left belongs to devices that aren't receivers.
+        for (List<PlayerRef> sessions : sessionsByDevice.values()) {
+            addSessionRows(rows, sessions);
+        }
+        return rows;
     }
 
     /**
-     * Playing session first, else highest playerId; null if none.
+     * Among the device's playing sessions, the highest playerId; if none
+     * is playing, the highest playerId overall; null if the device has no
+     * sessions. Independent of input order (players arrive in HashMap
+     * order).
      */
     public static PlayerRef primarySession(String deviceId, List<PlayerRef> players) {
-        return null;
+        if (players == null) {
+            return null;
+        }
+        PlayerRef best = null;
+        for (PlayerRef candidate : players) {
+            if (candidate == null || !Objects.equals(deviceId, candidate.deviceId())) {
+                continue;
+            }
+            if (best == null || ranksAbove(candidate, best)) {
+                best = candidate;
+            }
+        }
+        return best;
+    }
+
+    private static boolean ranksAbove(PlayerRef candidate, PlayerRef current) {
+        if (candidate.playing() != current.playing()) {
+            return candidate.playing();
+        }
+        return candidate.playerId() > current.playerId();
+    }
+
+    private static List<PlayerRef> sortedByPlayerId(List<PlayerRef> players) {
+        List<PlayerRef> sorted = new ArrayList<>();
+        if (players != null) {
+            for (PlayerRef player : players) {
+                if (player != null) {
+                    sorted.add(player);
+                }
+            }
+        }
+        sorted.sort(Comparator.comparingInt(PlayerRef::playerId));
+        return sorted;
+    }
+
+    private static void addSessionRows(List<Row> rows, List<PlayerRef> sessions) {
+        if (sessions == null) {
+            return;
+        }
+        for (PlayerRef session : sessions) {
+            rows.add(new Row(Row.Kind.PLAYER_SESSION, session.deviceId(), session.playerId()));
+        }
     }
 }
