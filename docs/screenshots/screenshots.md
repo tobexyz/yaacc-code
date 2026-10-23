@@ -10,6 +10,8 @@ permalink: screenshots/
 
 # Screenshot gallary of YAACC
 
+- [Version 5.4.x](#5.4.x)
+- [Version 5.3.x](#5.3.x)
 - [Version 5.2.x](#5.2.x)
 - [Version 5.1.x](#5.1.x)
 - [Version 5.0.x](#5.0.x)
@@ -20,6 +22,48 @@ permalink: screenshots/
 - [Version 3.x.x](#3.x.x)
 - [Version 2.x.x](#2.x.x)
 
+
+<div id='5.4.x'/>
+## Version 5.4.x
+
+![browse_servers](./5.4.x/browse_servers.png){:height="30%" width="30%"}
+![browse_content_folder](./5.4.x/browse_content_folder.png){:height="30%" width="30%"}
+![browse_content_folder_landscape](./5.4.x/browse_content_folder_landscape.png){:height="30%" width="30%"}
+![browse_image_folder](./5.4.x/browse_image_folder.png){:height="30%" width="30%"}
+![browse_music_folder](./5.4.x/browse_music_folder.png){:height="30%" width="30%"}
+![browse_receiver](./5.4.x/browse_receiver.png){:height="30%" width="30%"}
+![music_player](./5.4.x/music_player.png){:height="30%" width="30%"}
+![music_player_landscape](./5.4.x/music_player_landscape.png){:height="30%" width="30%"}
+![browse_player](./5.4.x/browse_player.png){:height="30%" width="30%"}
+![image_player](./5.4.x/image_player.png){:height="30%" width="30%"}
+![image_player_show_menu](./5.4.x/image_player_show_menu.png){:height="30%" width="30%"}
+![playlist_during_playing_partially_editable](./5.4.x/playlist_during_playing_partially_editable.png){:height="30%" width="30%"}
+![playlist_fully_editable](./5.4.x/playlist_fully_editable.png){:height="30%" width="30%"}
+![remote_music_player](./5.4.x/remote_music_player.png){:height="30%" width="30%"}
+![server_control](./5.4.x/server_control.png){:height="30%" width="30%"}
+![server_control_land](./5.4.x/server_control_land.png){:height="30%" width="30%"}
+![shutdown_timer](./5.4.x/shutdown_timer.png){:height="30%" width="30%"}
+
+<div id='5.3.x'/>
+## Version 5.3.x
+
+![browse_servers](./5.3.x/browse_servers.png){:height="30%" width="30%"}
+![browse_content_folder](./5.3.x/browse_content_folder.png){:height="30%" width="30%"}
+![browse_content_folder_landscape](./5.3.x/browse_content_folder_landscape.png){:height="30%" width="30%"}
+![browse_image_folder](./5.3.x/browse_image_folder.png){:height="30%" width="30%"}
+![browse_music_folder](./5.3.x/browse_music_folder.png){:height="30%" width="30%"}
+![browse_receiver](./5.3.x/browse_receiver.png){:height="30%" width="30%"}
+![music_player](./5.3.x/music_player.png){:height="30%" width="30%"}
+![music_player_landscape](./5.3.x/music_player_landscape.png){:height="30%" width="30%"}
+![browse_player](./5.3.x/browse_player.png){:height="30%" width="30%"}
+![image_player](./5.3.x/image_player.png){:height="30%" width="30%"}
+![image_player_show_menu](./5.3.x/image_player_show_menu.png){:height="30%" width="30%"}
+![playlist_during_playing_partially_editable](./5.3.x/playlist_during_playing_partially_editable.png){:height="30%" width="30%"}
+![playlist_fully_editable](./5.3.x/playlist_fully_editable.png){:height="30%" width="30%"}
+![remote_music_player](./5.3.x/remote_music_player.png){:height="30%" width="30%"}
+![server_control](./5.3.x/server_control.png){:height="30%" width="30%"}
+![server_control_land](./5.3.x/server_control_land.png){:height="30%" width="30%"}
+![shutdown_timer](./5.3.x/shutdown_timer.png){:height="30%" width="30%"}
 
 <div id='5.2.x'/>
 ## Version 5.2.x

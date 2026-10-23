@@ -1,0 +1,5 @@
+Version 5.4.0
+- added sorting by name/date (ascending/descending) when browsing content, with server-side support where available
+- optimized path display when browsing
+- added Android TV support
+- fixed slow loading and crashes when viewing or loading large photos and thumbnails

@@ -44,6 +44,7 @@
             android:layout_height="wrap_content"
             android:layout_alignTop="@id/contentListBackButton"
             android:layout_alignParentEnd="true"
+            android:layout_marginEnd="8dp"
             android:layout_marginBottom="5dp"
             android:orientation="horizontal">
 
@@ -66,11 +67,21 @@
                 app:tint="?attr/colorControlNormal" />
         </LinearLayout>
 
+        <!-- layout_below anchors to contentListSortToggle, not
+             contentListBackButton: the back button is set to GONE at the
+             root folder (ContentListFragment#updateFolderNavigationUi),
+             and a GONE view's position collapses to a zero-size point at
+             its original top edge, so layout_below="@id/contentListBackButton"
+             would snap this label (and everything below it - the
+             separator, provider and receiver rows) up to overlap the icon
+             row instead of sitting below it. contentListSortToggle is
+             never hidden, so it's a stable anchor regardless of
+             navigation depth. -->
         <TextView
             android:id="@+id/contentListCurrentFolderName"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_below="@id/contentListBackButton"
+            android:layout_below="@id/contentListSortToggle"
             android:layout_alignParentStart="true"
             android:layout_marginStart="5dp"
             android:layout_marginBottom="10dp"

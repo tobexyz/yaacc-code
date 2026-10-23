@@ -296,7 +296,10 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         // below), so there's no RelativeLayout anchor-to-a-hidden-sibling
         // risk here.
         backButton.setVisibility(atRoot ? View.GONE : View.VISIBLE);
-        topSeperator.setVisibility(atRoot ? View.GONE : View.VISIBLE);
+        // topSeperator divides the header from the content list below it,
+        // independent of whether there's a folder to navigate back to --
+        // always visible, not tied to atRoot.
+        topSeperator.setVisibility(View.VISIBLE);
         currentFolderNameView.setVisibility(View.VISIBLE);
         currentFolderNameView.setText(buildPathDisplayText());
         // The label's start margin is set here instead of via a
