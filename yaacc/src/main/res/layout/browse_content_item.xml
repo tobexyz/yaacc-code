@@ -103,7 +103,7 @@
                     android:nextFocusLeft="@id/browseContentItemDownload"
                     android:contentDescription="@string/browse_context_play"
                     app:srcCompat="@drawable/ic_baseline_play_arrow_32"
-                    app:tint="?attr/colorSecondary" />
+                    app:tint="?attr/colorControlNormal" />
 
                 <ImageButton
                     android:id="@+id/browseContentItemPlayAll"
