@@ -1,7 +1,5 @@
 Version 5.4.0
 - added sorting by name/date (ascending/descending) when browsing content, with server-side support where available
-- fixed "play all from here" ignoring the active sort order
-- fixed path display issues when browsing (server name, alignment, root folder overlap)
-- added Android TV support (leanback launcher)
-- fixed a crash caused by a problematic HTTP client library update
+- optimized path display when browsing
+- added Android TV support
 - fixed slow loading and crashes when viewing or loading large photos and thumbnails
