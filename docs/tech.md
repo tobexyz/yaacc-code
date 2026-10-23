@@ -452,3 +452,302 @@ the full CVE identification, decompilation evidence, and rationale are
 already documented in
 `.claude/specs/2026-10-17-browse-card-grid-view/decisions.md` and
 `security-review.md` — not repeated here.
+
+## Unified device sheet
+
+Research notes for spec `2026-10-23-unified-device-sheet` (Group 1).
+Verified 2026-10-23 against `com.google.android.material:material:1.14.0`,
+the version already declared in `yaacc/build.gradle:20` (nothing added).
+Two sources were used:
+
+- **[javap]**: `classes.jar` and `res/values/values.xml` extracted from
+  `~/.gradle/caches/modules-2/files-2.1/com.google.android.material/material/1.14.0/b44cfc942dbe846c607aa50738e2bb1272796f8c/material-1.14.0.aar`,
+  inspected with `javap -public`, `javap -constants` and `javap -c -p`.
+- **[ref]**: the official API reference, fetched live through the
+  `android-docs` MCP server (`get_api_reference`):
+  `developer.android.com/reference/com/google/android/material/bottomsheet/BottomSheetBehavior`.
+  That page's "View Source" link points at the `1.14.0` tag, so the
+  reference matches this version.
+
+### 1. Classes and imports
+
+```java
+import com.google.android.material.bottomsheet.BottomSheetBehavior;
+import com.google.android.material.bottomsheet.BottomSheetDialog;
+import com.google.android.material.bottomsheet.BottomSheetDialogFragment;
+```
+
+From [javap] (`javap -public`):
+
+```
+public class BottomSheetDialogFragment extends androidx.appcompat.app.AppCompatDialogFragment {
+  public BottomSheetDialogFragment();
+  public BottomSheetDialogFragment(int);            // contentLayoutId
+  public android.app.Dialog onCreateDialog(android.os.Bundle);  // returns new BottomSheetDialog(getContext(), getTheme())
+  public void dismiss();
+  public void dismissAllowingStateLoss();
+}
+public class BottomSheetDialog extends androidx.appcompat.app.AppCompatDialog {
+  public BottomSheetBehavior<android.widget.FrameLayout> getBehavior();
+  public void setDismissWithAnimation(boolean);
+  public void setCancelable(boolean);
+  public void setCanceledOnTouchOutside(boolean);
+  ...
+}
+public class BottomSheetBehavior<V extends View> extends CoordinatorLayout$Behavior<V>
+    implements com.google.android.material.motion.MaterialBackHandler {
+  public static final int STATE_DRAGGING = 1, STATE_SETTLING = 2, STATE_EXPANDED = 3,
+                          STATE_COLLAPSED = 4, STATE_HIDDEN = 5, STATE_HALF_EXPANDED = 6;
+  public void setFitToContents(boolean);   public boolean isFitToContents();
+  public void setHalfExpandedRatio(float); public float getHalfExpandedRatio();
+  public void setState(int);
+  public void setSkipCollapsed(boolean);
+  public void setHideable(boolean);
+  public void setDraggable(boolean);
+  public void setMaxHeight(int);
+  public void addBottomSheetCallback(BottomSheetBehavior$BottomSheetCallback);
+  public static <V extends View> BottomSheetBehavior<V> from(V);
+}
+```
+
+### 2. Getting the behavior
+
+`BottomSheetDialog.getBehavior()` calls the private
+`ensureContainerAndBehavior()` lazily if the behavior doesn't exist yet. That
+method inflates `design_bottom_sheet_dialog`, finds the
+`R.id.design_bottom_sheet` `FrameLayout`, and calls
+`BottomSheetBehavior.from(bottomSheet)` and then `setHideable(cancelable)`
+[javap: `javap -c -p ... BottomSheetDialog`, `getBehavior` and
+`ensureContainerAndBehavior`]. So the fragment can call
+`((BottomSheetDialog) requireDialog()).getBehavior()` at any point after
+`onCreateDialog`, and never gets null back. There's no need for
+`BottomSheetBehavior.from(view.getParent())`.
+
+### 3. Starting half-expanded, then dragging to full height
+
+Verified behavior [javap: `javap -c -p ... BottomSheetBehavior`]:
+
+- **Defaults.** The constructor sets `fitToContents = true` and
+  `halfExpandedRatio = 0.5f`. [ref] agrees: "Default value is true" for
+  `setFitToContents`, and "The default value is 0.5" for
+  `setHalfExpandedRatio`.
+- **`setHalfExpandedRatio(float)`** throws `IllegalArgumentException`
+  ("ratio must be a float value between 0 and 1") unless `0 < ratio < 1`.
+  The half-expanded top offset is `parentHeight * (1 - ratio)`, from
+  `calculateHalfExpandedOffset()`.
+- **`setFitToContents(true)` while the state is `STATE_HALF_EXPANDED`
+  forces `STATE_EXPANDED`.** The bytecode is
+  `setStateInternal(fitToContents && state == 6 ? 3 : state)`, so **call
+  `setFitToContents(false)` before `setState(STATE_HALF_EXPANDED)`**.
+- **`setState(STATE_HALF_EXPANDED)` with `fitToContents == true`** turns
+  into `STATE_EXPANDED` whenever the half-expanded offset is less than or
+  equal to `fitToContentsOffset`, that is, whenever the content is no taller
+  than the half-height. [ref] describes `STATE_HALF_EXPANDED` as "used when
+  fitToContents is false".
+- **`setState(STATE_DRAGGING | STATE_SETTLING)`** throws
+  `IllegalArgumentException`. `setState(STATE_HIDDEN)` on a non-hideable
+  sheet only logs a warning.
+- **Expanded offset.** `getExpandedOffset()` returns `fitToContentsOffset`
+  when `fitToContents` is true. Otherwise it returns `expandedOffset`
+  (default 0, or the top inset when padding for the system window). With
+  `fitToContents = false`, "expanded" therefore means the **top of the
+  screen**, and the user drags up from half to get there.
+- **Sheet height. This is something design.md doesn't cover.** The dialog's
+  sheet container (`design_bottom_sheet_dialog.xml`, id
+  `design_bottom_sheet`) is `layout_height="wrap_content"` [javap: the
+  AAR's `res/layout/design_bottom_sheet_dialog.xml`]. With
+  `fitToContents = false`, a short list (two or three receivers) would be
+  pinned at the top in STATE_EXPANDED, leaving an empty scrim below it. To
+  make "drag to full height" mean the sheet fills the screen, set the
+  container's height to `MATCH_PARENT`, as in the snippet below.
+- **Dialog start state.** `BottomSheetDialog.onStart()` only changes the
+  state when it is `STATE_HIDDEN`, and then sets `STATE_COLLAPSED`. So a
+  state set before `show()`, or in the fragment's `onStart()` after
+  `super.onStart()`, is kept. Without a layout pass, `setState` stores the
+  requested state through `setStateInternal`, and it is applied on the
+  first `onLayoutChild`.
+- **Dragging below half-expanded** goes to `STATE_COLLAPSED`, at the peek
+  height. Use `setSkipCollapsed(true)` to make a drag down from expanded or
+  half go straight to hidden, which dismisses the dialog. [ref]: "Setting
+  this to true has no effect unless the sheet is hideable". The dialog sets
+  hideable to its `cancelable` flag, which is true by default.
+
+Usage pattern (to be used by `DeviceSheetFragment`; not written yet):
+
+```java
+@Override
+public void onStart() {
+    super.onStart();                          // DialogFragment shows the dialog here
+    BottomSheetDialog dialog = (BottomSheetDialog) requireDialog();
+    View sheet = dialog.findViewById(com.google.android.material.R.id.design_bottom_sheet);
+    if (sheet != null) {                      // full-height container, so EXPANDED fills the screen
+        sheet.getLayoutParams().height = ViewGroup.LayoutParams.MATCH_PARENT;
+        sheet.requestLayout();
+    }
+    BottomSheetBehavior<FrameLayout> behavior = dialog.getBehavior();
+    behavior.setFitToContents(false);         // must come before HALF_EXPANDED (see above)
+    behavior.setHalfExpandedRatio(0.5f);      // 0 < ratio < 1, else IllegalArgumentException
+    behavior.setSkipCollapsed(true);          // dragging down from half dismisses
+    behavior.setState(BottomSheetBehavior.STATE_HALF_EXPANDED);
+}
+```
+
+### 4. Theme. This is something design.md doesn't cover.
+
+`BottomSheetDialogFragment.onCreateDialog` builds
+`new BottomSheetDialog(getContext(), getTheme())`. With theme 0, the private
+`BottomSheetDialog.getThemeResId` resolves `?attr/bottomSheetDialogTheme`.
+If that attribute isn't set, it falls back to
+`R.style.Theme_Design_Light_BottomSheetDialog`
+[javap: `getThemeResId` bytecode].
+
+yaacc's `AppTheme` has `Theme.MaterialComponents.DayNight.Bridge` as its
+parent (`yaacc/src/main/res/values/styles.xml:21`). In the 1.14.0
+`values.xml`, the Bridge chain
+(`...DayNight.Bridge -> ...Light.Bridge -> Base.V14.Theme.MaterialComponents.Light.Bridge -> Platform.MaterialComponents.Light -> Theme.AppCompat.Light`)
+**does not set `bottomSheetDialogTheme`**: the Bridge base style has 68
+items, none of them for dialogs or sheets. The non-Bridge
+`Base.V14.Theme.MaterialComponents.Light` sets it to
+`@style/ThemeOverlay.MaterialComponents.BottomSheetDialog`. Without action,
+the sheet would therefore use the light `Theme.Design` dialog theme, even
+in night mode. Fix it in Group 3 in one of two ways:
+
+- Override `getTheme()` in `DeviceSheetFragment` to return
+  `com.google.android.material.R.style.ThemeOverlay_MaterialComponents_BottomSheetDialog`.
+- Add `<item name="bottomSheetDialogTheme">@style/ThemeOverlay.MaterialComponents.BottomSheetDialog</item>`
+  to `AppTheme`.
+
+Check both day and night on device.
+
+### 5. Back and D-pad focus inside the dialog
+
+- **Back.** Back on a cancelable dialog calls `Dialog.cancel()`.
+  `BottomSheetDialog.cancel()` dismisses straight away when
+  `dismissWithAnimation` is false, which is the default. When it is true,
+  it calls `behavior.setState(STATE_HIDDEN)` instead, and the dialog's
+  callback dismisses it once the sheet is hidden [javap: `cancel()`].
+  `BottomSheetDialog` also creates a `MaterialBackOrchestrator` over the
+  behavior and starts listening for back callbacks only while it is
+  `cancelable` (`updateListeningForBackCallbacks`).
+  `BottomSheetBehavior.handleBackInvoked()` sets `STATE_HIDDEN` if the
+  sheet is hideable, otherwise `STATE_COLLAPSED`. It checks
+  `SDK_INT >= 34` for the predictive-back animation. Either path ends with
+  the dialog dismissed, so **Back dismisses the sheet with no extra code**,
+  as long as the default `cancelable = true` is left alone.
+  `BottomSheetDialogFragment.dismiss()` animates the hide first when the
+  dialog has `dismissWithAnimation` set and the behavior is hideable.
+- **D-pad focus is trapped in the dialog.** The dialog is its own window
+  (platform `Dialog`), so D-pad focus search stays inside it and can't
+  reach the Content tab behind it. Material adds no key handling of its
+  own: no `onKeyDown` or `dispatchKeyEvent` in `BottomSheetDialog`'s
+  `javap -c -p` member list. The behavior's `updateAccessibilityActions`
+  only adds accessibility expand and collapse actions, not D-pad bindings.
+- **Risk (inferred from bytecode, not yet seen on a TV).** In
+  `STATE_HALF_EXPANDED`, the sheet is laid out at its full height and
+  moved down with `ViewCompat.offsetTopAndBottom` (`onLayoutChild`). The
+  bottom half is off-screen but still laid out, so RecyclerView rows there
+  are attached and focusable. D-pad down can move focus to a row below the
+  screen edge, and nothing scrolls, because the row is inside the
+  RecyclerView's own bounds. Mitigation for Group 3: when the device isn't
+  in touch mode (`!view.isInTouchMode()`), or when it is a leanback/TV
+  device, open in `STATE_EXPANDED`. Alternatively, expand when focus first
+  lands on a row. Confirm this during Group 3's manual TV check.
+- **Initial focus.** design.md wants focus on the first receiver's
+  checkbox. Request it after the first layout, for example with
+  `recyclerView.post(...)` once the adapter has rows. Nothing in Material
+  sets initial focus.
+
+### 6. How the Player tab learns about new or ended players
+
+`grep -rn "addPlayer\|removePlayer\|shutdown(" yaacc/src/main/java/de/yaacc/player/PlayerService.java`:
+
+```
+106:    public void addPlayer(Player player) {
+122:    public void removePlayer(Player player) {
+193:        shutdown();
+295:                addPlayer(result);
+332:                addPlayer(result);
+382:                    shutdown(player);
+395:                    shutdown(result);
+423:            shutdown(result);
+433:            shutdown(result);
+519:    public void shutdown(Player player) {
+530:    public void shutdown() {
+533:            shutdown(player);
+```
+
+**Answer: polling on `onResume`. There's no listener or broadcast.**
+
+- `PlayerService.addPlayer` (`PlayerService.java:106-120`) puts the player
+  into `currentActivePlayer`, a plain `HashMap` (`:59`). It registers a
+  `"playing"` property listener on the player that only calls
+  `updateForegroundState()`, then calls `updateForegroundState()` itself.
+  `removePlayer` (`:122-125`) and `shutdown(Player)` (`:519-525`) remove
+  the player from the map and call `updateForegroundState()`. **None of the
+  three notifies any observer.** `updateForegroundState` only manages the
+  foreground notification.
+- Callers: `addPlayer` from `createPlayer...` (`PlayerService.java:295,
+  332`), and again from each player's async `onServiceConnected`
+  (`AbstractPlayer.java:159`, `LocalImagePlayer.java:91`). `removePlayer`
+  is called from `onServiceDisconnected` (`AbstractPlayer.java:167`,
+  `LocalImagePlayer.java:98`) and `AbstractPlayer.onDestroy`
+  (`AbstractPlayer.java:965`). `shutdown(this)` is called from `exit()`
+  (`AbstractPlayer.java:732`, `LocalImagePlayer.java:227`).
+- `PlayerListFragment` reads `upnpClient.getCurrentPlayers()`
+  (`UpnpClient.java:829-834`, which delegates to
+  `PlayerService.getCurrentPlayers()` at `:445-448`, an **unmodifiable live
+  view** of the map's values, not a copy). It reads it in
+  `populatePlayerList()` (`PlayerListFragment.java:80-93`), which is
+  triggered only from `init` (`:58`, on view creation) and `onResume`
+  (`:64-67`). It does register as a `UpnpClientListener` (`:57`), but that
+  interface (`UpnpClientListener.java:29-39`) only carries device
+  added/removed/updated events, and all five callbacks in the fragment are
+  empty. A player that starts or ends while the Player tab is visible
+  shows up only after the tab is resumed again.
+- **Reusable by `DeviceSheetFragment`? No.** Refreshing on `onResume`
+  doesn't help a sheet that stays open while playback starts. For example,
+  the user picks a receiver and then taps play, and the session row should
+  appear. Per-player state changes *are* observable through
+  `Player#addPropertyChangeListener` / `removePropertyChangeListener`
+  (`Player.java:131,138`), which fire `"playing"` (`AbstractPlayer.java:465`)
+  and the item-change property (`AbstractPlayer.java:571`). That covers
+  updating an existing session row, but not adding or removing one.
+- **To add (later group, not done here):** a player-set listener on
+  `PlayerService`, for example
+  `addPlayerListChangeListener(Runnable)` / `removePlayerListChangeListener(Runnable)`.
+  It would fire at the end of `addPlayer`, `removePlayer` and
+  `shutdown(Player)`, after the map has changed. Those methods are reached
+  from `onServiceConnected`/`onServiceDisconnected`, which run on the main
+  thread, and from `createPlayer...`, whose thread depends on the caller.
+  Listeners should therefore post to the main thread before touching
+  views, and the sheet must unregister in `onDestroyView` or on dismiss.
+  Because `getCurrentPlayers()` is a live view of a `HashMap`, the sheet
+  should copy it, `new ArrayList<>(...)`, on the main thread before
+  building `DeviceSessionGrouper.PlayerRef`s.
+- **Side observation (out of scope).** `addPlayer` can run twice for the
+  same player: once from `createPlayer...` and once from
+  `onServiceConnected`. Each call adds another anonymous `"playing"`
+  listener that is never removed (`PlayerService.java:113-117`). This is
+  harmless today, because the listener is idempotent, but a new
+  notification hook inside `addPlayer` would fire twice for one player.
+  Make the hook fire only when `put(...)` returns null, meaning the player
+  is new to the map.
+
+### 7. `DeviceSessionGrouper`: Group 1 state
+
+- `yaacc/src/main/java/de/yaacc/browser/DeviceSessionGrouper.java` is a
+  **stub** with the final public API from design.md. `group` returns an
+  empty list and `primarySession` returns null. Group 2 implements it.
+  `PlayerRef` exposes record-style accessors `playerId()`, `deviceId()`
+  and `playing()`, matching `Row`'s `kind()`, `deviceId()` and
+  `playerId()`. These are plain final classes, not records, with no
+  `android.*` imports.
+- `yaacc/src/test/java/de/yaacc/browser/DeviceSessionGrouperTest.java`
+  (JUnit 4.13.2, plain JVM) states two readings of design.md that it
+  leaves open:
+  1. Sessions on a device that isn't a receiver get **no RECEIVER row**.
+     A receiver row means bound device controls, which a vanished device
+     can't have. The adapter labels the trailing group from the session
+     row's `deviceId()`. Those sessions stay contiguous per device, in
+     ascending playerId order, after all receiver groups.
+  2. With no receivers at all, every session is still listed.

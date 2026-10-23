@@ -164,6 +164,13 @@ Top level (server list):                   Inside a server:
   `ReceiverRowBinder` first (Group 2), before the sheet exists.
 - **Double polling** if the sheet starts its own status monitor: mitigated
   by sharing the existing `RendererStatusMonitor` instance.
-- **Player add/remove notification:** how the Player tab learns about new
-  or ended players hasn't been traced yet. That's a Group 1 research item.
-  If there's no listener, one is added to `PlayerService`.
+- **Player add/remove notification:** traced in Group 1 - there is none.
+  The Player tab only re-reads `getCurrentPlayers()` on view creation and
+  `onResume`. Group 2 adds a listener to `PlayerService`; it must ignore
+  repeat `addPlayer` calls for a player already present.
+- **Bottom-sheet details found in Group 1** (see `docs/tech.md`): the
+  half-expanded state only works if `setFitToContents(false)` comes first;
+  `AppTheme` has no `bottomSheetDialogTheme`, so without one the sheet
+  would render light-only in dark mode; and half-expanded rows below the
+  screen edge can take D-pad focus without scrolling into view, so the
+  sheet opens fully expanded when not in touch mode.

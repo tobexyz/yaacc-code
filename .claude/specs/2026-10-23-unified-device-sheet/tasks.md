@@ -3,15 +3,15 @@
 Plan: `specs/2026-10-23-unified-device-sheet/requirements.md` and `specs/2026-10-23-unified-device-sheet/design.md`
 
 ## Group 1: Research and test skeletons
-- [ ] Research and document SDK/framework APIs | `docs/tech.md`
+- [x] Research and document SDK/framework APIs | `docs/tech.md`
   - **Packages**: `com.google.android.material:material:1.14.0` (already a dependency - no new packages)
   - **Accept**: `docs/tech.md` has a "Unified device sheet" section with verified usage for `BottomSheetDialogFragment` and `BottomSheetBehavior` in 1.14.0: half-expanded start state, `fitToContents`/`halfExpandedRatio`, draggable to full height, and how focus/D-pad and Back behave inside the dialog
   - **Verify**: each documented pattern cites a source (doc URL or the library's class source/signature)
   - **Constraints**: implementation tasks reference `docs/tech.md`; no code against unverified APIs
-- [ ] Trace how player add/remove is observed | `yaacc/src/main/java/de/yaacc/player/PlayerService.java`, `yaacc/src/main/java/de/yaacc/browser/PlayerListFragment.java`
+- [x] Trace how player add/remove is observed | `yaacc/src/main/java/de/yaacc/player/PlayerService.java`, `yaacc/src/main/java/de/yaacc/browser/PlayerListFragment.java`
   - **Accept**: `docs/tech.md` records how the Player tab learns about new/ended players (listener, broadcast, or polling) and whether `DeviceSheetFragment` can reuse it; if there's no mechanism, the note says so and names the method to add to `PlayerService`
   - **Verify**: `grep -rn "addPlayer\|removePlayer\|shutdown(" yaacc/src/main/java/de/yaacc/player/PlayerService.java` output is cited in the note
-- [ ] Write `DeviceSessionGrouperTest` (red) | `yaacc/src/test/java/de/yaacc/browser/DeviceSessionGrouperTest.java`
+- [x] Write `DeviceSessionGrouperTest` (red) | `yaacc/src/test/java/de/yaacc/browser/DeviceSessionGrouperTest.java`
   - **Accept**: tests compile against the `DeviceSessionGrouper` API in design.md and fail; cases: (a) receiver with no sessions, (b) local device with image + music sessions, ascending playerId, (c) remote renderer with music + image sessions, (d) session whose deviceId isn't a receiver -> trailing group, never dropped, (e) receiver order preserved, (f) empty inputs, (g) `primarySession` prefers playing, else highest playerId, else null
   - **Verify**: `./gradlew :yaacc:testDebugUnitTest --tests '*DeviceSessionGrouperTest*'` (expected: fails to compile or fails assertions)
   - **Constraints**: plain JVM, no Robolectric, no `android.*` imports
@@ -25,12 +25,16 @@ Plan: `specs/2026-10-23-unified-device-sheet/requirements.md` and `specs/2026-10
   - **Accept**: Receiver tab looks and behaves the same; `getPlayerForDevice` is gone and the row's player comes from `DeviceSessionGrouper.primarySession(...)` built from `Player#getDeviceId()` (not `instanceof` checks)
   - **Verify**: `./gradlew :yaacc:assembleDebug :yaacc:testDebugUnitTest`
   - **Constraints**: no visual or behavior change to the Receiver tab beyond the deterministic session pick; depends on `DeviceSessionGrouper`, so do it after the task above within this group
+- [ ] Add a player-list change listener to `PlayerService` | `yaacc/src/main/java/de/yaacc/player/PlayerService.java`, `yaacc/src/test/java/de/yaacc/player/PlayerServiceListenerTest.java`
+  - **Accept**: `addPlayerListChangeListener(...)` / `removePlayerListChangeListener(...)` exist; listeners fire once when a player is genuinely added (not when `addPlayer` is called again for a player already present - see `docs/tech.md` "Unified device sheet" §player add/remove) and once when one is removed via `removePlayer` or `shutdown(Player)`; callbacks are delivered on the main thread; a removed listener no longer fires
+  - **Verify**: `./gradlew :yaacc:testDebugUnitTest`
+  - **Constraints**: touches only `PlayerService` (plus its test); existing Player tab behavior unchanged; if `PlayerService` can't be unit-tested on the plain JVM, extract the listener bookkeeping into a small plain-Java helper and test that instead
 
 ## Group 3: Sheet and entry points
 - [ ] `DeviceSheetFragment` + `DeviceSheetAdapter` + session row layout | `yaacc/src/main/java/de/yaacc/browser/DeviceSheetFragment.java`, `DeviceSheetAdapter.java`, `yaacc/src/main/res/layout/device_sheet_player_session_item.xml`
-  - **Accept**: sheet lists receivers via `ReceiverRowBinder`, sessions nested per `DeviceSessionGrouper`; tapping a session opens its player activity (same intent as `PlayerListItemClickListener`); status updates live while open and stop on dismiss; reuses the existing `RendererStatusMonitor`
+  - **Accept**: sheet lists receivers via `ReceiverRowBinder`, sessions nested per `DeviceSessionGrouper`; tapping a session opens its player activity (same intent as `PlayerListItemClickListener`); receiver status and the session list update live while open (`RendererStatusMonitor` + the Group 2 `PlayerService` listener) and stop on dismiss; reuses the existing `RendererStatusMonitor`; follows the app's dark/light mode; opens half-expanded in touch mode and fully expanded when not in touch mode (D-pad/TV)
   - **Verify**: `./gradlew :yaacc:assembleDebug :yaacc:lintDebug`; manual on phone and TV emulator: open, select receiver, change volume, open a session, Back dismisses, D-pad reaches every control
-  - **Constraints**: strings in all 7 locales (`values`, `-de`, `-es`, `-fr`, `-nl`, `-pt`, `-zh`); no new dependencies
+  - **Constraints**: follow `docs/tech.md` "Unified device sheet": call `setFitToContents(false)` before `setState(STATE_HALF_EXPANDED)`, size the sheet container to full height, and supply a DayNight bottom-sheet theme (`getTheme()` override or `bottomSheetDialogTheme` on `AppTheme`) since `AppTheme` doesn't set one; strings in all 7 locales (`values`, `-de`, `-es`, `-fr`, `-nl`, `-pt`, `-zh`); no new dependencies
 - [ ] Replace the two-line footer with a receiver bar that opens the sheet | `yaacc/src/main/res/layout/fragment_content_list.xml`, `yaacc/src/main/res/layout-land/fragment_content_list.xml`, `ContentListFragment.java`
   - **Accept**: `contentListCurrentProvider` is removed from both layouts and from `ContentListFragment`; `contentListCurrentReceivers` shows the selected receivers' names with an expand indicator, and tapping or D-pad-selecting it opens the sheet in portrait and landscape; the bar updates after the sheet changes the selection
   - **Verify**: `./gradlew :yaacc:assembleDebug :yaacc:lintDebug`; `grep -rn contentListCurrentProvider yaacc/src/main` returns nothing; manual on phone (both orientations) and TV
