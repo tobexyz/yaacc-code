@@ -103,3 +103,44 @@ What I checked:
 - [x] Coverage adequate for the change: the notifier covers double add, the re-entrant remove, unknown remove, unregistration (including before a queued delivery), duplicate registration and self-removal mid-callback. The grouper covers ordering, unknown and null devices, duplicate ids and the `LOCAL_UID` spoof. The binder is verified by manual check only (see Suggestion).
 
 ### Verdict: FAIL
+
+## Cycle 2 — 2026-10-23
+Reviewing: Group 2 tasks + Fix Group 2 (commit 4b9feab7; `git diff 077e69ec..HEAD`)
+
+Resolution of cycle 1 findings:
+- **W1 (renderer tap): resolved.** `ReceiverRowBinder.openPlayerActivity` now skips only the device whose UDN equals `UpnpClient.LOCAL_UID`. yaacc's own `LocalDevice` renderer goes through `primaryPlayer` again, and that resolves its `AVTransportPlayer` by UDN, so the tap opens the player as it did before the extraction. `isLocalDevice` is now used only for the icon and in `executeAction`, both of which predate this work.
+- **W2 ("newest = highest id"): resolved, via decisions.md option (b).**
+  - `PlayerListChangeNotifier` keeps a creation sequence per player instance (a `ConcurrentHashMap` keyed by identity; no `Player` class overrides `equals`/`hashCode`) and draws it from an `AtomicLong`.
+  - `PlayerRef` carries it.
+  - `group` sorts oldest first by sequence, then by playerId.
+  - `primarySession` ranks playing before idle, then the higher sequence, then the higher playerId.
+  - Tests use sequences that run against id order (id 900 is older than id 3), so an id-based implementation fails them.
+  - design.md "Fix for finding 3", "Interfaces & Contracts", the `DeviceSessionGrouper` and `PlayerRef` Javadoc, and tech.md §7 now describe the sequence, not the player id.
+- **Escalated suggestion (same-id replacement): resolved.** `putAndNotify` returns early when the map already holds this exact instance. When the map held a different instance under the same id, it drops that player's sequence and fires removed(previous) and then added(new). `removeAndNotify` uses `remove(id, player)`, and `removePlayer` and `shutdown` now pass the player itself rather than only its id. So an orphaned `MultiContentPlayer` exiting later neither removes its replacement nor fires. Both cases are tested.
+
+Sequence lifecycle, as requested:
+- **Genuine add:** gets a new sequence. `computeIfAbsent` runs before `put`, so a reader never sees an active player without one.
+- **Re-add of the same instance:** keeps its sequence (`reAddingSameInstanceKeepsItsSequence`).
+- **Remove or replace:** the sequence is dropped (`removedOrReplacedOrUnknownPlayerHasNoSequence`).
+- **Add again after a removal:** gets a newer sequence.
+- **id 0:** `addPlayer` returns before `putAndNotify`, so no sequence is assigned and no event fires.
+
+`primarySession` safety: it only ever chooses from the device-filtered refs, which the binder builds from the `getCurrentPlayers()` snapshot. A sequence of 0 or a tie can only change which of that device's listed players wins. It can never pick a player from another device. The id fallback keeps the result independent of input order. The one way to bind a just-removed player is a removal that lands between the snapshot and the lookup. That gets sequence 0, so the player ranks oldest, and the removal notification triggers a rebind. Building from a live snapshot had the same window before Group 2.
+
+`UpnpClient.getPlayerCreationSequence` returns 0 when `playerService` is null, and `creationSequence(null)` returns 0 before calling `ConcurrentHashMap.get`. That adds no null-pointer path. It follows the same unbound-service pattern as `getCurrentPlayers()`, which returns an empty list in that case, so the binder never asks for a sequence while the service is unbound.
+
+### Critical
+- None.
+
+### Warning
+- None.
+
+### Suggestion
+- [.claude/specs/2026-10-23-unified-device-sheet/design.md:186-188; docs/tech.md §6 (~line 739-744)] Both still give the old rule: "added" only when `put` returns null, and "removed" only when `remove` returns non-null. The code now also fires removed+added when `put` returns a *different* instance, and it removes by `(id, player)`. The contract sections are correct; only these two explanatory passages lag behind. Update them in Group 4's documentation task, or sooner. Group 1/2 task Accept lines in tasks.md (lines 25, 38) are history and can stay.
+- [yaacc/src/main/java/de/yaacc/player/PlayerListChangeNotifier.java:83-96, 106-111] There is a narrow race. A re-add of an instance (`onServiceConnected`, on the main thread) that runs concurrently with that same instance's removal (`shutdown` from a background `createPlayer`) can leave the player in the map with its sequence already dropped, so it reports 0. The effect is limited to that player ranking as "oldest", with no wrong-device pick and no crash. If it's worth closing, do the sequence bookkeeping and the map mutation under one lock, or use `players.compute(...)`.
+
+### Tests
+- [x] All tests passing: `./gradlew :yaacc:assembleDebug :yaacc:testDebugUnitTest :yaacc:lintDebug` reports BUILD SUCCESSFUL, with 194 tests, 0 failures and 0 errors. Lint shows the same 8 pre-existing issues in the changed files at shifted lines, and no new ones (`UpnpClient.java` has none in the added method).
+- [x] Coverage adequate for the change: sequence order versus id order, ties, re-add, remove, replacement, re-add after removal, null/unknown players, and both replacement notification paths are covered. The binder tap fix is verified by code reading; the Group 3 manual check should still tap the yaacc renderer row.
+
+### Verdict: PASS

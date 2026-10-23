@@ -184,8 +184,11 @@ Top level (server list):                   Inside a server:
   repeat calls in both directions: `addPlayer` can run twice for the same
   player, and `shutdown(Player)` removes the player and then calls
   `player.onDestroy()`, which calls `removePlayer` again
-  (`AbstractPlayer.java:958-965`). So "added" fires only when `put`
-  returns null, and "removed" only when `remove` returns non-null.
+  (`AbstractPlayer.java:958-965`). As built: "added" fires when `put`
+  returns null; a re-add of the same instance fires nothing; replacing a
+  *different* instance with the same id fires "removed" for it and then
+  "added" (decisions.md); removal uses `remove(id, player)` and fires
+  "removed" only if that exact instance was still present.
 - **Bottom-sheet details found in Group 1** (see `docs/tech.md`): the
   half-expanded state only works if `setFitToContents(false)` comes first;
   `AppTheme` has no `bottomSheetDialogTheme`, so without one the sheet

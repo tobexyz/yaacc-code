@@ -737,11 +737,16 @@ Check both day and night on device.
     removes the player from the map and then calls `player.onDestroy()`.
     `AbstractPlayer.onDestroy()` calls `playerService.removePlayer(this)`
     again (`AbstractPlayer.java:958-965`).
-  - So the hook fires **"added" only when `currentActivePlayer.put(...)`
-    returns null**, meaning the player is new to the map. It fires
-    **"removed" only when `currentActivePlayer.remove(...)` returns
-    non-null**, meaning the player was actually still in the map.
-    Otherwise one player start or stop would notify twice.
+  - So the notifier (`PlayerListChangeNotifier`, as built in Group 2)
+    decides from what `put` returns: `null` fires **"added"**; the same
+    instance fires nothing (a re-add); a *different* instance fires
+    **"removed"** for the replaced player and then **"added"** for the new
+    one (a same-id replacement - `MultiContentPlayer`'s id is fixed, see
+    decisions.md). Removal uses `remove(id, player)` and fires
+    **"removed"** only if that exact instance was still in the map, so the
+    second removal from `onDestroy()`, or a stale instance after a
+    replacement, notifies nothing. Otherwise one player start or stop
+    would notify twice, or for the wrong player.
 - **Group 2: threads that write `currentActivePlayer`, and the fix.** The
   map is written off the main thread. `ContentItemPlayTask.doInBackground`
   calls `ContentListFragment.play(upnpClient.initializePlayers(...))`,
