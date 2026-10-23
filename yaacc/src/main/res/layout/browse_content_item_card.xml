@@ -35,13 +35,18 @@
          https://m2.material.io/components/cards#explicit-containment.
          MaterialCardView (not plain CardView) so app:cardElevation gets a
          real Material surface color by default instead of this layout's
-         previous transparent/flat styling.
+         previous transparent/flat styling. 6dp (not 2dp) because
+         MaterialCardView's dark-theme elevation overlay - the lightening
+         that's supposed to make a surface read as "above" the page
+         background - scales with elevation; at 2dp it was barely
+         perceptible against this app's near-black background, which was
+         most of why cards looked flat/indistinct from the page.
     -->
     <com.google.android.material.card.MaterialCardView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         app:cardCornerRadius="6dp"
-        app:cardElevation="2dp"
+        app:cardElevation="6dp"
         app:cardUseCompatPadding="false"
         app:contentPadding="2dp">
 
@@ -94,6 +99,7 @@
                 android:layout_marginBottom="10dp"
                 android:gravity="center_horizontal"
                 android:ellipsize="end"
+                android:minLines="2"
                 android:maxLines="2"
                 android:text="@string/all"
                 android:focusable="false"
