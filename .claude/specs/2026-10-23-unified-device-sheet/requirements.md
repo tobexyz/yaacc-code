@@ -15,13 +15,17 @@ screens, so neither can simply become a one-line picker.
   which session belongs to which device.
 - When the user plays something with no receiver selected, take them to
   receiver selection instead of showing an error toast.
+- Replace the Content tab's two-line footer (server line + receivers line)
+  with a single receiver bar that opens the sheet; the path label already
+  names the server.
 - Keep the existing Receiver and Player tabs working unchanged in this
   phase, so nothing is lost while the new path is being proven.
 
 ## Non-Goals
 - Removing the Receiver or Player tabs (phase 3, see design.md).
 - A persistent mini-player bar (phase 2).
-- A server picker sheet (phase 3).
+- Merging the Server tab into the browser, and moving its bottom controls
+  (phase 2).
 - Changing how many player objects PlayerService creates per device (see
   open questions in prd/unified-device-sheet.md).
 

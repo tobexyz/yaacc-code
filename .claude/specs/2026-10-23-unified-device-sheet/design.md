@@ -68,7 +68,7 @@ Alternatives rejected:
 | `ReceiverRowBinder` | new, extracted | Binds one `browse_receiver_device_item` row: checkbox, status badge, volume/mute load tasks, transport buttons. Moved out of `BrowseReceiverDeviceAdapter` with no behavior change, so the tab and the sheet share it. |
 | `DeviceSheetFragment` | new, `BottomSheetDialogFragment` | Hosts the RecyclerView; subscribes to `RendererStatusMonitor` and player changes while shown, and unsubscribes on dismiss. |
 | `DeviceSheetAdapter` | new | Two view types: RECEIVER (via `ReceiverRowBinder`) and PLAYER_SESSION (new layout `device_sheet_player_session_item.xml`). |
-| `ContentListFragment` | changed | `contentListCurrentReceivers` (bottom bar, portrait and landscape) becomes clickable and opens the sheet. |
+| `ContentListFragment` + both `fragment_content_list.xml` layouts | changed | The two-line footer (provider line + receivers line) becomes one **receiver bar**: `contentListCurrentProvider` is removed (the path label already starts with the server name since 5.4.0), and `contentListCurrentReceivers` stays as the bar, showing the selected receivers' names with an expand indicator. It becomes clickable and D-pad focusable, and opens the sheet. Any RelativeLayout anchors that pointed at the removed provider view are re-pointed at views that are never `GONE`. |
 | Play entry points | changed | `BrowseContentItemAdapter` play/play-all handlers and `ContentListClickListener` check `upnpClient.getReceiverDevices().isEmpty()` first, and if it's empty, open the sheet instead of starting `ContentItemPlayTask`. The `error_no_receiver_selected` toast in `PlayerService.createPlayer` stays as the fallback for non-UI callers (for example the renderer service). |
 
 ### Sheet behavior
@@ -123,11 +123,37 @@ Play with no receiver selected ──► DeviceSheetFragment (instead of toast)
 ```
 
 ## Phases
-1. **This spec:** device sheet, bottom-bar entry point, no-receiver prompt,
-   and the finding 3 fix. Tabs unchanged.
-2. Mini-player bar above the bottom bar ("Playing on 2 devices") that opens
-   the same sheet.
-3. Server picker sheet; then remove the Receiver and Player tabs, once 1
+Agreed target layout (2026-10-23): the Server and Content tabs merge into
+one browser whose top level is the server list, with a receiver bar at the
+bottom of every level.
+
+```
+Top level (server list):                   Inside a server:
+┌───────────────────────────────┐         ┌───────────────────────────────┐
+│ YAACC                   ⏲  ⋮  │         │ YAACC                   ⏲  ⋮  │
+│ Servers                    ↻  │         │ ← Gerbera > Musik     ≡ 📅 ⊞ │
+│───────────────────────────────│         │───────────────────────────────│
+│ 📡 Gerbera                  > │         │  (content list or cards)      │
+│ 🟢 yaacc   🎙 🖥 ⚙           > │         │                               │
+│ 📡 MiniDLNA                 > │         │                               │
+│───────────────────────────────│         │                               │
+│ yaacc server [ON]  ⬆ ⬇ ⇄      │         │                               │
+│ ▶ phone, TV                ▾  │         │ ▶ phone, TV                ▾  │
+└───────────────────────────────┘         └───────────────────────────────┘
+```
+
+1. **This spec:** the device sheet, the receiver bar replacing the Content
+   tab's two-line footer, the no-receiver prompt, and the finding 3 fix.
+   All tabs stay.
+2. Merge the Server tab into the browser as its top level. The yaacc row
+   keeps its live audio/video stream buttons and gains the server-settings
+   gear. The shutdown timer moves to the toolbar, since it's app-global.
+   Refresh moves to the "Servers" header, plus pull-to-refresh. The yaacc
+   server on/off switch and its provider/renderer/proxy icons stay as a
+   top-level-only footer: they can't live on the yaacc row, because that
+   row only exists while the server runs (rows come from
+   `getDevicesProvidingContentDirectoryService()`).
+3. Remove the Receiver and Player tabs and add a mini-player bar, once 1
    and 2 have proven themselves, including on TV.
 
 ## Risks

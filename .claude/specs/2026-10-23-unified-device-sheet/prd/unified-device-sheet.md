@@ -11,7 +11,8 @@ tabs works against the order of the task.
 - No dead-end error when playing with no receiver selected.
 
 ## Non-Goals
-- Removing tabs, a mini-player bar, or a server picker (later phases).
+- Merging the Server tab into the browser, removing tabs, or a mini-player
+  bar (later phases, see design.md "Phases").
 
 ## User Stories
 - As a listener browsing my music, I want to pick or change the speaker
@@ -35,7 +36,8 @@ tabs works against the order of the task.
 - Receiver tab shows a deterministic session per device (bug fix).
 
 ### Won't Have (this iteration)
-- Mini-player bar, server picker, tab removal.
+- Merging the Server tab into the browser (phase 2), mini-player bar and
+  tab removal (phase 3).
 
 ## Success Metrics
 See requirements.md.

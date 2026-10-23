@@ -31,10 +31,10 @@ Plan: `specs/2026-10-23-unified-device-sheet/requirements.md` and `specs/2026-10
   - **Accept**: sheet lists receivers via `ReceiverRowBinder`, sessions nested per `DeviceSessionGrouper`; tapping a session opens its player activity (same intent as `PlayerListItemClickListener`); status updates live while open and stop on dismiss; reuses the existing `RendererStatusMonitor`
   - **Verify**: `./gradlew :yaacc:assembleDebug :yaacc:lintDebug`; manual on phone and TV emulator: open, select receiver, change volume, open a session, Back dismisses, D-pad reaches every control
   - **Constraints**: strings in all 7 locales (`values`, `-de`, `-es`, `-fr`, `-nl`, `-pt`, `-zh`); no new dependencies
-- [ ] Make the bottom-bar receiver area open the sheet | `yaacc/src/main/res/layout/fragment_content_list.xml`, `yaacc/src/main/res/layout-land/fragment_content_list.xml`, `ContentListFragment.java`
-  - **Accept**: tapping or D-pad-selecting `contentListCurrentReceivers` opens the sheet in portrait and landscape; the label updates after the sheet changes the selection
-  - **Verify**: `./gradlew :yaacc:assembleDebug`; manual on phone (both orientations) and TV
-  - **Constraints**: don't anchor anything new to views that can be `GONE` (see the GONE-anchor fixes from 5.4.0)
+- [ ] Replace the two-line footer with a receiver bar that opens the sheet | `yaacc/src/main/res/layout/fragment_content_list.xml`, `yaacc/src/main/res/layout-land/fragment_content_list.xml`, `ContentListFragment.java`
+  - **Accept**: `contentListCurrentProvider` is removed from both layouts and from `ContentListFragment`; `contentListCurrentReceivers` shows the selected receivers' names with an expand indicator, and tapping or D-pad-selecting it opens the sheet in portrait and landscape; the bar updates after the sheet changes the selection
+  - **Verify**: `./gradlew :yaacc:assembleDebug :yaacc:lintDebug`; `grep -rn contentListCurrentProvider yaacc/src/main` returns nothing; manual on phone (both orientations) and TV
+  - **Constraints**: re-point every RelativeLayout anchor that referenced the provider view (portrait: `contentListBottomSeperator`'s `layout_above`; landscape: `contentListBottomSeperator`'s `layout_above` and `contentListCurrentReceivers`/`contentListCurrentProvider` chain) at views that are never `GONE` - see the GONE-anchor fixes from 5.4.0
 - [ ] Open the sheet when playing with no receiver selected | `BrowseContentItemAdapter.java`, `ContentListClickListener.java`
   - **Accept**: with no receiver selected, play / play-all / row tap opens the sheet instead of starting `ContentItemPlayTask`; once a receiver is selected the user can tap play again; the `PlayerService` toast stays as the fallback for non-UI callers
   - **Verify**: `./gradlew :yaacc:assembleDebug`; manual: deselect all receivers, tap play
