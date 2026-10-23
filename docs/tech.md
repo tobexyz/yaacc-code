@@ -724,14 +724,24 @@ Check both day and night on device.
   Because `getCurrentPlayers()` is a live view of a `HashMap`, the sheet
   should copy it, `new ArrayList<>(...)`, on the main thread before
   building `DeviceSessionGrouper.PlayerRef`s.
-- **Side observation (out of scope).** `addPlayer` can run twice for the
-  same player: once from `createPlayer...` and once from
-  `onServiceConnected`. Each call adds another anonymous `"playing"`
-  listener that is never removed (`PlayerService.java:113-117`). This is
-  harmless today, because the listener is idempotent, but a new
-  notification hook inside `addPlayer` would fire twice for one player.
-  Make the hook fire only when `put(...)` returns null, meaning the player
-  is new to the map.
+- **Repeat calls in both directions. The future listener must ignore
+  them.**
+  - **Add twice.** `addPlayer` can run twice for the same player: once
+    from `createPlayer...` (`PlayerService.java:295, 332`) and once from
+    `onServiceConnected` (`AbstractPlayer.java:159`,
+    `LocalImagePlayer.java:91`). Each call also adds another anonymous
+    `"playing"` listener that is never removed
+    (`PlayerService.java:113-117`). That is harmless today, because the
+    listener is idempotent, and out of scope here.
+  - **Remove twice.** `shutdown(Player)` (`PlayerService.java:519-525`)
+    removes the player from the map and then calls `player.onDestroy()`.
+    `AbstractPlayer.onDestroy()` calls `playerService.removePlayer(this)`
+    again (`AbstractPlayer.java:958-965`).
+  - So the hook fires **"added" only when `currentActivePlayer.put(...)`
+    returns null**, meaning the player is new to the map. It fires
+    **"removed" only when `currentActivePlayer.remove(...)` returns
+    non-null**, meaning the player was actually still in the map.
+    Otherwise one player start or stop would notify twice.
 
 ### 7. `DeviceSessionGrouper`: Group 1 state
 

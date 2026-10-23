@@ -17,11 +17,11 @@ Plan: `specs/2026-10-23-unified-device-sheet/requirements.md` and `specs/2026-10
   - **Constraints**: plain JVM, no Robolectric, no `android.*` imports
 
 ## Fix Group 1: Address review cycle 1
-- [ ] Tighten `DeviceSessionGrouperTest` | `yaacc/src/test/java/de/yaacc/browser/DeviceSessionGrouperTest.java`
+- [x] Tighten `DeviceSessionGrouperTest` | `yaacc/src/test/java/de/yaacc/browser/DeviceSessionGrouperTest.java`
   - **Accept**: (W1) a test with two playing sessions on one device expects the higher playerId, run with both input orders; (W2) the unknown-device grouping test uses interleaved playerIds across devices, so "just sort all unknown sessions by playerId" fails it; (Suggestion) list-index assertions are preceded by a size assertion, so every red failure is an `AssertionError`, not an `IndexOutOfBoundsException`
   - **Verify**: `./gradlew :yaacc:testDebugUnitTest` - only `DeviceSessionGrouperTest` fails, every failure an `AssertionError` (grep the test-results XML)
   - **Constraints**: test file only; the stub stays a stub
-- [ ] Correct `docs/tech.md` on double removal | `docs/tech.md`
+- [x] Correct `docs/tech.md` on double removal | `docs/tech.md`
   - **Accept**: the "Unified device sheet" player add/remove notes say removal can also happen twice (`shutdown(Player)` → `onDestroy()` → `removePlayer`, `AbstractPlayer.java:958-965`) and that the listener must fire only when `remove` returns non-null
   - **Verify**: `grep -n "958" docs/tech.md`
 

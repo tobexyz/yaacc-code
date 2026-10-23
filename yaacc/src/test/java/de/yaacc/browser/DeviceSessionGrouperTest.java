@@ -116,23 +116,27 @@ public class DeviceSessionGrouperTest {
 
     @Test
     public void unknownDevicesGetNoReceiverRowAndTheirSessionsStayContiguousPerDevice() {
+        // GONE_TOO's id (7) lies between GONE's ids (6, 9): an implementation
+        // that just sorts all unknown-device sessions by playerId would put
+        // 7 between 6 and 9 and split the GONE group.
         List<PlayerRef> players = Arrays.asList(
                 player(9, GONE, false),
-                player(4, GONE_TOO, true),
+                player(7, GONE_TOO, true),
                 player(6, GONE, true),
                 player(1, KITCHEN, false));
 
         List<String> rows = describe(DeviceSessionGrouper.group(
                 Collections.singletonList(KITCHEN), players));
 
+        assertEquals("one receiver row plus every session exactly once: " + rows, 5, rows.size());
         assertEquals(Arrays.asList("R:" + KITCHEN, "P:" + KITCHEN + ":1"), rows.subList(0, 2));
         List<String> trailing = rows.subList(2, rows.size());
-        assertEquals("every session must be listed exactly once", 3, trailing.size());
-        assertTrue(trailing.contains("P:" + GONE_TOO + ":4"));
+        assertTrue("missing GONE_TOO session 7: " + trailing, trailing.contains("P:" + GONE_TOO + ":7"));
         // Both GONE sessions next to each other, ascending playerId.
-        int first = trailing.indexOf("P:" + GONE + ":6");
-        assertTrue("missing GONE session 6: " + trailing, first >= 0);
-        assertEquals("P:" + GONE + ":9", trailing.get(first + 1));
+        int gone6 = trailing.indexOf("P:" + GONE + ":6");
+        int gone9 = trailing.indexOf("P:" + GONE + ":9");
+        assertTrue("missing GONE session 6: " + trailing, gone6 >= 0);
+        assertEquals("GONE sessions must be contiguous, 6 before 9: " + trailing, gone6 + 1, gone9);
         for (String row : trailing) {
             assertTrue("no receiver row for a device that isn't a receiver: " + row,
                     row.startsWith("P:"));
@@ -180,6 +184,20 @@ public class DeviceSessionGrouperTest {
         List<PlayerRef> players = Arrays.asList(playingMusic, player(7, LOCAL, false));
 
         assertSame(playingMusic, DeviceSessionGrouper.primarySession(LOCAL, players));
+    }
+
+    @Test
+    public void primarySessionPicksHighestPlayerIdAmongSeveralPlayingSessionsRegardlessOfInputOrder() {
+        // Players arrive in HashMap order, so the pick must not depend on
+        // which playing session comes first in the list.
+        PlayerRef olderPlaying = player(4, LOCAL, true);
+        PlayerRef newerPlaying = player(8, LOCAL, true);
+        PlayerRef newestIdle = player(9, LOCAL, false);
+
+        assertSame("lower id first", newerPlaying, DeviceSessionGrouper.primarySession(
+                LOCAL, Arrays.asList(olderPlaying, newerPlaying, newestIdle)));
+        assertSame("higher id first", newerPlaying, DeviceSessionGrouper.primarySession(
+                LOCAL, Arrays.asList(newestIdle, newerPlaying, olderPlaying)));
     }
 
     @Test
