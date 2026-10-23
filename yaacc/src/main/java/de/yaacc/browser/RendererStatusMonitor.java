@@ -31,12 +31,9 @@ import org.fourthline.cling.support.model.TransportInfo;
 import org.fourthline.cling.support.model.item.Item;
 
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -66,10 +63,9 @@ public class RendererStatusMonitor {
     private final Map<Device, RendererStatus> statusMap = new ConcurrentHashMap<>();
     private final ExecutorService executorService = Executors.newSingleThreadExecutor();
     private final HttpRequestSender httpRequestSender = new HttpRequestSender();
-    private final CopyOnWriteArrayList<StatusListener> listeners = new CopyOnWriteArrayList<>();
-    // Main thread only.
-    private final Set<Device> polledDevices = new HashSet<>();
-    private int generation;
+    // Listener/device/generation bookkeeping, unit-tested on the JVM. Main thread only.
+    private final MonitorSubscriptions<StatusListener, Device> subscriptions =
+            new MonitorSubscriptions<>(this::pollDevice);
 
     public interface StatusListener {
         void onStatusChanged(RendererStatus status);
@@ -94,14 +90,7 @@ public class RendererStatusMonitor {
      * polled yet. Subscribing an already subscribed listener only adds devices.
      */
     public void subscribe(StatusListener listener, Collection<? extends Device> devices) {
-        if (listener != null) {
-            listeners.addIfAbsent(listener);
-        }
-        for (Device device : devices) {
-            if (device != null && polledDevices.add(device)) {
-                pollDevice(device, generation);
-            }
-        }
+        subscriptions.subscribe(listener, devices);
     }
 
     /**
@@ -109,10 +98,7 @@ public class RendererStatusMonitor {
      * queued. Polling stops once no listener is left.
      */
     public void unsubscribe(StatusListener listener) {
-        listeners.remove(listener);
-        if (listeners.isEmpty()) {
-            generation++;
-            polledDevices.clear();
+        if (subscriptions.unsubscribe(listener)) {
             handler.removeCallbacksAndMessages(null);
         }
     }
@@ -122,7 +108,7 @@ public class RendererStatusMonitor {
     }
 
     private void pollDevice(Device device, int pollGeneration) {
-        if (pollGeneration != generation) {
+        if (!subscriptions.isCurrent(pollGeneration)) {
             return; // monitoring stopped since this poll was scheduled
         }
         Service avTransport = device.findService(new UDAServiceId("AVTransport"));
@@ -202,16 +188,11 @@ public class RendererStatusMonitor {
         statusMap.put(device, status);
 
         handler.post(() -> {
-            if (pollGeneration != generation) {
-                return; // result of a poll from before monitoring stopped
+            // Dropped if from a poll before monitoring stopped; skips listeners
+            // that unsubscribed earlier in the loop.
+            if (subscriptions.deliver(pollGeneration, listener -> listener.onStatusChanged(status))) {
+                scheduleNextPoll(device, pollGeneration);
             }
-            for (StatusListener listener : listeners) {
-                // Skip listeners that unsubscribed earlier in this loop.
-                if (listeners.contains(listener)) {
-                    listener.onStatusChanged(status);
-                }
-            }
-            scheduleNextPoll(device, pollGeneration);
         });
     }
     

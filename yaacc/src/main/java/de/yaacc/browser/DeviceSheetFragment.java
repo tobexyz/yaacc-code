@@ -46,10 +46,11 @@ import de.yaacc.upnp.UpnpClient;
  * Bottom sheet listing every receiver with its device controls and, under
  * each, the yaacc players running on it (spec 2026-10-23-unified-device-sheet).
  * <p>
- * While its view exists it is subscribed to the shared
+ * While started (visible) it is subscribed to the shared
  * {@link RendererStatusMonitor}, to player add/remove events and to a 2 s
- * local-device poll; all three are dropped in {@link #onDestroyView()}, and
- * callbacks that still arrive afterwards are ignored. An in-app dialog only:
+ * local-device poll; all three are dropped in {@link #onStop()} (and in
+ * {@link #onDestroyView()} as a backstop), and callbacks that still arrive
+ * afterwards are ignored. An in-app dialog only:
  * nothing is exported and it is opened only through {@link #show(FragmentManager)}.
  * See {@code docs/tech.md}, "Unified device sheet", for the Material API details.
  */
@@ -63,6 +64,10 @@ public class DeviceSheetFragment extends BottomSheetDialogFragment {
     // Non-null exactly while the view exists; every callback checks it.
     private DeviceSheetAdapter adapter;
     private boolean sheetStateApplied;
+    // True between startLiveUpdates and stopLiveUpdates; prevents a double subscribe.
+    private boolean liveUpdatesRunning;
+    // The list was just built in onViewCreated; the first onStart needn't rebuild it.
+    private boolean listFresh;
 
     private final RendererStatusMonitor.StatusListener statusListener = status -> {
         if (adapter != null) {
@@ -70,8 +75,9 @@ public class DeviceSheetFragment extends BottomSheetDialogFragment {
         }
     };
 
-    // Holds only the adapter field of this fragment, and is unregistered in
-    // onDestroyView, so PlayerService never keeps a dead sheet alive.
+    // An inner class, so it references this fragment; it is unregistered in
+    // onStop (and onDestroyView as a backstop), so PlayerService never keeps
+    // a stopped or dead sheet alive.
     private final PlayerListChangeNotifier.Listener playerListListener = new PlayerListChangeNotifier.Listener() {
         @Override
         public void onPlayerAdded(Player player) {
@@ -91,7 +97,7 @@ public class DeviceSheetFragment extends BottomSheetDialogFragment {
     private final Runnable localPoller = new Runnable() {
         @Override
         public void run() {
-            if (adapter == null) {
+            if (!liveUpdatesRunning || adapter == null) {
                 return;
             }
             adapter.refreshLiveState();
@@ -140,10 +146,7 @@ public class DeviceSheetFragment extends BottomSheetDialogFragment {
         }
         list.setAdapter(adapter);
         adapter.refresh();
-
-        RendererStatusMonitor.getShared().subscribe(statusListener, upnpClient.getDevicesProvidingAvTransportService());
-        upnpClient.addPlayerListChangeListener(playerListListener);
-        handler.postDelayed(localPoller, LOCAL_POLL_INTERVAL_MS);
+        listFresh = true;
     }
 
     @Override
@@ -154,15 +157,19 @@ public class DeviceSheetFragment extends BottomSheetDialogFragment {
             sheetStateApplied = true;
             applyInitialSheetState();
         }
+        startLiveUpdates();
+    }
+
+    @Override
+    public void onStop() {
+        // Home, or a player activity opened on top: no network polling while hidden.
+        stopLiveUpdates();
+        super.onStop();
     }
 
     @Override
     public void onDestroyView() {
-        handler.removeCallbacks(localPoller);
-        RendererStatusMonitor.getShared().unsubscribe(statusListener);
-        if (upnpClient != null) {
-            upnpClient.removePlayerListChangeListener(playerListListener);
-        }
+        stopLiveUpdates(); // backstop; normally already stopped in onStop
         if (adapter != null) {
             adapter.release(); // stops the binder's executor thread
             adapter = null;
@@ -173,6 +180,38 @@ public class DeviceSheetFragment extends BottomSheetDialogFragment {
             list.setAdapter(null);
         }
         super.onDestroyView();
+    }
+
+    /**
+     * Subscribes to the shared {@link RendererStatusMonitor} (which polls each
+     * receiver right away), to player add/remove events, and starts the 2 s
+     * local poll. Coming back after {@link #onStop()}, the list is rebuilt
+     * once first, since players may have started or ended meanwhile.
+     */
+    private void startLiveUpdates() {
+        if (liveUpdatesRunning || adapter == null || upnpClient == null) {
+            return;
+        }
+        liveUpdatesRunning = true;
+        if (!listFresh) {
+            adapter.refresh();
+        }
+        listFresh = false;
+        RendererStatusMonitor.getShared().subscribe(statusListener, upnpClient.getDevicesProvidingAvTransportService());
+        upnpClient.addPlayerListChangeListener(playerListListener);
+        handler.postDelayed(localPoller, LOCAL_POLL_INTERVAL_MS);
+    }
+
+    private void stopLiveUpdates() {
+        if (!liveUpdatesRunning) {
+            return;
+        }
+        liveUpdatesRunning = false;
+        handler.removeCallbacks(localPoller);
+        RendererStatusMonitor.getShared().unsubscribe(statusListener);
+        if (upnpClient != null) {
+            upnpClient.removePlayerListChangeListener(playerListListener);
+        }
     }
 
     /**
