@@ -7,7 +7,7 @@ layout: default
 } -->
 
 * TOC
-  {:toc}
+{:toc}
 
 # Features
 
@@ -20,6 +20,8 @@ layout: default
 * Use your device as an proxy if your media renderer can't process https media URLs
 * Download files to the device for offline access
 * A Shutdown timer stops the running players and the app after a given time
+* Sort browsed content by name or date, ascending or descending
+* Android TV support (leanback launcher)
 
 # Usage
 
@@ -50,6 +52,11 @@ Behind each content entry different symbols are showing the possible actions:
 * play all items on the same directory level
 
 At the bottom of the screen the currently selected sender and receiver is displayed.
+
+A toggle in the folder header lets you sort the current folder by name or date,
+ascending or descending. yaacc uses the server's own sort support when browsing
+a UPnP/DLNA server that offers it, falling back to sorting the results itself
+otherwise. The chosen sort order is remembered across app restarts.
 
 ![browse_music_folder](./screenshots/5.1.x/browse_music_folder.png){:height="30%" width="30%"}
 
@@ -248,7 +255,8 @@ is displayed.
 
 ![shutdown_timer](./screenshots/5.1.x/shutdown_timer.png){:height="30%" width="30%"}
 
-| [Screenshots](screenshots/) | [Settings](settings/) |  [About](about/) | [Code](doxygen/html/inherits.html)
+| [Screenshots](screenshots/) | [Settings](settings/) |  [About](about/) | [Code](doxygen/html/inherits.html) | [Legal Notice (Impressum)](https://schoenesnetz.de/pages/disclamer_license/about.en.html) | [Privacy Policy](privacy.html)
+
 
 
 

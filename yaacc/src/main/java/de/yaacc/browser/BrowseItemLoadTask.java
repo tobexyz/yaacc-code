@@ -21,9 +21,11 @@ import android.os.AsyncTask;
 import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.support.model.DIDLContent;
+import org.fourthline.cling.support.model.SortCriterion;
 
 import de.yaacc.R;
 import de.yaacc.Yaacc;
+import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.callback.contentdirectory.ContentDirectoryBrowseResult;
 
 public class BrowseItemLoadTask extends AsyncTask<Long, Integer, ContentDirectoryBrowseResult> {
@@ -47,8 +49,26 @@ public class BrowseItemLoadTask extends AsyncTask<Long, Integer, ContentDirector
 
         Long from = params[0];
         YaaccLogger.d(getClass().getName(), "loading from:" + from + " chunkSize: " + chunkSize);
-        return ((Yaacc) itemAdapter.getContext().getApplicationContext()).getUpnpClient().browseSync(itemAdapter.getNavigator().getCurrentPosition(), from, this.chunkSize);
+        UpnpClient upnpClient = ((Yaacc) itemAdapter.getContext().getApplicationContext()).getUpnpClient();
 
+        boolean attemptServerSort = itemAdapter.getSortMode() == BrowseContentItemAdapter.SortMode.DATE
+                && !itemAdapter.isServerSortRejected();
+        if (attemptServerSort) {
+            SortCriterion[] orderBy = new SortCriterion[]{new SortCriterion(itemAdapter.isDateAscending(), "dc:date")};
+            ContentDirectoryBrowseResult sortedResult = upnpClient.browseSync(itemAdapter.getNavigator().getCurrentPosition(), from, this.chunkSize, orderBy);
+            if (sortedResult != null && sortedResult.getUpnpFailure() == null) {
+                return sortedResult;
+            }
+            // Server actively rejected the sorted (orderBy-bearing) Browse
+            // request -- a legitimate UPnP action failure per the
+            // ContentDirectory spec, not necessarily a silently-ignored
+            // SortCriteria. Remember this for the folder's remaining chunk
+            // requests and fall through to the unsorted retry below rather
+            // than emptying the folder.
+            YaaccLogger.d(getClass().getName(), "Server rejected sorted (dc:date) Browse request; falling back to unsorted and remembering rejection for this folder load.");
+            itemAdapter.markServerSortRejected();
+        }
+        return upnpClient.browseSync(itemAdapter.getNavigator().getCurrentPosition(), from, this.chunkSize);
     }
 
     @Override

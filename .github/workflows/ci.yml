@@ -1,0 +1,39 @@
+name: CI
+
+# Validates every PR against develop (including Dependabot's own PRs)
+# before it can be merged - see the required status check configured
+# on the develop branch protection rule. Previously nothing ran until
+# *after* a merge (main.yml only triggers on push to develop), which is
+# why routine dependency bumps kept landing broken.
+
+on:
+  pull_request:
+    branches:
+      - develop
+  push:
+    branches:
+      - develop
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up JDK
+        uses: actions/setup-java@v6
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Change wrapper permissions
+        run: chmod +x ./gradlew
+
+      - name: Build and test
+        run: ./gradlew build

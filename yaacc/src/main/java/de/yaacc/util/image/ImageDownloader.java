@@ -24,7 +24,6 @@ import android.net.Uri;
 import android.util.DisplayMetrics;
 import de.yaacc.util.YaaccLogger;
 
-import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.MalformedURLException;
@@ -53,7 +52,18 @@ public class ImageDownloader {
 
 
     /**
-     * Loads an image from the given URI and return a Bitmap that matches the requested size
+     * Loads an image from the given URI and return a Bitmap that matches the
+     * requested size. Downsamples during decode (issue #285) rather than
+     * decoding at native resolution and scaling down afterward: for a
+     * high-resolution source requested at a small size (a 50MP photo's
+     * thumbnail, say), the previous implementation here allocated and
+     * decoded the full-resolution bitmap regardless -
+     * {@code options.inSampleSize} was hardcoded to {@code 1}, and the
+     * {@code options.outWidth}/{@code outHeight} assignments below did
+     * nothing (those are {@link BitmapFactory} *output* fields, populated
+     * by a bounds-only decode - setting them before a real decode has no
+     * effect on it). See {@code ImageFragment} (the full-screen image
+     * viewer) for the same fix applied to the same underlying bug.
      *
      * @param imageUri  image location
      * @param reqWidth  width of result image
@@ -66,31 +76,33 @@ public class ImageDownloader {
         Bitmap bitmap = null;
 
         try {
-            InputStream is = getUriAsStream(imageUri);
             YaaccLogger.d(this.getClass().getName(), "image uri to load: " + imageUri.toString());
+            byte[] imageBytes = BitmapSampling.readAllBytes(getUriAsStream(imageUri));
+
+            BitmapFactory.Options boundsOptions = new BitmapFactory.Options();
+            boundsOptions.inJustDecodeBounds = true;
+            BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.length, boundsOptions);
+
             final BitmapFactory.Options options = new BitmapFactory.Options();
-            options.inJustDecodeBounds = false;
-            options.outWidth = reqWidth;
-            options.outHeight = reqHeight;
             options.inDensity = DisplayMetrics.DENSITY_DEFAULT;
-            options.inTempStorage = new byte[7680016];
-            options.inSampleSize = 1;
+            options.inSampleSize = BitmapSampling.computeInSampleSize(boundsOptions, reqWidth, reqHeight);
 
             YaaccLogger.d(this.getClass().getName(),
                     "displaying image size width, height, inSampleSize "
-                            + options.outWidth + "," + options.outHeight + ","
+                            + reqWidth + "," + reqHeight + ","
                             + options.inSampleSize);
             YaaccLogger.d(this.getClass().getName(), "free memory before image load: "
                     + Runtime.getRuntime().freeMemory());
 
 
-            bitmap = BitmapFactory.decodeStream(new FlushedInputStream(is),
-                    null, options);
+            bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.length, options);
             YaaccLogger.d(this.getClass().getName(), "free memory after image load: "
                     + Runtime.getRuntime().freeMemory());
 
 
-            // if the image must be rescaled its ratio must be recalculated
+            // The sampled decode above only gets within a power-of-two of
+            // the requested size - rescale to the exact requested
+            // dimensions (aspect-ratio-preserving), same as before.
             if (bitmap != null) {
                 int outWidth;
                 int outHeight;
@@ -140,30 +152,5 @@ public class ImageDownloader {
         YaaccLogger.d(getClass().getName(), "InputStream: " + is);
         return is;
     }
-
-    static class FlushedInputStream extends FilterInputStream {
-        public FlushedInputStream(InputStream inputStream) {
-            super(inputStream);
-        }
-
-        @Override
-        public long skip(long n) throws IOException {
-            long totalBytesSkipped = 0L;
-            while (totalBytesSkipped < n) {
-                long bytesSkipped = in.skip(n - totalBytesSkipped);
-                if (bytesSkipped == 0L) {
-                    int byte_ = read();
-                    if (byte_ < 0) {
-                        break; // we reached EOF
-                    } else {
-                        bytesSkipped = 1; // we read one byte
-                    }
-                }
-                totalBytesSkipped += bytesSkipped;
-            }
-            return totalBytesSkipped;
-        }
-    }
-
 
 }

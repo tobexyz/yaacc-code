@@ -1,6 +1,74 @@
 # YAACC Changelog
 
-## [Unreleased] - 2026-02-21
+## [5.4.0] - 2026-10-22
+
+### Added
+- **Sort by Name/Date (#252)**: Added a "Name"/"Date" sort toggle to the Content tab's folder header. Uses server-side UPnP `SortCriteria` (`-dc:date`) when the browsed server supports it, with a client-side fallback sort once a folder finishes loading for servers that don't. The Date option is disabled when a folder has no `dc:date` metadata at all. The chosen sort order is persisted across app restarts.
+- **Server-side Sort Honoring (#252)**: yaacc's own UPnP/DLNA server now honors the `SortCriteria` other apps/devices send when browsing yaacc's shared media, instead of silently ignoring it. `GetSortCapabilities` now advertises `dc:title,dc:date` instead of an empty list, and a `Browse` request for `+dc:title`/`-dc:title` (name) or `+dc:date`/`-dc:date` (date) returns music, images, video, and SAF-backed folder results in that order across every content type the server exposes. A request for an unsupported sort property is rejected with `UNSUPPORTED_SORT_CRITERIA` rather than being accepted and ignored. Browsing without `SortCriteria` is unaffected and keeps today's existing order.
+- **Android TV support (#244)**: Added a leanback launcher entry so yaacc can be launched from Android TV's home screen.
+
+### Fixed
+- **Play-all sort order**: "Play all from here" now follows the active on-screen sort order instead of silently reverting to the server's default order for every item after the one tapped.
+- **Path display**: Fixed the sort toggle overlapping the content list on the root folder, and several path-label layout/alignment bugs (server name not always shown, incorrect indentation in landscape).
+- **httpclient5/httpcore5 crash**: Reverted a dependency update that crashed on Android; pinned back to the last known-safe versions.
+- **Oversized bitmap decoding (#285)**: Several code paths (the full-screen image viewer, thumbnail/icon loading, and embedded album art decoding) decoded bitmaps at full native resolution with no downsampling, which was slow and could crash with `Canvas: trying to draw too large bitmap` for high-resolution photos (e.g. 50MP camera output). Bitmaps are now downsampled during decode instead of being decoded at native resolution and scaled down afterward.
+
+---
+
+## [5.3.0] - 2026-09-24
+
+### Added
+- Images are now displayed based on their EXIF orientation.
+
+### Changed
+- Volume/mute controls are now hidden when the device does not support them.
+
+### Fixed
+- Fixed icon tinting in light mode.
+- Fixed pause/stop/play on the local player.
+- Reduced flickering of volume controls and fixed volume percentage text misalignment.
+
+---
+
+## [5.2.0] - 2026-06-27
+
+### Added
+- Allow stopping the app via the action button in the notification.
+
+### Changed
+- Improved media type extraction and fallback title for SAF content.
+- Server now uses the media filename or title as the filename in the content URL.
+- Stop the app completely if idle in the background.
+
+### Fixed
+- Fixed app crash on unknown HTTP codes in UPnP responses.
+- Fixed pause/play on the yaacc renderer.
+
+---
+
+## [5.1.0] - 2026-05-17
+
+### Added
+- The network interface the app listens on is now selectable.
+- Allow usage of a local mobile hotspot.
+
+### Changed
+- Server control settings icon is now always visible in the server tab.
+
+### Fixed
+- General bug fixes (not itemized in the original release notes).
+
+---
+
+## [5.0.1] - 2026-04-09
+
+### Fixed
+- Fixed crash on startup if no network device is found.
+- Fixed problems with device lookup.
+
+---
+
+## [5.0.0] - 2026-02-21
 
 ### Added
 - **SAF Short ID System**: Implemented short numeric ID mapping to fix UPnP browsing errors caused by long ObjectIDs (97% size reduction)
@@ -82,7 +150,7 @@
 
 ## Migration Notes
 
-### From 4.4.1 to Unreleased
+### From 4.4.1 to 5.0.0
 1. **SAF Cache**: Existing cache entries will be automatically migrated on first access
 2. **Desktop Clients**: Clear UPnP client cache and re-browse YAACC server after update
 3. **Permissions**: Grant POST_NOTIFICATIONS permission when prompted (Android 13+)

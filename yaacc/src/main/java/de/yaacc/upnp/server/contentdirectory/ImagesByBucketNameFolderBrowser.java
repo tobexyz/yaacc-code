@@ -33,7 +33,9 @@ import org.fourthline.cling.support.model.item.Photo;
 import org.seamless.util.MimeType;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import de.yaacc.upnp.server.YaaccUpnpServerService;
 
@@ -103,8 +105,12 @@ public class ImagesByBucketNameFolderBrowser extends ContentBrowser {
                 MediaStore.Images.Media.SIZE, MediaStore.Images.Media.DATE_TAKEN};
         String selection = MediaStore.Images.Media.BUCKET_ID + "=?";
         String[] selectionArgs = new String[]{myId.substring(ContentDirectoryIDs.IMAGES_BY_BUCKET_NAME_PREFIX.getId().length())};
+        Map<String, String> columnMap = new HashMap<>();
+        columnMap.put(SortSupport.PROPERTY_TITLE, MediaStore.Images.Media.DISPLAY_NAME);
+        columnMap.put(SortSupport.PROPERTY_DATE, MediaStore.Images.Media.DATE_TAKEN);
         try (Cursor mImageCursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, projection, selection,
-                selectionArgs, MediaStore.Images.Media.BUCKET_DISPLAY_NAME + " ASC")) {
+                selectionArgs, SortSupport.toMediaStoreSortOrder(
+                        orderby, columnMap, MediaStore.Images.Media.BUCKET_DISPLAY_NAME + " ASC"))) {
             if (mImageCursor != null && mImageCursor.getCount() > 0) {
                 mImageCursor.moveToFirst();
                 int currentIndex = 0;
@@ -114,6 +120,8 @@ public class ImagesByBucketNameFolderBrowser extends ContentBrowser {
                         @SuppressLint("Range") String id = mImageCursor.getString(mImageCursor.getColumnIndex(MediaStore.Images.ImageColumns._ID));
                         @SuppressLint("Range") String name = mImageCursor.getString(mImageCursor.getColumnIndex(MediaStore.Images.ImageColumns.DISPLAY_NAME));
                         @SuppressLint("Range") Long size = Long.valueOf(mImageCursor.getString(mImageCursor.getColumnIndex(MediaStore.Images.ImageColumns.SIZE)));
+                        String dateTakenStr = mImageCursor.getString(mImageCursor.getColumnIndex(MediaStore.Images.Media.DATE_TAKEN));
+                        @SuppressLint("Range") Long dateTaken = dateTakenStr != null ? Long.valueOf(dateTakenStr) : null;
                         YaaccLogger.d(getClass().getName(),
                                 "Mimetype: " + mImageCursor.getString(mImageCursor.getColumnIndex(MediaStore.Images.ImageColumns.MIME_TYPE)));
                         MimeType mimeType = MimeType.valueOf(mImageCursor.getString(mImageCursor.getColumnIndex(MediaStore.Images.ImageColumns.MIME_TYPE)));
@@ -132,7 +140,8 @@ public class ImagesByBucketNameFolderBrowser extends ContentBrowser {
                             mimeType,
                             uri,
                             size,
-                            albumArtUri
+                            albumArtUri,
+                            dateTaken
                         );
 
                         result.add(photo);

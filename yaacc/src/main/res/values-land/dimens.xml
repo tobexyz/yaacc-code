@@ -1,3 +1,8 @@
 <resources>
     <dimen name="fab_margin">48dp</dimen>
+
+    <!-- layout-land/fragment_content_list.xml places contentListCurrentFolderName
+         BELOW the back button (stacked), not beside it, so it never needs to
+         clear the button's width horizontally - same small margin as root. -->
+    <dimen name="folder_name_margin_start_with_back">5dp</dimen>
 </resources>

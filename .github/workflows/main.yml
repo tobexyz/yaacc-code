@@ -27,9 +27,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Set Up JDK
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: 'zulu'
           java-version: '17'
@@ -39,26 +39,26 @@ jobs:
       - name: Run gradle build
         run: ./gradlew build
       - name: Upload APK Debug
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: YAACC - APK debug generated
           path: ./yaacc/build/outputs/apk/debug/yaacc-debug.apk
 
       # build pages
       - name: Setup Pages
-        uses: actions/configure-pages@v4
+        uses: actions/configure-pages@v6
       - name: Build with Jekyll
         uses: actions/jekyll-build-pages@v1
         with:
           source: ./docs
           destination: ./docs/_site
       - name: Doxygen Action
-        uses: mattnotmitt/doxygen-action@v1.9.8
+        uses: mattnotmitt/doxygen-action@v1.12.0
         with:
           doxyfile-path: ./Doxyfile
           working-directory: ./docs
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: ./docs/_site
 
@@ -74,5 +74,5 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4        
+        uses: actions/deploy-pages@v5        
       

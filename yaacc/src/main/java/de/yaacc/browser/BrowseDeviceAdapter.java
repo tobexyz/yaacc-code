@@ -313,7 +313,7 @@ public class BrowseDeviceAdapter extends RecyclerView.Adapter<BrowseDeviceAdapte
             android.util.TypedValue typedValue = new android.util.TypedValue();
             if (isActive) {
                 // Use accent/primary color for active state
-                context.getTheme().resolveAttribute(com.google.android.material.R.attr.colorPrimary, typedValue, true);
+                context.getTheme().resolveAttribute(androidx.appcompat.R.attr.colorPrimary, typedValue, true);
                 button.setColorFilter(typedValue.data);
             } else {
                 // Clear color filter to use default theme color

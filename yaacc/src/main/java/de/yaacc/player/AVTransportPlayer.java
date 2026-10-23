@@ -96,6 +96,7 @@ import de.yaacc.upnp.callback.connectionmanager.GetProtocolInfo;
 import de.yaacc.upnp.server.http.YaaccUpnpServerContentHttpHandler;
 import de.yaacc.util.InterfaceResolutionHelper;
 import de.yaacc.util.YaaccLogger;
+import de.yaacc.util.image.BitmapSampling;
 import de.yaacc.util.image.IconDownloadCacheHandler;
 import de.yaacc.util.image.ImageDownloader;
 
@@ -160,10 +161,29 @@ public class AVTransportPlayer extends AbstractPlayer {
         playerWrapper = new AVTransportPlayerWrapper(this, null);
         BitmapLoader bitmapLoader = new BitmapLoader() {
             @Override
+            public boolean supportsMimeType(String mimeType) {
+                return mimeType != null && mimeType.startsWith("image/");
+            }
+
+            @Override
             public ListenableFuture<Bitmap> decodeBitmap(byte[] data) {
+                // media3 hands this raw bytes it already fetched (e.g. a
+                // music file's embedded cover art) with no size hint of its
+                // own - decoding without downsampling allocates a full-
+                // resolution bitmap regardless of embedded-art dimensions,
+                // the same bug as issue #285 through a path that bypasses
+                // ImageDownloader entirely (it only ever sees a Uri, never
+                // raw bytes already in hand). Same 512x512 bound used by
+                // this file's other ImageDownloader call sites.
                 SettableFuture<Bitmap> future = SettableFuture.create();
                 try {
-                    Bitmap bitmap = android.graphics.BitmapFactory.decodeByteArray(data, 0, data.length);
+                    BitmapFactory.Options boundsOptions = new BitmapFactory.Options();
+                    boundsOptions.inJustDecodeBounds = true;
+                    BitmapFactory.decodeByteArray(data, 0, data.length, boundsOptions);
+
+                    BitmapFactory.Options decodeOptions = new BitmapFactory.Options();
+                    decodeOptions.inSampleSize = BitmapSampling.computeInSampleSizeForMaxDimension(boundsOptions, 512);
+                    Bitmap bitmap = BitmapFactory.decodeByteArray(data, 0, data.length, decodeOptions);
                     future.set(bitmap);
                 } catch (Exception e) {
                     future.setException(e);
@@ -176,7 +196,6 @@ public class AVTransportPlayer extends AbstractPlayer {
                 return loadBitmap(uri, null);
             }
 
-            @Override
             public ListenableFuture<Bitmap> loadBitmap(Uri uri, @Nullable BitmapFactory.Options options) {
                 YaaccLogger.e(getClass().getName(), "BitmapLoader.loadBitmap called with uri: " + uri);
 
@@ -323,7 +342,7 @@ public class AVTransportPlayer extends AbstractPlayer {
         new Handler(Looper.getMainLooper()).post(() -> {
             YaaccLogger.d(getClass().getName(), "Calling notificationManager.setPlayer()");
             notificationManager.setPlayer(playerWrapper);
-            notificationManager.setMediaSessionToken(media3Session.getSessionCompatToken());
+            notificationManager.setMediaSessionToken(media3Session.getPlatformToken());
             YaaccLogger.d(getClass().getName(), "PlayerNotificationManager setup complete");
         });
     }

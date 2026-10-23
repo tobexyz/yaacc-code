@@ -344,44 +344,14 @@ public class AVTransportPlayerWrapper implements Player {
     }
 
     @Override
-    public boolean hasPrevious() {
-        return avTransportPlayer.getCurrentItemIndex() > 0;
-    }
-
-    @Override
-    public boolean hasPreviousWindow() {
-        return false;
-    }
-
-    @Override
     public boolean hasPreviousMediaItem() {
         return avTransportPlayer.getCurrentItemIndex() > 0;
-    }
-
-    @Override
-    public void previous() {
-        avTransportPlayer.previous();
-    }
-
-    @Override
-    public void seekToPreviousWindow() {
-
     }
 
     @Override
     public boolean hasNextMediaItem() {
         return avTransportPlayer.getItems() != null &&
                 avTransportPlayer.getCurrentItemIndex() < avTransportPlayer.getItems().size() - 1;
-    }
-
-    @Override
-    public void next() {
-        avTransportPlayer.next();
-    }
-
-    @Override
-    public void seekToNextWindow() {
-
     }
 
     @Override
@@ -402,16 +372,6 @@ public class AVTransportPlayerWrapper implements Player {
     @Override
     public void seekToPrevious() {
         seekToPreviousMediaItem();
-    }
-
-    @Override
-    public boolean hasNext() {
-        return avTransportPlayer.getCurrentItemIndex() < avTransportPlayer.getItems().size() - 1;
-    }
-
-    @Override
-    public boolean hasNextWindow() {
-        return false;
     }
 
     @Override
@@ -784,6 +744,16 @@ public class AVTransportPlayerWrapper implements Player {
     @Override
     public void setDeviceMuted(boolean muted, int flags) {
         setDeviceMuted(muted);
+    }
+
+    @Override
+    public void mute() {
+        setDeviceMuted(true);
+    }
+
+    @Override
+    public void unmute() {
+        setDeviceMuted(false);
     }
 
     @Override
