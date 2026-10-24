@@ -729,3 +729,34 @@ Scope: re-check of the two cycle 1 Warnings against commit 6165278f (`docs/tech.
 
 ### Verdict: FAIL
 Both cycle 1 Warnings are resolved in the normative Group 6 text, and all other constraints are present and consistent. FAIL is only for the stale contradicting text in `docs/tech.md` (:925, :922/:1149-1158, :1140-1142). Once those lines are aligned, no further cycle needs code or design changes; a re-check of those lines should PASS.
+
+## Cycle 3 — 2026-10-24
+Reviewing: Group 5 (phase 2)
+
+Scope: re-check of the three stale passages that failed Cycle 2, against commit 055004e1 (`docs/tech.md`, `tasks.md` Group 10). Plan text only; no code changed.
+
+### Cycle 2 Warning status
+- **Summary table "forward a copy with `setComponent`": RESOLVED.** `docs/tech.md` row "Trampoline" now reads "forward a **fresh allowlisted intent** (never a copy of the incoming one)".
+- **Resume-check recipe: RESOLVED.** The summary row and the section (c) snippet now use `BrowserLauncher.effectiveLayout(prefs.getString(layoutKey, null))`, `RelaunchGuard.tryRelaunch()` (at most once per ~2 s, else stay and log) and `new Intent(this, BrowserLauncher.targetClass(this))`. A paragraph below the snippet explains the stored-"new"-while-unavailable loop. This matches `tasks.md` Group 6 Accept. The `getString(key, null)` default is retained.
+- **Idle timer "any browser `onResume()` cancels": RESOLVED.** tech.md now says the process-wide timer counts started browsers, arms only when the count reaches 0, and that plain cancel-on-resume is not enough (old browser's `onStop` can re-arm it). Matches `tasks.md` Group 6 and `decisions.md`.
+- Suggestions from Cycle 2 are both applied: step 5 of the grant analysis is labelled "analysis only"; the Group 10 constraint no longer lists the (f) body as open work.
+
+### Verification greps (docs/tech.md and the spec directory)
+- `forward a copy`, `setComponent`, `cancels it`, `browserIntent`, `LaunchHelper`, `stored layout`, `copy-with`: zero hits in `docs/tech.md`. In the spec, `tasks.md`, `design.md` and `requirements.md` have no hits either, apart from `tasks.md:143` ("nothing treats the stored layout string as a class name", a prohibition, so correct). Remaining hits are in review/security-review history and `decisions.md:113` (see Suggestion).
+- `new Intent(getIntent())` / `new Intent(in)`: only the Verify grep text in `tasks.md:118` and review history. The trampoline sample in tech.md (f) builds `new Intent(this, BrowserLauncher.targetClass(this))` and copies only `text/plain` and a capped `EXTRA_TEXT`; flags, data, ClipData URIs, `EXTRA_STREAM`/`EXTRA_INTENT`, selector, categories are excluded.
+- Remaining `getIntent()` and `cancel` mentions in tech.md (:1109, :1136, :1472) describe today's classic code or grant-mechanics analysis, not instructions.
+- `tasks.md` Groups 6-10 agree with tech.md: fresh allowlisted forward, effective-layout check with shared function, static loop guard, started-browser idle counter, scheme policy flagged as owner decision, Group 7 `exported="false"` with no `getIntent()`-derived launches, Group 8 empty fill-in, Group 9 no manifest/backup/permission changes.
+
+### Critical
+- None.
+
+### Warning
+- None.
+
+### Suggestion
+- [decisions.md:113] The 2026-10-24 "Phase 2 plan amended by the Group 5 research" entry still says "comparing the stored layout in each browser's `onResume`". The later entry "Security review of Group 5 amended the Group 6 plan" supersedes it (effective layout plus guard), but a skim reader could miss that. Add "(superseded: effective layout plus loop guard, see below)".
+- [Group 10] The scheme policy (http/https only) is still an owner decision pending. When it is decided, record the outcome in `docs/tech.md` as-built.
+- Carried forward, still open (outside this phase): `allowBackup`/preferences exposure; `PlayerService.getPlayer()` mutable view; `ImageDownloader` scheme allowlist and size cap; ignore remote devices whose UDN equals `LOCAL_UID`; per-request deadline in `RendererStatusMonitor`; bidi-control stripping in `ReceiverBarLabel`.
+
+### Verdict: PASS
+Zero Critical, zero Warning. The plan text (tasks.md Groups 6-10, tech.md, decisions.md) no longer instructs copying the incoming intent, comparing the raw stored layout without the guard, or relying on cancel-on-resume alone. Group 6 may start; the next security review is on the Group 6 code.
