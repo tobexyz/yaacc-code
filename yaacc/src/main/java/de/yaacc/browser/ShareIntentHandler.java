@@ -32,6 +32,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import de.yaacc.player.PlayableItem;
 import de.yaacc.player.Player;
@@ -59,7 +60,14 @@ public final class ShareIntentHandler {
     private final UpnpClient upnpClient;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
-    private boolean shutDown = false;
+    /** More queued shares than this are ignored: other apps can send intents in a loop. */
+    private static final int MAX_PENDING_SHARES = 3;
+
+    private final AtomicInteger pendingShares = new AtomicInteger();
+    // Not captured by the queued tasks: shutdown() clears it, so a destroyed activity is not
+    // kept alive (or told to switch tabs) by a share that is still waiting for receivers.
+    private volatile Runnable playersStartedCallback;
+    private volatile boolean shutDown = false;
 
     /**
      * @param appContext any context; only the application context is kept
@@ -91,7 +99,12 @@ public final class ShareIntentHandler {
                     + ShareUriPolicy.MAX_TEXT_LENGTH + " characters");
             return;
         }
+        if (pendingShares.get() >= MAX_PENDING_SHARES) {
+            YaaccLogger.w(TAG, "Ignoring shared link: too many shares are waiting");
+            return;
+        }
         final Uri uri = Uri.parse(text);
+        playersStartedCallback = onPlayersStarted;
 
         long delayedExecution = 0;
         if (upnpClient.getReceiverDevicesReadyCount() == 0) {
@@ -104,7 +117,14 @@ public final class ShareIntentHandler {
             delayedExecution += WAIT_FOR_PLAYER_SERVICE_MS;
         }
 
-        Runnable execution = () -> prepareAndPlay(uri, onPlayersStarted);
+        pendingShares.incrementAndGet();
+        Runnable execution = () -> {
+            try {
+                prepareAndPlay(uri);
+            } finally {
+                pendingShares.decrementAndGet();
+            }
+        };
         try {
             if (delayedExecution > 0) {
                 executor.schedule(execution, delayedExecution, TimeUnit.MILLISECONDS);
@@ -113,6 +133,7 @@ public final class ShareIntentHandler {
                 executor.execute(execution);
             }
         } catch (RejectedExecutionException e) {
+            pendingShares.decrementAndGet();
             YaaccLogger.w(TAG, "Share handler already shut down, ignoring shared link");
         }
     }
@@ -125,18 +146,19 @@ public final class ShareIntentHandler {
      */
     public void shutdown() {
         shutDown = true;
+        playersStartedCallback = null;
         executor.shutdown();
     }
 
     /** Worker thread. Nothing here may throw or log the shared link. */
-    private void prepareAndPlay(Uri uri, Runnable onPlayersStarted) {
+    private void prepareAndPlay(Uri uri) {
         try {
             if (upnpClient.getReceiverDevicesReadyCount() == 0) {
                 mainHandler.post(() -> Toast.makeText(appContext, "no receiver found using local device", Toast.LENGTH_LONG).show());
                 upnpClient.setReceiverDeviceIds(Set.of(UpnpClient.LOCAL_UID));
             }
             PlayableItem item = upnpClient.createPlayableItem(uri);
-            mainHandler.post(() -> play(item, onPlayersStarted));
+            mainHandler.post(() -> play(item));
         } catch (Exception e) {
             // not e.getMessage() or the exception itself: they may contain the shared link
             YaaccLogger.w(TAG, "Could not prepare shared content (" + e.getClass().getSimpleName() + ")");
@@ -144,7 +166,7 @@ public final class ShareIntentHandler {
     }
 
     /** Main thread. */
-    private void play(PlayableItem item, Runnable onPlayersStarted) {
+    private void play(PlayableItem item) {
         try {
             List<PlayableItem> items = new ArrayList<>();
             items.add(item);
@@ -152,8 +174,9 @@ public final class ShareIntentHandler {
             for (Player player : players) {
                 player.play();
             }
-            if (onPlayersStarted != null) {
-                onPlayersStarted.run();
+            Runnable callback = playersStartedCallback;
+            if (callback != null) {
+                callback.run();
             }
         } catch (RuntimeException e) {
             YaaccLogger.w(TAG, "Could not start shared content (" + e.getClass().getSimpleName() + ")");

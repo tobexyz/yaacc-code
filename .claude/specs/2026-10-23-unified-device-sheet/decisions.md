@@ -132,3 +132,7 @@ for later would leave the new layout without quick access to running players.
 - The idle exit counts started browsers (one process-wide timer).
 - The classic Server tab shows the running shutdown timer after rotation/tab re-creation (it showed blank before).
 - `decisions.md` entry 2026-10-24 "Security review of Group 5 amended the Group 6 plan" ("comparing the stored layout") is superseded: the check compares the effective layout.
+
+## 2026-10-24 - Share handler: waiting shares survive a rotation, without keeping the activity
+**Context**: security review cycle 1 (Group 6) Warning: a plain `executor.shutdown()` still runs delayed tasks, contradicting "shutdown cancels pending work", and the queued task held `this::showPlayers`, keeping a destroyed activity reachable for up to ~6 s.
+**Decision**: keep the graceful shutdown (a share must survive a rotation), accepted as a deliberate deviation from "cancel pending work"; the callback is held in a field that `shutdown()` clears, so the queue no longer pins the activity (and a share finishing after rotation does not switch tabs on a dead screen); at most 3 queued shares, extra ones ignored with a payload-free log. MediaProjection statics are `volatile`. Follow-ups, not in this phase: a timeout around `MediaMetadataRetriever#setDataSource`; stop logging the proxy target URI at DEBUG (`YaaccUpnpServerContentHttpHandler.java:775-777`); require `://` in `ShareUriPolicy` (Backlog 1 item 8).

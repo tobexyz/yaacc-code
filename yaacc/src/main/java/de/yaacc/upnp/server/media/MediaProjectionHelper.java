@@ -44,10 +44,10 @@ public class MediaProjectionHelper {
 
     public static final int REQUEST_CODE_MEDIA_PROJECTION = 2001;
 
-    private static MediaProjection mediaProjection;
-    private static MediaProjectionManager mediaProjectionManager;
-    private static int storedResultCode = Activity.RESULT_CANCELED;
-    private static Intent storedResultData = null;
+    private static volatile MediaProjection mediaProjection;
+    private static volatile MediaProjectionManager mediaProjectionManager;
+    private static volatile int storedResultCode = Activity.RESULT_CANCELED;
+    private static volatile Intent storedResultData = null;
 
     // Callback for when MediaProjection stops
     public interface MediaProjectionStopCallback {
