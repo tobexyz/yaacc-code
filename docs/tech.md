@@ -892,7 +892,7 @@ against the checkout on branch `feat/unified-device-sheet`. Line numbers are
 from that checkout and will move once Group 6 starts.
 
 Versions (nothing added): `yaacc/build.gradle:109-111` has `targetSdkVersion
-33`, `minSdkVersion 27`. `appcompat:1.8.0` (`yaacc/build.gradle:53`) resolves
+33`, `minSdkVersion 27`. `appcompat:1.8.0` (`yaacc/build.gradle:50`) resolves
 `androidx.activity:activity:1.8.0`, `androidx.fragment:fragment:1.5.4` and
 `androidx.core:core:1.16.0` (`./gradlew --offline :yaacc:dependencies
 --configuration debugRuntimeClasspath`). `androidx.preference:preference:1.2.1`

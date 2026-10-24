@@ -210,10 +210,14 @@ Top level (servers):                       Inside a server:
   launcher, Android TV and share (`ACTION_SEND text/plain`) intent filters,
   reads the setting, and forwards to the chosen activity. Internal launches
   (`Yaacc.java`, `PlayerService.java` x2) go through one helper.
-- Fragments stop casting their host to `TabBrowserActivity`: a small
-  `BrowserHost` interface (`showServers()`, `showContent()`, `showPlayers()`
-  or equivalent, found in the research group) is implemented by both
-  activities. In the new layout "players"/"receivers" map to the sheet.
+- Navigation goes through a small `BrowserHost` interface (`showServers()`,
+  `showContent()`, `showReceivers()`, `showPlayers()` plus capability
+  defaults) implemented by both activities. Only the *live* call sites use
+  it (`ServerListClickListener` and the share handler). The four fragment
+  branches that cast `getParent()` to `TabBrowserActivity` never run, so
+  they are deleted, not wired (Group 5 research, decisions.md 2026-10-24).
+  The new layout has its own back handling (`OnBackPressedDispatcher`) and
+  maps "receivers" to the sheet and "players" to the mini-player.
 - The share-intent handler (about 60 lines in `TabBrowserActivity`) moves to
   a shared helper so both activities use it.
 

@@ -115,3 +115,8 @@ for later would leave the new layout without quick access to running players.
 - Extract `ShareIntentHandler`, `ShutdownTimerController` and `StreamingPermissionHelper` in Group 6 (behavior-preserving), fixing the leaks they carry.
 - One process-wide idle timer.
 **Rationale**: keeps classic byte-for-byte, and moves refactors that only fix leaks ahead of the new activity.
+
+## 2026-10-24 - Process-wide idle timer is part of switching layouts (review W4)
+**Context**: the per-instance background idle timer in `TabBrowserActivity` cancels only its own callbacks on resume. When the resume check relaunches into the other layout, the finishing instance starts a 5-minute `Yaacc.exit()` that the new activity never cancels.
+**Decision**: one process-wide idle timer in Group 6, used by both activities. In the single-instance case classic behaves identically; the rotation case is fixed as a side effect.
+**Rationale**: required for the layout switch to be safe, so it is not optional scope; it is flagged to the owner anyway as a change to classic.

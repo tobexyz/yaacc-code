@@ -99,8 +99,8 @@ public class MiniPlayerPickerTest {
 
     @Test
     public void amongPlayingSessionsTheHighestSequenceWins() {
-        PlayerRef older = session(1, 3, TV, true);
-        PlayerRef newest = session(7, 900, KITCHEN, true);
+        PlayerRef older = session(1, 900, TV, true);
+        PlayerRef newest = session(7, 3, KITCHEN, true);
         PlayerRef middle = session(4, 50, TV, true);
 
         assertSame(newest, MiniPlayerPicker.pick(Arrays.asList(older, newest, middle)));
@@ -108,8 +108,8 @@ public class MiniPlayerPickerTest {
 
     @Test
     public void whenNothingPlaysTheHighestSequenceWins() {
-        PlayerRef older = session(1, 3, TV, false);
-        PlayerRef newest = session(7, 900, KITCHEN, false);
+        PlayerRef older = session(1, 900, TV, false);
+        PlayerRef newest = session(7, 3, KITCHEN, false);
         PlayerRef middle = session(4, 50, TV, false);
 
         assertSame(newest, MiniPlayerPicker.pick(Arrays.asList(older, newest, middle)));
