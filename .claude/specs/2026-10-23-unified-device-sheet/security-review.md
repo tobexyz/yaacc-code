@@ -1139,3 +1139,46 @@ Forward-looking requirements:
 
 ### Verdict: FAIL
 One Warning: the mini-player's per-poll `player.getIcon()` call re-queues an unthrottled, unbounded album-art download whenever the art is not in the 512x512 cache (404, hostile, slow), which lets a LAN media server drive a request stream and starve the shared content-load pool. Everything else holds: manifest, build and exported set unchanged; the layout preference is exact-match only and cannot be set by another app or intent; the relaunch path is single-computation with a shared loop guard; tap target, text rendering, executor, listener lifecycle, logging, timer and strings meet the Group 8 requirements. Fix the key/poll path and the next cycle should PASS.
+
+
+## Cycle 2 — 2026-10-24
+Reviewing: Group 8 (phase 2)
+
+Scope: `git show 3f3d9658` (`MiniPlayerBar.showArt`, `decisions.md`, cycle 1 text). Read in addition: `MiniPlayerBar` (bind/unbind/refresh/show/showArt), `MiniPlayerPicker`, `ReceiverBarController`, `ReceiverRowBinder` (art part), `IconDownloadTask`, `AVTransportPlayer#getIcon/#getAlbumArt/#isPlaying paths`, `AbstractPlayer#getIcon/#getAlbumArt`, `LocalMediaSessionPlayer`, `LocalImagePlayer`, `MultiContentPlayer`. Only `MiniPlayerBar.java` changed in code (no manifest, gradle, string or layout change).
+
+**1. Other getIcon()/art-download paths on the poll or refresh: none.**
+- `grep getIcon|IconDownloadTask|getAlbumArt` over `de.yaacc`: in the mini-player the only calls are in `MiniPlayerBar.showArt` (`getAlbumArt()` x1, `getIcon()` x1, `IconDownloadTask` x1). `MiniPlayerPresenter` and `MiniPlayerPicker` have no art code; `ReceiverBarController` is text only (`update()` runs on UPnP client events through the main handler, never touches players' art); `MiniPlayerBar.show()` calls `getCurrentItemTitle`, `getName`, `isPlaying`, `getDeviceId`, `getIconResourceId` (constant `R.drawable.ic_baseline_devices_32` in `AVTransportPlayer`, no side effect). `getAlbumArt()` in all five implementations returns a field or null (no I/O, no download).
+- `getIcon()` is reached only through `showArt` after the key compare, so it runs once per key change (poll, add/remove event or the 500 ms post-command refresh all land in the same `refresh() -> show() -> showArt()` and return early on an equal key). Honored.
+- Residual: one `getIcon()` (content pool, 512x512) plus one `IconDownloadTask` (AsyncTask, 48x48, different cache entry) per key = two downloads of the same URL per key change while the art is not cached. Bounded per key; see Suggestion.
+
+**2. Placeholder and late art: correct.**
+- `getIcon()` null first: the tinted placeholder (`getIconResourceId()`, or the app icon for `yaacc48_24_png`) is set, the tag is `artKey`, `IconDownloadTask(art, artKey)` runs; `onPostExecute` applies the bitmap only if `art.getTag()` equals `artKey`. A non-null `getIcon()` (cached 512 art or the device-icon fallback of `super.getIcon()`) is shown at once and the task still replaces it with the art.
+- Different featured player: key has another id, tag overwritten, the old result is dropped by the tag compare. Same player, new art URI (new track): key changes, same handling. Art URI becomes null on the same player: key `M:<id>:null`, placeholder shown, no task, the old task's result is dropped. `unbind()` sets the tag to null and clears `shownArtKey`; a hidden bar (`shownArtKey = null`) re-shows and re-requests only once on the next appearance.
+- Because the key no longer includes `getIcon() != null`, art that finishes downloading through `getIcon()`'s own download does not update the view by itself; the view relies on the `IconDownloadTask` of the same key, which is the intended path. No stale or wrong image is possible (every write is tag-guarded or happens in `showArt` itself).
+
+**3. Null art URI: nothing triggered.** `AVTransportPlayer#getIcon()` only queues a download inside `if (albumArtUri != null)` and `getAlbumArt()` returns that same field, so `artUri == null` implies no download there; `showArt` starts `IconDownloadTask` only for `artUri != null`; the other players return null or the plain field and never download in `getIcon()`. Honored. (A track change between the `getAlbumArt()` and `getIcon()` reads can make `getIcon()` fetch the new URI once; still once per key.)
+
+**4. Flipping A,B,A,B: bounded, not a Warning.**
+- Each flip changes `shownArtKey`, so each flip re-runs `showArt` for the newly featured player: 1 `getIcon()` download + 1 `IconDownloadTask` if its art is not cached; a cached (successfully loaded) art is a cache hit with no network. Failed or hanging art is never cached, so a flip re-requests it.
+- Rate: `refresh()` evaluates one featured player per call; the poll is every 2 s, other calls are player add/remove events and the 500 ms refresh after a user tap. One key change per refresh, so at most 2 requests per refresh. Sustained, driven by the poll alone: at most one flip per 2 s, i.e. 2 requests per 2 s when both players have uncached art, 1 per 2 s (2 per 4 s) when only one side has uncached art. This is the same order as the cycle 1 baseline for a single player, not worse.
+- Reachability: the picker is deterministic (playing first, then newest creation sequence, then higher id), so players that are both playing or both paused never flip. A flip needs `isPlaying` to alternate between two players in lockstep with the poll. A renderer can push its own player to not playing (PAUSED/STOPPED transport info), but a player becomes playing again only through Yaacc's own `Play`/`next()` actions (user taps, queue advance), not by the device's own reports, and the art URI is the one of the DIDL item the user chose, not renderer-controlled. A sustained lockstep alternation by a hostile device alone is therefore not reachable through a normal state; user-speed play/pause between two receivers flips at human speed. The `bind()`/`unbind()` cycle (activity start/stop) re-requests each uncached key once per start.
+- Hang case (no timeout in `ImageDownloader`): `IconDownloadTask.execute` runs on the serial AsyncTask executor, so hung tasks queue behind each other (no concurrent flood, at most one queued task per key change, each pinning the art `ImageView`); the `getIcon()` download runs on the shared 10-thread content pool, so about 10 hung key changes would occupy it. This needs the flip precondition above plus a hanging art URL; the missing connect/read timeout is the carried open item, and the mitigation below is not needed to close this cycle.
+- Cache of requested keys: not warranted as a Warning. A simple "requested keys" set that skips the task would break restoring the art when a player comes back (the view was overwritten by the other player); the right form is a small failed-key backoff (see Suggestion).
+
+**5. decisions.md: consistent.** The 2026-10-24 entry matches the code (key = player id + art URI, `getIcon()` read once per key) and lists the follow-ups that were not done (invisible/format characters, `ReceiverBarLabel` raw names, `ImageDownloader` scheme/timeout/size). No contradiction with earlier entries. Nit for Group 10: cycle 1 asked docs to say "no `getIcon()` on the poll path"; the as-built rule is "`getIcon()` once per key change".
+
+### Critical
+- None.
+
+### Warning
+- None.
+
+### Suggestion
+- [MiniPlayerBar.java:307] Drop `getIcon()` here entirely (cycle 1 allowed "or never"). The `IconDownloadTask` already loads the art, so `getIcon()` costs a second download of the same URL per key and keeps a side-effecting call in a UI path; show the placeholder/device icon until the task finishes.
+- [MiniPlayerBar.java:showArt] Optional hardening against flips and rebinds: remember failed keys with a time (for example a 10-entry `LinkedHashMap<String, Long>` per bar, no retry within 60 s) and skip the network call but still set the placeholder. Do not skip on "already requested" alone (a successful earlier load must be restored from `IconDownloadCacheHandler`, which the task already does).
+- [MiniPlayerBar.java:showArt] No unit test pins the "key has no dependence on `getIcon()`" rule (cycle 1 asked for a testable rule). Extract the key to a pure helper (for example in `MiniPlayerPresenter`) and assert it does not change with the icon state.
+- [Group 10 docs] Record the as-built rule "`getIcon()` at most once per art key; art otherwise only through `IconDownloadTask`" in `docs/tech.md`.
+- Carried, unchanged: `ImageDownloader` scheme allowlist (http/https), connect/read timeouts and byte cap; `IconDownloadTask` on the serial AsyncTask executor; the cycle 1 Suggestions (bidi/format characters, `ReceiverBarLabel`, receiver name negative cache, `shutdownNow`, `FLAG_CANCEL_CURRENT`), and all Group 9/10 forward-looking requirements of cycle 1.
+
+### Verdict: PASS
+Zero Critical, zero Warning. The cycle 1 Warning is closed: `getIcon()` is no longer on the poll path, it runs once per `player id + art URI` key, a null art URI triggers nothing, late art is tag-guarded and correct across player and art changes, and the worst-case flip rate (one key change per refresh, 2 requests per 2 s, only if players alternate their playing state in lockstep with the poll, which a device cannot drive alone) is not a sustained flood through a normal state. Group 8 may proceed.
