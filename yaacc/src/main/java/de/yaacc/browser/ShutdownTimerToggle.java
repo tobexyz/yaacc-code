@@ -26,19 +26,19 @@ package de.yaacc.browser;
 public final class ShutdownTimerToggle {
 
     /** The step to take. */
-    public enum Action { START, STOP, ASK_DURATION }
+    public enum Action { STOP, ASK_DURATION }
 
     private ShutdownTimerToggle() {
     }
 
     /**
-     * @param running          a timer is counting down
-     * @param configuredMillis the stored duration, 0 if none was set
+     * One toolbar icon does it all: a running timer is stopped by a tap, otherwise the duration
+     * picker opens and confirming it starts the timer. Starting straight from a stored duration
+     * is not offered, so a tap can never start (or, with 0, immediately fire) a timer unseen.
+     *
+     * @param running a timer is counting down
      */
-    public static Action decide(boolean running, long configuredMillis) {
-        if (running) {
-            return Action.STOP;
-        }
-        return configuredMillis > 0L ? Action.START : Action.ASK_DURATION;
+    public static Action decide(boolean running) {
+        return running ? Action.STOP : Action.ASK_DURATION;
     }
 }

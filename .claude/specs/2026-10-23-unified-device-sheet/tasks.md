@@ -159,6 +159,25 @@ Plan: `design.md` "Phase 2". Each group: build -> reviewer PASS -> security-revi
   - **Constraints**: do not document anything descoped or marked `[!]`; screenshots stay the owner's job; `docs/tech.md` is updated to as-built (the forward allowlist, share scheme policy and loop guard are already described in the plan text)
 - Status (Group 10): done 2026-10-24. `docs/index.md` (Layout setting, classic and new layout, mini-player, share note), `docs/settings.md` (layout row), `CHANGELOG.md` (Unreleased), `README.md` (one bullet) and `docs/tech.md` "Classic and new layout" (as-built section, manifest re-check, known limitations, Group 5 research kept as history) updated; the Group 9 manual-check task stays open.
 
+# Phase 2b: owner feedback after the first on-device check (2026-10-24)
+
+The owner tried Groups 1-10 on a phone and asked for three changes. Same gates as before: build -> reviewer -> security-reviewer.
+
+## Group 11: Feedback changes
+- [x] One shutdown-timer entry in the new layout's toolbar | `BrowserActivity.java`, `res/menu/activity_browser.xml`, `ShutdownTimerToggle.java`, `ShutdownTimerController.java`, strings x7
+  - **Accept**: only the toolbar icon exists (the overflow entry "Set shutdown timer" and its string are gone); tapping while running stops the timer; tapping while stopped opens the duration picker and confirming starts the timer (a 0 duration only stores it); classic's Server tab behavior unchanged
+  - **Verify**: `./gradlew :yaacc:assembleDebug :yaacc:testDebugUnitTest :yaacc:lintDebug`; `ShutdownTimerToggleTest` encodes the new decision
+  - **Constraints**: a tap can never start a 0-duration timer unseen; no other path that can start one
+  - **Status**: built 2026-10-24 (332 tests green, lint 189)
+- [ ] Classic layout shows the original static server/receiver footer, not the sheet | `ContentListFragment.java`, `res/layout/fragment_content_list.xml`, `res/layout-land/fragment_content_list.xml`, `BrowseContentItemAdapter.java`, `ContentListClickListener.java`, docs
+  - **Accept**: in the classic content browsing (host does not provide the receiver bar) the bottom shows exactly the original two static lines as on `origin/feat/issue287` (current provider's friendly name with its icon, and the selected receivers' names joined with "; " with its icon): not clickable, no chevron, no sheet; updated at the same moments as before (provider selection, receiver add/remove); the "no receiver selected opens the sheet" prompt is NOT active in classic (play/play-all/row tap behave exactly as on `origin/feat/issue287`); the new layout is unchanged (host-provided receiver bar + sheet, in-fragment footer hidden); portrait and landscape have no GONE-anchor regressions (the earlier landscape separator bugs must not return); the device sheet is no longer reachable from classic (it stays in the new layout only); PRD open question 4 is answered "no"
+  - **Verify**: `./gradlew :yaacc:assembleDebug :yaacc:testDebugUnitTest :yaacc:lintDebug`; compare the classic footer layout/code with `git show origin/feat/issue287:...`; `ReceiverBarLabel` tests green
+  - **Constraints**: tint compound drawables as the original did; do not touch the new layout's bar; docs/index.md, CHANGELOG.md and docs/tech.md describe the sheet as new-layout-only and the classic footer as the original static display
+- [ ] Mini-player shows all running players, not only the featured one | `MiniPlayerBar.java`, `res/layout/mini_player_bar.xml` (+ row layout), `res/layout/activity_browser.xml`, a plain-Java ordering helper with tests, strings x7 if any
+  - **Accept**: the new layout's bottom stack shows one compact row per running player (same row content and controls as today's single bar: art, title, receiver name, previous / play-pause / next / stop, tap opens that player); rows are ordered like the sheet's sessions (by creation sequence, oldest first, ties by player id); hidden when no player exists; with many players the list scrolls inside a capped height (about three rows) instead of pushing the content away; each row updates on `PlayerListChangeNotifier` events and the 2 s poll; commands run off the main thread; the album-art rule from the Group 8 security review holds per row (key = player id + art URI, `getIcon()` read once per key, no per-poll requests, no request flood when rows scroll or players flip)
+  - **Verify**: `./gradlew :yaacc:assembleDebug :yaacc:testDebugUnitTest :yaacc:lintDebug`; JVM tests (written first) for the ordering helper; `MiniPlayerPresenterTest` stays green
+  - **Constraints**: all Group 8 security constraints still apply per row (setText only, `IconDownloadTask` only, text cleaning, empty-fill-in notification intent tap, executor lifecycle, listener removal on unbind, `isAdded`/bound guards, picker/ordering get copies); D-pad reaches every row's buttons; content descriptions per row; `MiniPlayerPicker` may stay for the "featured" notion or be retired if unused (then delete it and its tests, do not leave dead code)
+
 # Backlog (not part of Groups 1-10; discuss with the owner before any work)
 
 ## Backlog 1: Improve the share feature

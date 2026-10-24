@@ -130,7 +130,6 @@
     <string name="shared_folders">selecteer gedeelde mappen</string>
     <string name="reset_shared_folders">gedeelde mappen opnieuw instellen</string>
     <string name="shutdown_timer">Uitschakeltimer</string>
-    <string name="shutdown_timer_set">Uitschakeltimer instellen</string>
     <string name="browser_servers_header">Servers</string>
     <string name="add_saf_content">bron toevoegen</string>
     <string name="clear_saf_cache">SAF-cache wissen</string>

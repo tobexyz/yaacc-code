@@ -31,18 +31,11 @@ public class ShutdownTimerToggleTest {
 
     @Test
     public void tapWhileRunningStopsTheTimer() {
-        assertEquals(Action.STOP, ShutdownTimerToggle.decide(true, 60_000L));
-        assertEquals(Action.STOP, ShutdownTimerToggle.decide(true, 0L));
+        assertEquals(Action.STOP, ShutdownTimerToggle.decide(true));
     }
 
     @Test
-    public void tapWhileStoppedStartsWithTheConfiguredDuration() {
-        assertEquals(Action.START, ShutdownTimerToggle.decide(false, 60_000L));
-    }
-
-    @Test
-    public void tapWithoutAConfiguredDurationAsksForOneInsteadOfExitingAtOnce() {
-        assertEquals(Action.ASK_DURATION, ShutdownTimerToggle.decide(false, 0L));
-        assertEquals(Action.ASK_DURATION, ShutdownTimerToggle.decide(false, -1L));
+    public void tapWhileStoppedAsksForTheDurationInsteadOfStartingUnseen() {
+        assertEquals(Action.ASK_DURATION, ShutdownTimerToggle.decide(false));
     }
 }

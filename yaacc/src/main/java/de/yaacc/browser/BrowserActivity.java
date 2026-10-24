@@ -286,10 +286,6 @@ public class BrowserActivity extends AppCompatActivity implements BrowserHost {
             toggleShutdownTimer();
             return true;
         }
-        if (item.getItemId() == R.id.menu_shutdown_timer_set) {
-            showShutdownTimerPicker();
-            return true;
-        }
         if (BrowserActivitySupport.handleCommonMenuItem(this, item)) {
             return true;
         }
@@ -300,23 +296,17 @@ public class BrowserActivity extends AppCompatActivity implements BrowserHost {
         if (shutdownTimerController == null) {
             return;
         }
-        switch (ShutdownTimerToggle.decide(shutdownTimerController.isRunning(), shutdownTimerController.configuredMillis())) {
-            case STOP:
-                shutdownTimerController.stop();
-                break;
-            case START:
-                shutdownTimerController.start();
-                break;
-            case ASK_DURATION:
-            default:
-                showShutdownTimerPicker();
-                break;
+        if (ShutdownTimerToggle.decide(shutdownTimerController.isRunning()) == ShutdownTimerToggle.Action.STOP) {
+            shutdownTimerController.stop();
+        } else {
+            showShutdownTimerPicker();
         }
     }
 
     private void showShutdownTimerPicker() {
         if (shutdownTimerController != null && !getSupportFragmentManager().isStateSaved()) {
-            shutdownTimerController.showPicker(getSupportFragmentManager(), getString(R.string.shutdown_timer));
+            // confirming the picker starts the timer; there is no second entry for it
+            shutdownTimerController.showPicker(getSupportFragmentManager(), getString(R.string.shutdown_timer), true);
         }
     }
 
