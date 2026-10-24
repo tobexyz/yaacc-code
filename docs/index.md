@@ -39,10 +39,10 @@ It allows to browse the content provided by the selected server.
 
 ![browse_servers](./screenshots/5.1.x/browse_servers.png){:height="30%" width="30%"}
 
-Before playing content make sure you have chosen a receiver, either on
-the receiver tab or in the device sheet that opens from the receiver bar
-at the bottom of the content tab (in the new layout: at the bottom of every
-screen), see [Receiver controls](#receiver-controls).
+Before playing content make sure you have chosen a receiver, on
+the receiver tab (in the new layout: in the device sheet that opens from the
+receiver bar at the bottom of every screen), see
+[Receiver controls](#receiver-controls).
 Receivers are either UPnP/DLNA media renderers in your network or the
 android device itself.
 
@@ -72,21 +72,21 @@ remote yet. There are no tabs. The screen shows one level at a time:
   The arrow in front of the path and the system back button go back one step at a
   time: from a folder to the parent folder, from the root of a server to the
   server list, and from the server list the app exits.
-* **Toolbar**: the timer symbol is the [shutdown timer](#shutdown-timer). Tap it to
-  start or stop the timer; while it runs the remaining time is shown next to the
-  symbol. If no duration is set yet, a tap opens the picker instead; the entry
-  "Set shutdown timer" in the overflow menu changes the duration at any time.
-  The overflow menu also has the settings, the log and the about page, and the exit
-  button quits the app.
+* **Toolbar**: the timer symbol is the [shutdown timer](#shutdown-timer) and its
+  only entry. While a timer runs, a tap stops it and the remaining time is shown
+  next to the symbol. Otherwise a tap opens the duration picker; confirming a
+  duration above 0 starts the timer. The overflow menu has the settings, the log
+  and the about page, and the exit button quits the app.
 * **Receiver bar**: at the bottom of every level. It shows the selected
   receivers; tap it to open the device sheet, see
   [Receiver controls](#receiver-controls).
-* **Mini-player**: directly above the receiver bar. It shows the most recently
-  started player that is playing (if none is playing, the most recently started
-  one) with its title, the receiver it plays on and the album art when available.
-  Use the buttons for previous, play/pause, next and stop. Tap the bar itself to
-  open the player screen. The mini-player is hidden when no player is running. The
-  other players, and the players of each receiver, are listed in the device sheet.
+* **Mini-player**: directly above the receiver bar. It shows every running player
+  as one compact row: the album art when available, the title, the name of the
+  receiver it plays on, and the buttons previous, play/pause, next and stop. Tap a
+  row itself to open that player's screen. The rows are in the same order as the
+  players in the device sheet (the one started first is on top). Up to about three
+  rows are visible; with more players the list scrolls inside the mini-player. The
+  mini-player is hidden when no player is running.
 
 ## Content browsing
 
@@ -100,9 +100,16 @@ Behind each content entry different symbols are showing the possible actions:
 
 The bread crumb starts with the name of the selected server. The arrow in front
 of it goes up one folder (in the new layout it also leaves the server at its
-root folder). At the bottom of
-the screen the receiver bar shows the names of the selected receivers;
-tap it to open the device sheet. If you start playing an item while no
+root folder).
+
+In the classic layout the bottom of the screen shows two lines: the name of the
+selected server and the names of the selected receivers (separated by "; "),
+each with its icon. They only display the current selection; choose the
+receivers on the receiver tab. Playing while no receiver is selected shows a
+message asking you to select one there.
+
+In the new layout the receiver bar at the bottom shows the names of the selected
+receivers; tap it to open the device sheet. If you start playing an item while no
 receiver is selected, the device sheet opens instead so you can choose one;
 then tap play again.
 
@@ -120,9 +127,9 @@ For example you are able to stream an image show with background music
 on your device, starting a movie on a TV or play music on a
 smart speaker at the same time.
 
-Each player is displayed in the player tab (classic layout), and in the device sheet under
-the receiver it plays on; the new layout shows the most recently started one in the
-mini-player instead of a player tab. Depending on the content type
+Each player is displayed in the player tab (classic layout). The new layout has
+no player tab: every running player has a row in the mini-player and is listed in
+the device sheet under the receiver it plays on. Depending on the content type
 and if the content is played by YAACC itself or a network device, the player ui differs.
 
 ![browse_player](./screenshots/5.1.x/browse_player.png){:height="30%" width="30%"}
@@ -151,11 +158,10 @@ Each renderer displays:
 You can control playback directly from the receiver tab without opening the player view.
 The controls work for both local playback and remote UPnP devices.
 
-The same receivers and controls are available from the content tab, without switching tabs:
-tap the receiver bar at the bottom (or select it with the D-pad) to open the device sheet.
-In the new layout there is no receiver tab; the receiver bar at the bottom of every
-screen opens the sheet.
-It lists every receiver with its checkbox, status, play/pause/stop, volume and mute controls,
+In the new layout there is no receiver tab: tap the receiver bar at the bottom of any
+screen (or select it with the D-pad) to open the device sheet. The classic layout does not
+have the sheet; use the receiver tab and the player tab there.
+The sheet lists every receiver with its checkbox, status, play/pause/stop, volume and mute controls,
 and under each receiver the YAACC players currently running on it, in the order they were started.
 Players on a device that is no longer in the receiver list are shown at the end.
 Tap a player to open its player view.
@@ -325,9 +331,9 @@ longer than 2048 characters are ignored.
 
 The shutdown timer stops all running players and the app after a certain time.
 The timer is settable and can be enabled at the bottom of the server list tab and the remaining time
-is displayed. In the new layout the timer is in the toolbar instead: tap the timer symbol to
-start or stop it (it opens the duration picker first if no duration is set), and use
-"Set shutdown timer" in the overflow menu to change the duration.
+is displayed. In the new layout the timer is the symbol in the toolbar instead: tap it
+while a timer runs to stop it (the symbol shows the remaining time); otherwise a tap opens the
+duration picker, and confirming a duration above 0 starts the timer.
 
 ![browse_servers](./screenshots/5.1.x/browse_servers.png){:height="30%" width="30%"}
 
