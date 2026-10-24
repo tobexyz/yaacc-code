@@ -72,7 +72,8 @@ public final class MiniPlayerPresenter {
 
     /**
      * Makes {@code untrusted} safe to show on one line: whitespace runs (including line breaks and
-     * tabs) become one space, control characters and bidirectional controls are dropped, the
+     * tabs) become one space, control characters, bidirectional controls and zero-width
+     * characters are dropped, the
      * result is trimmed and cut at {@link #MAX_TEXT_LENGTH} chars without splitting a surrogate
      * pair. Null becomes the empty string.
      */
@@ -86,7 +87,7 @@ public final class MiniPlayerPresenter {
         while (index < untrusted.length()) {
             int codePoint = untrusted.codePointAt(index);
             index += Character.charCount(codePoint);
-            if (Character.isWhitespace(codePoint) || Character.isSpaceChar(codePoint)) {
+            if (Character.isWhitespace(codePoint) || Character.isSpaceChar(codePoint) || codePoint == 0x85) {
                 pendingSpace = out.length() > 0;
                 continue;
             }
@@ -108,6 +109,8 @@ public final class MiniPlayerPresenter {
 
     private static boolean isBidiControl(int codePoint) {
         return codePoint == 0x200E || codePoint == 0x200F || codePoint == 0x061C
+                // invisible zero-width characters that make two titles look the same
+                || codePoint == 0x200B || codePoint == 0x2060 || codePoint == 0xFEFF
                 || (codePoint >= 0x202A && codePoint <= 0x202E)
                 || (codePoint >= 0x2066 && codePoint <= 0x2069);
     }

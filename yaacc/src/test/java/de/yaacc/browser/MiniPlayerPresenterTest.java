@@ -95,7 +95,7 @@ public class MiniPlayerPresenterTest {
     @Test
     public void bidiOverridesAndIsolatesAreRemoved() {
         // U+202E would reverse the text that follows; U+2066..2069 are isolates, U+200E/F marks
-        assertEquals("evil.mp3", MiniPlayerPresenter.cleanText("‮evil‬⁦.⁩m‎p‏3؜"));
+        assertEquals("evil.mp3", MiniPlayerPresenter.cleanText("\u202eevil\u202c\u2066.\u2069m\u200ep\u200f3\u061c"));
     }
 
     @Test
@@ -144,7 +144,7 @@ public class MiniPlayerPresenterTest {
 
     @Test
     public void titleMadeOnlyOfControlCharactersCountsAsBlank() {
-        assertEquals("fallback", MiniPlayerPresenter.title("‮\u0000", "fallback"));
+        assertEquals("fallback", MiniPlayerPresenter.title("\u202e\u0000", "fallback"));
     }
 
     // ---- receiver label ------------------------------------------------------------------
@@ -167,6 +167,23 @@ public class MiniPlayerPresenterTest {
 
     @Test
     public void receiverNameIsCleaned() {
-        assertEquals("TV evil", MiniPlayerPresenter.receiverLabel("TV\n‮evil", null));
+        assertEquals("TV evil", MiniPlayerPresenter.receiverLabel("TV\n\u202eevil", null));
+    }
+
+    @Test
+    public void nextLineBecomesASpace() {
+        assertEquals("a b", MiniPlayerPresenter.cleanText("a\u0085b"));
+    }
+
+    @Test
+    public void zeroWidthCharactersAreRemoved() {
+        // zero width space, word joiner, byte order mark: invisible, but they make titles differ
+        assertEquals("ab", MiniPlayerPresenter.cleanText("a\u200b\u2060\ufeffb"));
+    }
+
+    @Test
+    public void zeroWidthJoinerInAnEmojiSequenceIsKept() {
+        String family = "\ud83d\udc68\u200d\ud83d\udc69\u200d\ud83d\udc67";
+        assertEquals(family, MiniPlayerPresenter.cleanText(family));
     }
 }

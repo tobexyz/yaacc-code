@@ -54,6 +54,7 @@
             android:layout_width="48dp"
             android:layout_height="48dp"
             android:contentDescription="@string/mini_player_art"
+            android:importantForAccessibility="no"
             android:scaleType="centerCrop" />
 
         <LinearLayout

@@ -97,7 +97,7 @@ final class MiniPlayerBar implements PlayerListChangeNotifier.Listener {
     };
     private final Runnable refreshRunnable = this::refresh;
 
-    private boolean bound;
+    private volatile boolean bound;
     private ExecutorService commandExecutor;
     // what is shown, so an unchanged poll rebinds nothing and does not reload the art
     private Player featuredPlayer;
@@ -181,6 +181,9 @@ final class MiniPlayerBar implements PlayerListChangeNotifier.Listener {
         art.setTag(null);
         featuredPlayer = null;
         shownArtKey = null;
+        // a renamed device must not keep showing its old name after the next bind
+        shownReceiverDeviceId = null;
+        shownReceiverName = "";
     }
 
     // ---- PlayerListChangeNotifier.Listener (delivered on the main thread) ---------------------
@@ -202,6 +205,16 @@ final class MiniPlayerBar implements PlayerListChangeNotifier.Listener {
         if (!bound) {
             return;
         }
+        try {
+            refreshFromPlayers();
+        } catch (RuntimeException e) {
+            // a player changing under the poll (its item list is cleared by worker threads);
+            // the next poll tries again. Never log titles or names.
+            YaaccLogger.w(TAG, "Mini-player refresh skipped (" + e.getClass().getSimpleName() + ")");
+        }
+    }
+
+    private void refreshFromPlayers() {
         // The player service hands out its live collection; the picker only gets a copy.
         ArrayList<Player> players = new ArrayList<>(upnpClient.getCurrentPlayers());
         ArrayList<PlayerRef> refs = new ArrayList<>(players.size());
@@ -339,8 +352,10 @@ final class MiniPlayerBar implements PlayerListChangeNotifier.Listener {
                     // a player that is shutting down; nothing to tell the user
                     YaaccLogger.w(TAG, "Player command failed (" + e.getClass().getSimpleName() + ")");
                 }
-                // look again soon instead of waiting for the next poll; ignored once unbound
-                handler.postDelayed(refreshRunnable, REFRESH_AFTER_COMMAND_MS);
+                // look again soon instead of waiting for the next poll; skipped once unbound
+                if (bound) {
+                    handler.postDelayed(refreshRunnable, REFRESH_AFTER_COMMAND_MS);
+                }
             });
         } catch (RejectedExecutionException e) {
             YaaccLogger.d(TAG, "Player command ignored: bar is unbound");
