@@ -314,7 +314,8 @@ YAACC will not directly passed to the rendering device. YAACC generates a
 new http based URL which points to YAACC and send the to the receiver.
 When the content is played YAACC fetches the data from the origin through the
 encrypted https connection an passed the content unencrypted through the http
-connection to the rendering device.
+connection to the rendering device. Because the content then travels unencrypted
+to the rendering device, enable the proxy only on a network you trust.
 
 Only a link that starts with `http://` or `https://` can be shared with YAACC, and the
 shared text should be just that link. Shared files, other kinds of links and shared text

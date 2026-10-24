@@ -589,3 +589,30 @@ Verified true as built: top level server list with "Servers" header and refresh 
 
 ### Verdict: FAIL
 One Warning: a user-facing changelog claim ("shutdown timer ... was blank before" a rotation) that the previous code does not support, repeated in tech.md. Everything else checked is true as built. Fix the wording in CHANGELOG.md and docs/tech.md:241-243, then re-review (no other change needed).
+
+## Cycle 2 — 2026-10-24
+Reviewing: Group 10 (phase 2), commit cb869510 (re-review of the cycle 1 Warning and wording suggestions; `CHANGELOG.md`, `docs/tech.md`, `docs/index.md`, `decisions.md`, `review.md`). Docs only; Gradle not rerun (no code changed).
+
+Checked against the old code (`git show 3a289b8f:.../ServerListFragment.java`, `Yaacc.java`) and the current code (`ShutdownTimerController`, `Yaacc`, `ServerListFragment`):
+- Old `ServerListFragment` saved only the remaining-time text in `onSaveInstanceState` and restored it in `init`; it registered itself with `Yaacc.setShutdownTimerListener(this)` (a single listener field) and has no `onDestroyView`/clearing of that listener, so a destroyed fragment stayed registered. The new wording ("restored only the remaining-time text and held the destroyed fragment as the single listener (a leak)") is true.
+- Current code: `Yaacc` keeps `shutdownTimerRunning` and `shutdownTimerRemainingMillis` and a `CopyOnWriteArrayList` of listeners; `ShutdownTimerController.attach` registers and publishes the state from `Yaacc` immediately, `detach` removes it; `ServerListFragment` attaches/detaches around its view lifecycle. "Takes the state from the running timer, correct whenever the view is recreated (rotation, tab re-creation, layout switch), destroyed screen no longer kept alive" is true.
+- `grep -rn -i blank CHANGELOG.md docs/ decisions.md`: no remaining claim about the timer; only tech.md:1268 (unrelated "blank fillers" Unicode characters) and Doxyfile comments. No other "showed/was empty" timer claims.
+- Cycle 1 suggestions applied correctly: docs/index.md share note ("shared text should be just that link"), CHANGELOG "`file:` links, shared files, and URIs that arrive as clip data", tech.md one-slot cache wording. All consistent with the code per cycle 1.
+- Diff is limited to the five files above; no code, anchors, links or headings changed.
+
+### Critical
+- None.
+
+### Warning
+- None.
+
+### Suggestion
+- [docs/tech.md mini-player "Text"] The reworded line is now longer than the surrounding wrapped lines; cosmetic only.
+- Carried from cycle 1, still open and not blocking: split the long "New single-screen layout" CHANGELOG bullet.
+
+### Tests
+- [x] All tests passing (docs-only commit; no code changed since Group 9's 331+ green unit tests)
+- [x] Coverage adequate for the change (n/a, documentation)
+
+### Verdict: PASS
+The cycle 1 Warning is resolved: the shutdown timer claim now matches the old and the current code, and no other place repeats the "blank" claim.

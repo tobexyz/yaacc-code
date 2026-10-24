@@ -10,7 +10,7 @@
 - **Receiver bar**: The Content tab's two-line footer is now a single receiver bar showing the selected receivers' names. The current server's name is no longer shown there; it still starts the path label at the top.
 - **Sharing into yaacc**: Only `http` and `https` links are accepted (text up to 2048 characters). Shared `file:` links, shared files, and URIs that arrive as clip data no longer work, so a shared link cannot expose local files through the proxy option.
 - **Launcher entry**: The app now has a separate invisible launcher entry that forwards to the chosen layout, and it only passes on a shared link, nothing else of the incoming intent. There is no visible change.
-- **Idle exit**: One process-wide timer now quits the app after 5 minutes in the background with nothing running, instead of one timer per screen; a screen rotation or a layout change no longer leaves a stale timer behind.
+- **Idle exit**: One process-wide timer now quits the app after 5 minutes in the background when nothing is playing and the server, renderer and proxy options are off, instead of one timer per screen; a screen rotation or a layout change no longer leaves a stale timer behind.
 
 ### Fixed
 - **Receiver with several players**: When one receiver runs more than one yaacc player (e.g. an image show with background music), its row in the Receiver tab now always shows and opens the most recently started one that is playing (or, if none is playing, the most recently started one), instead of an arbitrary one.

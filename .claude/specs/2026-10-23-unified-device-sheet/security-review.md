@@ -1228,3 +1228,56 @@ None.
 
 ### Verdict: PASS
 Zero Critical, zero Warning. The preference stores one of two fixed values, is read in one place, is only compared, is private to the app, and cannot be written or driven by another app (the settings activity is not exported). The manifest and gradle diffs are empty. Group 9's preference task may proceed to Group 10.
+
+
+## Cycle 1 — 2026-10-24
+Reviewing: Group 10 (phase 2)
+
+Scope: `git diff 826471c6..HEAD -- docs README.md CHANGELOG.md` (commits 40294bcf, cb869510; `docs/index.md`, `docs/settings.md`, `docs/tech.md`, `CHANGELOG.md`, `README.md`). Docs only: no source, manifest or gradle change in these two commits. Each claim about a security property was checked against the code (`LauncherForwardPolicy`, `ShareUriPolicy`, `BrowserLauncher`, `MiniPlayerPresenter`, `MiniPlayerBar`, `ShareIntentHandler`) and against a regenerated merged debug manifest (`./gradlew :yaacc:processDebugManifest --offline`, parsed). No docs or code edited.
+
+**1. Leak scan: clean.**
+- The prescribed grep (`token|secret|password|api key|/home/|/tmp/|e-mail|claude.ai`) has zero hits over the diff. A second scan of the added lines for IPv4 addresses, `session_`, `/root`, `.internal`, `localhost`, the owner's name/domain, key material and cloud key prefixes has zero hits. The only URLs are `developer.android.com` reference links and the placeholder `http://a\nfile:///x`. The only path-like strings are `~/.gradle/caches/...` (home-relative, no user name) and public AOSP/GitHub raw URLs in the "Sources" list. No session URLs, no private hostnames.
+
+**2. Disclosure level: appropriate for a public open-source note.**
+- Share-hardening entry (CHANGELOG, index.md, tech.md "Share handler"): says what is now accepted and why ("a shared link cannot expose local files through the proxy option"). That issue is fixed in this branch; there are no steps, no endpoint format beyond the already public `/proxy/<hash>`, no intent recipe. Fine.
+- tech.md `ShareUriPolicy` note (`http:` and `http://a\nfile:///x` pass the scheme check): both strings keep the `http` scheme and cannot reach a `file:` source. It documents a looseness, not a bypass of the file protection. Fine.
+- tech.md "Known limitations": `allowBackup`, stale PendingIntents, `ImageDownloader` (any scheme the JVM handles, no timeout, no byte cap, serial AsyncTask), `setDataSource` timeout, name rendering. Each is one general sentence of impact and the follow-up. None gives a request, URL, payload or sequence that would exploit it, and the `ImageDownloader` entry has no recipe. The `ImageDownloader` weakness exists in released code, but the wording is the engineering level that the carried-forward items already had in the repo. Not a Warning.
+- The "Research notes (Group 5)" grant-forwarding analysis (`FLAG_GRANT_*`, `ActivityStarter`) is platform behavior analysis; the doc states the mitigation (fresh intent, flags never copied). No recipe against shipped code (the trampoline did not ship before this branch).
+
+**3. No insecure advice: honored.** The new text never tells users to enable the proxy, the media server or the renderer on any network, to disable a protection, or to grant a permission. The Layout text recommends nothing but a choice between two layouts and says classic stays the default (also on TV). The share paragraph tells users to share only the link. The Android TV and manual-check gaps are stated as unverified, not as safe.
+
+**4. Security statements are true as built.**
+- Launcher forward allowlist: `LauncherForwardPolicy.decide` forwards only `android.intent.action.SEND` + `text/plain` + non-empty text up to 2048 chars, exact case-sensitive compare; over-cap text is dropped, not truncated. Matches tech.md (forwarded and never-copied lists, "fresh Intent", `finally` + `finish()`).
+- http/https only: `ShareUriPolicy.isAllowed` compares the text before the first `':'` to `http`/`https` (ASCII, case-insensitive), length cap 2048, nothing trimmed. Matches index.md ("ignored"), CHANGELOG and tech.md. The pinning test `ShareUriPolicyTest#onlyTheSchemeAndLengthAreChecked` exists.
+- Merged manifest: `BrowserActivity` `exported="false"` and no filter; `SettingsActivity` no `exported` and no filter; `YaaccUpnpServerService` and `ImageViewerBroadcastReceiver` not exported; `TabBrowserActivity` exported with no filter; `LauncherActivity` exported. Exported set counted from the merged manifest = 12, same names as tech.md (`LauncherActivity`, `TabBrowserActivity`, `ImageViewerActivity`, `MusicPlayerActivity`, `AVTransportPlayerActivity`, `MultiContentPlayerActivity`, `AboutActivity`, `YaaccUpnpServerControlActivity`, `YaaccLogActivity`, `ServerAutostart`, `BluetoothValidationActivity`, `ProfileInstallReceiver`). 21 `uses-permission`. `allowBackup` unset in the merged manifest (default true), as documented. Source manifest last changed in e95c9a2b (Group 7); `build.gradle` unchanged since the phase start.
+- Mini-player text limits are stated honestly and match `MiniPlayerPresenter`: whitespace runs to one space, control characters dropped, the listed bidi/format characters (U+200E/F, 061C, 202A-E, 2066-9, 200B, 2060, FEFF) dropped, 200-UTF-16-unit cap without splitting a surrogate, ZWJ/ZWNJ kept; the "not stripped" list (tag characters, variation selectors, fillers, etc.) and the unneutralised names in `ReceiverBarLabel` are admitted.
+- CHANGELOG "Idle exit ... with nothing running" is a user-level shortening; tech.md states the full condition (no player, and local server, renderer and proxy all off).
+
+**5. Carried "Group 10 must" items: all satisfied.**
+- Key read only in `BrowserLauncher.effectiveLayout(Context)`: recorded ("One reader ... Do not add a second reader"); grep confirms `settings_browser_layout_key` appears only in `BrowserLauncher.java:77`.
+- Values `classic`/`new`, default `classic`, `BrowserLayoutValuesTest` pin, exact-match resolve, never a class name: recorded.
+- Switch only via `relaunchIfOtherLayout` (single `effectiveLayout` computation, fresh intent, `RelaunchGuard` one per 2000 ms): recorded; no relaunch in Settings.
+- Launcher forward/drop, scheme policy and cap, share-handler shutdown policy (graceful, callback cleared, 3 queued), loop guard, idle counter: recorded.
+- Mini-player policy (poll 2 s, executor lifecycle, `cleanText` rules and cap, art only via `IconDownloadTask`, `getIcon()` at most once per key change, none on the poll path): recorded, including the double download per key and the flip case.
+- Manifest re-check after the last code change: recorded in tech.md "As built: manifest" and independently re-run in this review with the same result.
+- `allowBackup` residual with the owner decision pending: recorded under "Known limitations / owner decisions".
+- Settings reachable in the new layout (overflow menu): recorded.
+- Android TV unverified (setting visible, default classic, recovery via Settings): recorded in tech.md and index.md.
+- Stale-notification duplicate and the `FLAG_ACTIVITY_REORDER_TO_FRONT` option: recorded.
+- Carried open items (`ImageDownloader` scheme/timeout/cap, `getPlayer()` mutable view, `LOCAL_UID` ingress, `RendererStatusMonitor` deadline, bidi in `ReceiverBarLabel`, listener leaks in `PlayerListFragment`/`ReceiverListFragment`, 0 ms timer): all listed.
+
+### Critical
+- None.
+
+### Warning
+- None.
+
+### Suggestion
+- [docs/index.md "Media proxy"] Unchanged text, but now that the section also describes share limits, add one sentence that the proxy serves the content unencrypted to every device on the local network, so it should only be enabled on a network you trust.
+- [docs/tech.md "Known limitations", `ImageDownloader`] Optionally reword "any URL scheme the JVM handles" to "schemes other than http and https" so the entry reads as a requirement ("restrict to http/https") rather than as an enumeration of what works today.
+- [CHANGELOG.md "Idle exit"] Optionally add "and the server, renderer and proxy options are off" to match the code and tech.md.
+- [docs/tech.md header] The section says it was verified against `e312ee8b`; the later commits are docs only, but Group 10's own closing note could cite the final code commit (`87b79d5f`) for the manifest re-check.
+- Carried forward, still open (outside this group): `allowBackup` decision; `ImageDownloader` scheme allowlist, timeouts, size cap; `MediaMetadataRetriever#setDataSource` timeout in the share worker; `LOCAL_UID` ingress filter; `RendererStatusMonitor` per-request deadline; bidi stripping in `ReceiverBarLabel`; `ShareUriPolicy` tightening (require `://`, reject whitespace/control characters).
+
+### Verdict: PASS
+Zero Critical, zero Warning. The public docs contain no secrets, internal hosts, user paths or session links. The limitations are stated at engineering level with no exploit recipe for an unfixed issue, nothing advises unsafe use, every security statement matches the code and the regenerated merged manifest (12 exported components, `BrowserActivity` and `SettingsActivity` not exported), and all Group 8, 9 and earlier "Group 10 must" items are recorded. Group 10 may be closed.
