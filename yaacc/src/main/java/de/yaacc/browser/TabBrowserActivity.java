@@ -17,18 +17,10 @@
  */
 package de.yaacc.browser;
 
-import android.Manifest;
-import android.content.ActivityNotFoundException;
-import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.content.pm.PackageManager;
 import android.graphics.drawable.Drawable;
-import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
-import android.os.PowerManager;
-import android.provider.Settings;
 import de.yaacc.util.YaaccLogger;
 import android.util.TypedValue;
 import android.view.ContextMenu;
@@ -45,8 +37,6 @@ import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.app.ActivityCompat;
-import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 import androidx.preference.PreferenceManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -61,9 +51,7 @@ import de.yaacc.Yaacc;
 import de.yaacc.settings.SettingsActivity;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.server.LocalServerLifecycle;
-import de.yaacc.util.AboutActivity;
 import de.yaacc.util.ThemeHelper;
-import de.yaacc.util.YaaccLogActivity;
 
 /**
  * Activity for browsing devices and folders. Represents the entrypoint for the whole application.
@@ -81,77 +69,10 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
     private UpnpClient upnpClient = null;
     private ShareIntentHandler shareIntentHandler = null;
 
-    //https://developer.android.com/about/versions/14/changes/partial-photo-video-access
-    private static String[] getPermissions() {
-        if (android.os.Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            return new String[]{
-                    Manifest.permission.INTERNET,
-                    Manifest.permission.ACCESS_WIFI_STATE,
-                    Manifest.permission.ACCESS_NETWORK_STATE,
-                    Manifest.permission.CHANGE_WIFI_STATE,
-                    Manifest.permission.CHANGE_WIFI_MULTICAST_STATE,
-                    Manifest.permission.WRITE_EXTERNAL_STORAGE,
-                    Manifest.permission.RECEIVE_BOOT_COMPLETED,
-                    Manifest.permission.WAKE_LOCK,
-                    Manifest.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
-                    Manifest.permission.READ_MEDIA_AUDIO,
-                    Manifest.permission.READ_MEDIA_IMAGES,
-                    Manifest.permission.READ_MEDIA_VIDEO,
-                    Manifest.permission.MANAGE_EXTERNAL_STORAGE,
-                    Manifest.permission.POST_NOTIFICATIONS
-
-            };
-        } else if (android.os.Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            return new String[]{
-                    Manifest.permission.INTERNET,
-                    Manifest.permission.ACCESS_WIFI_STATE,
-                    Manifest.permission.ACCESS_NETWORK_STATE,
-                    Manifest.permission.CHANGE_WIFI_STATE,
-                    Manifest.permission.CHANGE_WIFI_MULTICAST_STATE,
-                    Manifest.permission.WRITE_EXTERNAL_STORAGE,
-                    Manifest.permission.READ_EXTERNAL_STORAGE,
-                    Manifest.permission.RECEIVE_BOOT_COMPLETED,
-                    Manifest.permission.WAKE_LOCK,
-                    Manifest.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
-                    Manifest.permission.MANAGE_EXTERNAL_STORAGE
-            };
-        }
-        return new String[]{
-                Manifest.permission.INTERNET,
-                Manifest.permission.ACCESS_WIFI_STATE,
-                Manifest.permission.ACCESS_NETWORK_STATE,
-                Manifest.permission.CHANGE_WIFI_STATE,
-                Manifest.permission.CHANGE_WIFI_MULTICAST_STATE,
-                Manifest.permission.READ_EXTERNAL_STORAGE,
-                Manifest.permission.WRITE_EXTERNAL_STORAGE,
-                Manifest.permission.RECEIVE_BOOT_COMPLETED,
-                Manifest.permission.WAKE_LOCK,
-                Manifest.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
-
-        };
-
-    }
-
     @Override
     protected void onSaveInstanceState(@NonNull Bundle outState) {
         super.onSaveInstanceState(outState);
         outState.putInt(CURRENT_TAB_KEY, tabLayout.getSelectedTabPosition());
-    }
-
-    private boolean checkIfAlreadyhavePermission() {
-        for (String permission : getPermissions()) {
-            int permissionState = ContextCompat.checkSelfPermission(this, permission);
-            if (permissionState == PackageManager.PERMISSION_DENIED) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private void requestForSpecificPermission() {
-        ActivityCompat.requestPermissions(this, getPermissions(),
-                101);
-
     }
 
     @Override
@@ -191,13 +112,9 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
                 }
             }
         });
-        if (!checkIfAlreadyhavePermission()) {
-            requestForSpecificPermission();
-        } else {
-            YaaccLogger.d(getClass().getName(), "All permissions granted");
-        }
+        BrowserActivitySupport.requestMissingPermissions(this);
 
-        checkBatteryOptimizationEnabled();
+        BrowserActivitySupport.checkBatteryOptimizationEnabled(this);
 
         // local server startup
         upnpClient = ((Yaacc) getApplicationContext()).getUpnpClient();
@@ -216,21 +133,6 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
         shareIntentHandler = new ShareIntentHandler(getApplicationContext(), upnpClient);
         shareIntentHandler.handle(getIntent(), this::showPlayers);
         YaaccLogger.d(this.getClass().getName(), "on create took: " + (System.currentTimeMillis() - start));
-    }
-
-    private void checkBatteryOptimizationEnabled() {
-        Intent intent = new Intent();
-        String packageName = getPackageName();
-        PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
-        if (!pm.isIgnoringBatteryOptimizations(packageName)) {
-            intent.setAction(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
-            intent.setData(Uri.parse("package:" + packageName));
-        }
-        try {
-            startActivity(intent);
-        } catch (ActivityNotFoundException ex) {
-            YaaccLogger.d(getClass().getName(), "Ignoring exception ActivityNotFoundException during check for battery optimization");
-        }
     }
 
     @Override
@@ -295,34 +197,15 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
     public void onResume() {
         long start = System.currentTimeMillis();
         super.onResume();
-        if (relaunchIntoOtherLayout()) {
+        // starts the browser of the effective layout and finishes this one if the "Layout" setting
+        // no longer names the classic layout; the share payload was already handed to the share
+        // handler in onCreate and is not forwarded again
+        if (BrowserLauncher.relaunchIfOtherLayout(this, BrowserLayoutChoice.Layout.CLASSIC)) {
             return;
         }
         viewPager.setUserInputEnabled(getPreferences().getBoolean(getString(R.string.settings_swipe_chkbx), true));
         LocalServerLifecycle.apply(this, SettingsActivity.consumeLeftSettings());
         YaaccLogger.d(this.getClass().getName(), "on on resume took: " + (System.currentTimeMillis() - start));
-    }
-
-    /**
-     * Starts the browser of the effective layout and finishes this one if the "Layout" setting
-     * no longer names the classic layout. The new intent is fresh: the share payload was already
-     * handed to the share handler in {@code onCreate} and is not forwarded again.
-     *
-     * @return true if this activity is finishing and must skip the rest of {@code onResume}
-     */
-    private boolean relaunchIntoOtherLayout() {
-        if (!BrowserLayoutSwitch.shouldRelaunch(BrowserLayoutChoice.Layout.CLASSIC,
-                BrowserLauncher.effectiveLayout(this))) {
-            return false;
-        }
-        if (!RelaunchGuard.shared().tryRelaunch()) {
-            YaaccLogger.w(getClass().getName(), "Layout relaunch suppressed by the loop guard, staying on the classic layout");
-            return false;
-        }
-        startActivity(new Intent(this, BrowserLauncher.targetClass(this)));
-        overridePendingTransition(0, 0);
-        finish();
-        return true;
     }
 
     @Override
@@ -367,22 +250,7 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
      */
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
-        if (item.getItemId() == R.id.menu_exit) {
-
-            ((Yaacc) getApplicationContext()).exit();
-            return true;
-        }
-        if (item.getItemId() == R.id.menu_settings) {
-            Intent i = new Intent(this, SettingsActivity.class);
-            startActivity(i);
-            return true;
-        }
-        if (item.getItemId() == R.id.yaacc_about) {
-            AboutActivity.showAbout(this);
-            return true;
-        }
-        if (item.getItemId() == R.id.yaacc_log) {
-            YaaccLogActivity.showLog(this);
+        if (BrowserActivitySupport.handleCommonMenuItem(this, item)) {
             return true;
         }
         return super.onOptionsItemSelected(item);

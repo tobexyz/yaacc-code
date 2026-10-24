@@ -19,7 +19,10 @@ package de.yaacc.browser;
 
 import android.app.Activity;
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
+
+import java.util.Locale;
 
 import androidx.preference.PreferenceManager;
 
@@ -80,7 +83,42 @@ public final class BrowserLauncher {
 
     /** The browser activity class for the effective layout. */
     public static Class<? extends Activity> targetClass(Context context) {
-        // Group 7: return BrowserActivity.class when effectiveLayout(context) == Layout.NEW
+        return targetClass(effectiveLayout(context));
+    }
+
+    /**
+     * The browser activity class for an effective layout that the caller already computed, so a
+     * decision and the target derived from it cannot disagree.
+     */
+    public static Class<? extends Activity> targetClass(Layout effective) {
+        if (effective == Layout.NEW) {
+            return BrowserActivity.class;
+        }
         return TabBrowserActivity.class;
+    }
+
+    /**
+     * The resume-time (and, for the new layout, create-time) check of both browsers: if the
+     * effective layout is not the one {@code activity} renders, starts the browser of the effective
+     * layout with a fresh intent and finishes {@code activity} without animation. A static guard
+     * allows one relaunch per ~2 s, so a wrong decision cannot loop; when it trips the activity
+     * stays where it is and logs.
+     *
+     * @return true if {@code activity} is finishing and must skip the rest of its callback
+     */
+    public static boolean relaunchIfOtherLayout(Activity activity, Layout own) {
+        Layout effective = effectiveLayout(activity);
+        if (!BrowserLayoutSwitch.shouldRelaunch(own, effective)) {
+            return false;
+        }
+        if (!RelaunchGuard.shared().tryRelaunch()) {
+            YaaccLogger.w(TAG, "Layout relaunch suppressed by the loop guard, staying on the "
+                    + own.name().toLowerCase(Locale.ROOT) + " layout");
+            return false;
+        }
+        activity.startActivity(new Intent(activity, targetClass(effective)));
+        activity.overridePendingTransition(0, 0);
+        activity.finish();
+        return true;
     }
 }

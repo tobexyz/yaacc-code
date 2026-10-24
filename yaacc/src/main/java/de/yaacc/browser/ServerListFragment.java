@@ -63,6 +63,8 @@ public class ServerListFragment extends Fragment implements
     private StreamingPermissionHelper streamingPermissionHelper;
     private ShutdownTimerController shutdownTimerController;
     private ShutdownTimerController.Display shutdownTimerDisplay;
+    // true when the host shows the timer in its toolbar: top-level layout, no timer rows
+    private boolean hostProvidesShutdownTimer;
 
 
     /**
@@ -109,6 +111,10 @@ public class ServerListFragment extends Fragment implements
     public void onDestroyView() {
         // the display lambda holds this view hierarchy; the fragment instance can outlive it
         shutdownTimerDisplay = null;
+        // the client lives as long as the application and has no other way to forget us
+        if (upnpClient != null) {
+            upnpClient.removeUpnpClientListener(this);
+        }
         super.onDestroyView();
     }
 
@@ -232,29 +238,30 @@ public class ServerListFragment extends Fragment implements
             Intent intent = new Intent(getContext(), YaaccUpnpServerControlActivity.class);
             startActivity(intent);
         });
-        TextView shutdowwnRemainingTextView = view.findViewById(R.id.serverListShutdownTimerRemaining);
-        SwitchMaterial shutdownTimerSwitch = (SwitchMaterial) view.findViewById(R.id.serverListShutdownTimerEnabled);
-        shutdownTimerController = new ShutdownTimerController((Yaacc) requireActivity().getApplicationContext(),
-                getPreferences(), getString(R.string.settings_shutdown_timer));
-        // The display holds views, so the controller only keeps it between onStart and onStop
-        shutdownTimerDisplay = (millis, running) -> {
-            shutdowwnRemainingTextView.setText(FormatHelper.parseMillisToTimeStringTo(millis));
-            shutdownTimerSwitch.setChecked(running);
-        };
+        if (!hostProvidesShutdownTimer) {
+            TextView shutdowwnRemainingTextView = view.findViewById(R.id.serverListShutdownTimerRemaining);
+            SwitchMaterial shutdownTimerSwitch = (SwitchMaterial) view.findViewById(R.id.serverListShutdownTimerEnabled);
+            shutdownTimerController = new ShutdownTimerController((Yaacc) requireActivity().getApplicationContext(),
+                    getPreferences(), getString(R.string.settings_shutdown_timer));
+            // The display holds views, so the controller only keeps it between onStart and onStop
+            shutdownTimerDisplay = (millis, running) -> {
+                shutdowwnRemainingTextView.setText(FormatHelper.parseMillisToTimeStringTo(millis));
+                shutdownTimerSwitch.setChecked(running);
+            };
 
-        shutdownTimerSwitch.setOnClickListener(v -> {
-            if (shutdownTimerSwitch.isChecked()) {
-                shutdownTimerController.start();
-            } else {
-                shutdownTimerController.stop();
-            }
-        });
-        ImageButton shutdowwnSettingsImageView = view.findViewById(R.id.serverListSetShutdownTimer);
-        icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_settings_32, getContext().getTheme()), getContext().getTheme());
-        shutdowwnSettingsImageView.setImageDrawable(icon);
-        shutdowwnSettingsImageView.setOnClickListener(v ->
-                shutdownTimerController.showPicker(requireActivity().getSupportFragmentManager(), getString(R.string.shutdown_timer)));
-
+            shutdownTimerSwitch.setOnClickListener(v -> {
+                if (shutdownTimerSwitch.isChecked()) {
+                    shutdownTimerController.start();
+                } else {
+                    shutdownTimerController.stop();
+                }
+            });
+            ImageButton shutdowwnSettingsImageView = view.findViewById(R.id.serverListSetShutdownTimer);
+            icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_settings_32, getContext().getTheme()), getContext().getTheme());
+            shutdowwnSettingsImageView.setImageDrawable(icon);
+            shutdowwnSettingsImageView.setOnClickListener(v ->
+                    shutdownTimerController.showPicker(requireActivity().getSupportFragmentManager(), getString(R.string.shutdown_timer)));
+        }
 
         // add ourself as listener
         upnpClient.addUpnpClientListener(this);
@@ -295,7 +302,11 @@ public class ServerListFragment extends Fragment implements
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
 
-        return inflater.inflate(R.layout.fragment_server_list, container, false);
+        // The top-level layout of the new browser leaves the timer rows out: its toolbar has the timer.
+        hostProvidesShutdownTimer = getActivity() instanceof BrowserHost
+                && ((BrowserHost) getActivity()).providesShutdownTimer();
+        return inflater.inflate(hostProvidesShutdownTimer
+                ? R.layout.fragment_server_root : R.layout.fragment_server_list, container, false);
     }
 
     @Override
