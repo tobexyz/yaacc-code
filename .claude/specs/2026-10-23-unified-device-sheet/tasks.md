@@ -153,10 +153,11 @@ Plan: `design.md` "Phase 2". Each group: build -> reviewer PASS -> security-revi
 - Status (Group 9): preference built 2026-10-24 (72f337cf; general review PASS cycle 1; 332+ unit tests green; lint unchanged at 189). Manual checks (second task) still open with the owner. Stale notification PendingIntents (`Yaacc.createYaaccGroupNotification`, `PlayerService.createSessionActivity`) keep the old layout's class after a switch: a tap bounces to the right browser but may leave two instances on the stack; to be observed in the manual checks (candidate fix: `FLAG_ACTIVITY_REORDER_TO_FRONT` on the relaunch intent or rebuilding the notification on a layout change).
 
 ## Group 10: Documentation update
-- [ ] Update documentation for phase 2 | `docs/index.md`, `README.md` if user-facing text changed, `CHANGELOG.md`, `docs/tech.md`
+- [x] Update documentation for phase 2 | `docs/index.md`, `README.md` if user-facing text changed, `CHANGELOG.md`, `docs/tech.md`
   - **Accept**: docs describe the Layout setting, both layouts, the mini-player and the new top level; CHANGELOG Unreleased has Added/Changed entries; `docs/tech.md` is as-built
   - **Verify**: `grep -rn 'TODO\|FIXME\|PLACEHOLDER' docs/index.md docs/tech.md CHANGELOG.md || true` returns no plan-related placeholders
   - **Constraints**: do not document anything descoped or marked `[!]`; screenshots stay the owner's job; `docs/tech.md` is updated to as-built (the forward allowlist, share scheme policy and loop guard are already described in the plan text)
+- Status (Group 10): done 2026-10-24. `docs/index.md` (Layout setting, classic and new layout, mini-player, share note), `docs/settings.md` (layout row), `CHANGELOG.md` (Unreleased), `README.md` (one bullet) and `docs/tech.md` "Classic and new layout" (as-built section, manifest re-check, known limitations, Group 5 research kept as history) updated; the Group 9 manual-check task stays open.
 
 # Backlog (not part of Groups 1-10; discuss with the owner before any work)
 

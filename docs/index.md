@@ -16,24 +16,33 @@ layout: default
 * UPnP/DLNA Controller - control media renderer in the network
 * Control multiple media renderer
 * Allow download files to the device
-* Allow sharing of URLs and sending them to the current media renderers
+* Allow sharing of http and https links and sending them to the current media renderers
 * Use your device as an proxy if your media renderer can't process https media URLs
 * Download files to the device for offline access
 * A Shutdown timer stops the running players and the app after a given time
 * Sort browsed content by name or date, ascending or descending
 * Android TV support (leanback launcher)
+* Two layouts: the classic tabs (default) or a single screen with a mini-player, chosen in the settings
 
 # Usage
 
-On the first screen all UPnP/DLNA servers in your network are listed.
-Select one and the app will automatically switch to the content tab.
+YAACC has two layouts. The classic layout with tabs is the default. A new
+single-screen layout is available in the settings under *Appearance* >
+*Layout*: choose "Classic (tabs)" or "New (single screen)". The change takes
+effect when you return from the settings to the app screen; running players keep
+playing. This page describes the classic layout first, see
+[New layout](#new-layout-single-screen) for the single screen.
+
+In the classic layout all UPnP/DLNA servers in your network are listed on the
+first screen. Select one and the app will automatically switch to the content tab.
 It allows to browse the content provided by the selected server.
 
 ![browse_servers](./screenshots/5.1.x/browse_servers.png){:height="30%" width="30%"}
 
 Before playing content make sure you have chosen a receiver, either on
 the receiver tab or in the device sheet that opens from the receiver bar
-at the bottom of the content tab (see [Receiver controls](#receiver-controls)).
+at the bottom of the content tab (in the new layout: at the bottom of every
+screen), see [Receiver controls](#receiver-controls).
 Receivers are either UPnP/DLNA media renderers in your network or the
 android device itself.
 
@@ -41,7 +50,43 @@ android device itself.
 
 Normally senders and receivers will appear automatically.
 If not you can use the refresh button at the bottom of
-the sender and receiver tab to trigger a new search for devices.
+the sender and receiver tab to trigger a new search for devices
+(in the new layout: the refresh button in the "Servers" header).
+
+## New layout (single screen)
+
+Switch to it with *Settings* > *Appearance* > *Layout* > "New (single screen)".
+Switching back to "Classic (tabs)" works the same way. The classic layout stays
+the default, also on Android TV; the new layout has not been checked with a TV
+remote yet. There are no tabs. The screen shows one level at a time:
+
+* **Servers** is the top level. The "Servers" header has the refresh button to
+  search for devices again. Below it all UPnP/DLNA servers in your network are
+  listed; the YAACC entry has the live streaming buttons (see
+  [Live streaming](#live-streaming-android-10)). At the bottom are the YAACC
+  server switch with the button for the server settings, and the icons showing
+  whether the device acts as media provider, media renderer or proxy
+  (see [Media server](#media-server)). These bottom controls exist only on
+  this level.
+* **Content**: tap a server to browse it, see [Content browsing](#content-browsing).
+  The arrow in front of the path and the system back button go back one step at a
+  time: from a folder to the parent folder, from the root of a server to the
+  server list, and from the server list the app exits.
+* **Toolbar**: the timer symbol is the [shutdown timer](#shutdown-timer). Tap it to
+  start or stop the timer; while it runs the remaining time is shown next to the
+  symbol. If no duration is set yet, a tap opens the picker instead; the entry
+  "Set shutdown timer" in the overflow menu changes the duration at any time.
+  The overflow menu also has the settings, the log and the about page, and the exit
+  button quits the app.
+* **Receiver bar**: at the bottom of every level. It shows the selected
+  receivers; tap it to open the device sheet, see
+  [Receiver controls](#receiver-controls).
+* **Mini-player**: directly above the receiver bar. It shows the most recently
+  started player that is playing (if none is playing, the most recently started
+  one) with its title, the receiver it plays on and the album art when available.
+  Use the buttons for previous, play/pause, next and stop. Tap the bar itself to
+  open the player screen. The mini-player is hidden when no player is running. The
+  other players, and the players of each receiver, are listed in the device sheet.
 
 ## Content browsing
 
@@ -53,7 +98,9 @@ Behind each content entry different symbols are showing the possible actions:
 * play the item
 * play all items on the same directory level
 
-The bread crumb starts with the name of the selected server. At the bottom of
+The bread crumb starts with the name of the selected server. The arrow in front
+of it goes up one folder (in the new layout it also leaves the server at its
+root folder). At the bottom of
 the screen the receiver bar shows the names of the selected receivers;
 tap it to open the device sheet. If you start playing an item while no
 receiver is selected, the device sheet opens instead so you can choose one;
@@ -73,8 +120,9 @@ For example you are able to stream an image show with background music
 on your device, starting a movie on a TV or play music on a
 smart speaker at the same time.
 
-Each player is displayed in the player tab, and in the device sheet under
-the receiver it plays on. Depending on the content type
+Each player is displayed in the player tab (classic layout), and in the device sheet under
+the receiver it plays on; the new layout shows the most recently started one in the
+mini-player instead of a player tab. Depending on the content type
 and if the content is played by YAACC itself or a network device, the player ui differs.
 
 ![browse_player](./screenshots/5.1.x/browse_player.png){:height="30%" width="30%"}
@@ -105,6 +153,8 @@ The controls work for both local playback and remote UPnP devices.
 
 The same receivers and controls are available from the content tab, without switching tabs:
 tap the receiver bar at the bottom (or select it with the D-pad) to open the device sheet.
+In the new layout there is no receiver tab; the receiver bar at the bottom of every
+screen opens the sheet.
 It lists every receiver with its checkbox, status, play/pause/stop, volume and mute controls,
 and under each receiver the YAACC players currently running on it, in the order they were started.
 Players on a device that is no longer in the receiver list are shown at the end.
@@ -152,7 +202,7 @@ Stream your device's screen to TVs or displays:
 
 ### Enabling live streaming
 
-1. Go to the Server tab
+1. Go to the Server tab (in the new layout: the Servers screen)
 2. Find your local device in the list
 3. Tap the audio or video button
 4. Grant MediaProjection permission when prompted
@@ -224,7 +274,8 @@ YAACC uses modern Android APIs for better performance and system integration:
 ## Media server
 
 YAACC includes a media server service, which has to be enabled separately.
-A switch for this is located at the bottom of the server list tab.
+A switch for this is located at the bottom of the server list tab
+(in the new layout: at the bottom of the Servers screen).
 
 ![browse_servers](./screenshots/5.1.x/browse_servers.png){:height="30%" width="30%"}
 
@@ -242,8 +293,8 @@ All included files and folders are accessible for other devices in your network.
 
 ![server_control](./screenshots/5.1.x/server_control.png){:height="30%" width="30%"}
 
-The server control view is accessible through the YAACC entry in the server list tab or
-the YAACC server service notification.
+The server control view is accessible through the settings button next to the server
+switch at the bottom of the server list, or the YAACC server service notification.
 
 ## Media renderer
 
@@ -265,11 +316,16 @@ When the content is played YAACC fetches the data from the origin through the
 encrypted https connection an passed the content unencrypted through the http
 connection to the rendering device.
 
+Only links that start with `http://` or `https://` can be shared with YAACC. Shared
+files, other kinds of links and shared text longer than 2048 characters are ignored.
+
 ## Shutdown timer
 
 The shutdown timer stops all running players and the app after a certain time.
 The timer is settable and can be enabled at the bottom of the server list tab and the remaining time
-is displayed.
+is displayed. In the new layout the timer is in the toolbar instead: tap the timer symbol to
+start or stop it (it opens the duration picker first if no duration is set), and use
+"Set shutdown timer" in the overflow menu to change the duration.
 
 ![browse_servers](./screenshots/5.1.x/browse_servers.png){:height="30%" width="30%"}
 
