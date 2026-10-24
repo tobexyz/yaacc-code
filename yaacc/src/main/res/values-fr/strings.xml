@@ -139,4 +139,7 @@
     <string name="paused">EN PAUSE</string>
     <string name="stopped">ARRÊTÉ</string>
     <string name="no_media">PAS DE MÉDIA</string>
+    <string name="device_sheet_title">Lire sur</string>
+    <string name="receiver_bar_none_selected">Aucun récepteur sélectionné. Touchez pour choisir</string>
+    <string name="receiver_bar_description">Choisir les récepteurs</string>
 </resources>

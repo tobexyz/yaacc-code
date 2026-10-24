@@ -144,3 +144,156 @@ Sequence lifecycle, as requested:
 - [x] Coverage adequate for the change: sequence order versus id order, ties, re-add, remove, replacement, re-add after removal, null/unknown players, and both replacement notification paths are covered. The binder tap fix is verified by code reading; the Group 3 manual check should still tap the yaacc renderer row.
 
 ### Verdict: PASS
+
+## Cycle 1 — 2026-10-23
+Reviewing: Group 3 tasks (commit a42c8854; `git diff 02751ed0..a42c8854`)
+
+What I checked:
+- **Shared `RendererStatusMonitor` and the Receiver tab (deviation 1).** For the tab, polling and status delivery are equivalent to before, and in two ways stricter:
+  - Same listener body (`bDeviceAdapter.updateStatus`), same 10 s chain per device, subscribed in `onResume` and unsubscribed in `onPause`.
+  - The old `stopMonitoring()` only cleared handler callbacks, so a request already in flight still notified the tab and rescheduled itself. The new generation counter stops that.
+  - The old `startMonitoring()` on every resume could stack duplicate chains; `polledDevices` now dedupes them.
+
+  The one difference is that a second subscriber gets no immediate poll for devices that are already being polled. The tab and the sheet can't both be subscribed in practice: ViewPager2 caps off-screen tabs at STARTED, so the Receiver tab is paused whenever the Content tab is shown, and the sheet is modal. Neither one can unsubscribe the other, because subscriptions are per listener and polling stops only when the last one leaves. Each subscribe has a matching unsubscribe (tab `onResume`/`onPause`; sheet `onViewCreated`/`onDestroyView`), so I found no leaked subscription. The change is acceptable under "tabs unchanged", since nothing visible changed, but see the Warning about tests and the Suggestion about decisions.md.
+- **`UpnpClient` player-list listeners (deviation 2).** Duplicate calls are ignored in `UpnpClient` (`contains` check). `PlayerService` re-adds listeners on (re)bind with `addIfAbsent`, so a rebind registers nothing twice. On disconnect `playerService` is nulled and the listener list kept, so the dead service's notifier goes with it. All callers run on the main thread, and the list is a `CopyOnWriteArrayList`. The sheet's listener is removed in `onDestroyView`. Any caller that never removes its listener would be held for the app's lifetime, as the Javadoc warns.
+- **Layout anchors.** Portrait: `contentListBottomSeperator` sits above `contentListCurrentReceivers`, which is aligned to the parent bottom and never set GONE. `contentList` lies between the top and bottom separators, unchanged from before (the GONE top separator is a pre-existing case that `RelativeLayout` handles). Landscape: the bar now anchors only to its parent (start, end and bottom). The old `toStartOf="@id/contentListTopSeperator"` was a GONE anchor, because the vertical divider is hidden at root in `hideFolderNavigationControls`, and it is gone. `contentListBottomSeperator` sits above the bar. The divider's own `alignEnd` points at `contentListCurrentFolderName`, which is always VISIBLE. No anchor targets a view that can be GONE, and `grep contentListCurrentProvider yaacc/src/main` finds nothing.
+- **Sheet state.** `setFitToContents(false)` comes before `setHalfExpandedRatio`, `setSkipCollapsed(true)` and `setState`. The container is set to MATCH_PARENT. The state is applied once, in `onStart` after `super.onStart()`. It is `STATE_EXPANDED` when the UI mode is TV or the activity decor isn't in touch mode, and `HALF_EXPANDED` otherwise. When not in touch mode, initial focus goes to the first receiver's checkbox.
+- **Theme.** `ThemeOverlay.App.DeviceSheet` has parent `ThemeOverlay.MaterialComponents.BottomSheetDialog`. In the 1.14.0 AAR that overlay sets only window and `bottomSheetStyle` items, no colors. `Theme.MaterialComponents.DayNight.Bridge` resolves to `...Bridge` (dark `colorSurface`) under `values-night-v8` and to `...Light.Bridge` otherwise. So the sheet follows the app's night mode.
+- **No-receiver prompt.** It is wired into play, play-all (`BrowseContentItemAdapter`) and the item tap (`ContentListClickListener`), before `ContentItemPlayTask` starts or the loading spinner shows. Nothing else opens UI: the renderer path (`AvTransportMediaRendererPlaying` → `initializePlayers`) and the share-intent path in `TabBrowserActivity` don't call it, and the `PlayerService` toast is unchanged.
+- **Untrusted strings and art.** Untrusted strings go through `setText` only: the session name, title and orphan device id, and the receiver bar via `ReceiverBarLabel`. No layout has `autoLink`, and nothing calls `Html`/`Linkify`. Album art loads only through `IconDownloadTask`, with a per-row tag check.
+- **Recycling.** There are two view types with separate holders. Session binds reset both optional TextViews in both branches and set the art before the async load. Receiver rows are bound fully by `ReceiverRowBinder`. Stable ids (`R:`/`P:` prefixes) and DiffUtil keep focus across refreshes.
+- **Session order.** The sheet lists `DeviceSessionGrouper.group` rows in order, i.e. ascending creation sequence, **oldest first**. The code matches design.md; the builder's "newest first" was a wording slip, and that wording appears nowhere in the repo.
+- **Binder executor.** The executor is shut down in `onDestroyView` (`adapter.release()`), and `executeAction` checks `isShutdown()`, so a tap after close can't cause a `RejectedExecutionException`.
+
+### Critical
+- None.
+
+### Warning
+- [yaacc/src/main/java/de/yaacc/browser/DeviceSheetFragment.java:144-146, 160-165] **The sheet keeps polling while the app is in the background.** The monitor subscription and the 2 s local poller are tied to the view's lifetime (`onViewCreated`→`onDestroyView`), not to visibility. A DialogFragment keeps its view when the activity stops. So if the user leaves the sheet open and presses Home, or taps a session (which opens the player activity on top), the app keeps polling every renderer over the network every 10 s and runs the local poll every 2 s, indefinitely. The Receiver tab, which this replaces, stops in `onPause`. Fix: subscribe and start the poller in `onStart` (or `onResume`), unsubscribe and stop in `onStop` (or `onPause`), and keep the `onDestroyView` cleanup as a backstop. Re-subscribing triggers an immediate poll, so the sheet is fresh again when the user returns.
+- [yaacc/src/main/java/de/yaacc/browser/RendererStatusMonitor.java:95-121] **The shared subscribe/unsubscribe and generation logic has no tests,** although it now drives an existing screen (the Receiver tab) as well as the sheet. The cases that matter: per-device dedupe, polling stopping only when the last listener leaves, in-flight results dropped after a generation bump, and a listener removed mid-delivery. I verified these by reading only. Follow the `PlayerListChangeNotifier` precedent: move the listener/device/generation bookkeeping into a plain-Java helper (scheduling passed in as an `Executor`/scheduler) and unit-test it.
+
+### Suggestion
+- [.claude/specs/2026-10-23-unified-device-sheet/decisions.md] Record both builder deviations: the new app-wide `RendererStatusMonitor.getShared()` (there was no existing instance to reuse, as design.md had assumed) with the Receiver tab switched to it, and `UpnpClient` holding player-list listeners across rebinds. The planning workflow wants mid-flight decisions logged.
+- [yaacc/src/main/java/de/yaacc/browser/DeviceSheetAdapter.java:110-170] The sheet builds its receiver list only when it opens and when players are added or removed. A renderer that appears or disappears while the sheet is open isn't reflected, and a new device isn't added to the monitor subscription. Consider registering an `UpnpClientListener` (`deviceAdded`/`deviceRemoved`, posted to the main thread) that calls `refresh()` and re-subscribes.
+- [yaacc/src/main/java/de/yaacc/browser/BrowseContentItemAdapter.java:592-594] "Add to playlist" with no receiver selected and no player running still falls through to `initializePlayers`, which hits the `PlayerService` toast. It is outside this task's Accept list (play, play-all, row tap), but for consistency it could open the sheet too.
+- [yaacc/src/main/java/de/yaacc/browser/DeviceSheetFragment.java:73-74] The comment says the listener "holds only the adapter field". As an anonymous inner class it captures the whole fragment. That is harmless because it is unregistered in `onDestroyView`, but the comment is wrong.
+- Builder's manual checklist: change "newest first" to "oldest first (start order)" before the phone and TV checks, so the tester knows what to expect.
+
+### Tests
+- [x] All tests passing: `./gradlew :yaacc:assembleDebug :yaacc:testDebugUnitTest :yaacc:lintDebug` reports BUILD SUCCESSFUL, with 201 tests, 0 failures and 0 errors (`ReceiverBarLabelTest` adds 7). Lint's total is unchanged at 191. All hits in the changed files are on pre-existing lines (checked with `git blame`), so there are no new lint issues.
+- [ ] Coverage adequate for the change: there are no tests for the shared monitor bookkeeping (see Warning). The sheet, adapter and layouts are Android UI and are covered by the pending manual phone and TV checks in tasks.md, which still need to happen before the tasks are marked `[x]`.
+
+### Verdict: FAIL
+
+## Cycle 2 — 2026-10-23
+Reviewing: Group 3 tasks + Fix Group 3 (commit 49181bc7; `git diff 60c1bd7f..HEAD`)
+
+Resolution of cycle 1 findings:
+- **W1 (sheet polls while hidden): resolved.** `startLiveUpdates()` runs in `onStart` and `stopLiveUpdates()` in `onStop`, guarded by `liveUpdatesRunning`. `onDestroyView` still calls `stopLiveUpdates()` as a backstop. While the sheet is stopped, nothing keeps it subscribed: the monitor subscription, the player-list listener and the local poller are all released, and the poller also checks `liveUpdatesRunning` before rescheduling itself.
+- **W2 (untested monitor bookkeeping): resolved.** Listener set, polled-device dedupe, generation and delivery now live in the plain-Java `MonitorSubscriptions`. `RendererStatusMonitor` delegates to it, with `pollDevice` passed in as the `PollStarter`. Its 10 tests cover the cases listed in cycle 1: per-device dedupe, a second subscriber not restarting chains, duplicate subscribe, last-unsubscriber stop with in-flight results dropped, re-subscribe in a new generation, removal during delivery (by itself and by another listener), plus the unknown/no-op and null cases.
+
+Is the monitor's behavior unchanged? Yes, apart from the two stated no-ops:
+- Subscribe, `isCurrent` and `deliver` match the old inline code exactly. A stale result is still dropped without rescheduling, and a current one still delivers and then schedules the next poll.
+- **Unsubscribing an unknown listener:** the old code bumped the generation whenever the listener list was empty afterwards. The new code skips the bump only when nothing was subscribed and nothing was polled. In that state the old bump had no effect, because no chain or callback existed to invalidate. If devices are polled with no listener (`subscribe(null, devices)`), the new code still stops them, as before.
+- **Null device list:** the old code threw `NullPointerException`; the new code ignores it. Neither caller can pass null: the Receiver tab and the sheet both pass `getDevicesProvidingAvTransportService()`, which always returns a list.
+- Neither caller relied on the old behavior. The tab's `onPause` unsubscribes unconditionally, and with the sheet still subscribed the list isn't empty, so old and new both do nothing.
+
+Lifecycle edge cases:
+- **Rotation with the sheet open:** the old instance runs `onStop` (unsubscribe, which stops monitoring when it is the last listener) and then `onDestroyView` (a no-op, since the flag is false). The new instance goes `onViewCreated` (list built, `listFresh`) → `onStart` (first start, no second refresh, subscribe gives an immediate poll). There is no double subscribe, and the old instance gets no callback after its view is destroyed. `sheetStateApplied` belongs to each instance, so the sheet returns to its initial half or full state after rotating (see Suggestion).
+- **Player activity on top, then back:** `onStop` stops everything, and `onStart` sees `listFresh == false` and calls `adapter.refresh()` before re-subscribing. So players that started or ended meanwhile appear, and the drag state is kept.
+- **Dismiss or destroy while stopped:** `stopLiveUpdates()` is already a no-op, `adapter.release()` shuts down the binder executor, and the adapter is nulled.
+- **Late callbacks:** a status or player event queued before `stopLiveUpdates()` is dropped. The monitor's `deliver` and the player-list notifier both skip unregistered listeners, and every callback also checks `adapter != null`.
+- **`listFresh`:** set only in `onViewCreated` and cleared on the first start, so every later start refreshes. A player event in the gap between `onViewCreated` and the first `onStart` would be missed, but that gap is a single main-thread lifecycle pass, so I accept the risk.
+
+### Critical
+- None.
+
+### Warning
+- None.
+
+### Suggestion
+- [yaacc/src/main/java/de/yaacc/browser/DeviceSheetFragment.java:156-158] After rotation the sheet goes back to its initial state, because `sheetStateApplied` is per instance. If keeping the drag state matters, save `behavior.getState()` in `onSaveInstanceState` and restore it.
+- Still open from cycle 1, non-blocking: record the shared-monitor and `UpnpClient` listener deviations in decisions.md (it still has only three entries); refresh the sheet on `deviceAdded`/`deviceRemoved`; optionally gate "Add to playlist" too; and correct the manual checklist's "newest first" to "oldest first".
+
+### Tests
+- [x] All tests passing: `./gradlew :yaacc:assembleDebug :yaacc:testDebugUnitTest :yaacc:lintDebug` reports BUILD SUCCESSFUL, with 211 tests, 0 failures and 0 errors (`MonitorSubscriptionsTest` adds 10). Lint's total is unchanged at 191, with no hits in `DeviceSheetFragment`, `MonitorSubscriptions` or `RendererStatusMonitor`.
+- [x] Coverage adequate for the change. The fragment lifecycle wiring is Android UI and is covered by the pending manual phone and TV checks. Those checks should now include rotating with the sheet open, opening a session and pressing Back, and pressing Home and returning.
+
+### Verdict: PASS
+
+## Cycle 1 — 2026-10-24
+Reviewing: Group 4 (uncommitted `git diff` of `docs/index.md`, `CHANGELOG.md`, `docs/tech.md`, `tasks.md`)
+
+I checked each claim against the code on `feat/unified-device-sheet`. These hold as built:
+- **Ordering.** `DeviceSessionGrouper.group` lists sessions oldest first by creation sequence. `primarySession` picks the newest playing session, otherwise the newest overall. Ties go to the higher player id.
+- **Receiver order.** `getDevicesProvidingAvTransportService` puts the local device first, then the rest by name. Each receiver is resolved through `getDevice(id)`. Sessions on a device that isn't a receiver go last.
+- **Sheet height.** On touch devices the sheet opens at half height. It opens fully expanded on TV or when the decor view isn't in touch mode, and focus then goes to the first receiver's checkbox. Drag-down and Back dismiss it through `setSkipCollapsed(true)` with a cancelable dialog.
+- **Polling.** The shared monitor polls every 10 s and the local poll runs every 2 s. Live updates start in `onStart` and stop in `onStop`, with `onDestroyView` as a backstop, and the list is rebuilt once on return.
+- **Listeners.** `UpnpClient` re-attaches player listeners on (re)bind without duplicates.
+- **Receiver row tap.** The `LOCAL_UID` row does nothing. yaacc's own renderer opens its player.
+- **Theme overlay.** `ThemeOverlay.App.DeviceSheet` is declared as documented.
+- **No-receiver gate.** Play, play-all and item tap check for a receiver first. "Add to playlist" isn't gated.
+- **Receiver bar.** `contentListCurrentProvider` is gone from both layouts and the code. The bar is never `GONE`, and its label comes from `ReceiverBarLabel`. The path label still starts with the server name, as on the base branch.
+
+Nothing descoped is documented: no phase 2/3 work and no tab removal. Nothing claims the manual checks were done. `tech.md` §5 says "Still to confirm in the manual TV check", and the `tasks.md` status says the checks are pending.
+
+The CHANGELOG "Fixed" entry is accurate in substance. The base `BrowseReceiverDeviceAdapter#getPlayerForDevice` and `openPlayerActivity` took the first match in `HashMap` order: for `LOCAL_UID` that was any non-AVTransport player. Now `ReceiverRowBinder#primaryPlayer` uses `primarySession`, and the local players' `getDeviceId()` returns `LOCAL_UID`. See the Suggestion below on the wording "controls".
+
+The CHANGELOG format matches the existing sections: `## [..]`, `###` subsections, bold lead-ins and a `---` separator. The `docs/index.md` link `#receiver-controls` resolves through kramdown auto-ids (`markdown: kramdown` in `docs/_config.yml`) to `### Receiver controls`. Heading levels, bullet style and tone match the surrounding text. The placeholder grep returns nothing.
+
+### Critical
+- None.
+
+### Warning
+- [docs/tech.md:745-748] The doc says "the sheet and `ReceiverRowBinder` copy it, `new ArrayList<>(...)`". Only `DeviceSheetAdapter#refresh` copies. `ReceiverRowBinder#primaryPlayer` (`ReceiverRowBinder.java:372`) iterates `upnpClient.getCurrentPlayers()` directly. The code is safe, because the view is a `ConcurrentHashMap` view with weakly consistent iteration (§6, "Group 2: threads…"). The doc is still wrong about the code, and someone could rely on it. Fix: say that the sheet copies the view, and that `ReceiverRowBinder` iterates the weakly consistent `ConcurrentHashMap` view directly on the main thread.
+
+### Suggestion
+- [CHANGELOG.md:6] "The Receiver and Player tabs are unchanged" contradicts the "Fixed" entry, which changes the Receiver tab's rows. Consider "The Receiver and Player tabs stay."
+- [CHANGELOG.md:6] "instead of only showing an error": on these Content-tab paths no error toast is shown any more. "instead of showing an error" is more accurate.
+- [CHANGELOG.md:12] For a remote renderer, the row's play/pause/stop go to the renderer's AVTransport, not to a player. The primary pick decides the album art and the fallback badge, which player a row tap opens, and the controls only for the local device and yaacc's own renderer. Consider "now always shows and opens the most recently started one…".
+- [docs/tech.md:748] "The future listener must ignore them" is stale now that the notifier exists. The bullets below it already describe the as-built behavior, so consider "The notifier ignores them".
+
+### Tests
+- [x] All tests passing (docs-only change; Group 3 cycle 2 recorded 211 tests green, and no code changed since)
+- [x] Coverage adequate for the change (n/a, docs only)
+
+### Verdict: FAIL
+
+## Cycle 2 — 2026-10-24
+Reviewing: Group 4 (Fix Group 4) (uncommitted `git diff -- docs/tech.md CHANGELOG.md`)
+
+Resolution of cycle 1 findings:
+- **W1 (`getCurrentPlayers()` copy claim): resolved.** `docs/tech.md` §6 now says only the sheet (`DeviceSheetAdapter#refresh`) copies the view, and that `ReceiverRowBinder#primaryPlayer` iterates it directly on the main thread, which is safe because the backing map is a `ConcurrentHashMap`. I checked this against the code:
+  - `PlayerService.java:64` declares `currentActivePlayer = new ConcurrentHashMap<>()`. `getCurrentPlayers()` (`:484-486`) returns `Collections.unmodifiableCollection(currentActivePlayer.values())`, a live, weakly consistent view that never throws `ConcurrentModificationException`. `UpnpClient.getCurrentPlayers()` (`:837-842`) delegates to it, or returns an empty list while unbound.
+  - `DeviceSheetAdapter.java:129` iterates `new ArrayList<>(upnpClient.getCurrentPlayers())`, so it copies. `ReceiverRowBinder.java:372` iterates `upnpClient.getCurrentPlayers()` directly, so it does not.
+  - Every caller of `primaryPlayer` runs on the main thread: `bind` (`:150`, from `onBindViewHolder`), `localDeviceStatus` (`:306`, from the main-looper 2 s pollers in `DeviceSheetFragment` and `ReceiverListFragment`), `openPlayerActivity` (`:327`, click), and `executeAction` (`:415`, click listener; only the AVTransport calls go to the executor, after the player lookup). The claim "on the main thread" is therefore accurate.
+  - The Fix Group's Verify, `grep -n 'ReceiverRowBinder. copy' docs/tech.md`, returns nothing.
+- **Suggestion (CHANGELOG "unchanged"): applied.** It now reads "The Receiver and Player tabs stay."
+- **Suggestion (CHANGELOG "instead of only showing an error"): applied.** It now reads "instead of showing an error".
+- **Suggestion (CHANGELOG "controls"): applied.** It now reads "now always shows and opens the most recently started one…".
+- **Suggestion (tech.md "The future listener must ignore them"): applied.** It now reads "The notifier ignores them." The bullet below it describes the as-built `put`/`remove(id, player)` rules, which also closes the Group 2 cycle 2 suggestion about the stale "added only when `put` returns null" wording.
+
+No new inaccuracies. I re-checked every other "as built" claim in the diff against the source:
+- §4: `applyInitialSheetState` runs once from `onStart()` after `super.onStart()` (guarded by `sheetStateApplied`), uses `setLayoutParams`, and picks `STATE_EXPANDED` when not touch input. `getTheme()` returns `R.style.ThemeOverlay_App_DeviceSheet`, declared in `styles.xml:48` with parent `ThemeOverlay.MaterialComponents.BottomSheetDialog`.
+- §5: `isTouchInput()` checks `UI_MODE_TYPE_TELEVISION` and the activity decor's `isInTouchMode()`. `requestInitialFocus()` makes `onBind` post `checkBox::requestFocus`. Stable ids `R:`/`P:` and `DiffUtil` are present.
+- §6: the listener API (`PlayerListChangeNotifier.Listener` with `onPlayerAdded`/`onPlayerRemoved`, main-thread posting) matches. `UpnpClient` add/remove re-attaches on bind. The sheet registers in `onStart` and unregisters in `onStop`, with `onDestroyView` as a backstop.
+- §7: `PlayerRef.sequence()` exists.
+- The intro's caveat that cited line numbers may have moved is warranted. For example, `UpnpClient.java:829-834` is now at 837-842, and `shutdown(Player)` is no longer at 519-525. The §4 and header citations (`styles.xml:21`, `build.gradle:20`) are still exact.
+
+CHANGELOG format still matches the existing sections.
+
+### Critical
+- None.
+
+### Warning
+- None.
+
+### Suggestion
+- [docs/tech.md:459-460] The intro says the line numbers in "sections 6 and 7" may have moved. §7 cites no line numbers, while §4 (`styles.xml:21`) and the header (`build.gradle:20`) do, though both are still correct. Consider "line numbers in section 6".
+- [yaacc/src/main/java/de/yaacc/browser/ReceiverRowBinder.java:365] (Code comment, outside this docs group.) The `primaryPlayer` Javadoc still says `getCurrentPlayers()` "iterates in HashMap order". The map is now a `ConcurrentHashMap`, and its order is still unspecified, so the point still holds, but "in map order" would be accurate. Fix it the next time the file is touched.
+
+### Tests
+- [x] All tests passing (docs-only change; Group 3 cycle 2 recorded 211 tests green, and no code has changed since: `git status` shows only `docs/`, `CHANGELOG.md` and spec files modified)
+- [x] Coverage adequate for the change (n/a, docs only)
+
+### Verdict: PASS

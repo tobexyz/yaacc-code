@@ -53,7 +53,12 @@ public class ReceiverListFragment extends Fragment implements
     protected RecyclerView contentList;
     private UpnpClient upnpClient = null;
     private BrowseReceiverDeviceAdapter bDeviceAdapter;
-    private RendererStatusMonitor statusMonitor;
+    // Shared with the device sheet; this tab subscribes only while resumed.
+    private final RendererStatusMonitor.StatusListener statusListener = status -> {
+        if (bDeviceAdapter != null) {
+            bDeviceAdapter.updateStatus(status);
+        }
+    };
 
     @Override
     public void onResume() {
@@ -68,8 +73,8 @@ public class ReceiverListFragment extends Fragment implements
         thread.start();
         
         // Start monitoring when fragment visible
-        if (statusMonitor != null) {
-            statusMonitor.startMonitoring(new LinkedList<>(upnpClient.getDevicesProvidingAvTransportService()));
+        if (upnpClient != null) {
+            RendererStatusMonitor.getShared().subscribe(statusListener, upnpClient.getDevicesProvidingAvTransportService());
             // Re-sort after a short delay to allow status updates to arrive
             if (bDeviceAdapter != null) {
                 new Handler(Looper.getMainLooper()).postDelayed(() -> {
@@ -88,9 +93,7 @@ public class ReceiverListFragment extends Fragment implements
     public void onPause() {
         super.onPause();
         // Stop monitoring when fragment not visible
-        if (statusMonitor != null) {
-            statusMonitor.stopMonitoring();
-        }
+        RendererStatusMonitor.getShared().unsubscribe(statusListener);
         stopLocalDevicePolling();
     }
     
@@ -124,14 +127,6 @@ public class ReceiverListFragment extends Fragment implements
         contentList.setFocusableInTouchMode(false); // Good for D-Pad primary interaction
         contentList.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
         upnpClient.addUpnpClientListener(this);
-        
-        // Initialize status monitor
-        statusMonitor = new RendererStatusMonitor();
-        statusMonitor.setListener(status -> {
-            if (bDeviceAdapter != null) {
-                bDeviceAdapter.updateStatus(status);
-            }
-        });
         
         ImageButton refresh = view.findViewById(R.id.receiverListRefreshButton);
         Drawable icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_refresh_32, getContext().getTheme()), getContext().getTheme());

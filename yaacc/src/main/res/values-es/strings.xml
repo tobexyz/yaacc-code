@@ -139,4 +139,7 @@
     <string name="paused">PAUSADO</string>
     <string name="stopped">INTERRUMPIDO</string>
     <string name="no_media">SIN MEDIOS</string>
+    <string name="device_sheet_title">Reproducir en</string>
+    <string name="receiver_bar_none_selected">Ningún receptor seleccionado. Toca para elegir</string>
+    <string name="receiver_bar_description">Elegir receptores</string>
 </resources>

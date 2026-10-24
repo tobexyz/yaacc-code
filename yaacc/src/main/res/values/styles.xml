@@ -41,4 +41,10 @@
 
     <style name="ThemeOverlay.App.TimePicker" parent="@style/ThemeOverlay.MaterialComponents.TimePicker" />
 
+    <!-- Device sheet (BottomSheetDialogFragment#getTheme). AppTheme's Bridge
+         parent sets no bottomSheetDialogTheme, so without this the dialog falls
+         back to the light Theme.Design one. This is an overlay: colors still
+         come from AppTheme (DayNight), the sheet tints with ?attr/colorSurface. -->
+    <style name="ThemeOverlay.App.DeviceSheet" parent="@style/ThemeOverlay.MaterialComponents.BottomSheetDialog" />
+
 </resources>

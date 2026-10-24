@@ -72,6 +72,9 @@ public class ContentListClickListener implements View.OnClickListener {
             navigator.pushPosition(new Position(position, newObjectId, upnpClient.getProviderDeviceId(), currentObject.getTitle()));
             contentListFragment.populateItemList(true);
         } else if (currentObject instanceof Item) {
+            if (contentListFragment.openDeviceSheetIfNoReceiverSelected()) {
+                return; // no receiver: let the user pick one first
+            }
             PlayableItem playableItem = new PlayableItem((Item) currentObject, 0);
             ContentItemPlayTask task = new ContentItemPlayTask(contentListFragment, currentObject, () -> {
                 // Hide loading indicator when done

@@ -139,4 +139,7 @@
     <string name="paused">暂停</string>
     <string name="stopped">停止</string>
     <string name="no_media">没有媒体</string>
+    <string name="device_sheet_title">播放到</string>
+    <string name="receiver_bar_none_selected">未选择接收设备。点按以选择</string>
+    <string name="receiver_bar_description">选择接收设备</string>
 </resources>

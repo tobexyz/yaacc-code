@@ -36,3 +36,59 @@ behavior change outside this spec), and is noted as an open question.
 through an `AVTransportPlayer`, so its tap used to open that player.
 **Decision**: The no-op applies only when the device id equals
 `UpnpClient.LOCAL_UID`, matching the old behavior exactly.
+
+## 2026-10-23 - One shared RendererStatusMonitor for the tab and the sheet
+**Context**: design.md assumed an app-wide `RendererStatusMonitor` instance
+existed for the sheet to reuse. It didn't: the Receiver tab owned its own.
+**Decision**: `RendererStatusMonitor.getShared()` with subscribe/unsubscribe,
+starting on the first subscriber and stopping on the last; the Receiver tab
+was switched to it too, despite phase 1 promising "tabs unchanged".
+**Rationale**: two monitors polling the same renderers when both screens are
+alive would double the network traffic. Review cycles 1-2 of Group 3 found
+the tab's behavior equivalent (slightly stricter about stopping), and the
+bookkeeping is unit-tested in `MonitorSubscriptions`.
+
+## 2026-10-23 - UpnpClient keeps player-list listeners across service rebinding
+**Context**: the sheet can open before `PlayerService` is bound, and the
+service can rebind; listeners registered directly on the service would be
+lost.
+**Decision**: `UpnpClient.addPlayerListChangeListener` stores the listeners
+and re-attaches them when the service (re)binds, with no duplicates (checked
+in Group 3 review cycle 1).
+
+## 2026-10-23 - Follow-ups noted, not in this phase
+- The sheet doesn't refresh when receivers appear or disappear on the
+  network while it's open (status of known receivers does update).
+- After rotation, the sheet returns to its initial half/full position.
+- One slow-answering renderer stalls status polling for every receiver
+  (security review Group 3): `RendererStatusMonitor` polls on a single
+  thread. This predates the branch (the tab's monitor was single-threaded
+  too); now the tab and the sheet share that one thread. Play/pause/stop
+  are unaffected. A per-device timeout or a small pool would fix it.
+- Hardening outside this spec (security review Group 2): drop remote devices
+  that claim `LOCAL_UID` at registration; the unused mutable
+  `PlayerService#getPlayer()`; `IconDownloadTask` accepts any URL scheme
+  with no size cap.
+
+## 2026-10-24 - Classic vs. new layout: separate activities, chosen by a setting
+**Context**: asked whether the old and new layout could be switched, maybe
+in settings. `TabBrowserActivity` is a thin shell (tab bar, pager); the
+browsing behavior lives in four fragments that reference it
+(`instanceof TabBrowserActivity`, `setCurrentTab(BrowserTabs.X)` in ten
+places). Phase 1 changed shared fragments only, so an activity-level switch
+would change nothing yet.
+**Decision** (direction agreed, build deferred to phase 2):
+- The existing four-tab activity and its fragments stay as the "classic"
+  layout; the new layout gets its own activity and fragments (phase 2 needs
+  them anyway, since the server list moves into the browser).
+- A list preference "Layout: Classic tabs / New" in the **normal settings
+  screen** (not an advanced/developer section).
+- A tiny invisible launcher activity holds the launcher and Android TV
+  entries and starts the chosen activity; the three internal launches
+  (`Yaacc.java`, `PlayerService.java` x2) go through one helper.
+- Whether the classic activity keeps the receiver bar and sheet is open
+  (PRD open question 4); the owner wants to try the phase 1 behavior first.
+- Not renaming `TabBrowserActivity` is proposed; "Classic" would appear only
+  in the settings UI and docs. Final naming not yet decided.
+**Rationale**: avoids decoupling tab order from the visible list, and avoids
+copying fragments that would then need every later fix twice.
