@@ -29,6 +29,7 @@ import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.core.view.ViewCompat;
 import androidx.fragment.app.Fragment;
 import androidx.preference.PreferenceManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -223,6 +224,11 @@ public class ServerListFragment extends Fragment implements
             }
             upnpClient.searchDevices();
         });
+        // the top-level layout has the "Servers" header; mark it so screen readers can jump to it
+        View serversHeader = view.findViewById(R.id.serverRootHeader);
+        if (serversHeader != null) {
+            ViewCompat.setAccessibilityHeading(serversHeader, true);
+        }
         setLocalServerState(view);
         SwitchMaterial localServerEnabledSwitch = view.findViewById(R.id.serverListLocalServerEnabled);
         localServerEnabledSwitch.setOnClickListener((v -> {
@@ -276,25 +282,41 @@ public class ServerListFragment extends Fragment implements
         if (getPreferences().getBoolean(getContext().getString(R.string.settings_local_server_provider_chkbx), false)) {
             Drawable icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_sensors_32, getContext().getTheme()), getContext().getTheme());
             providerImageView.setImageDrawable(icon);
+            describeStatusIcon(providerImageView, R.string.settings_local_server_provider_on);
         } else {
             Drawable icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_sensors_off_32, getContext().getTheme()), getContext().getTheme());
             providerImageView.setImageDrawable(icon);
+            describeStatusIcon(providerImageView, R.string.settings_local_server_provider_off);
         }
         ImageView receiverImageView = view.findViewById(R.id.serverListReceiverEnabled);
         if (getPreferences().getBoolean(getContext().getString(R.string.settings_local_server_receiver_chkbx), false)) {
             Drawable icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_devices_24, getContext().getTheme()), getContext().getTheme());
             receiverImageView.setImageDrawable(icon);
+            describeStatusIcon(receiverImageView, R.string.settings_local_server_receiver_on);
         } else {
             Drawable icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_desktop_access_disabled_32, getContext().getTheme()), getContext().getTheme());
             receiverImageView.setImageDrawable(icon);
+            describeStatusIcon(receiverImageView, R.string.settings_local_server_receiver_off);
         }
         ImageView proxyImageView = view.findViewById(R.id.serverListProxyEnabled);
         if (getPreferences().getBoolean(getContext().getString(R.string.settings_local_server_proxy_chkbx), false)) {
             Drawable icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_import_export_24, getContext().getTheme()), getContext().getTheme());
             proxyImageView.setImageDrawable(icon);
+            describeStatusIcon(proxyImageView, R.string.settings_local_server_proxy_on);
         } else {
             Drawable icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_mobiledata_off_24, getContext().getTheme()), getContext().getTheme());
             proxyImageView.setImageDrawable(icon);
+            describeStatusIcon(proxyImageView, R.string.settings_local_server_proxy_off);
+        }
+    }
+
+    /**
+     * The status icons carry a description only in the top-level layout (fragment_server_root.xml,
+     * where the footer owns them); the classic layout keeps them hidden from accessibility as before.
+     */
+    private void describeStatusIcon(ImageView icon, int descriptionRes) {
+        if (hostProvidesShutdownTimer) {
+            icon.setContentDescription(getString(descriptionRes));
         }
     }
 

@@ -16,10 +16,51 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 -->
-<!-- The new layout: no tabs. One container holds the server list and, on top of it, a server's content. -->
-<androidx.fragment.app.FragmentContainerView xmlns:android="http://schemas.android.com/apk/res/android"
+<!-- The new layout: no tabs. From top to bottom: one container (the server list and, on top of it,
+     a server's content), then the bottom stack that is owned by the activity and so shows at every
+     level: a separator, the mini-player (MiniPlayerBar, hidden while no player exists) directly
+     above the receiver bar (ReceiverBarController; same look as the content list's classic bar).
+     A vertical LinearLayout, so a hidden mini-player (GONE) cannot move an anchor. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
-    android:id="@+id/browserContainer"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".browser.BrowserActivity" />
+    android:orientation="vertical"
+    tools:context=".browser.BrowserActivity">
+
+    <androidx.fragment.app.FragmentContainerView
+        android:id="@+id/browserContainer"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+
+    <View
+        android:id="@+id/browserBottomSeparator"
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="?android:attr/colorForeground" />
+
+    <include layout="@layout/mini_player_bar" />
+
+    <!-- Receiver bar: selected receivers' names; tap or D-pad select opens the device sheet. -->
+    <TextView
+        android:id="@+id/browserReceiverBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="?attr/selectableItemBackground"
+        android:clickable="true"
+        android:drawablePadding="5dp"
+        android:ellipsize="end"
+        android:focusable="true"
+        android:gravity="center_vertical"
+        android:maxLines="2"
+        android:minHeight="48dp"
+        android:paddingStart="5dp"
+        android:paddingEnd="8dp"
+        android:text="@string/receiver_bar_none_selected"
+        android:textAppearance="@android:style/TextAppearance.Material.Medium"
+        android:textColor="?android:attr/colorForeground"
+        app:drawableEndCompat="@drawable/ic_baseline_expand_less_24"
+        app:drawableStartCompat="@drawable/ic_baseline_devices_32" />
+</LinearLayout>

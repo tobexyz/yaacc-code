@@ -40,7 +40,9 @@ import de.yaacc.util.YaaccLogger;
 /**
  * The new browser layout: no tabs. The top level is the server list; tapping a server shows its
  * content on top of it. The default action bar is the toolbar (settings, exit and the shutdown
- * timer). The receiver bar and the mini-player are added in a later step.
+ * timer). The receiver bar and the mini-player sit below the fragment container, so they show at
+ * every level: the mini-player ({@link MiniPlayerBar}) directly above the receiver bar
+ * ({@link ReceiverBarController}). Both follow their events only while the activity is started.
  * <p>
  * Not exported and without intent filters: {@link de.yaacc.LauncherActivity} starts it with a fresh
  * intent through {@link BrowserLauncher}. The only part of {@code getIntent()} that is read is the
@@ -55,6 +57,9 @@ public class BrowserActivity extends AppCompatActivity implements BrowserHost {
 
     private ShareIntentHandler shareIntentHandler = null;
     private ShutdownTimerController shutdownTimerController;
+    // created once the UpnpClient exists; bound between onStart and onStop
+    private ReceiverBarController receiverBarController;
+    private MiniPlayerBar miniPlayerBar;
 
     // last timer state, applied to the menu item whenever it exists (it is created lazily)
     private MenuItem shutdownTimerItem;
@@ -101,6 +106,9 @@ public class BrowserActivity extends AppCompatActivity implements BrowserHost {
                     .add(R.id.browserContainer, new ServerListFragment(), TAG_SERVERS)
                     .commit();
         }
+        receiverBarController = new ReceiverBarController(findViewById(R.id.browserReceiverBar),
+                upnpClient, this::showReceivers);
+        miniPlayerBar = new MiniPlayerBar(findViewById(R.id.miniPlayerBar), upnpClient);
         shareIntentHandler = new ShareIntentHandler(getApplicationContext(), upnpClient);
         shareIntentHandler.handle(getIntent(), null);
     }
@@ -120,11 +128,24 @@ public class BrowserActivity extends AppCompatActivity implements BrowserHost {
         if (shutdownTimerController != null) {
             shutdownTimerController.attach(this::showShutdownTimer);
         }
+        // both follow the client's events only while this activity is started
+        if (receiverBarController != null) {
+            receiverBarController.bind();
+        }
+        if (miniPlayerBar != null) {
+            miniPlayerBar.bind();
+        }
     }
 
     @Override
     protected void onStop() {
         // the display is this activity: the application must not keep it while it is stopped
+        if (miniPlayerBar != null) {
+            miniPlayerBar.unbind();
+        }
+        if (receiverBarController != null) {
+            receiverBarController.unbind();
+        }
         if (shutdownTimerController != null) {
             shutdownTimerController.detach();
         }
@@ -143,6 +164,15 @@ public class BrowserActivity extends AppCompatActivity implements BrowserHost {
 
     @Override
     protected void onDestroy() {
+        // backstop: onStop already unbound them
+        if (miniPlayerBar != null) {
+            miniPlayerBar.unbind();
+            miniPlayerBar = null;
+        }
+        if (receiverBarController != null) {
+            receiverBarController.unbind();
+            receiverBarController = null;
+        }
         if (shareIntentHandler != null) {
             shareIntentHandler.shutdown();
             shareIntentHandler = null;
@@ -199,11 +229,21 @@ public class BrowserActivity extends AppCompatActivity implements BrowserHost {
 
     @Override
     public void showPlayers() {
-        // the mini-player (next step) follows the running players by itself
+        // the mini-player follows the running players by itself (player list events and a poll)
     }
 
     @Override
     public boolean providesShutdownTimer() {
+        return true;
+    }
+
+    @Override
+    public boolean providesReceiverBar() {
+        return true;
+    }
+
+    @Override
+    public boolean showsBackAtContentRoot() {
         return true;
     }
 

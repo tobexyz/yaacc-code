@@ -144,4 +144,12 @@
     <string name="device_sheet_title">播放到</string>
     <string name="receiver_bar_none_selected">未选择接收设备。点按以选择</string>
     <string name="receiver_bar_description">选择接收设备</string>
+    <string name="mini_player_previous">上一首</string>
+    <string name="mini_player_play">播放</string>
+    <string name="mini_player_pause">暂停</string>
+    <string name="mini_player_next">下一首</string>
+    <string name="mini_player_stop">停止</string>
+    <string name="mini_player_art">专辑封面</string>
+    <string name="mini_player_open">打开播放器</string>
+    <string name="browser_back">返回</string>
 </resources>

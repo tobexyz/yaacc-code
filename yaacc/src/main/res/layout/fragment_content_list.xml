@@ -103,7 +103,7 @@
         android:id="@+id/contentList"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_above="@id/contentListBottomSeperator"
+        android:layout_above="@id/contentListBottomBar"
         android:layout_below="@+id/contentListTopSeperator" />
 
     <ProgressBar
@@ -114,35 +114,45 @@
         android:visibility="gone"
         android:indeterminate="true" />
 
-    <View
-        android:id="@+id/contentListBottomSeperator"
-        android:layout_width="match_parent"
-        android:layout_height="1dp"
-        android:layout_above="@id/contentListCurrentReceivers"
-        android:background="?android:attr/colorForeground" />
-
-    <!-- Receiver bar: selected receivers' names; tap or D-pad select opens the
-         device sheet (ContentListFragment#showDeviceSheet). Never GONE, so the
-         separator and list above can anchor to it. -->
-    <TextView
-        android:id="@+id/contentListCurrentReceivers"
+    <!-- Bottom container: separator + receiver bar. The list above anchors to this container,
+         which is never GONE; when the host owns the receiver bar (new layout,
+         BrowserHost#providesReceiverBar) ContentListFragment sets the two children below GONE
+         and the container collapses to zero height. Anchoring the list to a child that can be GONE
+         is unreliable across Android skins (see the back button note in layout-land). -->
+    <LinearLayout
+        android:id="@+id/contentListBottomBar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_alignParentBottom="true"
-        android:background="?attr/selectableItemBackground"
-        android:clickable="true"
-        android:drawablePadding="5dp"
-        android:ellipsize="end"
-        android:focusable="true"
-        android:gravity="center_vertical"
-        android:maxLines="2"
-        android:minHeight="48dp"
-        android:paddingStart="5dp"
-        android:paddingEnd="8dp"
-        android:text="@string/receiver_bar_none_selected"
-        android:textAppearance="@android:style/TextAppearance.Material.Medium"
-        android:textColor="?android:attr/colorForeground"
-        app:drawableEndCompat="@drawable/ic_baseline_expand_less_24"
-        app:drawableStartCompat="@drawable/ic_baseline_devices_32" />
+        android:orientation="vertical">
+
+        <View
+            android:id="@+id/contentListBottomSeperator"
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="?android:attr/colorForeground" />
+
+        <!-- Receiver bar: selected receivers' names; tap or D-pad select opens the
+             device sheet (ReceiverBarController). Hidden when the host provides the bar. -->
+        <TextView
+            android:id="@+id/contentListCurrentReceivers"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="?attr/selectableItemBackground"
+            android:clickable="true"
+            android:drawablePadding="5dp"
+            android:ellipsize="end"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:maxLines="2"
+            android:minHeight="48dp"
+            android:paddingStart="5dp"
+            android:paddingEnd="8dp"
+            android:text="@string/receiver_bar_none_selected"
+            android:textAppearance="@android:style/TextAppearance.Material.Medium"
+            android:textColor="?android:attr/colorForeground"
+            app:drawableEndCompat="@drawable/ic_baseline_expand_less_24"
+            app:drawableStartCompat="@drawable/ic_baseline_devices_32" />
+    </LinearLayout>
 
 </RelativeLayout>

@@ -144,4 +144,12 @@
     <string name="device_sheet_title">Reproduzir em</string>
     <string name="receiver_bar_none_selected">Nenhum receptor selecionado. Toque para escolher</string>
     <string name="receiver_bar_description">Escolher receptores</string>
+    <string name="mini_player_previous">Faixa anterior</string>
+    <string name="mini_player_play">Reproduzir</string>
+    <string name="mini_player_pause">Pausar</string>
+    <string name="mini_player_next">Próxima faixa</string>
+    <string name="mini_player_stop">Parar</string>
+    <string name="mini_player_art">Capa do álbum</string>
+    <string name="mini_player_open">Abrir reprodutor</string>
+    <string name="browser_back">Voltar</string>
 </resources>

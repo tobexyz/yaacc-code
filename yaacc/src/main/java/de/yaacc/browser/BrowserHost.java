@@ -44,4 +44,22 @@ public interface BrowserHost {
     default boolean providesShutdownTimer() {
         return false;
     }
+
+    /**
+     * Whether the host shows the receiver bar itself, at every level (new layout). A content
+     * list then hides its own bar and opens the device sheet through {@link #showReceivers()}.
+     * False for the classic tabs, where the content list owns the bar.
+     */
+    default boolean providesReceiverBar() {
+        return false;
+    }
+
+    /**
+     * Whether the content list shows the back arrow at the content root too, and its tap calls
+     * {@link #showServers()} there (new layout: the root of a server is one step below the server
+     * list). False for the classic tabs, where the root has nothing to go back to.
+     */
+    default boolean showsBackAtContentRoot() {
+        return false;
+    }
 }

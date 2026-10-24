@@ -41,10 +41,30 @@ public final class MiniPlayerPicker {
      * wins; equal sequences fall back to the higher playerId, so the result
      * never depends on input order. Null entries are skipped, a null or
      * unknown deviceId is fine, and the list is not modified.
-     * <p>
-     * STUB (red phase): returns a wrong default until implemented.
      */
     public static PlayerRef pick(List<PlayerRef> players) {
-        return new PlayerRef(0, null, false, 0);
+        if (players == null) {
+            return null;
+        }
+        PlayerRef best = null;
+        for (PlayerRef candidate : players) {
+            if (candidate == null) {
+                continue;
+            }
+            if (best == null || ranksAbove(candidate, best)) {
+                best = candidate;
+            }
+        }
+        return best;
+    }
+
+    private static boolean ranksAbove(PlayerRef candidate, PlayerRef current) {
+        if (candidate.playing() != current.playing()) {
+            return candidate.playing();
+        }
+        if (candidate.sequence() != current.sequence()) {
+            return candidate.sequence() > current.sequence();
+        }
+        return candidate.playerId() > current.playerId();
     }
 }
