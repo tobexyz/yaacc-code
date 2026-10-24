@@ -105,6 +105,13 @@ public class ServerListFragment extends Fragment implements
         super.onStop();
     }
 
+    @Override
+    public void onDestroyView() {
+        // the display lambda holds this view hierarchy; the fragment instance can outlive it
+        shutdownTimerDisplay = null;
+        super.onDestroyView();
+    }
+
     public boolean onBackPressed() {
         YaaccLogger.d(ServerListFragment.class.getName(), "onBackPressed()");
         ((Yaacc) requireActivity().getApplicationContext()).exit();

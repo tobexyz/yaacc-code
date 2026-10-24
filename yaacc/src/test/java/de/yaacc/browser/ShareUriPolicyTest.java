@@ -100,4 +100,14 @@ public class ShareUriPolicyTest {
         assertTrue(ShareUriPolicy.isAllowed(atCap.toString()));
         assertFalse(ShareUriPolicy.isAllowed(atCap + "a"));
     }
+
+    /**
+     * The policy checks the scheme and the length only. Rejecting anything else is
+     * left to the downstream parser (Backlog 1 in the spec discusses tightening it).
+     */
+    @Test
+    public void onlyTheSchemeAndLengthAreChecked() {
+        assertTrue(ShareUriPolicy.isAllowed("http:"));
+        assertTrue(ShareUriPolicy.isAllowed("http://example.com/a.mp3\nfile:///sdcard/x"));
+    }
 }
