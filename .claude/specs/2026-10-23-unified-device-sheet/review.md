@@ -470,7 +470,7 @@ Scope: `git show fdb8dee9` (MiniPlayerPicker, MiniPlayerPresenter, MiniPlayerBar
 - None.
 
 ### Warning
-- [yaacc/src/test/java/de/yaacc/browser/MiniPlayerPresenterTest.java:98, 147, 170] The test source contains raw, invisible bidi control characters (U+202E, U+202C, U+2066, U+2069, U+200E, U+200F, U+061C) inside string literals. They cannot be reviewed in an editor or diff, reorder the displayed code line (Trojan-Source pattern, flagged by GitHub and scanners) and are easy to lose in a reformat. Write them as `‮` etc. escapes (the test then reads as intended and passes unchanged).
+- [yaacc/src/test/java/de/yaacc/browser/MiniPlayerPresenterTest.java:98, 147, 170] The test source contains raw, invisible bidi control characters (U+202E, U+202C, U+2066, U+2069, U+200E, U+200F, U+061C) inside string literals. They cannot be reviewed in an editor or diff, reorder the displayed code line (Trojan-Source pattern, flagged by GitHub and scanners) and are easy to lose in a reformat. Write them as `\u202e` etc. escapes (the test then reads as intended and passes unchanged).
 
 ### Suggestion
 - [MiniPlayerBar.java:206-214, 236] `AbstractPlayer#getCurrentItemTitle` reads a plain `ArrayList` (`size()` then `get()`) that `clear()`/`setItems` modify on worker threads. A race throws `IndexOutOfBoundsException` on the main thread inside the permanent 2 s poll, which would crash the app. The window is tiny and classic code has the same pattern, but a `try/catch (RuntimeException)` around the per-player reads in `refresh()` is cheap.
@@ -488,3 +488,32 @@ Scope: `git show fdb8dee9` (MiniPlayerPicker, MiniPlayerPresenter, MiniPlayerBar
 
 ### Verdict: FAIL
 Zero Critical, one Warning (raw bidi characters in the test source). Everything else on the checklist is met; after the escapes are applied (no behavior change) this should pass in cycle 2.
+
+
+## Cycle 2 — 2026-10-24
+Reviewing: Group 8 (phase 2)
+
+Scope: `git show c78fb5d6` (fix commit for cycle 1) on top of `fdb8dee9`.
+
+### Verified
+1. Warning from cycle 1 resolved. `grep -nP '[^\x00-\x7F]' MiniPlayerPresenterTest.java` now returns only visible characters (lines 103 and 121: CJK, en dash, e-acute, check mark, music-note emoji). A scan of `git diff HEAD~2` for U+200B-200F, U+202A-202E, U+2060-2069, U+FEFF, U+061C, U+0085, U+2028/2029 finds nothing in code, resources or tests. (The `grep -P '\x{...}'` form from the task fails in this locale with "code point too large"; the scan was done with a Python code point check instead.) One hit was found in this file: cycle 1's own Warning text contained a raw U+202E; it is now written as `\u202e` (documentation only, no code touched).
+2. The escaped literals test the intended code points: `"\u202eevil\u202c\u2066.\u2069m\u200ep\u200f3\u061c"` is the same seven characters as before (202E, 202C, 2066, 2069, 200E, 200F, 061C); `"\u202e\u0000"` and `"TV\n\u202eevil"` likewise. No `\u000a`/`\u000d`/`\u0022` escapes that Java would translate before lexing. New tests: `\u0085` (NEL) gives "a b"; `\u200b\u2060\ufeff` gives "ab"; the family emoji `\ud83d\udc68\u200d\ud83d\udc69\u200d\ud83d\udc67` is kept intact (ZWJ not stripped).
+3. Production changes correct. `cleanText`: `0x85` is tested in the whitespace branch before the control-character removal, so it becomes a collapsed space; `isBidiControl` adds 200B/2060/FEFF only, ZWJ (200D) and ZWNJ stay, so emoji sequences and Persian/Indic text survive. A title of only U+200B is now blank and falls back. `MiniPlayerBar.refresh()`: still returns early when unbound; the body moved unchanged into `refreshFromPlayers()`, wrapped in `try/catch (RuntimeException)` logging the class simple name only (no titles/names); the poll is re-posted by the caller outside the try, so a skipped refresh retries on the next poll. `bound` is `volatile`; the delayed refresh from the worker is posted only if `bound` (a rare race between the check and `unbind()` is harmless because `refresh()` re-checks). `unbind()` resets `shownReceiverDeviceId`/`shownReceiverName` (the cache is read only on the main thread, same as before). `importantForAccessibility="no"` is on the art ImageView only; the card and buttons keep their descriptions. No behavior regression found.
+4. Build and tests: `./gradlew :yaacc:assembleDebug :yaacc:testDebugUnitTest :yaacc:lintDebug --offline --continue` BUILD SUCCESSFUL; 331 tests, 0 failures, 0 errors, 0 skipped (result XMLs, 328 + 3 new). Lint 189 issues, same count as cycle 1, none located in `MiniPlayer*` or `mini_player_bar.xml`.
+
+### Critical
+- None.
+
+### Warning
+- None.
+
+### Suggestion
+- [MiniPlayerPresenter.java:73-77] The Javadoc line wrap after "zero-width" is uneven; cosmetic only.
+- [open from cycle 1] Landscape height of the bottom stack, the missing "Group 8 as built" entry for the three builder deviations in `decisions.md` (the commit added 8 lines there; confirm they cover it), bidi stripping in `ReceiverBarLabel`, and the lack of a JVM seam for `MiniPlayerBar` remain as non-blocking suggestions. Not run on a device.
+
+### Tests
+- [x] All tests passing (331, 0 failures)
+- [x] Coverage adequate for the change
+
+### Verdict: PASS
+
