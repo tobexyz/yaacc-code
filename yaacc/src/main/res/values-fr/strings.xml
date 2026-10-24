@@ -152,4 +152,7 @@
     <string name="mini_player_art">Pochette de l\'album</string>
     <string name="mini_player_open">Ouvrir le lecteur</string>
     <string name="browser_back">Retour</string>
+    <string name="settings_browser_layout_title">Mise en page</string>
+    <string name="settings_browser_layout_classic">Classique (onglets)</string>
+    <string name="settings_browser_layout_new">Nouveau (un seul écran)</string>
 </resources>

@@ -152,4 +152,7 @@
     <string name="mini_player_art">Albumcover</string>
     <string name="mini_player_open">Player öffnen</string>
     <string name="browser_back">Zurück</string>
+    <string name="settings_browser_layout_title">Darstellung</string>
+    <string name="settings_browser_layout_classic">Klassisch (Tabs)</string>
+    <string name="settings_browser_layout_new">Neu (ein Bildschirm)</string>
 </resources>

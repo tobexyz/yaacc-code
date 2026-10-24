@@ -142,7 +142,7 @@ Plan: `design.md` "Phase 2". Each group: build -> reviewer PASS -> security-revi
 - Status (Group 8): built 2026-10-24; 328 unit tests all green (MiniPlayerPickerTest 16/16, MiniPlayerPresenterTest 22); lint unchanged at 189; merged manifest unchanged; `NEW_LAYOUT_AVAILABLE` now `true` (no UI exposes the setting until Group 9). Not run on a device.
 
 ## Group 9: Setting and activation
-- [ ] "Layout" preference in the normal settings screen | `res/xml/preference.xml`, `strings.xml` x7, `BrowserLayoutChoice`, `SettingsActivity`/browser activities
+- [x] "Layout" preference in the normal settings screen | `res/xml/preference.xml`, `strings.xml` x7, `BrowserLayoutChoice`, `SettingsActivity`/browser activities
   - **Accept**: a list preference "Layout" with entries Classic tabs / New (strings in 7 locales; default `classic`); no `exported`, `allowBackup` or permission changes, and nothing treats the stored layout string as a class name or intent target; the preference key already exists from Group 6; this group adds the visible preference, entries and strings (the default is `classic` on every device, TV included); changing it and leaving Settings relaunches into the other activity via the Group 6 resume check (`finish()` only; no `CLEAR_TASK`, which would kill the other activities); both activities and the notification launches follow the choice; classic -> new -> classic keeps the app state sane (players keep running)
   - **Verify**: `./gradlew :yaacc:assembleDebug :yaacc:testDebugUnitTest :yaacc:lintDebug`
   - **Constraints**: preference key added as a string resource like the others; no other settings behavior changes

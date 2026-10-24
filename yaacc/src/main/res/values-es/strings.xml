@@ -152,4 +152,7 @@
     <string name="mini_player_art">Carátula del álbum</string>
     <string name="mini_player_open">Abrir reproductor</string>
     <string name="browser_back">Atrás</string>
+    <string name="settings_browser_layout_title">Diseño</string>
+    <string name="settings_browser_layout_classic">Clásico (pestañas)</string>
+    <string name="settings_browser_layout_new">Nuevo (una pantalla)</string>
 </resources>

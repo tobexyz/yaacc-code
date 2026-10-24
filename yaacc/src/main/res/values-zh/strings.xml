@@ -152,4 +152,7 @@
     <string name="mini_player_art">专辑封面</string>
     <string name="mini_player_open">打开播放器</string>
     <string name="browser_back">返回</string>
+    <string name="settings_browser_layout_title">布局</string>
+    <string name="settings_browser_layout_classic">经典（标签页）</string>
+    <string name="settings_browser_layout_new">新（单屏）</string>
 </resources>
