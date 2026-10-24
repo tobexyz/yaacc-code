@@ -152,4 +152,7 @@
     <string name="mini_player_art">Capa do álbum</string>
     <string name="mini_player_open">Abrir reprodutor</string>
     <string name="browser_back">Voltar</string>
+    <string name="settings_browser_layout_title">Layout</string>
+    <string name="settings_browser_layout_classic">Clássico (abas)</string>
+    <string name="settings_browser_layout_new">Novo (tela única)</string>
 </resources>

@@ -65,8 +65,9 @@ public final class BrowserLauncher {
     }
 
     /**
-     * Reads the stored "Layout" preference with default {@code null}: existing installs never had
-     * a default written, and {@link BrowserLayoutChoice#resolve(String)} turns null into classic.
+     * Reads the stored "Layout" preference with default {@code null}: installs that never opened
+     * the setting have no value (opening it persists "classic"), and
+     * {@link BrowserLayoutChoice#resolve(String)} turns null into classic.
      */
     public static Layout effectiveLayout(Context context) {
         String stored = null;

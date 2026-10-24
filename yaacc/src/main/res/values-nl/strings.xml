@@ -152,4 +152,7 @@
     <string name="mini_player_art">Albumhoes</string>
     <string name="mini_player_open">Speler openen</string>
     <string name="browser_back">Terug</string>
+    <string name="settings_browser_layout_title">Indeling</string>
+    <string name="settings_browser_layout_classic">Klassiek (tabbladen)</string>
+    <string name="settings_browser_layout_new">Nieuw (één scherm)</string>
 </resources>

@@ -40,6 +40,7 @@ in order to play media from your device on any UPnP renderer in your network.
 * SAF support - browse and share files from external storage, USB drives, SD cards
 * Lock screen controls - hardware volume buttons and media controls
 * Receiver controls - play/pause/stop directly from receiver tab with status display
+* Optional single-screen layout with a mini-player (Settings > Appearance > Layout); the classic tabs stay the default
 * Sort browsed folders by name or date added, with server-side sorting when supported
 * Control multiple media renderer
 * Allow download files to the device

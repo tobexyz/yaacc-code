@@ -4,12 +4,18 @@
 
 ### Added
 - **Device sheet**: Tapping the receiver bar at the bottom of the Content tab (or selecting it with the D-pad) opens a sheet listing every receiver with its controls (selection, status, play/pause/stop, volume, mute) and, under each receiver, the yaacc players running on it in the order they were started; tapping a player opens its player screen. It opens at half height on phones (drag up for full height, drag down or Back to close) and at full height on Android TV, and its status updates live while it is open. Starting playback with no receiver selected now opens the sheet so you can pick one, instead of showing an error. The Receiver and Player tabs stay.
+- **New single-screen layout**: An optional layout without tabs, chosen in *Settings* > *Appearance* > *Layout* ("Classic (tabs)" stays the default, also on Android TV). The top level is the server list with the refresh button, the live-stream buttons and the server switch; tapping a server shows its content, and back goes folder by folder, then to the server list, then exits. The toolbar has the shutdown timer (tap to start or stop it, with a "Set shutdown timer" entry for the duration), settings, log, about and exit. The receiver bar at the bottom of every level opens the device sheet. A mini-player above it shows the most recently started playing session with title, receiver and album art, has previous, play/pause, next and stop buttons, and opens the player screen when tapped; it is hidden when nothing is running. A change of the setting applies when you return to the app screen, and running players are not interrupted.
 
 ### Changed
 - **Receiver bar**: The Content tab's two-line footer is now a single receiver bar showing the selected receivers' names. The current server's name is no longer shown there; it still starts the path label at the top.
+- **Sharing into yaacc**: Only `http` and `https` links are accepted (text up to 2048 characters). Shared `file:` links, shared files, and URIs that arrive as clip data no longer work, so a shared link cannot expose local files through the proxy option.
+- **Launcher entry**: The app now has a separate invisible launcher entry that forwards to the chosen layout, and it only passes on a shared link, nothing else of the incoming intent. There is no visible change.
+- **Idle exit**: One process-wide timer now quits the app after 5 minutes in the background when nothing is playing and the server, renderer and proxy options are off, instead of one timer per screen; a screen rotation or a layout change no longer leaves a stale timer behind.
 
 ### Fixed
 - **Receiver with several players**: When one receiver runs more than one yaacc player (e.g. an image show with background music), its row in the Receiver tab now always shows and opens the most recently started one that is playing (or, if none is playing, the most recently started one), instead of an arbitrary one.
+- **Leaks**: The shutdown timer listener, the screen-capture stop callback and the share handler's worker thread are released when their screen goes away, instead of keeping the old screen alive. Browser screens that were destroyed also stop receiving device updates.
+- **Shutdown timer state**: The Server tab now takes the shutdown timer's state (switch and remaining time) from the running timer itself, so it is correct whenever the screen is recreated or the layout is switched, and a destroyed screen is no longer kept alive by the timer.
 
 ---
 

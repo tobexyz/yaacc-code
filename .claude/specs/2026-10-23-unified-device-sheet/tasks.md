@@ -142,7 +142,7 @@ Plan: `design.md` "Phase 2". Each group: build -> reviewer PASS -> security-revi
 - Status (Group 8): built 2026-10-24; 328 unit tests all green (MiniPlayerPickerTest 16/16, MiniPlayerPresenterTest 22); lint unchanged at 189; merged manifest unchanged; `NEW_LAYOUT_AVAILABLE` now `true` (no UI exposes the setting until Group 9). Not run on a device.
 
 ## Group 9: Setting and activation
-- [ ] "Layout" preference in the normal settings screen | `res/xml/preference.xml`, `strings.xml` x7, `BrowserLayoutChoice`, `SettingsActivity`/browser activities
+- [x] "Layout" preference in the normal settings screen | `res/xml/preference.xml`, `strings.xml` x7, `BrowserLayoutChoice`, `SettingsActivity`/browser activities
   - **Accept**: a list preference "Layout" with entries Classic tabs / New (strings in 7 locales; default `classic`); no `exported`, `allowBackup` or permission changes, and nothing treats the stored layout string as a class name or intent target; the preference key already exists from Group 6; this group adds the visible preference, entries and strings (the default is `classic` on every device, TV included); changing it and leaving Settings relaunches into the other activity via the Group 6 resume check (`finish()` only; no `CLEAR_TASK`, which would kill the other activities); both activities and the notification launches follow the choice; classic -> new -> classic keeps the app state sane (players keep running)
   - **Verify**: `./gradlew :yaacc:assembleDebug :yaacc:testDebugUnitTest :yaacc:lintDebug`
   - **Constraints**: preference key added as a string resource like the others; no other settings behavior changes
@@ -150,12 +150,14 @@ Plan: `design.md` "Phase 2". Each group: build -> reviewer PASS -> security-revi
   - **Accept**: owner confirms on a phone: switching in both directions; servers -> content -> back; yaacc row stream buttons and server switch; shutdown timer in the toolbar; receiver bar and sheet at every level; mini-player appears, drives previous/play-pause/next/stop and opens the player; share-to-yaacc from another app lands in the chosen layout; rotation; Android TV D-pad reaches all new controls (if hardware is available)
   - **Verify**: owner sign-off in chat
   - **Constraints**: leave unchecked until confirmed
+- Status (Group 9): preference built 2026-10-24 (72f337cf; general review PASS cycle 1; 332+ unit tests green; lint unchanged at 189). Manual checks (second task) still open with the owner. Stale notification PendingIntents (`Yaacc.createYaaccGroupNotification`, `PlayerService.createSessionActivity`) keep the old layout's class after a switch: a tap bounces to the right browser but may leave two instances on the stack; to be observed in the manual checks (candidate fix: `FLAG_ACTIVITY_REORDER_TO_FRONT` on the relaunch intent or rebuilding the notification on a layout change).
 
 ## Group 10: Documentation update
-- [ ] Update documentation for phase 2 | `docs/index.md`, `README.md` if user-facing text changed, `CHANGELOG.md`, `docs/tech.md`
+- [x] Update documentation for phase 2 | `docs/index.md`, `README.md` if user-facing text changed, `CHANGELOG.md`, `docs/tech.md`
   - **Accept**: docs describe the Layout setting, both layouts, the mini-player and the new top level; CHANGELOG Unreleased has Added/Changed entries; `docs/tech.md` is as-built
   - **Verify**: `grep -rn 'TODO\|FIXME\|PLACEHOLDER' docs/index.md docs/tech.md CHANGELOG.md || true` returns no plan-related placeholders
   - **Constraints**: do not document anything descoped or marked `[!]`; screenshots stay the owner's job; `docs/tech.md` is updated to as-built (the forward allowlist, share scheme policy and loop guard are already described in the plan text)
+- Status (Group 10): done 2026-10-24. `docs/index.md` (Layout setting, classic and new layout, mini-player, share note), `docs/settings.md` (layout row), `CHANGELOG.md` (Unreleased), `README.md` (one bullet) and `docs/tech.md` "Classic and new layout" (as-built section, manifest re-check, known limitations, Group 5 research kept as history) updated; the Group 9 manual-check task stays open.
 
 # Backlog (not part of Groups 1-10; discuss with the owner before any work)
 

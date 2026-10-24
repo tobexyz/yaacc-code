@@ -21,6 +21,13 @@
 
 
     <PreferenceCategory android:title="@string/settings_category_appearance">
+        <ListPreference
+            android:defaultValue="classic"
+            android:entries="@array/browser_layout_entries"
+            android:entryValues="@array/browser_layout_values"
+            android:key="@string/settings_browser_layout_key"
+            android:summary="%s"
+            android:title="@string/settings_browser_layout_title" />
         <CheckBoxPreference
             android:defaultValue="true"
             android:key="@string/settings_dark_mode_key"

@@ -517,3 +517,102 @@ Scope: `git show c78fb5d6` (fix commit for cycle 1) on top of `fdb8dee9`.
 
 ### Verdict: PASS
 
+
+
+## Cycle 1 — 2026-10-24
+Reviewing: Group 9 (phase 2), preference task
+
+Scope: `git show 72f337cf` (`preference.xml`, `values/browser_layout.xml`, `strings.xml` x7, `tasks.md` checkbox). Read in addition: `BrowserLauncher`, `BrowserLayoutChoice`, `BrowserLayoutSwitch`, `RelaunchGuard`, `StartedBrowserCounter`, `BackgroundIdleTimer`, `TabBrowserActivity`, `BrowserActivity`, `BrowserActivitySupport`, `SettingsActivity`, `SettingsFragment`, `LauncherActivity`, `Yaacc`/`PlayerService` notification intents, `YaaccUpnpServerService#onSharedPreferenceChanged`. The second Group 9 task (manual checks with the owner) is intentionally open and not reviewed.
+
+### Verified
+1. **preference.xml: as specified.** `ListPreference` first item of the Appearance category: `key="@string/settings_browser_layout_key"` (exists since Group 6 in `setting_strings.xml`, `translatable="false"`), `defaultValue="classic"`, `entries=@array/browser_layout_entries`, `entryValues=@array/browser_layout_values`, `summary="%s"`, title string. `browser_layout_values` is `translatable="false"` with exactly `classic`, `new` = `BrowserLayoutChoice.STORED_CLASSIC/STORED_NEW`. Entries reference the two strings, so each locale picks its own text; no other preference or listener was touched.
+2. **Strings.** `settings_browser_layout_title/_classic/_new` exist once each in `values` and `values-de/es/fr/nl/pt/zh` (grep count 3 per file). Translations are sensible: de "Darstellung" (the category is "Erscheinungsbild", so no clash) / "Klassisch (Tabs)" / "Neu (ein Bildschirm)"; es "Diseño" / "Clásico (pestañas)" / "Nuevo (una pantalla)"; fr "Mise en page" / "Classique (onglets)" / "Nouveau (un seul écran)"; nl "Indeling" / "Klassiek (tabbladen)" / "Nieuw (één scherm)"; pt "Layout" / "Clássico (abas)" / "Novo (tela única)"; zh "布局" / "经典（标签页）" / "新（单屏）". No markup or format args.
+3. **Single reader.** `grep settings_browser_layout` over `src/main/java`: only `BrowserLauncher.effectiveLayout(Context)` (default `null`, `RuntimeException` caught, `NEW_LAYOUT_AVAILABLE` kept). The stored string is only compared in `BrowserLayoutChoice.resolve` (exact `"new"`), never a class name, action or extra. Key absent (existing installs) -> `null` -> classic. Opening Settings persists the XML default `classic` through `ListPreference.onSetInitialValue`; it resolves to classic as well, so nothing changes for existing installs.
+4. **Switch trace.** Settings entry points: `BrowserActivitySupport.handleCommonMenuItem` (both browsers), `MusicPlayerActivity`, `MultiContentPlayerActivity`, `AVTransportPlayerActivity`, `ImageViewerActivity`, `YaaccUpnpServerControlActivity`. None checks the layout itself and none needs to: the browser is below them in the task, and its `onResume` does the check when the user gets back to it.
+   - classic -> new: `SettingsActivity.onPause` sets `leftSettings`; `TabBrowserActivity.onResume` -> `relaunchIfOtherLayout(CLASSIC)` -> effective NEW -> guard allows -> fresh `new Intent(activity, BrowserActivity.class)` (no extras/flags, no `CLEAR_TASK`), `overridePendingTransition(0,0)`, `finish()`, returns before `LocalServerLifecycle.apply`. `consumeLeftSettings()` is therefore not consumed by the dying activity; `BrowserActivity.onResume` consumes it once and applies the server settings. Good.
+   - new -> classic: `BrowserActivity.onResume` does the same towards `TabBrowserActivity`. A fresh `BrowserActivity.onCreate` also checks first and returns before building the receiver bar, mini-player, share handler or timer controller; `onStart/onStop/onDestroy/onCreateOptionsMenu` use null checks for those.
+   - `SettingsFragment`: only dark-mode, log-level, interface and renderer listeners; none reads or reacts to the new key. `YaaccUpnpServerService#onSharedPreferenceChanged` branches on specific keys only; the new key falls through.
+   - State: nothing stops `PlayerService`, players or the UPnP client on an activity switch (the browsers only unbind their own views/listeners in `onStop/onDestroy`). `BackgroundIdleTimer`: `StartedBrowserCounter` counts; the usual order is old `onPause`, new `onCreate/onStart/onResume`, then old `onStop`, so the count goes 1 -> 2 -> 1 and never reaches 0; if the old `onStop` ever ran first, the new `onStart` cancels the 5 min timer. `onStart` of a relaunching `TabBrowserActivity` is paired with its `onStop`, so the count stays balanced.
+   - Loop safety: the 2 s process-wide guard allows one relaunch per window; a denied relaunch keeps the current layout and logs. Realistic Settings round trips take longer than 2 s.
+5. **BrowserActivity vs classic, reachable differences.** The toolbar menu has the same settings/log/about/exit ids (shared handler) plus the shutdown timer; the Receiver/Player tabs map to the sheet and the mini-player (design); `onCreate` has the permission request and battery-optimization check; share intents go through `ShareIntentHandler`; `LocalServerLifecycle.apply` is on resume. `onKeyDown` in classic only delegates to `super`. I found nothing the classic activity does that the new one lacks and that a user can reach.
+6. **No manifest/gradle change.** `git diff 85ae9d2a HEAD -- AndroidManifest.xml yaacc/build.gradle gradle` is empty; no `exported`, `allowBackup` or permission change.
+7. **Build.** `./gradlew :yaacc:assembleDebug :yaacc:testDebugUnitTest :yaacc:lintDebug --offline --continue`: BUILD SUCCESSFUL. Result XMLs: 331 tests, 0 failures, 0 errors, 0 skipped. Lint: 189 issues (same count as Group 8); the one Error `MissingTranslation` is the old `toggle_view_mode`, none of the new keys or arrays is reported.
+
+### Critical
+- None.
+
+### Warning
+- None.
+
+### Suggestion
+- [BrowserLauncher.java:relaunchIfOtherLayout] Stale launch targets can leave two instances of the new browser. `Yaacc.createYaaccGroupNotification` (built once at start-up, `FLAG_IMMUTABLE` only) and the session-activity PendingIntent in `PlayerService.createSessionActivity` keep the class of the layout that was active when they were built. After a switch, tapping them starts the old layout's activity, which bounces to the current one (works; guard-limited; share text dropped on purpose) but, with the standard launch mode, the bounce creates a second instance on top of the existing one (`[B_old, B_new]`, back goes to the old, stopped instance). Not data-losing. Consider `FLAG_ACTIVITY_REORDER_TO_FRONT` on the fresh relaunch intent (still no `CLEAR_TASK`), or rebuild the group notification when the layout changes; decide after the owner's manual check.
+- [res/xml/preference.xml, BrowserLayoutChoice] Nothing ties the `browser_layout_values` array to `STORED_CLASSIC/STORED_NEW`. A typo in the array would silently make "new" unselectable or store a value that resolves to classic, and lint cannot see it. A plain JUnit test that parses `src/main/res/values/browser_layout.xml` (or `preference.xml`) and asserts the two values and the key/default would pin it. Not blocking: the resolver itself is covered by `BrowserLayoutChoiceTest`.
+- [values/strings.xml] The new title/entries sit in `strings.xml` (and the arrays in a new `browser_layout.xml`) while the other `settings_*` strings and arrays live in `setting_strings.xml`; consider moving them there for consistency (cosmetic).
+- [BrowserLauncher.java:68-70] The Javadoc says existing installs never had a default written; opening Settings now persists `classic`. Harmless (resolves to classic); reword when convenient.
+- [tasks.md Group 9 / decisions.md] No "Status (Group 9)" line (the other groups record test count, lint count, manifest state, "not run on a device") and no decisions.md entry. Add both with the next docs commit; also record the `FLAG_ACTIVITY_REORDER_TO_FRONT` question above.
+- [Android TV] The setting is visible on TV; the new layout's D-pad reach is unverified (design risk, owner's manual checks, if hardware exists). Default stays classic, so TV users are unaffected until they switch.
+
+Forward-looking requirements:
+- Group 9 manual checks (owner): switching in both directions (including from a player screen's Settings menu and from the server-control screen), stale notification tap after a switch, share-to-yaacc in the chosen layout, rotation right after a switch, and `adb shell dumpsys activity activities` showing a single browser instance after classic -> new -> classic.
+- Group 10 must: document the Layout setting, the resume-time switch, the guard window and the stale-PendingIntent behavior in `docs/tech.md`/`docs/index.md`; re-run the merged-manifest check after the last code change.
+- Carried, owner decision still open: `android:allowBackup` / backup exclude for the default preferences file (it now also holds the user-visible layout).
+
+### Tests
+- [x] All tests passing (331, 0 failures)
+- [x] Coverage adequate for the change (resolver, switch decision, guard and counter are unit tested; the new part is resources only, see the Suggestion on the values/constants link)
+
+### Verdict: PASS
+Zero Critical, zero Warning. The preference is a fixed-value `ListPreference` in Appearance, read only through `BrowserLauncher`/`BrowserLayoutChoice`, translated in all seven locales, with no manifest/gradle change; the switch in both directions goes through `relaunchIfOtherLayout` only and leaves players, the UPnP client and the idle counter untouched. The first Group 9 task may stay `[x]`; the manual-check task stays open.
+
+## Cycle 1 — 2026-10-24
+Reviewing: Group 10 (phase 2) documentation update, commit 40294bcf (`docs/index.md`, `docs/settings.md`, `docs/tech.md`, `CHANGELOG.md`, `README.md`, `tasks.md`). Docs only; Gradle tests not rerun (last code state: 331+ unit tests green per Group 9). Only `./gradlew :yaacc:processDebugManifest --offline` was run.
+
+Checked against the code: `BrowserActivity`, `BrowserHost`, `ServerListFragment`/`ContentListFragment`, `MiniPlayerBar`/`MiniPlayerPicker`/`MiniPlayerPresenter`, `ShareIntentHandler`/`ShareUriPolicy`/`LauncherForwardPolicy`/`LauncherActivity`, `BrowserLauncher`/`RelaunchGuard`, `BackgroundIdleTimer`, `ShutdownTimerController`, `res/menu/activity_browser.xml`, `fragment_server_root.xml`, `activity_browser.xml`, `mini_player_bar.xml`, `preference.xml`, strings, the merged manifest.
+
+Verified true as built: top level server list with "Servers" header and refresh button; stream buttons on the yaacc row; gear next to the server switch in the footer (footer only on the top level); status icons; tap a server opens its content; back order folder -> content root -> servers -> exit, in-screen arrow at the content root (`showsBackAtContentRoot`); toolbar (timer toggle with picker when no duration, "Set shutdown timer" in overflow, settings, log, about, always-visible exit); receiver bar on every level opening the sheet; mini-player featured session rule, four buttons, tap opens the player, hidden when no player; Layout under Settings > Appearance (first item), entries "Classic (tabs)" / "New (single screen)", applies on return to a browser screen, classic default also on TV; no pull-to-refresh claim; no TV certification claim (honestly "not checked with a TV remote"). Merged manifest has exactly the 12 exported components listed in tech.md, `BrowserActivity` and `SettingsActivity` not exported, `allowBackup` unset, 21 `uses-permission`. `BrowserHost` table, share handler (cap 2048, graceful shutdown, callback cleared, max 3 queued, clip text only, URI never used), launcher forward policy, idle timer (5 min, counter), mini-player (2 s poll, 500 ms refresh, art key, `getIcon()` once per key, `cleanText`) and Layout preference text match the code. `docs/index.md` anchors (`#new-layout-single-screen`, `#receiver-controls`, `#live-streaming-android-10`, `#media-server`, `#content-browsing`, `#shutdown-timer`) all resolve to existing headings; no relative links added; heading levels consistent; no TOC to update. Placeholder grep returns only the quoted `//FIXME dirty` (tech.md:1556, pre-existing quote of old code). The stale research-time terms (Recommended/Proposed/ServerRootFragment/providesShutdownTimer/LaunchHelper/`new Intent(getIntent())`/copy/cancels it) occur only in the explicitly labelled "Research notes (Group 5)" history section (which says the as-built text wins) or in correct as-built statements ("There is no `ServerRootFragment`"). Nothing documents Backlog 1 items as done (they appear under known limitations as open); no `[!]` items exist; screenshots untouched; tasks.md status line accurate (Group 9 manual checks stay open).
+
+### Critical
+- None.
+
+### Warning
+- [CHANGELOG.md Unreleased > Fixed "Shutdown timer after rotation"; docs/tech.md:241-243 "As built: shutdown timer and streaming permission" ("it showed blank before")] The claim that the Server tab's timer "was blank before" a rotation is not supported by the pre-Phase-2 code. At 3a289b8f `ServerListFragment.onSaveInstanceState` saved the remaining-time text and `init` restored it and re-registered the listener when `savedInstanceState != null` (lines ~207-211, 250-253); the switch is a view with an id, so its checked state is restored by the framework. After a rotation the old tab showed the running timer. What was really wrong before: the application held the destroyed fragment as the single listener (leak), and a fragment view recreated without saved state could show the configured duration and an unchecked switch while a timer ran (wrong, not blank). Fix: reword the CHANGELOG entry (and the tech.md parenthesis) to what is true and verifiable, e.g. "The Server tab's shutdown timer (switch and remaining time) is now taken from the running timer, so it is correct whenever the screen is recreated or the layout is switched", and drop "it was blank before". (The decisions.md line 133 origin is the same unverified statement; correct it or leave it, but do not repeat it in user-facing text.)
+
+### Suggestion
+- [docs/index.md "Media proxy" note] "Only links that start with `http://` or `https://`": the code (`ShareUriPolicy`) checks only the scheme before the first `:` (so `http:foo` passes, as tech.md and Backlog 1 item 8 already say). User-facing wording is fine; consider "start with http or https" and that the shared text must be just the link (text with words before the URL is ignored), since that is what users hit when sharing from apps that send "title + URL".
+- [CHANGELOG.md Changed "Sharing into yaacc"] "Shared file links" is ambiguous (reads like links to files on a server, which still work as http); say "`file:` links and shared files/URIs".
+- [CHANGELOG.md Added "New single-screen layout"] One very long bullet; the Device sheet bullet is similar, so style is consistent, but a short second sentence split (mini-player) would read better. Not blocking.
+- [docs/tech.md mini-player "Text"] "cached per device id once resolved until `unbind()`" is a one-slot cache (it is replaced when the featured receiver changes); say "last resolved receiver".
+
+### Tests
+- [x] All tests passing (docs-only commit; no code changed since Group 9's 331+ green unit tests; Gradle intentionally not rerun)
+- [x] Coverage adequate for the change (n/a, documentation)
+
+### Verdict: FAIL
+One Warning: a user-facing changelog claim ("shutdown timer ... was blank before" a rotation) that the previous code does not support, repeated in tech.md. Everything else checked is true as built. Fix the wording in CHANGELOG.md and docs/tech.md:241-243, then re-review (no other change needed).
+
+## Cycle 2 — 2026-10-24
+Reviewing: Group 10 (phase 2), commit cb869510 (re-review of the cycle 1 Warning and wording suggestions; `CHANGELOG.md`, `docs/tech.md`, `docs/index.md`, `decisions.md`, `review.md`). Docs only; Gradle not rerun (no code changed).
+
+Checked against the old code (`git show 3a289b8f:.../ServerListFragment.java`, `Yaacc.java`) and the current code (`ShutdownTimerController`, `Yaacc`, `ServerListFragment`):
+- Old `ServerListFragment` saved only the remaining-time text in `onSaveInstanceState` and restored it in `init`; it registered itself with `Yaacc.setShutdownTimerListener(this)` (a single listener field) and has no `onDestroyView`/clearing of that listener, so a destroyed fragment stayed registered. The new wording ("restored only the remaining-time text and held the destroyed fragment as the single listener (a leak)") is true.
+- Current code: `Yaacc` keeps `shutdownTimerRunning` and `shutdownTimerRemainingMillis` and a `CopyOnWriteArrayList` of listeners; `ShutdownTimerController.attach` registers and publishes the state from `Yaacc` immediately, `detach` removes it; `ServerListFragment` attaches/detaches around its view lifecycle. "Takes the state from the running timer, correct whenever the view is recreated (rotation, tab re-creation, layout switch), destroyed screen no longer kept alive" is true.
+- `grep -rn -i blank CHANGELOG.md docs/ decisions.md`: no remaining claim about the timer; only tech.md:1268 (unrelated "blank fillers" Unicode characters) and Doxyfile comments. No other "showed/was empty" timer claims.
+- Cycle 1 suggestions applied correctly: docs/index.md share note ("shared text should be just that link"), CHANGELOG "`file:` links, shared files, and URIs that arrive as clip data", tech.md one-slot cache wording. All consistent with the code per cycle 1.
+- Diff is limited to the five files above; no code, anchors, links or headings changed.
+
+### Critical
+- None.
+
+### Warning
+- None.
+
+### Suggestion
+- [docs/tech.md mini-player "Text"] The reworded line is now longer than the surrounding wrapped lines; cosmetic only.
+- Carried from cycle 1, still open and not blocking: split the long "New single-screen layout" CHANGELOG bullet.
+
+### Tests
+- [x] All tests passing (docs-only commit; no code changed since Group 9's 331+ green unit tests)
+- [x] Coverage adequate for the change (n/a, documentation)
+
+### Verdict: PASS
+The cycle 1 Warning is resolved: the shutdown timer claim now matches the old and the current code, and no other place repeats the "blank" claim.
