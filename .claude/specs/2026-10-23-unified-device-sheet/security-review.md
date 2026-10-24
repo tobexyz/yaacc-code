@@ -381,3 +381,319 @@ Security-relevant claims, checked against the source:
   - bidi-control stripping in `ReceiverBarLabel`.
 
 ### Verdict: PASS
+
+## Cycle 1 — 2026-10-24
+Reviewing: Group 5 (phase 2)
+
+Scope: `git diff e80480e7~1..HEAD` (`BrowserLayoutChoice` and `MiniPlayerPicker`
+stubs, their two tests, `docs/tech.md` "Classic and new layout", plan edits in
+tasks.md, design.md and decisions.md). Because this group sets up the
+security-sensitive parts of Groups 6-9, the plan for them was also reviewed
+against the current code: `TabBrowserActivity.java` (share handler, idle timer,
+`onResume`), `UpnpClient#createPlayableItem`, the proxy path in
+`YaaccUpnpServerContentHttpHandler`, `MediaProjectionHelper`, `Yaacc.java`,
+`AndroidManifest.xml` and `file_paths.xml`.
+
+What this group changed: no production behavior. Both stubs are plain Java
+with no `android.*` imports, no I/O, no reflection and no callers under
+`yaacc/src/main`. The manifest is untouched, nothing is exported, and there are
+no new dependencies. `docs/tech.md` has no secrets, tokens, IP addresses,
+user-specific paths or e-mail addresses. Its only filesystem path is the public
+`~/.gradle/caches/...` AAR location, which was already cleared in Group 1. It
+advises nothing insecure, except the trampoline body in section (f), which is
+the first Warning below. Fail-closed contract: the tests require exact,
+case-sensitive `"new"` for NEW and everything else (null, empty, unknown,
+differently cased) for CLASSIC, which is the safe direction for a value that
+backup/restore or adb can set. The stub `resolve` returns null, but nothing
+calls it yet.
+
+### Critical
+- None.
+
+### Warning
+- [tasks.md Group 6 "LauncherActivity" Accept, docs/tech.md (f) trampoline
+  body] The plan forwards the incoming intent verbatim. The doc says "Prefer
+  the copy ... carries the grant exactly like the original", "keep the
+  launcher's own FLAG_ACTIVITY_* bits", and the task says "`new
+  Intent(getIntent())`, sets only the component". The launcher is exported
+  and takes any intent, because an explicit intent ignores the filters. The
+  copy-everything design therefore launders an arbitrary third-party intent
+  into a same-app intent for `BrowserActivity`, which is meant to be
+  non-exported. The copy keeps the sender's flags, `ClipData`, every extra
+  (including nested `Intent`/`PendingIntent` extras such as `EXTRA_INTENT`),
+  `getSelector()`, `FLAG_GRANT_*` and `FLAG_GRANT_PERSISTABLE/PREFIX` bits, and
+  `data`. `new Intent(Intent)` copies the selector as well. Consequences:
+  - Anything `BrowserActivity` or `TabBrowserActivity` reads from
+    `getIntent()` now looks internal. `getReferrer()` and
+    `getCallingPackage()` are laundered to the app itself, so the browsers
+    can't distinguish the sender.
+  - Forwarded sender flags (`CLEAR_TASK`, `CLEAR_TOP`, `FORWARD_RESULT` and
+    others) apply to the trampoline's `startActivity`.
+  - The grant check on the forward runs as the app's own UID, which owns the
+    non-exported `FileProvider` and holds the sender's grants. An
+    attacker-supplied `content://<applicationId>.fileprovider/...` or a `file:`
+    URI in `ClipData` is opened with the app's identity if any code opens it
+    (see the share-handler Suggestion).
+  - Today only `ACTION_SEND` is consumed, so the exploitable effect is small.
+    The design makes every future read of `getIntent()` in the new,
+    supposedly private, activity attacker-reachable. It also contradicts the
+    check "no `FLAG_GRANT_*` added", which misses the real problem: the
+    sender's grant bits are already on the copy.
+
+  Amend Group 6 before building: replace "copy with only the component
+  changed" with a fresh, allowlisted forward (rules under Suggestion, "Group 6
+  must"). The change is small and removes the confused-deputy and laundering
+  questions altogether.
+- [tasks.md Group 6 "resume check", docs/tech.md (c) snippet, decisions.md
+  2026-10-24] The relaunch has no loop guard and can loop forever as written.
+  Each browser compares `BrowserLayoutChoice.resolve(pref)` with its own
+  layout and, on mismatch, starts "the other" class via the launch helper. In
+  the same task, until Group 8 flips `NEW_LAYOUT_AVAILABLE`, the helper maps
+  every choice to `TabBrowserActivity`. A stored `"new"` is therefore a
+  mismatch in `TabBrowserActivity`, which starts `TabBrowserActivity`,
+  which finishes and mismatches again. This repeats forever, with no way to
+  reach Settings to fix it. `"new"` can reach a device without the hidden UI
+  through backup/restore (the manifest sets no `allowBackup`, so the default
+  is true), adb, or a downgrade from a later build. The same loop appears
+  after Group 8 if `BrowserActivity` ever fails to stay up, or if the preference
+  flips between the two `onResume` calls. The relaunch also runs in
+  `onResume`, after `onCreate` has already run the share handler, so a
+  mismatched instance processes the share and then redirects.
+
+  Stale or forged PendingIntents are not a problem. The three internal
+  ones are explicit, `FLAG_IMMUTABLE` (`Yaacc.java:172`,
+  `PlayerService.java:111, 201`), so another app can't forge or edit them.
+  The only risk is the loop above. Amend Group 6 with the guard rules under
+  Suggestion.
+
+### Suggestion
+Forward-looking requirements, to be folded into tasks.md. "Group N must:" items
+are binding on that group's review.
+
+**Group 6, trampoline and manifest**
+- Group 6 must: build a fresh `Intent` for the forward instead of
+  `new Intent(getIntent())`. Rules:
+  - set the component to the target class from the launch helper;
+  - copy the action only if it is `ACTION_MAIN` or `ACTION_SEND`, and nothing
+    else for any other action;
+  - for `ACTION_SEND`, copy type `text/plain`, `EXTRA_TEXT` read with
+    `getStringExtra` (a `String`, length-capped, for example 8 KiB), and a
+    rebuilt plain-text `ClipData` only if the share handler needs it;
+  - never copy flags (no `FLAG_GRANT_*`, no `FLAG_ACTIVITY_*`, no persistable
+    or prefix bits), `data`, `ClipData` URI items, `EXTRA_STREAM`, `EXTRA_INTENT`
+    or any other extra, the selector, the package, the identifier or the
+    categories;
+  - drop all `Uri` items, and so grants, unless the owner decides otherwise
+    (the filter is `text/plain`, so a `content:` item is not playable media
+    anyway). The `content://` on-device check in tech.md should then be
+    recorded as "not supported by design".
+- Group 6 must: wrap all reads of the incoming intent in
+  `try { ... } catch (RuntimeException)` (covers `BadParcelableException`,
+  `ClassNotFoundException`-driven failures and similar from a crafted extras
+  bundle), forward nothing on failure, and call `finish()` in `finally`. A
+  malformed extras bundle currently crashes the whole process, including
+  `PlayerService`. `checkIfReceivedShareIntent` calls `getExtras()` unguarded.
+  `TabBrowserActivity` stays exported, so `ShareIntentHandler.handle` needs the
+  same guard (see below).
+- Group 6 must: add no `launchMode` or `taskAffinity` to `LauncherActivity`,
+  `TabBrowserActivity` or `BrowserActivity`, as tech.md already proposes. Set
+  `excludeFromRecents` only if the owner wants it.
+- Group 6 must: keep `TabBrowserActivity` as `exported="true"` with no filters
+  as decided. Check that the manifest diff shows exactly one new exported
+  component (`LauncherActivity`) and that `TabBrowserActivity` keeps its
+  current exposure rather than gaining any. Neither `TabBrowserActivity` nor
+  `BrowserActivity` may read an internal-only extra, action or token from
+  `getIntent()` as a trust signal, and no `getReferrer()` or
+  `getCallingPackage()` based decisions (the trampoline erases the origin,
+  and `TabBrowserActivity` is directly reachable by explicit intent anyway).
+- Moved VIEW filter (`MAIN+VIEW+DEFAULT+LAUNCHER`, no `<data>`): flagged as
+  asked. It matches only data-less implicit `VIEW` intents with `DEFAULT`
+  from any app. Moving it unchanged adds no surface, because today's exported
+  `TabBrowserActivity` has the same filter, and no sensitive action hangs off
+  it. Dropping it is better hygiene, but it's an owner decision, since an
+  older shortcut or automation may depend on it. If kept, Group 6 must
+  copy it verbatim and the trampoline must apply the same action allowlist
+  above, which means a `VIEW` intent forwards as a plain launch (action
+  dropped, nothing carried over).
+- Group 6 must: not export `BrowserActivity` (Group 7 re-checks). Also no
+  `<intent-filter>` on `TabBrowserActivity` or `BrowserActivity`.
+
+**Group 6, resume check (guard for finding 2)**
+- Group 6 must: decide mismatch on the effective layout, not the stored one.
+  Define `BrowserLauncher.effectiveLayout()` as `CLASSIC` while
+  `NEW_LAYOUT_AVAILABLE` is false, else `BrowserLayoutChoice.resolve(...)`.
+  Relaunch only if `effectiveLayout() != this activity's layout`. The launch
+  helper and the check must use the same function, so the target can never be
+  the same class as the caller. Add a unit-testable assertion for this
+  (stored `"new"` with the flag false means no relaunch).
+- Group 6 must: add a process-wide, in-memory loop guard. For example, a
+  static timestamp or counter in `BrowserLauncher` that allows at most one
+  relaunch per 2 s (or per process start, with a reset when a browser stays
+  resumed past a short threshold). If the guard trips, render in the current
+  layout and log. In-process state can't be forged, unlike an intent extra,
+  and a forged "already relaunched" extra could only suppress a redirect.
+- Group 6 must: relaunch with a fresh `new Intent(this, target)`, with no
+  extras, data or flags copied from `getIntent()`. Process the share payload
+  in the instance that received it, or do the layout check before the share
+  handler runs, so the payload is consumed exactly once and never re-forwarded.
+- Group 6 must: read the stored value with default `null` only
+  (`getString(key, null)`), as tech.md says.
+
+**Group 6, share handler (finding 2)**
+- Existing risks, pre-existing and reachable today by any app on the device
+  through the exported `TabBrowserActivity`:
+  - `createPlayableItem(Uri)` takes any scheme or even a bare path. With the
+    proxy option on, it writes `sha256(uri)` -> uri to the default prefs and
+    the local server serves it at `/proxy/<hash>`. The handler opens
+    `new File(uri)` or `ContentResolver.openInputStream(Uri.parse(uri))`
+    (`YaaccUpnpServerContentHttpHandler.java:1396-1470`), so a shared
+    `file:///data/data/<pkg>/shared_prefs/...`, a plain path, or the app's own
+    `content://...fileprovider/...` becomes readable over HTTP by anything on
+    the LAN, and by the sharing app through localhost. The hash is
+    predictable. The app also holds `MANAGE_EXTERNAL_STORAGE`, so shared
+    storage is in reach too. This needs the proxy option enabled.
+  - Untrusted text starts playback on the selected receivers with no
+    confirmation, and when none is ready it rewrites the saved receiver
+    selection to `LOCAL_UID`.
+  - A `RuntimeException` on the worker thread
+    (`throw new RuntimeException(ioException)`) kills the process when run
+    through `executor.execute`.
+- Group 6 must: not widen any of this. Specifically, `ShareIntentHandler`
+  must remain the only code that parses `EXTRA_TEXT` or clip data, must only
+  `Uri.parse` and pass the result to `createPlayableItem`, and must never
+  build an `Intent`, `PendingIntent` or file path from it.
+- Group 6 must (recommended, needs an owner nod because the task says "parsed
+  exactly as today"): apply a scheme allowlist of `http` and `https` before
+  `createPlayableItem`, reject everything else (`file`, `content`, no scheme or
+  bare paths, `intent`, `javascript`), and toast a short, fixed message.
+  Without the allowlist, file a follow-up issue that cites the proxy path
+  above. This is the largest existing hole the share path has, and Group 6
+  builds the one shared helper both layouts will use.
+- Group 6 must: wrap parsing in `try/catch (RuntimeException)` and the worker
+  body in `catch (Exception)` with a log and a toast, with no rethrow
+  (the `IOException -> RuntimeException` crash becomes a handled failure),
+  cap the URI length (for example 2048), and keep no `Activity` or `View`
+  reference (application context plus a main-looper `Handler`, as planned).
+  `shutdown()` must also cancel pending delayed work so a destroyed screen
+  doesn't start playback 6 s later (use `shutdownNow()` or
+  `setExecuteExistingDelayedTasksAfterShutdownPolicy(false)`).
+- Group 6 must: keep clearing consumed extras on its own copy, not on a shared
+  `Intent`, and not log the shared text at INFO or above (it can contain
+  signed URLs or tokens in the query string). `createPlayableItem` logs only
+  the exception today; keep it that way.
+
+**Group 6, idle timer and static callbacks (finding 4)**
+- Process-wide idle timer. The plan says "started when a browser goes to the
+  background, cancelled when any browser resumes". The activity lifecycle
+  during a switch is `A.onPause` -> `B.onCreate/onStart/onResume` ->
+  `A.onStop`. A timer started in `A.onStop` therefore starts after
+  `B.onResume` has cancelled it, nothing cancels it again, and
+  `Yaacc.exit()` runs 5 minutes later while the user is in `B`. Making the
+  timer process-wide doesn't fix this on its own. This is a functional
+  defect more than a security one (the runnable only exits when no players,
+  server, renderer or proxy are active), so it is logged here rather than
+  failing the cycle, but it must be fixed in Group 6.
+  - Group 6 must: count started browsers (increment in `onStart`, decrement in
+    `onStop`) and start the timer only when the count reaches 0. Cancel it in
+    every `onStart`/`onResume`.
+  - Group 6 must: hold the timer in a process-scoped object using only the
+    application context. It must not capture an `Activity` (today the
+    runnable and handler capture the activity for up to 5 minutes).
+  - Group 6 must: re-read the preferences and the player list when the timer
+    fires, as today. It must not cache the decision.
+  - Group 6 must: add a plain-JVM test for the counter (the switch order
+    above ends with the timer cancelled, background ends with it armed).
+- `Yaacc.setShutdownTimerListener` is a single slot. A new fragment attaching
+  in `onStart` before the old one detaches in `onStop` (the same ordering
+  as above) would have its listener removed by the old fragment's detach.
+  Group 6 must: make `ShutdownTimerController` support several listeners
+  (`CopyOnWriteArrayList`) or a compare-and-clear detach (clear only if the
+  slot still holds the caller). It must hold no `Context`/`View`, deliver on the
+  main thread, and tolerate a detach during delivery. `Yaacc.exit()` from the
+  timer finishing must still end the process whichever layout is on top.
+- `MediaProjectionHelper.stopCallback` has the same single-slot hazard
+  (`ServerListFragment.java:89`, set there and unset in `onStop` after the
+  Group 6 change). Group 6 must: unregister with the same instance and clear
+  the slot only if it still holds that instance. The callback must not capture
+  a fragment or `Context`, but a weak or lifecycle-checked reference, and it
+  must hop to the main thread before touching views (`onStop` of the
+  projection arrives on the framework's callback thread).
+- MediaProjection token handling in `StreamingPermissionHelper`. Group 6
+  must keep the result `Intent` in `MediaProjectionHelper`'s static fields
+  only (in-process). It must not be written to `savedInstanceState`, a
+  `Bundle`, `SharedPreferences`, a `ViewModel`, an `Intent`/`PendingIntent`
+  extra, a file or a log. Log only the result code and "granted/denied", never
+  `data`, `data.getExtras()` or `toString()` of the extras. It must also:
+  - accept the result only for the request the helper itself issued (check the
+    request code, or use an `ActivityResultLauncher` owned by the helper) and
+    ignore a result when no request is pending;
+  - not expose a getter for `storedResultData` beyond what
+    `createMediaProjectionFromStored` needs;
+  - keep `clearPermission()` on the disable path.
+
+**Group 7**
+- Group 7 must: `BrowserActivity` `exported="false"`, no filters. Its
+  `getIntent()` handling is limited to passing the forwarded, sanitized intent
+  to `ShareIntentHandler` (null callback). It must not read any other extra,
+  `data`, or `ClipData` URI, must not call `startActivity` with anything derived
+  from the intent, and must use the same `BrowserLauncher.effectiveLayout()`
+  resume check with the Group 6 loop guard.
+- Group 7 must: add no deep link, no `onNewIntent` path other than the share
+  handler, and no `PendingIntent` built from incoming data.
+- Group 7 must: `ServerRootFragment` and the reused `BrowseDeviceAdapter` keep
+  LAN-supplied names and icons as plain `setText` / `IconDownloadTask`.
+
+**Group 8**
+- Group 8 must: build the mini-player bar from `Player` objects only. Tap uses
+  `Player#getNotificationIntent()` with an empty fill-in `Intent`, as the
+  sheet does (explicit, `FLAG_IMMUTABLE`). No new implicit `Intent`.
+- Group 8 must: render title, receiver name and album art with plain `setText`
+  and `IconDownloadTask`. Strip bidi controls from receiver names if
+  `ReceiverBarLabel` gets the hardening suggested in the Group 3 cycle,
+  since the mini-player will repeat the name.
+- Group 8 must: unregister the `PlayerListChangeNotifier` listener and stop
+  the 2 s poll in `onStop` and `onDestroy`, pass no `Context`/`View` into
+  `PlayerService`, and guard posted callbacks with `isAdded()` / `getView() !=
+  null`. Do not add another status poller, as the plan already says.
+- Group 8 must: pass `MiniPlayerPicker` only copies of players, and treat
+  null device ids, spoofed `LOCAL_UID` ids and equal sequences as the tests
+  require (no dependence on input order, no exceptions). Transport commands
+  run off the main thread through the existing `ReceiverRowBinder` path.
+
+**Group 9**
+- Group 9 must: store the layout as a `ListPreference` with fixed
+  `entryValues` `classic`/`new` and read it only through
+  `BrowserLayoutChoice.resolve`. Nothing may treat the stored string as a
+  class name, an action, a path or an intent target.
+- Group 9 must: keep `NEW_LAYOUT_AVAILABLE` and the effective-layout check, so
+  a restored backup value of `new` can't strand the user.
+- Group 9 must: make no `android:exported`, `allowBackup`, or permission
+  changes.
+- Group 9 / owner: consider `android:allowBackup="false"` or an exclude rule
+  for the default preferences file. It holds the `proxy_link_*` entries (the
+  mapping from shared URI to proxy key), the receiver selection, and now the
+  layout choice. This is outside the spec, so it is a follow-up note only.
+
+**Group 10**
+- Group 10 must: record in `docs/tech.md` what the trampoline forwards and
+  what it drops, the scheme allowlist (or the open follow-up issue), and the
+  loop guard. Correct the section (f) trampoline body in `tech.md`
+  (copy-with-component), which stays advisory to later readers until it is
+  amended.
+
+**Carried forward, still open** (outside this phase):
+- `PlayerService.getPlayer()` returns a mutable view;
+- `ImageDownloader` needs a scheme allowlist and a size cap;
+- ignore remote devices whose UDN equals `LOCAL_UID` at `UpnpClient` ingress;
+- per-request deadline in `RendererStatusMonitor`;
+- bidi-control stripping in `ReceiverBarLabel`.
+
+### Verdict: FAIL
+Group 5's own changes are clean. FAIL is for the two plan flaws above
+(unsanitized full-intent forward, and the relaunch without a loop guard that
+loops under the planned `NEW_LAYOUT_AVAILABLE = false` interim). Both are
+fixed by editing the Group 6 task text and tech.md (f) before Group 6 starts;
+no code changes are needed. Once the amended Group 6 Accept/Constraints carry
+the "Group 6 must" items marked as Warning fixes (fresh allowlisted forward;
+effective-layout comparison, loop guard, fresh relaunch intent), the next cycle
+should PASS.

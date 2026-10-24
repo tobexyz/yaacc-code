@@ -1491,29 +1491,48 @@ same intent. From `android-14.0.0_r1`:
    carries the grant exactly like the original. Prefer the copy so the
    trampoline's own `getIntent()` is not mutated.
 
-Recommended trampoline body (behavior only; Group 6 writes the code):
+Recommended trampoline body (behavior only; Group 6 writes the code). The
+launcher is exported and an explicit intent ignores its filters, so any app
+can send it any intent. Security review cycle 1 (Group 5) therefore
+requires a **fresh, allowlisted forward**, not a copy of the incoming
+intent (a copy would turn a third-party intent into a same-app intent for
+the non-exported `BrowserActivity` and keep grant bits, `ClipData` URIs,
+nested `EXTRA_INTENT`, selector and flags):
 
 ```java
 public class LauncherActivity extends android.app.Activity {   // NOT AppCompatActivity
     @Override protected void onCreate(Bundle b) {
         super.onCreate(b);
         try {
-            Intent forward = new Intent(getIntent());      // copy: keeps action, extras, ClipData, flags
-            forward.setComponent(new ComponentName(this, BrowserLauncher.targetClass(this)));
-            startActivity(forward);                        // add NO flags, invent NO extras
+            Intent in = getIntent();
+            Intent forward = new Intent(this, BrowserLauncher.targetClass(this));  // fresh
+            if (in != null && Intent.ACTION_SEND.equals(in.getAction())
+                    && "text/plain".equals(in.getType())) {
+                forward.setAction(Intent.ACTION_SEND).setType("text/plain");
+                String text = cap(in.getStringExtra(Intent.EXTRA_TEXT));   // length-capped
+                if (text != null) forward.putExtra(Intent.EXTRA_TEXT, text);
+            }                                   // MAIN and everything else: plain launch
+            startActivity(forward);
+        } catch (RuntimeException e) {
+            // crafted extras can throw on read: forward nothing, log no payload
         } finally {
-            finish();                                      // required before onResume completes
+            finish();                           // required before onResume completes
         }
     }
 }
 ```
 
+Rules: no flags, no `data`, no `ClipData` URIs, no `EXTRA_STREAM` /
+`EXTRA_INTENT` / other extras, no selector, no categories (which drops every
+URI grant); a `ClipData` item's *text* (never its URI) may be used as the
+`EXTRA_TEXT` fallback; the browsers never trust `getIntent()` or the
+referrer.
+
 - `extends android.app.Activity`, not `AppCompatActivity`: `Theme.NoDisplay`
   is a framework theme, not an AppCompat theme, and the trampoline never
   inflates anything.
-- Do not add or remove `FLAG_GRANT_*`. Keep the launcher's own
-  `FLAG_ACTIVITY_*` bits as they arrive (the original flags are copied).
-  Do not call `setSelector`/`setPackage`.
+- Add no `FLAG_GRANT_*` and copy no flags from the incoming intent; do not
+  call `setSelector`/`setPackage`.
 - Because the forward is explicit, `BrowserActivity` and `TabBrowserActivity`
   need no `<intent-filter>` and can be `exported="false"`.
 - Placement: trampoline and target share the default affinity, so the target
