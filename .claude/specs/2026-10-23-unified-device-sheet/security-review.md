@@ -1182,3 +1182,49 @@ Scope: `git show 3f3d9658` (`MiniPlayerBar.showArt`, `decisions.md`, cycle 1 tex
 
 ### Verdict: PASS
 Zero Critical, zero Warning. The cycle 1 Warning is closed: `getIcon()` is no longer on the poll path, it runs once per `player id + art URI` key, a null art URI triggers nothing, late art is tag-guarded and correct across player and art changes, and the worst-case flip rate (one key change per refresh, 2 requests per 2 s, only if players alternate their playing state in lockstep with the poll, which a device cannot drive alone) is not a sustained flood through a normal state. Group 8 may proceed.
+
+
+## Cycle 1 — 2026-10-24
+Reviewing: Group 9 (phase 2), preference task
+
+Scope: `git show 72f337cf 87b79d5f` (`preference.xml`, `values/browser_layout.xml`, `settings_browser_layout_*` strings in 7 locales, `BrowserLauncher` Javadoc, `BrowserLayoutValuesTest`). Read in addition: `BrowserLayoutChoice`, `BrowserLauncher` (all of it), `SettingsActivity`, `SettingsFragment`, the debug merged manifest, every `PendingIntent.get*` call and every `SharedPreferences` writer in `de.yaacc`. The Group 5-8 "Group 9 must" lists were checked item by item. No code or docs edited.
+
+**1. Manifest and build: honored.**
+- `git diff 85ae9d2a..HEAD -- yaacc/src/main/AndroidManifest.xml yaacc/build.gradle` is empty. No exported, `allowBackup`, permission or component change; no dependency change.
+- `SettingsActivity` has no `android:exported` and no intent filter, so it is not exported on any API level (the merged manifest has the same two lines). It extends `AppCompatActivity` and hosts a `SettingsFragment` itself (not `PreferenceActivity`), so there is no fragment-injection extra. It reads no intent, extra or data. Another app cannot start it, drive it or pre-select a value.
+
+**2. Fixed values, one reader: honored.**
+- `entryValues` come from `browser_layout_values` (`classic`/`new`, `translatable="false"`, so no locale file can change them; the 6 locale files carry only the three display strings). Default `classic`. `BrowserLayoutValuesTest` pins both the array and the default to `BrowserLayoutChoice.STORED_*` and `DEFAULT_STORED_VALUE`.
+- The key `settings_browser_layout_key` appears in exactly one Java file, `BrowserLauncher.effectiveLayout(Context)` (read, default `null`, `RuntimeException` caught, then `NEW_LAYOUT_AVAILABLE` and `BrowserLayoutChoice.resolve`). No second reader, no writer in code (the `ListPreference` is the only writer).
+- The stored string is only compared (`STORED_NEW.equals(value)`). `targetClass(Layout)` is a two-way `if` on the enum. It is never a class name, action, URI, path, extra or reflection target. Unknown, differently cased, wrong-type values resolve to classic.
+
+**3. Can another app set it? No.**
+- The default `SharedPreferences` file is private to the app UID. No `ContentProvider` exposes it (the only provider is `FileProvider`, `exported="false"`). Every `.edit()` writer in `de.yaacc` was listed: all write fixed keys from in-app UI/lifecycle, or keys built from internal state (`SAFCacheManager`, `NetworkInterfaceManager`, `ImageViewerActivity`). The one writer that touches an `Intent` (`YaaccUpnpServerControlActivity.onActivityResult`) takes the system document-picker result for `takePersistableUriPermission` and writes no layout key; no preference is keyed from an incoming intent or URI. There is no settings import/export path.
+- Remaining routes: Auto Backup / `adb backup` restore (see 4) and `run-as`/root on debuggable builds. Both are outside the app's trust boundary and can only choose between the two in-app layouts.
+
+**4. allowBackup residual risk (unchanged, not new).** `allowBackup` is not set in source or in the merged manifest, so it defaults to true. A backup holds the layout value with `proxy_link_*`, the receiver selection and SAF cache entries. An attacker who can tamper with a restored backup can set `new`; that routes only to `BrowserActivity` (`exported="false"`, no filter), through `relaunchIfOtherLayout`, with `NEW_LAYOUT_AVAILABLE` and the loop guard in force. The effect is a layout flip and nothing else; the wider exposure of the other keys in the file is the open owner item from Group 5-8 and is not worsened by this change.
+
+**5. Switch path and PendingIntents: no abuse path, UX only.**
+- A change in Settings takes effect on `onResume` through `relaunchIfOtherLayout` (one `effectiveLayout` computation, fresh `new Intent(activity, target)`, shared `RelaunchGuard`, `NEW_LAYOUT_AVAILABLE` kept). Nothing from `getIntent()` is forwarded. There is no relaunch from `SettingsFragment`; the setting does not itself start an activity.
+- Stale PendingIntents (`Yaacc.createYaaccGroupNotification`, `PlayerService.createSessionActivity`, `updateServiceNotification`): all three are `new Intent(this, <class>)` (explicit component, no data, no extras) with `FLAG_IMMUTABLE`. Only our own process can have created them, and another app can neither alter nor read the target. After a switch, an old notification still points at the previous class; a tap starts that activity, whose resume (or `onCreate`) check relaunches to the effective browser. The result is at worst a second instance on the stack (the already noted `tasks.md` observation). Not security relevant. The other notification PendingIntents (`AVTransportPlayer`, `MultiContentPlayer`, `LocalImagePlayer`, `LocalMediaSessionPlayer`, `YaaccUpnpServerService`) do not use `targetClass` and are `FLAG_IMMUTABLE` and explicit as in earlier cycles.
+
+**6. Android TV.** The setting is visible on TV while D-pad reach of the new layout is unverified. A user could choose `new` and find the browser hard to operate. This is an availability and usability concern, not a security one; it is covered by the owner's manual checks. Recovery is by the same Settings screen (reachable in `BrowserActivity`; this must stay true).
+
+**7. Other.** The `entries` strings are static resources; `android:summary="%s"` renders the selected entry only. No logging of the value. No new dependency, no network, no reflection. Test reads only module resource files.
+
+### Critical
+None.
+
+### Warning
+None.
+
+### Suggestion
+- [BrowserLauncher.java] `NEW_LAYOUT_AVAILABLE` and the `RuntimeException` catch stay as they are; a future change must not add a second reader of the key.
+- Group 10 must: record in `docs/tech.md` as built that the key is read only in `BrowserLauncher.effectiveLayout(Context)`, values are `classic`/`new` (default `classic`), and the switch runs only through `relaunchIfOtherLayout` (fresh intent, `RelaunchGuard`).
+- Group 10 must: re-run the manifest check after the last code change (`BrowserActivity` and `SettingsActivity` not exported, exported set unchanged) and keep `git diff` of manifest and `build.gradle` empty.
+- Group 10 must: write the `allowBackup` residual (item 4) into the docs or the decision log, with the owner's decision on `android:allowBackup="false"` or a backup exclusion for the default preferences file (carried; outside the spec).
+- Group 10 must: keep the settings entry reachable in the new layout (item 6) and record the Android TV status after the owner's manual check; note the stale-notification stack duplicate as a known behavior or fix it with `FLAG_ACTIVITY_REORDER_TO_FRONT` on the relaunch intent only (fresh intent, no forwarded data).
+- Carried forward, still open (outside this group): `allowBackup`/preferences exposure; `PlayerService.getPlayer()` mutable view; `ImageDownloader` scheme allowlist, timeouts and size cap; ignore remote devices whose UDN equals `LOCAL_UID`; per-request deadline in `RendererStatusMonitor`; bidi-control stripping in `ReceiverBarLabel`; `PlayerListFragment`/`ReceiverListFragment` never remove their `UpnpClientListener`.
+
+### Verdict: PASS
+Zero Critical, zero Warning. The preference stores one of two fixed values, is read in one place, is only compared, is private to the app, and cannot be written or driven by another app (the settings activity is not exported). The manifest and gradle diffs are empty. Group 9's preference task may proceed to Group 10.
