@@ -104,3 +104,14 @@ button stays. The share-to-yaacc handler moves to a shared helper and the
 launcher trampoline owns the launcher/TV/SEND intent filters.
 **Rationale**: one screen is the point of the redesign; keeping a mini-player
 for later would leave the new layout without quick access to running players.
+
+## 2026-10-24 - Phase 2 plan amended by the Group 5 research
+**Context**: `docs/tech.md` "Classic and new layout" found that `Activity#getParent()` is null for a plain activity, so four of the five fragment-to-`TabBrowserActivity` branches never run; back works only for the folder pop and the Server-tab exit; the MediaProjection result belongs to the fragment hosting `BrowseDeviceAdapter`; four other activities declare `LAUNCHER` (VIEW only); the per-instance idle timer can fire after a relaunch.
+**Decision**:
+- Remove the four dead branches instead of wiring them (classic stays unchanged; fixing classic back is a separate owner decision). Only the live sites use `BrowserHost`.
+- New layout gets its own back handling via the `OnBackPressedDispatcher`.
+- Relaunch on a Layout change by comparing the stored layout in each browser's `onResume` (covers Settings, stale notification intents, launcher re-taps).
+- `TabBrowserActivity` stays exported without intent filters, so existing shortcuts keep working; the launcher trampoline holds the filters.
+- Extract `ShareIntentHandler`, `ShutdownTimerController` and `StreamingPermissionHelper` in Group 6 (behavior-preserving), fixing the leaks they carry.
+- One process-wide idle timer.
+**Rationale**: keeps classic byte-for-byte, and moves refactors that only fix leaks ahead of the new activity.
