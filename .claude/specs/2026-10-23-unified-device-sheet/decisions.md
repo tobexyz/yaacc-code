@@ -151,3 +151,7 @@ for later would leave the new layout without quick access to running players.
 - Status icons in the new server layout reuse the existing `settings_local_server_*` strings; `browser_back` is new for the in-screen back arrow.
 - `NEW_LAYOUT_AVAILABLE = true`; no UI exposes the setting until Group 9.
 - Review cycle 1: raw invisible bidi characters in test string literals were replaced by `\u` escapes; `MiniPlayerBar.refresh()` survives a player changing under the poll; the delayed refresh is skipped after unbind; the cached receiver name is reset on unbind; the album art is marked decorative.
+
+## 2026-10-24 - Mini-player album art: key without getIcon() (Group 8 security review)
+**Context**: `AVTransportPlayer#getIcon()` queues a download on every call while the art is not cached, and the mini-player called it on each 2 s poll to build its dedup key, so a broken or hostile art URL would be requested continuously.
+**Decision**: the key is `player id + art URI`; `getIcon()` is read once per key. Not stripped from titles (follow-ups): tag characters (used in some flag emoji), variation selectors, U+00AD and similar invisibles; `ReceiverBarLabel` still shows raw friendly names; `ImageDownloader` still accepts any scheme with no timeout or size cap.

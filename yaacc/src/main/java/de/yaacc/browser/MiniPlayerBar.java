@@ -17,6 +17,7 @@
  */
 package de.yaacc.browser;
 
+import android.graphics.Bitmap;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Handler;
@@ -287,18 +288,25 @@ final class MiniPlayerBar implements PlayerListChangeNotifier.Listener {
         return name;
     }
 
-    /** Placeholder first, then the album art through IconDownloadTask, only when the art changed. */
+    /**
+     * Placeholder first, then the album art through IconDownloadTask, only when the art changed.
+     * The key is the player id and the art URI and nothing else: {@code Player#getIcon()} can queue
+     * a download of its own on every call while the art is not cached, so it must not be called
+     * on every poll (a broken or hostile art URL would be requested every 2 s). It is read once
+     * per key.
+     */
     private void showArt(Player player) {
         String artUri = player.getAlbumArt() == null ? null : player.getAlbumArt().toString();
-        String artKey = "M:" + player.getId() + ":" + artUri + ":" + (player.getIcon() != null);
+        String artKey = "M:" + player.getId() + ":" + artUri;
         if (artKey.equals(shownArtKey)) {
             return;
         }
         shownArtKey = artKey;
         // IconDownloadTask drops its result when the view's tag is no longer this one
         art.setTag(artKey);
-        if (player.getIcon() != null) {
-            art.setImageBitmap(player.getIcon());
+        Bitmap icon = player.getIcon();
+        if (icon != null) {
+            art.setImageBitmap(icon);
         } else if (player.getIconResourceId() == R.drawable.yaacc48_24_png) {
             art.setImageResource(R.drawable.yaacc48_24_png);
         } else {
