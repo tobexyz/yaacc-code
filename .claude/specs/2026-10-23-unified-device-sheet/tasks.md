@@ -98,7 +98,7 @@ Plan: `design.md` "Phase 2". Each group: build -> reviewer PASS -> security-revi
   - **Verify**: each finding cites file:line or a doc URL; `grep -n "Classic and new layout" docs/tech.md`
   - **Constraints**: no code in this task; verify AndroidX/Material APIs against the versions in `yaacc/build.gradle` (appcompat 1.8.0, material 1.14.0) before relying on them
 - [ ] Test skeletons for the pure logic | `yaacc/src/test/java/de/yaacc/browser/`
-  - **Accept**: red tests encode: `BrowserLayoutChoice` (pure: stored preference value + "is TV" -> `CLASSIC`/`NEW`; unknown, null and empty values fall back to `CLASSIC`; TV never defaults to `NEW`); `MiniPlayerPicker.pick(List<PlayerRef>)` (empty -> none; playing beats non-playing; among playing, highest creation sequence; none playing -> highest sequence; ties -> higher player id; null device ids allowed)
+  - **Accept**: red tests encode: `BrowserLayoutChoice.resolve(String storedValue)` (pure: `"new"` -> `NEW`, `"classic"` -> `CLASSIC`; null, empty, unknown and differently-cased values fall back to `CLASSIC`, so every device including TV defaults to classic; an explicit `"new"` is honored on any device); `MiniPlayerPicker.pick(List<PlayerRef>)` (empty -> none; playing beats non-playing; among playing, highest creation sequence; none playing -> highest sequence; ties -> higher player id; null device ids allowed)
   - **Verify**: `./gradlew :yaacc:testDebugUnitTest` shows the new tests failing on assertions only (no compile errors), all other suites green
   - **Constraints**: classes are plain Java stubs returning wrong defaults; reuse `DeviceSessionGrouper.PlayerRef`
 
@@ -138,7 +138,7 @@ Plan: `design.md` "Phase 2". Each group: build -> reviewer PASS -> security-revi
 
 ## Group 9: Setting and activation
 - [ ] "Layout" preference in the normal settings screen | `res/xml/preference.xml`, `strings.xml` x7, `BrowserLayoutChoice`, `SettingsActivity`/browser activities
-  - **Accept**: a list preference "Layout" with entries Classic tabs / New (strings in 7 locales; default `classic`); `BrowserLayoutChoice` now returns `NEW` when selected (never defaulting to it on TV); changing it and leaving Settings relaunches into the other activity, clearing the old one from the back stack; both activities and the notification launches follow the choice; classic -> new -> classic keeps the app state sane (players keep running)
+  - **Accept**: a list preference "Layout" with entries Classic tabs / New (strings in 7 locales; default `classic`); `BrowserLayoutChoice` now returns `NEW` when `"new"` is stored (the default is `classic` on every device, TV included); changing it and leaving Settings relaunches into the other activity, clearing the old one from the back stack; both activities and the notification launches follow the choice; classic -> new -> classic keeps the app state sane (players keep running)
   - **Verify**: `./gradlew :yaacc:assembleDebug :yaacc:testDebugUnitTest :yaacc:lintDebug`
   - **Constraints**: preference key added as a string resource like the others; no other settings behavior changes
 - [ ] Manual checks (with the owner) | n/a
