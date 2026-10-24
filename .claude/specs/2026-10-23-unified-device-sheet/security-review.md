@@ -697,3 +697,35 @@ no code changes are needed. Once the amended Group 6 Accept/Constraints carry
 the "Group 6 must" items marked as Warning fixes (fresh allowlisted forward;
 effective-layout comparison, loop guard, fresh relaunch intent), the next cycle
 should PASS.
+
+## Cycle 2 — 2026-10-24
+Reviewing: Group 5 (phase 2)
+
+Scope: re-check of the two cycle 1 Warnings against commit 6165278f (`docs/tech.md` (f), `tasks.md` Groups 6-10, `decisions.md`). Plan text only; no code changed.
+
+### Cycle 1 Warning status
+- **W1 launcher copies the whole incoming intent: RESOLVED in the normative text.** `tasks.md:117` (Group 6 Accept) and `tech.md` (f) body (~1494-1535) now require a fresh `Intent` for the chosen class; allowlist MAIN and SEND `text/plain` only (anything else is a plain launch); only a length-capped `getStringExtra(EXTRA_TEXT)` (ClipData text, never URI, as fallback); no flags, `data`, ClipData URIs, `EXTRA_STREAM`/`EXTRA_INTENT`/other extras, selector or categories; reads inside `try/catch(RuntimeException)` forwarding nothing; `finish()` in `finally`. Verify greps for `new Intent(getIntent())` / `new Intent(in)` (`tasks.md:118`). The (f) code sample matches.
+- **W2 relaunch with no loop guard: RESOLVED in tasks.md.** `tasks.md:117` requires comparison of the *effective* layout (CLASSIC while `NEW_LAYOUT_AVAILABLE` is false), the same function in the launch helper and the check, stored value read with default `null`, fresh relaunch intent, static in-process guard (one relaunch per ~2 s, stays put and logs when tripped), share payload consumed once; `tasks.md:118` adds a JVM test of the guard's decision function.
+
+### Other cycle 1 constraints
+- Idle timer counter (started-browser count, arms at 0, application context only, re-reads prefs on fire, JVM tests for overlap/switch/rotation): present, `tasks.md:113`, consistent with `decisions.md`.
+- Share handler (text cap, worker exceptions caught and logged without payload, `shutdown()` cancels delayed work, text never used for intent/PendingIntent/path, http/https-only scheme policy): present, `tasks.md:113`. Scheme policy is marked "owner decision pending" in `tasks.md` and `decisions.md`: accepted as a pending item, not a finding.
+- Single-slot callbacks (multi-listener or compare-and-clear, no Context/View, main-thread delivery): present, `tasks.md:113`.
+- MediaProjection result (helper static fields only, never Bundle/prefs/Intent, extras not logged, accepted only for the issued request): present, `tasks.md:113`.
+- Group 7 (not exported, no filters, no `startActivity`/PendingIntent/deep link from `getIntent()`, uses Group 6 check and guard), Group 8 (tap uses `getNotificationIntent()` with an empty fill-in), Group 9 (no exported/allowBackup/permission changes, layout string never a class name or target), Group 10 (record allowlist, scheme policy, loop guard in tech.md (f)): present and consistent with Group 6.
+- `grep` for `new Intent(getIntent())`: only the Verify command text in `tasks.md:118` remains; no instruction to copy an incoming intent. `keeps action, extras`: no hits (removed from the (f) sample).
+
+### Critical
+- None.
+
+### Warning
+- [docs/tech.md:925] The Summary of recommendations table still says "forward a copy with `setComponent`". This is the exact instruction Cycle 1 W1 rejected, and `tasks.md` tells implementers to follow `docs/tech.md`. Change to "forward a fresh, allowlisted intent (MAIN / SEND text/plain only), `finish()` in `finally`".
+- [docs/tech.md:1149-1158 and :922] The "Relaunch when the Layout preference changes" recipe still shows `BrowserLayoutChoice.resolve(prefs.getString(layoutKey, null)) != THIS_LAYOUT` (stored layout, no guard, `BrowserLauncher.browserIntent(this)`), and the summary row says only "compares the stored layout". A reader who follows it reproduces the Cycle 1 W2 loop under `NEW_LAYOUT_AVAILABLE = false`. Update the snippet and the row to the effective-layout comparison with the static relaunch guard and a fresh intent, as in `tasks.md:117`. Also :1140-1142 still says "any browser `onResume()` cancels" the idle timer; align with the started-browser counter.
+- Note: the three items are stale advisory text, not missing requirements. The Accept lines in `tasks.md` are correct and take precedence, but the user's rule is that no text may contradict the amended constraints, and Group 10 only schedules the (f) body correction (already done in 6165278f), not these. Fix is documentation only (two table rows, one snippet, one sentence); `decisions.md` and `tasks.md` need no change.
+
+### Suggestion
+- [tasks.md Group 10 / security-review.md Cycle 1 "Group 10 must"] The Group 10 note about correcting the (f) body is already satisfied by 6165278f; reword the Group 10 constraint to cover only the (c) snippet and the scheme-policy record so it is not misread as open.
+- [docs/tech.md:1490-1492] Step 5 ("Prefer the copy so the trampoline's own getIntent() is not mutated") is grant-mechanics background and is now followed by the fresh-forward requirement; add "(analysis only; see the fresh-forward rule below)" to avoid misreading.
+
+### Verdict: FAIL
+Both cycle 1 Warnings are resolved in the normative Group 6 text, and all other constraints are present and consistent. FAIL is only for the stale contradicting text in `docs/tech.md` (:925, :922/:1149-1158, :1140-1142). Once those lines are aligned, no further cycle needs code or design changes; a re-check of those lines should PASS.

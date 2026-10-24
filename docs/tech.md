@@ -919,10 +919,10 @@ Sources, and how each claim is marked:
 | `BrowserHost` | Four methods: `showServers()`, `showContent()`, `showReceivers()`, `showPlayers()`. Optional `default` capability methods for Group 8. Section (a). |
 | `getParent()` | Always `null` here. Four of the five fragment sites are **dead code** today. Section (a). |
 | Back in the new activity | `OnBackPressedCallback` on `getOnBackPressedDispatcher()` (verified in activity 1.8.0). Not an `onBackPressed()` override. Section (b). |
-| Layout change relaunch | Check-on-resume: each browser activity compares the stored layout with its own in `onResume()` and, on mismatch, starts the other and finishes. Section (c). |
+| Layout change relaunch | Check-on-resume: each browser activity compares the **effective** layout with its own in `onResume()` and, on mismatch, starts the other with a fresh intent and finishes, behind a relaunch guard. Section (c). |
 | Shutdown timer | Extract `ShutdownTimerController`; give `Yaacc` an `isShutdownTimerRunning()` and remaining-millis getter. Section (d). |
 | Share handler | Extract `ShareIntentHandler` with a `Runnable onPlayersStarted`; classic passes `showPlayers()`, new passes nothing. Section (e). |
-| Trampoline | Works. `LauncherActivity extends android.app.Activity` (not AppCompat), `Theme.NoDisplay`, forward a copy with `setComponent`, call `finish()` in `onCreate`. Section (f). |
+| Trampoline | Works. `LauncherActivity extends android.app.Activity` (not AppCompat), `Theme.NoDisplay`, forward a **fresh allowlisted intent** (never a copy of the incoming one), call `finish()` in `onCreate`. Section (f). |
 | Manifest | MAIN filters, LEANBACK and SEND move to `LauncherActivity`. Section (g). |
 
 ### (a) Host coupling: every `instanceof TabBrowserActivity` / `setCurrentTab` site
@@ -1138,10 +1138,12 @@ announces itself again. Recommendation:
   instance's runnable is still queued and, if there are no players and no
   local server/renderer/proxy enabled, calls `Yaacc.exit()` five minutes later
   even though the user is active in the new instance [reasoned]. The shared
-  helper should keep one process-wide timer (static `Handler`, or a field on
-  `Yaacc`) so any browser `onResume()` cancels it. Out of scope to fix in
-  classic by itself, but the layout switch needs it: Group 6 makes it process-wide
-  for both activities (decisions.md 2026-10-24, review W4).
+  helper should keep one process-wide timer that **counts started browsers**
+  and arms only when the count drops to 0: a plain "cancel on resume" is not
+  enough, because the old browser's `onStop` can arm the timer after the new
+  browser's `onResume` has cancelled it. Out of scope to fix in classic by
+  itself, but the layout switch needs it: Group 6 does it for both
+  activities (decisions.md 2026-10-24, review W4 and security review cycle 1).
 
 #### Relaunch when the Layout preference changes: recommendation
 
@@ -1149,13 +1151,21 @@ announces itself again. Recommendation:
 `onResume()`, after `super.onResume()`:
 
 ```java
-if (BrowserLayoutChoice.resolve(prefs.getString(layoutKey, null)) != THIS_LAYOUT) {
-    startActivity(BrowserLauncher.browserIntent(this));   // other layout's class
+// effective layout: CLASSIC while BrowserLauncher.NEW_LAYOUT_AVAILABLE is false;
+// BrowserLauncher.targetClass() and this check use the same function
+if (BrowserLauncher.effectiveLayout(prefs.getString(layoutKey, null)) != THIS_LAYOUT
+        && RelaunchGuard.tryRelaunch()) {                 // at most once per ~2 s, else stay and log
+    startActivity(new Intent(this, BrowserLauncher.targetClass(this)));   // fresh intent
     overridePendingTransition(0, 0);
     finish();
     return;                                            // skip the rest of onResume
 }
 ```
+
+Without the effective-layout comparison and the guard, a stored `"new"`
+while the new layout is unavailable (backup/restore, adb, downgrade) would
+bounce between the two activities forever (security review cycle 1,
+Warning 2). A pending share payload is consumed exactly once.
 
 Why this one:
 
@@ -1488,8 +1498,8 @@ same intent. From `android-14.0.0_r1`:
    Step 2 still applies.
 5. `new Intent(Intent o)` copies flags and `ClipData` (`Intent.java:7534-7572`,
    `mFlags = o.mFlags`, `mClipData = new ClipData(o.mClipData)`), so a copy
-   carries the grant exactly like the original. Prefer the copy so the
-   trampoline's own `getIntent()` is not mutated.
+   carries the grant exactly like the original. (Analysis only: this is why
+   the recommended body below does **not** copy the incoming intent.)
 
 Recommended trampoline body (behavior only; Group 6 writes the code). The
 launcher is exported and an explicit intent ignores its filters, so any app
