@@ -58,3 +58,6 @@ See requirements.md.
    alternative is the exact pre-branch footer behind a flag in
    `ContentListFragment`. Open until the owner has tried the phase 1
    behavior on a device.
+5. **Share feature improvements** (backlog 1 in tasks.md): which of the
+   listed topics (scheme policy, more MIME types, receiver choice, feedback,
+   waits) are wanted? To be discussed before any implementation.

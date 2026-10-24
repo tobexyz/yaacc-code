@@ -153,3 +153,20 @@ Plan: `design.md` "Phase 2". Each group: build -> reviewer PASS -> security-revi
   - **Accept**: docs describe the Layout setting, both layouts, the mini-player and the new top level; CHANGELOG Unreleased has Added/Changed entries; `docs/tech.md` is as-built
   - **Verify**: `grep -rn 'TODO\|FIXME\|PLACEHOLDER' docs/index.md docs/tech.md CHANGELOG.md || true` returns no plan-related placeholders
   - **Constraints**: do not document anything descoped or marked `[!]`; screenshots stay the owner's job; `docs/tech.md` is updated to as-built (the forward allowlist, share scheme policy and loop guard are already described in the plan text)
+
+# Backlog (not part of Groups 1-10; discuss with the owner before any work)
+
+## Backlog 1: Improve the share feature
+- [ ] **DISCUSS FIRST - do not implement before the owner has agreed the scope** | `ShareIntentHandler.java`, `LauncherActivity.java` (`LauncherForwardPolicy`), `ShareUriPolicy.java`, `AndroidManifest.xml`, strings x7
+  - **Status**: not started; waiting for a discussion. Which share ("share into yaacc" = receiving, or also "share out of yaacc" = the per-item share shipped on feat/issue287) is to be confirmed; the candidates below are about *receiving*.
+  - **Candidate topics** (collected while building Group 6; none is decided):
+    1. **Scheme policy** (owner decision pending from Group 6): today only `http`/`https` text is accepted. Should shared files / `content://` URIs be playable, and if so how without opening the proxy hole (a shared `file://` path served to the LAN through `/proxy/<hash>`)?
+    2. **More MIME types**: only `SEND text/plain` is declared. Share an image/audio/video from another app (`EXTRA_STREAM`, `SEND_MULTIPLE`)? This needs a different, grant-aware path (URI grants, no persistence beyond the task).
+    3. **Receiver choice**: the share plays on the currently selected receivers, else falls back silently to this device after a blind wait. Should it open the device sheet to pick a receiver instead?
+    4. **Feedback**: the toasts "start in N seconds" and "no receiver found using local device" are hard-coded English; there is no error feedback for a rejected link (it is only logged). Localize (7 locales) and tell the user why a share was ignored?
+    5. **Blind waits**: the 3 s + 3 s waits for receivers / the player service could become "wait until ready, with a timeout".
+    6. **New layout**: what the mini-player / browser should show when a share starts playback (`onPlayersStarted` is null in the new layout).
+    7. **Rotation / process death** while a share waits (a rotation now keeps it; process death drops it).
+  - **Accept**: the owner decides which topics are in scope and their behavior; the decision is recorded in decisions.md; then this item is split into concrete tasks with Accept/Verify/Constraints, test-first.
+  - **Verify**: n/a until scoped
+  - **Constraints**: any new input type must keep the Group 5 security rules (fresh allowlisted forward from the exported launcher, capped input, no payload in logs, no intent/path built from shared data) and needs a security review before it ships
