@@ -43,12 +43,12 @@ public final class BrowserLauncher {
     private static final String TAG = BrowserLauncher.class.getName();
 
     /**
-     * False until the new tab-less browser exists and is usable (flipped at the end of Group 8).
-     * While false every stored choice, including "new", resolves to the classic layout. Without
-     * this a stored "new" (backup/restore, adb) would send the classic browser looking for a
-     * layout that is not there.
+     * Whether the new tab-less browser exists and is usable (true since the receiver bar and the
+     * mini-player landed in {@link BrowserActivity}). While false every stored choice, including
+     * "new", resolves to the classic layout; keep the switch so a build without a usable new
+     * layout cannot strand a stored "new" (backup/restore, adb) on a layout that is not there.
      */
-    static final boolean NEW_LAYOUT_AVAILABLE = false;
+    static final boolean NEW_LAYOUT_AVAILABLE = true;
 
     private BrowserLauncher() {
     }

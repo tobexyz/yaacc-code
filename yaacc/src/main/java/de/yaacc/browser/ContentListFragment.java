@@ -29,9 +29,6 @@ import android.widget.ImageButton;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
-import androidx.core.view.AccessibilityDelegateCompat;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 import androidx.fragment.app.Fragment;
 import androidx.preference.PreferenceManager;
 import androidx.recyclerview.widget.GridLayoutManager;
@@ -64,6 +61,9 @@ public class ContentListFragment extends Fragment implements OnClickListener,
     public static final String CONTENT_LIST_NAVIGATOR = "CONTENT_LIST_NAVIGATOR";
     protected RecyclerView contentList;
     private TextView currentReceivers;
+    private View receiverBarSeparator;
+    // null when the host owns the receiver bar (new layout)
+    private ReceiverBarController receiverBarController;
     private UpnpClient upnpClient = null;
     private BrowseContentItemAdapter bItemAdapter;
     private Navigator navigator = null;
@@ -113,11 +113,20 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         Drawable icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_arrow_back_24, getContext().getTheme()), getContext().getTheme());
         backButton.setImageDrawable(icon);
         backButton.setOnClickListener((v) -> {
-            onBackPressed();
+            BrowserHost host = browserHost();
+            if (host != null && host.showsBackAtContentRoot() && isAtRoot()) {
+                // the root of a server is one step below the server list
+                host.showServers();
+            } else {
+                onBackPressed();
+            }
         });
+        if (showsBackAtContentRoot()) {
+            backButton.setContentDescription(getString(R.string.browser_back));
+        }
         currentFolderNameView = contentlistView.findViewById(R.id.contentListCurrentFolderName);
         currentReceivers = contentlistView.findViewById(R.id.contentListCurrentReceivers);
-        tintCompoundDrawables(currentReceivers);
+        receiverBarSeparator = contentlistView.findViewById(R.id.contentListBottomSeperator);
         initReceiverBar();
         initSortToggle(contentlistView);
         topSeperator = contentlistView.findViewById(R.id.contentListTopSeperator);
@@ -133,7 +142,6 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         if (getActivity() != null) {
             getActivity().runOnUiThread(() -> {
 
-                updateReceiverBar();
                 if (upnpClient.getProviderDevice() != null) {
                     if (savedInstanceState == null || savedInstanceState.getSerializable(CONTENT_LIST_NAVIGATOR) == null) {
                         showMainFolder();
@@ -357,44 +365,45 @@ public class ContentListFragment extends Fragment implements OnClickListener,
     }
 
     /**
-     * The receiver bar opens the device sheet on tap or D-pad select (it is
-     * clickable and focusable in both layouts). TalkBack announces the click
-     * action as "Choose receivers".
+     * Classic layout: this fragment owns the receiver bar and binds it through
+     * {@link ReceiverBarController} (label, tap / D-pad select opens the device sheet, refresh on
+     * receiver selection changes). New layout: the host shows one bar at every level, so this
+     * fragment's own bar and its separator are hidden. Both are laid out in a container that is
+     * never GONE itself (see fragment_content_list.xml), so nothing anchors to a hidden view.
      */
     private void initReceiverBar() {
-        currentReceivers.setOnClickListener(v -> showDeviceSheet());
-        ViewCompat.setAccessibilityDelegate(currentReceivers, new AccessibilityDelegateCompat() {
-            @Override
-            public void onInitializeAccessibilityNodeInfo(@NonNull View host, @NonNull AccessibilityNodeInfoCompat info) {
-                super.onInitializeAccessibilityNodeInfo(host, info);
-                info.addAction(new AccessibilityNodeInfoCompat.AccessibilityActionCompat(
-                        AccessibilityNodeInfoCompat.ACTION_CLICK, getString(R.string.receiver_bar_description)));
-            }
-        });
+        BrowserHost host = browserHost();
+        if (host != null && host.providesReceiverBar()) {
+            currentReceivers.setVisibility(View.GONE);
+            receiverBarSeparator.setVisibility(View.GONE);
+            return;
+        }
+        receiverBarController = new ReceiverBarController(currentReceivers, upnpClient, this::showDeviceSheet);
+        receiverBarController.bind();
+    }
+
+    /** The hosting activity as a {@link BrowserHost}, or null if it is not one. */
+    private BrowserHost browserHost() {
+        return getActivity() instanceof BrowserHost ? (BrowserHost) getActivity() : null;
+    }
+
+    private boolean showsBackAtContentRoot() {
+        BrowserHost host = browserHost();
+        return host != null && host.showsBackAtContentRoot();
     }
 
     /**
-     * Shows the selected receivers' names in the receiver bar. Called on
-     * creation and whenever UpnpClient reports a receiver selection change,
-     * including changes made in the device sheet.
+     * Opens the device sheet (receivers and their running players): through the host when it
+     * owns the receiver bar, else as a child of this fragment.
      */
-    private void updateReceiverBar() {
-        if (!isAdded() || currentReceivers == null || upnpClient == null) {
+    public void showDeviceSheet() {
+        if (!isAdded()) {
             return;
         }
-        List<String> names = new ArrayList<>();
-        for (Device<?, ?, ?> receiver : upnpClient.getReceiverDevices()) {
-            if (receiver.getDetails() != null) {
-                names.add(receiver.getDetails().getFriendlyName());
-            }
-        }
-        // Untrusted LAN names: plain text only.
-        currentReceivers.setText(ReceiverBarLabel.build(names, getString(R.string.receiver_bar_none_selected)));
-    }
-
-    /** Opens the device sheet (receivers and their running players). */
-    public void showDeviceSheet() {
-        if (isAdded()) {
+        BrowserHost host = browserHost();
+        if (host != null && host.providesReceiverBar()) {
+            host.showReceivers();
+        } else {
             DeviceSheetFragment.show(getChildFragmentManager());
         }
     }
@@ -413,16 +422,6 @@ public class ContentListFragment extends Fragment implements OnClickListener,
             return true;
         }
         return false;
-    }
-
-    private void tintCompoundDrawables(TextView textView) {
-        Drawable[] drawables = textView.getCompoundDrawablesRelative();
-        for (int i = 0; i < drawables.length; i++) {
-            if (drawables[i] != null) {
-                drawables[i] = ThemeHelper.tintDrawable(drawables[i], requireContext().getTheme());
-            }
-        }
-        textView.setCompoundDrawablesRelativeWithIntrinsicBounds(drawables[0], drawables[1], drawables[2], drawables[3]);
     }
 
     @Override
@@ -455,7 +454,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
      * {@link #updateFolderNavigationUi()} once the new navigator exists.
      */
     private void hideFolderNavigationControls() {
-        backButton.setVisibility(View.GONE);
+        backButton.setVisibility(showsBackAtContentRoot() ? View.VISIBLE : View.GONE);
         topSeperator.setVisibility(View.GONE);
     }
 
@@ -477,7 +476,9 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         // path label no longer anchors to it for position at all (see
         // below), so there's no RelativeLayout anchor-to-a-hidden-sibling
         // risk here.
-        backButton.setVisibility(atRoot ? View.GONE : View.VISIBLE);
+        // New layout: the arrow stays at the root and leads back to the server list.
+        boolean showBack = !atRoot || showsBackAtContentRoot();
+        backButton.setVisibility(showBack ? View.VISIBLE : View.GONE);
         // topSeperator divides the header from the content list below it,
         // independent of whether there's a folder to navigate back to --
         // always visible, not tied to atRoot.
@@ -493,7 +494,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         // orientation: portrait places the label beside the button (needs
         // to clear its width), landscape places it below (doesn't) -- see
         // values/dimens.xml and values-land/dimens.xml.
-        int marginStartDimenRes = atRoot
+        int marginStartDimenRes = !showBack
                 ? R.dimen.folder_name_margin_start_base
                 : R.dimen.folder_name_margin_start_with_back;
         ViewGroup.MarginLayoutParams folderNameLayoutParams =
@@ -695,18 +696,13 @@ public class ContentListFragment extends Fragment implements OnClickListener,
 
     }
 
+    // the receiver bar follows receiver changes through its own ReceiverBarController
     @Override
     public void receiverDeviceRemoved(Device<?, ?, ?> device) {
-        if (getActivity() != null) {
-            getActivity().runOnUiThread(this::updateReceiverBar);
-        }
     }
 
     @Override
     public void receiverDeviceAdded(Device<?, ?, ?> device) {
-        if (getActivity() != null) {
-            getActivity().runOnUiThread(this::updateReceiverBar);
-        }
     }
 
     /**
@@ -743,6 +739,10 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         // loads still running must not fill a list nobody sees.
         if (upnpClient != null) {
             upnpClient.removeUpnpClientListener(this);
+        }
+        if (receiverBarController != null) {
+            receiverBarController.unbind();
+            receiverBarController = null;
         }
         if (bItemAdapter != null) {
             bItemAdapter.cancelRunningTasks();

@@ -449,3 +449,71 @@ Reusing `ServerListFragment` through `providesShutdownTimer()` instead of a sepa
 - [x] Coverage adequate for the change
 
 ### Verdict: PASS
+
+
+## Cycle 1 — 2026-10-24
+Reviewing: Group 8 (phase 2)
+
+Scope: `git show fdb8dee9` (MiniPlayerPicker, MiniPlayerPresenter, MiniPlayerBar, ReceiverBarController, BrowserActivity, BrowserHost, BrowserLauncher, ContentListFragment, ServerListFragment, layouts, 7 locales, MiniPlayerPresenterTest) against tasks.md Group 8, design.md Phase 2 and the "Group 8 must" list of security-review.md (Group 7 cycle 1).
+
+### Verified
+1. Build and tests: `:yaacc:assembleDebug :yaacc:testDebugUnitTest :yaacc:lintDebug` succeed. Tests re-run with `--rerun`: 328 tests, 0 failures, 0 errors (51 suites). Lint: 189 issues, same id set as before; none in `mini_player_bar.xml`, `activity_browser.xml`, `fragment_server_root.xml`, `MiniPlayer*`, `ReceiverBarController`. The commit touches no manifest or gradle file; merged manifest has `BrowserActivity` `exported="false"`, no filter, no new exported component.
+2. `MiniPlayerPicker` is plain Java, does not modify its input, skips null entries, ordering as tested (16/16 green). `MiniPlayerPresenter.cleanText`: whitespace/space-separator runs collapse to one space, leading/trailing dropped, `Cc` and U+202A-202E, U+2066-2069, U+200E/F, U+061C removed, cap 200 counted in chars per code point (a pair is never split, no trailing space left at the cut). Correct for the cases tested.
+3. `MiniPlayerBar`: featured session from a copy of `getCurrentPlayers()` (`new ArrayList<>`), `PlayerRef(id, deviceId, playing, creation sequence)`; text via `setText` only; art only via `IconDownloadTask(art, key)` with the tag compared in `onPostExecute` and cleared in `unbind`; commands on a single-thread executor created in `bind()` and shut down in `unbind()` (no leak over onStart/onStop cycles; `isShutdown()` check plus `RejectedExecutionException` catch); listener, 2 s poll and 500 ms refresh are removed in `unbind()` and `refresh()`/poll ignore events while `!bound`; `BrowserActivity` binds in `onStart`, unbinds in `onStop` and `onDestroy`; tap uses `ReceiverRowBinder.openPlayer` (`getNotificationIntent()`, empty `Intent`, null and `CanceledException` handled); bar is GONE without players; play/pause decision is `MiniPlayerPresenter.toggleAction`, same play/pause/stop calls as `ReceiverRowBinder`. Accessibility: content descriptions on all four buttons (play/pause switched with state), 48dp buttons, card focusable before its buttons, custom click label, theme attributes only, no hard-coded colors.
+4. `ReceiverBarController`: classic `ContentListFragment` behavior matches `HEAD~1` (same tint, same accessibility delegate and label, same refresh on receiver add/remove, initial update, bar opens the sheet as child fragment); bind in `init`, unbind in `onDestroyView` (once per view); `BrowserActivity` binds in `onStart`, unbinds in `onStop`/`onDestroy`; callbacks hop to the main thread; `update()` ignores calls after `unbind()`. No-receiver prompt: `openDeviceSheetIfNoReceiverSelected` -> `showDeviceSheet` -> `host.showReceivers()` -> `DeviceSheetFragment.show(getSupportFragmentManager())` which has the state-saved and duplicate guard.
+5. Layouts: portrait `contentListBottomBar` is never GONE, the list anchors to it, separator and bar sit inside; classic look unchanged. Landscape: nothing anchors to the separator or bar, sort toggle uses `layout_alignParentTop` (back button is no longer an anchor). `activity_browser.xml` vertical order container, separator, mini-player, receiver bar; a GONE mini-player cannot move an anchor. `fragment_server_root.xml`: switch name, status-icon descriptions, heading flag. The 8 new strings exist in all 7 locales with correct translations; the reused `settings_local_server_*_on/off` strings exist in all locales and read sensibly.
+6. `BrowserHost` defaults are false; only `BrowserActivity` overrides them; the back arrow at the content root calls `host.showServers()` (`isAtRoot()` is null-safe); classic keeps the arrow GONE at the root.
+7. `NEW_LAYOUT_AVAILABLE = true`: only the constant and its comment changed; `targetClass` returns `BrowserActivity` only for effective NEW; effective layout still computed once in `relaunchIfOtherLayout`; guard untouched; `settings_browser_layout_key` is not used by any preference screen (no UI). `BrowserActivity` has all pieces (servers, content, bar, mini-player, toolbar). Safe.
+8. Builder deviations: reusing the settings strings for status icons is fine (translated, accurate); adding `browser_back` is fine (only the new layout uses it; classic keeps its description); not adding bidi stripping to `ReceiverBarLabel` is acceptable (carried-forward item, `ReceiverBarLabelTest` unchanged, receiver names still plain `setText`), but note the mini-player now cleans text and the receiver bar does not.
+
+### Critical
+- None.
+
+### Warning
+- [yaacc/src/test/java/de/yaacc/browser/MiniPlayerPresenterTest.java:98, 147, 170] The test source contains raw, invisible bidi control characters (U+202E, U+202C, U+2066, U+2069, U+200E, U+200F, U+061C) inside string literals. They cannot be reviewed in an editor or diff, reorder the displayed code line (Trojan-Source pattern, flagged by GitHub and scanners) and are easy to lose in a reformat. Write them as `\u202e` etc. escapes (the test then reads as intended and passes unchanged).
+
+### Suggestion
+- [MiniPlayerBar.java:206-214, 236] `AbstractPlayer#getCurrentItemTitle` reads a plain `ArrayList` (`size()` then `get()`) that `clear()`/`setItems` modify on worker threads. A race throws `IndexOutOfBoundsException` on the main thread inside the permanent 2 s poll, which would crash the app. The window is tiny and classic code has the same pattern, but a `try/catch (RuntimeException)` around the per-player reads in `refresh()` is cheap.
+- [MiniPlayerBar.java:343] The command task posts the delayed refresh from the worker thread even after `unbind()` (harmless: `refresh()` returns when unbound, and a rebind just gets one extra refresh). Check a volatile `bound` before posting, or post through the main handler.
+- [MiniPlayerBar.java:255-275] The receiver name is cached per device id and never refreshed; a renamed device keeps the old name until another device is featured. Reset the cache in `unbind()`.
+- [MiniPlayerPresenter.java:93-97] U+0085 (NEL) is dropped instead of becoming a space ("a<NEL>b" -> "ab"); invisible format characters (U+200B, U+2060, U+FEFF) survive, so a title of only U+200B counts as non-blank and hides the fallback. Treat `Cc` whitespace-like characters as separators and drop `Character.FORMAT` characters. Not covered by tests: NBSP/U+2028, leading whitespace, whitespace run longer than the cap.
+- [mini_player_bar.xml:60] Mark the decorative art `importantForAccessibility="no"` so TalkBack does not read "Album art" before every title.
+- [activity_browser.xml] In landscape on a phone the bottom stack (separator, 56dp mini-player, 48dp bar) plus toolbar takes about 150dp of roughly 360dp; check on a device, consider hiding the separator or compacting the mini-player in `layout-land`.
+- [decisions.md] No "Group 8 as built" entry: record the three builder deviations (reused settings strings, `browser_back`, no bidi stripping in `ReceiverBarLabel`) and the 500 ms/2 s timing. The security-review carried item "bidi-control stripping in ReceiverBarLabel" is still open.
+- [tests] `MiniPlayerBar`, `ReceiverBarController` and the host back/receiver wiring have no JVM seam; the decision logic (picker, toggle, visibility, text cleaning) is covered. No untested critical decision logic found. Not run on a device.
+
+### Tests
+- [x] All tests passing (328, 0 failures)
+- [x] Coverage adequate for the change
+
+### Verdict: FAIL
+Zero Critical, one Warning (raw bidi characters in the test source). Everything else on the checklist is met; after the escapes are applied (no behavior change) this should pass in cycle 2.
+
+
+## Cycle 2 — 2026-10-24
+Reviewing: Group 8 (phase 2)
+
+Scope: `git show c78fb5d6` (fix commit for cycle 1) on top of `fdb8dee9`.
+
+### Verified
+1. Warning from cycle 1 resolved. `grep -nP '[^\x00-\x7F]' MiniPlayerPresenterTest.java` now returns only visible characters (lines 103 and 121: CJK, en dash, e-acute, check mark, music-note emoji). A scan of `git diff HEAD~2` for U+200B-200F, U+202A-202E, U+2060-2069, U+FEFF, U+061C, U+0085, U+2028/2029 finds nothing in code, resources or tests. (The `grep -P '\x{...}'` form from the task fails in this locale with "code point too large"; the scan was done with a Python code point check instead.) One hit was found in this file: cycle 1's own Warning text contained a raw U+202E; it is now written as `\u202e` (documentation only, no code touched).
+2. The escaped literals test the intended code points: `"\u202eevil\u202c\u2066.\u2069m\u200ep\u200f3\u061c"` is the same seven characters as before (202E, 202C, 2066, 2069, 200E, 200F, 061C); `"\u202e\u0000"` and `"TV\n\u202eevil"` likewise. No `\u000a`/`\u000d`/`\u0022` escapes that Java would translate before lexing. New tests: `\u0085` (NEL) gives "a b"; `\u200b\u2060\ufeff` gives "ab"; the family emoji `\ud83d\udc68\u200d\ud83d\udc69\u200d\ud83d\udc67` is kept intact (ZWJ not stripped).
+3. Production changes correct. `cleanText`: `0x85` is tested in the whitespace branch before the control-character removal, so it becomes a collapsed space; `isBidiControl` adds 200B/2060/FEFF only, ZWJ (200D) and ZWNJ stay, so emoji sequences and Persian/Indic text survive. A title of only U+200B is now blank and falls back. `MiniPlayerBar.refresh()`: still returns early when unbound; the body moved unchanged into `refreshFromPlayers()`, wrapped in `try/catch (RuntimeException)` logging the class simple name only (no titles/names); the poll is re-posted by the caller outside the try, so a skipped refresh retries on the next poll. `bound` is `volatile`; the delayed refresh from the worker is posted only if `bound` (a rare race between the check and `unbind()` is harmless because `refresh()` re-checks). `unbind()` resets `shownReceiverDeviceId`/`shownReceiverName` (the cache is read only on the main thread, same as before). `importantForAccessibility="no"` is on the art ImageView only; the card and buttons keep their descriptions. No behavior regression found.
+4. Build and tests: `./gradlew :yaacc:assembleDebug :yaacc:testDebugUnitTest :yaacc:lintDebug --offline --continue` BUILD SUCCESSFUL; 331 tests, 0 failures, 0 errors, 0 skipped (result XMLs, 328 + 3 new). Lint 189 issues, same count as cycle 1, none located in `MiniPlayer*` or `mini_player_bar.xml`.
+
+### Critical
+- None.
+
+### Warning
+- None.
+
+### Suggestion
+- [MiniPlayerPresenter.java:73-77] The Javadoc line wrap after "zero-width" is uneven; cosmetic only.
+- [open from cycle 1] Landscape height of the bottom stack, the missing "Group 8 as built" entry for the three builder deviations in `decisions.md` (the commit added 8 lines there; confirm they cover it), bidi stripping in `ReceiverBarLabel`, and the lack of a JVM seam for `MiniPlayerBar` remain as non-blocking suggestions. Not run on a device.
+
+### Tests
+- [x] All tests passing (331, 0 failures)
+- [x] Coverage adequate for the change
+
+### Verdict: PASS
+

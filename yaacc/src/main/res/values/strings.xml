@@ -147,4 +147,12 @@
     <string name="device_sheet_title">Play on</string>
     <string name="receiver_bar_none_selected">No receiver selected. Tap to choose</string>
     <string name="receiver_bar_description">Choose receivers</string>
+    <string name="mini_player_previous">Previous track</string>
+    <string name="mini_player_play">Play</string>
+    <string name="mini_player_pause">Pause</string>
+    <string name="mini_player_next">Next track</string>
+    <string name="mini_player_stop">Stop</string>
+    <string name="mini_player_art">Album art</string>
+    <string name="mini_player_open">Open player</string>
+    <string name="browser_back">Back</string>
 </resources>

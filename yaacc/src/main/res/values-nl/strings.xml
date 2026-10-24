@@ -144,4 +144,12 @@
     <string name="device_sheet_title">Afspelen op</string>
     <string name="receiver_bar_none_selected">Geen ontvanger geselecteerd. Tik om te kiezen</string>
     <string name="receiver_bar_description">Ontvangers kiezen</string>
+    <string name="mini_player_previous">Vorig nummer</string>
+    <string name="mini_player_play">Afspelen</string>
+    <string name="mini_player_pause">Pauzeren</string>
+    <string name="mini_player_next">Volgend nummer</string>
+    <string name="mini_player_stop">Stoppen</string>
+    <string name="mini_player_art">Albumhoes</string>
+    <string name="mini_player_open">Speler openen</string>
+    <string name="browser_back">Terug</string>
 </resources>

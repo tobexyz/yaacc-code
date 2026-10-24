@@ -143,3 +143,15 @@ for later would leave the new layout without quick access to running players.
 - `UpnpClient` gained `removeUpnpClientListener` and a `CopyOnWriteArrayList`; `ServerListFragment` and `ContentListFragment` remove themselves in `onDestroyView` and `ContentListFragment` cancels its load tasks there. This touches classic but only stops destroyed fragments from receiving callbacks (a crash/leak fix); `PlayerListFragment` and `ReceiverListFragment` still leak and are left alone.
 - About and log stay in the new menu (parity with classic via `BrowserActivitySupport.handleCommonMenuItem`).
 - `ServerListFragment` is reused with `BrowserHost.providesShutdownTimer()` selecting `fragment_server_root.xml`; no separate fragment (about 150 lines not copied).
+
+## 2026-10-24 - Group 8 as built
+- Mini-player decisions live in plain Java (`MiniPlayerPicker`, `MiniPlayerPresenter`); LAN-supplied titles/names are cleaned (whitespace collapsed, control, bidi and zero-width characters removed, capped at 200 chars; ZWJ is kept so emoji sequences survive). `ReceiverBarLabel` does not strip bidi controls yet (carried-forward item).
+- `ReceiverBarController` is shared by classic's `ContentListFragment` and `BrowserActivity`; it refreshes through the `UpnpClientListener` receiver callbacks plus a refresh on every start.
+- Classic's portrait content layout now wraps the separator and bar in a never-GONE `contentListBottomBar`; the list anchors to it.
+- Status icons in the new server layout reuse the existing `settings_local_server_*` strings; `browser_back` is new for the in-screen back arrow.
+- `NEW_LAYOUT_AVAILABLE = true`; no UI exposes the setting until Group 9.
+- Review cycle 1: raw invisible bidi characters in test string literals were replaced by `\u` escapes; `MiniPlayerBar.refresh()` survives a player changing under the poll; the delayed refresh is skipped after unbind; the cached receiver name is reset on unbind; the album art is marked decorative.
+
+## 2026-10-24 - Mini-player album art: key without getIcon() (Group 8 security review)
+**Context**: `AVTransportPlayer#getIcon()` queues a download on every call while the art is not cached, and the mini-player called it on each 2 s poll to build its dedup key, so a broken or hostile art URL would be requested continuously.
+**Decision**: the key is `player id + art URI`; `getIcon()` is read once per key. Not stripped from titles (follow-ups): tag characters (used in some flag emoji), variation selectors, U+00AD and similar invisibles; `ReceiverBarLabel` still shows raw friendly names; `ImageDownloader` still accepts any scheme with no timeout or size cap.

@@ -42,7 +42,7 @@
             android:id="@+id/contentListSortToggle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_alignTop="@id/contentListBackButton"
+            android:layout_alignParentTop="true"
             android:layout_alignParentEnd="true"
             android:layout_marginEnd="8dp"
             android:layout_marginBottom="5dp"
@@ -69,13 +69,15 @@
 
         <!-- layout_below anchors to contentListSortToggle, not
              contentListBackButton: the back button is set to GONE at the
-             root folder (ContentListFragment#updateFolderNavigationUi),
+             root folder in the classic layout
+             (ContentListFragment#updateFolderNavigationUi),
              and a GONE view's position collapses to a zero-size point at
              its original top edge, so layout_below="@id/contentListBackButton"
              would snap this label (and everything below it) up to overlap the icon
              row instead of sitting below it. contentListSortToggle is
              never hidden, so it's a stable anchor regardless of
-             navigation depth. -->
+             navigation depth. For the same reason the sort toggle itself uses
+             layout_alignParentTop and not layout_alignTop of the back button. -->
         <TextView
             android:id="@+id/contentListCurrentFolderName"
             android:layout_width="match_parent"
@@ -90,6 +92,9 @@
             android:textAppearance="@android:style/TextAppearance.Material.Medium"
             android:textColor="?android:attr/colorForeground" />
 
+        <!-- Nothing anchors to the bottom separator or the receiver bar below, so
+             ContentListFragment can set both GONE when the host owns the receiver bar
+             (new layout) without moving any other view. -->
         <View
             android:id="@+id/contentListBottomSeperator"
             android:layout_width="match_parent"
@@ -98,7 +103,7 @@
             android:background="?android:attr/colorForeground" />
 
         <!-- Receiver bar: selected receivers' names; tap or D-pad select opens
-             the device sheet (ContentListFragment#showDeviceSheet). Positioned
+             the device sheet (ReceiverBarController). Positioned
              against the parent only: contentListTopSeperator (its old
              toStartOf anchor) is set GONE during a device switch
              (ContentListFragment#hideFolderNavigationControls). The 1dp end

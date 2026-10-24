@@ -144,4 +144,12 @@
     <string name="device_sheet_title">Wiedergabe auf</string>
     <string name="receiver_bar_none_selected">Kein Empfänger ausgewählt. Zum Auswählen tippen</string>
     <string name="receiver_bar_description">Empfänger auswählen</string>
+    <string name="mini_player_previous">Vorheriger Titel</string>
+    <string name="mini_player_play">Wiedergabe</string>
+    <string name="mini_player_pause">Pause</string>
+    <string name="mini_player_next">Nächster Titel</string>
+    <string name="mini_player_stop">Stopp</string>
+    <string name="mini_player_art">Albumcover</string>
+    <string name="mini_player_open">Player öffnen</string>
+    <string name="browser_back">Zurück</string>
 </resources>
