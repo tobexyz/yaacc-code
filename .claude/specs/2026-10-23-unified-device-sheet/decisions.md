@@ -92,3 +92,36 @@ would change nothing yet.
   in the settings UI and docs. Final naming not yet decided.
 **Rationale**: avoids decoupling tab order from the visible list, and avoids
 copying fragments that would then need every later fix twice.
+
+## 2026-10-24 - Phase 2 scope: mini-player now, phase 3 folded into the new layout
+**Context**: with classic and new as separate activities (previous entry),
+"remove the Receiver/Player tabs" no longer touches classic.
+**Decision**: the new layout has no Receiver/Player tabs from the start and
+ships with a mini-player bar (owner request, 2026-10-24). Phase 2 and the old
+phase 3 are one piece of work (Groups 5-10 in tasks.md). Pull-to-refresh is
+dropped (would need `swiperefreshlayout`, a new dependency); the refresh
+button stays. The share-to-yaacc handler moves to a shared helper and the
+launcher trampoline owns the launcher/TV/SEND intent filters.
+**Rationale**: one screen is the point of the redesign; keeping a mini-player
+for later would leave the new layout without quick access to running players.
+
+## 2026-10-24 - Phase 2 plan amended by the Group 5 research
+**Context**: `docs/tech.md` "Classic and new layout" found that `Activity#getParent()` is null for a plain activity, so four of the five fragment-to-`TabBrowserActivity` branches never run; back works only for the folder pop and the Server-tab exit; the MediaProjection result belongs to the fragment hosting `BrowseDeviceAdapter`; four other activities declare `LAUNCHER` (VIEW only); the per-instance idle timer can fire after a relaunch.
+**Decision**:
+- Remove the four dead branches instead of wiring them (classic stays unchanged; fixing classic back is a separate owner decision). Only the live sites use `BrowserHost`.
+- New layout gets its own back handling via the `OnBackPressedDispatcher`.
+- Relaunch on a Layout change by comparing the stored layout in each browser's `onResume` (covers Settings, stale notification intents, launcher re-taps).
+- `TabBrowserActivity` stays exported without intent filters, so existing shortcuts keep working; the launcher trampoline holds the filters.
+- Extract `ShareIntentHandler`, `ShutdownTimerController` and `StreamingPermissionHelper` in Group 6 (behavior-preserving), fixing the leaks they carry.
+- One process-wide idle timer.
+**Rationale**: keeps classic byte-for-byte, and moves refactors that only fix leaks ahead of the new activity.
+
+## 2026-10-24 - Process-wide idle timer is part of switching layouts (review W4)
+**Context**: the per-instance background idle timer in `TabBrowserActivity` cancels only its own callbacks on resume. When the resume check relaunches into the other layout, the finishing instance starts a 5-minute `Yaacc.exit()` that the new activity never cancels.
+**Decision**: one process-wide idle timer in Group 6, used by both activities. In the single-instance case classic behaves identically; the rotation case is fixed as a side effect.
+**Rationale**: required for the layout switch to be safe, so it is not optional scope; it is flagged to the owner anyway as a change to classic.
+
+## 2026-10-24 - Security review of Group 5 amended the Group 6 plan
+**Context**: security review cycle 1 (Group 5) found two plan flaws: the launcher copied the whole incoming intent (an exported component would then forward a third-party intent, with its flags, `ClipData` URIs, nested intents and grants, into a same-app, non-exported activity), and the resume-check relaunch would loop forever when a stored `"new"` met `NEW_LAYOUT_AVAILABLE == false` (e.g. after backup/restore).
+**Decision**: fresh, allowlisted forward (MAIN and SEND text only, capped text); effective-layout comparison with a shared function plus a static relaunch guard; idle timer counts started browsers instead of relying on cancel-on-resume; static single-slot callbacks become multi-listener or compare-and-clear; MediaProjection result stays in the helper. Share handler scheme policy: http/https only (**owner decision pending**; it narrows today's behavior, but today a shared `file://` or path can be served to the LAN through the proxy). `allowBackup` and the stored-preferences exposure are a follow-up, not part of this spec.
+**Rationale**: these are cheap to build in from the start and expensive to retrofit.

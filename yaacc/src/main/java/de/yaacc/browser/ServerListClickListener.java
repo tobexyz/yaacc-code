@@ -47,8 +47,8 @@ public class ServerListClickListener implements View.OnClickListener {
     @Override
     public void onClick(View view) {
         upnpClient.setProviderDevice((Device<?, ?, ?>) adapter.getItem(deviceListView.getChildAdapterPosition(view)));
-        if (parent instanceof TabBrowserActivity) {
-            ((TabBrowserActivity) parent).setCurrentTab(BrowserTabs.CONTENT);
+        if (parent instanceof BrowserHost) {
+            ((BrowserHost) parent).showContent();
         }
     }
 }

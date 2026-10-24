@@ -22,10 +22,12 @@ screens, so neither can simply become a one-line picker.
   phase, so nothing is lost while the new path is being proven.
 
 ## Non-Goals
-- Removing the Receiver or Player tabs (phase 3, see design.md).
-- A persistent mini-player bar (phase 2).
-- Merging the Server tab into the browser, and moving its bottom controls
-  (phase 2).
+Phase 1 (this spec's Groups 1-4, done) excluded the items below; Phase 2
+(Groups 5-10, see design.md "Phase 2") now covers the first three.
+- ~~Removing the Receiver or Player tabs~~ -> done in the *new* layout only;
+  the classic layout keeps all four tabs.
+- ~~A persistent mini-player bar~~ -> Phase 2, new layout.
+- ~~Merging the Server tab into the browser~~ -> Phase 2, new layout.
 - Changing how many player objects PlayerService creates per device (see
   open questions in prd/unified-device-sheet.md).
 

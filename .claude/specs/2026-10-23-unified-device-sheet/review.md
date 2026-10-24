@@ -297,3 +297,69 @@ CHANGELOG format still matches the existing sections.
 - [x] Coverage adequate for the change (n/a, docs only)
 
 ### Verdict: PASS
+
+## Cycle 1 — 2026-10-24
+Reviewing: Group 5 (phase 2) (commits e80480e7 red tests and stubs, 581205fc `docs/tech.md` "Classic and new layout" plus tasks.md/decisions.md amendments)
+
+Verification run: `./gradlew :yaacc:testDebugUnitTest --offline` gives 239 tests, 26 failures, 0 errors. All 26 are `java.lang.AssertionError` (`BrowserLayoutChoiceTest` 11, `MiniPlayerPickerTest` 15); the other 213 tests are green. The 26 are not the 12 + 16 the tasks.md status line implies: `BrowserLayoutChoiceTest#defaultStoredValueIsClassic` and `MiniPlayerPickerTest#inputListIsNotModified` pass against the stubs (harmless, see Suggestions). Stubs are plain Java (no `android.*` imports) and `MiniPlayerPicker` reuses `DeviceSessionGrouper.PlayerRef`.
+
+Research check: I verified about 30 file:line citations against the checkout and found them accurate. These include the four dead `getParent()` branches (`PlayerListFragment:105`, `ReceiverListFragment:157`, `ContentListFragment:551`, `ServerListFragment:162`), `ServerListClickListener:49-51`, `ServerListFragment:238`, the share handler and `setCurrentTab` (`TabBrowserActivity:257-331, 315, 334-341`), the manifest filters (`AndroidManifest.xml:46-66`), `Yaacc.java:74` (`setDefaultValues(..., false)`), the three launches (`Yaacc:172`, `PlayerService:106, 199`), the shutdown timer in `Yaacc:65-66, 194-226` and its wiring in `ServerListFragment:249-299`, the static `MediaProjectionHelper.stopCallback` (`:53-59`), request code 2001, the four `SettingsActivity` entry points, the per-instance idle timer (`TabBrowserActivity:378-401`) and the four other `LAUNCHER`-without-`MAIN` activities. I also fetched the AOSP `android-14.0.0_r1` sources and confirmed `Activity.java:8753-8761` (NoDisplay `IllegalStateException`), `Intent.java:7557, 7572` (copy keeps flags and ClipData), `ActivityStarter.java:605, 1750` and `ActivityRecord.java:3967, 5164`. Activity 1.8.0 and fragment 1.5.4 are in the Gradle cache.
+
+Key conclusion holds: `Activity#getParent()` is only non-null for `ActivityGroup` children. The repo has no `ActivityGroup`/`TabActivity`/`LocalActivityManager`, and `TabBrowserActivity` is a plain `AppCompatActivity` hosting its fragments in its own `FragmentManager`, so the four branches never run. Deleting only the `if (getParent() ...)` block leaves each handler's `return true` (and the `try/requireActivity()` log in `deviceAdded`) intact, so classic behavior is unchanged. The doc labels sources honestly ([code]/[javap]/[docs]/[aosp]/[reasoned]). The trampoline URI-grant claim sits in a separate "Reasoned from AOSP (not stated in the public docs)" subsection and in on-device check 1, and six on-device checks are listed. The placeholder grep on `docs/tech.md` finds one hit (`:1103`, the quoted code comment `//FIXME dirty`), which is not a plan placeholder.
+
+### Critical
+- None.
+
+### Warning
+- [yaacc/src/test/java/de/yaacc/browser/MiniPlayerPickerTest.java:28-31, 100-117] The Javadoc says fixtures use ids that run against the sequence so an id-based implementation fails, but that holds for one test only. In `amongPlayingSessionsTheHighestSequenceWins` (seq 1/7/4 with ids 3/900/50) and `whenNothingPlaysTheHighestSequenceWins` the ids are in the same order as the sequences, so a comparator that falls back to `playerId` instead of `sequence` passes both. The only discriminating case is `sessionOnUnknownDeviceCompetesLikeAnyOther` (seq 9/id 5 vs seq 1/id 6), and it is non-playing only. Recommended fix: give the newest session in the among-playing test the lowest id (for example seq 7/id 3, seq 1/id 900, seq 4/id 50), and do the same for one non-playing case. Group 8 will otherwise go green with a weaker test than documented.
+- [design.md:213-216] Phase 2 still says "Fragments stop casting their host to `TabBrowserActivity` ... `BrowserHost` (`showServers()`, `showContent()`, `showPlayers()` or equivalent) ... In the new layout players/receivers map to the sheet". That contradicts the amended tasks.md Group 6 and decisions.md (2026-10-24), where four of the five fragment branches are dead and are deleted, not wired, and only `ServerListClickListener` and the share handler call the host. design.md was not amended in 581205fc. Recommended fix: reword to "the two live sites go through `BrowserHost`; the four dead `getParent()` branches are removed (classic back stays as is)".
+- [tasks.md:117, 143 vs 109/119; BrowserLayoutChoice stub] Group 6 and Group 9 disagree about where the "new" behavior and the preference key live. Group 6 requires the Group 5 tests green, and `resolve("new")` must return `NEW` there (`storedNewResolvesToNew`), yet Group 6 says "until Group 7 exists `NEW` resolves to classic" and Group 9 says `BrowserLayoutChoice` "now returns `NEW` when `"new"` is stored". Also, Group 6's launch helper and `onResume` check must read the layout preference, but the key string resource is only added in Group 9 (`preference key added as a string resource`). Recommended fix: state that `resolve()` is final in Group 6 and that the "until Group 7" fallback lives in the android-side launch helper; add the key (and the `values` default-less read, `getString(key, null)`) in Group 6, and drop "now returns NEW" from Group 9. Related: the doc's trampoline sketch calls `BrowserLayoutChoice.targetClass(this)`, which would need `android.*` in a class whose stub and tests are explicitly plain Java; it should name the separate launch helper (the doc's other snippet already uses `LaunchHelper.browserIntent`).
+- [tasks.md:123 vs docs/tech.md:1135-1144] The research says the process-wide idle timer is "Out of scope to fix in classic unless the owner asks; required for the new activity's design", but Group 7 makes one timer "serve both activities", i.e. it changes classic, and Group 6 says classic is unchanged "apart from fixing the leaks". decisions.md lists "One process-wide idle timer" with no note that the owner agreed to touch classic. Recommended fix: either record the owner's OK in decisions.md and add the classic change to Group 6/7 wording, or make Group 7 keep the classic timer as is.
+
+### Suggestion
+- [docs/tech.md:895] `appcompat:1.8.0` is cited at `build.gradle:53`; it is line 50 (53 is `preference:1.2.1`). Material is at line 20.
+- [docs/tech.md:1396-1420] The subsection "Verified from documentation" contains an `[aosp]`-tagged item (`Activity.java:8753-8761` enforcement). The tag makes it honest, but it belongs under the AOSP heading.
+- [tasks.md:109, docs/tech.md:960-963] `providesShutdownTimer()` has no consumer: Group 7 builds a separate top-level server fragment instead of reusing `ServerListFragment`, so nothing needs to hide the classic timer row. `showReceivers()`/`showServers()` have no classic caller either. Consider dropping the capability from the Group 6 Accept until Group 8 needs it.
+- [tasks.md:109-111] `ServerListFragment.java:238` (`v.getContext() instanceof TabBrowserActivity` guard, site 6) is neither removed nor kept explicitly. The Group 6 grep only covers `getParent() instanceof`. Say "leave as is" or "drop the pointless guard".
+- [yaacc/src/test/java/de/yaacc/browser/MiniPlayerPickerTest.java:174-183, BrowserLayoutChoiceTest.java:77-80] Two tests (`inputListIsNotModified`, `defaultStoredValueIsClassic`) are green against the stubs, so the red phase does not prove them. Fine for a no-mutation guard, but update the tasks.md status to "26 failures (11 + 15)".
+- [docs/tech.md:1539-1590] (f) says the browsers "can be `exported="false"`" and (g) then recommends leaving `TabBrowserActivity` exported without filters. The decision is consistent with decisions.md; a one-line pointer in (f) would avoid confusion.
+
+### Tests
+- [x] All tests passing (the only failures are the 26 intentional red assertions; 213 other tests green, 0 errors)
+- [x] Coverage adequate for the change (see Warning 1: tie and id-vs-sequence discrimination among playing sessions is weaker than documented)
+
+### Verdict: FAIL
+
+## Cycle 2 — 2026-10-24
+Reviewing: Group 5 (phase 2) (commit bf40ced6, fixes for cycle 1 W1-W4 plus the applied suggestions)
+
+Verification run: `./gradlew :yaacc:testDebugUnitTest --offline` gives 239 tests, 26 failures, 0 errors. All 26 are `java.lang.AssertionError` (`BrowserLayoutChoiceTest` 11, `MiniPlayerPickerTest` 15); the other 213 tests are green. This matches the corrected tasks.md status line (11 + 15).
+
+W1 (fixtures) resolved. In `amongPlayingSessionsTheHighestSequenceWins` and `whenNothingPlaysTheHighestSequenceWins` the newest session (seq 7) now has the lowest id (3), the oldest (seq 1) the highest (900), the middle seq 4/id 50. An implementation that ranks by `playerId` (alone, or after the playing check) returns the seq-1/id-900 session and fails both `assertSame(newest, ...)`; so does the old order-agnostic stub default. `resultDoesNotDependOnInputOrder`, `playingSessionBeatsNewerNonPlayingSession` and `sessionOnUnknownDeviceCompetesLikeAnyOther` already ran against the id order. The Javadoc claim now holds. Tie-break tests (equal seq, id decides) are unchanged and still correct.
+
+W2 (design.md) resolved: the BrowserHost bullet now names the two live call sites, the deletion of the four dead branches, `OnBackPressedDispatcher`, and receivers -> sheet / players -> mini-player. It agrees with tasks.md Group 6 and decisions.md.
+
+W3 (Group 6 vs 9) resolved: `BrowserLayoutChoice` stays plain Java and `resolve("new")` returns `NEW` in Group 6; the Android-dependent `BrowserLauncher` carries the `NEW_LAYOUT_AVAILABLE = false` gate; the preference key string resource is in Group 6's file list and Group 9 only adds the visible preference, entries and strings. Leftover grep over tasks/design/decisions/requirements for "NEW resolves to classic", "exactly one exported", "CLEAR_TASK" and "fragments ask the host" finds only the Group 9 constraint "no CLEAR_TASK" (intended). The "until Group 7" wording survives only in the `BrowserLauncher` clause.
+
+W4 (idle timer) resolved: the process-wide timer is now in Group 6's Accept and Constraints, Group 7 says "uses the process-wide idle timer from Group 6", and decisions.md 2026-10-24 records the reason (relaunch leaves the old instance's 5-minute `Yaacc.exit()` queued) and that it is flagged to the owner.
+
+Applied suggestions verified: `build.gradle:50` is the appcompat line; Group 6 Accept covers `ServerListFragment:238` (guard becomes `instanceof BrowserHost`); `providesShutdownTimer()` is gone from the Group 6 Accept ("no speculative ones"); the status line counts are corrected.
+
+### Critical
+- None.
+
+### Warning
+- None.
+
+### Suggestion
+- [docs/tech.md:1002, 1268] `providesShutdownTimer()` is still described as an optional Group 8 default method. Acceptable: tasks.md Group 6 Accept is the authority and no longer lists it, the tech.md text says "Optional", and the as-built update is Group 10. Consider a one-line "superseded: not in Group 6" note so a Group 8 implementer does not add a consumerless method.
+- [docs/tech.md:1141-1144] Still says the process-wide idle timer is "out of scope to fix in classic unless the owner asks". tasks.md Group 6 and decisions.md 2026-10-24 now make it in scope (flagged to the owner). Same status: research record, fix in Group 10 or annotate.
+- [docs/tech.md:1501] The trampoline sketch calls `BrowserLayoutChoice.targetClass(this)`, but the plan now puts the Android-dependent lookup in `BrowserLauncher` (the sketch at `:1152` uses a third name, `LaunchHelper`). Rename in the as-built pass.
+- [tasks.md:117 vs 123] Group 6 says `NEW_LAYOUT_AVAILABLE` is "flipped in Group 7"; Group 7 says it is flipped only at the end of Group 8. Group 7's wording is the intended one; align Group 6.
+- [tasks.md:108] The status line says "213 other tests green", which includes the two new tests that pass against the stubs (211 pre-existing + 2). Cosmetic.
+
+### Tests
+- [x] All tests passing (the only failures are the 26 intentional red assertions; 213 other tests green, 0 errors)
+- [x] Coverage adequate for the change
+
+### Verdict: PASS

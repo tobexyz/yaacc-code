@@ -883,3 +883,817 @@ unchanged.
   to its initial half/full position. `RendererStatusMonitor` polls on a
   single thread, so one slow renderer delays status for every receiver in
   both the tab and the sheet; transport controls are unaffected.
+
+## Classic and new layout
+
+Research notes for spec `2026-10-23-unified-device-sheet`, Phase 2 (Group 5,
+first task). No code was written for this section. Verified 2026-10-24
+against the checkout on branch `feat/unified-device-sheet`. Line numbers are
+from that checkout and will move once Group 6 starts.
+
+Versions (nothing added): `yaacc/build.gradle:109-111` has `targetSdkVersion
+33`, `minSdkVersion 27`. `appcompat:1.8.0` (`yaacc/build.gradle:50`) resolves
+`androidx.activity:activity:1.8.0`, `androidx.fragment:fragment:1.5.4` and
+`androidx.core:core:1.16.0` (`./gradlew --offline :yaacc:dependencies
+--configuration debugRuntimeClasspath`). `androidx.preference:preference:1.2.1`
+and `material:1.14.0` are unchanged.
+
+Sources, and how each claim is marked:
+
+- **[code]**: read in this repo, cited as `file:line`.
+- **[javap]**: `javap -public` on `activity-1.8.0.aar` from
+  `~/.gradle/caches/modules-2/files-2.1/androidx.activity/activity/1.8.0/`.
+- **[docs]**: official documentation, fetched through the `android-docs` MCP
+  (it worked in this session) or `curl` on developer.android.com. URL given.
+- **[aosp]**: AOSP source, tag `android-14.0.0_r1`, fetched from
+  `raw.githubusercontent.com/aosp-mirror/platform_frameworks_base/android-14.0.0_r1/`
+  (`android.googlesource.com` was not reachable). Platform behavior that the
+  public docs do not state. Newer releases may differ.
+- **[reasoned]**: inferred from code or the sources above, not run on a device.
+  Section "On-device checks" lists what the owner should confirm.
+
+### Summary of recommendations
+
+| Topic | Recommendation |
+|---|---|
+| `BrowserHost` | Four methods: `showServers()`, `showContent()`, `showReceivers()`, `showPlayers()`. Optional `default` capability methods for Group 8. Section (a). |
+| `getParent()` | Always `null` here. Four of the five fragment sites are **dead code** today. Section (a). |
+| Back in the new activity | `OnBackPressedCallback` on `getOnBackPressedDispatcher()` (verified in activity 1.8.0). Not an `onBackPressed()` override. Section (b). |
+| Layout change relaunch | Check-on-resume: each browser activity compares the **effective** layout with its own in `onResume()` and, on mismatch, starts the other with a fresh intent and finishes, behind a relaunch guard. Section (c). |
+| Shutdown timer | Extract `ShutdownTimerController`; give `Yaacc` an `isShutdownTimerRunning()` and remaining-millis getter. Section (d). |
+| Share handler | Extract `ShareIntentHandler` with a `Runnable onPlayersStarted`; classic passes `showPlayers()`, new passes nothing. Section (e). |
+| Trampoline | Works. `LauncherActivity extends android.app.Activity` (not AppCompat), `Theme.NoDisplay`, forward a **fresh allowlisted intent** (never a copy of the incoming one), call `finish()` in `onCreate`. Section (f). |
+| Manifest | MAIN filters, LEANBACK and SEND move to `LauncherActivity`. Section (g). |
+
+### (a) Host coupling: every `instanceof TabBrowserActivity` / `setCurrentTab` site
+
+#### Finding: `getParent()` is never non-null here
+
+Four sites test `requireActivity().getParent() instanceof TabBrowserActivity`.
+`Activity.getParent()` "returns the parent Activity if this is a child
+Activity of an ActivityGroup" and is deprecated since API 35 because
+`ActivityGroup` is deprecated [docs:
+`https://developer.android.com/reference/android/app/Activity#getParent()`].
+`TabBrowserActivity` is a plain `AppCompatActivity` started with
+`startActivity` (`TabBrowserActivity.java:85`, `AndroidManifest.xml:46-66`),
+and the fragments live in the activity's own `FragmentManager`, so
+`requireActivity()` is the `TabBrowserActivity` itself and its `getParent()`
+is `null` [reasoned]. Those four branches never run. The fifth live site
+(`ServerListClickListener`) works because it does not use `getParent()`.
+
+#### Site inventory
+
+| # | Site | Trigger | Wants from host | Live today? |
+|---|---|---|---|---|
+| 1 | `PlayerListFragment.java:105-106` | `onBackPressed()` | go to Receiver tab (`BrowserTabs.RECEIVER`) | **dead** (`getParent()` null); handler still returns `true`, so back is swallowed |
+| 2 | `ReceiverListFragment.java:157-158` | `onBackPressed()` | go to Content tab | **dead**, back swallowed |
+| 3 | `ContentListFragment.java:551-552` | `onBackPressed()` at folder root (`ITEM_ROOT_OBJECT_ID`, `:542-553`) | go to Server tab | **dead**, back swallowed. Folder pop at `:555-570` is live. |
+| 4 | `ServerListFragment.java:162-163` | `deviceAdded(device)` when `device` equals `upnpClient.getProviderDevice()` (`:155`) | auto-jump to Content tab | **dead** |
+| 5 | `ServerListClickListener.java:50-51` | click on a server row, after `upnpClient.setProviderDevice(...)` (`:49`) | go to Content tab | **live**: `parent` is the `Context` handed to `BrowseDeviceAdapter` (`BrowseDeviceAdapter.java:130`), which is `getActivity()` (`ServerListFragment.java:131`) |
+| 6 | `ServerListFragment.java:238` | `v.getContext() instanceof TabBrowserActivity` guard around `setLocalServerState(view)` after the server switch is clicked | not navigation. A "are we in the classic activity" guard. | live in classic, but the guard is pointless: `setLocalServerState` only needs the view |
+| 7 | `TabBrowserActivity.java:226, 228` | `onCreate`: restore saved tab; otherwise go to `CONTENT` if a provider device is selected | activity-internal | live |
+| 8 | `TabBrowserActivity.java:315` | share handler, after `player.play()` | go to Player tab | live |
+| 9 | `TabBrowserActivity.java:334-341` | `setCurrentTab(BrowserTabs)`: `runOnUiThread` then `tabLayout.getTabAt(ordinal).select()` | the implementation | live |
+
+`SettingsActivity.java:42` (`TabBrowserActivity.leftSettings = true`) is a
+static coupling, not navigation. See (c).
+
+Non-fragment references that only build an explicit `Intent` to the class:
+`Yaacc.java:172` (`createYaaccGroupNotification`, content intent, no extras),
+`PlayerService.java:106` (`createSessionActivity`, used for the media session)
+and `PlayerService.java:199` (`updateServiceNotification`). All three use
+`FLAG_IMMUTABLE`, the first and third without `FLAG_UPDATE_CURRENT`.
+`UpnpClient.java:97,1661` only uses `TabBrowserActivity.class.getName()` as a
+log tag.
+
+Tab order is `SERVER(0)`, `CONTENT(1)`, `RECEIVER(2)`, `PLAYER(3)`
+(`BrowserTabs.java:21-25`); `TabBrowserFragmentStateAdapter` creates one
+fragment instance per tab (`:28-97`). `TabBrowserActivity.onBackPressed`
+indexes `getSupportFragmentManager().getFragments()` by the selected tab
+position (`:420-421`), so it relies on fragment order equalling tab order.
+
+#### Proposed `BrowserHost`
+
+```java
+public interface BrowserHost {
+    void showServers();    // sites 3 (and the new layout's own up-navigation)
+    void showContent();    // sites 2, 5 (and 4 if ever kept)
+    void showReceivers();  // site 1
+    void showPlayers();    // site 8
+}
+```
+
+Fragments find the host with `getActivity() instanceof BrowserHost`;
+`ServerListClickListener` with `parent instanceof BrowserHost`. Both have to
+tolerate "no host" (as today: nothing happens). Calls can come from non-UI
+threads (`deviceAdded` is a `UpnpClientListener` callback), so every
+implementation must hop to the main thread itself.
+
+| Method | Classic (`TabBrowserActivity`) | New (`BrowserActivity`) |
+|---|---|---|
+| `showServers()` | `setCurrentTab(SERVER)` | pop the back stack down to the server-list fragment; no-op if already there |
+| `showContent()` | `setCurrentTab(CONTENT)` | push `ContentListFragment` for the current provider (`addToBackStack`); no-op if it is already on top. The provider is already stored by `UpnpClient.setProviderDevice` (writes the preference, `UpnpClient.java:1127-1131`), and `ContentListFragment` loads it itself in `onViewCreated` and `onResume` (`ContentListFragment.java:91-108, 110-146`), so no argument is needed. |
+| `showReceivers()` | `setCurrentTab(RECEIVER)` | open `DeviceSheetFragment.show(getSupportFragmentManager())` (`DeviceSheetFragment.show` already ignores a second call or a saved state) |
+| `showPlayers()` | `setCurrentTab(PLAYER)` | no-op. The mini-player updates itself from `PlayerListChangeNotifier`. Optionally open the featured player screen later. |
+
+Optional `default` methods for Group 8, so classic needs no override:
+`default boolean providesReceiverBar() { return false; }` (new returns
+`true`, `ContentListFragment` then hides its own bar) and
+`default boolean providesShutdownTimer() { return false; }` (new returns
+`true`, `ServerListFragment` hides its timer row).
+
+New-layout fragment transactions must run on the main thread and not after
+`onSaveInstanceState`: guard with `isStateSaved()` (fragment 1.5.4) or skip.
+
+#### Decision for Group 6: the four dead sites
+
+The Group 6 Accept says "classic behavior is unchanged (same tab
+switches)". Wiring sites 1-4 to `BrowserHost` would make them **live** and
+change classic: back on the Player tab would go to Receiver, Receiver to
+Content, Content root to Server (today all three are swallowed no-ops), and
+site 4 would yank the user to the Content tab whenever the selected provider
+announces itself again. Recommendation:
+
+- Sites 5 and 8 go through `BrowserHost` (they are live).
+- Sites 1-3: keep `return true` and drop the dead `getParent()` branch, or
+  leave them exactly as is. Do **not** wire them, so classic stays unchanged.
+  Making classic back work properly is a behavior change for the owner to
+  decide separately (CHANGELOG "Fixed").
+- Site 4: delete the dead branch. Do not wire it; the new layout starts at the
+  server list and must not auto-jump.
+- The new layout needs real up-navigation anyway; it gets it from its own back
+  handling (see (b)), not from these dead handlers.
+
+### (b) Back handling
+
+#### Flow in the classic layout [code]
+
+1. `TabBrowserActivity.onBackPressed()` (`:417-427`) overrides the
+   deprecated `Activity` method. It takes the fragment at index
+   `tabLayout.getSelectedTabPosition()` of `getFragments()`; if it implements
+   `OnBackPressedListener` (`OnBackPressedListener.java:25-28`: "return true
+   if your processing has priority") and returns `true`, that is the end.
+   Otherwise `super.onBackPressed()` (finish).
+2. Per tab:
+   - **Server**: `ServerListFragment.onBackPressed()` (`:113-118`) calls
+     `Yaacc.exit()` and `finish()` and returns `true`. `exit()` shuts down the
+     client, stops both services, cancels notifications, finishes all app
+     tasks and ends with `Runtime.getRuntime().exit(0)` (`Yaacc.java:125-149`).
+     So back on the Server tab quits the whole process.
+   - **Content**: `ContentListFragment.onBackPressed()` (`:535-575`) cancels
+     running loads. Below the root it pops one `Navigator` position and
+     reloads that folder (`:555-570`); at the root it only refreshes the
+     header and tries the dead site 3. Always returns `true`. The in-screen
+     back arrow (`contentListBackButton`, `:112-117`) calls the same method;
+     it is hidden at the root (`updateFolderNavigationUi`, `:470-490`).
+     Possible NPE: `navigator` is dereferenced at `:537` without a null check
+     while `updateFolderNavigationUi` does check it.
+   - **Receiver**, **Player**: dead site, return `true`: back does nothing.
+3. Net effect today: only the Server tab and folder levels respond to back.
+   On the Content root, Receiver and Player tabs back is swallowed, so the
+   spec's phrase "exactly as the classic back flow does" (Group 7) describes
+   the code's intent, not its behavior.
+
+#### What `BrowserActivity` must do
+
+- **API is available in appcompat 1.8.0 / activity 1.8.0 [javap]**:
+  `ComponentActivity.getOnBackPressedDispatcher()` is `public final`;
+  `OnBackPressedDispatcher.addCallback(LifecycleOwner, OnBackPressedCallback)`,
+  `addCallback(OnBackPressedCallback)`, `hasEnabledCallbacks()` exist;
+  `OnBackPressedCallback(boolean)`, `setEnabled`, `isEnabled`, `remove`,
+  `handleOnBackPressed()` (abstract) exist. API reference:
+  `https://developer.android.com/reference/androidx/activity/OnBackPressedDispatcher`
+  (that page documents the latest release; the signatures used here are
+  "Added in 1.0.0" and were checked against the 1.8.0 jar).
+- Use `getOnBackPressedDispatcher().addCallback(this, callback)` once in
+  `onCreate`. The docs say a callback registered with a `LifecycleOwner`
+  follows its lifecycle and is removed on `DESTROYED`, so nothing leaks.
+  Register it once and toggle `setEnabled(...)` rather than add/remove.
+- Do not override `onBackPressed()`. The docs state that from API 33 back
+  handling moves to an ahead-of-time model and `Activity.onBackPressed()`
+  "should not be used" [docs:
+  `https://developer.android.com/reference/android/app/Activity#onBackPressed()`].
+  The classic override still works for this app because `targetSdkVersion` is
+  33 and the manifest has no `android:enableOnBackInvokedCallback`
+  [code: `build.gradle:110`, `AndroidManifest.xml`]; the new activity should
+  not depend on that. Do not set `enableOnBackInvokedCallback` as part of this
+  work (not researched, and it would change classic).
+- Required behavior (callback body), in order:
+  1. If the top fragment is `ContentListFragment` and it is **not** at its
+     root: let it pop one folder (`onBackPressed()`).
+  2. If it is at its root: `showServers()` (pop the back stack).
+  3. If the top fragment is the server list: same as classic,
+     `Yaacc.exit()` then `finish()`.
+- `ContentListFragment` needs a new read-only `isAtRoot()` (derive from
+  `navigator`, null-safe, same expression as `updateFolderNavigationUi`
+  `:475-476`). It cannot be inferred from `onBackPressed()`'s return value:
+  that always returns `true`, and changing it would change classic.
+- New layout wants the in-screen back arrow **visible at the content root**
+  (design.md mock-up "<- Gerbera > Musik"), where classic hides it. Gate that
+  on `BrowserHost` (e.g. a default method `showsUpAtContentRoot()`), and have
+  the arrow call `showServers()` at the root.
+- Do not re-use the `getFragments().get(tabPosition)` indexing.
+- D-pad / TV: system Back arrives as the same back event; nothing special.
+
+### (c) The `leftSettings` round trip
+
+#### What happens today [code]
+
+- `TabBrowserActivity.leftSettings` is `public static boolean`, marked
+  `//FIXME dirty` (`TabBrowserActivity.java:88-89`).
+- `SettingsActivity.onPause()` sets it to `true` (`SettingsActivity.java:40-43`).
+  `SettingsActivity` is opened by plain `startActivity` from four places:
+  `TabBrowserActivity.java:453`, `ImageViewerActivity.java:455`,
+  `AVTransportPlayerActivity.java:403`, `YaaccUpnpServerControlActivity.java:415`.
+  Never for a result.
+- `TabBrowserActivity.onResume()` (`:355-376`): if the stored "local server"
+  preference is on, it **stops and restarts** `YaaccUpnpServerService` when
+  `leftSettings` is true (so changed server settings take effect), otherwise
+  just starts it; if the preference is off it stops the service. Then resets
+  the flag. The flag may be set by a settings visit from another activity and
+  is consumed when the browser next resumes.
+- The same `onResume` also re-reads `settings_swipe_chkbx` for the
+  `ViewPager2` (classic only).
+
+#### What the new activity needs
+
+- The `onResume()` server-service logic (`:361-374`) must run in both
+  activities. Extract it, e.g. `LocalServerLifecycle.apply(Context,
+  boolean restart)`; both `onResume`s call it with the consumed flag.
+- The flag must be shared. Move it (or a `consumeLeftSettings()` accessor) to
+  `SettingsActivity` so neither browser depends on the other; keep it a
+  main-thread static (all writers and readers are lifecycle callbacks).
+- The activity-level pieces that classic keeps in `TabBrowserActivity` and
+  that the new activity also needs (shared helper or small base class):
+  permission request (`:157-171, 210-214`, request code 101, result never
+  handled), battery-optimization prompt (`:236-249`, started on **every**
+  `onCreate`, and when already exempt it starts an empty `Intent()` and
+  swallows `ActivityNotFoundException`), the 5-minute background idle exit
+  (`:378-401`), the options menu actions (`:435-466`: exit, settings, about,
+  log).
+- **Latent bug the relaunch makes more visible**: the idle timer is a
+  per-instance `Handler` + `Runnable` (`:378-395`). `onStop()` posts the
+  5-minute exit (`:398-401`); `onResume()` cancels only **this instance's**
+  callbacks (`:357`). After any recreation (rotation) or a relaunch, the old
+  instance's runnable is still queued and, if there are no players and no
+  local server/renderer/proxy enabled, calls `Yaacc.exit()` five minutes later
+  even though the user is active in the new instance [reasoned]. The shared
+  helper should keep one process-wide timer that **counts started browsers**
+  and arms only when the count drops to 0: a plain "cancel on resume" is not
+  enough, because the old browser's `onStop` can arm the timer after the new
+  browser's `onResume` has cancelled it. Out of scope to fix in classic by
+  itself, but the layout switch needs it: Group 6 does it for both
+  activities (decisions.md 2026-10-24, review W4 and security review cycle 1).
+
+#### Relaunch when the Layout preference changes: recommendation
+
+**Check on resume.** In both browser activities, at the very top of
+`onResume()`, after `super.onResume()`:
+
+```java
+// effective layout: CLASSIC while BrowserLauncher.NEW_LAYOUT_AVAILABLE is false;
+// BrowserLauncher.targetClass() and this check use the same function
+if (BrowserLauncher.effectiveLayout(prefs.getString(layoutKey, null)) != THIS_LAYOUT
+        && RelaunchGuard.tryRelaunch()) {                 // at most once per ~2 s, else stay and log
+    startActivity(new Intent(this, BrowserLauncher.targetClass(this)));   // fresh intent
+    overridePendingTransition(0, 0);
+    finish();
+    return;                                            // skip the rest of onResume
+}
+```
+
+Without the effective-layout comparison and the guard, a stored `"new"`
+while the new layout is unavailable (backup/restore, adb, downgrade) would
+bounce between the two activities forever (security review cycle 1,
+Warning 2). A pending share payload is consumed exactly once.
+
+Why this one:
+
+- Settings is always opened with `startActivity` on top of a browser (or a
+  player screen) and the browser then stops and resumes, so `onResume` is a
+  guaranteed point after the user is done. No result code, no listener.
+- Works for all four Settings entry points: if Settings was opened from a
+  player screen, the mismatch is caught when the user next reaches the
+  browser.
+- Also corrects **stale launches**: `Yaacc.java:172` and `PlayerService.java`
+  `:106, :199` build explicit-class `PendingIntent`s when the notification is
+  posted; after a layout change, tapping an old notification starts the
+  "wrong" class, which immediately redirects itself. Group 6's launch helper
+  alone cannot fix already-posted notifications.
+- Process death: the preference is read again on recreation; nothing to
+  persist.
+- `getString(key, null)` returns `null` for existing installs: the new
+  `ListPreference`'s default is **not** written for them, because
+  `Yaacc.java:74` calls `PreferenceManager.setDefaultValues(this,
+  R.xml.preference, false)` and with `readAgain=false` that "sets the default
+  values only if this method has never been called in the past" [docs:
+  `https://developer.android.com/reference/androidx/preference/PreferenceManager#setDefaultValues(android.content.Context,int,boolean)`].
+  `BrowserLayoutChoice.resolve(null)` -> `CLASSIC` (the Group 5 test) handles
+  it. Never use a default other than `null` when reading.
+- Players keep running: they live in `PlayerService`/`UpnpClient`, which hang
+  off the `Application` (`Yaacc.java:62-66`, `UpnpClient(Context)` gets the
+  application), not off an activity.
+
+Rejected:
+
+- `OnSharedPreferenceChangeListener` in the browser: it fires while Settings
+  is on top and the browser is stopped; the new activity would start over
+  Settings mid-edit. Listeners must also be strongly referenced (the registry
+  holds them weakly) and unregistered.
+- `ActivityResult` from Settings: Settings is not started for a result in any
+  of its four entry points, and its default result is `RESULT_CANCELED` on
+  back.
+- `recreate()`: cannot switch classes.
+
+Cost: one frame of the old UI after returning from Settings. Acceptable;
+`overridePendingTransition(0, 0)` hides the cross-fade.
+
+### (d) `ServerListFragment`: shutdown timer, MediaProjection, streaming flags
+
+#### Shutdown timer [code]
+
+State and wiring:
+
+- Timer lives in `Yaacc`: `CountDownTimer shutdownTimer`, one
+  `ShutdownTimerListener shutdownTimerListener` (`Yaacc.java:65-66`);
+  `startShutdownTimer(long)` stops any running timer, ticks every second and
+  calls the listener, and calls `exit()` on finish (`:194-213`);
+  `stopShutdownTimer()` (`:215`); getter/setter (`:221-227`).
+  `ShutdownTimerListener` has one method `onTick(long)`
+  (`util/ShutdownTimerListener.java:21`).
+- `Yaacc` cannot tell whether a timer is running, and does not keep the
+  remaining time. The UI therefore keeps its own copy.
+- `ServerListFragment` views (`fragment_server_list.xml:33-80`):
+  `serverListShutdownTimerLabel`, `serverListShutdownTimerEnabled` (switch),
+  `serverListSetShutdownTimer` (button), `serverListShutdownTimerRemaining`
+  (text). The duration is persisted as a `long` under
+  `R.string.settings_shutdown_timer` (`setting_strings.xml:157`, default `0`).
+  `FormatHelper.parseMillisToTimeStringTo(long)` renders `HH:MM:SS`
+  (`FormatHelper.java:9-16`).
+- Logic: switch on -> `setShutdownTimerListener(this)` +
+  `startShutdownTimer(stored)` (`ServerListFragment.java:259-268`); switch off
+  -> reset text to the stored duration + `stopShutdownTimer()`; set button ->
+  parse `HH:MM` back out of the formatted string
+  (`:272-299`, fragile: `Integer.parseInt(durationString.split(":")[0])`),
+  show a `MaterialTimePicker` (`CLOCK_24H`, keyboard input), store millis,
+  restart the timer if the switch is on. Remaining text is copied through
+  `onSaveInstanceState` (`:207-211`, reads `getView()` unguarded) and only
+  re-attaches the listener when restored from saved state (`:250-253`).
+- Problems to avoid copying: the `Application` holds the fragment as listener
+  and nothing ever clears it (fragment + activity leak after rotation or
+  destroy); a recreated fragment does not know a timer is already running
+  (the switch is not restored from `Yaacc`).
+
+Recommended extraction, `ShutdownTimerController` (name free; plain class
+owned by whoever shows the UI, not a singleton):
+
+```java
+final class ShutdownTimerController implements ShutdownTimerListener {
+    interface Display { void showRemaining(long millis, boolean running); }
+
+    ShutdownTimerController(Yaacc app, SharedPreferences prefs, String prefKey);
+    void attach(Display d);          // sets itself as Yaacc's listener, pushes current state
+    void detach();                   // Yaacc.setShutdownTimerListener(null) if still ours
+    boolean isRunning();             // from Yaacc (new)
+    long configuredMillis();         // prefs.getLong(prefKey, 0L)
+    void setConfiguredMillis(long);  // prefs.edit().putLong(...).apply(); restart if running
+    void start();                    // app.startShutdownTimer(configuredMillis())
+    void stop();                     // app.stopShutdownTimer()
+    void showPicker(FragmentManager fm);  // MaterialTimePicker built from millis, not from a string
+    @Override public void onTick(long remaining);  // -> display.showRemaining
+}
+```
+
+and two additions to `Yaacc`: `boolean isShutdownTimerRunning()` and
+`long getShutdownTimerRemainingMillis()` (set in `onTick`, cleared in
+`stopShutdownTimer()`/`onFinish`). `attach`/`detach` pair with
+`onStart`/`onStop` (or `onViewCreated`/`onDestroyView` for the classic
+fragment) so the `Application` never holds a destroyed UI.
+
+- Classic: `ServerListFragment` keeps its four views and delegates to the
+  controller, with a `Display` that writes the text and the switch.
+- New (`BrowserActivity`): a toolbar menu item (`app:showAsAction="ifRoom"`,
+  checkable) whose title/tooltip shows the remaining time via a `Display`;
+  click toggles start/stop like the switch; an overflow entry (or long press)
+  calls `showPicker`. `ServerListFragment`/the new server fragment hides the
+  timer row when `BrowserHost.providesShutdownTimer()` is true. The controller
+  has to live in the activity (not the fragment) so the item keeps updating on
+  every level.
+- `MaterialTimePicker` is already used here (`ServerListFragment.java:20,278`)
+  and `material:1.14.0` is unchanged.
+
+#### MediaProjection permission flow [code]
+
+- Fragment `onCreate` registers a **static** callback
+  `MediaProjectionHelper.setStopCallback(...)` capturing the fragment
+  (`ServerListFragment.java:87-110`; `MediaProjectionHelper.java:56-59`). It
+  resets both streaming preferences, both static flags and refreshes the
+  adapter. Nothing unregisters it, and a second fragment instance silently
+  replaces the first.
+- Request: `BrowseDeviceAdapter` gets a `StreamPermissionCallback` from the
+  fragment (`ServerListFragment.java:133-138`), invoked by the audio/video
+  stream buttons when `MediaProjectionHelper.hasPermission()` is false
+  (`BrowseDeviceAdapter.java:246-256, 281-291`), after it sets the static
+  `pendingAudioRequest`/`pendingVideoRequest` flags. The fragment answers with
+  `startActivityForResult(MediaProjectionHelper.createPermissionIntent(...),
+  REQUEST_CODE_MEDIA_PROJECTION)` (request code 2001,
+  `MediaProjectionHelper.java:41`).
+- Result: `ServerListFragment.onActivityResult` (`:362-415`) calls
+  `MediaProjectionHelper.handlePermissionResult`, then on grant writes the
+  matching preference(s) and sets the matching static flag(s) according to
+  which button asked, clears the pending flags and `notifyDataSetChanged()`s;
+  on denial clears both preferences, flags and refreshes.
+- Streaming state is process-wide: `isAudioStreaming`/`isVideoStreaming` are
+  `static` in `BrowseDeviceAdapter` (`:61-62`), re-read from preferences when
+  the yaacc row is bound (`:196-197`); `Yaacc.onCreate` resets both
+  preferences to `false` at every process start (`Yaacc.java:91-96`). So the
+  state survives a classic <-> new switch inside one process.
+- Fragment 1.5.4 and activity 1.8.0 both offer `registerForActivityResult`
+  [javap: `ComponentActivity.registerForActivityResult`]; the old
+  `Fragment.startActivityForResult`/`onActivityResult` still work.
+
+What must move: **nothing has to move to the toolbar or the activity** for
+streaming. The buttons stay on the yaacc row, and the row only exists in the
+fragment that hosts `BrowseDeviceAdapter`; the permission result is delivered
+to the fragment that started it. This contradicts Group 7's "MediaProjection
+permission result is handled by the activity". Recommendation: the new
+top-level server fragment handles it itself, sharing the code with classic
+through an extracted helper:
+
+```java
+final class StreamingPermissionHelper {            // name free
+    StreamingPermissionHelper(Context appContext, Runnable refreshAdapter);
+    Intent createRequestIntent(Context c);          // MediaProjectionHelper.createPermissionIntent
+    void onPermissionResult(int resultCode, Intent data);   // body of onActivityResult
+    void registerStopCallback(Activity owner);      // runOnUiThread + prefs reset + refreshAdapter
+    void unregisterStopCallback();                  // MediaProjectionHelper.setStopCallback(null)
+}
+```
+
+Both fragments call `registerStopCallback` in `onStart` and
+`unregisterStopCallback` in `onStop` (fixes the static leak). The static
+`pending*` flags stay in `BrowseDeviceAdapter`; do not change their semantics.
+Group 7 Accept should say "handled by the fragment that hosts the yaacc row".
+
+### (e) Share-intent handler: `checkIfReceivedShareIntent`
+
+`TabBrowserActivity.java:257-331`, called from `onCreate` with `null`
+(`:232`, after the `upnpClient == null` early return at `:220-223`) and from
+`onNewIntent` (`:251-255`).
+
+Behavior [code]:
+
+1. Only `Intent.ACTION_SEND`. URI source order: `EXTRA_TEXT` string
+   (`Uri.parse`), else the **last** `ClipData` item that has text or a URI
+   (`:262-276`). The manifest filter is `text/plain` only (g).
+2. Clears what it read so a recreated activity does not replay it:
+   `intent.removeExtra(EXTRA_TEXT)`, `intent.setClipData(null)` (`:277-283`).
+   It therefore mutates the `Intent` object it is given.
+3. If there is a URI: delay 0 s; +3 s if
+   `upnpClient.getReceiverDevicesReadyCount() == 0` (`:286-289`); +3 s and
+   `upnpClient.startService()` if `!upnpClient.isPlayerServiceInitialized()`
+   (`:290-294`). Creates a new `Executors.newSingleThreadScheduledExecutor()`
+   per call, never shut down (thread leak) (`:297`). Toast "start in N
+   seconds" when delayed (`:324`).
+4. Worker: if still no ready receiver, toast "no receiver found using local
+   device" (on the UI thread via `runOnUiThread`) and
+   `upnpClient.setReceiverDeviceIds(Set.of(UpnpClient.LOCAL_UID))`
+   (`:302-306`); `upnpClient.createPlayableItem(uri)` (`throws IOException`,
+   rethrown as `RuntimeException` on the worker thread: crashes the app,
+   `:317-319`); posts to the main looper: `initializePlayersWithPlayableItems`,
+   `player.play()` for each, then `setCurrentTab(PLAYER)` (`:309-316`).
+
+Dependencies: `UpnpClient` (`getReceiverDevicesReadyCount :1056`,
+`isPlayerServiceInitialized :1673`, `startService :178`,
+`setReceiverDeviceIds :1025`, `createPlayableItem(Uri) :1599`,
+`initializePlayersWithPlayableItems :1247`), `Player.play()`, an application
+`Context` for toasts, a main-thread `Handler`, and one UI callback
+(`setCurrentTab(PLAYER)`). Nothing needs the `Activity` itself except
+`runOnUiThread` for one toast, which a main-looper `Handler` replaces (and
+stops capturing the activity for up to 6 s).
+
+Recommended helper (behavior-preserving, keep both 3 s waits and the fallback
+text exactly):
+
+```java
+final class ShareIntentHandler {
+    ShareIntentHandler(Context appContext, UpnpClient upnpClient);
+    /** Reads and clears ACTION_SEND extras/clip; no-op for other actions. */
+    void handle(Intent intent, Runnable onPlayersStarted);
+    void shutdown();     // shuts the executor down; call from onDestroy
+}
+```
+
+- Classic: `handle(intent, () -> setCurrentTab(BrowserTabs.PLAYER))`, i.e.
+  `BrowserHost.showPlayers()`.
+- New: `handle(intent, null)`. The mini-player appears from
+  `PlayerListChangeNotifier` events, so nothing else is required. Optionally
+  `() -> showMiniPlayerHint()`; not needed for Group 6/7.
+- Keep one executor per handler instance and `shutdown()` it (small leak fix
+  that does not change visible behavior). The `IOException` -> `RuntimeException`
+  crash is out of scope; note it for the follow-ups.
+- The untrusted `EXTRA_TEXT` / clip text is only `Uri.parse`d and passed to
+  `createPlayableItem`; never executed or used to build an `Intent`. Keep that.
+- `onNewIntent` is effectively unreachable in classic: `TabBrowserActivity`
+  has no `launchMode`, so a second `ACTION_SEND` starts a **new instance**
+  rather than delivering to the running one (for a standard-mode activity
+  whose component equals the task root, `ActivityStarter` takes the
+  "same component" branch but only calls `deliverNewIntent` for
+  `singleTop`/`FLAG_ACTIVITY_SINGLE_TOP`, otherwise it adds an instance when
+  the intent filter differs from the task's base intent, [aosp:
+  `ActivityStarter.java` `complyActivityFlags`, ~lines 2466-2492]
+  [reasoned]). Keep the `onNewIntent` call for the explicit `SINGLE_TOP` case.
+
+### (f) A `Theme.NoDisplay` trampoline that forwards `ACTION_SEND`
+
+#### Verified from documentation
+
+- **`Theme.NoDisplay` contract**: "Default theme for activities that don't
+  actually display a UI; that is, they finish themselves before being
+  resumed." [docs: `https://developer.android.com/reference/android/R.style#Theme_NoDisplay`].
+- **Enforcement** [aosp: `Activity.java:8753-8761`, `performResume`]: an
+  invisible activity that has not called `finish()` before `onResume()`
+  completes logs a warning, and for `targetSdkVersion` > 22 throws
+  `IllegalStateException("... did not call finish() prior to onResume()
+  completing")`. This app targets 33. So `finish()` must be called in
+  `onCreate` on every path, including the one that cannot find the target
+  (wrap `startActivity` in try/catch, `finish()` in `finally`).
+- **`LEANBACK_LAUNCHER`**: `Intent.CATEGORY_LEANBACK_LAUNCHER` is "an activity
+  optimized for Leanback mode, and that should be displayed in the Leanback
+  launcher" (API 21) [docs:
+  `https://developer.android.com/reference/android/content/Intent#CATEGORY_LEANBACK_LAUNCHER`].
+  It is a plain category on a `MAIN` filter, so it works on a `NoDisplay`
+  activity exactly like `LAUNCHER`. The launcher shows the **launcher
+  component's** label/icon/banner: carry `android:label` over
+  (`@string/title_activity_main`, `AndroidManifest.xml:49`); there is no
+  `android:icon`/`android:banner` on the current entry, so both fall back to
+  the `<application>` values (`:35-43`), which stays true for the trampoline.
+  The manifest has no `<uses-feature android:name="android.software.leanback">`
+  [code]; out of scope.
+- **`android:exported`**: "If `true`, the activity is accessible to any app,
+  and is launchable by its exact class name. If `false`, the activity can be
+  launched only by components of the same application, applications with the
+  same user ID, or privileged system components." With intent filters,
+  `true` is required for other apps to start it [docs:
+  `https://developer.android.com/guide/topics/manifest/activity-element#exported`].
+  Explicit intents ignore filters, so `TabBrowserActivity`/`BrowserActivity`
+  can be `exported="false"` once the trampoline holds the filters: the
+  trampoline has the same UID.
+- **`launchMode` / `taskAffinity`**: default `standard`; "By default, all
+  activities in an application have the same affinity"; the affinity decides
+  the task for `FLAG_ACTIVITY_NEW_TASK` launches [docs:
+  `https://developer.android.com/guide/topics/manifest/activity-element#lmode`,
+  `#aff`]. The current entry sets neither (`AndroidManifest.xml:46-66`).
+  Recommendation: set **neither** on the trampoline and on the browsers, so the
+  trampoline, the target and the notification launches all share one task.
+- **URI grant semantics** [docs]:
+  `FLAG_GRANT_READ_URI_PERMISSION`: "the recipient of this Intent will be
+  granted permission to perform read operations on the URI in the Intent's data
+  and any URIs specified in its ClipData ... only the grant flags of the
+  top-level Intent are used"
+  (`https://developer.android.com/reference/android/content/Intent#FLAG_GRANT_READ_URI_PERMISSION`).
+  `setClipData`: the grant flags "will operate on any URI items included in the
+  clip data" (`.../Intent#setClipData(android.content.ClipData)`).
+  `ACTION_SEND`: if the sender sets no `ClipData`, `EXTRA_STREAM`/`EXTRA_TEXT`
+  "will be copied there for you when calling `Context.startActivity(Intent)`"
+  (`.../Intent#ACTION_SEND`). Lifetime: "The permissions you grant are
+  temporary and expire automatically when the receiving app's task stack is
+  finished" (`https://developer.android.com/training/secure-file-sharing/share-file`).
+  Persistable grants need `FLAG_GRANT_PERSISTABLE_URI_PERMISSION`, which a
+  share does not carry.
+
+#### Reasoned from AOSP (not stated in the public docs)
+
+The docs do not say whether a receiver can pass a grant on by forwarding the
+same intent. From `android-14.0.0_r1`:
+
+1. The grant flags stay on the intent the receiver sees; nothing in
+   `ActivityStarter` or `ActivityRecord` strips `FLAG_GRANT_*` (grep of both
+   files finds no `FLAG_GRANT` use). The receiver's `getIntent().getFlags()`
+   therefore still includes `FLAG_GRANT_READ_URI_PERMISSION`.
+2. On `startActivity`, `ActivityStarter` calls
+   `UriGrantsManagerService.checkGrantUriPermissionFromIntent(intent,
+   callingUid, targetPkg, ...)` (`ActivityStarter.java:605`) and later
+   `grantUriPermissionUncheckedFromIntent(intentGrants,
+   mStartActivity.getUriPermissionsLocked())` (`:1750`). The check includes
+   "Third... does the caller itself have permission to access this uri?":
+   if the caller lacks the permission by itself it must hold a strong enough
+   URI grant (`checkUriPermissionLocked(grantUri, callingUid, modeFlags)`,
+   `UriGrantsManagerService.java:~1240-1260`). The trampoline holds exactly
+   such a grant, because the system granted it when the share was delivered
+   to it. So **a re-grant to the real activity succeeds**, provided the
+   original sender's provider allows granting (`grantUriPermissions`), which
+   any correct share provider does.
+3. The grant is owned by the receiving `ActivityRecord`'s `UriPermissionOwner`
+   and removed in `ActivityRecord.removeFromHistory` ->
+   `removeUriPermissionsLocked` (`ActivityRecord.java:3967, 5164`). The
+   target activity gets its own owner entry from step 2, so finishing the
+   trampoline does not revoke the target's access. The trampoline must call
+   `startActivity` **before** it is destroyed, i.e. in `onCreate`, which the
+   `NoDisplay` rule requires anyway.
+4. Same UID for source and target (both are this app) does not bypass the
+   check: the "target already holds permission" shortcut only looks at the
+   provider's manifest permissions, not at URI grants
+   (`checkHoldingPermissionsUnlocked`, `UriGrantsManagerService.java:~1130`).
+   Step 2 still applies.
+5. `new Intent(Intent o)` copies flags and `ClipData` (`Intent.java:7534-7572`,
+   `mFlags = o.mFlags`, `mClipData = new ClipData(o.mClipData)`), so a copy
+   carries the grant exactly like the original. (Analysis only: this is why
+   the recommended body below does **not** copy the incoming intent.)
+
+Recommended trampoline body (behavior only; Group 6 writes the code). The
+launcher is exported and an explicit intent ignores its filters, so any app
+can send it any intent. Security review cycle 1 (Group 5) therefore
+requires a **fresh, allowlisted forward**, not a copy of the incoming
+intent (a copy would turn a third-party intent into a same-app intent for
+the non-exported `BrowserActivity` and keep grant bits, `ClipData` URIs,
+nested `EXTRA_INTENT`, selector and flags):
+
+```java
+public class LauncherActivity extends android.app.Activity {   // NOT AppCompatActivity
+    @Override protected void onCreate(Bundle b) {
+        super.onCreate(b);
+        try {
+            Intent in = getIntent();
+            Intent forward = new Intent(this, BrowserLauncher.targetClass(this));  // fresh
+            if (in != null && Intent.ACTION_SEND.equals(in.getAction())
+                    && "text/plain".equals(in.getType())) {
+                forward.setAction(Intent.ACTION_SEND).setType("text/plain");
+                String text = cap(in.getStringExtra(Intent.EXTRA_TEXT));   // length-capped
+                if (text != null) forward.putExtra(Intent.EXTRA_TEXT, text);
+            }                                   // MAIN and everything else: plain launch
+            startActivity(forward);
+        } catch (RuntimeException e) {
+            // crafted extras can throw on read: forward nothing, log no payload
+        } finally {
+            finish();                           // required before onResume completes
+        }
+    }
+}
+```
+
+Rules: no flags, no `data`, no `ClipData` URIs, no `EXTRA_STREAM` /
+`EXTRA_INTENT` / other extras, no selector, no categories (which drops every
+URI grant); a `ClipData` item's *text* (never its URI) may be used as the
+`EXTRA_TEXT` fallback; the browsers never trust `getIntent()` or the
+referrer.
+
+- `extends android.app.Activity`, not `AppCompatActivity`: `Theme.NoDisplay`
+  is a framework theme, not an AppCompat theme, and the trampoline never
+  inflates anything.
+- Add no `FLAG_GRANT_*` and copy no flags from the incoming intent; do not
+  call `setSelector`/`setPackage`.
+- Because the forward is explicit, `BrowserActivity` and `TabBrowserActivity`
+  need no `<intent-filter>` and can be `exported="false"`.
+- Placement: trampoline and target share the default affinity, so the target
+  lands in the same task as the trampoline, which is where a
+  `TabBrowserActivity` launched from the share sheet lands today.
+- Re-tapping the launcher icon with the app running: the task's root intent
+  component is the trampoline (it stays the task's `realActivity` after it
+  finishes), so a launcher start of the trampoline matches the task and brings
+  it forward rather than adding a second instance
+  (`ActivityStarter.complyActivityFlags`, "same component as the task root"
+  branch, ~lines 2466-2506) [reasoned; confirm on device].
+- Internal launches that name the browser class directly (notifications) do
+  not match the task root once the trampoline is the root, and, like today,
+  add an instance on top because their intent differs from the task's base
+  intent (no `MAIN`/`LAUNCHER`). No regression expected, but I did not run it
+  [reasoned]. Pointing those `PendingIntent`s at `LauncherActivity` instead
+  would give the same result and always follow the setting; the
+  relaunch-on-resume check in (c) covers both choices.
+
+Not researched: Android 12+ notification-trampoline restrictions. They concern
+broadcast receivers/services started from notifications, not an activity
+starting an activity, so they should not apply here.
+
+### (g) Manifest filters on `TabBrowserActivity` and component references
+
+Current entry, `AndroidManifest.xml:46-66`: `android:name=".browser.TabBrowserActivity"`,
+`exported="true"`, `label=@string/title_activity_main`, no `launchMode`, no
+`taskAffinity`, no `theme` (inherits `AppTheme`, `:42`). Three filters:
+
+| # | Filter | Moves to `LauncherActivity`? |
+|---|---|---|
+| 1 | actions `VIEW` + `MAIN`; categories `DEFAULT` + `LAUNCHER` (`:50-56`) | **Yes**, verbatim (this is the real launcher entry because of `MAIN` + `LAUNCHER`). The `VIEW` + `DEFAULT` half has no `<data>`, so it only matches data-less `VIEW` intents; moving it unchanged is behavior-preserving, dropping it is a decision for the owner. Flag it for the security review as exported surface. |
+| 2 | `MAIN` + `LEANBACK_LAUNCHER` (`:57-60`) | **Yes** (Android TV entry). |
+| 3 | `SEND` + `DEFAULT`, `mimeType=text/plain` (`:61-65`) | **Yes** (share target). |
+
+`LauncherActivity` also takes `android:label="@string/title_activity_main"`,
+`android:theme="@android:style/Theme.NoDisplay"`, `android:exported="true"`,
+and must be the **only** `MAIN`/`LAUNCHER` and `LEANBACK_LAUNCHER` component.
+`TabBrowserActivity` and `BrowserActivity` then carry no filters and can be
+`exported="false"`.
+
+Nothing outside the app needs the classic class by name:
+
+- `grep -rn TabBrowserActivity` over `yaacc/src/main`, `.github`, `fastlane`,
+  `README`/docs: only the manifest, `Yaacc.java:44,172`,
+  `PlayerService.java:49,106,199`, `UpnpClient.java:97,1661` (log tag),
+  `SettingsActivity.java:24,42` (static flag), the fragments, two layout
+  `tools:context` attributes (`activity_tab_browse.xml:24` x2) and a CHANGELOG
+  line. No shortcuts XML, no app widgets, no `res/xml` other than
+  `file_paths.xml`, `locales_config.xml`, `preference.xml`; no
+  `ComponentName`/`setClassName` building the class from a string.
+  The only explicit-class `PendingIntent`s are the three internal ones above;
+  `YaaccUpnpServerService.java:338-339` points at
+  `YaaccUpnpServerControlActivity`, player notifications at the player
+  activities (`LocalMediaSessionPlayer.java:104-106, 477-481`).
+- Group 6 Accept ("`TabBrowserActivity` is `exported="false"` only if Group 5
+  (g) shows nothing external needs it") is therefore satisfied: nothing
+  in-repo needs it exported. Third-party launchers/automation that hard-code
+  the component name (for example Tasker or home-screen shortcuts that were
+  created from the launcher, which store the **launcher** component) cannot be
+  excluded from here. A home-screen shortcut created before the change stores
+  `TabBrowserActivity` as its component; making it non-exported would break
+  such an existing shortcut. That is a user-visible risk of
+  `exported="false"` that the repo cannot rule out [reasoned]. Safer option:
+  leave `TabBrowserActivity` exported without filters for one release, and
+  have its `onCreate`/`onResume` redirect when the setting says `new`.
+- Other activities declare `LAUNCHER` without `MAIN`
+  (`ImageViewerActivity` `:93-100`, `MusicPlayerActivity` `:133-140`,
+  `AVTransportPlayerActivity` `:144-151`, `MultiContentPlayerActivity`
+  `:155-162`; all `VIEW` + `DEFAULT` + `LAUNCHER`). They do not appear in launchers (no
+  `MAIN`), but the Group 6 Verify wording "exactly one exported launcher
+  component" must be read as "exactly one `MAIN` + `LAUNCHER` component", or
+  the check fails on the existing manifest.
+- `SettingsActivity` is declared without `exported` (`:105-107`) and has no
+  filter, so it is not exported; fine.
+
+### How other code finds the "current" browser
+
+It doesn't. [code]
+
+- No `static` `Activity`/`Fragment` reference exists
+  (`grep -rn "static.*Activity"` finds only constants). `UpnpClient` is built
+  with the `Application` context (`Yaacc.java` `new UpnpClient(this)`),
+  `PlayerService` holds a `UpnpClient`/service context, not an activity.
+- Fragments reach their host only through `getActivity()`/`requireActivity()`,
+  adapters through the `Context` they were built with
+  (`BrowseDeviceAdapter.java:327-328` casts it to `Activity` for dialogs).
+- The only global back-references to UI are leaks to fix when extracting:
+  `Yaacc.shutdownTimerListener` (fragment) and
+  `MediaProjectionHelper.stopCallback` (fragment lambda), both described in
+  (d), and the static `TabBrowserActivity.leftSettings` in (c).
+- `Yaacc.exit()` finishes every app task (`getAppTasks().finishAndRemoveTask()`,
+  `Yaacc.java:144`) then kills the process, so it works regardless of which
+  browser class is on top.
+
+### Contradictions between this research and the spec
+
+1. **"Classic back flow goes content folder -> content root -> servers ->
+   exit"** (tasks.md Group 7). Not true of the code: three of four back
+   handlers are dead because `getParent()` is `null`. Only folder pop and
+   server-tab exit work. Classic back on Content root, Receiver, Player does
+   nothing. The new activity must implement the intended flow itself, and
+   Group 6 must not turn the dead branches on (changes classic).
+2. **"Classic behavior is unchanged" (Group 6) vs. "no `instanceof
+   TabBrowserActivity` remains and each fragment asks its host"**. Wiring the
+   four dead `getParent()` sites to `BrowserHost` would change classic. See
+   the Group 6 decision in (a).
+3. **"MediaProjection permission result is handled by the activity"**
+   (Group 7). The adapter is hosted by a fragment and results route to the
+   fragment; no move is needed. See (d).
+4. **"`ShutdownTimerListener` wiring ... what must move to the toolbar"**:
+   the timer UI moves to the toolbar, but the timer itself already lives in
+   `Yaacc`; the missing piece is a running/remaining query on `Yaacc` and a
+   detach path, not a move of timer logic.
+5. **"Exactly one exported launcher component"** (Group 6 Verify): four other
+   activities declare `category.LAUNCHER` without `MAIN`; read the check as
+   `MAIN` + `LAUNCHER`/`LEANBACK_LAUNCHER`.
+6. **`TabBrowserActivity` `exported="false"`** is safe inside this repo but may
+   break pre-existing home-screen shortcuts that stored its component (g).
+7. **"Layout change relaunch ... clearing the old one from the back stack"**
+   (Group 9): the check-on-resume mechanism does this with `finish()`; no
+   `CLEAR_TASK` flags are needed, and they would kill the playing task's
+   other activities.
+
+### Shared pieces the new activity needs (not listed in the spec)
+
+Both browsers need the same, so extract once (Group 6/7):
+
+- local-server restart in `onResume` and the shared `leftSettings` flag (c);
+- one process-wide background idle timer (c);
+- permission request + battery-optimization prompt from `onCreate` (c),
+  ideally not repeated when the activity is only being relaunched for a layout
+  change;
+- options menu actions (exit, settings, about, log) from
+  `R.menu.activity_main` (`res/menu/activity_main.xml`, ids `menu_exit`,
+  `menu_settings`, `yaacc_about`, `yaacc_log`); the new menu adds the shutdown
+  timer item;
+- `ShareIntentHandler` (e), `ShutdownTimerController` and
+  `StreamingPermissionHelper` (d).
+
+### On-device checks (things only reasoned, not run)
+
+1. Share a URL (`text/plain`, `EXTRA_TEXT`) and a `content://` text file to
+   yaacc through the trampoline: playback starts, no `SecurityException`
+   in logcat for the forwarded URI.
+2. Tap the launcher icon while the app is already running: the existing task
+   comes forward, no second browser instance.
+3. Android TV launcher shows the app via `LEANBACK_LAUNCHER` on the trampoline
+   with the same label and icon.
+4. Change Layout in Settings, press back out of Settings: the other layout
+   appears, players keep playing.
+5. Tap an old notification after a layout change: lands in the chosen layout.
+6. After a rotation, wait 5 minutes with no players and the local server off:
+   confirm whether the app exits (latent idle-timer bug in (c)).

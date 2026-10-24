@@ -548,9 +548,6 @@ public class ContentListFragment extends Fragment implements OnClickListener,
 
                 );
             }
-            if (requireActivity().getParent() instanceof TabBrowserActivity) {
-                ((TabBrowserActivity) requireActivity().getParent()).setCurrentTab(BrowserTabs.SERVER);
-            }
 
         } else {
             //Fixme: Cache should store information for different folders....

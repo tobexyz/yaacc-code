@@ -27,8 +27,6 @@ import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.Handler;
-import android.os.Looper;
 import android.os.PowerManager;
 import android.provider.Settings;
 import de.yaacc.util.YaaccLogger;
@@ -44,7 +42,6 @@ import android.view.View;
 import android.view.View.OnClickListener;
 import android.widget.ImageView;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
@@ -58,21 +55,12 @@ import androidx.viewpager2.widget.ViewPager2;
 
 import com.google.android.material.tabs.TabLayout;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 
 import de.yaacc.R;
 import de.yaacc.Yaacc;
-import de.yaacc.player.PlayableItem;
-import de.yaacc.player.Player;
 import de.yaacc.settings.SettingsActivity;
 import de.yaacc.upnp.UpnpClient;
-import de.yaacc.upnp.server.YaaccUpnpServerService;
+import de.yaacc.upnp.server.LocalServerLifecycle;
 import de.yaacc.util.AboutActivity;
 import de.yaacc.util.ThemeHelper;
 import de.yaacc.util.YaaccLogActivity;
@@ -82,20 +70,16 @@ import de.yaacc.util.YaaccLogActivity;
  *
  * @author Tobias Schoene (the openbit)
  */
-public class TabBrowserActivity extends AppCompatActivity implements OnClickListener {
+public class TabBrowserActivity extends AppCompatActivity implements OnClickListener, BrowserHost {
 
     private static final String CURRENT_TAB_KEY = "currentTab";
-    //FIXME dirty
-    public static boolean leftSettings = false;
     private TabLayout tabLayout;
     private ViewPager2 viewPager;
     private FragmentStateAdapter pagerAdapter;
 
 
     private UpnpClient upnpClient = null;
-
-
-    private Intent serverService = null;
+    private ShareIntentHandler shareIntentHandler = null;
 
     //https://developer.android.com/about/versions/14/changes/partial-photo-video-access
     private static String[] getPermissions() {
@@ -229,7 +213,8 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
 
         }
 
-        checkIfReceivedShareIntent(null);
+        shareIntentHandler = new ShareIntentHandler(getApplicationContext(), upnpClient);
+        shareIntentHandler.handle(getIntent(), this::showPlayers);
         YaaccLogger.d(this.getClass().getName(), "on create took: " + (System.currentTimeMillis() - start));
     }
 
@@ -251,85 +236,39 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
-        checkIfReceivedShareIntent(intent);
-    }
-
-    private void checkIfReceivedShareIntent(Intent receivedIntent) {
-        // Get intent, action and MIME type
-        Intent intent = receivedIntent != null ? receivedIntent : getIntent();
-        String action = intent.getAction();
-        Uri contentUri = null;
-        if (Intent.ACTION_SEND.equals(action)) {
-            ArrayList<PlayableItem> items = new ArrayList<>();
-            if (intent.getExtras() != null && intent.getExtras().getString("android.intent.extra.TEXT") != null) {
-                contentUri = Uri.parse(intent.getExtras().getString("android.intent.extra.TEXT"));
-            } else if (intent.getClipData() != null) {
-                for (int i = 0; i < intent.getClipData().getItemCount(); i++) {
-                    if (intent.getClipData().getItemAt(i) != null) {
-                        if (intent.getClipData().getItemAt(i).getText() != null) {
-                            contentUri = Uri.parse(intent.getClipData().getItemAt(i).getText().toString());
-                        } else if (intent.getClipData().getItemAt(i).getUri() != null) {
-                            contentUri = intent.getClipData().getItemAt(i).getUri();
-                        }
-                    }
-                }
-            }
-            //clear intent
-            if (intent.getExtras() != null && intent.getExtras().getString("android.intent.extra.TEXT") != null) {
-                intent.removeExtra("android.intent.extra.TEXT");
-            }
-            if (intent.getClipData() != null) {
-                intent.setClipData(null);
-            }
-            if (contentUri != null) {
-                long delayedExecution = 0;
-                if (upnpClient.getReceiverDevicesReadyCount() == 0) {
-                    //schedule execution to be sure the receiver devices come up
-                    delayedExecution = 3000L;
-                }
-                if (!upnpClient.isPlayerServiceInitialized()) {
-                    //schedule execution to be sure the player devices come up
-                    upnpClient.startService();
-                    delayedExecution += 3000L;
-                }
-
-
-                ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
-                Handler handler = new Handler(Looper.getMainLooper());
-                final Uri uri = contentUri;
-                Runnable execution = () -> {
-                    try {
-                        if (upnpClient.getReceiverDevicesReadyCount() == 0) {
-                            runOnUiThread(() -> Toast.makeText(getApplicationContext(), "no receiver found using local device", Toast.LENGTH_LONG).show());
-
-                            upnpClient.setReceiverDeviceIds(Set.of(UpnpClient.LOCAL_UID));
-                        }
-                        items.add(upnpClient.createPlayableItem(uri));
-
-                        handler.post(() -> {
-
-                            List<Player> players = upnpClient.initializePlayersWithPlayableItems(items);
-                            for (Player player : players) {
-                                player.play();
-                            }
-                            setCurrentTab(BrowserTabs.PLAYER);
-                        });
-                    } catch (IOException ioException) {
-                        throw new RuntimeException(ioException);
-                    }
-                };
-
-                if (delayedExecution > 0) {
-                    executor.schedule(execution, delayedExecution, TimeUnit.MILLISECONDS);
-                    Toast.makeText(getApplicationContext(), String.format("start in %s seconds", delayedExecution / 1000), Toast.LENGTH_LONG).show();
-                } else {
-                    executor.execute(execution);
-                }
-            }
-
+        if (shareIntentHandler != null) {
+            shareIntentHandler.handle(intent, this::showPlayers);
         }
     }
 
+    @Override
+    protected void onDestroy() {
+        if (shareIntentHandler != null) {
+            shareIntentHandler.shutdown();
+            shareIntentHandler = null;
+        }
+        super.onDestroy();
+    }
+
+    @Override
+    public void showServers() {
+        setCurrentTab(BrowserTabs.SERVER);
+    }
+
+    @Override
+    public void showContent() {
+        setCurrentTab(BrowserTabs.CONTENT);
+    }
+
+    @Override
+    public void showReceivers() {
+        setCurrentTab(BrowserTabs.RECEIVER);
+    }
+
+    @Override
+    public void showPlayers() {
+        setCurrentTab(BrowserTabs.PLAYER);
+    }
 
     public void setCurrentTab(final BrowserTabs content) {
         runOnUiThread(() -> {
@@ -354,64 +293,23 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
 
     @Override
     public void onResume() {
-        cancelBackgroundIdleTimer();
         long start = System.currentTimeMillis();
         super.onResume();
         viewPager.setUserInputEnabled(getPreferences().getBoolean(getString(R.string.settings_swipe_chkbx), true));
-        boolean serverOn = getPreferences().getBoolean(
-                getString(R.string.settings_local_server_chkbx), false);
-        if (serverOn) {
-            // (Re)Start upnpserver service for avtransport
-            if (leftSettings) {
-                getApplicationContext().stopService(getYaaccUpnpServerService());
-            }
-            getApplicationContext().startForegroundService(getYaaccUpnpServerService());
-            YaaccLogger.d(this.getClass().getName(), "Starting local service");
-        } else {
-            getApplicationContext().stopService(getYaaccUpnpServerService());
-            YaaccLogger.d(this.getClass().getName(), "Stopping local service");
-        }
-        leftSettings = false;
+        LocalServerLifecycle.apply(this, SettingsActivity.consumeLeftSettings());
         YaaccLogger.d(this.getClass().getName(), "on on resume took: " + (System.currentTimeMillis() - start));
     }
 
-    private final android.os.Handler backgroundIdleHandler = new android.os.Handler(android.os.Looper.getMainLooper());
-    private static final long BACKGROUND_IDLE_TIMEOUT_MS = 5 * 60 * 1000L; // 5 minutes
-
-    private final Runnable backgroundIdleRunnable = () -> {
-        Yaacc yaacc = (Yaacc) getApplicationContext();
-        UpnpClient client = yaacc.getUpnpClient();
-        boolean playersActive = client != null && !client.getCurrentPlayers().isEmpty();
-        boolean serverEnabled = getPreferences().getBoolean(getString(R.string.settings_local_server_chkbx), false);
-        boolean rendererEnabled = getPreferences().getBoolean(getString(R.string.settings_local_server_receiver_chkbx), false);
-        boolean proxyEnabled = getPreferences().getBoolean(getString(R.string.settings_local_server_proxy_chkbx), false);
-        if (!playersActive && !serverEnabled && !rendererEnabled && !proxyEnabled) {
-            yaacc.exit();
-        }
-    };
-
-    private void cancelBackgroundIdleTimer() {
-        backgroundIdleHandler.removeCallbacks(backgroundIdleRunnable);
+    @Override
+    protected void onStart() {
+        super.onStart();
+        BackgroundIdleTimer.browserStarted(this);
     }
 
     @Override
     protected void onStop() {
         super.onStop();
-        backgroundIdleHandler.postDelayed(backgroundIdleRunnable, BACKGROUND_IDLE_TIMEOUT_MS);
-    }
-
-
-    /**
-     * Singleton to avoid multiple instances when switch
-     *
-     * @return the intent
-     */
-    public Intent getYaaccUpnpServerService() {
-        if (serverService == null) {
-            serverService = new Intent(getApplicationContext(),
-                    YaaccUpnpServerService.class);
-        }
-        return serverService;
+        BackgroundIdleTimer.browserStopped(this);
     }
 
     @Override
