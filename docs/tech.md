@@ -1140,7 +1140,8 @@ announces itself again. Recommendation:
   even though the user is active in the new instance [reasoned]. The shared
   helper should keep one process-wide timer (static `Handler`, or a field on
   `Yaacc`) so any browser `onResume()` cancels it. Out of scope to fix in
-  classic unless the owner asks; required for the new activity's design.
+  classic by itself, but the layout switch needs it: Group 6 makes it process-wide
+  for both activities (decisions.md 2026-10-24, review W4).
 
 #### Relaunch when the Layout preference changes: recommendation
 
@@ -1149,7 +1150,7 @@ announces itself again. Recommendation:
 
 ```java
 if (BrowserLayoutChoice.resolve(prefs.getString(layoutKey, null)) != THIS_LAYOUT) {
-    startActivity(LaunchHelper.browserIntent(this));   // other layout's class
+    startActivity(BrowserLauncher.browserIntent(this));   // other layout's class
     overridePendingTransition(0, 0);
     finish();
     return;                                            // skip the rest of onResume
@@ -1498,7 +1499,7 @@ public class LauncherActivity extends android.app.Activity {   // NOT AppCompatA
         super.onCreate(b);
         try {
             Intent forward = new Intent(getIntent());      // copy: keeps action, extras, ClipData, flags
-            forward.setComponent(new ComponentName(this, BrowserLayoutChoice.targetClass(this)));
+            forward.setComponent(new ComponentName(this, BrowserLauncher.targetClass(this)));
             startActivity(forward);                        // add NO flags, invent NO extras
         } finally {
             finish();                                      // required before onResume completes

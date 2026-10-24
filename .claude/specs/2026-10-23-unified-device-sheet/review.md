@@ -329,3 +329,37 @@ Key conclusion holds: `Activity#getParent()` is only non-null for `ActivityGroup
 - [x] Coverage adequate for the change (see Warning 1: tie and id-vs-sequence discrimination among playing sessions is weaker than documented)
 
 ### Verdict: FAIL
+
+## Cycle 2 — 2026-10-24
+Reviewing: Group 5 (phase 2) (commit bf40ced6, fixes for cycle 1 W1-W4 plus the applied suggestions)
+
+Verification run: `./gradlew :yaacc:testDebugUnitTest --offline` gives 239 tests, 26 failures, 0 errors. All 26 are `java.lang.AssertionError` (`BrowserLayoutChoiceTest` 11, `MiniPlayerPickerTest` 15); the other 213 tests are green. This matches the corrected tasks.md status line (11 + 15).
+
+W1 (fixtures) resolved. In `amongPlayingSessionsTheHighestSequenceWins` and `whenNothingPlaysTheHighestSequenceWins` the newest session (seq 7) now has the lowest id (3), the oldest (seq 1) the highest (900), the middle seq 4/id 50. An implementation that ranks by `playerId` (alone, or after the playing check) returns the seq-1/id-900 session and fails both `assertSame(newest, ...)`; so does the old order-agnostic stub default. `resultDoesNotDependOnInputOrder`, `playingSessionBeatsNewerNonPlayingSession` and `sessionOnUnknownDeviceCompetesLikeAnyOther` already ran against the id order. The Javadoc claim now holds. Tie-break tests (equal seq, id decides) are unchanged and still correct.
+
+W2 (design.md) resolved: the BrowserHost bullet now names the two live call sites, the deletion of the four dead branches, `OnBackPressedDispatcher`, and receivers -> sheet / players -> mini-player. It agrees with tasks.md Group 6 and decisions.md.
+
+W3 (Group 6 vs 9) resolved: `BrowserLayoutChoice` stays plain Java and `resolve("new")` returns `NEW` in Group 6; the Android-dependent `BrowserLauncher` carries the `NEW_LAYOUT_AVAILABLE = false` gate; the preference key string resource is in Group 6's file list and Group 9 only adds the visible preference, entries and strings. Leftover grep over tasks/design/decisions/requirements for "NEW resolves to classic", "exactly one exported", "CLEAR_TASK" and "fragments ask the host" finds only the Group 9 constraint "no CLEAR_TASK" (intended). The "until Group 7" wording survives only in the `BrowserLauncher` clause.
+
+W4 (idle timer) resolved: the process-wide timer is now in Group 6's Accept and Constraints, Group 7 says "uses the process-wide idle timer from Group 6", and decisions.md 2026-10-24 records the reason (relaunch leaves the old instance's 5-minute `Yaacc.exit()` queued) and that it is flagged to the owner.
+
+Applied suggestions verified: `build.gradle:50` is the appcompat line; Group 6 Accept covers `ServerListFragment:238` (guard becomes `instanceof BrowserHost`); `providesShutdownTimer()` is gone from the Group 6 Accept ("no speculative ones"); the status line counts are corrected.
+
+### Critical
+- None.
+
+### Warning
+- None.
+
+### Suggestion
+- [docs/tech.md:1002, 1268] `providesShutdownTimer()` is still described as an optional Group 8 default method. Acceptable: tasks.md Group 6 Accept is the authority and no longer lists it, the tech.md text says "Optional", and the as-built update is Group 10. Consider a one-line "superseded: not in Group 6" note so a Group 8 implementer does not add a consumerless method.
+- [docs/tech.md:1141-1144] Still says the process-wide idle timer is "out of scope to fix in classic unless the owner asks". tasks.md Group 6 and decisions.md 2026-10-24 now make it in scope (flagged to the owner). Same status: research record, fix in Group 10 or annotate.
+- [docs/tech.md:1501] The trampoline sketch calls `BrowserLayoutChoice.targetClass(this)`, but the plan now puts the Android-dependent lookup in `BrowserLauncher` (the sketch at `:1152` uses a third name, `LaunchHelper`). Rename in the as-built pass.
+- [tasks.md:117 vs 123] Group 6 says `NEW_LAYOUT_AVAILABLE` is "flipped in Group 7"; Group 7 says it is flipped only at the end of Group 8. Group 7's wording is the intended one; align Group 6.
+- [tasks.md:108] The status line says "213 other tests green", which includes the two new tests that pass against the stubs (211 pre-existing + 2). Cosmetic.
+
+### Tests
+- [x] All tests passing (the only failures are the 26 intentional red assertions; 213 other tests green, 0 errors)
+- [x] Coverage adequate for the change
+
+### Verdict: PASS
