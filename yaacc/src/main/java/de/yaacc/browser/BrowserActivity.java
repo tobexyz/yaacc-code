@@ -41,7 +41,8 @@ import de.yaacc.util.YaaccLogger;
  * The new browser layout: no tabs. The top level is the server list; tapping a server shows its
  * content on top of it. The default action bar is the toolbar (settings, exit and the shutdown
  * timer). The receiver bar and the mini-player sit below the fragment container, so they show at
- * every level: the mini-player ({@link MiniPlayerBar}) directly above the receiver bar
+ * every level: the mini-player list ({@link MiniPlayerBar}, one row per running player) directly above
+ * the receiver bar
  * ({@link ReceiverBarController}). Both follow their events only while the activity is started.
  * <p>
  * Not exported and without intent filters: {@link de.yaacc.LauncherActivity} starts it with a fresh

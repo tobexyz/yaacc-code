@@ -16,112 +16,16 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 -->
-<!-- Mini-player of the new layout (MiniPlayerBar): the featured session's album art, title and
-     receiver name, and previous / play-pause / next / stop. Tapping the card opens that player's
-     screen. Hidden (GONE) while no player exists. Every text here comes from LAN devices and is
-     set with TextView#setText only: no autoLink, no HTML. Neutral card surface from the theme,
-     no accent colors. The card is focusable before its buttons, so D-pad reaches the bar and
-     every button. -->
-<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
+<!-- The mini-player of the new layout (MiniPlayerBar): one compact row (mini_player_row) per
+     running player, oldest first like the device sheet's sessions. Hidden (GONE) while no player
+     exists. It wraps its rows up to a capped height (MaxHeightRecyclerView, about three rows) and
+     scrolls inside beyond that, so many players never push the content away. -->
+<de.yaacc.browser.MaxHeightRecyclerView xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/miniPlayerBar"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginStart="6dp"
-    android:layout_marginTop="4dp"
-    android:layout_marginEnd="6dp"
-    android:layout_marginBottom="4dp"
-    android:clickable="true"
-    android:descendantFocusability="beforeDescendants"
-    android:focusable="true"
-    android:focusableInTouchMode="false"
-    android:visibility="gone"
-    app:cardCornerRadius="6dp"
-    app:cardElevation="6dp"
-    app:cardUseCompatPadding="false">
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:gravity="center_vertical"
-        android:minHeight="56dp"
-        android:orientation="horizontal"
-        android:paddingStart="6dp"
-        android:paddingEnd="2dp">
-
-        <ImageView
-            android:id="@+id/miniPlayerArt"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:contentDescription="@string/mini_player_art"
-            android:importantForAccessibility="no"
-            android:scaleType="centerCrop" />
-
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
-            android:layout_marginEnd="4dp"
-            android:layout_weight="1"
-            android:orientation="vertical">
-
-            <TextView
-                android:id="@+id/miniPlayerTitle"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:ellipsize="end"
-                android:maxLines="1"
-                android:textAppearance="@android:style/TextAppearance.Material.Medium"
-                android:textColor="?android:attr/colorForeground" />
-
-            <TextView
-                android:id="@+id/miniPlayerReceiver"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:ellipsize="end"
-                android:maxLines="1"
-                android:textAppearance="@android:style/TextAppearance.Material.Small"
-                android:textColor="?android:attr/textColorSecondary" />
-        </LinearLayout>
-
-        <ImageButton
-            android:id="@+id/miniPlayerPrevious"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="@string/mini_player_previous"
-            android:padding="12dp"
-            app:srcCompat="@drawable/ic_baseline_skip_previous_24"
-            app:tint="?attr/colorControlNormal" />
-
-        <ImageButton
-            android:id="@+id/miniPlayerPlayPause"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="@string/mini_player_play"
-            android:padding="12dp"
-            app:srcCompat="@drawable/ic_baseline_play_arrow_24"
-            app:tint="?attr/colorControlNormal" />
-
-        <ImageButton
-            android:id="@+id/miniPlayerNext"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="@string/mini_player_next"
-            android:padding="12dp"
-            app:srcCompat="@drawable/ic_baseline_skip_next_24"
-            app:tint="?attr/colorControlNormal" />
-
-        <ImageButton
-            android:id="@+id/miniPlayerStop"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="@string/mini_player_stop"
-            android:padding="12dp"
-            app:srcCompat="@drawable/ic_baseline_stop_24"
-            app:tint="?attr/colorControlNormal" />
-    </LinearLayout>
-</com.google.android.material.card.MaterialCardView>
+    android:descendantFocusability="afterDescendants"
+    android:focusable="false"
+    android:overScrollMode="ifContentScrolls"
+    android:scrollbars="vertical"
+    android:visibility="gone" />

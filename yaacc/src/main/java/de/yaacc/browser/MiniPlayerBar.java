@@ -17,73 +17,63 @@
  */
 package de.yaacc.browser;
 
-import android.graphics.Bitmap;
-import android.graphics.drawable.Drawable;
-import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.View;
-import android.widget.ImageButton;
-import android.widget.ImageView;
-import android.widget.TextView;
 
 import androidx.annotation.NonNull;
-import androidx.core.content.res.ResourcesCompat;
-import androidx.core.view.AccessibilityDelegateCompat;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
 import org.fourthline.cling.model.meta.Device;
 
+import java.net.URI;
 import java.util.ArrayList;
-import java.util.Objects;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 
-import de.yaacc.R;
 import de.yaacc.browser.DeviceSessionGrouper.PlayerRef;
+import de.yaacc.browser.MiniPlayerAdapter.Command;
 import de.yaacc.browser.MiniPlayerPresenter.TransportAction;
 import de.yaacc.player.Player;
 import de.yaacc.player.PlayerListChangeNotifier;
 import de.yaacc.upnp.UpnpClient;
-import de.yaacc.util.ThemeHelper;
 import de.yaacc.util.YaaccLogger;
-import de.yaacc.util.image.IconDownloadTask;
 
 /**
- * Controller of the mini-player bar of the new layout ({@code mini_player_bar.xml}): shows the
- * featured session (see {@link MiniPlayerPicker}) with its title, receiver name and album art,
- * drives it with previous / play-pause / next / stop and opens its player screen on a tap.
- * Hidden while no player exists.
+ * Controller of the mini-player of the new layout ({@code mini_player_bar.xml}): a compact list
+ * with one row per running player ({@link MiniPlayerAdapter}), ordered like the device sheet's
+ * sessions ({@link MiniPlayerRows#order}, oldest first). Each row shows the title, receiver name
+ * and album art and drives its player with previous / play-pause / next / stop; a tap on the row
+ * opens that player's screen. The list is hidden while no player exists, wraps its rows up to
+ * about three and scrolls inside beyond that ({@link MaxHeightRecyclerView}).
  * <p>
  * Lives between {@link #bind()} and {@link #unbind()}, which {@link BrowserActivity} calls from
  * {@code onStart} / {@code onStop} (and {@code onDestroy} as a backstop). While bound it listens
- * to player add/remove events and polls every {@value #POLL_INTERVAL_MS} ms for title and play
- * state; both stop on {@code unbind()}, and callbacks that still arrive afterwards are ignored.
- * Player commands run on a single-thread executor that this object owns (created in
+ * to player add/remove events and polls every {@value #POLL_INTERVAL_MS} ms for titles and play
+ * states; both stop on {@code unbind()}, and callbacks that still arrive afterwards are ignored.
+ * Player commands run on one single-thread executor that this object owns (created in
  * {@code bind()}, shut down in {@code unbind()}), never on the main thread.
  * <p>
  * Titles and names come from untrusted LAN devices: they are cleaned by
  * {@link MiniPlayerPresenter} and set with {@code setText} only; album art is loaded only
- * through {@link IconDownloadTask}. Main thread only.
+ * through {@code IconDownloadTask}, once per player-and-art key (see {@link MiniPlayerAdapter}).
+ * Main thread only.
  */
-final class MiniPlayerBar implements PlayerListChangeNotifier.Listener {
+final class MiniPlayerBar implements PlayerListChangeNotifier.Listener, MiniPlayerAdapter.Actions {
 
     private static final String TAG = MiniPlayerBar.class.getName();
     static final long POLL_INTERVAL_MS = 2000;
     /** Commands change the state asynchronously; look again shortly after sending one. */
     private static final long REFRESH_AFTER_COMMAND_MS = 500;
 
-    private final View root;
-    private final ImageView art;
-    private final TextView title;
-    private final TextView receiver;
-    private final ImageButton previousButton;
-    private final ImageButton playPauseButton;
-    private final ImageButton nextButton;
-    private final ImageButton stopButton;
+    private final RecyclerView list;
     private final UpnpClient upnpClient;
+    private final MiniPlayerAdapter adapter = new MiniPlayerAdapter(this);
     private final Handler handler = new Handler(Looper.getMainLooper());
 
     private final Runnable pollRunnable = new Runnable() {
@@ -100,23 +90,15 @@ final class MiniPlayerBar implements PlayerListChangeNotifier.Listener {
 
     private volatile boolean bound;
     private ExecutorService commandExecutor;
-    // what is shown, so an unchanged poll rebinds nothing and does not reload the art
-    private Player featuredPlayer;
-    private boolean shownPlaying;
-    private String shownArtKey;
-    private String shownReceiverDeviceId;
-    private String shownReceiverName = "";
+    // resolved receiver names per device id; cleared on unbind so a renamed device is picked up
+    private final Map<String, String> receiverNames = new HashMap<>();
 
-    MiniPlayerBar(@NonNull View root, @NonNull UpnpClient upnpClient) {
-        this.root = root;
+    MiniPlayerBar(@NonNull RecyclerView list, @NonNull UpnpClient upnpClient) {
+        this.list = list;
         this.upnpClient = upnpClient;
-        art = root.findViewById(R.id.miniPlayerArt);
-        title = root.findViewById(R.id.miniPlayerTitle);
-        receiver = root.findViewById(R.id.miniPlayerReceiver);
-        previousButton = root.findViewById(R.id.miniPlayerPrevious);
-        playPauseButton = root.findViewById(R.id.miniPlayerPlayPause);
-        nextButton = root.findViewById(R.id.miniPlayerNext);
-        stopButton = root.findViewById(R.id.miniPlayerStop);
+        list.setLayoutManager(new LinearLayoutManager(list.getContext()));
+        list.setItemAnimator(null); // no flashing on live updates
+        list.setAdapter(adapter);
     }
 
     /** Starts following the players: listener, poll and command thread. Shows the current state. */
@@ -126,39 +108,14 @@ final class MiniPlayerBar implements PlayerListChangeNotifier.Listener {
         }
         bound = true;
         commandExecutor = Executors.newSingleThreadExecutor();
-        previousButton.setOnClickListener(v -> sendCommand(Command.PREVIOUS));
-        nextButton.setOnClickListener(v -> sendCommand(Command.NEXT));
-        stopButton.setOnClickListener(v -> sendCommand(Command.STOP));
-        playPauseButton.setOnClickListener(v -> {
-            Player player = featuredPlayer;
-            if (player != null) {
-                sendCommand(MiniPlayerPresenter.toggleAction(player.isPlaying()) == TransportAction.PAUSE
-                        ? Command.PAUSE : Command.PLAY);
-            }
-        });
-        root.setOnClickListener(v -> {
-            Player player = featuredPlayer;
-            if (player != null) {
-                // the player's own explicit, immutable PendingIntent with an empty fill-in
-                ReceiverRowBinder.openPlayer(v.getContext(), player);
-            }
-        });
-        ViewCompat.setAccessibilityDelegate(root, new AccessibilityDelegateCompat() {
-            @Override
-            public void onInitializeAccessibilityNodeInfo(@NonNull View host, @NonNull AccessibilityNodeInfoCompat info) {
-                super.onInitializeAccessibilityNodeInfo(host, info);
-                info.addAction(new AccessibilityNodeInfoCompat.AccessibilityActionCompat(
-                        AccessibilityNodeInfoCompat.ACTION_CLICK, host.getContext().getString(R.string.mini_player_open)));
-            }
-        });
         upnpClient.addPlayerListChangeListener(this);
         refresh();
         handler.postDelayed(pollRunnable, POLL_INTERVAL_MS);
     }
 
     /**
-     * Stops the listener, the poll and the command thread (queued commands still run), and drops
-     * what the views' listeners hold. Safe to call more than once.
+     * Stops the listener, the poll and the command thread (queued commands still run), and
+     * empties the list, so no row can be tapped any more. Safe to call more than once.
      */
     void unbind() {
         if (!bound) {
@@ -172,19 +129,12 @@ final class MiniPlayerBar implements PlayerListChangeNotifier.Listener {
             commandExecutor.shutdown();
             commandExecutor = null;
         }
-        previousButton.setOnClickListener(null);
-        playPauseButton.setOnClickListener(null);
-        nextButton.setOnClickListener(null);
-        stopButton.setOnClickListener(null);
-        root.setOnClickListener(null);
-        ViewCompat.setAccessibilityDelegate(root, null);
-        // a late album-art result compares its tag with this one and drops itself
-        art.setTag(null);
-        featuredPlayer = null;
-        shownArtKey = null;
+        // the rows drop their players and art bookkeeping; a late art result drops itself on the
+        // tag compare (recycled holders clear their tag)
+        adapter.clear();
+        list.setVisibility(View.GONE);
         // a renamed device must not keep showing its old name after the next bind
-        shownReceiverDeviceId = null;
-        shownReceiverName = "";
+        receiverNames.clear();
     }
 
     // ---- PlayerListChangeNotifier.Listener (delivered on the main thread) ---------------------
@@ -199,9 +149,9 @@ final class MiniPlayerBar implements PlayerListChangeNotifier.Listener {
         refresh();
     }
 
-    // ---- state -------------------------------------------------------------------------------
+    // ---- rows --------------------------------------------------------------------------------
 
-    /** Picks the featured session and updates the bar; does nothing while unbound. */
+    /** Rebuilds the rows from the running players and updates the list; does nothing while unbound. */
     void refresh() {
         if (!bound) {
             return;
@@ -216,49 +166,38 @@ final class MiniPlayerBar implements PlayerListChangeNotifier.Listener {
     }
 
     private void refreshFromPlayers() {
-        // The player service hands out its live collection; the picker only gets a copy.
+        // The player service hands out its live collection; the ordering only gets copies.
         ArrayList<Player> players = new ArrayList<>(upnpClient.getCurrentPlayers());
-        ArrayList<PlayerRef> refs = new ArrayList<>(players.size());
+        Map<Integer, Player> playersById = new HashMap<>();
+        List<PlayerRef> refs = new ArrayList<>(players.size());
         for (Player player : players) {
             if (player != null) {
                 refs.add(new PlayerRef(player.getId(), player.getDeviceId(), player.isPlaying(),
                         upnpClient.getPlayerCreationSequence(player)));
+                if (!playersById.containsKey(player.getId())) {
+                    playersById.put(player.getId(), player);
+                }
             }
         }
-        PlayerRef featured = MiniPlayerPicker.pick(refs);
-        Player player = featured == null ? null : find(players, featured.playerId());
-        if (!MiniPlayerPresenter.isVisible(featured) || player == null) {
-            featuredPlayer = null;
-            shownArtKey = null;
-            root.setVisibility(View.GONE);
-            return;
-        }
-        show(player);
-    }
-
-    private static Player find(ArrayList<Player> players, int playerId) {
-        for (Player player : players) {
-            if (player != null && player.getId() == playerId) {
-                return player;
+        List<MiniPlayerAdapter.Row> rows = new ArrayList<>();
+        for (PlayerRef ref : MiniPlayerRows.order(refs)) {
+            Player player = playersById.get(ref.playerId());
+            if (player != null) {
+                rows.add(rowFor(player, ref));
             }
         }
-        return null;
+        adapter.submit(rows);
+        list.setVisibility(rows.isEmpty() ? View.GONE : View.VISIBLE);
     }
 
-    private void show(Player player) {
-        featuredPlayer = player;
-        title.setText(MiniPlayerPresenter.title(player.getCurrentItemTitle(), player.getName()));
-        receiver.setText(MiniPlayerPresenter.receiverLabel(resolveReceiverName(player.getDeviceId()), player.getName()));
-        boolean playing = player.isPlaying();
-        if (playing != shownPlaying || root.getVisibility() != View.VISIBLE) {
-            shownPlaying = playing;
-            playPauseButton.setImageResource(playing
-                    ? R.drawable.ic_baseline_pause_24 : R.drawable.ic_baseline_play_arrow_24);
-            playPauseButton.setContentDescription(root.getContext().getString(playing
-                    ? R.string.mini_player_pause : R.string.mini_player_play));
-        }
-        showArt(player);
-        root.setVisibility(View.VISIBLE);
+    private MiniPlayerAdapter.Row rowFor(Player player, PlayerRef ref) {
+        // only in-memory reads here: no network and no getIcon() on the poll path
+        String title = MiniPlayerPresenter.title(player.getCurrentItemTitle(), player.getName());
+        String receiver = MiniPlayerPresenter.receiverLabel(
+                resolveReceiverName(ref.deviceId()), player.getName());
+        URI artUri = player.getAlbumArt();
+        return new MiniPlayerAdapter.Row(ref.playerId(), player, title, receiver, ref.playing(),
+                artUri == null ? null : artUri.toString());
     }
 
     /**
@@ -270,8 +209,9 @@ final class MiniPlayerBar implements PlayerListChangeNotifier.Listener {
         if (deviceId == null) {
             return null;
         }
-        if (Objects.equals(deviceId, shownReceiverDeviceId) && !shownReceiverName.isEmpty()) {
-            return shownReceiverName;
+        String cached = receiverNames.get(deviceId);
+        if (cached != null) {
+            return cached;
         }
         String name = null;
         try {
@@ -283,57 +223,39 @@ final class MiniPlayerBar implements PlayerListChangeNotifier.Listener {
             // an id that is not a valid UDN; the player's own name is shown instead
             YaaccLogger.d(TAG, "Receiver not resolved (" + e.getClass().getSimpleName() + ")");
         }
-        shownReceiverDeviceId = deviceId;
-        shownReceiverName = name == null ? "" : name;
+        if (name != null) {
+            receiverNames.put(deviceId, name);
+        }
         return name;
     }
 
-    /**
-     * Placeholder first, then the album art through IconDownloadTask, only when the art changed.
-     * The key is the player id and the art URI and nothing else: {@code Player#getIcon()} can queue
-     * a download of its own on every call while the art is not cached, so it must not be called
-     * on every poll (a broken or hostile art URL would be requested every 2 s). It is read once
-     * per key.
-     */
-    private void showArt(Player player) {
-        String artUri = player.getAlbumArt() == null ? null : player.getAlbumArt().toString();
-        String artKey = "M:" + player.getId() + ":" + artUri;
-        if (artKey.equals(shownArtKey)) {
+    // ---- taps (MiniPlayerAdapter.Actions, main thread) ----------------------------------------
+
+    @Override
+    public void onOpen(@NonNull Player player) {
+        if (!bound) {
             return;
         }
-        shownArtKey = artKey;
-        // IconDownloadTask drops its result when the view's tag is no longer this one
-        art.setTag(artKey);
-        Bitmap icon = player.getIcon();
-        if (icon != null) {
-            art.setImageBitmap(icon);
-        } else if (player.getIconResourceId() == R.drawable.yaacc48_24_png) {
-            art.setImageResource(R.drawable.yaacc48_24_png);
-        } else {
-            Drawable placeholder = ResourcesCompat.getDrawable(
-                    root.getResources(), player.getIconResourceId(), root.getContext().getTheme());
-            if (placeholder != null) {
-                art.setImageDrawable(ThemeHelper.tintDrawable(placeholder, root.getContext().getTheme()));
-            }
-        }
-        if (artUri != null) {
-            new IconDownloadTask(art, artKey).execute(Uri.parse(artUri));
-        }
+        // the player's own explicit, immutable PendingIntent with an empty fill-in
+        ReceiverRowBinder.openPlayer(list.getContext(), player);
+    }
+
+    @Override
+    public void onCommand(@NonNull Player player, @NonNull Command command) {
+        sendCommand(player, command);
     }
 
     // ---- commands ----------------------------------------------------------------------------
 
-    private enum Command {
-        PREVIOUS, PLAY, PAUSE, NEXT, STOP
-    }
-
-    /** Runs the command on the player that is featured right now, off the main thread. */
-    private void sendCommand(Command command) {
-        Player player = featuredPlayer;
+    /** Runs the command on the row's player, off the main thread; ignored once unbound. */
+    private void sendCommand(Player player, Command command) {
         ExecutorService executor = commandExecutor;
-        if (player == null || executor == null || executor.isShutdown()) {
+        if (!bound || executor == null || executor.isShutdown()) {
             return;
         }
+        // the toggle follows the player's state at the moment of the tap
+        boolean pause = command == Command.PLAY_PAUSE
+                && MiniPlayerPresenter.toggleAction(player.isPlaying()) == TransportAction.PAUSE;
         try {
             executor.execute(() -> {
                 try {
@@ -341,11 +263,12 @@ final class MiniPlayerBar implements PlayerListChangeNotifier.Listener {
                         case PREVIOUS:
                             player.previous();
                             break;
-                        case PLAY:
-                            player.play();
-                            break;
-                        case PAUSE:
-                            player.pause();
+                        case PLAY_PAUSE:
+                            if (pause) {
+                                player.pause();
+                            } else {
+                                player.play();
+                            }
                             break;
                         case NEXT:
                             player.next();

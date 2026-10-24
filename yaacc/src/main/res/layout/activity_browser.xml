@@ -18,8 +18,9 @@
 -->
 <!-- The new layout: no tabs. From top to bottom: one container (the server list and, on top of it,
      a server's content), then the bottom stack that is owned by the activity and so shows at every
-     level: a separator, the mini-player (MiniPlayerBar, hidden while no player exists) directly
-     above the receiver bar (ReceiverBarController; same look as the content list's classic bar).
+     level: a separator, the mini-player list (MiniPlayerBar: one row per running player, capped
+     at about three rows and scrolling inside, hidden while no player exists) directly above the
+     receiver bar (ReceiverBarController; same look as the content list's classic bar).
      A vertical LinearLayout, so a hidden mini-player (GONE) cannot move an anchor. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
