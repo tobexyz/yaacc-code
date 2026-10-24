@@ -295,9 +295,34 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
     public void onResume() {
         long start = System.currentTimeMillis();
         super.onResume();
+        if (relaunchIntoOtherLayout()) {
+            return;
+        }
         viewPager.setUserInputEnabled(getPreferences().getBoolean(getString(R.string.settings_swipe_chkbx), true));
         LocalServerLifecycle.apply(this, SettingsActivity.consumeLeftSettings());
         YaaccLogger.d(this.getClass().getName(), "on on resume took: " + (System.currentTimeMillis() - start));
+    }
+
+    /**
+     * Starts the browser of the effective layout and finishes this one if the "Layout" setting
+     * no longer names the classic layout. The new intent is fresh: the share payload was already
+     * handed to the share handler in {@code onCreate} and is not forwarded again.
+     *
+     * @return true if this activity is finishing and must skip the rest of {@code onResume}
+     */
+    private boolean relaunchIntoOtherLayout() {
+        if (!BrowserLayoutSwitch.shouldRelaunch(BrowserLayoutChoice.Layout.CLASSIC,
+                BrowserLauncher.effectiveLayout(this))) {
+            return false;
+        }
+        if (!RelaunchGuard.shared().tryRelaunch()) {
+            YaaccLogger.w(getClass().getName(), "Layout relaunch suppressed by the loop guard, staying on the classic layout");
+            return false;
+        }
+        startActivity(new Intent(this, BrowserLauncher.targetClass(this)));
+        overridePendingTransition(0, 0);
+        finish();
+        return true;
     }
 
     @Override

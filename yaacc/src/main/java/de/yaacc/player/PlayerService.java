@@ -46,7 +46,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import de.yaacc.R;
 import de.yaacc.Yaacc;
-import de.yaacc.browser.TabBrowserActivity;
+import de.yaacc.browser.BrowserLauncher;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.util.NotificationId;
 import de.yaacc.util.YaaccLogger;
@@ -103,7 +103,7 @@ public class PlayerService extends MediaSessionService {
     }
 
     private PendingIntent createSessionActivity() {
-        Intent intent = new Intent(this, de.yaacc.browser.TabBrowserActivity.class);
+        Intent intent = new Intent(this, BrowserLauncher.targetClass(this));
         return PendingIntent.getActivity(
                 this,
                 0,
@@ -196,7 +196,7 @@ public class PlayerService extends MediaSessionService {
     }
 
     private void updateServiceNotification() {
-        Intent notificationIntent = new Intent(this, TabBrowserActivity.class);
+        Intent notificationIntent = new Intent(this, BrowserLauncher.targetClass(this));
         PendingIntent pendingIntent = PendingIntent.getActivity(this,
                 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE);
 

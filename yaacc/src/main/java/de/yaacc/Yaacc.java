@@ -44,7 +44,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
-import de.yaacc.browser.TabBrowserActivity;
+import de.yaacc.browser.BrowserLauncher;
 import de.yaacc.player.PlayerService;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.server.YaaccUpnpServerService;
@@ -174,7 +174,7 @@ public class Yaacc extends Application {
 
     public void createYaaccGroupNotification() {
         NotificationManager notificationManager = getSystemService(NotificationManager.class);
-        Intent notificationIntent = new Intent(this, TabBrowserActivity.class);
+        Intent notificationIntent = new Intent(this, BrowserLauncher.targetClass(this));
         PendingIntent pendingIntent = PendingIntent.getActivity(this,
                 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE);
         NotificationCompat.Builder mBuilder = new NotificationCompat.Builder(

@@ -44,9 +44,10 @@
         android:requestLegacyExternalStorage="true">
 
         <activity
-            android:name=".browser.TabBrowserActivity"
+            android:name=".LauncherActivity"
             android:exported="true"
-            android:label="@string/title_activity_main">
+            android:label="@string/title_activity_main"
+            android:theme="@android:style/Theme.NoDisplay">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <action android:name="android.intent.action.MAIN" />
@@ -64,6 +65,10 @@
                 <data android:mimeType="text/plain" />
             </intent-filter>
         </activity>
+        <activity
+            android:name=".browser.TabBrowserActivity"
+            android:exported="true"
+            android:label="@string/title_activity_main" />
 
         <service
             android:name=".player.PlayerService"

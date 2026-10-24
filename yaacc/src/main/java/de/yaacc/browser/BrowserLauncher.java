@@ -1,0 +1,86 @@
+/*
+ * Copyright (C) 2026 Tobias Schoene www.yaacc.de
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 3
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ */
+package de.yaacc.browser;
+
+import android.app.Activity;
+import android.content.Context;
+import android.content.SharedPreferences;
+
+import androidx.preference.PreferenceManager;
+
+import de.yaacc.R;
+import de.yaacc.browser.BrowserLayoutChoice.Layout;
+import de.yaacc.util.YaaccLogger;
+
+/**
+ * Single place that answers "which browser activity do we start": the launcher activity, the three
+ * internal notification launches and the resume check of each browser all go through it, so they
+ * cannot disagree.
+ * <p>
+ * The stored "Layout" preference is only ever mapped to a {@link Layout} by
+ * {@link BrowserLayoutChoice#resolve(String)}; the stored string is never treated as a class name.
+ */
+public final class BrowserLauncher {
+
+    private static final String TAG = BrowserLauncher.class.getName();
+
+    /**
+     * False until the new tab-less browser exists and is usable (flipped at the end of Group 8).
+     * While false every stored choice, including "new", resolves to the classic layout. Without
+     * this a stored "new" (backup/restore, adb) would send the classic browser looking for a
+     * layout that is not there.
+     */
+    static final boolean NEW_LAYOUT_AVAILABLE = false;
+
+    private BrowserLauncher() {
+    }
+
+    /**
+     * @param storedValue the stored preference value, may be null
+     * @return the layout that is actually launched
+     */
+    public static Layout effectiveLayout(String storedValue) {
+        if (!NEW_LAYOUT_AVAILABLE) {
+            return Layout.CLASSIC;
+        }
+        return BrowserLayoutChoice.resolve(storedValue);
+    }
+
+    /**
+     * Reads the stored "Layout" preference with default {@code null}: existing installs never had
+     * a default written, and {@link BrowserLayoutChoice#resolve(String)} turns null into classic.
+     */
+    public static Layout effectiveLayout(Context context) {
+        String stored = null;
+        try {
+            SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(
+                    context.getApplicationContext());
+            stored = preferences.getString(context.getString(R.string.settings_browser_layout_key), null);
+        } catch (RuntimeException e) {
+            // e.g. a value of another type; fall back to classic
+            YaaccLogger.w(TAG, "Could not read the layout preference (" + e.getClass().getSimpleName() + ")");
+        }
+        return effectiveLayout(stored);
+    }
+
+    /** The browser activity class for the effective layout. */
+    public static Class<? extends Activity> targetClass(Context context) {
+        // Group 7: return BrowserActivity.class when effectiveLayout(context) == Layout.NEW
+        return TabBrowserActivity.class;
+    }
+}
