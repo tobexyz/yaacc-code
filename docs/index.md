@@ -316,8 +316,9 @@ When the content is played YAACC fetches the data from the origin through the
 encrypted https connection an passed the content unencrypted through the http
 connection to the rendering device.
 
-Only links that start with `http://` or `https://` can be shared with YAACC. Shared
-files, other kinds of links and shared text longer than 2048 characters are ignored.
+Only a link that starts with `http://` or `https://` can be shared with YAACC, and the
+shared text should be just that link. Shared files, other kinds of links and shared text
+longer than 2048 characters are ignored.
 
 ## Shutdown timer
 

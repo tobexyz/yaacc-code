@@ -130,7 +130,7 @@ for later would leave the new layout without quick access to running players.
 - Share handler: only `http`/`https` text up to 2048 chars; a `ClipData` item's URI is no longer used (only its text). The scheme policy was the owner's pending decision; it stays at the secure default and is revisited in Backlog 1.
 - A share waiting for receivers survives a rotation (graceful executor shutdown); a share waiting when the process is killed is lost, and a screen-capture permission result arriving after process death is ignored (it enabled nothing before either).
 - The idle exit counts started browsers (one process-wide timer).
-- The classic Server tab shows the running shutdown timer after rotation/tab re-creation (it showed blank before).
+- The classic Server tab now takes the shutdown timer's state from the running timer (`Yaacc`), so it is correct whenever the view is recreated; the old code restored only the remaining-time text and leaked the destroyed fragment as the single listener.
 - `decisions.md` entry 2026-10-24 "Security review of Group 5 amended the Group 6 plan" ("comparing the stored layout") is superseded: the check compares the effective layout.
 
 ## 2026-10-24 - Share handler: waiting shares survive a rotation, without keeping the activity

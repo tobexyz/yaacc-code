@@ -1125,8 +1125,10 @@ in `init` and remove themselves in `onDestroyView`;
   `settings_shutdown_timer`), starts/stops the timer, shows the
   `MaterialTimePicker` (24 h, keyboard input, built from millis instead of from a
   formatted string) and publishes the state on attach. Because the state comes from
-  `Yaacc`, the classic Server tab shows a running timer after rotation or tab
-  re-creation (it showed blank before).
+  `Yaacc`, the classic Server tab shows the running timer's state whenever the
+  view is recreated (rotation, tab re-creation, layout switch); the old code
+  restored only the remaining-time text and held the destroyed fragment as the
+  single listener (a leak).
 - **MediaProjection.** `StreamingPermissionHelper` serves every fragment that
   hosts `BrowseDeviceAdapter`: `createRequestIntent()` (null before Android 10)
   sets a static `requestPending`; the fragment starts it with
@@ -1251,7 +1253,7 @@ between `onStart` and `onStop`.
 - **Text.** Title: the current item's title, else the player name
   (`MiniPlayerPresenter.title`). Receiver: the device name resolved with
   `UpnpClient#getDevice(deviceId)` (also answers `LOCAL_UID` with this device),
-  cached per device id once resolved until `unbind()`, else the player name
+  cached (one slot: the last resolved device id and name) until `unbind()`, else the player name
   (`receiverLabel`). Both are set with `setText` into one-line, ellipsized
   views (no `autoLink`, no HTML). `MiniPlayerPresenter.cleanText` (these strings
   come from LAN devices): whitespace runs, including line breaks, tabs, U+2028/2029,
