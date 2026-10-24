@@ -455,7 +455,10 @@ already documented in
 
 ## Unified device sheet
 
-Research notes for spec `2026-10-23-unified-device-sheet` (Group 1).
+Research notes for spec `2026-10-23-unified-device-sheet` (Group 1),
+updated to match the code as built (Groups 2-3). Line numbers quoted in
+section 6 are from the Group 1 research and may have moved. Section 8
+summarizes how the pieces fit together as built.
 Verified 2026-10-23 against `com.google.android.material:material:1.14.0`,
 the version already declared in `yaacc/build.gradle:20` (nothing added).
 Two sources were used:
@@ -572,7 +575,12 @@ Verified behavior [javap: `javap -c -p ... BottomSheetBehavior`]:
   this to true has no effect unless the sheet is hideable". The dialog sets
   hideable to its `cancelable` flag, which is true by default.
 
-Usage pattern (to be used by `DeviceSheetFragment`; not written yet):
+Usage pattern. As built, this lives in
+`DeviceSheetFragment#applyInitialSheetState`. It runs once, from the first
+`onStart()` after `super.onStart()`, so coming back from a player activity
+keeps the user's drag position. It sets the container height through
+`setLayoutParams`, and passes `STATE_EXPANDED` instead of
+`STATE_HALF_EXPANDED` when not in touch mode (see section 5):
 
 ```java
 @Override
@@ -610,14 +618,19 @@ items, none of them for dialogs or sheets. The non-Bridge
 `Base.V14.Theme.MaterialComponents.Light` sets it to
 `@style/ThemeOverlay.MaterialComponents.BottomSheetDialog`. Without action,
 the sheet would therefore use the light `Theme.Design` dialog theme, even
-in night mode. Fix it in Group 3 in one of two ways:
+in night mode. There were two ways to fix it:
 
 - Override `getTheme()` in `DeviceSheetFragment` to return
   `com.google.android.material.R.style.ThemeOverlay_MaterialComponents_BottomSheetDialog`.
 - Add `<item name="bottomSheetDialogTheme">@style/ThemeOverlay.MaterialComponents.BottomSheetDialog</item>`
   to `AppTheme`.
 
-Check both day and night on device.
+**As built:** the first, through an app style.
+`DeviceSheetFragment#getTheme()` returns `R.style.ThemeOverlay_App_DeviceSheet`,
+declared in `yaacc/src/main/res/values/styles.xml` with
+`ThemeOverlay.MaterialComponents.BottomSheetDialog` as its parent. Being an
+overlay, it keeps `AppTheme`'s DayNight colors. `AppTheme` itself is
+unchanged.
 
 ### 5. Back and D-pad focus inside the dialog
 
@@ -648,14 +661,17 @@ Check both day and night on device.
   bottom half is off-screen but still laid out, so RecyclerView rows there
   are attached and focusable. D-pad down can move focus to a row below the
   screen edge, and nothing scrolls, because the row is inside the
-  RecyclerView's own bounds. Mitigation for Group 3: when the device isn't
-  in touch mode (`!view.isInTouchMode()`), or when it is a leanback/TV
-  device, open in `STATE_EXPANDED`. Alternatively, expand when focus first
-  lands on a row. Confirm this during Group 3's manual TV check.
+  RecyclerView's own bounds. **As built:** the sheet opens in
+  `STATE_EXPANDED` when the UI mode is `UI_MODE_TYPE_TELEVISION` or the
+  activity's decor view isn't in touch mode
+  (`DeviceSheetFragment#isTouchInput`), and in `STATE_HALF_EXPANDED`
+  otherwise. Still to confirm in the manual TV check.
 - **Initial focus.** design.md wants focus on the first receiver's
-  checkbox. Request it after the first layout, for example with
-  `recyclerView.post(...)` once the adapter has rows. Nothing in Material
-  sets initial focus.
+  checkbox. Nothing in Material sets initial focus. **As built:** when not
+  in touch mode, the fragment calls `DeviceSheetAdapter#requestInitialFocus()`,
+  and the adapter posts `checkBox.requestFocus()` when it binds the first
+  receiver row. Stable ids (`R:<udn>` / `P:<playerId>` keys) and `DiffUtil`
+  keep focus on the same row across refreshes.
 
 ### 6. How the Player tab learns about new or ended players
 
@@ -712,20 +728,26 @@ Check both day and night on device.
   (`Player.java:131,138`), which fire `"playing"` (`AbstractPlayer.java:465`)
   and the item-change property (`AbstractPlayer.java:571`). That covers
   updating an existing session row, but not adding or removing one.
-- **To add (later group, not done here):** a player-set listener on
-  `PlayerService`, for example
-  `addPlayerListChangeListener(Runnable)` / `removePlayerListChangeListener(Runnable)`.
-  It would fire at the end of `addPlayer`, `removePlayer` and
-  `shutdown(Player)`, after the map has changed. Those methods are reached
-  from `onServiceConnected`/`onServiceDisconnected`, which run on the main
-  thread, and from `createPlayer...`, whose thread depends on the caller.
-  Listeners should therefore post to the main thread before touching
-  views, and the sheet must unregister in `onDestroyView` or on dismiss.
-  Because `getCurrentPlayers()` is a live view of a `HashMap`, the sheet
-  should copy it, `new ArrayList<>(...)`, on the main thread before
-  building `DeviceSessionGrouper.PlayerRef`s.
-- **Repeat calls in both directions. The future listener must ignore
-  them.**
+- **Added in Group 2:** a player-set listener on `PlayerService`,
+  `addPlayerListChangeListener(PlayerListChangeNotifier.Listener)` /
+  `removePlayerListChangeListener(...)`, with `onPlayerAdded(Player)` and
+  `onPlayerRemoved(Player)`. It fires after the map has changed. `addPlayer`,
+  `removePlayer` and `shutdown(Player)` are reached from
+  `onServiceConnected`/`onServiceDisconnected`, which run on the main
+  thread, and from `createPlayer...`, whose thread depends on the caller,
+  so callbacks are posted to the main thread. UI code registers through
+  `UpnpClient.addPlayerListChangeListener` / `removePlayerListChangeListener`
+  instead: `UpnpClient` keeps the listeners and attaches them to the
+  service whenever it (re)binds, without duplicates, so a sheet opened
+  before `PlayerService` is bound, or kept open across a rebind, still gets
+  events. The sheet registers in `onStart()` and unregisters in `onStop()`
+  (with `onDestroyView()` as a backstop). Because `getCurrentPlayers()` is
+  a live view of the map, the sheet (`DeviceSheetAdapter#refresh`) copies
+  it, `new ArrayList<>(...)`, on the main thread before building
+  `DeviceSessionGrouper.PlayerRef`s. `ReceiverRowBinder#primaryPlayer`
+  iterates the live view directly on the main thread; that is safe because
+  the backing map is a `ConcurrentHashMap` (weakly consistent iteration).
+- **Repeat calls in both directions. The notifier ignores them.**
   - **Add twice.** `addPlayer` can run twice for the same player: once
     from `createPlayer...` (`PlayerService.java:295, 332`) and once from
     `onServiceConnected` (`AbstractPlayer.java:159`,
@@ -767,18 +789,24 @@ Check both day and night on device.
   main thread. A listener removed before a queued delivery runs is not
   called.
 
-### 7. `DeviceSessionGrouper`: Group 1 state
+### 7. `DeviceSessionGrouper`
 
-- `yaacc/src/main/java/de/yaacc/browser/DeviceSessionGrouper.java` is a
-  **stub** with the final public API from design.md. `group` returns an
-  empty list and `primarySession` returns null. Group 2 implements it.
-  `PlayerRef` exposes record-style accessors `playerId()`, `deviceId()`
-  and `playing()`, matching `Row`'s `kind()`, `deviceId()` and
-  `playerId()`. These are plain final classes, not records, with no
-  `android.*` imports.
+- `yaacc/src/main/java/de/yaacc/browser/DeviceSessionGrouper.java` has the
+  public API from design.md, implemented in Group 2. `PlayerRef` exposes
+  record-style accessors `playerId()`, `deviceId()`, `playing()` and
+  `sequence()` (the creation sequence), matching `Row`'s `kind()`,
+  `deviceId()` and `playerId()`. These are plain final classes, not
+  records, with no `android.*` imports.
+- `group` lists receivers in the given order, each followed by its
+  sessions in ascending creation sequence (oldest first).
+  `primarySession` picks the playing session with the highest creation
+  sequence, otherwise the highest overall; equal sequences fall back to
+  the higher player id, so the result never depends on input order. The
+  player id is only the lookup key: `AVTransportPlayer` ids are random
+  and local player ids are fixed per type, so they say nothing about age.
 - `yaacc/src/test/java/de/yaacc/browser/DeviceSessionGrouperTest.java`
-  (JUnit 4.13.2, plain JVM) states two readings of design.md that it
-  leaves open:
+  (JUnit 4.13.2, plain JVM) pins two readings of design.md that it left
+  open:
   1. Sessions on a device that isn't a receiver get **no RECEIVER row**.
      A receiver row means bound device controls, which a vanished device
      can't have. The adapter labels the trailing group from the session
@@ -788,3 +816,70 @@ Check both day and night on device.
      creation sequence `PlayerService#getPlayerCreationSequence` assigns,
      not by player id (see the spec's decisions.md).
   2. With no receivers at all, every session is still listed.
+
+### 8. As built: how the pieces fit
+
+- **Receiver bar.** `contentListCurrentProvider` is gone from both
+  `fragment_content_list.xml` layouts; the server name now only starts the
+  path label. `contentListCurrentReceivers` is the receiver bar: clickable,
+  D-pad focusable, never `GONE` (views above anchor to it). Its text comes
+  from `ReceiverBarLabel.build` (selected receivers' friendly names, trimmed,
+  sorted case-insensitively, joined with `"; "`, or
+  `receiver_bar_none_selected`), refreshed whenever `UpnpClient` reports a
+  receiver selection change, including changes made in the sheet. A tap calls
+  `ContentListFragment#showDeviceSheet()`.
+- **No-receiver prompt.** Play, play-all (`BrowseContentItemAdapter`) and an
+  item tap (`ContentListClickListener`) call
+  `ContentListFragment#openDeviceSheetIfNoReceiverSelected()` first; with no
+  receiver selected it opens the sheet and playback doesn't start, so the
+  user picks a receiver and taps play again. "Add to playlist" isn't gated.
+  The `error_no_receiver_selected` toast in `PlayerService.createPlayer`
+  stays for non-UI callers.
+- **Sheet contents.** `DeviceSheetFragment.show(FragmentManager)` does
+  nothing if the sheet is already showing or the state is saved.
+  `DeviceSheetAdapter#refresh()` takes the receivers from
+  `getDevicesProvidingAvTransportService()` (the Receiver tab's source
+  order: local device first, then by name), resolves each by id through
+  `UpnpClient.getDevice(id)`, and lays the rows out with
+  `DeviceSessionGrouper.group`. Receiver rows are bound by
+  `ReceiverRowBinder`, the same binder the Receiver tab's
+  `BrowseReceiverDeviceAdapter` uses. Session rows
+  (`device_sheet_player_session_item.xml`) show the player name, current
+  title and album art (through `IconDownloadTask`), plus the device id for
+  sessions whose device isn't a receiver; all LAN strings are set with plain
+  `setText`. Tapping a session sends the player's own notification
+  `PendingIntent` (`ReceiverRowBinder.openPlayer`), as the Player tab does.
+- **Receiver row tap.** It opens the activity of the device's primary
+  session (`DeviceSessionGrouper.primarySession`). Only the
+  `UpnpClient.LOCAL_UID` row is a no-op, as before the extraction; yaacc's
+  own renderer (a `LocalDevice` with its own UDN, controlled through an
+  `AVTransportPlayer`) opens its player.
+- **Live updates, only while visible.** `startLiveUpdates()` runs from
+  `onStart()` and `stopLiveUpdates()` from `onStop()` (with
+  `onDestroyView()` as a backstop), so nothing polls while a player activity
+  is on top or the app is in the background. Coming back, the list is
+  rebuilt once. While started, the sheet:
+  - subscribes to `RendererStatusMonitor.getShared()` with the AVTransport
+    devices (10 s poll per remote renderer);
+  - listens for player add/remove through
+    `UpnpClient.addPlayerListChangeListener` and rebuilds the list;
+  - polls every 2 s for the local device's status (it has no monitor feed)
+    and for changed session titles or art, rebinding only rows whose shown
+    state changed.
+- **One shared monitor.** `RendererStatusMonitor.getShared()` is the only
+  instance. `subscribe(listener, devices)` starts polling devices not yet
+  polled; `unsubscribe(listener)` stops all polling once the last listener
+  leaves, and a generation counter drops results still in flight. The
+  bookkeeping is in `MonitorSubscriptions` (plain Java, unit-tested in
+  `MonitorSubscriptionsTest`). The Receiver tab (`ReceiverListFragment`)
+  uses the same instance, subscribing in `onResume()` and unsubscribing in
+  `onPause()`. All of it is main-thread only.
+- **Cleanup.** `onDestroyView()` calls `DeviceSheetAdapter#release()`, which
+  shuts down the sheet's `ReceiverRowBinder` executor, so no thread is left
+  behind per open.
+- **Known limitations (follow-ups in the spec's decisions.md).** The sheet
+  doesn't add or remove receivers that appear or vanish on the network while
+  it is open (known receivers' status does update). After rotation it returns
+  to its initial half/full position. `RendererStatusMonitor` polls on a
+  single thread, so one slow renderer delays status for every receiver in
+  both the tab and the sheet; transport controls are unaffected.

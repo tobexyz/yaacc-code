@@ -220,3 +220,80 @@ Lifecycle edge cases:
 - [x] Coverage adequate for the change. The fragment lifecycle wiring is Android UI and is covered by the pending manual phone and TV checks. Those checks should now include rotating with the sheet open, opening a session and pressing Back, and pressing Home and returning.
 
 ### Verdict: PASS
+
+## Cycle 1 — 2026-10-24
+Reviewing: Group 4 (uncommitted `git diff` of `docs/index.md`, `CHANGELOG.md`, `docs/tech.md`, `tasks.md`)
+
+I checked each claim against the code on `feat/unified-device-sheet`. These hold as built:
+- **Ordering.** `DeviceSessionGrouper.group` lists sessions oldest first by creation sequence. `primarySession` picks the newest playing session, otherwise the newest overall. Ties go to the higher player id.
+- **Receiver order.** `getDevicesProvidingAvTransportService` puts the local device first, then the rest by name. Each receiver is resolved through `getDevice(id)`. Sessions on a device that isn't a receiver go last.
+- **Sheet height.** On touch devices the sheet opens at half height. It opens fully expanded on TV or when the decor view isn't in touch mode, and focus then goes to the first receiver's checkbox. Drag-down and Back dismiss it through `setSkipCollapsed(true)` with a cancelable dialog.
+- **Polling.** The shared monitor polls every 10 s and the local poll runs every 2 s. Live updates start in `onStart` and stop in `onStop`, with `onDestroyView` as a backstop, and the list is rebuilt once on return.
+- **Listeners.** `UpnpClient` re-attaches player listeners on (re)bind without duplicates.
+- **Receiver row tap.** The `LOCAL_UID` row does nothing. yaacc's own renderer opens its player.
+- **Theme overlay.** `ThemeOverlay.App.DeviceSheet` is declared as documented.
+- **No-receiver gate.** Play, play-all and item tap check for a receiver first. "Add to playlist" isn't gated.
+- **Receiver bar.** `contentListCurrentProvider` is gone from both layouts and the code. The bar is never `GONE`, and its label comes from `ReceiverBarLabel`. The path label still starts with the server name, as on the base branch.
+
+Nothing descoped is documented: no phase 2/3 work and no tab removal. Nothing claims the manual checks were done. `tech.md` §5 says "Still to confirm in the manual TV check", and the `tasks.md` status says the checks are pending.
+
+The CHANGELOG "Fixed" entry is accurate in substance. The base `BrowseReceiverDeviceAdapter#getPlayerForDevice` and `openPlayerActivity` took the first match in `HashMap` order: for `LOCAL_UID` that was any non-AVTransport player. Now `ReceiverRowBinder#primaryPlayer` uses `primarySession`, and the local players' `getDeviceId()` returns `LOCAL_UID`. See the Suggestion below on the wording "controls".
+
+The CHANGELOG format matches the existing sections: `## [..]`, `###` subsections, bold lead-ins and a `---` separator. The `docs/index.md` link `#receiver-controls` resolves through kramdown auto-ids (`markdown: kramdown` in `docs/_config.yml`) to `### Receiver controls`. Heading levels, bullet style and tone match the surrounding text. The placeholder grep returns nothing.
+
+### Critical
+- None.
+
+### Warning
+- [docs/tech.md:745-748] The doc says "the sheet and `ReceiverRowBinder` copy it, `new ArrayList<>(...)`". Only `DeviceSheetAdapter#refresh` copies. `ReceiverRowBinder#primaryPlayer` (`ReceiverRowBinder.java:372`) iterates `upnpClient.getCurrentPlayers()` directly. The code is safe, because the view is a `ConcurrentHashMap` view with weakly consistent iteration (§6, "Group 2: threads…"). The doc is still wrong about the code, and someone could rely on it. Fix: say that the sheet copies the view, and that `ReceiverRowBinder` iterates the weakly consistent `ConcurrentHashMap` view directly on the main thread.
+
+### Suggestion
+- [CHANGELOG.md:6] "The Receiver and Player tabs are unchanged" contradicts the "Fixed" entry, which changes the Receiver tab's rows. Consider "The Receiver and Player tabs stay."
+- [CHANGELOG.md:6] "instead of only showing an error": on these Content-tab paths no error toast is shown any more. "instead of showing an error" is more accurate.
+- [CHANGELOG.md:12] For a remote renderer, the row's play/pause/stop go to the renderer's AVTransport, not to a player. The primary pick decides the album art and the fallback badge, which player a row tap opens, and the controls only for the local device and yaacc's own renderer. Consider "now always shows and opens the most recently started one…".
+- [docs/tech.md:748] "The future listener must ignore them" is stale now that the notifier exists. The bullets below it already describe the as-built behavior, so consider "The notifier ignores them".
+
+### Tests
+- [x] All tests passing (docs-only change; Group 3 cycle 2 recorded 211 tests green, and no code changed since)
+- [x] Coverage adequate for the change (n/a, docs only)
+
+### Verdict: FAIL
+
+## Cycle 2 — 2026-10-24
+Reviewing: Group 4 (Fix Group 4) (uncommitted `git diff -- docs/tech.md CHANGELOG.md`)
+
+Resolution of cycle 1 findings:
+- **W1 (`getCurrentPlayers()` copy claim): resolved.** `docs/tech.md` §6 now says only the sheet (`DeviceSheetAdapter#refresh`) copies the view, and that `ReceiverRowBinder#primaryPlayer` iterates it directly on the main thread, which is safe because the backing map is a `ConcurrentHashMap`. I checked this against the code:
+  - `PlayerService.java:64` declares `currentActivePlayer = new ConcurrentHashMap<>()`. `getCurrentPlayers()` (`:484-486`) returns `Collections.unmodifiableCollection(currentActivePlayer.values())`, a live, weakly consistent view that never throws `ConcurrentModificationException`. `UpnpClient.getCurrentPlayers()` (`:837-842`) delegates to it, or returns an empty list while unbound.
+  - `DeviceSheetAdapter.java:129` iterates `new ArrayList<>(upnpClient.getCurrentPlayers())`, so it copies. `ReceiverRowBinder.java:372` iterates `upnpClient.getCurrentPlayers()` directly, so it does not.
+  - Every caller of `primaryPlayer` runs on the main thread: `bind` (`:150`, from `onBindViewHolder`), `localDeviceStatus` (`:306`, from the main-looper 2 s pollers in `DeviceSheetFragment` and `ReceiverListFragment`), `openPlayerActivity` (`:327`, click), and `executeAction` (`:415`, click listener; only the AVTransport calls go to the executor, after the player lookup). The claim "on the main thread" is therefore accurate.
+  - The Fix Group's Verify, `grep -n 'ReceiverRowBinder. copy' docs/tech.md`, returns nothing.
+- **Suggestion (CHANGELOG "unchanged"): applied.** It now reads "The Receiver and Player tabs stay."
+- **Suggestion (CHANGELOG "instead of only showing an error"): applied.** It now reads "instead of showing an error".
+- **Suggestion (CHANGELOG "controls"): applied.** It now reads "now always shows and opens the most recently started one…".
+- **Suggestion (tech.md "The future listener must ignore them"): applied.** It now reads "The notifier ignores them." The bullet below it describes the as-built `put`/`remove(id, player)` rules, which also closes the Group 2 cycle 2 suggestion about the stale "added only when `put` returns null" wording.
+
+No new inaccuracies. I re-checked every other "as built" claim in the diff against the source:
+- §4: `applyInitialSheetState` runs once from `onStart()` after `super.onStart()` (guarded by `sheetStateApplied`), uses `setLayoutParams`, and picks `STATE_EXPANDED` when not touch input. `getTheme()` returns `R.style.ThemeOverlay_App_DeviceSheet`, declared in `styles.xml:48` with parent `ThemeOverlay.MaterialComponents.BottomSheetDialog`.
+- §5: `isTouchInput()` checks `UI_MODE_TYPE_TELEVISION` and the activity decor's `isInTouchMode()`. `requestInitialFocus()` makes `onBind` post `checkBox::requestFocus`. Stable ids `R:`/`P:` and `DiffUtil` are present.
+- §6: the listener API (`PlayerListChangeNotifier.Listener` with `onPlayerAdded`/`onPlayerRemoved`, main-thread posting) matches. `UpnpClient` add/remove re-attaches on bind. The sheet registers in `onStart` and unregisters in `onStop`, with `onDestroyView` as a backstop.
+- §7: `PlayerRef.sequence()` exists.
+- The intro's caveat that cited line numbers may have moved is warranted. For example, `UpnpClient.java:829-834` is now at 837-842, and `shutdown(Player)` is no longer at 519-525. The §4 and header citations (`styles.xml:21`, `build.gradle:20`) are still exact.
+
+CHANGELOG format still matches the existing sections.
+
+### Critical
+- None.
+
+### Warning
+- None.
+
+### Suggestion
+- [docs/tech.md:459-460] The intro says the line numbers in "sections 6 and 7" may have moved. §7 cites no line numbers, while §4 (`styles.xml:21`) and the header (`build.gradle:20`) do, though both are still correct. Consider "line numbers in section 6".
+- [yaacc/src/main/java/de/yaacc/browser/ReceiverRowBinder.java:365] (Code comment, outside this docs group.) The `primaryPlayer` Javadoc still says `getCurrentPlayers()` "iterates in HashMap order". The map is now a `ConcurrentHashMap`, and its order is still unspecified, so the point still holds, but "in map order" would be accurate. Fix it the next time the file is touched.
+
+### Tests
+- [x] All tests passing (docs-only change; Group 3 cycle 2 recorded 211 tests green, and no code has changed since: `git status` shows only `docs/`, `CHANGELOG.md` and spec files modified)
+- [x] Coverage adequate for the change (n/a, docs only)
+
+### Verdict: PASS

@@ -76,7 +76,13 @@ Plan: `specs/2026-10-23-unified-device-sheet/requirements.md` and `specs/2026-10
   - **Verify**: `./gradlew :yaacc:testDebugUnitTest`
 
 ## Group 4: Documentation update
-- [ ] Update documentation for plan changes | `docs/index.md`, `CHANGELOG.md`, `docs/tech.md`
+- [x] Update documentation for plan changes | `docs/index.md`, `CHANGELOG.md`, `docs/tech.md`
   - **Accept**: `docs/index.md` "Receiver controls" describes the sheet and how to open it; `CHANGELOG.md` has an Unreleased entry; `docs/tech.md` reflects the as-built design
   - **Verify**: `grep -rn 'TODO\|FIXME\|PLACEHOLDER' docs/index.md docs/tech.md CHANGELOG.md || true` returns no plan-related placeholders
   - **Constraints**: don't document anything descoped or marked `[!]`
+  - **Status**: done 2026-10-23; placeholder grep returns nothing. Documents the as-built Group 3 code; Group 3's manual phone/TV checks are still pending.
+
+## Fix Group 4: Address review cycle 1 (Group 4)
+- [x] Correct the `getCurrentPlayers()` copy claim in `docs/tech.md` (only `DeviceSheetAdapter#refresh` copies; `ReceiverRowBinder` iterates the `ConcurrentHashMap` view) and apply the CHANGELOG wording suggestions | `docs/tech.md`, `CHANGELOG.md`
+  - **Accept**: review.md Group 4 cycle 1 Warning and suggestions addressed
+  - **Verify**: `grep -n 'ReceiverRowBinder. copy' docs/tech.md` returns nothing

@@ -313,3 +313,71 @@ No secrets, credentials, local paths or new dependencies in the diff.
     still special-cases the string.
 
 ### Verdict: PASS
+
+## Cycle 1 — 2026-10-24
+Reviewing: Group 4 (docs)
+
+Scope: uncommitted `git diff -- docs/index.md docs/tech.md CHANGELOG.md`.
+This change touches docs only. `git status` shows no code changes since
+the Group 3 security review (PASS). `docs/` is published to GitHub Pages,
+so the review checked for content that shouldn't be public and for any
+statement about security-relevant behavior that doesn't match the code.
+
+Content that shouldn't be public: none found. The diff was scanned for
+URLs, IPv4 addresses, absolute home or user paths, email addresses, and the
+words token, secret, password and api key. Nothing matched. The diff adds
+no external links. The only references are repo-relative class, layout and
+resource names and the in-page anchor `#receiver-controls`. The existing
+`~/.gradle/caches/...` reference sits outside this diff and was already
+cleared in Group 1.
+
+Security-relevant claims, checked against the source:
+- **Polling stops when the sheet isn't visible: accurate.** The sheet's
+  three update sources (status monitor subscription, player-list listener,
+  2 s local poller) start in `onStart()` and stop in `onStop()`
+  (`DeviceSheetFragment.java:153-172, 191-210`, `removeCallbacks` on the
+  poller). The shared `RendererStatusMonitor` stops polling once its last
+  listener leaves. Its other subscriber, the Receiver tab, subscribes only
+  between `onResume()` and `onPause()` (`ReceiverListFragment.java:64-96`).
+  `ViewPager2`/`FragmentStateAdapter` resumes only the current page, so
+  the Receiver tab doesn't keep polling while the Content tab is showing.
+  The quoted intervals match the code: 10 s per remote renderer
+  (`RendererStatusMonitor.java:57`) and 2 s for the local poll
+  (`DeviceSheetFragment.java:59`).
+- **Session tap: accurate.** tech.md §8 says the tap sends the player's own
+  notification `PendingIntent`. That matches the Group 3 finding: explicit
+  intent, `FLAG_IMMUTABLE`, empty fill-in.
+- **Untrusted renderer data: accurate.** "all LAN strings are set with
+  plain `setText`" and album art "through `IconDownloadTask`" match the
+  Group 3 review.
+- **No new entry points: accurate.** The docs describe the sheet as opened
+  only from the receiver bar and from the play paths in the Content tab.
+  They don't describe a deep link, an exported component or remote
+  triggering.
+- **"Add to playlist" isn't gated: accurate.** This is a UX detail with
+  no security impact.
+- **Known limitations: accurate.** tech.md §8 discloses that a slow
+  renderer delays status for every receiver. That is the availability issue
+  from the Group 3 Suggestion, described at a level that teaches nothing
+  beyond the public source. It also says, correctly, that transport
+  controls are unaffected.
+- **Nothing documents an insecure practice.** The docs give no
+  instructions to disable checks, sideload, enable debugging or expose
+  services.
+
+### Critical
+- None.
+
+### Warning
+- None.
+
+### Suggestion
+- None new. The Group 2 and Group 3 follow-ups remain open and are outside
+  this docs group:
+  - `PlayerService.getPlayer()` returns a mutable view;
+  - `ImageDownloader` needs a scheme allowlist and a size cap;
+  - remote devices claiming `LOCAL_UID` should be dropped at ingress;
+  - the per-request deadline for `RendererStatusMonitor` polls;
+  - bidi-control stripping in `ReceiverBarLabel`.
+
+### Verdict: PASS

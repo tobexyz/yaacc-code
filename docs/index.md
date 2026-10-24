@@ -31,9 +31,11 @@ It allows to browse the content provided by the selected server.
 
 ![browse_servers](./screenshots/5.1.x/browse_servers.png){:height="30%" width="30%"}
 
-Before selecting content make sure you have chosen an receiver on
-the receiver tab. Receivers are either UPnP/DLNA media renderers in
-your network or the android device itself.
+Before playing content make sure you have chosen a receiver, either on
+the receiver tab or in the device sheet that opens from the receiver bar
+at the bottom of the content tab (see [Receiver controls](#receiver-controls)).
+Receivers are either UPnP/DLNA media renderers in your network or the
+android device itself.
 
 ![browse_receiver](./screenshots/5.1.x/browse_receiver.png){:height="30%" width="30%"}
 
@@ -51,7 +53,11 @@ Behind each content entry different symbols are showing the possible actions:
 * play the item
 * play all items on the same directory level
 
-At the bottom of the screen the currently selected sender and receiver is displayed.
+The bread crumb starts with the name of the selected server. At the bottom of
+the screen the receiver bar shows the names of the selected receivers;
+tap it to open the device sheet. If you start playing an item while no
+receiver is selected, the device sheet opens instead so you can choose one;
+then tap play again.
 
 A toggle in the folder header lets you sort the current folder by name or date,
 ascending or descending. yaacc uses the server's own sort support when browsing
@@ -67,7 +73,8 @@ For example you are able to stream an image show with background music
 on your device, starting a movie on a TV or play music on a
 smart speaker at the same time.
 
-Each player is displayed in the player tab. Depending on the content type
+Each player is displayed in the player tab, and in the device sheet under
+the receiver it plays on. Depending on the content type
 and if the content is played by YAACC itself or a network device, the player ui differs.
 
 ![browse_player](./screenshots/5.1.x/browse_player.png){:height="30%" width="30%"}
@@ -95,6 +102,19 @@ Each renderer displays:
 
 You can control playback directly from the receiver tab without opening the player view.
 The controls work for both local playback and remote UPnP devices.
+
+The same receivers and controls are available from the content tab, without switching tabs:
+tap the receiver bar at the bottom (or select it with the D-pad) to open the device sheet.
+It lists every receiver with its checkbox, status, play/pause/stop, volume and mute controls,
+and under each receiver the YAACC players currently running on it, in the order they were started.
+Players on a device that is no longer in the receiver list are shown at the end.
+Tap a player to open its player view.
+
+* On phones and tablets the sheet opens at half height. Drag it up for full height;
+  drag it down or press Back to close it.
+* On Android TV, or when using a D-pad, it opens at full height with the first receiver focused.
+* While the sheet is open, receiver status and the list of running players update live.
+  Status polling stops when the sheet is closed or the app goes to the background.
 
 ### Lock screen controls
 

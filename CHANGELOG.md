@@ -1,5 +1,18 @@
 # YAACC Changelog
 
+## [Unreleased]
+
+### Added
+- **Device sheet**: Tapping the receiver bar at the bottom of the Content tab (or selecting it with the D-pad) opens a sheet listing every receiver with its controls (selection, status, play/pause/stop, volume, mute) and, under each receiver, the yaacc players running on it in the order they were started; tapping a player opens its player screen. It opens at half height on phones (drag up for full height, drag down or Back to close) and at full height on Android TV, and its status updates live while it is open. Starting playback with no receiver selected now opens the sheet so you can pick one, instead of showing an error. The Receiver and Player tabs stay.
+
+### Changed
+- **Receiver bar**: The Content tab's two-line footer is now a single receiver bar showing the selected receivers' names. The current server's name is no longer shown there; it still starts the path label at the top.
+
+### Fixed
+- **Receiver with several players**: When one receiver runs more than one yaacc player (e.g. an image show with background music), its row in the Receiver tab now always shows and opens the most recently started one that is playing (or, if none is playing, the most recently started one), instead of an arbitrary one.
+
+---
+
 ## [5.4.0] - 2026-10-22
 
 ### Added
