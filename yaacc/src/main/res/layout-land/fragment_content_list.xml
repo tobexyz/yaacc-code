@@ -92,22 +92,44 @@
             android:textAppearance="@android:style/TextAppearance.Material.Medium"
             android:textColor="?android:attr/colorForeground" />
 
-        <!-- Nothing anchors to the bottom separator or the receiver bar below, so
-             ContentListFragment can set both GONE when the host owns the receiver bar
-             (new layout) without moving any other view. -->
+        <!-- The bottom separator and the original static footer (provider, receivers) form
+             one chain: separator above provider above receivers, receivers at the parent
+             bottom. Nothing outside the chain anchors to any of them, so ContentListFragment
+             can set all three GONE together when the host owns the receiver bar (new layout)
+             without moving any visible view. In the classic layout all three are visible, so no
+             visible view is anchored to a GONE one.
+             The two lines end 1dp before the parent end instead of using
+             layout_toStartOf="@id/contentListTopSeperator" as the original did: that vertical
+             divider is set GONE during a device switch
+             (ContentListFragment#hideFolderNavigationControls), which would drop the
+             anchor. The divider's own alignEnd is the label's end (= the parent end), so
+             the geometry is identical. -->
         <View
             android:id="@+id/contentListBottomSeperator"
             android:layout_width="match_parent"
             android:layout_height="1dp"
-            android:layout_above="@id/contentListCurrentReceivers"
+            android:layout_above="@id/contentListCurrentProvider"
             android:background="?android:attr/colorForeground" />
 
-        <!-- Receiver bar: selected receivers' names; tap or D-pad select opens
-             the device sheet (ReceiverBarController). Positioned
-             against the parent only: contentListTopSeperator (its old
-             toStartOf anchor) is set GONE during a device switch
-             (ContentListFragment#hideFolderNavigationControls). The 1dp end
-             margin keeps it clear of that vertical separator, as before. -->
+        <TextView
+            android:id="@+id/contentListCurrentProvider"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_above="@id/contentListCurrentReceivers"
+            android:layout_below="@id/contentListCurrentFolderName"
+            android:layout_alignParentStart="true"
+            android:layout_alignParentEnd="true"
+            android:layout_marginStart="5dp"
+            android:layout_marginEnd="1dp"
+            android:drawablePadding="5dp"
+            android:gravity="center_vertical"
+            android:minLines="2"
+            android:singleLine="false"
+            android:text="@string/all"
+            android:textAppearance="@android:style/TextAppearance.Material.Medium"
+            android:textColor="?android:attr/colorForeground"
+            app:drawableStartCompat="@drawable/ic_baseline_sensors_32" />
+
         <TextView
             android:id="@+id/contentListCurrentReceivers"
             android:layout_width="match_parent"
@@ -115,21 +137,15 @@
             android:layout_alignParentStart="true"
             android:layout_alignParentEnd="true"
             android:layout_alignParentBottom="true"
+            android:layout_marginStart="5dp"
             android:layout_marginEnd="1dp"
-            android:background="?attr/selectableItemBackground"
-            android:clickable="true"
             android:drawablePadding="5dp"
-            android:ellipsize="end"
-            android:focusable="true"
             android:gravity="center_vertical"
-            android:maxLines="3"
-            android:minHeight="48dp"
-            android:paddingStart="5dp"
-            android:paddingEnd="8dp"
-            android:text="@string/receiver_bar_none_selected"
+            android:minLines="2"
+            android:singleLine="false"
+            android:text="@string/all"
             android:textAppearance="@android:style/TextAppearance.Material.Medium"
             android:textColor="?android:attr/colorForeground"
-            app:drawableEndCompat="@drawable/ic_baseline_expand_less_24"
             app:drawableStartCompat="@drawable/ic_baseline_devices_32" />
 
         <View

@@ -42,8 +42,8 @@ import de.yaacc.util.ThemeHelper;
  * Binds the receiver bar (a {@code TextView}): its label (the selected receivers' names, built by
  * {@link ReceiverBarLabel}), the tap / D-pad select that opens the device sheet, and the refresh
  * whenever {@link UpnpClient} reports that the receiver selection changed, including changes made
- * in the device sheet. Used by the classic {@link ContentListFragment} and by
- * {@link BrowserActivity}, which owns the bar in the new layout.
+ * in the device sheet. Used by {@link BrowserActivity}, which owns the bar in the new layout; the
+ * classic layout has no bar (its {@link ContentListFragment} shows a static footer).
  * <p>
  * Between {@link #bind()} and {@link #unbind()} it is a {@link UpnpClientListener} of the
  * client; the client lives as long as the application, so every {@code bind()} must be paired

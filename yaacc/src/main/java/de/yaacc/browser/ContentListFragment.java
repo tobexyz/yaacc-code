@@ -61,9 +61,11 @@ public class ContentListFragment extends Fragment implements OnClickListener,
     public static final String CONTENT_LIST_NAVIGATOR = "CONTENT_LIST_NAVIGATOR";
     protected RecyclerView contentList;
     private TextView currentReceivers;
-    private View receiverBarSeparator;
-    // null when the host owns the receiver bar (new layout)
-    private ReceiverBarController receiverBarController;
+    private TextView currentProvider;
+    private View footerSeparator;
+    // true in the classic layout: this fragment shows the original static footer (current
+    // provider, selected receivers). False when the host owns the receiver bar (new layout).
+    private boolean showsStaticFooter;
     private UpnpClient upnpClient = null;
     private BrowseContentItemAdapter bItemAdapter;
     private Navigator navigator = null;
@@ -94,6 +96,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
             @Override
             public void run() {
                 if (upnpClient.getProviderDevice() != null) {
+                    showCurrentProvider();
                     if (navigator != null && navigator.getCurrentPosition() != null && navigator.getCurrentPosition().getDeviceId() != null && upnpClient.getProviderDevice().getIdentity().getUdn().getIdentifierString().equals(navigator.getCurrentPosition().getDeviceId())) {
                         populateItemList(false);
                     } else {
@@ -126,8 +129,9 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         }
         currentFolderNameView = contentlistView.findViewById(R.id.contentListCurrentFolderName);
         currentReceivers = contentlistView.findViewById(R.id.contentListCurrentReceivers);
-        receiverBarSeparator = contentlistView.findViewById(R.id.contentListBottomSeperator);
-        initReceiverBar();
+        currentProvider = contentlistView.findViewById(R.id.contentListCurrentProvider);
+        footerSeparator = contentlistView.findViewById(R.id.contentListBottomSeperator);
+        initFooter();
         initSortToggle(contentlistView);
         topSeperator = contentlistView.findViewById(R.id.contentListTopSeperator);
         contentList = contentlistView.findViewById(R.id.contentList);
@@ -142,7 +146,9 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         if (getActivity() != null) {
             getActivity().runOnUiThread(() -> {
 
+                showCurrentReceivers();
                 if (upnpClient.getProviderDevice() != null) {
+                    showCurrentProvider();
                     if (savedInstanceState == null || savedInstanceState.getSerializable(CONTENT_LIST_NAVIGATOR) == null) {
                         showMainFolder();
                     } else {
@@ -365,21 +371,47 @@ public class ContentListFragment extends Fragment implements OnClickListener,
     }
 
     /**
-     * Classic layout: this fragment owns the receiver bar and binds it through
-     * {@link ReceiverBarController} (label, tap / D-pad select opens the device sheet, refresh on
-     * receiver selection changes). New layout: the host shows one bar at every level, so this
-     * fragment's own bar and its separator are hidden. Both are laid out in a container that is
-     * never GONE itself (see fragment_content_list.xml), so nothing anchors to a hidden view.
+     * Classic layout: the content browsing ends in the original static two-line footer -- the
+     * current provider and the selected receivers, each with its icon, not clickable. New layout:
+     * the host shows one receiver bar at every level, so this fragment's footer lines and their
+     * separator are hidden. All three sit in a container that is never GONE itself (see
+     * fragment_content_list.xml), so nothing visible is anchored to a hidden view.
      */
-    private void initReceiverBar() {
+    private void initFooter() {
         BrowserHost host = browserHost();
-        if (host != null && host.providesReceiverBar()) {
+        showsStaticFooter = host == null || !host.providesReceiverBar();
+        if (!showsStaticFooter) {
             currentReceivers.setVisibility(View.GONE);
-            receiverBarSeparator.setVisibility(View.GONE);
+            currentProvider.setVisibility(View.GONE);
+            footerSeparator.setVisibility(View.GONE);
             return;
         }
-        receiverBarController = new ReceiverBarController(currentReceivers, upnpClient, this::showDeviceSheet);
-        receiverBarController.bind();
+        tintCompoundDrawables(currentReceivers);
+        tintCompoundDrawables(currentProvider);
+    }
+
+    private void tintCompoundDrawables(TextView textView) {
+        Drawable[] drawables = textView.getCompoundDrawablesRelative();
+        for (int i = 0; i < drawables.length; i++) {
+            if (drawables[i] != null) {
+                drawables[i] = ThemeHelper.tintDrawable(drawables[i], requireContext().getTheme());
+            }
+        }
+        textView.setCompoundDrawablesRelativeWithIntrinsicBounds(drawables[0], drawables[1], drawables[2], drawables[3]);
+    }
+
+    /** Classic footer, first line: the selected provider. Main thread only. */
+    private void showCurrentProvider() {
+        if (showsStaticFooter && upnpClient.getProviderDevice() != null) {
+            currentProvider.setText(upnpClient.getProviderDevice().getDetails().getFriendlyName());
+        }
+    }
+
+    /** Classic footer, second line: the selected receivers joined with "; ". Main thread only. */
+    private void showCurrentReceivers() {
+        if (showsStaticFooter && upnpClient.getReceiverDevices() != null) {
+            currentReceivers.setText(upnpClient.getReceiverDevices().stream().map(it -> it.getDetails().getFriendlyName()).collect(Collectors.joining("; ")));
+        }
     }
 
     /** The hosting activity as a {@link BrowserHost}, or null if it is not one. */
@@ -393,32 +425,18 @@ public class ContentListFragment extends Fragment implements OnClickListener,
     }
 
     /**
-     * Opens the device sheet (receivers and their running players): through the host when it
-     * owns the receiver bar, else as a child of this fragment.
-     */
-    public void showDeviceSheet() {
-        if (!isAdded()) {
-            return;
-        }
-        BrowserHost host = browserHost();
-        if (host != null && host.providesReceiverBar()) {
-            host.showReceivers();
-        } else {
-            DeviceSheetFragment.show(getChildFragmentManager());
-        }
-    }
-
-    /**
-     * Play entry points call this first: with no receiver selected, the
-     * device sheet opens instead of starting playback, so the user can pick a
-     * receiver and tap play again. {@code PlayerService}'s
-     * "no receiver selected" toast stays as the fallback for non-UI callers.
+     * New layout only: with no receiver selected, the host's device sheet opens instead of
+     * starting playback, so the user can pick a receiver and tap play again. {@code
+     * PlayerService}'s "no receiver selected" toast stays as the fallback for non-UI callers.
+     * The classic layout has no sheet and keeps the original behavior (always false there).
      *
      * @return true if the sheet was opened and playback must not start
      */
     public boolean openDeviceSheetIfNoReceiverSelected() {
-        if (upnpClient != null && upnpClient.getReceiverDevices().isEmpty()) {
-            showDeviceSheet();
+        BrowserHost host = browserHost();
+        if (host != null && host.providesReceiverBar() && isAdded()
+                && upnpClient != null && upnpClient.getReceiverDevices().isEmpty()) {
+            host.showReceivers();
             return true;
         }
         return false;
@@ -696,13 +714,20 @@ public class ContentListFragment extends Fragment implements OnClickListener,
 
     }
 
-    // the receiver bar follows receiver changes through its own ReceiverBarController
     @Override
     public void receiverDeviceRemoved(Device<?, ?, ?> device) {
+        updateReceiversOnUiThread();
     }
 
     @Override
     public void receiverDeviceAdded(Device<?, ?, ?> device) {
+        updateReceiversOnUiThread();
+    }
+
+    private void updateReceiversOnUiThread() {
+        if (showsStaticFooter && getActivity() != null) {
+            getActivity().runOnUiThread(this::showCurrentReceivers);
+        }
     }
 
     /**
@@ -739,10 +764,6 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         // loads still running must not fill a list nobody sees.
         if (upnpClient != null) {
             upnpClient.removeUpnpClientListener(this);
-        }
-        if (receiverBarController != null) {
-            receiverBarController.unbind();
-            receiverBarController = null;
         }
         if (bItemAdapter != null) {
             bItemAdapter.cancelRunningTasks();
