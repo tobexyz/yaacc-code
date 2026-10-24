@@ -155,3 +155,8 @@ for later would leave the new layout without quick access to running players.
 ## 2026-10-24 - Mini-player album art: key without getIcon() (Group 8 security review)
 **Context**: `AVTransportPlayer#getIcon()` queues a download on every call while the art is not cached, and the mini-player called it on each 2 s poll to build its dedup key, so a broken or hostile art URL would be requested continuously.
 **Decision**: the key is `player id + art URI`; `getIcon()` is read once per key. Not stripped from titles (follow-ups): tag characters (used in some flag emoji), variation selectors, U+00AD and similar invisibles; `ReceiverBarLabel` still shows raw friendly names; `ImageDownloader` still accepts any scheme with no timeout or size cap.
+
+## 2026-10-24 - Group 9 as built
+- "Layout" `ListPreference` (key `settings_browser_layout_key`, values `classic`/`new`, default classic) is the first item under Appearance; entries/strings in 7 locales (`values/browser_layout.xml` + `strings.xml`); `BrowserLayoutValuesTest` pins the XML values and default to the `BrowserLayoutChoice` constants.
+- A change applies when the user returns to a browser screen (resume check); players, `PlayerService` and the UPnP client are untouched by a switch; the idle timer counts 1 -> 2 -> 1 across the switch and never arms.
+- Known and left for the owner's manual check: stale notification PendingIntents may stack a second browser instance; the setting is visible on Android TV although the new layout's D-pad reach is unverified (default stays classic); `allowBackup` (backup can restore a stored `new`) remains an open follow-up.

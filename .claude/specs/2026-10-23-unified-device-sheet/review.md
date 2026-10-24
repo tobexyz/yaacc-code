@@ -517,3 +517,49 @@ Scope: `git show c78fb5d6` (fix commit for cycle 1) on top of `fdb8dee9`.
 
 ### Verdict: PASS
 
+
+
+## Cycle 1 — 2026-10-24
+Reviewing: Group 9 (phase 2), preference task
+
+Scope: `git show 72f337cf` (`preference.xml`, `values/browser_layout.xml`, `strings.xml` x7, `tasks.md` checkbox). Read in addition: `BrowserLauncher`, `BrowserLayoutChoice`, `BrowserLayoutSwitch`, `RelaunchGuard`, `StartedBrowserCounter`, `BackgroundIdleTimer`, `TabBrowserActivity`, `BrowserActivity`, `BrowserActivitySupport`, `SettingsActivity`, `SettingsFragment`, `LauncherActivity`, `Yaacc`/`PlayerService` notification intents, `YaaccUpnpServerService#onSharedPreferenceChanged`. The second Group 9 task (manual checks with the owner) is intentionally open and not reviewed.
+
+### Verified
+1. **preference.xml: as specified.** `ListPreference` first item of the Appearance category: `key="@string/settings_browser_layout_key"` (exists since Group 6 in `setting_strings.xml`, `translatable="false"`), `defaultValue="classic"`, `entries=@array/browser_layout_entries`, `entryValues=@array/browser_layout_values`, `summary="%s"`, title string. `browser_layout_values` is `translatable="false"` with exactly `classic`, `new` = `BrowserLayoutChoice.STORED_CLASSIC/STORED_NEW`. Entries reference the two strings, so each locale picks its own text; no other preference or listener was touched.
+2. **Strings.** `settings_browser_layout_title/_classic/_new` exist once each in `values` and `values-de/es/fr/nl/pt/zh` (grep count 3 per file). Translations are sensible: de "Darstellung" (the category is "Erscheinungsbild", so no clash) / "Klassisch (Tabs)" / "Neu (ein Bildschirm)"; es "Diseño" / "Clásico (pestañas)" / "Nuevo (una pantalla)"; fr "Mise en page" / "Classique (onglets)" / "Nouveau (un seul écran)"; nl "Indeling" / "Klassiek (tabbladen)" / "Nieuw (één scherm)"; pt "Layout" / "Clássico (abas)" / "Novo (tela única)"; zh "布局" / "经典（标签页）" / "新（单屏）". No markup or format args.
+3. **Single reader.** `grep settings_browser_layout` over `src/main/java`: only `BrowserLauncher.effectiveLayout(Context)` (default `null`, `RuntimeException` caught, `NEW_LAYOUT_AVAILABLE` kept). The stored string is only compared in `BrowserLayoutChoice.resolve` (exact `"new"`), never a class name, action or extra. Key absent (existing installs) -> `null` -> classic. Opening Settings persists the XML default `classic` through `ListPreference.onSetInitialValue`; it resolves to classic as well, so nothing changes for existing installs.
+4. **Switch trace.** Settings entry points: `BrowserActivitySupport.handleCommonMenuItem` (both browsers), `MusicPlayerActivity`, `MultiContentPlayerActivity`, `AVTransportPlayerActivity`, `ImageViewerActivity`, `YaaccUpnpServerControlActivity`. None checks the layout itself and none needs to: the browser is below them in the task, and its `onResume` does the check when the user gets back to it.
+   - classic -> new: `SettingsActivity.onPause` sets `leftSettings`; `TabBrowserActivity.onResume` -> `relaunchIfOtherLayout(CLASSIC)` -> effective NEW -> guard allows -> fresh `new Intent(activity, BrowserActivity.class)` (no extras/flags, no `CLEAR_TASK`), `overridePendingTransition(0,0)`, `finish()`, returns before `LocalServerLifecycle.apply`. `consumeLeftSettings()` is therefore not consumed by the dying activity; `BrowserActivity.onResume` consumes it once and applies the server settings. Good.
+   - new -> classic: `BrowserActivity.onResume` does the same towards `TabBrowserActivity`. A fresh `BrowserActivity.onCreate` also checks first and returns before building the receiver bar, mini-player, share handler or timer controller; `onStart/onStop/onDestroy/onCreateOptionsMenu` use null checks for those.
+   - `SettingsFragment`: only dark-mode, log-level, interface and renderer listeners; none reads or reacts to the new key. `YaaccUpnpServerService#onSharedPreferenceChanged` branches on specific keys only; the new key falls through.
+   - State: nothing stops `PlayerService`, players or the UPnP client on an activity switch (the browsers only unbind their own views/listeners in `onStop/onDestroy`). `BackgroundIdleTimer`: `StartedBrowserCounter` counts; the usual order is old `onPause`, new `onCreate/onStart/onResume`, then old `onStop`, so the count goes 1 -> 2 -> 1 and never reaches 0; if the old `onStop` ever ran first, the new `onStart` cancels the 5 min timer. `onStart` of a relaunching `TabBrowserActivity` is paired with its `onStop`, so the count stays balanced.
+   - Loop safety: the 2 s process-wide guard allows one relaunch per window; a denied relaunch keeps the current layout and logs. Realistic Settings round trips take longer than 2 s.
+5. **BrowserActivity vs classic, reachable differences.** The toolbar menu has the same settings/log/about/exit ids (shared handler) plus the shutdown timer; the Receiver/Player tabs map to the sheet and the mini-player (design); `onCreate` has the permission request and battery-optimization check; share intents go through `ShareIntentHandler`; `LocalServerLifecycle.apply` is on resume. `onKeyDown` in classic only delegates to `super`. I found nothing the classic activity does that the new one lacks and that a user can reach.
+6. **No manifest/gradle change.** `git diff 85ae9d2a HEAD -- AndroidManifest.xml yaacc/build.gradle gradle` is empty; no `exported`, `allowBackup` or permission change.
+7. **Build.** `./gradlew :yaacc:assembleDebug :yaacc:testDebugUnitTest :yaacc:lintDebug --offline --continue`: BUILD SUCCESSFUL. Result XMLs: 331 tests, 0 failures, 0 errors, 0 skipped. Lint: 189 issues (same count as Group 8); the one Error `MissingTranslation` is the old `toggle_view_mode`, none of the new keys or arrays is reported.
+
+### Critical
+- None.
+
+### Warning
+- None.
+
+### Suggestion
+- [BrowserLauncher.java:relaunchIfOtherLayout] Stale launch targets can leave two instances of the new browser. `Yaacc.createYaaccGroupNotification` (built once at start-up, `FLAG_IMMUTABLE` only) and the session-activity PendingIntent in `PlayerService.createSessionActivity` keep the class of the layout that was active when they were built. After a switch, tapping them starts the old layout's activity, which bounces to the current one (works; guard-limited; share text dropped on purpose) but, with the standard launch mode, the bounce creates a second instance on top of the existing one (`[B_old, B_new]`, back goes to the old, stopped instance). Not data-losing. Consider `FLAG_ACTIVITY_REORDER_TO_FRONT` on the fresh relaunch intent (still no `CLEAR_TASK`), or rebuild the group notification when the layout changes; decide after the owner's manual check.
+- [res/xml/preference.xml, BrowserLayoutChoice] Nothing ties the `browser_layout_values` array to `STORED_CLASSIC/STORED_NEW`. A typo in the array would silently make "new" unselectable or store a value that resolves to classic, and lint cannot see it. A plain JUnit test that parses `src/main/res/values/browser_layout.xml` (or `preference.xml`) and asserts the two values and the key/default would pin it. Not blocking: the resolver itself is covered by `BrowserLayoutChoiceTest`.
+- [values/strings.xml] The new title/entries sit in `strings.xml` (and the arrays in a new `browser_layout.xml`) while the other `settings_*` strings and arrays live in `setting_strings.xml`; consider moving them there for consistency (cosmetic).
+- [BrowserLauncher.java:68-70] The Javadoc says existing installs never had a default written; opening Settings now persists `classic`. Harmless (resolves to classic); reword when convenient.
+- [tasks.md Group 9 / decisions.md] No "Status (Group 9)" line (the other groups record test count, lint count, manifest state, "not run on a device") and no decisions.md entry. Add both with the next docs commit; also record the `FLAG_ACTIVITY_REORDER_TO_FRONT` question above.
+- [Android TV] The setting is visible on TV; the new layout's D-pad reach is unverified (design risk, owner's manual checks, if hardware exists). Default stays classic, so TV users are unaffected until they switch.
+
+Forward-looking requirements:
+- Group 9 manual checks (owner): switching in both directions (including from a player screen's Settings menu and from the server-control screen), stale notification tap after a switch, share-to-yaacc in the chosen layout, rotation right after a switch, and `adb shell dumpsys activity activities` showing a single browser instance after classic -> new -> classic.
+- Group 10 must: document the Layout setting, the resume-time switch, the guard window and the stale-PendingIntent behavior in `docs/tech.md`/`docs/index.md`; re-run the merged-manifest check after the last code change.
+- Carried, owner decision still open: `android:allowBackup` / backup exclude for the default preferences file (it now also holds the user-visible layout).
+
+### Tests
+- [x] All tests passing (331, 0 failures)
+- [x] Coverage adequate for the change (resolver, switch decision, guard and counter are unit tested; the new part is resources only, see the Suggestion on the values/constants link)
+
+### Verdict: PASS
+Zero Critical, zero Warning. The preference is a fixed-value `ListPreference` in Appearance, read only through `BrowserLauncher`/`BrowserLayoutChoice`, translated in all seven locales, with no manifest/gradle change; the switch in both directions goes through `relaunchIfOtherLayout` only and leaves players, the UPnP client and the idle counter untouched. The first Group 9 task may stay `[x]`; the manual-check task stays open.
