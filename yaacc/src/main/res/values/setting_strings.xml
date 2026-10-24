@@ -50,6 +50,7 @@
     <string name="settings_browse_chunk_size_summ">amount of items fetched from server in one request</string>
     <string name="settings_category_appearance">Appearance</string>
     <string name="settings_dark_mode_key" translatable="false">settings_dark_mode_key</string>
+    <string name="settings_browser_layout_key" translatable="false">settings_browser_layout_key</string>
     <string name="settings_dark_mode_title">Dark mode</string>
     <string name="settings_dark_mode_off">Using system settings</string>
     <string name="settings_dark_mode_on">Dark mode active</string>

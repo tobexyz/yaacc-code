@@ -760,3 +760,318 @@ Scope: re-check of the three stale passages that failed Cycle 2, against commit 
 
 ### Verdict: PASS
 Zero Critical, zero Warning. The plan text (tasks.md Groups 6-10, tech.md, decisions.md) no longer instructs copying the incoming intent, comparing the raw stored layout without the guard, or relying on cancel-on-resume alone. Group 6 may start; the next security review is on the Group 6 code.
+
+## Cycle 1 — 2026-10-24
+Reviewing: Group 6 (phase 2)
+
+Scope: `git diff d23da4b2~1..HEAD -- yaacc` (parts A and B plus fcfe04d6), the
+merged debug manifest (`./gradlew :yaacc:processDebugManifest --offline`, output newer
+than the source manifest), and the old `TabBrowserActivity` at `d23da4b2~1`. Unit tests
+on disk for the security-relevant classes are green: `LauncherForwardPolicyTest` 16,
+`RelaunchGuardTest` 13, `ShareUriPolicyTest` 10, `StartedBrowserCounterTest` 11,
+`ShutdownTimerControllerTest` 7, `BrowserLayoutSwitchTest` 3, `BrowserLayoutChoiceTest` 12;
+0 failures, 0 errors. Each Group 5 (cycles 1-3) constraint was checked against the code.
+
+**1. LauncherActivity and manifest: honored.**
+- Fresh `new Intent(this, BrowserLauncher.targetClass(this))` (`LauncherActivity.java:52`).
+  Only `LauncherForwardPolicy.decide` can add anything: exact `android.intent.action.SEND` +
+  exact `text/plain` + non-empty text of at most 2048 chars becomes `ACTION_SEND`, type and
+  `EXTRA_TEXT`. Everything else (MAIN, VIEW, null, unknown, wrong case, over-cap text) is a plain
+  launch. A text over the cap is dropped, not truncated.
+- No flags, data, categories, selector, package, `EXTRA_STREAM`, `EXTRA_INTENT` or any other
+  extra is copied. Text comes from `getStringExtra(EXTRA_TEXT)` or `ClipData.Item#getText()`.
+  The item URI is never read, so no grant can be carried. The incoming intent is only read, never
+  modified. `grep "new Intent(getIntent())\|new Intent(in)"` finds nothing in `yaacc/src/main`.
+- Reads are in `try/catch (RuntimeException)` that falls back to a plain launch. `startActivity`
+  has its own catch, and `finish()` is in `finally`. Logs carry only the exception class name.
+- Manifest source diff is one hunk. `LauncherActivity` is the only MAIN+LAUNCHER, LEANBACK and
+  SEND component; the MAIN+VIEW+DEFAULT+LAUNCHER filter (no `<data>`) is moved verbatim. No
+  `launchMode`, `taskAffinity`, `allowBackup` or permission change. The merged manifest shows the
+  other exported activities, receivers and providers with the same filters as before, and
+  `TabBrowserActivity` exported with no filter. Exported surface is unchanged apart from
+  `LauncherActivity`.
+- `TabBrowserActivity` reachability: it was already exported with the same filters, and an
+  explicit intent ignores filters, so every direct path existed before. The filters moved
+  away, so it can no longer be chosen by an implicit intent. Nothing new is reachable. No code
+  reads `getReferrer()` or `getCallingPackage()`; the launcher erases the origin, but nothing
+  depends on it.
+- Crafted explicit SEND straight to `TabBrowserActivity`: it skips `LauncherForwardPolicy`
+  (no type check) but cannot skip `ShareUriPolicy`. `ShareIntentHandler.readAndClearSharedText`
+  reads only `getStringExtra`/clip text, in `try/catch`, and `handle()` then applies
+  `ShareUriPolicy.isAllowed` (http/https only, 2048 cap) before `Uri.parse`. The launcher policy is
+  therefore a pre-filter, not a gate. Confirmed.
+
+**2. Resume-check relaunch: honored.**
+- One function decides: `BrowserLauncher.effectiveLayout` returns `CLASSIC` while
+  `NEW_LAYOUT_AVAILABLE` is false; `TabBrowserActivity.relaunchIntoOtherLayout` compares it with
+  `Layout.CLASSIC` through `BrowserLayoutSwitch.shouldRelaunch`. Stored `"new"` with the flag false
+  is no relaunch (tested), and `targetClass` is currently the constant `TabBrowserActivity.class`.
+- `RelaunchGuard`: `synchronized`, monotonic clock (`System.nanoTime()/1e6`), first call allowed,
+  denied calls don't extend the window, a backwards clock counts as elapsed. A relaunch is one
+  `startActivity(new Intent(this, target))` with no extras, flags or data from `getIntent()`, then
+  `finish()`. It cannot loop; if the guard trips it logs and stays.
+- The stored value is read with `getString(key, null)` inside `try/catch (RuntimeException)` and
+  is mapped only by `BrowserLayoutChoice.resolve` (`"new"` exact, else CLASSIC). No class name,
+  action or path is taken from preferences.
+- The share payload is handed to the handler in `onCreate`, before the `onResume` check, and is not
+  forwarded again.
+
+**3. ShareIntentHandler: honored except for the shutdown/Activity-reference point (Warning 1).**
+- Scheme allowlist: `ShareUriPolicy` accepts http/https only (case-insensitive ASCII; scheme is the
+  text before the first `:`), cap 2048. `file`, `content`, `intent`, `javascript`, bare paths and
+  leading blanks are rejected, with a fixed log line.
+- The text is only passed to `Uri.parse` and `createPlayableItem`. No `Intent`, `PendingIntent` or
+  `File` is built from it. It is consumed on the handler's own intent copy (`removeExtra`,
+  `setClipData(null)`), not a shared one.
+- Logging: every `YaaccLogger` call in the changed files (grepped) uses fixed text or
+  `getClass().getSimpleName()`; none uses the text, the `Uri`, `getMessage()` or the exception.
+  Default log level is ERROR in any case. Toasts are the fixed "start in N seconds" and
+  "no receiver found using local device" strings.
+- Worker: `prepareAndPlay` catches `Exception` (the old `IOException -> RuntimeException` process
+  crash is gone); `play` catches `RuntimeException`; `RejectedExecutionException` is caught.
+- Proxy hole closed for the share path. `UpnpClient#createPlayableItem` (`UpnpClient.java:1599`)
+  has exactly one caller, `ShareIntentHandler.java:138`, and the only writer of
+  `proxy_link_*` is `UpnpClient.java:1636`, inside that method. With the policy, `file://`, bare
+  paths, the app's own `content://...fileprovider` URI and ClipData URIs can no longer become a
+  `/proxy/<hash>` entry. Checked edge cases: `http:/data/...` (single slash) and mixed-case
+  `HTTP://` do not match the handler's case-sensitive `startsWith("http://")`
+  (`YaaccUpnpServerContentHttpHandler.java:1278`); they fall through to `new File(...)` (a
+  nonexistent relative path) or to `ContentResolver.openInputStream` (which does not resolve
+  providers for a non-`content` scheme). The result is a failed read, not a disclosure.
+- Other entry points that reach `createPlayableItem` with untrusted strings: none. Untrusted
+  http(s) URLs still reach it through the same call: an on-device app can make yaacc fetch and
+  proxy any http(s) URL, including `127.0.0.1`/LAN addresses (pre-existing SSRF-style reach, no
+  new capability). Other untrusted-URL sinks that do not touch the proxy are outside this group:
+  `ImageDownloader` (any `URL` scheme from DIDL `albumArtURI`, carried forward) and renderer
+  `SetAVTransportURI` played by the local player.
+
+**4. Idle timer: honored.** `BackgroundIdleTimer` keeps a static `StartedBrowserCounter` created
+under `synchronized` with the application context only (the lambda captures the `Application`,
+the scheduler is a main-looper `Handler`). `onExpiry` re-checks the count and `exitIfIdle`
+re-reads the preferences and `getCurrentPlayers()` when it fires. The counter is `synchronized`,
+arms only when `started` reaches 0, is cancelled in every `onBrowserStarted`, and ignores a stop
+without a start. No leak, and no exit-while-active regression (old order issue is fixed).
+
+**5. MediaProjection: honored.**
+- The result `Intent` goes `onActivityResult` -> `StreamingPermissionHelper.onPermissionResult` ->
+  `MediaProjectionHelper.handlePermissionResult` -> static `storedResultData`. It is not put in a
+  Bundle, preference, `Intent` extra, file or log. Logs carry only "granted"/"denied". There is no
+  getter for `storedResultData`; denial and `clearPermission()` null it, and the disable path in
+  `BrowseDeviceAdapter` still calls `clearPermission()`. `onStop` of the projection clears it too.
+- Gating: result accepted only for `REQUEST_CODE_MEDIA_PROJECTION` and only while the static
+  `requestPending` flag (set by `createRequestIntent`) is true; it is cleared on the first answer.
+  Fragment `onActivityResult` is only called for activities that fragment started, so another
+  component or app cannot deliver a result. A stale grant cannot be accepted without a new
+  request.
+- Callbacks: `CopyOnWriteArrayList`, `addIfAbsent`, remove by instance, delivered through
+  `new Handler(Looper.getMainLooper())` (was `null`), each call in `try/catch`. The static
+  `stateReset` captures only the application context. The per-screen callback is
+  `helper::refresh`, whose lambda references the fragment; it is registered in `onStart` and
+  removed in `onStop`, so it is not retained after stop (same lifecycle bound that cycle 3 of
+  Group 3 accepted).
+- `MediaProjectionManager` is now obtained from `getApplicationContext()` (previously the first
+  caller's context, which could be an Activity or the service, held statically). The
+  `YaaccUpnpServerService` call sites pass `this` and are unaffected; `getMediaProjection` does
+  not depend on the context.
+
+**6. ShutdownTimerController, timer listeners, LocalServerLifecycle, consumeLeftSettings: no
+security-relevant change.** Compared with the old `onResume`: same preference key, same
+`stopService` before `startForegroundService` only after the settings were left, same stop when
+the server is off, same application-context `Intent`. `consumeLeftSettings` reads and resets
+the flag exactly once, as `leftSettings = false` did. Autostart is untouched (boot receiver and
+manifest unchanged). The relaunch path returns before `LocalServerLifecycle.apply`, so the
+instance that stays applies it once. `Yaacc` keeps a `CopyOnWriteArrayList` of listeners
+(`addIfAbsent`), a listener exception is caught per listener, the controller holds the `Yaacc`
+application and preferences only, and `onFinish` still calls `exit()`. `ServerListFragment`
+attaches in `onStart`, detaches in `onStop`, and drops its display lambda in `onDestroyView`.
+
+**7. Logging, components, permissions, dependencies.** `git diff d23da4b2~1..HEAD --
+yaacc/build.gradle yaacc/src/main/AndroidManifest.xml` shows no `build.gradle` change and the one
+manifest hunk above: no new permission, no new dependency, one new exported component
+(`LauncherActivity`, which replaces the filters on `TabBrowserActivity`). No new logging of
+shared text, URIs, extras, the MediaProjection result or preference values. No secrets, tokens
+or local paths in the diff.
+
+### Critical
+- None.
+
+### Warning
+- [ShareIntentHandler.java:61, 66-73, 125-128; TabBrowserActivity.java:217, 244-249;
+  tasks.md Group 6 Accept "shutdown() cancels pending delayed work"] Two Group 5 "Group 6 must"
+  items are not met.
+  - `shutdown()` is a plain `executor.shutdown()`. A `ScheduledThreadPoolExecutor` runs existing
+    delayed tasks after `shutdown()` by default, so a destroyed screen still starts playback up to
+    6 s later. Group 5 required `shutdownNow()` or
+    `setExecuteExistingDelayedTasksAfterShutdownPolicy(false)`. decisions.md ("survives a
+    rotation") records the choice, but it is not an owner decision on the security constraint, and
+    tasks.md still says the opposite of the code.
+  - "Keep no Activity or View reference": the callback `this::showPlayers` binds
+    `TabBrowserActivity` and is captured by the queued `execution` and by the `mainHandler.post`.
+    After `onDestroy` the destroyed Activity (view hierarchy, fragments) stays reachable for the
+    time the task is queued plus the whole of `createPlayableItem`.
+    `MediaMetadataRetriever#setDataSource(url)` has no timeout, so a hostile or slow host holds the
+    Activity for as long as it likes.
+  - Fix, which keeps the rotation behavior the owner wanted: make `onPlayersStarted` a `volatile`
+    field set to null in `shutdown()` (or hold it in a `WeakReference`), so a pending share still
+    plays but nothing references the Activity; and either cancel pending work unless
+    `isChangingConfigurations()` (for example `shutdown(boolean keepPending)`), or record the
+    "pending share completes after destroy, at most about 6 s plus preparation" rule in tasks.md,
+    decisions.md and `docs/tech.md` as an accepted deviation. Add a JVM-testable check of the
+    chosen policy (an executor-policy test is enough).
+
+### Suggestion
+- [ShareUriPolicy.java:41-52] Optional hardening: require `://` after the scheme and use
+  `Uri.normalizeScheme()` (or lower-case the scheme) before `createPlayableItem`, so mixed-case
+  `HTTP://` links work through the proxy and `http:/...` forms are rejected rather than reaching
+  the handler's `File` branch.
+- [ShareIntentHandler.handle] The queue is unbounded and each call also shows a Toast. An on-device
+  app can send many SEND intents to the exported `TabBrowserActivity`, each starting an unconfirmed
+  playback. This is pre-existing (the old code created a thread per share, so it is better now).
+  Cap the pending shares per handler (for example drop while one is pending) and consider a
+  connect/read timeout around `setDataSource`. The unconfirmed playback and the rewrite of the
+  saved receiver selection to `LOCAL_UID` from cycle 1 are still open.
+- [MediaProjectionHelper.java static fields] `storedResultData`, `storedResultCode` and
+  `mediaProjection` are plain statics written on the main looper and read on the server service
+  threads; make them `volatile` (pre-existing).
+- [YaaccUpnpServerContentHttpHandler.java:775-777] Pre-existing: the proxy lookup logs the target
+  URI (the shared link) at DEBUG. Default level is ERROR, but a user who raises the level and shares
+  the log exposes link tokens. Log the key only.
+- [docs/tech.md, tasks.md Group 6 Accept] Correct "shutdown() cancels pending delayed work" to
+  the final policy once Warning 1 is resolved.
+
+Forward-looking requirements:
+- Group 7 must: compute `BrowserLauncher.effectiveLayout(...)` once per decision and derive the
+  target from that value (today `targetClass(Context)` is a constant; when it starts reading the
+  layout, do not read the preference a second time between the check and the launch).
+- Group 7 must: do the layout check in `BrowserActivity.onCreate` before it hands the intent to
+  `ShareIntentHandler`, or hand over only the sanitized text, so the payload is consumed in exactly
+  one instance. Use the same `RelaunchGuard.shared()` and `new Intent(this, target)` with nothing
+  copied from `getIntent()`.
+- Group 7 must: `BrowserActivity` `exported="false"`, no `intent-filter`, no `launchMode` or
+  `taskAffinity`; `getIntent()` goes only to `ShareIntentHandler` (null callback). Call
+  `BackgroundIdleTimer.browserStarted/browserStopped` from `onStart/onStop`, and call
+  `shareIntentHandler.shutdown()` in `onDestroy` under whatever policy resolves Warning 1.
+- Group 7 must: make no decision from `getReferrer()` or `getCallingPackage()`; the launcher
+  erases the origin and `TabBrowserActivity` is directly reachable.
+- Group 8 must: flip `NEW_LAYOUT_AVAILABLE` only together with the working `BrowserActivity`
+  branch of `targetClass`; keep the `StreamingPermissionHelper`/`ShutdownTimerController` users
+  attach/detach in `onStart`/`onStop`, with no `Context` or `View` in static state.
+- Group 9 must: keep the layout `ListPreference` values fixed (`classic`/`new`), read only via
+  `BrowserLayoutChoice.resolve`, and make no `exported`, `allowBackup` or permission change.
+- Group 10 must: record in `docs/tech.md` as built: what the launcher forwards and drops, the
+  http/https policy and its cap, the share-handler shutdown policy, the loop guard and the
+  idle counter.
+- Carried forward, still open (outside this group): `allowBackup`/preferences exposure
+  (`proxy_link_*`, receiver selection, layout choice); `PlayerService.getPlayer()` mutable view;
+  `ImageDownloader` scheme allowlist and size cap; ignore remote devices whose UDN equals
+  `LOCAL_UID` at `UpnpClient` ingress; per-request deadline in `RendererStatusMonitor`;
+  bidi-control stripping in `ReceiverBarLabel`.
+
+### Verdict: FAIL
+No Critical findings, and items 1, 2, 4, 5, 6 and 7 plus the scheme/logging/proxy parts of 3 pass.
+FAIL is for one Warning: the share handler's `shutdown()` does not cancel pending delayed work
+and a queued task keeps the destroyed `TabBrowserActivity` reachable, both against binding
+Group 5 constraints. The fix is small and keeps rotation survival (null the callback in
+`shutdown()`, then pick and document the cancel policy). A re-check of those lines should PASS.
+
+## Cycle 2 — 2026-10-24
+Reviewing: Group 6 (phase 2)
+
+Scope: commit a0959e6877 (`ShareIntentHandler.java`, `MediaProjectionHelper.java`, `tasks.md`, `decisions.md`), re-check of the cycle 1 Warning. `TabBrowserActivity.java:216-248` (the only caller) and `Yaacc.exit()` were read for context. No code or docs edited.
+
+### Cycle 1 Warning status: RESOLVED
+- **(1) Nothing queued keeps the Activity/Fragment/View reachable after `shutdown()`.** The `onPlayersStarted` callback (`this::showPlayers`) is no longer captured by any task. It lives in `volatile playersStartedCallback`, which `shutdown()` sets to null. The queued `execution` lambda captures `this` (handler: `appContext`, `UpnpClient`, `Handler`, executor, counter, the volatile field) and the parsed `Uri`. The `prepareAndPlay` posts capture `appContext`, `item` and `this`. The `play(item)` post reads the field when it runs (not when posted), so a post queued before `shutdown()` sees null. The Toasts use `appContext`. `UpnpClient` is the application-scoped instance from `Yaacc` (`new UpnpClient(this)` with the Application). The Activity holds the handler, not the other way round. Remaining pin: the handler object and the worker thread until the last task ends (see Suggestion on `setDataSource`).
+- **(2) Pending counter.** No early return sits between `incrementAndGet()` (line 120) and the try block: `shutDown`/null intent, no text, policy reject and cap reject all return before it, and the `Runnable` construction cannot throw. After the increment there is exactly one decrement per path: the task's `finally` once the task runs (covers any exception or Error from `prepareAndPlay`), or the `RejectedExecutionException` catch when `schedule/execute` itself throws (then nothing was queued, so no double decrement). A `Toast` failure after a successful `schedule` propagates out of `handle` but the task still decrements itself. Nothing cancels tasks (no `shutdownNow`/`cancel`), so a queued task cannot leave the count stuck. The only way the count stays up is a stalled `setDataSource` on the single worker; it is per-handler and clears with the next activity instance (see Suggestion). **Callback order is correct:** the cap check (102-105) comes before the callback assignment (107), so a rejected over-cap share does not overwrite the callback of an earlier queued share. Accepted shares do overwrite it (last writer wins), which is harmless here: within one handler the callback is always the same activity's `showPlayers` (classic), or null (Group 7). Mixed null/non-null on one handler would lose the tab switch only; not a security issue. The shared text of a dropped share is already removed from the intent, so a dropped share is not replayed.
+- **(3) Share finishing after shutdown.** `play()` runs on the main looper, calls `UpnpClient.initializePlayersWithPlayableItems` and `player.play()` (application-scoped state, `PlayerService`), and calls the callback only if it is non-null. After `shutdown()` it is null, so no tab switch (`setCurrentTab` -> `runOnUiThread` -> `tabLayout`) runs on the dead activity. `handle` and `shutdown` are both main-thread, so the `shutDown` check and the callback assignment cannot interleave; the `RejectedExecutionException` branch is therefore unreachable in practice (and would leave the callback set only in that unreachable race). Nothing else in the handler touches Activity state. `RuntimeException`s in `play` are caught with class name only.
+- **(4) Accepted deviation (graceful shutdown): acceptable, no stricter option needed.** A destroyed screen can start playback at most about 6 s plus preparation after the share, only for a link the user explicitly sent to yaacc, after `ShareUriPolicy` (http/https, length cap), with a Toast already announcing "start in N seconds". `Yaacc.exit()` ends in `Runtime.getRuntime().exit(0)`, so an explicit Exit kills any waiting share. Back-press/rotation within 6 s completing the share is the expected outcome of "share to yaacc". The cancel-unless-`isChangingConfigurations()` variant would add a branch for little gain; take it only if the owner wants "back = cancel". The deviation is recorded in `tasks.md` (Group 6 Accept) and `decisions.md` (two entries, 2026-10-24) and both match the code (graceful `executor.shutdown()`, callback cleared, cap 3, volatile statics, follow-ups listed).
+- **(5) Consistency and logging.** `tasks.md:113` and `decisions.md:129-138` match the code. All log lines are fixed strings or exception class names; no payload, URI or `getMessage()` is logged. `MediaProjectionHelper` statics (`mediaProjection`, `mediaProjectionManager`, `storedResultCode`, `storedResultData`) are now `volatile`; the diff is only the modifiers, no behavior change.
+
+### Critical
+- None.
+
+### Warning
+- None.
+
+### Suggestion
+- [ShareIntentHandler.java:102-107, test] Cycle 1 asked for a JVM check of the chosen policy; the commit adds none (the class builds a `Handler`/`Looper` in a field initializer, so it is not JVM-testable as is). Extract the counter and shutdown flag into a small plain-Java gate (`tryAcquire()/release()/close()`, max 3) and test it (cap, release on every path, rejected acquire after close). Not blocking.
+- [ShareIntentHandler.java:155-160] `createPlayableItem` -> `MediaMetadataRetriever#setDataSource` has no timeout. A hostile host can hold the single worker, the handler and its three counter slots (shares are then ignored for this handler's lifetime) and keep the thread alive after shutdown. Availability only, no Activity pinned. Already listed as a follow-up in `decisions.md`; keep it on the backlog with a connect/read timeout.
+- [ShareIntentHandler.java:64-66, TabBrowserActivity manifest] `TabBrowserActivity` is exported with the standard launch mode, so each SEND can start a new instance with its own handler and its own cap of 3. The cap bounds each handler, not the process. Consider making the pending count static/process-wide (the counter holds no Context).
+- [ShareIntentHandler.java:107] Move the callback assignment next to the increment so an early exception from `upnpClient.startService()` cannot replace a queued share's callback without queuing anything (harmless today, same activity).
+- [docs/tech.md:1383-1392] Group 10 should record the final policy (graceful shutdown, callback cleared, cap 3), as already required by the Group 10 note.
+
+### Verdict: PASS
+Zero Critical, zero Warning. The cycle 1 Warning is resolved: the destroyed activity is no longer reachable from queued tasks, the counter is balanced on every path, a late share plays without touching the dead screen, and the graceful-shutdown deviation is documented and acceptable. Group 6 may proceed.
+
+
+## Cycle 1 — 2026-10-24
+Reviewing: Group 7 (phase 2)
+
+Scope: `git show e95c9a2b` (`BrowserActivity`, `BrowserActivitySupport`, `BrowserLauncher`, `BrowserBackNavigation`, `ShutdownTimerToggle`, `BrowserHost`, `ServerListFragment`, `ContentListFragment`, `TabBrowserActivity`, `UpnpClient`, `activity_browser.xml`, `fragment_server_root.xml`, `menu/activity_browser.xml`, strings, manifest, decisions.md/tasks.md). The merged debug manifest (`./gradlew :yaacc:processDebugManifest --offline`) was regenerated. `BrowserBackNavigationTest` (4) and `ShutdownTimerToggleTest` (3) are green on disk. Each "Group 7 must" item from Group 5 and Group 6 was checked against the code.
+
+**1. Manifest and build: honored.**
+- Source diff is one hunk: `BrowserActivity` with `exported="false"` and a label. No `intent-filter`, `launchMode`, `taskAffinity`, permission, `allowBackup` or provider change.
+- Merged manifest: `BrowserActivity` is `exported="false"`. The exported set is unchanged from Group 6 (`LauncherActivity`, `TabBrowserActivity` without filter, and the pre-existing viewer, player, about, log and server-control activities, `ServerAutostart` and `ProfileInstallReceiver`). No new `uses-permission` (21, as before).
+- `git diff HEAD~1 -- yaacc/build.gradle` is empty. No other gradle, toml or properties file changed. No new dependency.
+
+**2. BrowserActivity attack surface: honored.**
+- Reach: only in-process explicit intents. `BrowserLauncher.targetClass` is used by `LauncherActivity` and the three PendingIntents (`Yaacc.java:177`, `PlayerService.java:106, 199`, unchanged and `FLAG_IMMUTABLE`), plus `relaunchIfOtherLayout`. `targetClass` still returns `TabBrowserActivity` while `NEW_LAYOUT_AVAILABLE` is false, so nothing starts `BrowserActivity` today.
+- `getIntent()` is read in one place, `shareIntentHandler.handle(getIntent(), null)` (`BrowserActivity.java:105`), and `onNewIntent` passes the new intent to the same handler only. No `setIntent`, `getExtras`, `getData`, `getReferrer`, `getCallingPackage`, `PendingIntent` or `AlarmManager` in any new file (grepped). The handler keeps the Group 6 guarantees: `ShareUriPolicy` (http/https, 2048), try/catch, no payload in logs, callback null so no Activity pin.
+- The only `startActivity` calls are `new Intent(this, SettingsActivity.class)` (own class, from the menu), the battery prompt (below) and the relaunch. Nothing is built from incoming data.
+- Order: `relaunchIfOtherLayout(this, Layout.NEW)` is the first statement after `super.onCreate`, before `setContentView`, the permission prompts, the handler and the fragment. A relaunching instance returns before it creates a share handler, so a stale payload is dropped, never forwarded or replayed. `onNewIntent` is a no-op then (handler is null).
+- Effective layout is computed once per decision: `relaunchIfOtherLayout` calls `effectiveLayout(activity)` once, passes the value to `BrowserLayoutSwitch.shouldRelaunch` and to `targetClass(Layout)`. The preference is not read twice.
+- Relaunch intent is `new Intent(activity, targetClass(effective))`: no action, extras, data or flags from `getIntent()`. The `RelaunchGuard.shared()` guard (one per ~2 s) applies to both browsers through the shared helper. When it trips, the activity logs and stays.
+- Explicit intent from another app to `BrowserActivity`: `exported="false"` makes the framework reject it with a `SecurityException` at `startActivity` in the sender. Not reachable. Via `TabBrowserActivity` (exported): a crafted intent is read by its share handler in `onCreate` (same policy as before) and, if the layout differs, `onResume` starts a fresh intent for the other class. The attacker's action, extras, data, clip and flags are dropped. The tab instance finishes. A stale internal explicit launch of `BrowserActivity` while the layout is classic goes `onCreate` -> relaunch to `TabBrowserActivity` with nothing carried over. If the guard trips, `BrowserActivity` renders; the share would then still pass `ShareUriPolicy`.
+- `onStart`/`onStop` call `BackgroundIdleTimer.browserStarted/Stopped` in pairs (a relaunch that finishes in `onCreate` never reaches `onStart`, and the counter ignores a stop without a start). `onDestroy` calls `shareIntentHandler.shutdown()` and drops the menu item.
+
+**3. BrowserActivitySupport: honored (verbatim, no new surface).** Compared with the removed `TabBrowserActivity` code:
+- Same three permission arrays, same request code 101, result still not handled. `requestPermissions` only asks for what the manifest already declares (no new permission).
+- Battery prompt: `Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` with `package:` + `activity.getPackageName()` (our own package), the same empty-intent/`ActivityNotFoundException` swallow as before. Nothing comes from an incoming intent.
+- `handleCommonMenuItem` maps exactly four IDs (`menu_exit`, `menu_settings`, `yaacc_about`, `yaacc_log`) to `Yaacc.exit()`, `new Intent(activity, SettingsActivity.class)`, `AboutActivity.showAbout` and `YaaccLogActivity.showLog`. Menu item IDs come from our inflated resource; there is no external way to deliver one. `BrowserActivity` adds only the two timer items. The class is package-private and `final`; no component, filter or export was added.
+
+**4. Server list reuse: honored.**
+- `ServerListFragment` picks `fragment_server_root.xml` only when the host reports `providesShutdownTimer()`. The other init code is shared with classic. The `serverList`, `serverListRefreshButton`, `serverListLocalServerEnabled`, `serverListLocalServerSettings` and status-icon IDs match the classic layout.
+- MediaProjection flow: unchanged. `BrowseDeviceAdapter` -> `permissionCallback` -> `streamingPermissionHelper.createRequestIntent()` -> `startActivityForResult(REQUEST_CODE_MEDIA_PROJECTION)` -> fragment `onActivityResult` -> `StreamingPermissionHelper.onPermissionResult` (request code check and static `requestPending`). `BrowserActivity` does not override `onActivityResult`, so it cannot feed a result in. `clearPermission()` stays on the disable path. Callback registered in `onStart`, removed in `onStop`.
+- Server switch: writes only the `settings_local_server_chkbx` preference, as in classic (no confirmation there either), and refreshes the icons. The server is started or stopped by `LocalServerLifecycle.apply` on `onResume` (both browsers; unchanged Group 6 behavior). Gear: explicit `Intent(getContext(), YaaccUpnpServerControlActivity.class)`, same as classic. The three status icons have no click listener and are `focusable=false`. Nothing is reachable by a different path or with less confirmation than in classic.
+- LAN-supplied text: `holder.name.setText(friendlyName)` and `IconDownloadTask` (`BrowseDeviceAdapter.java:171, 207`). `grep autoLink|Linkify|fromHtml|Html.` over `java` and `res/layout` finds only `about.xml:32` (static About text, pre-existing) and a comment in `device_sheet_player_session_item.xml`. `fragment_server_root.xml` has fixed string-resource text only.
+
+**5. UpnpClient listeners and fragment lifecycle: honored.**
+- `listeners` is a `CopyOnWriteArrayList`; every iteration (`fire*`) is safe against concurrent add/remove. This removes the earlier `ArrayList` `ConcurrentModificationException` risk. `removeUpnpClientListener` removes one registration and is a no-op for an unknown listener.
+- `ServerListFragment` and `ContentListFragment` add in `init` (called once per view in `onViewCreated`) and remove in `onDestroyView`; a back-stack pop recreates the view and `init` registers again. Add and remove are balanced, so the app-scoped client holds no destroyed fragment. `ContentListFragment.onDestroyView` also calls `bItemAdapter.cancelRunningTasks()` before `super`.
+- `PlayerListFragment` and `ReceiverListFragment` (classic only) still never remove themselves (recorded in decisions.md, outside this group). `DeviceSheetFragment` registers no `UpnpClientListener`.
+
+**6. Shutdown timer toolbar: honored.**
+- `ShutdownTimerToggle.decide`: running -> STOP; not running and `configuredMillis > 0` -> START; otherwise ASK_DURATION. A tap never starts a 0-duration timer (`Yaacc.startShutdownTimer(0)` would call `exit()` right away). Unit-tested. No `PendingIntent` and no `AlarmManager`; the timer is the existing in-process `CountDownTimer`.
+- `attach` in `onStart`, `detach` in `onStop`; `Yaacc` keeps a `CopyOnWriteArrayList` with `addIfAbsent`. The controller holds the application, the preferences and the display lambda (the Activity) only between those calls. `onDestroy` drops the `MenuItem`.
+- The "set" item opens `MaterialTimePicker`; the stored value is a `long` under the existing key.
+
+**7. State and back stack: honored.** `BrowserActivity` has no `onSaveInstanceState` and puts nothing in a `Bundle` or `Intent`. Fragments are restored by the `FragmentManager`. `ContentListFragment` keeps its `Navigator` in the saved state exactly as classic did (object IDs and titles of the folder path). The provider and receiver selection stay in `UpnpClient` and the default preferences, as in classic (`showContent` reads the stored provider). The MediaProjection result stays in `MediaProjectionHelper` statics.
+
+**8. Logging and strings: honored.** The new log calls (`BrowserActivity`, `BrowserActivitySupport`, `BrowserLauncher`) use fixed text or an exception class name. No intent, extras, share text, URI, preference value, device name or MediaProjection data is logged. The two new strings (`shutdown_timer_set`, `browser_servers_header`) exist in all 7 locales, are plain text and carry no format args or markup.
+
+### Critical
+- None.
+
+### Warning
+- None.
+
+### Suggestion
+- [BrowserActivity.java:104-105, TabBrowserActivity.java:134-135] The share handler runs on every `onCreate`, including recreation. A rotation reuses the same in-process `Intent` that the handler already cleaned, but after process death the system re-delivers the original intent, so the shared link plays again (pre-existing, classic does the same). Guard with `savedInstanceState == null` in both browsers.
+- [Yaacc.java:203, ShutdownTimerController.java setConfiguredMillis/start] `setConfiguredMillis(0)` while a timer runs, or the classic switch with no configured duration, calls `startShutdownTimer(0)`, which exits at once. The new toggle avoids it, but the picker can still confirm 00:00 on a running timer. Pre-existing and a user action; consider `if (millis <= 0) stop()` in the controller.
+- [ShutdownTimerToggle] A single tap on the toolbar item starts a stored timer without confirmation. The item switches to the checked state and shows the remaining time, and another tap stops it. Acceptable; revisit if the owner finds it too easy to trigger.
+- [BrowserActivity.java:92-96] With a null `UpnpClient` the activity returns after `setContentView` with no fragment and no share handler (same as classic). Harmless; consider finishing instead of showing an empty screen.
+- [tasks.md] Group 7 text says `ServerRootFragment`; the code reuses `ServerListFragment` with `fragment_server_root.xml` (recorded in decisions.md). Align tasks.md.
+
+Forward-looking requirements:
+- Group 8 must: flip `NEW_LAYOUT_AVAILABLE` only together with `targetClass(Layout.NEW)` returning `BrowserActivity` (already in place), and re-run the manifest check (`BrowserActivity` still `exported="false"`, no filter, `launchMode` or `taskAffinity`; exported set unchanged).
+- Group 8 must: keep `BrowserActivity` reading `getIntent()` only through `ShareIntentHandler`; any tap target for the mini-player and receiver bar uses `Player#getNotificationIntent()` with an empty fill-in, no implicit intent, and no `PendingIntent` built from incoming data.
+- Group 8 must: build the mini-player from `Player` objects only; render title, receiver name and art with `setText` / `IconDownloadTask` (no `autoLink`, `Html`, `Linkify`); unregister the `PlayerListChangeNotifier` listener and stop the poll in `onStop` and `onDestroy`; hold no `Context` or `View` in statics; guard posted callbacks with `isAdded()` / `getView() != null`.
+- Group 8 must: add its new fragments' `UpnpClientListener` registration (if any) with a matching `removeUpnpClientListener` in `onDestroyView`.
+- Group 8 must: keep the `ShutdownTimerController` attach in `onStart` and detach in `onStop`, and not add a second timer path that can start a 0-duration timer.
+- Group 8 must (carried): pass `MiniPlayerPicker` only copies of players and handle null and spoofed `LOCAL_UID` ids; transport commands run off the main thread.
+- Group 9 must: store the layout as a `ListPreference` with fixed values `classic`/`new`, read only through `BrowserLayoutChoice.resolve`; make no `exported`, `allowBackup` or permission change; keep `NEW_LAYOUT_AVAILABLE` and `effectiveLayout`.
+- Group 9 must: after the flip, check that choosing a layout in Settings leads to the other browser through `relaunchIfOtherLayout` only (fresh intent, guard), with no stored string used as a class name, action or target.
+- Group 10 must: record the as-built launcher, guard, share-handler and idle-timer policies in `docs/tech.md`, as required by Group 6 cycles 1-2.
+- Carried forward, still open (outside this group): `allowBackup`/preferences exposure; `PlayerService.getPlayer()` mutable view; `ImageDownloader` scheme allowlist and size cap; ignore remote devices whose UDN equals `LOCAL_UID`; per-request deadline in `RendererStatusMonitor`; bidi-control stripping in `ReceiverBarLabel`; `PlayerListFragment` / `ReceiverListFragment` never remove their `UpnpClientListener`.
+
+### Verdict: PASS
+Zero Critical, zero Warning. `BrowserActivity` is non-exported with no filters and adds no component or permission; its intent handling is limited to the capped, scheme-checked `ShareIntentHandler`; the layout check runs first, computes the effective layout once, and relaunches with a fresh intent under the shared loop guard; the extracted support class is verbatim; the server list reuse keeps the MediaProjection gating and plain-text rendering; listener and timer registrations are balanced. Group 8 may proceed.

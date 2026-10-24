@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="utf-8"?><!--
+ *
+ * Copyright (C) 2026 www.yaacc.de
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 3
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+-->
+<!-- Top level of the new layout (see ServerListFragment): a "Servers" header with refresh, the
+     server list, and the yaacc server footer. The shutdown timer lives in the toolbar. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="10dp"
+        android:paddingEnd="2dp">
+
+        <TextView
+            android:id="@+id/serverRootHeader"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:focusable="false"
+            android:maxLines="1"
+            android:text="@string/browser_servers_header"
+            android:textAppearance="@android:style/TextAppearance.Material.Medium"
+            android:textColor="?android:attr/colorForeground" />
+
+        <ImageButton
+            android:id="@+id/serverListRefreshButton"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/search_devices"
+            android:padding="8dp"
+            app:srcCompat="@drawable/ic_baseline_refresh_32"
+            app:tint="?attr/colorControlNormal" />
+    </LinearLayout>
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/serverList"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="10dp"
+        android:paddingEnd="2dp">
+
+        <TextView
+            android:id="@+id/serverListLocalServerLabel"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:focusable="false"
+            android:maxLines="1"
+            android:text="@string/upnp_server"
+            android:textAppearance="@android:style/TextAppearance.Material.Medium"
+            android:textColor="?android:attr/colorForeground" />
+
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/serverListLocalServerEnabled"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minHeight="48dp" />
+
+        <ImageButton
+            android:id="@+id/serverListLocalServerSettings"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/settings"
+            android:padding="8dp"
+            app:srcCompat="@drawable/ic_baseline_settings_42"
+            app:tint="?attr/colorControlNormal" />
+
+        <ImageView
+            android:id="@+id/serverListProviderEnabled"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:focusable="false"
+            android:importantForAccessibility="no"
+            app:srcCompat="@drawable/ic_baseline_sensors_32"
+            app:tint="?attr/colorControlNormal" />
+
+        <ImageView
+            android:id="@+id/serverListReceiverEnabled"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_marginStart="8dp"
+            android:focusable="false"
+            android:importantForAccessibility="no"
+            app:srcCompat="@drawable/ic_baseline_devices_32"
+            app:tint="?attr/colorControlNormal" />
+
+        <ImageView
+            android:id="@+id/serverListProxyEnabled"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_marginStart="8dp"
+            android:layout_marginEnd="8dp"
+            android:focusable="false"
+            android:importantForAccessibility="no"
+            app:srcCompat="@drawable/ic_baseline_import_export_32"
+            app:tint="?attr/colorControlNormal" />
+    </LinearLayout>
+</LinearLayout>

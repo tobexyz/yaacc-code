@@ -472,8 +472,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
      * (rightmost) part of the path stays visible.
      */
     private void updateFolderNavigationUi() {
-        boolean atRoot = navigator == null || navigator.getCurrentPosition() == null
-                || Navigator.ITEM_ROOT_OBJECT_ID.equals(navigator.getCurrentPosition().getObjectId());
+        boolean atRoot = isAtRoot();
         // GONE correctly reclaims the back button's space at root -- the
         // path label no longer anchors to it for position at all (see
         // below), so there's no RelativeLayout anchor-to-a-hidden-sibling
@@ -501,6 +500,17 @@ public class ContentListFragment extends Fragment implements OnClickListener,
                 (ViewGroup.MarginLayoutParams) currentFolderNameView.getLayoutParams();
         folderNameLayoutParams.setMarginStart(getResources().getDimensionPixelSize(marginStartDimenRes));
         currentFolderNameView.setLayoutParams(folderNameLayoutParams);
+    }
+
+    /**
+     * @return true if the shown folder is the root of the server, or if nothing is loaded yet.
+     * Read-only and null-safe, for hosts that decide what back does (the return value of
+     * {@link #onBackPressed()} cannot tell: it is always true).
+     */
+    public boolean isAtRoot() {
+        Navigator current = navigator;
+        return current == null || current.getCurrentPosition() == null
+                || Navigator.ITEM_ROOT_OBJECT_ID.equals(current.getCurrentPosition().getObjectId());
     }
 
     private String buildPathDisplayText() {
@@ -724,6 +734,20 @@ public class ContentListFragment extends Fragment implements OnClickListener,
     public void onViewCreated(View view, Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
         init(savedInstanceState, view);
+    }
+
+    @Override
+    public void onDestroyView() {
+        // The client lives as long as the application: a destroyed view must not keep receiving
+        // device events (deviceRemoved would reach a fragment that has no activity any more), and
+        // loads still running must not fill a list nobody sees.
+        if (upnpClient != null) {
+            upnpClient.removeUpnpClientListener(this);
+        }
+        if (bItemAdapter != null) {
+            bItemAdapter.cancelRunningTasks();
+        }
+        super.onDestroyView();
     }
 
     public void playItem(DIDLObject item) {

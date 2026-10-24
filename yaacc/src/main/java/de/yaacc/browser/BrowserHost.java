@@ -36,4 +36,12 @@ public interface BrowserHost {
 
     /** Shows the running players. */
     void showPlayers();
+
+    /**
+     * Whether the host shows the shutdown timer itself (in its toolbar), so the server list leaves
+     * its own timer rows out and uses the top-level layout. False for the classic tabs.
+     */
+    default boolean providesShutdownTimer() {
+        return false;
+    }
 }

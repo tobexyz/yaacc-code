@@ -42,9 +42,10 @@ public final class BrowserLayoutChoice {
     }
 
     /**
-     * STUB (red phase): returns null until implemented.
+     * @param storedValue the stored preference value, may be null
+     * @return {@link Layout#NEW} for exactly {@link #STORED_NEW}, otherwise {@link Layout#CLASSIC}
      */
     public static Layout resolve(String storedValue) {
-        return null;
+        return STORED_NEW.equals(storedValue) ? Layout.NEW : Layout.CLASSIC;
     }
 }

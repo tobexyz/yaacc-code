@@ -126,7 +126,7 @@ import de.yaacc.util.YaaccLogger;
  */
 public class UpnpClient implements RegistryListener, ServiceConnection {
     public static String LOCAL_UID = "LOCAL_UID";
-    private final List<UpnpClientListener> listeners = new ArrayList<>();
+    private final List<UpnpClientListener> listeners = new CopyOnWriteArrayList<>();
     // Kept here as well as in PlayerService, so a listener registered before the
     // player service is bound (or after it was rebound) still gets attached.
     private final List<PlayerListChangeNotifier.Listener> playerListChangeListeners = new CopyOnWriteArrayList<>();
@@ -450,6 +450,17 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      */
     public void addUpnpClientListener(UpnpClientListener listener) {
         listeners.add(listener);
+    }
+
+    /**
+     * Removes a listener added with {@link #addUpnpClientListener(UpnpClientListener)}, so a
+     * destroyed screen is no longer called. Removes one registration; does nothing if the
+     * listener is not registered.
+     *
+     * @param listener the listener to be removed
+     */
+    public void removeUpnpClientListener(UpnpClientListener listener) {
+        listeners.remove(listener);
     }
 
 

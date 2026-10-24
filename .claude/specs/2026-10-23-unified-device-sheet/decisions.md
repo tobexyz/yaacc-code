@@ -125,3 +125,21 @@ for later would leave the new layout without quick access to running players.
 **Context**: security review cycle 1 (Group 5) found two plan flaws: the launcher copied the whole incoming intent (an exported component would then forward a third-party intent, with its flags, `ClipData` URIs, nested intents and grants, into a same-app, non-exported activity), and the resume-check relaunch would loop forever when a stored `"new"` met `NEW_LAYOUT_AVAILABLE == false` (e.g. after backup/restore).
 **Decision**: fresh, allowlisted forward (MAIN and SEND text only, capped text); effective-layout comparison with a shared function plus a static relaunch guard; idle timer counts started browsers instead of relying on cancel-on-resume; static single-slot callbacks become multi-listener or compare-and-clear; MediaProjection result stays in the helper. Share handler scheme policy: http/https only (**owner decision pending**; it narrows today's behavior, but today a shared `file://` or path can be served to the LAN through the proxy). `allowBackup` and the stored-preferences exposure are a follow-up, not part of this spec.
 **Rationale**: these are cheap to build in from the start and expensive to retrofit.
+
+## 2026-10-24 - Group 6 as built: behavior changes accepted
+- Share handler: only `http`/`https` text up to 2048 chars; a `ClipData` item's URI is no longer used (only its text). The scheme policy was the owner's pending decision; it stays at the secure default and is revisited in Backlog 1.
+- A share waiting for receivers survives a rotation (graceful executor shutdown); a share waiting when the process is killed is lost, and a screen-capture permission result arriving after process death is ignored (it enabled nothing before either).
+- The idle exit counts started browsers (one process-wide timer).
+- The classic Server tab shows the running shutdown timer after rotation/tab re-creation (it showed blank before).
+- `decisions.md` entry 2026-10-24 "Security review of Group 5 amended the Group 6 plan" ("comparing the stored layout") is superseded: the check compares the effective layout.
+
+## 2026-10-24 - Share handler: waiting shares survive a rotation, without keeping the activity
+**Context**: security review cycle 1 (Group 6) Warning: a plain `executor.shutdown()` still runs delayed tasks, contradicting "shutdown cancels pending work", and the queued task held `this::showPlayers`, keeping a destroyed activity reachable for up to ~6 s.
+**Decision**: keep the graceful shutdown (a share must survive a rotation), accepted as a deliberate deviation from "cancel pending work"; the callback is held in a field that `shutdown()` clears, so the queue no longer pins the activity (and a share finishing after rotation does not switch tabs on a dead screen); at most 3 queued shares, extra ones ignored with a payload-free log. MediaProjection statics are `volatile`. Follow-ups, not in this phase: a timeout around `MediaMetadataRetriever#setDataSource`; stop logging the proxy target URI at DEBUG (`YaaccUpnpServerContentHttpHandler.java:775-777`); require `://` in `ShareUriPolicy` (Backlog 1 item 8).
+
+## 2026-10-24 - Group 7 as built: decisions on the builder's open questions
+- The in-screen back arrow at the content root moves to Group 8 (the system back already works).
+- Tapping the shutdown-timer item with no configured duration opens the picker; the user taps again to start (starting with 0 would exit the app immediately, which only the classic switch can do). Revisit after the owner tries it.
+- `UpnpClient` gained `removeUpnpClientListener` and a `CopyOnWriteArrayList`; `ServerListFragment` and `ContentListFragment` remove themselves in `onDestroyView` and `ContentListFragment` cancels its load tasks there. This touches classic but only stops destroyed fragments from receiving callbacks (a crash/leak fix); `PlayerListFragment` and `ReceiverListFragment` still leak and are left alone.
+- About and log stay in the new menu (parity with classic via `BrowserActivitySupport.handleCommonMenuItem`).
+- `ServerListFragment` is reused with `BrowserHost.providesShutdownTimer()` selecting `fragment_server_root.xml`; no separate fragment (about 150 lines not copied).
