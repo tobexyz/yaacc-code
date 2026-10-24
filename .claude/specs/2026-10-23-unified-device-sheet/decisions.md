@@ -69,3 +69,26 @@ in Group 3 review cycle 1).
   that claim `LOCAL_UID` at registration; the unused mutable
   `PlayerService#getPlayer()`; `IconDownloadTask` accepts any URL scheme
   with no size cap.
+
+## 2026-10-24 - Classic vs. new layout: separate activities, chosen by a setting
+**Context**: asked whether the old and new layout could be switched, maybe
+in settings. `TabBrowserActivity` is a thin shell (tab bar, pager); the
+browsing behavior lives in four fragments that reference it
+(`instanceof TabBrowserActivity`, `setCurrentTab(BrowserTabs.X)` in ten
+places). Phase 1 changed shared fragments only, so an activity-level switch
+would change nothing yet.
+**Decision** (direction agreed, build deferred to phase 2):
+- The existing four-tab activity and its fragments stay as the "classic"
+  layout; the new layout gets its own activity and fragments (phase 2 needs
+  them anyway, since the server list moves into the browser).
+- A list preference "Layout: Classic tabs / New" in the **normal settings
+  screen** (not an advanced/developer section).
+- A tiny invisible launcher activity holds the launcher and Android TV
+  entries and starts the chosen activity; the three internal launches
+  (`Yaacc.java`, `PlayerService.java` x2) go through one helper.
+- Whether the classic activity keeps the receiver bar and sheet is open
+  (PRD open question 4); the owner wants to try the phase 1 behavior first.
+- Not renaming `TabBrowserActivity` is proposed; "Classic" would appear only
+  in the settings UI and docs. Final naming not yet decided.
+**Rationale**: avoids decoupling tab order from the visible list, and avoids
+copying fragments that would then need every later fix twice.

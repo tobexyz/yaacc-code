@@ -53,3 +53,8 @@ See requirements.md.
    Should its session row appear at all, and what should tapping it do?
 3. **TV long term:** once tabs are removed (phase 3), is the sheet enough on
    TV, or should TV keep the tabs?
+4. **Does the classic layout keep the receiver bar and sheet?** Proposed:
+   yes (additive, and it replaces the "no receiver selected" error). The
+   alternative is the exact pre-branch footer behind a flag in
+   `ContentListFragment`. Open until the owner has tried the phase 1
+   behavior on a device.
