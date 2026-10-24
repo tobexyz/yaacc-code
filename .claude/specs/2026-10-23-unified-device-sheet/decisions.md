@@ -92,3 +92,15 @@ would change nothing yet.
   in the settings UI and docs. Final naming not yet decided.
 **Rationale**: avoids decoupling tab order from the visible list, and avoids
 copying fragments that would then need every later fix twice.
+
+## 2026-10-24 - Phase 2 scope: mini-player now, phase 3 folded into the new layout
+**Context**: with classic and new as separate activities (previous entry),
+"remove the Receiver/Player tabs" no longer touches classic.
+**Decision**: the new layout has no Receiver/Player tabs from the start and
+ships with a mini-player bar (owner request, 2026-10-24). Phase 2 and the old
+phase 3 are one piece of work (Groups 5-10 in tasks.md). Pull-to-refresh is
+dropped (would need `swiperefreshlayout`, a new dependency); the refresh
+button stays. The share-to-yaacc handler moves to a shared helper and the
+launcher trampoline owns the launcher/TV/SEND intent filters.
+**Rationale**: one screen is the point of the redesign; keeping a mini-player
+for later would leave the new layout without quick access to running players.

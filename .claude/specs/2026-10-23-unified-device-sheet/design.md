@@ -137,7 +137,8 @@ Play with no receiver selected ──► DeviceSheetFragment (instead of toast)
 ```
 
 ## Phases
-Agreed target layout (2026-10-23): the Server and Content tabs merge into
+Agreed target layout (2026-10-23; built as the *new* layout of Phase 2,
+which also adds a mini-player): the Server and Content tabs merge into
 one browser whose top level is the server list, with a receiver bar at the
 bottom of every level.
 
@@ -159,16 +160,76 @@ Top level (server list):                   Inside a server:
 1. **This spec:** the device sheet, the receiver bar replacing the Content
    tab's two-line footer, the no-receiver prompt, and the finding 3 fix.
    All tabs stay.
-2. Merge the Server tab into the browser as its top level. The yaacc row
-   keeps its live audio/video stream buttons and gains the server-settings
-   gear. The shutdown timer moves to the toolbar, since it's app-global.
-   Refresh moves to the "Servers" header, plus pull-to-refresh. The yaacc
-   server on/off switch and its provider/renderer/proxy icons stay as a
-   top-level-only footer: they can't live on the yaacc row, because that
-   row only exists while the server runs (rows come from
-   `getDevicesProvidingContentDirectoryService()`).
-3. Remove the Receiver and Player tabs and add a mini-player bar, once 1
-   and 2 have proven themselves, including on TV.
+2. **Phase 2 (agreed 2026-10-24): a classic and a new layout, chosen by a
+   setting.** See "Phase 2" below. This replaces the earlier plan of merging
+   the Server tab and removing the Receiver/Player tabs inside the existing
+   tab activity (old items 2 and 3).
+
+## Phase 2: classic and new layout
+
+### Decision
+`TabBrowserActivity` and its four fragments stay as the **classic** layout.
+The **new** layout is a separate activity, `BrowserActivity`, with no tabs:
+
+```
+Top level (servers):                       Inside a server:
+┌───────────────────────────────┐         ┌───────────────────────────────┐
+│ YAACC                   ⏲  ⋮  │         │ ← Gerbera > Musik     ≡ 📅 ⊞ │
+│ Servers                    ↻  │         │───────────────────────────────│
+│ 📡 Gerbera                  > │         │  (content list or cards)      │
+│ 🟢 yaacc   🎙 🖥 ⚙           > │         │                               │
+│ 📡 MiniDLNA                 > │         │                               │
+│ yaacc server [ON]  ⬆ ⬇ ⇄      │         │                               │
+│ ♪ Title - Artist   ⏮ ⏯ ⏭  ⏹  │         │ ♪ Title - Artist   ⏮ ⏯ ⏭  ⏹  │  <- mini-player
+│ ▶ phone, TV                ▾  │         │ ▶ phone, TV                ▾  │  <- receiver bar
+└───────────────────────────────┘         └───────────────────────────────┘
+```
+
+- Top level = the server list (from the Server tab). Tapping a server shows
+  the existing `ContentListFragment` for it. The yaacc row keeps its live
+  audio/video stream buttons and server-settings gear. The shutdown timer
+  moves to the toolbar (it is app-global). Refresh sits in the "Servers"
+  header (no pull-to-refresh: `swiperefreshlayout` is not a dependency and
+  this spec adds none). The yaacc server on/off switch and its
+  provider/renderer/proxy icons stay a top-level-only footer (that row only
+  exists while the server runs, so they cannot live on it).
+- The **receiver bar** and the **mini-player** are owned by the activity, so
+  they appear on every level. Both open or drive the existing device sheet /
+  player screens; the Receiver and Player tabs do not exist in this layout.
+- The **mini-player** shows one *featured* session: the playing session with
+  the highest creation sequence, else the highest sequence overall, picked
+  by a plain-Java function (same ordering rules as
+  `DeviceSessionGrouper.primarySession`, but across all devices). It shows
+  title, receiver name, album art; buttons previous / play-pause / next /
+  stop; tapping the bar opens that player's screen
+  (`Player#getNotificationIntent()`). It hides when no player exists. It
+  updates from `PlayerListChangeNotifier` events plus the 2 s poll, and
+  stops both while the activity is stopped.
+- A setting **Layout: Classic tabs / New** in the normal settings screen
+  picks the activity. A tiny invisible `LauncherActivity` owns the
+  launcher, Android TV and share (`ACTION_SEND text/plain`) intent filters,
+  reads the setting, and forwards to the chosen activity. Internal launches
+  (`Yaacc.java`, `PlayerService.java` x2) go through one helper.
+- Fragments stop casting their host to `TabBrowserActivity`: a small
+  `BrowserHost` interface (`showServers()`, `showContent()`, `showPlayers()`
+  or equivalent, found in the research group) is implemented by both
+  activities. In the new layout "players"/"receivers" map to the sheet.
+- The share-intent handler (about 60 lines in `TabBrowserActivity`) moves to
+  a shared helper so both activities use it.
+
+### Why not one activity with tabs hidden
+Tab positions are tied to the order of `BrowserTabs` in the adapter, the
+activity and saved state; hiding tabs would first need that decoupled, and
+the new top-level server list is a different navigation model anyway.
+
+### Defaults and open items
+- Default for existing installs and Android TV: **classic** (nothing changes
+  until the user switches). New installs: classic too, until the owner has
+  tried the new layout on a device and decides otherwise.
+- Open: does classic keep the receiver bar and sheet? (PRD question 4;
+  proposed yes.)
+- Not renaming `TabBrowserActivity`; "Classic" appears only in the settings
+  UI and docs.
 
 ## Risks
 - **D-pad focus inside a bottom sheet on TV:** not yet verified. The

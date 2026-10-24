@@ -1,4 +1,4 @@
-# Tasks: Unified device sheet (phase 1)
+# Tasks: Unified device sheet (phase 1: Groups 1-4, done; phase 2: Groups 5-10)
 
 Plan: `specs/2026-10-23-unified-device-sheet/requirements.md` and `specs/2026-10-23-unified-device-sheet/design.md`
 
@@ -86,3 +86,68 @@ Plan: `specs/2026-10-23-unified-device-sheet/requirements.md` and `specs/2026-10
 - [x] Correct the `getCurrentPlayers()` copy claim in `docs/tech.md` (only `DeviceSheetAdapter#refresh` copies; `ReceiverRowBinder` iterates the `ConcurrentHashMap` view) and apply the CHANGELOG wording suggestions | `docs/tech.md`, `CHANGELOG.md`
   - **Accept**: review.md Group 4 cycle 1 Warning and suggestions addressed
   - **Verify**: `grep -n 'ReceiverRowBinder. copy' docs/tech.md` returns nothing
+
+
+# Phase 2: classic and new layout
+
+Plan: `design.md` "Phase 2". Each group: build -> reviewer PASS -> security-reviewer PASS (sequential, max 3 cycles). Package rules: no new dependencies (no `swiperefreshlayout`). Strings in all 7 locales (`values`, `-de`, `-es`, `-fr`, `-nl`, `-pt`, `-zh`). Commit author tobexyz; no force-push to protected branches.
+
+## Group 5: Research and test skeletons
+- [ ] Research the host coupling and launch plumbing | `docs/tech.md`
+  - **Accept**: `docs/tech.md` has a "Classic and new layout" section recording, with file:line: (a) every `instanceof TabBrowserActivity` / `setCurrentTab(BrowserTabs.X)` site and what each wants from its host (`PlayerListFragment`, `ReceiverListFragment`, `ContentListFragment`, `ServerListFragment`, `ServerListClickListener`); (b) how `OnBackPressedListener` / back handling flows from the activity to fragments, and what the new activity must do instead; (c) the `leftSettings` round trip through `SettingsActivity`; (d) `ServerListFragment`'s shutdown timer, MediaProjection `startActivityForResult` and `ShutdownTimerListener` wiring, and what must move to the toolbar / `BrowserActivity`; (e) the share-intent handler (`checkIfReceivedShareIntent`) dependencies; (f) verified behavior of a `Theme.NoDisplay` trampoline that forwards `ACTION_SEND` (text and `content://` URIs, `FLAG_GRANT_READ_URI_PERMISSION` transfer) and the `LEANBACK_LAUNCHER` filter; (g) the existing manifest filters on `TabBrowserActivity` (MAIN/VIEW+LAUNCHER, LEANBACK_LAUNCHER, SEND text/plain) and which of them move
+  - **Verify**: each finding cites file:line or a doc URL; `grep -n "Classic and new layout" docs/tech.md`
+  - **Constraints**: no code in this task; verify AndroidX/Material APIs against the versions in `yaacc/build.gradle` (appcompat 1.8.0, material 1.14.0) before relying on them
+- [ ] Test skeletons for the pure logic | `yaacc/src/test/java/de/yaacc/browser/`
+  - **Accept**: red tests encode: `BrowserLayoutChoice` (pure: stored preference value + "is TV" -> `CLASSIC`/`NEW`; unknown, null and empty values fall back to `CLASSIC`; TV never defaults to `NEW`); `MiniPlayerPicker.pick(List<PlayerRef>)` (empty -> none; playing beats non-playing; among playing, highest creation sequence; none playing -> highest sequence; ties -> higher player id; null device ids allowed)
+  - **Verify**: `./gradlew :yaacc:testDebugUnitTest` shows the new tests failing on assertions only (no compile errors), all other suites green
+  - **Constraints**: classes are plain Java stubs returning wrong defaults; reuse `DeviceSessionGrouper.PlayerRef`
+
+## Group 6: Foundations (behavior-preserving; classic stays the default)
+- [ ] `BrowserHost` interface; classic activity implements it; fragments use it | `TabBrowserActivity.java`, the fragments listed in Group 5 (a)
+  - **Accept**: no `instanceof TabBrowserActivity` / cast remains in the fragments; each fragment asks its host (found via `getActivity()` instanceof `BrowserHost`) for navigation; classic behavior is unchanged (same tab switches)
+  - **Verify**: `./gradlew :yaacc:assembleDebug :yaacc:testDebugUnitTest`; `grep -rn "instanceof TabBrowserActivity" yaacc/src/main/java` returns nothing outside `TabBrowserActivity`
+  - **Constraints**: no behavior change in classic; method set comes from `docs/tech.md` (Group 5 (a))
+- [ ] Share-intent handling extracted | new `ShareIntentHandler` (name free), `TabBrowserActivity.java`
+  - **Accept**: the `ACTION_SEND` handling lives in a helper taking the activity/`UpnpClient` and a "show players" callback; `TabBrowserActivity` calls it; behavior unchanged
+  - **Verify**: `./gradlew :yaacc:assembleDebug :yaacc:testDebugUnitTest`
+  - **Constraints**: keep the 3 s waits and the "no receiver found using local device" fallback exactly; the untrusted `EXTRA_TEXT`/clip data is parsed as today and never executed
+- [ ] `BrowserLayoutChoice` (make Group 5 tests green), `LauncherActivity`, launch helper | `BrowserLayoutChoice.java`, `LauncherActivity.java`, `AndroidManifest.xml`, `Yaacc.java`, `PlayerService.java`
+  - **Accept**: `BrowserLayoutChoice` tests pass; `LauncherActivity` (`Theme.NoDisplay`, finishes in `onCreate`) holds the MAIN/LAUNCHER, LEANBACK_LAUNCHER and SEND text/plain filters moved from `TabBrowserActivity`, reads the preference, and forwards the original intent (action, extras, clip data, grant flags) to the chosen activity; `TabBrowserActivity` is `exported="false"` only if Group 5 (g) shows nothing external needs it, otherwise stays exported; the three internal launches use one helper that returns the chosen activity class; while the new activity doesn't exist yet the choice is always `CLASSIC`
+  - **Verify**: `./gradlew :yaacc:assembleDebug :yaacc:testDebugUnitTest :yaacc:lintDebug`; manifest diff shows exactly one exported launcher component and no new exported component other than `LauncherActivity`
+  - **Constraints**: security review checks the forwarded intent (no `FLAG_GRANT_*` added, no extras invented), intent-filter scope, and that `BrowserActivity` (Group 7) is not exported
+
+## Group 7: New browser activity (servers -> content)
+- [ ] `BrowserActivity` shell, toolbar, back handling, relaunch on setting change | `BrowserActivity.java`, `res/layout/activity_browser.xml`, `res/layout-land/activity_browser.xml` if needed, `res/menu/activity_browser.xml`, `AndroidManifest.xml`
+  - **Accept**: implements `BrowserHost`; hosts a fragment container; toolbar menu has settings, exit and the shutdown timer action; back goes content folder -> content root -> servers -> exit, exactly as the classic back flow does per Group 5 (b); `onNewIntent` and the share handler work via the Group 6 helper; `exported="false"`
+  - **Verify**: `./gradlew :yaacc:assembleDebug :yaacc:lintDebug`; no new lint issues in the new files
+  - **Constraints**: no tab bar; follows `docs/tech.md`; strings in 7 locales
+- [ ] Top-level server list fragment with the yaacc controls | `ServerRootFragment` (name free), reuse `BrowseDeviceAdapter`, layout
+  - **Accept**: lists servers as the Server tab does, tapping one shows `ContentListFragment` for it; the yaacc row keeps live-stream buttons and the settings gear; the yaacc server switch and provider/renderer/proxy icons are a top-level-only footer; refresh is in the "Servers" header; the shutdown timer shows in the toolbar (remaining time visible) and is settable; MediaProjection permission result is handled by the activity
+  - **Verify**: `./gradlew :yaacc:assembleDebug :yaacc:testDebugUnitTest`; the classic Server tab still works (shared adapter unchanged in behavior)
+  - **Constraints**: do not duplicate `BrowseDeviceAdapter`; shutdown timer logic is shared, not copied (extract per Group 5 (d)); server names/icons from LAN devices are plain text / `IconDownloadTask` only
+
+## Group 8: Receiver bar and mini-player at activity level
+- [ ] Receiver bar owned by the activity in the new layout | `ContentListFragment.java`, `activity_browser.xml`, a small reusable binder if useful
+  - **Accept**: in `BrowserActivity` the receiver bar shows at every level (servers and content) and opens the device sheet; `ContentListFragment` hides its own bar when its host provides one (a `BrowserHost` capability), classic unchanged; the no-receiver prompt works from the new layout
+  - **Verify**: `./gradlew :yaacc:assembleDebug :yaacc:testDebugUnitTest`; `ReceiverBarLabel` tests unchanged and green
+  - **Constraints**: reuse `ReceiverBarLabel`; no second status poller
+- [ ] `MiniPlayerPicker` (make Group 5 tests green) and the mini-player bar | `MiniPlayerPicker.java`, `MiniPlayerBar` view/controller, `res/layout/mini_player_bar.xml`
+  - **Accept**: picker tests pass; the bar sits directly above the receiver bar, shows the featured session's title, receiver name and album art with previous / play-pause / next / stop; hides when no player exists; tapping it opens that player's screen via `Player#getNotificationIntent()` (same as `PlayerListItemClickListener`); updates on `PlayerListChangeNotifier` events plus a 2 s poll that runs only while the activity is started; all listeners removed on stop/destroy; D-pad reaches every button
+  - **Verify**: `./gradlew :yaacc:assembleDebug :yaacc:testDebugUnitTest :yaacc:lintDebug`
+  - **Constraints**: titles/receiver names/album art come from untrusted LAN devices: plain `TextView`, art only via `IconDownloadTask`; player commands run off the main thread as `ReceiverRowBinder` does; no new exported components; no polling while stopped
+
+## Group 9: Setting and activation
+- [ ] "Layout" preference in the normal settings screen | `res/xml/preference.xml`, `strings.xml` x7, `BrowserLayoutChoice`, `SettingsActivity`/browser activities
+  - **Accept**: a list preference "Layout" with entries Classic tabs / New (strings in 7 locales; default `classic`); `BrowserLayoutChoice` now returns `NEW` when selected (never defaulting to it on TV); changing it and leaving Settings relaunches into the other activity, clearing the old one from the back stack; both activities and the notification launches follow the choice; classic -> new -> classic keeps the app state sane (players keep running)
+  - **Verify**: `./gradlew :yaacc:assembleDebug :yaacc:testDebugUnitTest :yaacc:lintDebug`
+  - **Constraints**: preference key added as a string resource like the others; no other settings behavior changes
+- [ ] Manual checks (with the owner) | n/a
+  - **Accept**: owner confirms on a phone: switching in both directions; servers -> content -> back; yaacc row stream buttons and server switch; shutdown timer in the toolbar; receiver bar and sheet at every level; mini-player appears, drives previous/play-pause/next/stop and opens the player; share-to-yaacc from another app lands in the chosen layout; rotation; Android TV D-pad reaches all new controls (if hardware is available)
+  - **Verify**: owner sign-off in chat
+  - **Constraints**: leave unchecked until confirmed
+
+## Group 10: Documentation update
+- [ ] Update documentation for phase 2 | `docs/index.md`, `README.md` if user-facing text changed, `CHANGELOG.md`, `docs/tech.md`
+  - **Accept**: docs describe the Layout setting, both layouts, the mini-player and the new top level; CHANGELOG Unreleased has Added/Changed entries; `docs/tech.md` is as-built
+  - **Verify**: `grep -rn 'TODO\|FIXME\|PLACEHOLDER' docs/index.md docs/tech.md CHANGELOG.md || true` returns no plan-related placeholders
+  - **Constraints**: do not document anything descoped or marked `[!]`; screenshots stay the owner's job
