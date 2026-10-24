@@ -21,12 +21,26 @@ import android.os.Bundle;
 
 import androidx.appcompat.app.AppCompatActivity;
 
-import de.yaacc.browser.TabBrowserActivity;
-
 /**
  * @author Christoph Hähnel (eyeless)
  */
 public class SettingsActivity extends AppCompatActivity {
+
+    // Set when the user leaves the settings, read once by the browser that resumes next, so that
+    // changed server settings take effect. Lifecycle callbacks only, i.e. main thread.
+    private static boolean leftSettings = false;
+
+    /**
+     * Tells whether the settings were left since the last call, and resets that. Called by the
+     * browser activities in {@code onResume}.
+     *
+     * @return true if the settings were left since the last call
+     */
+    public static boolean consumeLeftSettings() {
+        boolean result = leftSettings;
+        leftSettings = false;
+        return result;
+    }
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -39,6 +53,6 @@ public class SettingsActivity extends AppCompatActivity {
     @Override
     protected void onPause() {
         super.onPause();
-        TabBrowserActivity.leftSettings = true;
+        leftSettings = true;
     }
 }

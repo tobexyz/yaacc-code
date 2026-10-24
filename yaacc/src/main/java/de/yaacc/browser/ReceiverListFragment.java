@@ -154,10 +154,6 @@ public class ReceiverListFragment extends Fragment implements
     public boolean onBackPressed() {
 
         YaaccLogger.d(ReceiverListFragment.class.getName(), "onBackPressed() CurrentPosition");
-        if (getActivity().getParent() instanceof TabBrowserActivity) {
-            ((TabBrowserActivity) getActivity().getParent()).setCurrentTab(BrowserTabs.CONTENT);
-        }
-
         return true;
     }
 

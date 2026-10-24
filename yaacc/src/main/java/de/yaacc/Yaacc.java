@@ -29,6 +29,8 @@ import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.os.BatteryManager;
 import android.os.CountDownTimer;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.PowerManager;
 
 import androidx.appcompat.app.AppCompatDelegate;
@@ -37,6 +39,7 @@ import androidx.preference.PreferenceManager;
 
 import java.util.HashMap;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
@@ -63,7 +66,9 @@ public class Yaacc extends Application {
     private UpnpClient upnpClient;
     private Executor contentLoadThreadPool;
     private CountDownTimer shutdownTimer;
-    private ShutdownTimerListener shutdownTimerListener;
+    private final CopyOnWriteArrayList<ShutdownTimerListener> shutdownTimerListeners = new CopyOnWriteArrayList<>();
+    private volatile boolean shutdownTimerRunning = false;
+    private volatile long shutdownTimerRemainingMillis = 0L;
 
 
     @Override
@@ -191,21 +196,37 @@ public class Yaacc extends Application {
         }
     }
 
+    /**
+     * Starts the shutdown timer. The timer and its listener calls run on the main thread; a call
+     * from another thread is posted there.
+     */
     public void startShutdownTimer(long duration) {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            new Handler(Looper.getMainLooper()).post(() -> startShutdownTimer(duration));
+            return;
+        }
         stopShutdownTimer();
+        shutdownTimerRunning = true;
+        shutdownTimerRemainingMillis = duration;
         shutdownTimer = new CountDownTimer(duration, 1000L) {
             @Override
             public void onTick(long millisUntilFinished) {
                 YaaccLogger.d(getClass().getName(), "Shutdown in: " + millisUntilFinished + " millis");
-                if (getShutdownTimerListener() != null) {
-                    getShutdownTimerListener().onTick(millisUntilFinished);
+                shutdownTimerRemainingMillis = millisUntilFinished;
+                for (ShutdownTimerListener listener : shutdownTimerListeners) {
+                    try {
+                        listener.onTick(millisUntilFinished);
+                    } catch (RuntimeException e) {
+                        YaaccLogger.w(getClass().getName(), "Shutdown timer listener failed", e);
+                    }
                 }
-
             }
 
             @Override
             public void onFinish() {
                 YaaccLogger.v(getClass().getName(), "Shutdown timer finished shutting down now!");
+                shutdownTimerRunning = false;
+                shutdownTimerRemainingMillis = 0L;
                 exit();
             }
         };
@@ -215,14 +236,38 @@ public class Yaacc extends Application {
     public void stopShutdownTimer() {
         if (shutdownTimer != null) {
             shutdownTimer.cancel();
+            shutdownTimer = null;
+        }
+        shutdownTimerRunning = false;
+        shutdownTimerRemainingMillis = 0L;
+    }
+
+    /**
+     * @return true while a shutdown timer is counting down
+     */
+    public boolean isShutdownTimerRunning() {
+        return shutdownTimerRunning;
+    }
+
+    /**
+     * @return the time left on the running shutdown timer as of the last tick, 0 if none runs
+     */
+    public long getShutdownTimerRemainingMillis() {
+        return shutdownTimerRemainingMillis;
+    }
+
+    /**
+     * Adds a listener that is called on the main thread on every tick. The application keeps it
+     * until {@link #removeShutdownTimerListener(ShutdownTimerListener)}, so remove it when the UI
+     * that owns it stops. Adding the same listener twice has no effect.
+     */
+    public void addShutdownTimerListener(ShutdownTimerListener listener) {
+        if (listener != null) {
+            shutdownTimerListeners.addIfAbsent(listener);
         }
     }
 
-    public ShutdownTimerListener getShutdownTimerListener() {
-        return shutdownTimerListener;
-    }
-
-    public void setShutdownTimerListener(ShutdownTimerListener shutdownTimerListener) {
-        this.shutdownTimerListener = shutdownTimerListener;
+    public void removeShutdownTimerListener(ShutdownTimerListener listener) {
+        shutdownTimerListeners.remove(listener);
     }
 }
