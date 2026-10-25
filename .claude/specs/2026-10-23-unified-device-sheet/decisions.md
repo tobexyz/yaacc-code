@@ -170,3 +170,35 @@ for later would leave the new layout without quick access to running players.
 **Context**: Auto Backup (default on) copied the default preferences file, including the `proxy_link_*` entries (shared URLs, possibly with tokens), the receiver selection, SAF cache entries and the stored layout, to the user's Google account; raised in the Group 7-9 security reviews.
 **Decision**: `android:allowBackup="false"` on `<application>`. Settings are re-entered on a new device (the owner: the setup is easy). No exclusion rules.
 **Rationale**: simplest and safest; the privacy exposure of stored proxy links outweighs the convenience of restored settings. Not verified with a full Gradle build in this container (no SDK): a manifest merge conflict is only possible if a dependency sets the attribute itself, which none is known to.
+
+## 2026-10-25 - Share feature scoped (Phase 3)
+**Owner decisions**: (1) per-share temporary proxy, not the persistent setting; (2) keep a local file readable by holding its descriptor open (option A), copy to the app cache only for non-seekable providers; (3) every share served through the proxy is restricted to the chosen receivers' IPs and expires; (4) receivers are picked per action (share, play, play-all) in the new layout and the selection is cleared afterwards; (5) one file only at first.
+**Readings to confirm**: (4) applies to the new layout only (classic keeps its tab-based selection and static footer); (3) applies to every share served through the proxy, including http(s) links, which also moves them out of the preferences (`proxy_link_*` retired).
+**See** design.md "Phase 3" for the threat model and risks, and tasks.md Groups 12-16.
+
+## 2026-10-25 - Share feature: readings confirmed, IP check becomes a setting
+The owner confirmed both readings (receiver picking in the new layout only; every share served through the proxy, links included, moves to the in-memory registry). The strict IP check gets a checkbox setting, default on, so a user whose receiver fetches from another address can switch it off (random key and expiry stay). The picker title "Play on..." was proposed and not objected to.
+
+## 2026-10-25 - Build environment: the Android build works in a fresh container
+An earlier reviewer reported "no SDK, cannot build" and I repeated it; the owner corrected this. The container simply has no SDK pre-installed. Installing the Android command-line tools (https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip), accepting the licenses and installing `platforms;android-36` plus `platform-tools` into `/root/android-sdk` (AGP then downloads the build tools itself), with `sdk.dir=/root/android-sdk` in `local.properties` (git-ignored), makes `./gradlew` work. Maven Central answers some downloads with HTTP 429; re-running the build a few times lets Gradle cache what it got. Verified result for 3d6b6ea0: 337 tests, 0 failures, lint 190. To avoid redoing this per container, the SDK install belongs into the environment's setup script.
+
+## 2026-10-25 - Phase 3 plan corrected by the Group 12 research
+1. The HTTP server is not off when the "local server" setting is off (it always runs while the process lives): nothing is started or stopped per share; registry entries are served before the settings gate and the share waits until the server answers.
+2. Residual confused deputy (broad media permissions/SAF grants): accepted and documented, mitigated by the type check, the per-share receiver pick that shows the file name, and the IP/expiry limits. To be confirmed by the owner.
+3. `createPlayableItem` must handle `content:` URIs properly (provider MIME type, metadata through a `MediaDataSource`).
+4. Clearing the receiver selection after every action breaks "add to playlist" in the new layout; proposal: it uses the picker too. Owner decision pending.
+5. New `UpnpClient.clearReceiverDevices()` (fires the events the receiver bar needs); fix the mutation of the `SharedPreferences` set.
+6. `Os.pread` instead of a shared `FileChannel`; `dup()` the descriptor so the provider process is not pinned; close locked against reads.
+7. The old range code and the proxy handler's `new File(uri)` path are replaced for registry entries (new `ByteRangeResolver`, tested first).
+8. The forward from the launcher carries one ClipData item plus the read flag (the system never checks `EXTRA_STREAM`), after verifying that both match; failures fall back to a plain launch.
+
+## 2026-10-25 - Phase 3 plan amended by the Group 12 security review
+1. Nothing is opened or registered at intake: a pending share holds only the validated URI and a cleaned name; the descriptor/copy and the registry slot come after the user's confirmation; one pending share, with a timeout; a second share while one is pending is dropped.
+2. Classic has no receiver pick of its own: a shared file opens the pick-mode sheet there too (owner decision 2026-10-25, replacing the confirmation dialog).
+3. `ShareIntentHandler` repeats all intake checks (the activities can be started directly); own-authority is checked through `PackageManager.resolveContentProvider` as well; API 35+ additionally verifies the sender's grant via `getInitialCaller()` in the LAUNCHER before the forward (in the browser the initial caller is the launcher, so the check cannot live in the handler).
+4. Registry eviction of released entries, non-blocking close, clamped offsets, concurrency/idle caps, IP setting default-true everywhere, loopback only for a chosen local receiver.
+5. Docs: no exploit-level detail about the existing released proxy behavior in the public docs (the passage in docs/tech.md was softened); document that the key is visible to LAN control points. Recommendation to the owner: ship the share hardening (http/https only) as a patch release from develop before this branch is merged, since 5.4.0 still has the old behavior.
+
+## 2026-10-25 - Owner answers: classic shares and "add to playlist" both open the picker
+1. A shared file in the classic layout opens the same "Play on..." pick-mode sheet (no confirmation dialog, no refusal). Normal classic browsing still never shows the sheet. In classic the selection is not cleared: it is the initial tick state and the previous selection is restored once the playback has started (assumption, say if you want "clear" there too).
+2. "Add to playlist" in the new layout opens the picker, adds to the chosen receivers' playlists and clears the selection afterwards.

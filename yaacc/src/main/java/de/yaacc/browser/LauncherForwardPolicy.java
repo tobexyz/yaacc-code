@@ -72,4 +72,75 @@ public final class LauncherForwardPolicy {
         }
         return new Decision(text);
     }
+
+    /**
+     * {@code Intent.FLAG_GRANT_READ_URI_PERMISSION}, repeated here as a number so this class
+     * stays free of {@code android.*} (the value is part of the platform API and does not change).
+     */
+    public static final int FLAG_GRANT_READ_URI_PERMISSION = 0x1;
+
+    private static final StreamDecision NO_STREAM = new StreamDecision(null);
+
+    /**
+     * What to forward for a shared file: either nothing (no stream forward; the launch stays a
+     * plain one, or the text path decides), or exactly ONE {@code content:} URI to hand on as the
+     * only item of a new ClipData together with {@link #FLAG_GRANT_READ_URI_PERMISSION}. The
+     * decision carries nothing else: no type, no text, no extras, no other flags.
+     */
+    public static final class StreamDecision {
+        private final String streamUri;
+
+        private StreamDecision(String streamUri) {
+            this.streamUri = streamUri;
+        }
+
+        /** @return true if {@link #getStreamUri()} is to be forwarded with the read grant */
+        public boolean isForwardStream() {
+            return streamUri != null;
+        }
+
+        /** @return the one URI to forward, or null if nothing is forwarded */
+        public String getStreamUri() {
+            return streamUri;
+        }
+
+        /** @return true exactly when {@link #isForwardStream()} is true: read grant, never write */
+        public boolean grantsRead() {
+            return streamUri != null;
+        }
+    }
+
+    /**
+     * Decides whether the launcher forwards a shared file. Forwarded only if ALL hold:
+     * <ul>
+     * <li>{@code action} is exactly {@code android.intent.action.SEND};</li>
+     * <li>{@code type} is an audio, video or image type, concrete ({@code image/png}) or a
+     * sender's wildcard ({@code audio/*}): exact lower-case match, no parameters, no other
+     * spelling. The real type is checked later via
+     * {@code SharedContentPolicy#chooseMimeType}; {@code text/plain} (the text path, see
+     * {@link #decide(String, String, String)}), {@code application/*}, a bare {@code *}{@code /*}
+     * and null are not forwarded;</li>
+     * <li>{@code streamUri} (EXTRA_STREAM as text) equals {@code clipItemUri} (ClipData item 0 as
+     * text) exactly: the system checks only data and ClipData for the grant, never EXTRA_STREAM,
+     * so a mismatch could name a URI the sender holds no grant for;</li>
+     * <li>{@code incomingFlags} contain {@link #FLAG_GRANT_READ_URI_PERMISSION}: the sender really
+     * passed a read grant on;</li>
+     * <li>{@code SharedContentPolicy.isAcceptableUri(streamUri, ownAuthority)} (only
+     * {@code content:} URIs of other apps).</li>
+     * </ul>
+     * Otherwise the answer is "no stream forward". Never throws.
+     *
+     * @param action       the incoming action, may be null
+     * @param type         the incoming MIME type, may be null
+     * @param streamUri    the incoming EXTRA_STREAM URI as text, may be null
+     * @param clipItemUri  the URI of ClipData item 0 as text, may be null
+     * @param incomingFlags the incoming intent flags
+     * @param ownAuthority the authority of yaacc's own file provider
+     */
+    public static StreamDecision decideStream(String action, String type, String streamUri,
+                                              String clipItemUri, int incomingFlags,
+                                              String ownAuthority) {
+        // STUB (red phase): wrong on purpose (fail closed: never forward)
+        return NO_STREAM;
+    }
 }

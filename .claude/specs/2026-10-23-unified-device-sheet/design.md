@@ -236,6 +236,32 @@ the new top-level server list is a different navigation model anyway.
 - Not renaming `TabBrowserActivity`; "Classic" appears only in the settings
   UI and docs.
 
+## Phase 3: sharing local files, and picking receivers per action
+
+Scoped with the owner on 2026-10-25 (decisions.md "Share feature scoped"). Replaces Backlog 1.
+
+### Decisions (owner)
+1. **Per-share registry entry**, not the persistent "media proxy" setting. The user's settings are never changed. *(Corrected by the Group 12 research: the HTTP server is always running while the app process lives, whatever the "local server" setting says; that setting only decides which UPnP services are published. So nothing is started or stopped for a share: the proxy path serves registry entries before the settings gate, and the share waits until the server answers.)*
+2. **Local files are kept readable by holding the file descriptor open (option A).** The descriptor is opened only AFTER the user confirmed the receiver pick (in both layouts: classic opens the same pick-mode sheet for a shared file), while the sender's read permission is still valid because the receiving activity is alive; a pending, unconfirmed share holds no descriptor, no copy and no registry slot. No copy by default. If the provider's descriptor cannot seek, fall back to a copy in the app cache (option B), with a size cap.
+3. **Every share served through the proxy** (files and http/https links) gets a random unguessable key, lives in memory only (no more `proxy_link_*` in the preferences), is only served to the chosen receivers' IP addresses (a setting, on by default, lets the user switch this check off for receivers that fetch from another address), and expires (when its player ends plus a grace period, and after an absolute timeout).
+4. **Receivers are picked per action in the new layout:** share, play and play-all open the receiver picker (the device sheet in a pick mode); after the playback has started the receiver selection is cleared. The classic layout keeps its tab-based selection and static footer; the only addition there is that a shared file (not normal browsing) opens the same pick-mode sheet; the previous classic selection is restored afterwards.
+5. **One file per share** in the first version (no `SEND_MULTIPLE`).
+
+### Threat model for local files
+The share entry (the exported launcher) accepts intents from every app.
+- **Confused deputy / own data:** a `file://` URI, or a `content://` URI of yaacc's own file provider, would let any app make yaacc read and serve its private data (preferences, caches) to the LAN. Only `content://` URIs of other apps are accepted; `file:` and any URI whose authority is ours are rejected; the content must report an audio, video or image MIME type.
+- **Permission forwarding:** the sender's temporary read grant is honored by Android only if the sender really holds it. The launcher forwards exactly one `content:` URI as ONE ClipData item (`ClipData.newRawUri`) together with `FLAG_GRANT_READ_URI_PERMISSION` (a deliberate, narrow exception to "no URIs and no flags"), nothing else from the incoming intent, after checking that the incoming `EXTRA_STREAM` equals ClipData item 0 and that the incoming flags carry the read grant (the system checks only `data` and ClipData, never `EXTRA_STREAM`).
+- **Exposure on the LAN:** the key is 128-bit random and unguessable, the registry is in memory, entries expire, and only the chosen receivers' IPs are served (setting, default on). The HTTP server itself listens whenever the app process lives (existing behavior); without registry entries the proxy path answers 404/403 as before.
+- **Residual risk (accepted, owner to confirm):** Android checks only that yaacc itself can read the URI. Yaacc holds broad media permissions and SAF grants, so a malicious sender could name MediaStore/SAF content it cannot read itself; there is no public API to tell "granted by the sender" from "readable by us anyway". Gates: audio/video/image type check, a human-in-the-loop (new layout: every share needs a receiver pick that shows the cleaned name of what will be played; classic: the same pick-mode sheet, opened only for a shared file, showing the cleaned name), and the IP/expiry limits.
+- **Resource use:** one open descriptor per active share, closed on expiry/stop; a size cap for the copy fallback; at most a few active shares.
+
+### Receiver picking (new layout)
+Play, play-all and share open the device sheet in a *pick mode* (title "Play on...", checkboxes, a confirm button). Confirming sets the receivers, starts the playback and then clears the selection. The receiver bar then shows no selection by design; it opens the sheet for controlling receivers and players.
+
+### Known risks of the design
+- A strict per-IP check can fail with renderers that fetch from another address than their descriptor host (multi-homed devices, IPv6); then playback fails with a 403 and a log line. Mitigation (owner decision 2026-10-25): a setting "Restrict the media proxy to the chosen receivers", default on; switching it off keeps the random key and expiry but skips the IP check. A manual check with the user's receivers is part of the plan.
+- Holding the descriptor needs a seekable provider for range requests; the copy fallback covers the rest.
+
 ## Risks
 - **D-pad focus inside a bottom sheet on TV:** not yet verified. The
   mitigation is that the tabs stay in this phase, so TV users keep a
