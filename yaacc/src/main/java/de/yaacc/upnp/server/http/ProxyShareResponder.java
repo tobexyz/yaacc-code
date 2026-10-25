@@ -51,10 +51,13 @@ import de.yaacc.share.ByteRangeResolver;
 import de.yaacc.share.HttpLinkTarget;
 import de.yaacc.share.PositionalSource;
 import de.yaacc.share.ProxyAccessPolicy;
+import de.yaacc.share.RendererIdPolicy;
+import de.yaacc.share.ServerSideSeeking;
 import de.yaacc.share.RangeStreamer;
 import de.yaacc.share.ShareConcurrencyLimiter;
 import de.yaacc.share.ShareLimits;
 import de.yaacc.share.ShareRegistry;
+import de.yaacc.settings.SettingsFragment;
 import de.yaacc.upnp.server.http.YaaccUpnpServerContentHttpHandler.ContentHolder;
 import de.yaacc.util.HttpRange;
 import de.yaacc.util.YaaccLogger;
@@ -67,7 +70,7 @@ import de.yaacc.util.YaaccLogger;
  * Decisions, in order (every answer for a bad key is the same constant page, no path, key or
  * link is ever echoed or logged):
  * <ol>
- * <li>path is not exactly {@code /proxy/<well-formed key>}, no registry, unknown, expired or released-and-over key: 404</li>
+ * <li>path is not {@code /proxy/<well-formed key>} or {@code /proxy/<deviceId>/<well-formed key>}, no registry, unknown, expired or released-and-over key: 404</li>
  * <li>remote address (only from the connection's endpoint details, never from a header) not allowed by
  * {@link ProxyAccessPolicy} for the entry: 403, on every request including {@code HEAD} and range continuations</li>
  * <li>LOCAL_FILE: {@link ByteRangeResolver} against the held source: 200, 206 or 416</li>
@@ -87,6 +90,9 @@ final class ProxyShareResponder {
     /** Running responses per share, for the whole process. */
     private static final ShareConcurrencyLimiter LIMITER = new ShareConcurrencyLimiter();
 
+    /** Preference that holds the playback position (ms) after the last seek, per renderer. */
+    static final String SEEK_POSITION_PREFERENCE_PREFIX = "server_position_";
+
     private final Context context;
     private final SharedPreferences preferences;
 
@@ -98,7 +104,10 @@ final class ProxyShareResponder {
     void respond(Message<HttpRequest, byte[]> request, ResponseTrigger responseTrigger,
                  HttpContext httpContext, boolean head, List<String> pathSegments)
             throws HttpException, IOException {
-        String key = pathSegments.size() == 2 ? pathSegments.get(1) : null;
+        // /proxy/<key>, or /proxy/<deviceId>/<key> from a renderer with server-side time range management
+        String key = pathSegments.size() == 2 ? pathSegments.get(1)
+                : pathSegments.size() == 3 ? pathSegments.get(2) : null;
+        String deviceId = pathSegments.size() == 3 ? pathSegments.get(1) : null;
         ShareRegistry registry = registryOf();
         ShareRegistry.Entry entry = registry != null && ShareRegistry.isWellFormedKey(key)
                 ? registry.lookup(key) : null;
@@ -114,6 +123,11 @@ final class ProxyShareResponder {
             submitConstant(responseTrigger, httpContext, HttpStatus.SC_FORBIDDEN, FORBIDDEN_BODY);
             return;
         }
+        if (deviceId != null && !RendererIdPolicy.isValid(deviceId)) {
+            // untrusted: only checked after the key and the address were accepted
+            submitConstant(responseTrigger, httpContext, HttpStatus.SC_NOT_FOUND, NOT_FOUND_BODY);
+            return;
+        }
         Header rangeHeader = request.getHead().getHeader(HttpHeaders.RANGE);
         String rangeValue = rangeHeader == null ? null : rangeHeader.getValue();
         BooleanSupplier live = () -> registry.lookup(key) != null;
@@ -124,7 +138,7 @@ final class ProxyShareResponder {
         } else if (entry.getKind() == ShareRegistry.Kind.HTTP_LINK
                 && entry.getTarget() instanceof HttpLinkTarget) {
             respondLink(responseTrigger, httpContext, entry, (HttpLinkTarget) entry.getTarget(), key,
-                    rangeValue, head, live);
+                    deviceId, rangeValue, head, live);
         } else {
             submitConstant(responseTrigger, httpContext, HttpStatus.SC_NOT_FOUND, NOT_FOUND_BODY);
         }
@@ -175,8 +189,8 @@ final class ProxyShareResponder {
     // ---- HTTP_LINK
 
     private void respondLink(ResponseTrigger trigger, HttpContext httpContext, ShareRegistry.Entry entry,
-                             HttpLinkTarget target, String key, String rangeValue, boolean head,
-                             BooleanSupplier live) throws HttpException, IOException {
+                             HttpLinkTarget target, String key, String deviceId, String rangeValue,
+                             boolean head, BooleanSupplier live) throws HttpException, IOException {
         // the scheme is checked again where the link is fetched: nothing but http(s) leaves this class
         if (!HttpLinkTarget.isFetchable(target.getUrl())) {
             submitConstant(trigger, httpContext, HttpStatus.SC_NOT_FOUND, NOT_FOUND_BODY);
@@ -186,16 +200,26 @@ final class ProxyShareResponder {
         ContentType contentType = contentTypeOf(mimeType.toString());
         List<ByteRangeResolver.Range> parsed = ByteRangeResolver.parseHeader(rangeValue);
         ByteRangeResolver.Range requested = parsed.size() == 1 && parsed.get(0).isValid() ? parsed.get(0) : null;
+        // server-side time range management: only for a renderer that has the per-device setting on
+        boolean serverSeeking = deviceId != null && !parsed.isEmpty() && serverSideSeekingEnabled(deviceId);
 
         int status = HttpStatus.SC_OK;
         String contentRange = null;
         long headLength = -1L;
         List<HttpRange> upstreamRanges = Collections.emptyList();
-        if (requested != null || head) {
+        if (requested != null || head || serverSeeking) {
             // blocking HEAD to the remote host (5 s timeouts) on the I/O thread, as before
             long length = new ContentHolder(mimeType, target.getUrl(), Collections.emptyList(), context)
                     .getContentLength();
             headLength = length;
+            if (serverSeeking) {
+                long position = ServerSideSeeking.plan(target.getRendererStates(), deviceId,
+                        () -> storedSeekPosition(deviceId), length);
+                if (position > 0L) {
+                    // replaces the range the renderer asked for by the position the server computed
+                    requested = ByteRangeResolver.Range.from(position);
+                }
+            }
             if (requested != null) {
                 if (length > 0L) {
                     ByteRangeResolver.Result result = ByteRangeResolver.resolve(
@@ -250,6 +274,24 @@ final class ProxyShareResponder {
         addStreamingHeaders(builder);
         builder.setEntity(producer);
         submit(trigger, httpContext, builder, lease);
+    }
+
+    /** The per-device setting; the id was validated, default false, a read failure counts as off. */
+    private boolean serverSideSeekingEnabled(String deviceId) {
+        try {
+            return preferences.getBoolean(SettingsFragment.MANAGE_EXTERNAL_SEEKING + deviceId, false);
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
+    /** Position (ms) stored after the last seek on this renderer; 0 if none. */
+    private long storedSeekPosition(String deviceId) {
+        try {
+            return preferences.getLong(SEEK_POSITION_PREFERENCE_PREFIX + deviceId, 0L);
+        } catch (RuntimeException e) {
+            return 0L;
+        }
     }
 
     private static HttpRange toHttpRange(ByteRangeResolver.Range range) {

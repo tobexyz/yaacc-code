@@ -75,6 +75,9 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import de.yaacc.R;
 import de.yaacc.Yaacc;
+import de.yaacc.share.HttpLinkTarget;
+import de.yaacc.share.RendererIdPolicy;
+import de.yaacc.share.ShareRegistry;
 import de.yaacc.upnp.server.YaaccUpnpServerService;
 import de.yaacc.upnp.server.contentdirectory.ContentDirectoryIDs;
 import de.yaacc.upnp.server.contentdirectory.MediaPathFilter;
@@ -96,6 +99,29 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
     public YaaccUpnpServerContentHttpHandler(Context context) {
         this.context = context;
         preferences = PreferenceManager.getDefaultSharedPreferences(context);
+    }
+
+    /**
+     * Tells the server-side time range management where a renderer is playing (position change,
+     * seek). Only an EXISTING state of a live http(s) share is changed; nothing is created, and
+     * an invalid key or device id does nothing. Neither is logged.
+     *
+     * @param shareKey the key of the share (last segment of its proxy URL)
+     * @param deviceId the renderer's id
+     */
+    public static void updateRendererPosition(Context context, String shareKey, String deviceId,
+                                              long timeMs, boolean isPaused) {
+        try {
+            if (!ShareRegistry.isWellFormedKey(shareKey) || !RendererIdPolicy.isValid(deviceId)) {
+                return;
+            }
+            ShareRegistry.Entry entry = ((Yaacc) context.getApplicationContext()).getShareRegistry().lookup(shareKey);
+            if (entry != null && entry.getTarget() instanceof HttpLinkTarget) {
+                ((HttpLinkTarget) entry.getTarget()).getRendererStates().update(deviceId, timeMs, isPaused);
+            }
+        } catch (RuntimeException e) {
+            // best effort: the renderer's position is only an estimate anyway
+        }
     }
 
     @Override

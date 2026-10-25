@@ -51,6 +51,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import de.yaacc.share.ShareLogRedactor;
 import de.yaacc.util.YaaccLogger;
 
 public class HttpRequestSender {
@@ -70,8 +71,8 @@ public class HttpRequestSender {
 
     public StreamResponseMessage send(StreamRequestMessage requestMessage) throws IOException {
 
-        YaaccLogger.v(getClass().getName(), "Sending HTTP request: " + requestMessage);
-        YaaccLogger.v(getClass().getName(), "HTTP body: " + requestMessage.getBodyString());
+        YaaccLogger.v(getClass().getName(), "Sending HTTP request: " + ShareLogRedactor.redact(String.valueOf(requestMessage)));
+        YaaccLogger.v(getClass().getName(), "HTTP body: " + ShareLogRedactor.redact(requestMessage.getBodyString()));
         HttpUriRequestBase request = new HttpUriRequestBase(requestMessage.getOperation().getHttpMethodName(), requestMessage.getUri());
         applyRequestHeader(requestMessage, request);
         applyRequestBody(requestMessage, request);
@@ -110,7 +111,7 @@ public class HttpRequestSender {
     private void applyRequestBody(StreamRequestMessage requestMessage, ClassicHttpRequest request) {
         // Body
         if (requestMessage.hasBody()) {
-            YaaccLogger.d(getClass().getName(), "Writing textual request body: " + requestMessage);
+            YaaccLogger.d(getClass().getName(), "Writing textual request body: " + ShareLogRedactor.redact(String.valueOf(requestMessage)));
             MimeType contentType =
                     requestMessage.getContentTypeHeader() != null
                             ? requestMessage.getContentTypeHeader().getValue()
@@ -143,7 +144,7 @@ public class HttpRequestSender {
                             + " from upstream UPnP device - treating as non-UPnP failure response, skipping device");
             responseOperation = new UpnpResponse(response.getCode(), "HTTP " + response.getCode());
         }
-        YaaccLogger.d(getClass().getName(), "Received response: " + responseOperation);
+        YaaccLogger.d(getClass().getName(), "Received response: " + ShareLogRedactor.redact(String.valueOf(responseOperation)));
         StreamResponseMessage responseMessage = new StreamResponseMessage(responseOperation);
         // Headers
         UpnpHeaders headers = new UpnpHeaders();
@@ -167,7 +168,7 @@ public class HttpRequestSender {
         } else {
             YaaccLogger.d(getClass().getName(), "Response did not contain entity body");
         }
-        YaaccLogger.d(getClass().getName(), "Response message complete: " + responseMessage);
+        YaaccLogger.d(getClass().getName(), "Response message complete: " + ShareLogRedactor.redact(String.valueOf(responseMessage)));
         return responseMessage;
     }
 

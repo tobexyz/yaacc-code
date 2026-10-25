@@ -31,9 +31,19 @@ public final class HttpLinkTarget {
     public static final int MAX_LENGTH = 2048;
 
     private final String url;
+    /**
+     * State of the server-side time range management, per renderer, bounded. It lives and dies
+     * with the target, so with the share.
+     */
+    private final RendererStateMap rendererStates = new RendererStateMap(RendererStateMap.DEFAULT_MAX);
 
     private HttpLinkTarget(String url) {
         this.url = url;
+    }
+
+    /** @return the bounded per-renderer state of the share (never null) */
+    public RendererStateMap getRendererStates() {
+        return rendererStates;
     }
 
     /**

@@ -22,6 +22,7 @@ import android.app.PendingIntent;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.net.Uri;
@@ -32,6 +33,7 @@ import android.support.v4.media.session.MediaSessionCompat;
 import android.widget.Toast;
 
 import androidx.annotation.Nullable;
+import androidx.preference.PreferenceManager;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.Player;
 import androidx.media3.common.util.BitmapLoader;
@@ -80,6 +82,9 @@ import java.util.concurrent.TimeUnit;
 
 import de.yaacc.R;
 import de.yaacc.Yaacc;
+import de.yaacc.settings.SettingsFragment;
+import de.yaacc.share.RendererIdPolicy;
+import de.yaacc.share.ShareRegistry;
 import de.yaacc.upnp.ActionState;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.callback.avtransport.GetPositionInfo;
@@ -90,6 +95,8 @@ import de.yaacc.upnp.callback.avtransport.Seek;
 import de.yaacc.upnp.callback.avtransport.SetAVTransportURI;
 import de.yaacc.upnp.callback.avtransport.Stop;
 import de.yaacc.upnp.callback.connectionmanager.GetProtocolInfo;
+import de.yaacc.upnp.server.http.YaaccUpnpServerContentHttpHandler;
+import de.yaacc.util.InterfaceResolutionHelper;
 import de.yaacc.util.YaaccLogger;
 import de.yaacc.util.image.BitmapSampling;
 import de.yaacc.util.image.IconDownloadCacheHandler;
@@ -684,6 +691,28 @@ public class AVTransportPlayer extends AbstractPlayer {
         actionState.actionFinished = false;
         Item item = playableItem.getItem();
 
+        // A renderer with server-side time range management gets /proxy/<deviceId>/<key> URLs,
+        // also in the metadata it receives
+        if (isServerSideSeekingEnabled() && item != null) {
+            // Make a copy of the item to avoid modifying the shared instance
+            try {
+                Item itemCopy = new Item(item.getId(), item.getParentID(), item.getTitle(),
+                        item.getCreator(), item.getClazz());
+                for (DIDLObject.Property property : item.getProperties()) {
+                    itemCopy.addProperty(property);
+                }
+                for (Res resource : item.getResources()) {
+                    String modifiedUri = modifyProxyUrlWithDeviceId(resource.getValue());
+                    itemCopy.addResource(new Res(resource.getProtocolInfo(), resource.getSize(),
+                            resource.getDuration(), resource.getBitrate(), modifiedUri));
+                }
+                item = itemCopy;
+            } catch (Exception e) {
+                YaaccLogger.e(getClass().getName(), "Failed to copy/modify item (" + e.getClass().getSimpleName() + ")");
+                item = playableItem.getItem(); // Fall back to original
+            }
+        }
+
         String metadata;
         try {
             metadata = new DIDLParser().generate((item == null) ? new DIDLContent() : new DIDLContent().addItem(item), false);
@@ -717,7 +746,7 @@ public class AVTransportPlayer extends AbstractPlayer {
         }
 
         InternalSetAVTransportURI setAVTransportURI = new InternalSetAVTransportURI(
-                service, playableItem.getUri().toString(), actionState, metadata,
+                service, modifyProxyUrlWithDeviceId(playableItem.getUri().toString()), actionState, metadata,
                 getHttpRequestSender());
         YaaccLogger.d(getClass().getName(), "SetAVTransportURI - Title: " + (item != null ? item.getTitle() : "null") + ", Metadata length: " + metadata.length());
         executorService.execute(setAVTransportURI);
@@ -1390,6 +1419,23 @@ public class AVTransportPlayer extends AbstractPlayer {
                 //super.success(invocation);
                 YaaccLogger.d(getClass().getName(), "success seek" + invocation);
 
+                // Update server-side position for external URLs
+                int currentIndex = getCurrentItemIndex();
+                if (currentIndex >= 0 && currentIndex < getItems().size()) {
+                    String itemUri = String.valueOf(getItems().get(currentIndex).getUri());
+                    String contentKey = itemUri.substring(itemUri.lastIndexOf("/") + 1);
+                    String deviceId = getDevice().getIdentity().getUdn().getIdentifierString();
+                    if (itemUri.contains("/proxy/") && ShareRegistry.isWellFormedKey(contentKey)
+                            && RendererIdPolicy.isValid(deviceId)) {
+                        YaaccUpnpServerContentHttpHandler.updateRendererPosition(getContext(), contentKey,
+                                deviceId, millisecondsFromStart, false);
+
+                        // Also save to preferences for HTTP handler
+                        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(getContext());
+                        preferences.edit().putLong("server_position_" + deviceId, millisecondsFromStart).apply();
+                    }
+                }
+
                 // Don't schedule position check - let normal position polling handle it
             }
 
@@ -1423,6 +1469,60 @@ public class AVTransportPlayer extends AbstractPlayer {
             return currentPositionInfo.getTrackRemainingSeconds() * 1000;
         }
         return -1;
+    }
+
+    /**
+     * True for a remote renderer whose per-device setting "server-side time range management" is
+     * on and whose id is fit to appear in a URL ({@link RendererIdPolicy}).
+     */
+    private boolean isServerSideSeekingEnabled() {
+        try {
+            if (!(getDevice() instanceof RemoteDevice)) {
+                return false;
+            }
+            String deviceId = getDevice().getIdentity().getUdn().getIdentifierString();
+            return RendererIdPolicy.isValid(deviceId)
+                    && PreferenceManager.getDefaultSharedPreferences(getContext())
+                    .getBoolean(SettingsFragment.MANAGE_EXTERNAL_SEEKING + deviceId, false);
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
+    /**
+     * For a renderer with server-side time range management turned on, turns the plain proxy URL
+     * {@code /proxy/<key>} of this server into {@code /proxy/<deviceId>/<key>} (the device id URL
+     * encoded); every other URL, and every other renderer, gets the URL unchanged.
+     */
+    private String modifyProxyUrlWithDeviceId(String originalUrl) {
+        // Check if it's a proxy URL from the same YAACC server
+        if (originalUrl != null && originalUrl.contains("/proxy/") && isServerSideSeekingEnabled()) {
+            try {
+                // Check if URL is from this YAACC server by comparing IP
+                java.net.URL url = new java.net.URL(originalUrl);
+                String urlHost = url.getHost();
+
+                // Get local server IP using YAACC method
+                String[] ifAndIp = InterfaceResolutionHelper.getIfAndIpAddress(getUpnpClient().getContext());
+                String localIP = ifAndIp != null && ifAndIp.length > 0 ? ifAndIp[0] : null;
+
+                if (urlHost.equals(localIP) || urlHost.equals("localhost") || urlHost.equals("127.0.0.1")) {
+                    // Get device UUID and URL-encode it for safe URL usage
+                    String deviceId = getDevice().getIdentity().getUdn().getIdentifierString();
+                    String encodedDeviceId = java.net.URLEncoder.encode(deviceId, "UTF-8");
+
+                    // Replace /proxy/contentKey with /proxy/encodedDeviceId/contentKey
+                    String[] parts = originalUrl.split("/proxy/");
+                    if (parts.length == 2) {
+                        return parts[0] + "/proxy/" + encodedDeviceId + "/" + parts[1];
+                    }
+                }
+            } catch (Exception e) {
+                // not the exception message: it can contain the URL
+                YaaccLogger.w(getClass().getName(), "Failed to modify proxy URL (" + e.getClass().getSimpleName() + ")");
+            }
+        }
+        return originalUrl;
     }
 
     @Override
