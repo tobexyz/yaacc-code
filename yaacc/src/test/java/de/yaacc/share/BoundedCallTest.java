@@ -119,7 +119,27 @@ public class BoundedCallTest {
         BoundedCall calls = new BoundedCall(1, "test-call");
 
         assertEquals("a", calls.call(() -> "a", LONG, null));
-        assertEquals("b", calls.call(() -> "b", LONG, null));
+        // The result is handed over before the worker thread is back in the pool's queue, so a
+        // second call right away can be refused as "busy" (null). Retry for a short, bounded
+        // time: the thread must come free, which is what this test is about.
+        assertEquals("b", callUntilAccepted(calls, "b"));
+    }
+
+    /** Calls until the pool accepted the task (a result), at most about 5 seconds. */
+    private static String callUntilAccepted(BoundedCall calls, String value) {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        String result = calls.call(() -> value, LONG, null);
+        while (result == null && System.nanoTime() < deadline) {
+            Thread.yield();
+            try {
+                Thread.sleep(5L);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return null;
+            }
+            result = calls.call(() -> value, LONG, null);
+        }
+        return result;
     }
 
     @Test

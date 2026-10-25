@@ -47,6 +47,7 @@
     <string name="share_registry_full">Trop de partages actifs. Réessayez dans un instant.</string>
     <string name="share_unnamed_file">Fichier partagé</string>
     <string name="share_open_failed">Impossible de lire le fichier partagé.</string>
+    <string name="share_busy">Un autre fichier partagé est encore en cours de traitement. Réessayez dans un instant.</string>
     <string name="error_no_activity_found">Aucune activité trouvée pour la lecture du type MIME \'%1$s\'</string>
     <string name="image_viewer_settings_duration">Durée du séjour photo</string>
     <string name="yaacc_menu_settings">Paramètres YAACC</string>
@@ -144,7 +145,7 @@
     <string name="stopped">ARRÊTÉ</string>
     <string name="no_media">PAS DE MÉDIA</string>
     <string name="device_sheet_title">Lire sur</string>
-    <string name="receiver_bar_none_selected">Aucun récepteur sélectionné. Touchez pour choisir</string>
+    <string name="receiver_bar_none_playing">Aucun récepteur en lecture</string>
     <string name="receiver_bar_description">Choisir les récepteurs</string>
     <string name="mini_player_previous">Piste précédente</string>
     <string name="mini_player_play">Lecture</string>

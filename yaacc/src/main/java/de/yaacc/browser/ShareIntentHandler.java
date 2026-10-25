@@ -51,6 +51,7 @@ import de.yaacc.share.LaunchNonces;
 import de.yaacc.share.PendingShare;
 import de.yaacc.share.ProviderCallGate;
 import de.yaacc.share.ReadinessWait;
+import de.yaacc.share.ShareFailureMessage;
 import de.yaacc.share.ShareLimits;
 import de.yaacc.share.SharedContentPolicy;
 import de.yaacc.share.StreamIntake;
@@ -379,10 +380,15 @@ public final class ShareIntentHandler {
             // one call per provider (package) at a time: a provider that hangs cannot take the pool
             final String providerKey = ProviderKeys.of(appContext.getPackageManager(),
                     SharedContentPolicy.authorityOf(uriText));
-            ProviderProbe.Info info = probeCalls.call(providerKey, () -> ProviderProbe.query(resolver, uri),
-                    providerTimeoutMillis, null);
+            BoundedCall.Result<ProviderProbe.Info> outcome = probeCalls.callDetailed(providerKey,
+                    () -> ProviderProbe.query(resolver, uri), providerTimeoutMillis, null);
+            ProviderProbe.Info info = outcome.value();
             if (info == null) {
                 YaaccLogger.w(TAG, "Ignoring shared file: the provider did not answer in time or is still busy");
+                if (ShareFailureMessage.of(outcome.isRefusedBusy(), false) == ShareFailureMessage.Kind.BUSY) {
+                    // payload-free and fixed: the user learns the share was turned away, not why a provider is slow
+                    toast(R.string.share_busy);
+                }
                 return;
             }
             String mimeType = SharedContentPolicy.chooseMimeType(info.getProviderType(), declaredType);

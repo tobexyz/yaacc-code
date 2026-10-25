@@ -38,7 +38,8 @@ import java.util.Map;
  * {@code maxTracked} such providers (distinct packages) use up all places.
  * <p>
  * The key is whatever identifies the provider: the package that owns the authority where it can be
- * resolved (one app with many authorities is one provider), else the authority.
+ * resolved (one app with many authorities is one provider), else one fixed key shared by every
+ * provider that cannot be resolved.
  */
 public final class ProviderCallGate {
 

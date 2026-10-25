@@ -20,17 +20,21 @@ package de.yaacc.upnp.server.share;
 import android.content.pm.PackageManager;
 import android.content.pm.ProviderInfo;
 
-import java.util.Locale;
-
 /**
  * Names the content provider behind an authority for the per-provider call gate
  * ({@link de.yaacc.share.ProviderCallGate}). An app can declare many authorities, so the key is
  * the package that owns the authority where the system tells us; one hostile app then keeps one
  * place in the gate, not one per authority. If the authority cannot be resolved (not visible,
- * unknown, the question failed) the key is the lower-case authority, so a different spelling of
- * the same authority does not escape the gate.
+ * unknown, the question failed) the key is ONE fixed key shared by all such providers
+ * ({@link #UNRESOLVED}): the manifest has no {@code <queries>}, so a provider whose package is not
+ * visible could otherwise be asked under many authority spellings, and a permit lives as long as
+ * its call, so each stuck one would keep a place of its own. Unresolved providers therefore
+ * share one place (one such call at a time); that is the price of a bounded gate.
  */
 public final class ProviderKeys {
+
+    /** The one key of every provider whose owning package cannot be resolved. */
+    public static final String UNRESOLVED = "unresolved";
 
     private ProviderKeys() {
     }
@@ -51,9 +55,9 @@ public final class ProviderKeys {
                     return "pkg:" + info.packageName;
                 }
             } catch (RuntimeException e) {
-                // fall through to the authority
+                // fall through to the shared key
             }
         }
-        return "auth:" + authority.toLowerCase(Locale.ROOT);
+        return UNRESOLVED;
     }
 }

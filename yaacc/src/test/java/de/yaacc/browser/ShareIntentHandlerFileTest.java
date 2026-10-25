@@ -423,6 +423,7 @@ public class ShareIntentHandlerFileTest {
 
     @Test
     public void aProviderThatDoesNotAnswerDropsTheShareAndFreesTheGateForTheNext() throws Exception {
+        resolveTheTwoTestProvidersToDifferentPackages();
         replaceHandler(newHandler(10_000L, 100L, 200L));
         CountDownLatch hang = new CountDownLatch(1);
         AtomicInteger asked = new AtomicInteger();
@@ -968,8 +969,22 @@ public class ShareIntentHandlerFileTest {
         return hang;
     }
 
+    /**
+     * Providers whose package cannot be resolved share one gate key (the mock returns null for
+     * every authority by default), so a test about TWO providers has to make them resolvable.
+     */
+    private void resolveTheTwoTestProvidersToDifferentPackages() {
+        ProviderInfo media = new ProviderInfo();
+        media.packageName = "com.example.mediaprovider";
+        ProviderInfo other = new ProviderInfo();
+        other.packageName = "com.example.other";
+        when(packageManager.resolveContentProvider("media", 0)).thenReturn(media);
+        when(packageManager.resolveContentProvider("com.example.other", 0)).thenReturn(other);
+    }
+
     @Test
     public void aHungProviderDoesNotStopAShareFromAnotherProvider() throws Exception {
+        resolveTheTwoTestProvidersToDifferentPackages();
         replaceHandler(newHandler(10_000L, 100L, 200L));
         AtomicInteger asked = new AtomicInteger();
         CountDownLatch hang = hangFirstProviderCall(asked);

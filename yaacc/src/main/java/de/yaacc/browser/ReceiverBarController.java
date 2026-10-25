@@ -34,15 +34,20 @@ import java.util.ArrayList;
 import java.util.List;
 
 import de.yaacc.R;
+import de.yaacc.player.Player;
+import de.yaacc.player.PlayerListChangeNotifier;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.UpnpClientListener;
 import de.yaacc.util.ThemeHelper;
+import de.yaacc.util.YaaccLogger;
 
 /**
- * Binds the receiver bar (a {@code TextView}): its label (the selected receivers' names, built by
- * {@link ReceiverBarLabel}), the tap / D-pad select that opens the device sheet, and the refresh
- * whenever {@link UpnpClient} reports that the receiver selection changed, including changes made
- * in the device sheet. Used by {@link BrowserActivity}, which owns the bar in the new layout; the
+ * Binds the receiver bar (a {@code TextView}): its label (the names of the receivers that have a
+ * running player, built by {@link ReceiverBarLabel}; the receiver selection is not shown, it only
+ * exists while the picker is open), the tap / D-pad select that opens the device sheet, and the
+ * refresh whenever a player is added or removed or {@link UpnpClient} reports a receiver change.
+ * It reads the player list the mini-player and the sheet already follow; it has no poller of its
+ * own. Used by {@link BrowserActivity}, which owns the bar in the new layout; the
  * classic layout has no bar (its {@link ContentListFragment} shows a static footer).
  * <p>
  * Between {@link #bind()} and {@link #unbind()} it is a {@link UpnpClientListener} of the
@@ -51,7 +56,9 @@ import de.yaacc.util.ThemeHelper;
  * {@code unbind()} are ignored. Main thread only, except the listener callbacks, which hop to the
  * main thread themselves.
  */
-final class ReceiverBarController implements UpnpClientListener {
+final class ReceiverBarController implements UpnpClientListener, PlayerListChangeNotifier.Listener {
+
+    private static final String TAG = ReceiverBarController.class.getName();
 
     private final TextView bar;
     private final UpnpClient upnpClient;
@@ -92,6 +99,7 @@ final class ReceiverBarController implements UpnpClientListener {
             }
         });
         upnpClient.addUpnpClientListener(this);
+        upnpClient.addPlayerListChangeListener(this);
         update();
     }
 
@@ -102,24 +110,51 @@ final class ReceiverBarController implements UpnpClientListener {
         }
         bound = false;
         upnpClient.removeUpnpClientListener(this);
+        upnpClient.removePlayerListChangeListener(this);
         mainHandler.removeCallbacks(updateRunnable);
         bar.setOnClickListener(null);
         ViewCompat.setAccessibilityDelegate(bar, null);
     }
 
-    /** Shows the selected receivers' names; call on the main thread. */
+    /** Shows the names of the receivers with a running player; call on the main thread. */
     void update() {
         if (!bound) {
             return;
         }
         List<String> names = new ArrayList<>();
-        for (Device<?, ?, ?> receiver : upnpClient.getReceiverDevices()) {
-            if (receiver.getDetails() != null) {
-                names.add(receiver.getDetails().getFriendlyName());
+        try {
+            // the player service hands out its live collection: copy before iterating
+            for (Player player : new ArrayList<>(upnpClient.getCurrentPlayers())) {
+                if (player != null) {
+                    names.add(MiniPlayerPresenter.receiverLabel(
+                            resolveReceiverName(player.getDeviceId()), player.getName()));
+                }
             }
+        } catch (RuntimeException e) {
+            // a player changing under the read; the next player or receiver event refreshes.
+            // Never log names.
+            YaaccLogger.w(TAG, "Receiver bar refresh skipped (" + e.getClass().getSimpleName() + ")");
+            return;
         }
-        // Untrusted LAN names: plain text only.
-        bar.setText(ReceiverBarLabel.build(names, bar.getContext().getString(R.string.receiver_bar_none_selected)));
+        // Untrusted LAN names: cleaned by the label, plain text only.
+        bar.setText(ReceiverBarLabel.build(names, bar.getContext().getString(R.string.receiver_bar_none_playing)));
+    }
+
+    /** The receiver's friendly name as the device sheet resolves it; null while it is not known. */
+    private String resolveReceiverName(String deviceId) {
+        if (deviceId == null) {
+            return null;
+        }
+        try {
+            Device<?, ?, ?> device = upnpClient.getDevice(deviceId);
+            if (device != null && device.getDetails() != null) {
+                return device.getDetails().getFriendlyName();
+            }
+        } catch (RuntimeException e) {
+            // an id that is not a valid UDN; the player's own name is shown instead
+            YaaccLogger.d(TAG, "Receiver not resolved (" + e.getClass().getSimpleName() + ")");
+        }
+        return null;
     }
 
     private void tintCompoundDrawables() {
@@ -138,6 +173,16 @@ final class ReceiverBarController implements UpnpClientListener {
         } else {
             mainHandler.post(updateRunnable);
         }
+    }
+
+    @Override
+    public void onPlayerAdded(Player player) {
+        update();
+    }
+
+    @Override
+    public void onPlayerRemoved(Player player) {
+        update();
     }
 
     @Override

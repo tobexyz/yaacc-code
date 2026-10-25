@@ -204,7 +204,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     }
 
     private void fireReceiverDeviceRemoved(Device<?, ?, ?> device) {
-        for (UpnpClientListener listener : listeners) {
+        for (UpnpClientListener listener : new ArrayList<>(listeners)) {
             listener.receiverDeviceRemoved(device);
         }
     }
@@ -1031,12 +1031,14 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      * Gets the receiver IDs, if none is defined the local device will be
      * returned
      *
-     * @return the receiverDeviceIds
+     * @return the receiverDeviceIds, a copy the caller may modify (the set that
+     * {@code SharedPreferences.getStringSet} returns must never be changed); an empty stored
+     * set stays empty
      */
     public Set<String> getReceiverDeviceIds() {
         HashSet<String> defaultReceiverSet = new HashSet<>();
         defaultReceiverSet.add(UpnpClient.LOCAL_UID);
-        return preferences.getStringSet(getContext().getString(R.string.settings_selected_receivers_title), defaultReceiverSet);
+        return ReceiverSelection.copy(preferences.getStringSet(getContext().getString(R.string.settings_selected_receivers_title), defaultReceiverSet));
     }
 
     /**
@@ -1069,10 +1071,26 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
                 unknowsIds.add(id);
             }
         }
-        // remove all unknown ids
-        unknowsIds.forEach(receiverDeviceIds::remove);
-        setReceiverDeviceIds(receiverDeviceIds);
+        // remove all unknown ids (from a copy: the stored set is never changed in place)
+        if (!unknowsIds.isEmpty()) {
+            setReceiverDeviceIds(ReceiverSelection.without(receiverDeviceIds, unknowsIds));
+        }
         return result;
+    }
+
+    /**
+     * Clears the receiver selection: the stored set becomes empty (and stays empty, it is not
+     * replaced by the local device) and a "receiver removed" event is fired for every receiver
+     * that was selected, so views that follow the selection refresh. Does nothing to running
+     * players or to the allowed set of an existing share (that was fixed when the share was
+     * registered).
+     */
+    public void clearReceiverDevices() {
+        Collection<Device<?, ?, ?>> previous = getReceiverDevices();
+        setReceiverDeviceIds(new HashSet<>());
+        for (Device<?, ?, ?> device : previous) {
+            fireReceiverDeviceRemoved(device);
+        }
     }
 
     public int getReceiverDevicesReadyCount() {

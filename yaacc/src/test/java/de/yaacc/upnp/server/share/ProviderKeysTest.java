@@ -18,6 +18,7 @@
 package de.yaacc.upnp.server.share;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNull;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -49,25 +50,36 @@ public class ProviderKeysTest {
     }
 
     @Test
-    public void anUnresolvableAuthorityFallsBackToTheLowerCaseAuthority() {
+    public void unresolvableAuthoritiesAllShareOneFixedKey() {
         PackageManager pm = mock(PackageManager.class);
         when(pm.resolveContentProvider(anyString(), anyInt())).thenReturn(null);
 
-        assertEquals("auth:media", ProviderKeys.of(pm, "Media"));
+        assertEquals(ProviderKeys.UNRESOLVED, ProviderKeys.of(pm, "Media"));
+        assertEquals(ProviderKeys.of(pm, "media.one"), ProviderKeys.of(pm, "other.two"));
         assertEquals(ProviderKeys.of(pm, "MEDIA"), ProviderKeys.of(pm, "media"));
     }
 
     @Test
-    public void aFailingPackageManagerFallsBackToTheAuthority() {
+    public void aProviderWithoutAPackageNameCountsAsUnresolved() {
         PackageManager pm = mock(PackageManager.class);
-        when(pm.resolveContentProvider(anyString(), anyInt())).thenThrow(new RuntimeException("dead"));
+        when(pm.resolveContentProvider("a", 0)).thenReturn(providerOf(null));
+        when(pm.resolveContentProvider("b", 0)).thenReturn(providerOf(""));
 
-        assertEquals("auth:media", ProviderKeys.of(pm, "media"));
+        assertEquals(ProviderKeys.UNRESOLVED, ProviderKeys.of(pm, "a"));
+        assertEquals(ProviderKeys.UNRESOLVED, ProviderKeys.of(pm, "b"));
     }
 
     @Test
-    public void noPackageManagerFallsBackToTheAuthority() {
-        assertEquals("auth:media", ProviderKeys.of(null, "media"));
+    public void aFailingPackageManagerGivesTheSharedKey() {
+        PackageManager pm = mock(PackageManager.class);
+        when(pm.resolveContentProvider(anyString(), anyInt())).thenThrow(new RuntimeException("dead"));
+
+        assertEquals(ProviderKeys.UNRESOLVED, ProviderKeys.of(pm, "media"));
+    }
+
+    @Test
+    public void noPackageManagerGivesTheSharedKey() {
+        assertEquals(ProviderKeys.UNRESOLVED, ProviderKeys.of(null, "media"));
     }
 
     @Test
@@ -76,12 +88,12 @@ public class ProviderKeysTest {
     }
 
     @Test
-    public void aPackageProviderAndAnAuthorityNeverCollide() {
+    public void aResolvedPackageNeverCollidesWithTheSharedKey() {
         PackageManager resolving = mock(PackageManager.class);
-        when(resolving.resolveContentProvider("x", 0)).thenReturn(providerOf("auth:x"));
+        when(resolving.resolveContentProvider("x", 0)).thenReturn(providerOf(ProviderKeys.UNRESOLVED));
 
-        // "pkg:auth:x" vs "auth:x"
-        assertEquals("pkg:auth:x", ProviderKeys.of(resolving, "x"));
-        assertEquals("auth:x", ProviderKeys.of(null, "x"));
+        // "pkg:unresolved" (a package that is really called that) vs "unresolved"
+        assertEquals("pkg:unresolved", ProviderKeys.of(resolving, "x"));
+        assertNotEquals(ProviderKeys.UNRESOLVED, ProviderKeys.of(resolving, "x"));
     }
 }
