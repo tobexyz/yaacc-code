@@ -48,6 +48,8 @@
     <string name="share_unnamed_file">Shared file</string>
     <string name="share_open_failed">Could not play the shared file.</string>
     <string name="share_busy">Another shared file is still being processed. Try again in a moment.</string>
+    <string name="share_unnamed_link">Shared link</string>
+    <string name="share_link_failed">Could not play the shared link.</string>
     <string name="error_no_activity_found">No activity found for playing mimetype \'%1$s\'</string>
     <string name="image_viewer_settings_duration">Picture stay duration</string>
     <string name="image_viewer_settings_duration_key" translatable="false">image_viewer_settings_duration_key</string>
@@ -147,9 +149,12 @@
     <string name="paused">PAUSED</string>
     <string name="stopped">STOPPED</string>
     <string name="no_media">NO MEDIA</string>
-    <string name="device_sheet_title">Play on</string>
+    <string name="device_sheet_title">Receivers</string>
     <string name="receiver_bar_none_playing">No receiver playing</string>
     <string name="receiver_bar_description">Choose receivers</string>
+    <string name="receiver_pick_title">Play on…</string>
+    <string name="receiver_pick_none_hint">Choose at least one receiver.</string>
+    <string name="receiver_pick_confirm_description">Play on the chosen receivers</string>
     <string name="mini_player_previous">Previous track</string>
     <string name="mini_player_play">Play</string>
     <string name="mini_player_pause">Pause</string>

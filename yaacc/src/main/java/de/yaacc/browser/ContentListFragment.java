@@ -41,11 +41,13 @@ import org.fourthline.cling.support.model.item.Item;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import de.yaacc.R;
 import de.yaacc.Yaacc;
 import de.yaacc.player.Player;
+import de.yaacc.share.PendingPick;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.UpnpClientListener;
 import de.yaacc.upnp.callback.contentdirectory.ContentDirectoryBrowseResult;
@@ -425,21 +427,55 @@ public class ContentListFragment extends Fragment implements OnClickListener,
     }
 
     /**
-     * New layout only: with no receiver selected, the host's device sheet opens instead of
-     * starting playback, so the user can pick a receiver and tap play again. {@code
-     * PlayerService}'s "no receiver selected" toast stays as the fallback for non-UI callers.
-     * The classic layout has no sheet and keeps the original behavior (always false there).
+     * Starts a play, play-all or add-to-playlist action ({@link ContentItemPlayTask}).
+     * <p>
+     * New layout (the host owns the receiver bar): the receivers are picked per action. The host's
+     * "Play on..." sheet opens first; cancelling leaves everything as it was. Confirming stores the
+     * chosen receivers ({@link UpnpClient#setReceiverDeviceIds}), then starts the task, and the
+     * selection is cleared again once the players have been started ({@link #play(List)} and
+     * {@link #addToPlayList}). A request while a pick is open is dropped.
+     * <p>
+     * Classic (no host, or a host without the receiver bar): the task starts at once with the
+     * tab-based selection, exactly as before, and nothing is cleared.
      *
-     * @return true if the sheet was opened and playback must not start
+     * @param mode       {@link ContentItemPlayTask#PLAY_CURRENT}, {@link ContentItemPlayTask#PLAY_ALL} or
+     *                   {@link ContentItemPlayTask#ADD_TO_PLAYLIST}
+     * @param onStarted  runs on the main thread right before the task starts (progress, a toast), may be null
+     * @param onComplete runs on the main thread when the task is done, may be null
      */
-    public boolean openDeviceSheetIfNoReceiverSelected() {
-        BrowserHost host = browserHost();
-        if (host != null && host.providesReceiverBar() && isAdded()
-                && upnpClient != null && upnpClient.getReceiverDevices().isEmpty()) {
-            host.showReceivers();
-            return true;
+    public void startPlayAction(DIDLObject object, int mode, Runnable onStarted, Runnable onComplete) {
+        if (object == null) {
+            return;
         }
-        return false;
+        BrowserHost host = browserHost();
+        Runnable start = () -> {
+            if (onStarted != null) {
+                onStarted.run();
+            }
+            new ContentItemPlayTask(this, object, onComplete).execute(mode);
+        };
+        if (host == null || !host.providesReceiverBar()) {
+            start.run();
+            return;
+        }
+        if (!isAdded() || upnpClient == null) {
+            return;
+        }
+        host.pickReceivers(new PendingPick.Callbacks() {
+            @Override
+            public void onConfirmed(Set<String> receiverIds) {
+                if (!isAdded()) {
+                    return; // the screen is gone; nothing was changed yet
+                }
+                upnpClient.setReceiverDeviceIds(receiverIds);
+                start.run();
+            }
+
+            @Override
+            public void onCancelled() {
+                // nothing was changed
+            }
+        }, null, null);
     }
 
     @Override
@@ -864,16 +900,36 @@ public class ContentListFragment extends Fragment implements OnClickListener,
     }
 
 
+    /**
+     * The single place where a started playback ends. New layout: the picked receivers are only
+     * needed to start it, so the selection is cleared now (also when no player could be created).
+     * Players that run keep their device; an existing share's allowed set was fixed when it was made.
+     */
     private void play(List<Player> players) {
-        for (Player player : players) {
-            if (player != null) {
-                player.play();
+        try {
+            for (Player player : players) {
+                if (player != null) {
+                    player.play();
+                }
             }
+        } finally {
+            clearPickedSelection();
         }
     }
 
     public void addToPlayList(DIDLObject currentObject) {
-        upnpClient.addToPlaylist(currentObject);
+        try {
+            upnpClient.addToPlaylist(currentObject);
+        } finally {
+            clearPickedSelection();
+        }
+    }
+
+    /** New layout only; classic keeps its tab-based selection. Safe on the task's background thread. */
+    private void clearPickedSelection() {
+        if (!showsStaticFooter && upnpClient != null) {
+            upnpClient.clearReceiverDevices();
+        }
     }
 }
 

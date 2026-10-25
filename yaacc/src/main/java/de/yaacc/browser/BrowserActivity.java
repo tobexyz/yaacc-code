@@ -28,10 +28,13 @@ import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 import androidx.preference.PreferenceManager;
 
+import java.util.Collection;
+
 import de.yaacc.R;
 import de.yaacc.Yaacc;
 import de.yaacc.browser.BrowserLayoutChoice.Layout;
 import de.yaacc.settings.SettingsActivity;
+import de.yaacc.share.PendingPick;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.server.LocalServerLifecycle;
 import de.yaacc.util.FormatHelper;
@@ -58,6 +61,10 @@ public class BrowserActivity extends AppCompatActivity implements BrowserHost {
 
     private ShareIntentHandler shareIntentHandler = null;
     private ShutdownTimerController shutdownTimerController;
+    // the receiver picker ("Play on..."): play, play-all, add-to-playlist and a pending share open it.
+    // Its pending action lives here and is lost with the activity (accepted).
+    private ReceiverPickController pickController;
+    private UpnpClient upnpClient;
     // created once the UpnpClient exists; bound between onStart and onStop
     private ReceiverBarController receiverBarController;
     private MiniPlayerBar miniPlayerBar;
@@ -87,6 +94,7 @@ public class BrowserActivity extends AppCompatActivity implements BrowserHost {
         }
         setContentView(R.layout.activity_browser);
         getOnBackPressedDispatcher().addCallback(this, backPressedCallback);
+        pickController = new ReceiverPickController(this);
 
         BrowserActivitySupport.requestMissingPermissions(this);
         BrowserActivitySupport.checkBatteryOptimizationEnabled(this);
@@ -95,7 +103,7 @@ public class BrowserActivity extends AppCompatActivity implements BrowserHost {
                 PreferenceManager.getDefaultSharedPreferences(getApplicationContext()),
                 getString(R.string.settings_shutdown_timer));
 
-        UpnpClient upnpClient = ((Yaacc) getApplicationContext()).getUpnpClient();
+        upnpClient = ((Yaacc) getApplicationContext()).getUpnpClient();
         if (upnpClient == null) {
             YaaccLogger.d(TAG, "Upnp client is null");
             return;
@@ -165,6 +173,11 @@ public class BrowserActivity extends AppCompatActivity implements BrowserHost {
 
     @Override
     protected void onDestroy() {
+        // an open pick is cancelled first: that releases a pending share
+        if (pickController != null) {
+            pickController.release();
+            pickController = null;
+        }
         // backstop: onStop already unbound them
         if (miniPlayerBar != null) {
             miniPlayerBar.unbind();
@@ -225,7 +238,32 @@ public class BrowserActivity extends AppCompatActivity implements BrowserHost {
 
     @Override
     public void showReceivers() {
+        // the normal sheet: receivers with their controls and the running players, no selection
         runOnUiThread(() -> DeviceSheetFragment.show(getSupportFragmentManager()));
+    }
+
+    @Override
+    public boolean pickReceivers(PendingPick.Callbacks callbacks, String shareName, Collection<String> initialIds) {
+        return pickController != null && pickController.start(callbacks, shareName, initialIds);
+    }
+
+    @Override
+    public boolean isPickOpen(String pickId) {
+        return pickController != null && pickController.isOpen(pickId);
+    }
+
+    @Override
+    public void onPendingShare(String token, String displayName) {
+        ShareIntentHandler handler = shareIntentHandler;
+        if (handler == null) {
+            return;
+        }
+        if (pickController == null || upnpClient == null) {
+            handler.cancel(token);
+            return;
+        }
+        // nothing is ticked: the selection is per action; a confirm clears it again afterwards
+        pickController.offerShare(handler, token, displayName, upnpClient, true, null);
     }
 
     @Override

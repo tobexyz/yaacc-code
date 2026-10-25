@@ -70,6 +70,12 @@ import de.yaacc.util.YaaccLogger;
  * {@link UpnpClient#createPlayableItem(Uri)}. It is never used to build an intent, a
  * PendingIntent or a file path, and it is never logged.
  * <p>
+ * In the new layout (the host {@link BrowserHost#providesReceiverBar() owns the receiver bar}) a link
+ * is not played at once either: it becomes the one pending share (named by a fixed text, never by
+ * the link), the host opens the receiver picker, and only {@link #confirm} with the chosen receivers
+ * stores them, builds the item and plays. It never falls back to this device. Classic and a
+ * missing host keep the old behavior (wait for receivers, else this device).
+ * <p>
  * <b>File.</b> An audio, video or image type selects the file path (exactly one of the two paths
  * runs per intent). The activity can be started directly by any app, so nothing the launcher
  * checked is trusted: {@link StreamIntake} repeats the checks (exactly ONE ClipData item whose URI
@@ -219,6 +225,12 @@ public final class ShareIntentHandler {
                     + ShareUriPolicy.MAX_TEXT_LENGTH + " characters");
             return;
         }
+        if (pickHost != null && pickHost.providesReceiverBar()) {
+            // new layout: the receivers are picked per action; a link is never played by itself
+            // and never falls back to this device
+            offerLinkForPick(text, pickHost);
+            return;
+        }
         if (pendingShares.get() >= MAX_PENDING_SHARES) {
             YaaccLogger.w(TAG, "Ignoring shared link: too many shares are waiting");
             return;
@@ -271,6 +283,114 @@ public final class ShareIntentHandler {
         executor.shutdown();
         // a confirmed file that is already being prepared still plays, like a waiting link
         fileExecutor.shutdown();
+    }
+
+    // ---- shared link in the new layout
+
+    /**
+     * Main thread. The link (already checked by {@link ShareUriPolicy}) becomes the one pending
+     * share, with a fixed name: the link text itself is never shown or logged. A second share while
+     * one is pending is dropped, never replacing it.
+     */
+    private void offerLinkForPick(String text, BrowserHost pickHost) {
+        if (pendingShare.isPending()) {
+            YaaccLogger.w(TAG, "Ignoring shared link: another share is waiting for its receivers");
+            return;
+        }
+        host = pickHost;
+        String token = pendingShare.offer(text, "", "");
+        if (token == null) {
+            YaaccLogger.w(TAG, "Ignoring shared link: another share is waiting for its receivers");
+            return;
+        }
+        announce(token, appContext.getString(R.string.share_unnamed_link));
+    }
+
+    /** A pending share is a link when its text passes the link policy; files are always {@code content:} URIs. */
+    private static boolean isLink(PendingShare.Data data) {
+        return ShareUriPolicy.isAllowed(data.getUri());
+    }
+
+    /**
+     * Confirmed link, main thread. The chosen receivers are stored first on the worker, because the
+     * addresses a proxied link is served to are read from the selection when the item is built.
+     */
+    private void confirmLink(PendingShare.Data data, Set<String> chosen, Runnable afterStarted) {
+        if (!upnpClient.isPlayerServiceInitialized()) {
+            upnpClient.startService();
+        }
+        try {
+            executor.execute(() -> prepareAndPlayLink(data.getUri(), chosen, afterStarted));
+        } catch (RejectedExecutionException e) {
+            // nothing was created yet
+            YaaccLogger.w(TAG, "Share handler already shut down, dropping the shared link");
+        }
+    }
+
+    /** Worker thread. Nothing here may throw or log the shared link. */
+    private void prepareAndPlayLink(String link, Set<String> chosen, Runnable afterStarted) {
+        PlayableItem item = null;
+        try {
+            upnpClient.setReceiverDeviceIds(chosen);
+            if (ReadinessWait.await(upnpClient::isPlayerServiceInitialized, playerServiceWaitMillis, pollMillis)) {
+                item = upnpClient.createPlayableItem(Uri.parse(link));
+            } else {
+                YaaccLogger.w(TAG, "The player service did not come up, dropping the shared link");
+            }
+        } catch (Exception e) {
+            // not e.getMessage() or the exception itself: they may contain the shared link
+            YaaccLogger.w(TAG, "Could not prepare shared content (" + e.getClass().getSimpleName() + ")");
+        }
+        if (item == null) {
+            toast(R.string.share_link_failed);
+        }
+        final PlayableItem ready = item;
+        // always: the selection was changed, so the caller must get the chance to clear or restore it
+        mainThread.execute(() -> playLink(ready, afterStarted));
+    }
+
+    /** Main thread: plays the item of a confirmed link, if there is one, then runs the hook. */
+    private void playLink(PlayableItem item, Runnable afterStarted) {
+        boolean started = false;
+        try {
+            if (item != null) {
+                List<PlayableItem> items = new ArrayList<>();
+                items.add(item);
+                List<Player> players = upnpClient.initializePlayersWithPlayableItems(items);
+                if (players.isEmpty()) {
+                    YaaccLogger.w(TAG, "No player could be created for the shared link");
+                    toast(R.string.share_link_failed);
+                } else {
+                    for (Player player : players) {
+                        player.play();
+                    }
+                    started = true;
+                    Runnable callback = playersStartedCallback;
+                    if (callback != null) {
+                        callback.run();
+                    }
+                }
+            }
+        } catch (RuntimeException e) {
+            YaaccLogger.w(TAG, "Could not start shared content (" + e.getClass().getSimpleName() + ")");
+        } finally {
+            if (item != null && !started) {
+                // no player took the share: give its registry slot back at once
+                upnpClient.discardShareOf(item);
+            }
+            runHook(afterStarted);
+        }
+    }
+
+    private static void runHook(Runnable afterStarted) {
+        if (afterStarted == null) {
+            return;
+        }
+        try {
+            afterStarted.run();
+        } catch (RuntimeException e) {
+            YaaccLogger.w(TAG, "The hook after the shared item failed (" + e.getClass().getSimpleName() + ")");
+        }
     }
 
     // ---- shared file
@@ -437,7 +557,8 @@ public final class ShareIntentHandler {
      * @param afterStarted    runs on the main thread, once, after the receivers were set and the
      *                        playback was attempted (started or not), so the caller can clear or
      *                        restore the receiver selection; not called if nothing was changed (wrong
-     *                        token, empty selection, file not opened); may be null
+     *                        token, empty selection, file not opened); for a link it always runs once
+     *                        the receivers were stored; may be null
      */
     public void confirm(String token, Set<String> chosenReceiverIds, Runnable afterStarted) {
         PendingShare.Data data = pendingShare.take(token);
@@ -448,6 +569,10 @@ public final class ShareIntentHandler {
                 : Collections.unmodifiableSet(new HashSet<>(chosenReceiverIds));
         if (chosen.isEmpty()) {
             YaaccLogger.w(TAG, "Shared file released: no receiver was chosen");
+            return;
+        }
+        if (isLink(data)) {
+            confirmLink(data, chosen, afterStarted);
             return;
         }
         if (!upnpClient.isPlayerServiceInitialized()) {
@@ -530,12 +655,8 @@ public final class ShareIntentHandler {
                 // no player took the share: give its descriptor and slot back at once
                 upnpClient.discardShareOf(item);
             }
-            if (selectionChanged && afterStarted != null) {
-                try {
-                    afterStarted.run();
-                } catch (RuntimeException e) {
-                    YaaccLogger.w(TAG, "The hook after the shared file failed (" + e.getClass().getSimpleName() + ")");
-                }
+            if (selectionChanged) {
+                runHook(afterStarted);
             }
         }
     }

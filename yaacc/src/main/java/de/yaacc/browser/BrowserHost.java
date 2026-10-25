@@ -17,6 +17,10 @@
  */
 package de.yaacc.browser;
 
+import java.util.Collection;
+
+import de.yaacc.share.PendingPick;
+
 /**
  * Navigation that fragments and helpers may ask of the activity that hosts them. Implemented by
  * the browser activities; callers must tolerate "no host" (the context or activity is not a
@@ -61,6 +65,33 @@ public interface BrowserHost {
      * list). False for the classic tabs, where the root has nothing to go back to.
      */
     default boolean showsBackAtContentRoot() {
+        return false;
+    }
+
+    /**
+     * Opens the receiver picker ("Play on...", the device sheet in pick mode) and reports the answer
+     * through {@code callbacks}: exactly one of {@link PendingPick.Callbacks#onConfirmed} (with the
+     * chosen receiver ids) or {@link PendingPick.Callbacks#onCancelled} runs, on the main thread, and
+     * only if this returns true. Call it on the main thread.
+     * <p>
+     * The new layout uses it for play, play-all, add-to-playlist and a pending share; classic uses it
+     * only for a pending shared file (normal classic browsing never shows the sheet). Nothing is
+     * stored by the picker: the host's callbacks decide what a confirm sets and clears.
+     *
+     * @param callbacks  what to do with the answer
+     * @param shareName  the cleaned name of the pending share, or null if the pick is not for a share
+     *                   (an empty name is replaced by a fixed text on the sheet)
+     * @param initialIds receivers that start ticked, may be null (classic: its tab-based selection)
+     * @return false (callbacks are never called) if the host has no picker, a pick is already open,
+     * or the screen cannot show it now; a new request never replaces the open one
+     */
+    default boolean pickReceivers(PendingPick.Callbacks callbacks, String shareName,
+                                  Collection<String> initialIds) {
+        return false;
+    }
+
+    /** Whether the receiver picker with this id is open (a restored sheet asks, then closes itself if not). */
+    default boolean isPickOpen(String pickId) {
         return false;
     }
 

@@ -49,6 +49,8 @@
     <string name="share_unnamed_file">Ficheiro partilhado</string>
     <string name="share_open_failed">Não foi possível reproduzir o ficheiro partilhado.</string>
     <string name="share_busy">Outro ficheiro partilhado ainda está a ser processado. Tente novamente dentro de instantes.</string>
+    <string name="share_unnamed_link">Ligação partilhada</string>
+    <string name="share_link_failed">Não foi possível reproduzir a ligação partilhada.</string>
     <string name="error_no_activity_found">Nenhuma atividade encontrada para jogar o tipo MIME \'%1$s\'</string>
     <string name="image_viewer_settings_duration">Duração da permanência da imagem</string>
     <string name="yaacc_menu_settings">Configurações YAACC</string>
@@ -144,9 +146,12 @@
     <string name="paused">PAUSADO</string>
     <string name="stopped">PAROU</string>
     <string name="no_media">SEM MÍDIA</string>
-    <string name="device_sheet_title">Reproduzir em</string>
+    <string name="device_sheet_title">Receptores</string>
     <string name="receiver_bar_none_playing">Nenhum receptor reproduzindo</string>
     <string name="receiver_bar_description">Escolher receptores</string>
+    <string name="receiver_pick_title">Reproduzir em…</string>
+    <string name="receiver_pick_none_hint">Escolha pelo menos um receptor.</string>
+    <string name="receiver_pick_confirm_description">Reproduzir nos receptores escolhidos</string>
     <string name="mini_player_previous">Faixa anterior</string>
     <string name="mini_player_play">Reproduzir</string>
     <string name="mini_player_pause">Pausar</string>

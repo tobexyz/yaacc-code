@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="utf-8"?><!--
+ *
+ * Copyright (C) 2026 www.yaacc.de
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 3
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+-->
+<!-- Content of DeviceSheetFragment in pick mode ("Play on..."). The sheet fits its content (see
+     DeviceSheetFragment#applyPickSheetState): the weighted list shrinks when there are more receivers than
+     fit on the screen, so the buttons below it stay visible. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingTop="8dp">
+
+    <TextView
+        android:id="@+id/deviceSheetTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="4dp"
+        android:focusable="false"
+        android:text="@string/receiver_pick_title"
+        android:textAppearance="@android:style/TextAppearance.Material.Medium"
+        android:textColor="?android:attr/colorForeground" />
+
+    <!-- The cleaned name of the shared item; shown only when a share is pending. Plain text only. -->
+    <TextView
+        android:id="@+id/deviceSheetPickSubtitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="4dp"
+        android:ellipsize="middle"
+        android:focusable="false"
+        android:maxLines="2"
+        android:textColor="?android:attr/textColorSecondary"
+        android:visibility="gone" />
+
+    <!-- Shown when confirm is pressed with nothing ticked; announced by TalkBack. -->
+    <TextView
+        android:id="@+id/deviceSheetPickHint"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="4dp"
+        android:accessibilityLiveRegion="polite"
+        android:focusable="false"
+        android:text="@string/receiver_pick_none_hint"
+        android:textColor="?attr/colorError"
+        android:visibility="gone" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/deviceSheetList"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="end"
+        android:orientation="horizontal"
+        android:paddingStart="8dp"
+        android:paddingTop="8dp"
+        android:paddingEnd="8dp"
+        android:paddingBottom="16dp">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/deviceSheetPickCancel"
+            style="@style/Widget.MaterialComponents.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@android:string/cancel" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/deviceSheetPickConfirm"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:contentDescription="@string/receiver_pick_confirm_description"
+            android:text="@android:string/ok" />
+    </LinearLayout>
+</LinearLayout>

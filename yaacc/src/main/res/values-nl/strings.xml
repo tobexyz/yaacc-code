@@ -48,6 +48,8 @@
     <string name="share_unnamed_file">Gedeeld bestand</string>
     <string name="share_open_failed">Het gedeelde bestand kon niet worden afgespeeld.</string>
     <string name="share_busy">Een ander gedeeld bestand wordt nog verwerkt. Probeer het zo meteen opnieuw.</string>
+    <string name="share_unnamed_link">Gedeelde link</string>
+    <string name="share_link_failed">De gedeelde link kon niet worden afgespeeld.</string>
     <string name="error_no_activity_found">Geen activiteit gevonden voor het spelen van mimetype \'%1$s\'</string>
     <string name="image_viewer_settings_duration">Duur van het beeldverblijf</string>
     <string name="yaacc_menu_settings">YAACC-instellingen</string>
@@ -144,9 +146,12 @@
     <string name="paused">GESLOTEN</string>
     <string name="stopped">GESTOPT</string>
     <string name="no_media">GEEN MEDIA</string>
-    <string name="device_sheet_title">Afspelen op</string>
+    <string name="device_sheet_title">Ontvangers</string>
     <string name="receiver_bar_none_playing">Geen ontvanger speelt af</string>
     <string name="receiver_bar_description">Ontvangers kiezen</string>
+    <string name="receiver_pick_title">Afspelen op…</string>
+    <string name="receiver_pick_none_hint">Kies minstens één ontvanger.</string>
+    <string name="receiver_pick_confirm_description">Afspelen op de gekozen ontvangers</string>
     <string name="mini_player_previous">Vorig nummer</string>
     <string name="mini_player_play">Afspelen</string>
     <string name="mini_player_pause">Pauzeren</string>

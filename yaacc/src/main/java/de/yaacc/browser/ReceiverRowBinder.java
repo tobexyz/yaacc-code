@@ -62,7 +62,7 @@ import de.yaacc.util.YaaccLogger;
 import de.yaacc.util.image.IconDownloadTask;
 
 /**
- * Binds one {@code browse_receiver_device_item} row: selection checkbox,
+ * Binds one {@code browse_receiver_device_item} row: selection checkbox (the Receiver tab only),
  * status badge and track text, album art, volume/mute load tasks and the
  * play/pause/stop buttons. Extracted from {@link BrowseReceiverDeviceAdapter}
  * so the Receiver tab and the device sheet bind receiver rows the same way.
@@ -126,6 +126,19 @@ final class ReceiverRowBinder {
         this.upnpClient = upnpClient;
     }
 
+    /**
+     * Binds a row without any selection UI: the checkbox is hidden and writes nothing. For the
+     * device sheet, whose rows only control receivers and players; the receivers are picked per
+     * action in the sheet's pick mode.
+     */
+    void bind(RowViews holder, Device<?, ?, ?> device) {
+        bind(holder, device, false, null);
+    }
+
+    /**
+     * @param selectionListener told after the row's checkbox wrote through to {@link UpnpClient}; null
+     *                          hides the checkbox (see {@link #bind(RowViews, Device)})
+     */
     void bind(RowViews holder, Device<?, ?, ?> device, boolean selected, SelectionListener selectionListener) {
         // Tag the icon with device identity to prevent wrong icon loading
         holder.icon.setTag(device.getIdentity().getUdn().getIdentifierString());
@@ -180,18 +193,25 @@ final class ReceiverRowBinder {
             holder.icon.setImageDrawable(ThemeHelper.tintDrawable(context.getResources().getDrawable(R.drawable.ic_baseline_devices_48, context.getTheme()), context.getTheme()));
         }
         holder.name.setText(device.getDetails().getFriendlyName());
-        holder.checkBox.setOnClickListener((it) -> {
-            boolean checked = ((CheckBox) it).isChecked();
-            if (!checked) {
-                YaaccLogger.d(getClass().getName(), "isNotChecked:" + device.getDisplayString());
-                upnpClient.removeReceiverDevice(device);
-            } else {
-                YaaccLogger.d(getClass().getName(), "isChecked:" + device.getDisplayString());
-                upnpClient.addReceiverDevice(device);
-            }
-            selectionListener.onSelectionChanged(device, checked);
-        });
-        holder.checkBox.setChecked(selected);
+        if (selectionListener == null) {
+            // no selection UI (the device sheet): the receiver is picked per action, not stored here
+            holder.checkBox.setOnClickListener(null);
+            holder.checkBox.setVisibility(View.GONE);
+        } else {
+            holder.checkBox.setVisibility(View.VISIBLE);
+            holder.checkBox.setOnClickListener((it) -> {
+                boolean checked = ((CheckBox) it).isChecked();
+                if (!checked) {
+                    YaaccLogger.d(getClass().getName(), "isNotChecked:" + device.getDisplayString());
+                    upnpClient.removeReceiverDevice(device);
+                } else {
+                    YaaccLogger.d(getClass().getName(), "isChecked:" + device.getDisplayString());
+                    upnpClient.addReceiverDevice(device);
+                }
+                selectionListener.onSelectionChanged(device, checked);
+            });
+            holder.checkBox.setChecked(selected);
+        }
         new DeviceVolumeStateLoadTask(holder.volume, holder.volumeText, upnpClient).execute(device);
         new DeviceMuteStateLoadTask(holder.mute, upnpClient).execute(device);
 
