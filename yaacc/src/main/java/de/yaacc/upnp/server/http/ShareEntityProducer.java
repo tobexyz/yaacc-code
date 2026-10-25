@@ -34,7 +34,10 @@ import de.yaacc.share.ShareLimits;
  * It only reads; it never closes the source (the registry does). The response is aborted (an
  * {@link IOException} from {@link #produceData}) as soon as the share is no longer live, the
  * source is closing or it ends early, so an expired or removed share stops its running
- * downloads. The concurrency lease is given back when the response ends, whichever way.
+ * downloads. The concurrency lease is given back when the response ends, whichever way, and the
+ * bytes the client accepts are reported to it: a response that stalls or trickles is cut off by
+ * the lease watchdog (see {@link ShareConcurrencyLimiter#expireIdle}) and aborts here at its next
+ * callback.
  */
 final class ShareEntityProducer extends AbstractBinAsyncEntityProducer {
 
@@ -75,8 +78,12 @@ final class ShareEntityProducer extends AbstractBinAsyncEntityProducer {
         if (!shareLive.getAsBoolean()) {
             throw new IOException("share ended");
         }
+        if (!lease.isLive()) {
+            // the watchdog took the slot away: this reader made no progress for the idle time
+            throw new IOException("write idle");
+        }
         if (pending != null && pending.hasRemaining()) {
-            channel.write(pending);
+            lease.noteProgress(channel.write(pending));
             if (pending.hasRemaining()) {
                 return;
             }
@@ -88,7 +95,7 @@ final class ShareEntityProducer extends AbstractBinAsyncEntityProducer {
             return;
         }
         pending = ByteBuffer.wrap(buffer, 0, read);
-        channel.write(pending);
+        lease.noteProgress(channel.write(pending));
     }
 
     @Override
@@ -103,7 +110,10 @@ final class ShareEntityProducer extends AbstractBinAsyncEntityProducer {
 
     @Override
     public void releaseResources() {
-        super.releaseResources();
-        lease.release();
+        try {
+            super.releaseResources();
+        } finally {
+            lease.release();
+        }
     }
 }

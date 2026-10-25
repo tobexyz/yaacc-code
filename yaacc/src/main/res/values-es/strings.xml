@@ -44,6 +44,7 @@
     <string name="error_upnp_specific">Se produjo el siguiente error:</string>
     <string name="error_no_receiver_device_found">No se encontró ningún dispositivo receptor</string>
     <string name="error_no_receiver_selected">No se ha seleccionado ningún dispositivo receptor. Seleccione primero un receptor en la pestaña Receptor.</string>
+    <string name="share_registry_full">Demasiados recursos compartidos activos. Inténtelo de nuevo en un momento.</string>
     <string name="error_no_activity_found">No se encontró actividad para jugar tipo MIME \'%1$s\'</string>
     <string name="image_viewer_settings_duration">Duración de la estancia de la foto</string>
     <string name="yaacc_menu_settings">Configuración de YAACC</string>

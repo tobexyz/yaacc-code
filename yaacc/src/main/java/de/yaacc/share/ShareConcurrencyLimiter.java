@@ -18,39 +18,95 @@
 package de.yaacc.share;
 
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.Set;
+import java.util.function.LongSupplier;
 
 /**
  * Caps the number of responses that are streaming from one share at the same time. A response
  * takes a {@link Lease} before it starts and gives it back when it ends; the lease can be
  * released any number of times (the HTTP library may report the end of a response through more
  * than one callback). Plain Java, thread safe.
+ * <p>
+ * Watchdog: a response reports its progress to the lease ({@link Lease#noteProgress}); a periodic
+ * {@link #expireIdle} takes the slot away from a lease that made no progress for the idle time,
+ * so a stalled or trickling reader cannot use up the cap. The response notices it at its next
+ * callback ({@link Lease#isLive()} is false) and aborts; the slot is not given back a second
+ * time when the response finally ends.
  */
 public final class ShareConcurrencyLimiter {
+
+    private enum State { LIVE, EXPIRED, CLOSED }
 
     /** One running response; {@link #release()} is idempotent. */
     public static final class Lease {
         private final ShareConcurrencyLimiter owner;
         private final String key;
-        private final AtomicBoolean released = new AtomicBoolean();
+        /** Guarded by the limiter's lock. */
+        private State state = State.LIVE;
+        private volatile boolean live = true;
+        /** Millis on the limiter's clock of the last recorded progress. */
+        private volatile long lastProgress;
+        private long unrecordedBytes;
 
-        private Lease(ShareConcurrencyLimiter owner, String key) {
+        private Lease(ShareConcurrencyLimiter owner, String key, long now) {
             this.owner = owner;
             this.key = key;
+            this.lastProgress = now;
         }
 
-        /** Gives the slot back; calling it again does nothing. */
+        /** Gives the slot back (unless the watchdog did already); calling it again does nothing. */
         public void release() {
-            if (released.compareAndSet(false, true)) {
-                owner.give(key);
+            owner.close(this);
+        }
+
+        /**
+         * Reports bytes that the client accepted. Once {@link ShareLimits#MIN_PROGRESS_BYTES} have
+         * accumulated since the last mark, the idle clock restarts; a smaller trickle does not.
+         */
+        public void noteProgress(long bytes) {
+            if (bytes <= 0L) {
+                return;
+            }
+            synchronized (this) {
+                unrecordedBytes += bytes;
+                if (unrecordedBytes >= ShareLimits.MIN_PROGRESS_BYTES || unrecordedBytes < 0L) {
+                    unrecordedBytes = 0L;
+                    lastProgress = owner.clock.getAsLong();
+                }
+            }
+        }
+
+        /** @return false once the lease was released or taken away by the watchdog: stop sending */
+        public boolean isLive() {
+            return live;
+        }
+
+        /** @return true if the watchdog took the slot away because of missing progress */
+        public boolean isExpired() {
+            synchronized (owner.lock) {
+                return state == State.EXPIRED;
             }
         }
     }
 
     private final int max;
+    private final LongSupplier clock;
     private final Object lock = new Object();
     private final Map<String, Integer> active = new HashMap<>();
+    /** The leases that hold a slot, for the watchdog. */
+    private final Set<Lease> live = new HashSet<>();
+
+    private static final class Holder {
+        static final ShareConcurrencyLimiter INSTANCE = new ShareConcurrencyLimiter();
+    }
+
+    /** The limiter of the whole process (the HTTP server's responses and the sweeper share it). */
+    public static ShareConcurrencyLimiter shared() {
+        return Holder.INSTANCE;
+    }
 
     public ShareConcurrencyLimiter() {
         this(ShareLimits.MAX_CONCURRENT_RESPONSES_PER_SHARE);
@@ -58,10 +114,22 @@ public final class ShareConcurrencyLimiter {
 
     /** @throws IllegalArgumentException if {@code max} is not positive */
     public ShareConcurrencyLimiter(int max) {
+        this(max, () -> System.nanoTime() / 1_000_000L);
+    }
+
+    /**
+     * @param clock monotonic milliseconds
+     * @throws IllegalArgumentException if {@code max} is not positive
+     */
+    public ShareConcurrencyLimiter(int max, LongSupplier clock) {
         if (max <= 0) {
             throw new IllegalArgumentException("max must be positive");
         }
+        if (clock == null) {
+            throw new IllegalArgumentException("clock must not be null");
+        }
         this.max = max;
+        this.clock = clock;
     }
 
     /**
@@ -78,8 +146,38 @@ public final class ShareConcurrencyLimiter {
                 return null;
             }
             active.put(key, count + 1);
+            Lease lease = new Lease(this, key, clock.getAsLong());
+            live.add(lease);
+            return lease;
         }
-        return new Lease(this, key);
+    }
+
+    /**
+     * Takes the slot away from every lease that made no progress for more than {@code idleMillis}.
+     * Call it periodically (the share sweeper does, every minute).
+     *
+     * @return the number of leases that were expired
+     * @throws IllegalArgumentException if {@code idleMillis} is not positive
+     */
+    public int expireIdle(long idleMillis) {
+        if (idleMillis <= 0L) {
+            throw new IllegalArgumentException("idleMillis must be positive");
+        }
+        int expired = 0;
+        synchronized (lock) {
+            long now = clock.getAsLong();
+            for (Iterator<Lease> it = live.iterator(); it.hasNext(); ) {
+                Lease lease = it.next();
+                if (now - lease.lastProgress > idleMillis) {
+                    it.remove();
+                    lease.state = State.EXPIRED;
+                    lease.live = false;
+                    give(lease.key);
+                    expired++;
+                }
+            }
+        }
+        return expired;
     }
 
     /** @return the number of responses currently holding a lease for the key */
@@ -99,17 +197,27 @@ public final class ShareConcurrencyLimiter {
         }
     }
 
-    private void give(String key) {
+    private void close(Lease lease) {
         synchronized (lock) {
-            Integer count = active.get(key);
-            if (count == null) {
-                return;
+            if (lease.state == State.LIVE) {
+                live.remove(lease);
+                give(lease.key);
             }
-            if (count <= 1) {
-                active.remove(key);
-            } else {
-                active.put(key, count - 1);
-            }
+            lease.state = State.CLOSED;
+            lease.live = false;
+        }
+    }
+
+    /** Caller holds the lock. */
+    private void give(String key) {
+        Integer count = active.get(key);
+        if (count == null) {
+            return;
+        }
+        if (count <= 1) {
+            active.remove(key);
+        } else {
+            active.put(key, count - 1);
         }
     }
 }

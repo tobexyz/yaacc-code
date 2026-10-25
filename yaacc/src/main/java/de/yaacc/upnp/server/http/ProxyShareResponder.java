@@ -88,7 +88,7 @@ final class ProxyShareResponder {
     private static final String UPSTREAM_BODY = "<html><body>Unavailable</body></html>";
 
     /** Running responses per share, for the whole process. */
-    private static final ShareConcurrencyLimiter LIMITER = new ShareConcurrencyLimiter();
+    private static final ShareConcurrencyLimiter LIMITER = ShareConcurrencyLimiter.shared();
 
     /** Preference that holds the playback position (ms) after the last seek, per renderer. */
     static final String SEEK_POSITION_PREFERENCE_PREFIX = "server_position_";
@@ -304,8 +304,9 @@ final class ProxyShareResponder {
 
     // ---- helpers
 
-    private void submit(ResponseTrigger trigger, HttpContext httpContext, AsyncResponseBuilder builder,
-                        ShareConcurrencyLimiter.Lease lease) throws HttpException, IOException {
+    /** Sends the response; if that fails the lease goes back at once (the producer never ran). */
+    static void submit(ResponseTrigger trigger, HttpContext httpContext, AsyncResponseBuilder builder,
+                       ShareConcurrencyLimiter.Lease lease) throws HttpException, IOException {
         builder.setHeader(HttpHeaders.ACCEPT_RANGES, "bytes");
         try {
             trigger.submitResponse(builder.build(), httpContext);

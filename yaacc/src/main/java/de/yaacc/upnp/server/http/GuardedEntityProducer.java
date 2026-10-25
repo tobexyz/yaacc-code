@@ -17,10 +17,13 @@
  */
 package de.yaacc.upnp.server.http;
 
+import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.nio.AsyncEntityProducer;
 import org.apache.hc.core5.http.nio.DataStreamChannel;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.List;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
 
@@ -28,7 +31,8 @@ import de.yaacc.share.ShareConcurrencyLimiter;
 
 /**
  * Wraps the producer of an upstream (HTTP_LINK) response: aborts the response when the share is
- * no longer live and gives the concurrency lease back when the response ends. Everything else is
+ * no longer live or its lease was taken away by the idle watchdog, reports the bytes the client
+ * accepts to the lease and gives the lease back when the response ends. Everything else is
  * delegated.
  */
 final class GuardedEntityProducer implements AsyncEntityProducer {
@@ -93,7 +97,44 @@ final class GuardedEntityProducer implements AsyncEntityProducer {
         if (!shareLive.getAsBoolean()) {
             throw new IOException("share ended");
         }
-        delegate.produce(channel);
+        if (!lease.isLive()) {
+            // the watchdog took the slot away: this reader made no progress for the idle time
+            throw new IOException("write idle");
+        }
+        delegate.produce(new ProgressChannel(channel, lease));
+    }
+
+    /** Reports the bytes the client accepted to the lease; everything else is delegated. */
+    private static final class ProgressChannel implements DataStreamChannel {
+        private final DataStreamChannel channel;
+        private final ShareConcurrencyLimiter.Lease lease;
+
+        ProgressChannel(DataStreamChannel channel, ShareConcurrencyLimiter.Lease lease) {
+            this.channel = channel;
+            this.lease = lease;
+        }
+
+        @Override
+        public void requestOutput() {
+            channel.requestOutput();
+        }
+
+        @Override
+        public int write(ByteBuffer src) throws IOException {
+            int written = channel.write(src);
+            lease.noteProgress(written);
+            return written;
+        }
+
+        @Override
+        public void endStream() throws IOException {
+            channel.endStream();
+        }
+
+        @Override
+        public void endStream(List<? extends Header> trailers) throws IOException {
+            channel.endStream(trailers);
+        }
     }
 
     @Override

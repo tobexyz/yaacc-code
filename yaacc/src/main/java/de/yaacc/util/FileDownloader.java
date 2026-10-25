@@ -22,6 +22,7 @@ import android.app.NotificationManager;
 import android.content.Context;
 import android.os.AsyncTask;
 import android.os.Environment;
+import de.yaacc.share.ShareLogRedactor;
 import de.yaacc.util.YaaccLogger;
 import android.webkit.MimeTypeMap;
 
@@ -94,9 +95,9 @@ public class FileDownloader extends AsyncTask<DIDLObject, Void, Void> {
                     }
                     YaaccLogger.d(getClass().getName(), "Downloaded: " + file.getAbsolutePath());
                 } catch (java.io.FileNotFoundException e) {
-                    YaaccLogger.e(getClass().getName(), "File not found: " + playableItem.getUri());
+                    YaaccLogger.e(getClass().getName(), "File not found: " + ShareLogRedactor.redact(String.valueOf(playableItem.getUri())));
                 } catch (java.io.IOException e) {
-                    YaaccLogger.e(getClass().getName(), "Download failed: " + playableItem.getUri());
+                    YaaccLogger.e(getClass().getName(), "Download failed: " + ShareLogRedactor.redact(String.valueOf(playableItem.getUri())));
                 }
 
             }

@@ -41,6 +41,19 @@ public final class ShareLimits {
      */
     public static final int MAX_CONCURRENT_RESPONSES_PER_SHARE = 4;
 
+    /**
+     * How long a response may make no progress before the watchdog takes its slot away: a reader
+     * that stalls or trickles must not hold one of the few slots of a share. (The server-wide
+     * socket timeout is 5 minutes and does not fire while a peer trickles.)
+     */
+    public static final long WRITE_IDLE_MILLIS = 60L * 1000L;
+
+    /**
+     * Progress is counted in steps of this many bytes within {@link #WRITE_IDLE_MILLIS}; less is a
+     * trickle (about 270 bytes per second), not playback.
+     */
+    public static final int MIN_PROGRESS_BYTES = 16 * 1024;
+
     private ShareLimits() {
     }
 }

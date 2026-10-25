@@ -48,6 +48,7 @@ import java.util.stream.Collectors;
 
 import de.yaacc.browser.BrowserLauncher;
 import de.yaacc.player.PlayerService;
+import de.yaacc.share.ShareConcurrencyLimiter;
 import de.yaacc.share.ShareLimits;
 import de.yaacc.share.ShareRegistry;
 import de.yaacc.upnp.UpnpClient;
@@ -159,6 +160,15 @@ public class Yaacc extends Application {
             } catch (RuntimeException e) {
                 YaaccLogger.w(Yaacc.class.getName(), "Share sweep failed", e);
             }
+            try {
+                // readers that stalled or trickle give their slot back (they abort at their next callback)
+                int idle = ShareConcurrencyLimiter.shared().expireIdle(ShareLimits.WRITE_IDLE_MILLIS);
+                if (idle > 0) {
+                    YaaccLogger.i(Yaacc.class.getName(), idle + " idle share response(s) lost their slot");
+                }
+            } catch (RuntimeException e) {
+                YaaccLogger.w(Yaacc.class.getName(), "Idle response sweep failed", e);
+            }
         }, ShareLimits.SWEEP_INTERVAL_MILLIS, ShareLimits.SWEEP_INTERVAL_MILLIS, TimeUnit.MILLISECONDS);
     }
 
@@ -183,12 +193,17 @@ public class Yaacc extends Application {
 
     public void exit() {
         YaaccLogger.d(getClass().getName(), "Start shutdown and close");
-        upnpClient.shutdown();
-        // close every share (held files, links) at once
-        shareRegistry.removeAll();
+        // close every share (held files, links) first, so that a failure further down cannot
+        // leave a descriptor open or a share reachable
+        try {
+            shareRegistry.removeAll();
+        } catch (RuntimeException e) {
+            YaaccLogger.w(getClass().getName(), "Could not close all shares (" + e.getClass().getSimpleName() + ")");
+        }
         if (shareSweeper != null) {
             shareSweeper.shutdownNow();
         }
+        upnpClient.shutdown();
         stopService(new Intent(this, PlayerService.class));
         stopService(new Intent(this, YaaccUpnpServerService.class));
 

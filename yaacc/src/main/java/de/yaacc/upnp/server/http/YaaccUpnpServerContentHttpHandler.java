@@ -1002,6 +1002,15 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
         }
 
         /**
+         * What to log about a failure of an external (http/https) link: only the exception class.
+         * The message and the exception object usually carry the link (a 404 reports the URL, a
+         * DNS failure the host), and the link of a share may hold a token.
+         */
+        static String exceptionName(Throwable throwable) {
+            return throwable == null ? "unknown" : throwable.getClass().getSimpleName();
+        }
+
+        /**
          * @return the uri
          */
         public String getUri() {
@@ -1036,7 +1045,7 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
                         }
                         return -1; // Unknown length for external URLs
                     } catch (Exception e) {
-                        YaaccLogger.e(getClass().getName(), "Error getting external content length", e);
+                        YaaccLogger.e(getClass().getName(), "Error getting external content length (" + exceptionName(e) + ")");
                         return -1;
                     }
                 } else {
@@ -1149,7 +1158,7 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
                                             break; // Success, exit retry loop
                                         } catch (Exception e) {
                                             lastException = e;
-                                            YaaccLogger.w(getClass().getName(), "Connection attempt " + (i + 1) + " failed: " + e.getMessage());
+                                            YaaccLogger.w(getClass().getName(), "Connection attempt " + (i + 1) + " failed (" + exceptionName(e) + ")");
                                             if (i < retries - 1) {
                                                 try {
                                                     Thread.sleep(1000);
@@ -1164,7 +1173,7 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
                                     }
                                 }
                             } catch (IOException e) {
-                                YaaccLogger.e(getClass().getName(), "Error opening external content", e);
+                                YaaccLogger.e(getClass().getName(), "Error opening external content (" + exceptionName(e) + ")");
                             }
                             return this;
                         }
@@ -1199,7 +1208,7 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
                                     channel.endStream();
                                 }
                             } catch (IOException e) {
-                                YaaccLogger.e(getClass().getName(), "Error reading external content", e);
+                                YaaccLogger.e(getClass().getName(), "Error reading external content (" + exceptionName(e) + ")");
                                 if (input != null) {
                                     try {
                                         input.close();
@@ -1217,7 +1226,7 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
 
                         @Override
                         public void failed(final Exception cause) {
-                            YaaccLogger.e(getClass().getName(), "External content streaming failed", cause);
+                            YaaccLogger.e(getClass().getName(), "External content streaming failed (" + exceptionName(cause) + ")");
                             if (input != null) {
                                 try {
                                     input.close();
