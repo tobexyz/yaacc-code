@@ -23,33 +23,15 @@ import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
-import de.yaacc.browser.DeviceSessionGrouper.PlayerRef;
 import de.yaacc.browser.MiniPlayerPresenter.TransportAction;
 
 /**
  * Unit tests for {@link MiniPlayerPresenter}, the Android-free decisions behind the
- * mini-player bar: whether it shows, what the play/pause button does, and how the
+ * mini-player bar: what the play/pause button does, and how the
  * untrusted title / receiver name strings are cleaned before they reach a TextView.
  * Plain JVM.
  */
 public class MiniPlayerPresenterTest {
-
-    // ---- visibility ----------------------------------------------------------------------
-
-    @Test
-    public void barIsHiddenWithoutAFeaturedSession() {
-        assertFalse(MiniPlayerPresenter.isVisible(null));
-    }
-
-    @Test
-    public void barShowsForAPlayingSession() {
-        assertTrue(MiniPlayerPresenter.isVisible(new PlayerRef(1, "uuid:tv", true, 1)));
-    }
-
-    @Test
-    public void barShowsForAPausedSession() {
-        assertTrue(MiniPlayerPresenter.isVisible(new PlayerRef(1, "uuid:tv", false, 1)));
-    }
 
     // ---- play / pause button -------------------------------------------------------------
 

@@ -17,11 +17,9 @@
  */
 package de.yaacc.browser;
 
-import de.yaacc.browser.DeviceSessionGrouper.PlayerRef;
-
 /**
- * The Android-free decisions behind the mini-player bar: whether it shows, what the play/pause
- * button does, and how the strings that come from LAN devices (track title, receiver and player
+ * The Android-free decisions behind the mini-player rows: what the play/pause button does, and
+ * how the strings that come from LAN devices (track title, receiver and player
  * names) are cleaned before they are set on a {@code TextView}.
  * <p>
  * Deliberately has no {@code android.*} imports so it can be unit-tested on the plain JVM.
@@ -40,11 +38,6 @@ public final class MiniPlayerPresenter {
     static final int MAX_TEXT_LENGTH = 200;
 
     private MiniPlayerPresenter() {
-    }
-
-    /** The bar shows exactly when there is a featured session. */
-    public static boolean isVisible(PlayerRef featured) {
-        return featured != null;
     }
 
     /** The play/pause button pauses a playing session and starts any other one. */
