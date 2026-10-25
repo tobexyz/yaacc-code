@@ -1178,8 +1178,7 @@ onPlayersStarted)` and `shutdown()` are main-thread. Both browsers call
 - **Scheme policy.** `ShareUriPolicy.isAllowed(text)`: non-empty, at most 2048
   chars, and the part before the first `':'` equals `http` or `https`
   (ASCII, case-insensitive). Nothing is trimmed. Reason: with the proxy option on,
-  a `file://` URI or bare path would be served to the whole LAN through
-  `/proxy/<hash>`. The check looks only at the scheme and length, so `http:` and
+  a local path would have been reachable through the proxy. The check looks only at the scheme and length, so `http:` and
   `http://a\nfile:///x` pass (pinned by `ShareUriPolicyTest#onlyTheSchemeAndLengthAreChecked`;
   tightening is Backlog 1 item 8). A rejected text is only logged, with no
   payload. The text is never used to build an intent, PendingIntent or file path.
@@ -1426,7 +1425,7 @@ Re-checked 2026-10-24 with `./gradlew :yaacc:processDebugManifest --offline`
   should ever get the sheet is closed with "no" (PRD open question 4).
 - **Share, Backlog 1** (waiting for a discussion with the owner): which share
   (receiving into yaacc, or also the per-item share out of yaacc); whether files
-  or `content://` URIs may become playable without opening the proxy hole; more MIME
+  or `content://` URIs may become playable (now scoped: Phase 3); more MIME
   types; picking the receiver in the sheet; localized toasts and feedback for a
   rejected link; replacing the blind 3 s waits; what the new layout shows when a
   share starts; rotation/process death; tightening `ShareUriPolicy` (require
@@ -2474,8 +2473,8 @@ All in `upnp/server/http/YaaccUpnpServerContentHttpHandler.java` (1774 lines) un
   `handle`.
 
 **Writers/readers of `proxy_link_`** (grep of the whole repo): writer `UpnpClient.java:1647-1648`
-(`sha256(uriString)` key, `:1645`, `:1657-1676`; proxy URL `http://<getIpAddress>:49157/proxy/<hash>`, `:1646`,
-only when `settings_local_server_proxy_chkbx` is on, `:1644`); readers `YaaccUpnpServerContentHttpHandler.java:776,
+(content key derived from the shared string, `:1645`, `:1657-1676`; proxy URL built at `:1646`, only when
+`settings_local_server_proxy_chkbx` is on, `:1644`); readers `YaaccUpnpServerContentHttpHandler.java:776,
 784`; bulk deleter on exit `Yaacc.java:135-139` (collects all keys starting with `proxy_link_mime_type` or
 `proxy_link_`, removes them with `commit()`); the two constants `YaaccUpnpServerService.java:114-115`
 (`"proxy_link_"`, `"proxy_link_mime_type"`; `PROXY_PATH = "proxy"` `:116` stays). No test, no doc other than
@@ -2743,12 +2742,16 @@ alone is not enough:
 - `ShareIntentHandler.prepareAndPlay`'s "no receiver ready -> set `LOCAL_UID`" fallback (`:156-159`) is replaced in
   the new layout by the picker; classic keeps it.
 
-**Share flow in the new layout** (derived): `handle` validates, opens the descriptor immediately (the grant is
-valid only while the browser record lives), registers nothing yet or registers with an empty address set, asks the
-host for a pick, and on confirm computes the addresses of the chosen devices, finalizes the entry, builds the
-item, plays and clears. On cancel: `remove(key)` (closes the descriptor). If the activity is destroyed while the
-picker is open and not recreated (finish), release the entry (the abandoned-share timeout in the registry is the
-backstop).
+**Share flow in the new layout** (as amended by the Group 12 security review): `handle` validates and keeps a
+PENDING share that holds only the validated URI, the cleaned display name, a token and the intent's read grant;
+no descriptor, no copy and no registry slot exist yet. There is at most one pending share, it times out, and a new
+share while one is pending is dropped. The host shows the picker. Only on confirm are the descriptor opened (the
+grant is valid while the receiving activity record lives), the addresses of the chosen devices computed, the
+registry entry created and the item built and played; then the selection is cleared. On cancel or timeout the
+pending share is simply released (nothing was opened). In classic the same pending share is confirmed through an
+explicit dialog (cleaned file name and the selected receivers) instead of the picker. `getType` and the display
+name are read on a worker thread with a timeout (a hostile provider must not hang the main thread before the
+user has confirmed anything).
 
 ### (g) Recommended API for the Group 12 red tests (package `de.yaacc.share`, plain Java)
 
