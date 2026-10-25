@@ -56,6 +56,18 @@ public final class ShareLimits {
      */
     public static final int MIN_PROGRESS_BYTES = 16 * 1024;
 
+    /**
+     * How long a share that no player claimed may stay in the registry (and, for a file, hold its
+     * descriptor): the player is created right after the registration, so two minutes is generous.
+     */
+    public static final long CLAIM_WINDOW_MILLIS = 2L * 60L * 1000L;
+
+    /** How long a pending (unconfirmed) share waits for the user's receiver pick. */
+    public static final long PENDING_SHARE_TIMEOUT_MILLIS = 2L * 60L * 1000L;
+
+    /** Free space that must stay on the volume while a provider file is copied: 64 MiB. */
+    public static final long COPY_FREE_SPACE_RESERVE_BYTES = 64L * 1024L * 1024L;
+
     private ShareLimits() {
     }
 }

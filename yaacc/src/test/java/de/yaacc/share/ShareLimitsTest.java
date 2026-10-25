@@ -43,4 +43,16 @@ public class ShareLimitsTest {
         assertEquals(64 * 1024, ShareLimits.CHUNK_BYTES);
         assertEquals(ShareLimits.CHUNK_BYTES, RangeStreamer.DEFAULT_CHUNK_BYTES);
     }
+
+    @Test
+    public void anUnclaimedShareAndAPendingShareLiveTwoMinutes() {
+        assertEquals(120_000L, ShareLimits.CLAIM_WINDOW_MILLIS);
+        assertEquals(120_000L, ShareLimits.PENDING_SHARE_TIMEOUT_MILLIS);
+        assertTrue(ShareLimits.CLAIM_WINDOW_MILLIS < ShareLimits.IDLE_GRACE_MILLIS);
+    }
+
+    @Test
+    public void theCopyKeepsSixtyFourMiBFree() {
+        assertEquals(64L * 1024L * 1024L, ShareLimits.COPY_FREE_SPACE_RESERVE_BYTES);
+    }
 }

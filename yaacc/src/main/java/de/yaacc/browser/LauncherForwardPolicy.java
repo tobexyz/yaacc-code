@@ -17,6 +17,10 @@
  */
 package de.yaacc.browser;
 
+import java.util.Locale;
+
+import de.yaacc.share.SharedContentPolicy;
+
 /**
  * Decides what the exported launcher activity hands on to the browser. Plain Java so it can be
  * unit tested on the JVM; the Android {@code Intent} handling stays in the activity.
@@ -140,7 +144,35 @@ public final class LauncherForwardPolicy {
     public static StreamDecision decideStream(String action, String type, String streamUri,
                                               String clipItemUri, int incomingFlags,
                                               String ownAuthority) {
-        // STUB (red phase): wrong on purpose (fail closed: never forward)
-        return NO_STREAM;
+        if (!ACTION_SEND.equals(action) || !isMediaType(type)) {
+            return NO_STREAM;
+        }
+        if (streamUri == null || streamUri.isEmpty() || !streamUri.equals(clipItemUri)) {
+            return NO_STREAM;
+        }
+        if ((incomingFlags & FLAG_GRANT_READ_URI_PERMISSION) == 0) {
+            return NO_STREAM;
+        }
+        if (!SharedContentPolicy.isAcceptableUri(streamUri, ownAuthority)) {
+            return NO_STREAM;
+        }
+        return new StreamDecision(streamUri);
+    }
+
+    /**
+     * An audio, video or image type, in lower case and without parameters: concrete
+     * ({@code image/svg+xml}) or the sender's wildcard ({@code audio/*}). Lower case only, like the
+     * text path: {@code Intent.setType} lower-cases, so another spelling did not come from a
+     * normal sender.
+     */
+    private static boolean isMediaType(String type) {
+        if (type == null) {
+            return false;
+        }
+        if (type.equals("audio/*") || type.equals("video/*") || type.equals("image/*")) {
+            return true;
+        }
+        return SharedContentPolicy.isAcceptableMimeType(type)
+                && type.equals(type.toLowerCase(Locale.ROOT));
     }
 }
