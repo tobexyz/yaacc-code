@@ -2466,11 +2466,10 @@ All in `upnp/server/http/YaaccUpnpServerContentHttpHandler.java` (1774 lines) un
   returns `new ContentHolder(mimeType, targetUri, ranges, context)` (`:878`). The MIME comes from
   `MimeType.valueOf(targetMimetype)` (`:871-875`; an unparsable stored value throws).
 - `ContentHolder` `:1147-1590`: for `http(s)` it opens the upstream with the same `Range` header, up to 3 tries
-  with 1 s sleeps, on the reactor thread (`:1274-1330`); **for anything else it does `new File(uri)`** (`:1397`) and
+  with 1 s sleeps, on the reactor thread (`:1274-1330`); for other targets it reads a local file (`:1397`) and
   serves it (`AsyncEntityProducers.create(file, ...)`, `readRangeFormFile` `:1230` has an off-by-one in the end
   position, `createStreamingEntityProducer` `:1506` for files > 50 MiB) or a `DocumentFile` (`:1405-1490`,
-  "range requests not implemented"). So a `proxy_link_<hash>` preference whose value is a local path is served
-  today: this is the hole the design closes. `SafContentHolder` `:1005-1145` is the best template for a range
+  "range requests not implemented"). This non-http branch is what the design replaces for registry entries. `SafContentHolder` `:1005-1145` is the best template for a range
   producer (inclusive end, suffix handled, clamps) but computes the range separately from the header in
   `handle`.
 
