@@ -653,3 +653,29 @@ Environment: this container has no Android SDK and no cached AGP 9.4.0. `./gradl
 
 ### Verdict: FAIL
 One Warning (dead `MiniPlayerPresenter.isVisible` and its "featured" wording left behind by the picker removal). Everything else in Group 11 matches the spec; build, full test run and lint could not be executed here and must be re-run (`./gradlew :yaacc:assembleDebug :yaacc:testDebugUnitTest :yaacc:lintDebug --continue`, expect 340 tests, lint 189 with no new ids) once the Warning is fixed.
+
+## Cycle 2 — 2026-10-25
+Reviewing: Group 11 (fix for the cycle 1 Warning, commit 91ae4563)
+
+### Critical
+- None.
+
+### Warning
+- None. The cycle 1 Warning is resolved: `MiniPlayerPresenter.isVisible`, its three tests and the `PlayerRef` imports are gone from `MiniPlayerPresenter.java` and `MiniPlayerPresenterTest.java`; the class Javadoc and the test Javadoc no longer say "whether it shows". `grep -rn "isVisible\|PlayerRef"` over `yaacc/src` finds no reference in `MiniPlayerPresenter`/`MiniPlayerPresenterTest` and no caller of `MiniPlayerPresenter.isVisible` anywhere. `assertTrue`/`assertFalse` imports in the test are still used.
+
+### Suggestion
+- [.claude/specs/2026-10-23-unified-device-sheet/design.md:199] Still describes the retired "featured session" mini-player. It is the original design text, superseded by decisions.md (2026-10-24, "mini-player must show all players"); add a one-line "superseded" note if the spec folder is kept. Not code or user docs, so not blocking. `tasks.md:139/177/180` and `docs/tech.md:1264/1481` mention "featured" only as labelled history of what was replaced, which is accurate.
+- [tasks.md:181] The Status line says "340 tests green" (implementer's count before the removal) and then "full suite expected 337"; consistent, no change needed.
+
+### Checks performed (static and plain JVM; no Android SDK in this container)
+- `MiniPlayerBar` visibility is `list.setVisibility(rows.isEmpty() ? GONE : VISIBLE)` (line 190, initial GONE at 135); every symbol it uses from the presenter (`title`, `receiverLabel`, `toggleAction`, `TransportAction`) still exists; `PlayerRef` is imported from `DeviceSessionGrouper` where it is defined. Compiles by inspection.
+- javac (main: DeviceSessionGrouper, MiniPlayerRows, MiniPlayerArtKeys, MiniPlayerPresenter, ShutdownTimerToggle, BrowserLayoutChoice) plus JUnit 4.13.2 run from `/home/user/yaacc-code/yaacc`: MiniPlayerPresenterTest 22, MiniPlayerRowsTest 16, MiniPlayerArtKeysTest 8, ShutdownTimerToggleTest 2, BrowserLayoutChoiceTest 12, BrowserLayoutValuesTest 2 = 62 tests, `OK (62 tests)`, 0 failures.
+- `featured` outside labelled history: none in main code or tests; only the history/superseded mentions listed above (and an unrelated Doxyfile URL).
+- `@Test` count over `yaacc/src/test`: 337 (no `@Ignore`, `@Parameterized`, `@RunWith`), equal to the expected Gradle count of 337 (340 before the three removed tests).
+
+### Tests
+- [ ] All tests passing (UNVERIFIED for the full suite: no Android SDK in this container; the 62 pure-JVM tests of the six named classes pass and the static @Test count matches 337)
+- [x] Coverage adequate for the change
+
+### Verdict: PASS
+Conditional on the full build being repeated where the Android SDK exists: `./gradlew :yaacc:assembleDebug :yaacc:testDebugUnitTest :yaacc:lintDebug --continue` (expect 337 tests, lint 189 with no new ids). The full assemble/test/lint run could not be performed here.
