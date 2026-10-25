@@ -1471,3 +1471,40 @@ Scope: HEAD d884be14 against Cycle 2 Warnings 1-3, grepped across tasks.md, desi
 
 ### Verdict: FAIL
 The tech.md share-flow section and design.md are fixed, and the public docs no longer carry the key derivation. Three Warnings of text remain, all in plan text and none needing code or test changes: a second "open the descriptor at once" in tech.md (a), the unqualified "classic is unchanged"/"never falls back to `LOCAL_UID`" in tasks.md Group 15, and the API 35 `getInitialCaller` check still assigned to `ShareIntentHandler` in tasks.md Group 14 and decisions.md instead of `LauncherActivity`.
+
+
+## Cycle 4 — 2026-10-25
+Reviewing: Group 12 (phase 3)
+
+Scope: the diff of HEAD 7171267f (decisions.md, tasks.md, docs/tech.md; security-review.md only gained the Cycle 3 text) against Cycle 3 Warnings 1-3 and the Suggestions, plus the requested grep across docs/tech.md, design.md, tasks.md, decisions.md and an end-to-end read of the pending-share/classic-dialog story. Plan text only; nothing built or run.
+
+### Cycle 3 Warning status
+- **W1 (tech.md (a) "open the descriptor at once"): resolved.** docs/tech.md:2305-2308 now says to run `SharedContentPolicy` again and keep only a PENDING share (URI, cleaned name, token), descriptor after the confirmation, see (f).
+- **W2 (tasks.md Group 15 wording): resolved.** Accept: "the classic layout keeps its tab-based selection and static footer (its only addition is the Group 14 confirmation dialog for shared files)". Constraints: "never auto-played and, in the new layout, never falls back to `LOCAL_UID` (classic keeps that fallback for links)". Matches design.md decision 4 and tech.md (f).
+- **W3 (API 35 caller check): resolved.** tasks.md Group 14 Constraints (4) names the LAUNCHER (not the handler, because in the browser the initial caller is the launcher), runs it before the forward, catches `IllegalArgumentException` and `SecurityException` as "do not forward", and marks the sub-35 residual and "to be verified on a device". decisions.md item 3 says the same.
+
+### Cycle 3 Suggestions now in the plan
+- Group 14 constraint (5): `getType` and the display-name query on a worker thread with a timeout and a total copy budget, never on the main thread before the confirmation (tech.md (f) says the same).
+- Group 13 Constraints: `SecureRandom` and a monotonic non-`android.*` clock in `createDefault()`, constant 404 body, remote address only from the endpoint details, upstream `Range` re-serialized from the parsed ranges, sweeper plus `removeAll()` on exit, no key/full-URL logging in `AVTransportPlayer` and `PlayableItem`.
+- Backlog 1 item 1 no longer spells out the old proxy behavior.
+
+### Grep result (the requested pattern)
+Legitimate hits only for `immediately|at intake|when the share arrives|at once|sha256|proxy hole|served to the LAN|classic is unchanged`: unrelated "at once"/"immediately" in tech.md (:1084, :1404, :1438, :1695 redirect, :2169, :2336 close the original, :2392, :2425 copy limit, :2667 checkbox write-through), tasks.md:215 (checkbox write-through), design.md:17, decisions.md:142, decisions.md:196 ("Nothing is opened or registered at intake", the correct statement) and tasks.md:201 ("sha256-of-URI keys are retired", a removal). No "classic is unchanged", "proxy hole" or "when the share arrives" remains. The two hits that still describe the old released behavior are listed under Suggestion.
+
+### End-to-end consistency (pending share / classic dialog)
+design.md decision 2 and 4 and the threat-model gates, tasks.md Groups 13-16, tech.md (a) and (f), and decisions.md items 1-3 all say: validate only at intake; one pending share holding URI, cleaned name, token and read grant; timeout; a new share while one is pending is dropped; descriptor/copy/registry slot only after confirmation (receiver pick in the new layout, explicit dialog with cleaned name and selected receivers in classic); cancel or timeout releases; launcher does the API 35 check; handler repeats the intake checks. No contradiction with the red tests: `ShareRegistryTest`, `ByteRangeResolverTest`, `ProxyAccessPolicyTest`, `SharedContentPolicyTest`, `ReceiverPickResultTest` (`keepPickerOpen`) and `LauncherForwardPolicyStreamTest` (one field, READ only) pin pure policies only; none pins an intake-time open, a registry slot at intake, or an unqualified classic behavior.
+
+### Critical
+- None.
+
+### Warning
+- None.
+
+### Suggestion
+- [tasks.md:113 (Group 6 scheme policy) and decisions.md:126] Both still say a shared `file://` URI or path "can be served to the LAN through `/proxy/<hash>`". Same class as the already-softened Backlog 1 text and decisions item 5 (no exploit-level detail about the released behavior in the public repo); reword to "the old proxy option could expose local paths" without the URL shape. docs/tech.md :2439-2447 and :2482 keep proxy-handler engineering detail (accepted in Cycle 3).
+- [tasks.md Group 14 Accept] The API 35 launcher check lives only in Constraints (4); add it to Accept so the test/verify step covers it.
+- [tasks.md Group 14 (6) / Group 15] Classic confirm after the old "no receiver ready -> `LOCAL_UID`" fallback: state that the classic dialog lists the effective receiver (this device when the fallback applies), so the user never confirms an empty list that then plays locally.
+- Keep the 5.4.x patch-release recommendation (decisions.md item 5) and verify the API 35 behavior on a device during Group 14.
+
+### Verdict: PASS
+Zero Critical, zero Warning. All Cycle 2/3 Warnings are resolved in the plan text, the plan is consistent end to end and with the red tests. Groups 13-15 may proceed; re-review at the end of Group 14 with the real manifest diff and glue code.
