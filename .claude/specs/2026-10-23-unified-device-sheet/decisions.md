@@ -165,3 +165,8 @@ for later would leave the new layout without quick access to running players.
 1. The toolbar timer was shown twice (icon and overflow entry): the overflow entry is removed; the icon stops a running timer and otherwise opens the picker, whose confirmation starts the timer.
 2. The mini-player must show all players, not only the featured one: one compact row per player, oldest first like the sheet, capped height with scrolling.
 3. Classic keeps the original static footer (provider line and receivers line, not clickable) in the content browsing and does not open the sheet; the sheet and receiver bar live in the new layout only. This answers PRD open question 4 with "no" and undoes the phase 1 footer change for classic.
+
+## 2026-10-25 - allowBackup turned off (owner decision)
+**Context**: Auto Backup (default on) copied the default preferences file, including the `proxy_link_*` entries (shared URLs, possibly with tokens), the receiver selection, SAF cache entries and the stored layout, to the user's Google account; raised in the Group 7-9 security reviews.
+**Decision**: `android:allowBackup="false"` on `<application>`. Settings are re-entered on a new device (the owner: the setup is easy). No exclusion rules.
+**Rationale**: simplest and safest; the privacy exposure of stored proxy links outweighs the convenience of restored settings. Not verified with a full Gradle build in this container (no SDK): a manifest merge conflict is only possible if a dependency sets the attribute itself, which none is known to.

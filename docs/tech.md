@@ -1386,8 +1386,8 @@ Re-checked 2026-10-24 with `./gradlew :yaacc:processDebugManifest --offline`
   (`BOOT_COMPLETED`), and from libraries `androidx.media3.session.BluetoothValidationActivity`
   and `androidx.profileinstaller.ProfileInstallReceiver`. 21 `uses-permission`
   entries, as before Phase 2.
-- `android:allowBackup` is not set (default `true`); the merged manifest does not
-  set it either.
+- `android:allowBackup="false"` is set on `<application>` (owner decision 2026-10-25;
+  before that it was unset, default `true`).
 - The source manifest was changed by Group 6 (`LauncherActivity` added, filters
   moved off `TabBrowserActivity`) and Group 7 (`BrowserActivity` added); Groups
   8, 9 and 11 did not touch it. `yaacc/build.gradle` has no Phase 2 change and no
@@ -1395,12 +1395,11 @@ Re-checked 2026-10-24 with `./gradlew :yaacc:processDebugManifest --offline`
 
 ### Known limitations / owner decisions
 
-- **`allowBackup` (decision pending).** It defaults to `true`, so Auto Backup
-  restores the default preferences file (layout, receiver selection,
-  `proxy_link_*`, SAF cache entries). A restored or tampered `new` only routes to
-  our own non-exported `BrowserActivity` through `relaunchIfOtherLayout`; the
-  effect is a layout flip. Whether to set `android:allowBackup="false"` or exclude
-  that file is the owner's call and is outside this spec.
+- **`allowBackup` (decided: off).** Auto Backup used to copy the default
+  preferences file (layout, receiver selection, `proxy_link_*`, SAF cache entries)
+  to the user's Google account. The owner chose `android:allowBackup="false"`
+  (2026-10-25): users set the app up again on a new device. No backup or
+  `dataExtractionRules` exclusion rules are needed then.
 - **Stale notification PendingIntents.** The three internal PendingIntents keep
   the class chosen when the notification was posted. After a layout switch a tap
   starts the old class, which redirects at once, and may leave a second browser
