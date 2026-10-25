@@ -45,6 +45,15 @@ public final class PlayerListChangeNotifier {
     public interface Listener {
         void onPlayerAdded(Player player);
 
+        /**
+         * Called synchronously on the thread that removes the player, right after the player left
+         * the active set and before the "removed" callback is queued, i.e. before
+         * {@code onDestroy()} can clear the player's state. Only for cheap, thread-safe
+         * bookkeeping; an exception is swallowed. Not called for a player that was not active.
+         */
+        default void onPlayerRemoving(Player player) {
+        }
+
         void onPlayerRemoved(Player player);
     }
 
@@ -89,6 +98,7 @@ public final class PlayerListChangeNotifier {
         }
         if (previous != null) {
             creationSequences.remove(previous);
+            announceRemoving(previous);
             post(previous, false);
         }
         post(player, true);
@@ -108,6 +118,7 @@ public final class PlayerListChangeNotifier {
             return false;
         }
         creationSequences.remove(player);
+        announceRemoving(player);
         post(player, false);
         return true;
     }
@@ -124,6 +135,16 @@ public final class PlayerListChangeNotifier {
         }
         Long sequence = creationSequences.get(player);
         return sequence == null ? 0 : sequence;
+    }
+
+    private void announceRemoving(Player player) {
+        for (Listener listener : listeners) {
+            try {
+                listener.onPlayerRemoving(player);
+            } catch (RuntimeException e) {
+                // a listener's bookkeeping must never break the removal of a player
+            }
+        }
     }
 
     private void post(Player player, boolean added) {

@@ -70,6 +70,9 @@
     <string name="settings_local_server_proxy_title">serviço de proxy de mídia</string>
     <string name="settings_local_server_proxy_off">proxy de mídia desativado</string>
     <string name="settings_local_server_proxy_on">proxy de mídia ativado</string>
+    <string name="settings_proxy_restrict_receivers_title">Restringir o proxy de mídia aos receptores escolhidos</string>
+    <string name="settings_proxy_restrict_receivers_on">Somente os receptores escolhidos podem obter um arquivo ou link compartilhado</string>
+    <string name="settings_proxy_restrict_receivers_off">Qualquer dispositivo que conheça o endereço pode obter um arquivo ou link compartilhado enquanto ele estiver compartilhado</string>
     <string name="settings_local_server_media_filter_title">filtrowanie magazynu multimediów</string>
     <string name="settings_local_server_media_filter_off">filtrowanie magazynu multimediów wyłączone</string>
     <string name="settings_local_server_media_filter_on">aktywowano filtrowanie magazynu multimediów</string>

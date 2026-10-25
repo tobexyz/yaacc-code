@@ -27,8 +27,11 @@ import android.content.SharedPreferences.Editor;
 import android.media.AudioManager;
 import android.media.MediaMetadataRetriever;
 import android.net.Uri;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.webkit.MimeTypeMap;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.preference.PreferenceManager;
@@ -73,9 +76,6 @@ import org.seamless.util.MimeType;
 
 import java.io.IOException;
 import java.net.URI;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -91,15 +91,21 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import de.yaacc.share.ShareLogRedactor;
 import de.yaacc.R;
 import de.yaacc.Yaacc;
 import de.yaacc.browser.Position;
-import de.yaacc.browser.TabBrowserActivity;
 import de.yaacc.player.PlayableItem;
 import de.yaacc.player.Player;
 import de.yaacc.player.PlayerListChangeNotifier;
 import de.yaacc.player.PlayerService;
+import de.yaacc.player.ShareLifetimeListener;
 import de.yaacc.player.YaaccMediaRouteProvider;
+import de.yaacc.share.HttpLinkTarget;
+import de.yaacc.share.ReadinessWait;
+import de.yaacc.share.ShareLimits;
+import de.yaacc.share.ShareKeyTracker;
+import de.yaacc.share.ShareRegistry;
 import de.yaacc.upnp.callback.contentdirectory.Browse.Status;
 import de.yaacc.upnp.callback.contentdirectory.ContentDirectoryBrowseActionCallback;
 import de.yaacc.upnp.callback.contentdirectory.ContentDirectoryBrowseResult;
@@ -112,6 +118,8 @@ import de.yaacc.upnp.registry.Registry;
 import de.yaacc.upnp.registry.RegistryListener;
 import de.yaacc.upnp.server.YaaccUpnpServerService;
 import de.yaacc.upnp.server.avtransport.AvTransport;
+import de.yaacc.upnp.server.share.HttpServerProbe;
+import de.yaacc.upnp.server.share.ShareAddressResolver;
 import de.yaacc.util.FileDownloader;
 import de.yaacc.util.FormatHelper;
 import de.yaacc.util.InterfaceResolutionHelper;
@@ -162,6 +170,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         if (context != null) {
             this.context = context;
             this.preferences = PreferenceManager.getDefaultSharedPreferences(context);
+            addPlayerListChangeListener(shareLifetimeListener);
 
             // Initialize MediaRouteProvider for UPnP devices
             mediaRouteProvider = new YaaccMediaRouteProvider(context, this);
@@ -738,7 +747,9 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         if (!waitForPlayerServiceComeUp()) {
             return Collections.emptyList();
         }
-        return playerService.createPlayer(this, toPlayableItems(items));
+        List<Player> players = playerService.createPlayer(this, toPlayableItems(items));
+        rememberShares(players);
+        return players;
     }
 
     @NonNull
@@ -792,7 +803,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         }
         YaaccLogger.d(getClass().getName(), "TransportId: " + transport.getInstanceId());
         PositionInfo positionInfo = transport.getPositionInfo();
-        YaaccLogger.d(getClass().getName(), "positionInfo: " + positionInfo);
+        YaaccLogger.d(getClass().getName(), "positionInfo: " + ShareLogRedactor.redact(String.valueOf(positionInfo)));
         if (positionInfo == null) {
             return playerService.createPlayerForLocalDevice(this, items);
         }
@@ -801,7 +812,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
             if (positionInfo.getTrackMetaData() != null && !positionInfo.getTrackMetaData().contains("NOT_IMPLEMENTED")) {
                 metadata = new DIDLParser().parse(positionInfo.getTrackMetaData());
             } else {
-                YaaccLogger.d(getClass().getName(), "Warning unparsable TackMetaData: " + positionInfo.getTrackMetaData());
+                YaaccLogger.d(getClass().getName(), "Warning unparsable TackMetaData: " + ShareLogRedactor.redact(String.valueOf(positionInfo.getTrackMetaData())));
             }
         } catch (Exception e) {
             YaaccLogger.d(getClass().getName(), "Exception while parsing metadata: ", e);
@@ -825,17 +836,14 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
             playableItem.setTitle(positionInfo.getTrackURI());
             String fileExtension = MimeTypeMap.getFileExtensionFromUrl(positionInfo.getTrackURI());
             mimeType = MimeTypeMap.getSingleton().getMimeTypeFromExtension(fileExtension);
-            YaaccLogger.d(getClass().getName(), "fileextension from trackURI: " + fileExtension);
+            YaaccLogger.d(getClass().getName(), "fileextension from trackURI: " + ShareLogRedactor.redact(String.valueOf(fileExtension)));
         }
         playableItem.setMimeType(mimeType);
         playableItem.setUri(Uri.parse(positionInfo.getTrackURI()));
-        YaaccLogger.d(getClass().getName(), "positionInfo.getTrackURI(): " + positionInfo.getTrackURI());
         // FIXME Duration not supported in receiver yet
         // playableItem.setDuration(duration)
         items.add(playableItem);
-        YaaccLogger.d(getClass().getName(), "TransportUri: " + positionInfo.getTrackURI());
         YaaccLogger.d(getClass().getName(), "Current duration: " + positionInfo.getTrackDuration());
-        YaaccLogger.d(getClass().getName(), "TrackMetaData: " + positionInfo.getTrackMetaData());
         YaaccLogger.d(getClass().getName(), "MimeType: " + playableItem.getMimeType());
         return playerService.createPlayerForLocalDevice(this, items);
     }
@@ -1262,7 +1270,9 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         if (!waitForPlayerServiceComeUp()) {
             return Collections.emptyList();
         }
-        return playerService.createPlayer(this, items);
+        List<Player> players = playerService.createPlayer(this, items);
+        rememberShares(players);
+        return players;
     }
 
     public boolean getMute(Device<?, ?, ?> device) {
@@ -1641,36 +1651,138 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
                 item.setItem(new ImageItem("1", "2", title, "", res));
             }
             item.setUri(uri);
-            if (this.getPreferences().getBoolean(getContext().getString(R.string.settings_local_server_proxy_chkbx), false)) {
-                String contentKey = sha256(uriString);
-                String proxyUrl = "http://" + InterfaceResolutionHelper.getIpAddress(getContext()) + ":" + YaaccUpnpServerService.PORT + "/" + YaaccUpnpServerService.PROXY_PATH + "/" + contentKey;
-                this.getPreferences().edit().putString(YaaccUpnpServerService.PROXY_LINK_KEY_PREFIX + contentKey, uriString).apply();
-                this.getPreferences().edit().putString(YaaccUpnpServerService.PROXY_LINK_MIME_TYPE_KEY_PREFIX + contentKey, item.getMimeType()).apply();
-                item.setUri(Uri.parse(proxyUrl));
-                res.setValue(proxyUrl);
+            // only http(s) links are proxied; the link is kept in the in-memory share registry
+            // (random key, receiver addresses, expiry), never in the preferences
+            if (this.getPreferences().getBoolean(getContext().getString(R.string.settings_local_server_proxy_chkbx), false)
+                    && HttpLinkTarget.isFetchable(uriString)) {
+                String proxyUrl = createHttpLinkShare(uriString, item.getMimeType());
+                if (proxyUrl != null) {
+                    item.setUri(Uri.parse(proxyUrl));
+                    res.setValue(proxyUrl);
+                }
             }
             item.setTitle(title);
         }
         return item;
     }
 
-    private static String sha256(String input) {
+    /** How long a share waits for the local HTTP server before it hands out the direct link. */
+    private static final long SERVER_READY_MAX_MILLIS = 3_000L;
+    private static final long SERVER_READY_POLL_MILLIS = 200L;
+
+    /**
+     * Registers an http(s) link with the share registry and returns the proxy URL a receiver
+     * fetches it from, or null if no share could be made (the caller then uses the link
+     * directly). Allowed fetchers are the chosen receivers, see {@link ShareAddressResolver}.
+     * <p>
+     * Worker thread only: it waits (up to 3 s) until the local HTTP server accepts connections
+     * (a cold start from a share intent) and reads the own addresses from the network
+     * interfaces. Its only caller is {@link #createPlayableItem}, which
+     * {@code ShareIntentHandler.prepareAndPlay} runs on its executor; on the main thread the
+     * wait is skipped, so the UI never blocks. Nothing here logs the link or the key.
+     */
+    private String createHttpLinkShare(String link, String mimeType) {
+        HttpLinkTarget target = HttpLinkTarget.of(link);
+        if (target == null) {
+            return null;
+        }
+        if (!awaitHttpServer()) {
+            YaaccLogger.w(getClass().getName(), "Media proxy server is not ready, using the link directly");
+            return null;
+        }
+        ShareRegistry registry = getShareRegistry();
+        ShareRegistry.Entry entry = new ShareRegistry.Entry(ShareRegistry.Kind.HTTP_LINK, target, mimeType,
+                ShareAddressResolver.resolve(this, getContext()),
+                ShareLimits.IDLE_GRACE_MILLIS, ShareLimits.ABSOLUTE_MAX_MILLIS);
+        String key = registry.register(entry);
+        if (key == null && registry.evictOldestReleased()) {
+            // a leftover of an ended playback made room
+            key = registry.register(entry);
+        }
+        if (key == null) {
+            YaaccLogger.w(getClass().getName(), "Media proxy is full, using the link directly");
+            notifyRegistryFull();
+            return null;
+        }
+        return "http://" + InterfaceResolutionHelper.getIpAddress(getContext()) + ":"
+                + YaaccUpnpServerService.PORT + "/" + YaaccUpnpServerService.PROXY_PATH + "/" + key;
+    }
+
+    /**
+     * Waits for the loopback HTTP server, polling {@link #isHttpServerRunning()}. On the main
+     * thread (a misuse) it neither waits nor probes, so the UI never blocks; the share is then
+     * handed out without the readiness check.
+     */
+    private boolean awaitHttpServer() {
+        if (Looper.getMainLooper() != null && Looper.myLooper() == Looper.getMainLooper()) {
+            YaaccLogger.w(getClass().getName(), "Media proxy readiness not checked on the main thread");
+            return true;
+        }
+        return ReadinessWait.await(this::isHttpServerRunning, SERVER_READY_MAX_MILLIS, SERVER_READY_POLL_MILLIS);
+    }
+
+    /** The user switched the proxy on and gets the direct link instead: tell them. No payload. */
+    private void notifyRegistryFull() {
+        Context appContext = getContext().getApplicationContext();
+        new Handler(Looper.getMainLooper()).post(() ->
+                Toast.makeText(appContext, R.string.share_registry_full, Toast.LENGTH_LONG).show());
+    }
+
+    private ShareRegistry getShareRegistry() {
+        return ((Yaacc) getContext().getApplicationContext()).getShareRegistry();
+    }
+
+    /**
+     * Whether the local HTTP server accepts connections (it runs whenever the app process lives,
+     * whatever the "local server" setting says). A short loopback connect: call it only off the
+     * main thread. See {@link HttpServerProbe}.
+     */
+    public boolean isHttpServerRunning() {
+        return HttpServerProbe.isRunning();
+    }
+
+    /**
+     * The keys of the shares a player plays right now: the last path segment of its proxy URLs
+     * ({@code /proxy/<key>}). Only a snapshot: the list is empty once the player was destroyed,
+     * which is why {@link ShareLifetimeListener} remembers the keys.
+     */
+    private static Set<String> shareKeysOf(Player player) {
+        Set<String> keys = new HashSet<>();
         try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(
-                    input.getBytes(StandardCharsets.UTF_8));
-            StringBuilder hexString = new StringBuilder(2 * hash.length);
-            for (byte b : hash) {
-                String hex = Integer.toHexString(0xff & b);
-                if (hex.length() == 1) {
-                    hexString.append('0');
+            for (PlayableItem item : new ArrayList<>(player.getItems())) {
+                Uri uri = item == null ? null : item.getUri();
+                String key = uri == null ? null
+                        : ShareKeyTracker.keyOfProxyPath(uri.getPath(), YaaccUpnpServerService.PROXY_PATH);
+                if (key != null) {
+                    keys.add(key);
                 }
-                hexString.append(hex);
             }
-            return hexString.toString();
-        } catch (NoSuchAlgorithmException ex) {
-            YaaccLogger.e(TabBrowserActivity.class.getName(), "no sha256 found", ex);
-            return input;
+        } catch (RuntimeException e) {
+            // the list changed under us; the keys remembered earlier still count
+        }
+        return keys;
+    }
+
+    /**
+     * Ends the grace-period countdown of a share when the last player that plays it is removed,
+     * and cancels a pending countdown when a player for it appears. See
+     * {@link ShareLifetimeListener} for why the keys are remembered rather than read at removal.
+     */
+    private final ShareLifetimeListener shareLifetimeListener = new ShareLifetimeListener(
+            UpnpClient::shareKeysOf,
+            () -> new ArrayList<>(getCurrentPlayers()),
+            key -> getShareRegistry().markActive(key),
+            key -> getShareRegistry().release(key));
+
+    /** The items of the new players are set now: remember and activate their shares. */
+    private void rememberShares(List<Player> players) {
+        for (Player player : players) {
+            try {
+                shareLifetimeListener.itemsSet(player);
+            } catch (RuntimeException e) {
+                YaaccLogger.w(getClass().getName(), "Could not record the shares of a player ("
+                        + e.getClass().getSimpleName() + ")");
+            }
         }
     }
 

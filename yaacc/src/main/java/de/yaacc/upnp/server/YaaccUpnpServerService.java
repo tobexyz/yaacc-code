@@ -111,8 +111,11 @@ import de.yaacc.util.YaaccLogger;
  */
 public class YaaccUpnpServerService extends Service implements SharedPreferences.OnSharedPreferenceChangeListener {
 
+    /**
+     * Only for removing the settings an earlier version wrote (links shared through the media
+     * proxy); nothing reads or writes such settings any more.
+     */
     public static final String PROXY_LINK_KEY_PREFIX = "proxy_link_";
-    public static final String PROXY_LINK_MIME_TYPE_KEY_PREFIX = "proxy_link_mime_type";
     public static final String PROXY_PATH = "proxy";
     public static final String SAF_PATH = "saf";
     public static final int LOCK_TIMEOUT = 5000;

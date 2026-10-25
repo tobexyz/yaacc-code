@@ -136,6 +136,12 @@
             android:summaryOff="@string/settings_local_server_proxy_off"
             android:summaryOn="@string/settings_local_server_proxy_on" />
         <CheckBoxPreference
+            android:key="@string/settings_proxy_restrict_receivers_chkbx"
+            android:title="@string/settings_proxy_restrict_receivers_title"
+            android:defaultValue="true"
+            android:summaryOff="@string/settings_proxy_restrict_receivers_off"
+            android:summaryOn="@string/settings_proxy_restrict_receivers_on" />
+        <CheckBoxPreference
             android:key="@string/settings_local_server_receiver_chkbx"
             android:title="@string/settings_local_server_receiver_title"
             android:summaryOff="@string/settings_local_server_receiver_off"

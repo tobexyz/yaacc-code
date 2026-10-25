@@ -18,6 +18,7 @@
  */
 package de.yaacc.upnp.server.avtransport;
 
+import de.yaacc.share.ShareLogRedactor;
 import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.support.avtransport.impl.state.AbstractState;
@@ -79,8 +80,8 @@ public class AvTransportMediaRendererStopped extends Stopped<AvTransport> implem
     public Class<? extends AbstractState<?>> setTransportURI(URI uri,
                                                              String metaData) {
         YaaccLogger.d(this.getClass().getName(), "setTransportURI");
-        YaaccLogger.d(this.getClass().getName(), "uri: " + uri);
-        YaaccLogger.d(this.getClass().getName(), "metaData: " + metaData);
+        YaaccLogger.d(this.getClass().getName(), "uri: " + ShareLogRedactor.redact(String.valueOf(uri)));
+        YaaccLogger.d(this.getClass().getName(), "metaData: " + ShareLogRedactor.redact(String.valueOf(metaData)));
         getTransport().setMediaInfo(new MediaInfo(uri.toString(), metaData));
 // If you can, you should find and set the duration of the track here!
         getTransport().setPositionInfo(

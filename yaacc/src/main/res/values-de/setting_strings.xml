@@ -55,6 +55,9 @@
     <string name="settings_local_server_proxy_title">Medienproxyservice</string>
     <string name="settings_local_server_proxy_off">Medienproxy deaktiviert</string>
     <string name="settings_local_server_proxy_on">Medienproxy aktiviert</string>
+    <string name="settings_proxy_restrict_receivers_title">Medienproxy auf die gewählten Empfänger beschränken</string>
+    <string name="settings_proxy_restrict_receivers_on">Nur die gewählten Empfänger können eine geteilte Datei oder einen geteilten Link abrufen</string>
+    <string name="settings_proxy_restrict_receivers_off">Jedes Gerät, das die Adresse kennt, kann eine geteilte Datei oder einen geteilten Link abrufen, solange sie geteilt wird</string>
     <string name="settings_local_server_media_filter_title">Filtern der Inhalte des MediaStores</string>
     <string name="settings_local_server_media_filter_off">Filtern der Inhalte des MediaStores deaktiviert</string>
     <string name="settings_local_server_media_filter_on">Filtern der Inhalte des MediaStores aktiviert</string>

@@ -17,6 +17,16 @@
  */
 package de.yaacc.share;
 
+import java.security.SecureRandom;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
@@ -53,6 +63,12 @@ public final class ShareRegistry {
     /** Length of a key in characters: {@link #KEY_BYTES} bytes as unpadded base64url. */
     public static final int KEY_TEXT_LENGTH = 22;
 
+    /** How many of the most recently retired keys are remembered and never handed out again. */
+    static final int RETIRED_KEY_WINDOW = 256;
+
+    /** How often a random draw that collides with a live or retired key is repeated. */
+    private static final int MAX_KEY_ATTEMPTS = 8;
+
     /** What the target of an entry is. */
     public enum Kind {
         /** An http or https link the proxy relays; the target is the URL text. */
@@ -83,11 +99,30 @@ public final class ShareRegistry {
          */
         public Entry(Kind kind, Object target, String mimeType, Set<String> allowedAddresses,
                      long idleGraceMillis, long absoluteMaxMillis) {
-            // STUB (red phase): no validation, no defensive copy
+            if (kind == null) {
+                throw new IllegalArgumentException("kind must not be null");
+            }
+            if (target == null) {
+                throw new IllegalArgumentException("target must not be null");
+            }
+            if (idleGraceMillis < 0L) {
+                throw new IllegalArgumentException("idleGraceMillis must not be negative");
+            }
+            if (absoluteMaxMillis <= 0L) {
+                throw new IllegalArgumentException("absoluteMaxMillis must be positive");
+            }
+            Set<String> copy = new HashSet<>();
+            if (allowedAddresses != null) {
+                for (String address : allowedAddresses) {
+                    if (address != null) {
+                        copy.add(address);
+                    }
+                }
+            }
             this.kind = kind;
             this.target = target;
             this.mimeType = mimeType;
-            this.allowedAddresses = allowedAddresses;
+            this.allowedAddresses = Collections.unmodifiableSet(copy);
             this.idleGraceMillis = idleGraceMillis;
             this.absoluteMaxMillis = absoluteMaxMillis;
         }
@@ -117,6 +152,32 @@ public final class ShareRegistry {
         }
     }
 
+    /** Registry bookkeeping around an immutable entry; only touched under {@link #lock}. */
+    private static final class Slot {
+        final Entry entry;
+        final long registeredAt;
+        /** Time of the first release, or {@link #NOT_RELEASED}. */
+        long releasedAt = NOT_RELEASED;
+        boolean released;
+
+        Slot(Entry entry, long registeredAt) {
+            this.entry = entry;
+            this.registeredAt = registeredAt;
+        }
+    }
+
+    private static final long NOT_RELEASED = Long.MIN_VALUE;
+
+    private final LongSupplier nowMillis;
+    private final Consumer<byte[]> randomBytes;
+    private final int maxActive;
+
+    /** Guards the fields below. Targets are never closed while it is held. */
+    private final Object lock = new Object();
+    private final Map<String, Slot> slots = new HashMap<>();
+    private final ArrayDeque<String> retiredOrder = new ArrayDeque<>();
+    private final Set<String> retiredKeys = new HashSet<>();
+
     /**
      * @param nowMillis   monotonic clock in milliseconds, not null
      * @param randomBytes fills the given array with random bytes (e.g. {@code
@@ -126,7 +187,18 @@ public final class ShareRegistry {
      * @throws IllegalArgumentException for a null argument or a non-positive maximum
      */
     public ShareRegistry(LongSupplier nowMillis, Consumer<byte[]> randomBytes, int maxActive) {
-        // STUB (red phase): nothing
+        if (nowMillis == null) {
+            throw new IllegalArgumentException("nowMillis must not be null");
+        }
+        if (randomBytes == null) {
+            throw new IllegalArgumentException("randomBytes must not be null");
+        }
+        if (maxActive <= 0) {
+            throw new IllegalArgumentException("maxActive must be positive");
+        }
+        this.nowMillis = nowMillis;
+        this.randomBytes = randomBytes;
+        this.maxActive = maxActive;
     }
 
     /** Same with {@link #DEFAULT_MAX_ACTIVE}. */
@@ -136,12 +208,16 @@ public final class ShareRegistry {
 
     /** A registry on the monotonic system clock and a {@code SecureRandom}. */
     public static ShareRegistry createDefault() {
-        // STUB (red phase): wrong on purpose
-        return null;
+        SecureRandom secureRandom = new SecureRandom();
+        return new ShareRegistry(() -> System.nanoTime() / 1_000_000L, secureRandom::nextBytes,
+                DEFAULT_MAX_ACTIVE);
     }
 
     /**
-     * Registers an entry. Expired entries are swept first, so they never block a free slot.
+     * Registers an entry. If no slot is free, expired entries are swept first, so they never block
+     * a free slot.
+     * Entries that were released but are still in their grace period keep their slot; a caller
+     * that wants such an entry to make room calls {@link #evictOldestReleased()} and retries.
      *
      * @return the new key, or null if {@code maxActive} entries are active or no unused key could
      * be drawn (a broken random source repeating itself); in both cases nothing is stored and
@@ -149,8 +225,27 @@ public final class ShareRegistry {
      * @throws IllegalArgumentException if the entry is null
      */
     public String register(Entry entry) {
-        // STUB (red phase): wrong on purpose
-        return null;
+        if (entry == null) {
+            throw new IllegalArgumentException("entry must not be null");
+        }
+        List<Object> toClose = new ArrayList<>();
+        String key = null;
+        synchronized (lock) {
+            long now = nowMillis.getAsLong();
+            // lazy: expired entries are only swept when the slot is needed; expire() and the
+            // other methods still report them
+            if (slots.size() >= maxActive) {
+                collectExpiredLocked(now, toClose);
+            }
+            if (slots.size() < maxActive) {
+                key = drawUnusedKeyLocked();
+                if (key != null) {
+                    slots.put(key, new Slot(entry, now));
+                }
+            }
+        }
+        closeAll(toClose);
+        return key;
     }
 
     /**
@@ -158,8 +253,23 @@ public final class ShareRegistry {
      * released-and-grace-over key (an expired entry is removed and closed on the way)
      */
     public Entry lookup(String key) {
-        // STUB (red phase): wrong on purpose
-        return null;
+        if (!isWellFormedKey(key)) {
+            return null;
+        }
+        List<Object> toClose = new ArrayList<>(1);
+        Entry result = null;
+        synchronized (lock) {
+            Slot slot = slots.get(key);
+            if (slot != null) {
+                if (isExpired(slot, nowMillis.getAsLong())) {
+                    removeLocked(key, slot, toClose);
+                } else {
+                    result = slot.entry;
+                }
+            }
+        }
+        closeAll(toClose);
+        return result;
     }
 
     /**
@@ -169,8 +279,25 @@ public final class ShareRegistry {
      * @return true if the key names a live entry
      */
     public boolean markActive(String key) {
-        // STUB (red phase): wrong on purpose
-        return false;
+        if (!isWellFormedKey(key)) {
+            return false;
+        }
+        List<Object> toClose = new ArrayList<>(1);
+        boolean live = false;
+        synchronized (lock) {
+            Slot slot = slots.get(key);
+            if (slot != null) {
+                if (isExpired(slot, nowMillis.getAsLong())) {
+                    removeLocked(key, slot, toClose);
+                } else {
+                    slot.released = false;
+                    slot.releasedAt = NOT_RELEASED;
+                    live = true;
+                }
+            }
+        }
+        closeAll(toClose);
+        return live;
     }
 
     /**
@@ -178,7 +305,16 @@ public final class ShareRegistry {
      * not restart the grace period. Unknown keys are ignored.
      */
     public void release(String key) {
-        // STUB (red phase): nothing
+        if (!isWellFormedKey(key)) {
+            return;
+        }
+        synchronized (lock) {
+            Slot slot = slots.get(key);
+            if (slot != null && !slot.released) {
+                slot.released = true;
+                slot.releasedAt = nowMillis.getAsLong();
+            }
+        }
     }
 
     /**
@@ -187,25 +323,157 @@ public final class ShareRegistry {
      * @return true if an entry was removed
      */
     public boolean remove(String key) {
-        // STUB (red phase): wrong on purpose
-        return false;
+        if (!isWellFormedKey(key)) {
+            return false;
+        }
+        List<Object> toClose = new ArrayList<>(1);
+        boolean removed = false;
+        synchronized (lock) {
+            Slot slot = slots.get(key);
+            if (slot != null) {
+                removeLocked(key, slot, toClose);
+                removed = true;
+            }
+        }
+        closeAll(toClose);
+        return removed;
+    }
+
+    /**
+     * Makes room for a new share: removes and closes the entry that was released the longest ago
+     * and is still in its grace period (a leftover of an ended playback). Entries that were never
+     * released are not touched, so a running playback is never cut. Expired entries are swept as
+     * well.
+     *
+     * @return true if an entry was evicted (a slot is free, apart from a concurrent
+     * {@link #register}); false if there is no released entry
+     */
+    public boolean evictOldestReleased() {
+        List<Object> toClose = new ArrayList<>(2);
+        boolean evicted = false;
+        synchronized (lock) {
+            collectExpiredLocked(nowMillis.getAsLong(), toClose);
+            String oldestKey = null;
+            Slot oldest = null;
+            for (Map.Entry<String, Slot> mapEntry : slots.entrySet()) {
+                Slot slot = mapEntry.getValue();
+                if (slot.released && (oldest == null || slot.releasedAt < oldest.releasedAt)) {
+                    oldestKey = mapEntry.getKey();
+                    oldest = slot;
+                }
+            }
+            if (oldest != null) {
+                removeLocked(oldestKey, oldest, toClose);
+                evicted = true;
+            }
+        }
+        closeAll(toClose);
+        return evicted;
     }
 
     /** Removes and closes every entry that has expired. @return how many were removed */
     public int expire() {
-        // STUB (red phase): wrong on purpose
-        return 0;
+        List<Object> toClose = new ArrayList<>();
+        int count;
+        synchronized (lock) {
+            count = collectExpiredLocked(nowMillis.getAsLong(), toClose);
+        }
+        closeAll(toClose);
+        return count;
     }
 
     /** Removes and closes every entry (service stop). */
     public void removeAll() {
-        // STUB (red phase): nothing
+        List<Object> toClose = new ArrayList<>();
+        synchronized (lock) {
+            for (Map.Entry<String, Slot> mapEntry : slots.entrySet()) {
+                retireLocked(mapEntry.getKey());
+                toClose.add(mapEntry.getValue().entry.getTarget());
+            }
+            slots.clear();
+        }
+        closeAll(toClose);
     }
 
     /** @return the number of live entries (expired ones are swept first) */
     public int size() {
-        // STUB (red phase): wrong on purpose
-        return -1;
+        List<Object> toClose = new ArrayList<>();
+        int size;
+        synchronized (lock) {
+            collectExpiredLocked(nowMillis.getAsLong(), toClose);
+            size = slots.size();
+        }
+        closeAll(toClose);
+        return size;
+    }
+
+    // ---- internals; the *Locked methods need the lock and never close anything
+
+    private boolean isExpired(Slot slot, long now) {
+        Entry entry = slot.entry;
+        if (now - slot.registeredAt >= entry.getAbsoluteMaxMillis()) {
+            return true;
+        }
+        return slot.released && now - slot.releasedAt >= entry.getIdleGraceMillis();
+    }
+
+    private int collectExpiredLocked(long now, List<Object> toClose) {
+        int count = 0;
+        Iterator<Map.Entry<String, Slot>> it = slots.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry<String, Slot> mapEntry = it.next();
+            if (isExpired(mapEntry.getValue(), now)) {
+                it.remove();
+                retireLocked(mapEntry.getKey());
+                toClose.add(mapEntry.getValue().entry.getTarget());
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private void removeLocked(String key, Slot slot, List<Object> toClose) {
+        slots.remove(key);
+        retireLocked(key);
+        toClose.add(slot.entry.getTarget());
+    }
+
+    private void retireLocked(String key) {
+        if (retiredKeys.add(key)) {
+            retiredOrder.addLast(key);
+            while (retiredOrder.size() > RETIRED_KEY_WINDOW) {
+                retiredKeys.remove(retiredOrder.removeFirst());
+            }
+        }
+    }
+
+    /** A fresh key that is neither live nor retired, or null if the random source keeps repeating. */
+    private String drawUnusedKeyLocked() {
+        byte[] bytes = new byte[KEY_BYTES];
+        for (int attempt = 0; attempt < MAX_KEY_ATTEMPTS; attempt++) {
+            randomBytes.accept(bytes);
+            String key = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+            if (!slots.containsKey(key) && !retiredKeys.contains(key)) {
+                return key;
+            }
+        }
+        return null;
+    }
+
+    /** Closes outside the lock, each target once; a failing close never stops the others. */
+    private static void closeAll(List<Object> targets) {
+        for (Object target : targets) {
+            if (target instanceof AutoCloseable) {
+                try {
+                    ((AutoCloseable) target).close();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                } catch (Exception ignored) {
+                    // the entry is gone either way; nothing sensible to do and nothing to log
+                    // (the target may carry a URI)
+                }
+            }
+        }
     }
 
     /**
@@ -218,7 +486,17 @@ public final class ShareRegistry {
      * @return false for null, empty, any other length and any other character
      */
     public static boolean isWellFormedKey(String key) {
-        // STUB (red phase): wrong on purpose (fail closed)
-        return false;
+        if (key == null || key.length() != KEY_TEXT_LENGTH) {
+            return false;
+        }
+        for (int i = 0; i < KEY_TEXT_LENGTH; i++) {
+            char c = key.charAt(i);
+            boolean ok = (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')
+                    || c == '-' || c == '_';
+            if (!ok) {
+                return false;
+            }
+        }
+        return true;
     }
 }
