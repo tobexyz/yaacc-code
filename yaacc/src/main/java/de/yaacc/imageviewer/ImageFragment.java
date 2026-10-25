@@ -170,7 +170,9 @@ public class ImageFragment extends Fragment {
                 }
             }
         } catch (Exception e) {
-            YaaccLogger.e(getClass().getName(), "Failed to load image: " + ShareLogRedactor.redact(String.valueOf(imageUri)), e);
+            // class name only: the exception message of a failed fetch is the full URL (which can carry a proxy key)
+            YaaccLogger.e(getClass().getName(), "Failed to load image: " + ShareLogRedactor.redact(String.valueOf(imageUri))
+                    + " (" + e.getClass().getSimpleName() + ")");
         }
         return null;
     }

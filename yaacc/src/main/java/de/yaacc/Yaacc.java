@@ -161,7 +161,7 @@ public class Yaacc extends Application {
                 YaaccLogger.w(Yaacc.class.getName(), "Share sweep failed", e);
             }
             try {
-                // readers that stalled or trickle give their slot back (they abort at their next callback)
+                // readers that stalled or trickle give their slot back (a response that resumes asks for a slot again and only aborts when the share's cap is full)
                 int idle = ShareConcurrencyLimiter.shared().expireIdle(ShareLimits.WRITE_IDLE_MILLIS);
                 if (idle > 0) {
                     YaaccLogger.i(Yaacc.class.getName(), idle + " idle share response(s) lost their slot");

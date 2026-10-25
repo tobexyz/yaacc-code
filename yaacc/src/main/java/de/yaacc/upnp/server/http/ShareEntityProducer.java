@@ -35,9 +35,9 @@ import de.yaacc.share.ShareLimits;
  * {@link IOException} from {@link #produceData}) as soon as the share is no longer live, the
  * source is closing or it ends early, so an expired or removed share stops its running
  * downloads. The concurrency lease is given back when the response ends, whichever way, and the
- * bytes the client accepts are reported to it: a response that stalls or trickles is cut off by
- * the lease watchdog (see {@link ShareConcurrencyLimiter#expireIdle}) and aborts here at its next
- * callback.
+ * bytes the client accepts are reported to it: a response that stalls or trickles loses its
+ * slot to the lease watchdog (see {@link ShareConcurrencyLimiter#expireIdle}); when it resumes it
+ * asks for a slot again here and is aborted only if the share's cap is full.
  */
 final class ShareEntityProducer extends AbstractBinAsyncEntityProducer {
 

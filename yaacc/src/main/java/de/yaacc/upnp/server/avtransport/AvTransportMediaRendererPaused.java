@@ -67,7 +67,7 @@ public class AvTransportMediaRendererPaused extends PausedPlay<AvTransport> impl
     public Class<? extends AbstractState<?>> setTransportURI(URI uri, String metaData) {
         YaaccLogger.d(this.getClass().getName(), "setTransportURI");
         YaaccLogger.d(this.getClass().getName(), "uri: " + ShareLogRedactor.redact(String.valueOf(uri)));
-        YaaccLogger.d(this.getClass().getName(), "metaData: " + metaData);
+        YaaccLogger.d(this.getClass().getName(), "metaData: " + ShareLogRedactor.redact(String.valueOf(metaData)));
         getTransport().setMediaInfo(new MediaInfo(uri.toString(), metaData));
 // If you can, you should find and set the duration of the track here!
         getTransport().setPositionInfo(
