@@ -2305,7 +2305,7 @@ How each claim is marked:
 - The browser side must treat the forwarded intent as untrusted too: it is `exported="false"` for
   `BrowserActivity`, but `TabBrowserActivity` stays exported without filters (see "Classic and new layout",
   (g)), so any app can send it an intent. Read the URI only from ClipData item 0 when `getItemCount() == 1`,
-  run `SharedContentPolicy` again, and open the descriptor at once.
+  run `SharedContentPolicy` again, and keep only a PENDING share (URI, cleaned name, token); the descriptor is opened after the user's confirmation, see (f).
 - `MediaStore` hint: a `content://media/...` URI is a legitimate share from several gallery apps, so do not
   reject the `media` authority.
 
