@@ -131,7 +131,7 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
         }
 
         shareIntentHandler = new ShareIntentHandler(getApplicationContext(), upnpClient);
-        shareIntentHandler.handle(getIntent(), this::showPlayers);
+        shareIntentHandler.handle(getIntent(), this::showPlayers, this);
         YaaccLogger.d(this.getClass().getName(), "on create took: " + (System.currentTimeMillis() - start));
     }
 
@@ -139,7 +139,7 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         if (shareIntentHandler != null) {
-            shareIntentHandler.handle(intent, this::showPlayers);
+            shareIntentHandler.handle(intent, this::showPlayers, this);
         }
     }
 

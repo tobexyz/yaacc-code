@@ -45,6 +45,8 @@
     <string name="error_no_receiver_device_found">No receiver device found</string>
     <string name="error_no_receiver_selected">No receiver device selected. Please select a receiver in the Receiver tab first.</string>
     <string name="share_registry_full">Too many active shares. Try again in a moment.</string>
+    <string name="share_unnamed_file">Shared file</string>
+    <string name="share_open_failed">Could not play the shared file.</string>
     <string name="error_no_activity_found">No activity found for playing mimetype \'%1$s\'</string>
     <string name="image_viewer_settings_duration">Picture stay duration</string>
     <string name="image_viewer_settings_duration_key" translatable="false">image_viewer_settings_duration_key</string>

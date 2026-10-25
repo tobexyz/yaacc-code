@@ -257,6 +257,18 @@ public class ProxyShareResponderTest {
     }
 
     @Test
+    public void aShareResponseCannotBeSniffedOrScriptedByAWebBrowser() throws Exception {
+        Sent whole = get(RECEIVER, null);
+        Sent range = get(RECEIVER, "bytes=100-199");
+
+        for (Sent sent : List.of(whole, range)) {
+            assertEquals("nosniff", sent.response.getFirstHeader("X-Content-Type-Options").getValue());
+            assertEquals("sandbox", sent.response.getFirstHeader("Content-Security-Policy").getValue());
+            sent.entity.releaseResources();
+        }
+    }
+
+    @Test
     public void aRangeIsAnsweredWith206AndContentRange() throws Exception {
         Sent sent = get(RECEIVER, "bytes=100-199");
 
@@ -394,5 +406,33 @@ public class ProxyShareResponderTest {
                 new byte[0]), recordingTrigger(sent), noEndpoint, false, List.of("proxy", key));
 
         assertEquals(403, sent.get(0).code());
+    }
+
+    @Test
+    public void aHeldFileIsServedWithItsMediaTypeWhenThatIsAcceptable() throws Exception {
+        Sent sent = get(RECEIVER, null);
+
+        assertTrue(sent.entity.getContentType().startsWith("video/mp4"));
+    }
+
+    @Test
+    public void aHeldFileEntryWithFreeTextAsMimeTypeIsServedAsOctetStream() throws Exception {
+        String other = registry.register(new ShareRegistry.Entry(ShareRegistry.Kind.LOCAL_FILE,
+                new ArraySource(ProducerTestSupport.body(100)), "text/html; x=y\r\nX-Evil: 1",
+                Set.of(RECEIVER), ShareLimits.IDLE_GRACE_MILLIS, ShareLimits.ABSOLUTE_MAX_MILLIS));
+        assertNotNull(other);
+
+        Sent sent = request("GET", RECEIVER, List.of("proxy", other), null);
+
+        assertEquals(200, sent.code());
+        assertTrue(sent.entity.getContentType().startsWith("application/octet-stream"));
+    }
+
+    @Test
+    public void onlyAConcreteAudioVideoOrImageTypeIsKeptForAHeldFile() {
+        assertEquals("audio/mpeg", ProxyShareResponder.localFileContentType("audio/mpeg").getMimeType());
+        assertEquals("application/octet-stream", ProxyShareResponder.localFileContentType("text/html").getMimeType());
+        assertEquals("application/octet-stream", ProxyShareResponder.localFileContentType("image/*").getMimeType());
+        assertEquals("application/octet-stream", ProxyShareResponder.localFileContentType(null).getMimeType());
     }
 }

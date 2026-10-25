@@ -70,9 +70,6 @@ import org.fourthline.cling.support.model.container.Container;
 import org.fourthline.cling.support.model.item.AudioItem;
 import org.fourthline.cling.support.model.item.ImageItem;
 import org.fourthline.cling.support.model.item.Item;
-import org.fourthline.cling.support.model.item.MusicTrack;
-import org.fourthline.cling.support.model.item.VideoItem;
-import org.seamless.util.MimeType;
 
 import java.io.IOException;
 import java.net.URI;
@@ -102,10 +99,16 @@ import de.yaacc.player.PlayerService;
 import de.yaacc.player.ShareLifetimeListener;
 import de.yaacc.player.YaaccMediaRouteProvider;
 import de.yaacc.share.HttpLinkTarget;
+import de.yaacc.share.LinkContentType;
+import de.yaacc.share.LinkTargetPolicy;
 import de.yaacc.share.ReadinessWait;
+import de.yaacc.share.SharedContentPolicy;
 import de.yaacc.share.ShareLimits;
 import de.yaacc.share.ShareKeyTracker;
+import de.yaacc.share.ShareProxyUrl;
+import de.yaacc.share.ShareRegistrar;
 import de.yaacc.share.ShareRegistry;
+import de.yaacc.share.UnclaimedShares;
 import de.yaacc.upnp.callback.contentdirectory.Browse.Status;
 import de.yaacc.upnp.callback.contentdirectory.ContentDirectoryBrowseActionCallback;
 import de.yaacc.upnp.callback.contentdirectory.ContentDirectoryBrowseResult;
@@ -120,8 +123,8 @@ import de.yaacc.upnp.server.YaaccUpnpServerService;
 import de.yaacc.upnp.server.avtransport.AvTransport;
 import de.yaacc.upnp.server.share.HttpServerProbe;
 import de.yaacc.upnp.server.share.ShareAddressResolver;
+import de.yaacc.upnp.server.share.SharedItemFactory;
 import de.yaacc.util.FileDownloader;
-import de.yaacc.util.FormatHelper;
 import de.yaacc.util.InterfaceResolutionHelper;
 import de.yaacc.util.Watchdog;
 import de.yaacc.util.YaaccLogger;
@@ -1617,53 +1620,120 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
 
     }
 
+    /** What the metadata reader found about a link; any field may be unknown (0 or null). */
+    private static final class LinkMetadata {
+        String mimeType;
+        long durationMillis;
+        long bitrate;
+    }
+
+    /** HEAD timeouts for the content type of a link the metadata reader could not read. */
+    private static final int LINK_HEAD_TIMEOUT_MILLIS = 5_000;
+
+    /**
+     * Makes the item for a shared http(s) link (shared text). Worker thread only: it reads the
+     * link's metadata over the network and, with the media proxy option on, registers the link
+     * with the share registry.
+     * <p>
+     * The media type comes from the metadata reader; if that fails it comes from a bounded HTTP
+     * {@code HEAD} (concrete audio, video or image type); only if that fails too the link is
+     * assumed to be an image, as before, and a payload-free line says so. With the proxy option on
+     * a target the phone must not fetch (loopback, link-local, this phone's own address, see
+     * {@link LinkTargetPolicy}) is refused. Nothing here logs the link or the exceptions' text.
+     *
+     * @return the item, or null if the link is refused (the caller plays nothing)
+     */
     public PlayableItem createPlayableItem(Uri uri) throws IOException {
-        PlayableItem item = new PlayableItem();
         if (uri == null) {
-            return item;
+            return null;
         }
-        String uriString = uri.toString();
+        final String link = uri.toString();
+        if (!HttpLinkTarget.isFetchable(link)) {
+            YaaccLogger.w(getClass().getName(), "A shared link was refused: not an http(s) link");
+            return null;
+        }
         final String title = "shared with ♥ by yaacc";
-        //auto closeable requires Android code level 29 current min level is 27
-        try (MediaMetadataRetriever metaRetriever = new MediaMetadataRetriever()) {
-            Res res;
-            try {
-                metaRetriever.setDataSource(uriString);
-                long duration = Long.parseLong(metaRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION));
-                item.setDuration(duration);
-                item.setMimeType(metaRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_MIMETYPE));
-                long bitrate = Long.parseLong(metaRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE));
-                long size = (bitrate / 8 * duration / 1000 / 1000);
-                res = new Res(MimeType.valueOf(item.getMimeType()), size, FormatHelper.parseMillisToTimeStringTo(duration), bitrate, uriString);
-                if (item.getMimeType().startsWith("audio/")) {
-                    item.setItem(new MusicTrack("1", "2", title, "", "", "", res));
-                } else if (item.getMimeType().startsWith("video/")) {
-                    item.setItem(new VideoItem("1", "2", title, "", res));
-                } else if (item.getMimeType().startsWith("image/")) {
-                    item.setItem(new ImageItem("1", "2", title, "", res));
-                }
-            } catch (RuntimeException e) {
-                //no media file with duration
-                YaaccLogger.d(getClass().getName(), "Can't retrieve duration of media url assume shared image", e);
-                res = new Res(MimeType.valueOf("image/*"), 1L, "");
-                res.setValue(uriString);
-                item.setMimeType("image/*");
-                item.setItem(new ImageItem("1", "2", title, "", res));
+        // only http(s) links are proxied; the link is kept in the in-memory share registry
+        // (random key, receiver addresses, expiry), never in the preferences
+        final boolean proxy = this.getPreferences().getBoolean(
+                getContext().getString(R.string.settings_local_server_proxy_chkbx), false);
+        final Set<String> ownAddresses = ShareAddressResolver.ownAddresses(getContext());
+        if (proxy && !LinkTargetPolicy.isAllowedTarget(link, ownAddresses)) {
+            // the phone would fetch its own or a link-local service for the receivers: play nothing
+            YaaccLogger.w(getClass().getName(), "A shared link was refused: the media proxy does not serve it");
+            return null;
+        }
+        // the reader is released inside this call, before any slow work below
+        LinkMetadata meta = readLinkMetadata(link);
+        String mimeType;
+        long durationMillis = 0L;
+        long sizeBytes = 1L;
+        if (meta != null) {
+            mimeType = meta.mimeType;
+            durationMillis = meta.durationMillis;
+            if (meta.bitrate > 0L && durationMillis > 0L) {
+                sizeBytes = (meta.bitrate / 8 * durationMillis / 1000 / 1000);
             }
-            item.setUri(uri);
-            // only http(s) links are proxied; the link is kept in the in-memory share registry
-            // (random key, receiver addresses, expiry), never in the preferences
-            if (this.getPreferences().getBoolean(getContext().getString(R.string.settings_local_server_proxy_chkbx), false)
-                    && HttpLinkTarget.isFetchable(uriString)) {
-                String proxyUrl = createHttpLinkShare(uriString, item.getMimeType());
-                if (proxyUrl != null) {
-                    item.setUri(Uri.parse(proxyUrl));
-                    res.setValue(proxyUrl);
-                }
+        } else {
+            // a failed read must not silently label the link an image: ask the server
+            mimeType = LinkContentType.find(link,
+                    hop -> !proxy || LinkTargetPolicy.isAllowedTarget(hop, ownAddresses),
+                    LINK_HEAD_TIMEOUT_MILLIS);
+            if (mimeType == null) {
+                YaaccLogger.d(getClass().getName(), "Media type of a shared link unknown, assuming an image");
+                mimeType = "image/*";
             }
-            item.setTitle(title);
+        }
+        String playUrl = link;
+        String shareKey = null;
+        if (proxy) {
+            String proxyUrl = createHttpLinkShare(link, mimeType);
+            if (proxyUrl != null) {
+                playUrl = proxyUrl;
+                shareKey = ShareKeyTracker.keyOfProxyPath(Uri.parse(proxyUrl).getPath(), YaaccUpnpServerService.PROXY_PATH);
+            }
+        }
+        PlayableItem item = SharedItemFactory.create(mimeType, title, Uri.parse(playUrl), sizeBytes, durationMillis,
+                meta == null ? 0L : meta.bitrate);
+        if (item == null && shareKey != null) {
+            // do not leave a share behind that nobody can play
+            getShareRegistry().remove(shareKey);
         }
         return item;
+    }
+
+    /**
+     * Reads duration, media type and bitrate of a link with {@link MediaMetadataRetriever} (a
+     * network call without a timeout of its own: worker thread only).
+     *
+     * @return null if the reader failed or did not find a concrete audio, video or image type
+     */
+    private LinkMetadata readLinkMetadata(String link) {
+        LinkMetadata meta = new LinkMetadata();
+        //auto closeable requires Android code level 29 current min level is 27
+        try (MediaMetadataRetriever metaRetriever = new MediaMetadataRetriever()) {
+            metaRetriever.setDataSource(link);
+            meta.mimeType = metaRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_MIMETYPE);
+            meta.durationMillis = parseLongOrZero(metaRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION));
+            meta.bitrate = parseLongOrZero(metaRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE));
+        } catch (RuntimeException | IOException e) {
+            // no media file with duration; the exception text may hold the link
+            YaaccLogger.d(getClass().getName(), "Can't read the metadata of a shared link ("
+                    + e.getClass().getSimpleName() + ")");
+            return null;
+        }
+        if (!SharedContentPolicy.isAcceptableMimeType(meta.mimeType) || meta.durationMillis <= 0L) {
+            return null;
+        }
+        return meta;
+    }
+
+    private static long parseLongOrZero(String value) {
+        try {
+            return value == null ? 0L : Long.parseLong(value);
+        } catch (NumberFormatException e) {
+            return 0L;
+        }
     }
 
     /** How long a share waits for the local HTTP server before it hands out the direct link. */
@@ -1686,6 +1756,12 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         if (target == null) {
             return null;
         }
+        // no address (offline) means no URL: never "http://null:..."; checked before anything is registered
+        String ip = InterfaceResolutionHelper.getIpAddress(getContext());
+        if (ShareProxyUrl.build(ip, YaaccUpnpServerService.PORT, YaaccUpnpServerService.PROXY_PATH, "x") == null) {
+            YaaccLogger.w(getClass().getName(), "No network address, using the link directly");
+            return null;
+        }
         if (!awaitHttpServer()) {
             YaaccLogger.w(getClass().getName(), "Media proxy server is not ready, using the link directly");
             return null;
@@ -1694,18 +1770,33 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         ShareRegistry.Entry entry = new ShareRegistry.Entry(ShareRegistry.Kind.HTTP_LINK, target, mimeType,
                 ShareAddressResolver.resolve(this, getContext()),
                 ShareLimits.IDLE_GRACE_MILLIS, ShareLimits.ABSOLUTE_MAX_MILLIS);
-        String key = registry.register(entry);
-        if (key == null && registry.evictOldestReleased()) {
-            // a leftover of an ended playback made room
-            key = registry.register(entry);
-        }
+        String key = ShareRegistrar.register(registry, entry);
         if (key == null) {
             YaaccLogger.w(getClass().getName(), "Media proxy is full, using the link directly");
             notifyRegistryFull();
             return null;
         }
-        return "http://" + InterfaceResolutionHelper.getIpAddress(getContext()) + ":"
-                + YaaccUpnpServerService.PORT + "/" + YaaccUpnpServerService.PROXY_PATH + "/" + key;
+        // a share no player takes within the claim window is removed by the sweeper
+        getUnclaimedShares().registered(key, Yaacc.shareClockMillis());
+        return ShareProxyUrl.build(ip, YaaccUpnpServerService.PORT, YaaccUpnpServerService.PROXY_PATH, key);
+    }
+
+    /**
+     * Gives up the share an item was made for (no player took it): removes its registry key,
+     * which closes the source of a file. Does nothing for an item without a proxy URL. Never throws.
+     */
+    public void discardShareOf(PlayableItem item) {
+        try {
+            Uri uri = item == null ? null : item.getUri();
+            String key = uri == null ? null
+                    : ShareKeyTracker.keyOfProxyPath(uri.getPath(), YaaccUpnpServerService.PROXY_PATH);
+            if (key != null) {
+                getShareRegistry().remove(key);
+                getUnclaimedShares().released(key);
+            }
+        } catch (RuntimeException e) {
+            YaaccLogger.w(getClass().getName(), "Could not discard a share (" + e.getClass().getSimpleName() + ")");
+        }
     }
 
     /**
@@ -1730,6 +1821,10 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
 
     private ShareRegistry getShareRegistry() {
         return ((Yaacc) getContext().getApplicationContext()).getShareRegistry();
+    }
+
+    private UnclaimedShares getUnclaimedShares() {
+        return ((Yaacc) getContext().getApplicationContext()).getUnclaimedShares();
     }
 
     /**
@@ -1771,8 +1866,15 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     private final ShareLifetimeListener shareLifetimeListener = new ShareLifetimeListener(
             UpnpClient::shareKeysOf,
             () -> new ArrayList<>(getCurrentPlayers()),
-            key -> getShareRegistry().markActive(key),
-            key -> getShareRegistry().release(key));
+            key -> {
+                getShareRegistry().markActive(key);
+                // a player took the key: the sweeper must not remove it any more
+                getUnclaimedShares().claimed(key);
+            },
+            key -> {
+                getShareRegistry().release(key);
+                getUnclaimedShares().released(key);
+            });
 
     /** The items of the new players are set now: remember and activate their shares. */
     private void rememberShares(List<Player> players) {

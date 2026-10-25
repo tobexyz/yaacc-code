@@ -48,9 +48,16 @@ import java.util.stream.Collectors;
 
 import de.yaacc.browser.BrowserLauncher;
 import de.yaacc.player.PlayerService;
+import java.io.File;
+import java.util.List;
+
+import de.yaacc.share.IncomingCache;
+import de.yaacc.share.LaunchNonces;
+import de.yaacc.share.PendingShare;
 import de.yaacc.share.ShareConcurrencyLimiter;
 import de.yaacc.share.ShareLimits;
 import de.yaacc.share.ShareRegistry;
+import de.yaacc.share.UnclaimedShares;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.server.YaaccUpnpServerService;
 import de.yaacc.util.SAFCacheManager;
@@ -76,6 +83,12 @@ public class Yaacc extends Application {
     private volatile long shutdownTimerRemainingMillis = 0L;
     // Shares served by the media proxy: in memory only, lives as long as the process.
     private final ShareRegistry shareRegistry = ShareRegistry.createDefault();
+    // Keys that no player has taken yet: the sweeper removes them after the claim window.
+    private final UnclaimedShares unclaimedShares = new UnclaimedShares();
+    // The one shared file that waits for the user's receiver pick (memory only, lost with the process).
+    private final PendingShare pendingShare = PendingShare.createDefault();
+    // Tokens of the launcher's file forwards (memory only, valid for seconds, used once).
+    private final LaunchNonces launchNonces = LaunchNonces.createDefault();
     private ScheduledExecutorService shareSweeper;
 
 
@@ -112,6 +125,7 @@ public class Yaacc extends Application {
         // Validate and cleanup SAF permissions on app startup
         SafPermissionManager.validateAndCleanupPermissions(this);
         removeLegacyProxyLinks(preferences);
+        sweepIncomingCopies();
         startShareSweeper();
         startService(new Intent(this, YaaccUpnpServerService.class));
         upnpClient = new UpnpClient(this);
@@ -123,6 +137,56 @@ public class Yaacc extends Application {
      */
     public ShareRegistry getShareRegistry() {
         return shareRegistry;
+    }
+
+    /**
+     * The shares that no player has claimed yet. Never null.
+     */
+    public UnclaimedShares getUnclaimedShares() {
+        return unclaimedShares;
+    }
+
+    /**
+     * The single-use tokens that the launcher puts into a forwarded file share. Never null.
+     */
+    public LaunchNonces getLaunchNonces() {
+        return launchNonces;
+    }
+
+    /**
+     * The one pending shared file (waiting for the receiver pick). Never null.
+     */
+    public PendingShare getPendingShare() {
+        return pendingShare;
+    }
+
+    /**
+     * The clock of the share registry (monotonic milliseconds), for the code that must agree with
+     * it; see {@link ShareRegistry#createDefault()}.
+     */
+    public static long shareClockMillis() {
+        return System.nanoTime() / 1_000_000L;
+    }
+
+    /**
+     * The registry is in memory, so any copy of a shared file left in {@code cache/incoming/} is
+     * an orphan of an earlier run. Deleted on a background thread; only files with the exact
+     * shape of our own names are touched, links and directories never.
+     */
+    private void sweepIncomingCopies() {
+        final File incoming = new File(getCacheDir(), IncomingCache.DIR_NAME);
+        Thread thread = new Thread(() -> {
+            try {
+                int deleted = IncomingCache.sweep(incoming);
+                if (deleted > 0) {
+                    YaaccLogger.i(Yaacc.class.getName(), deleted + " old copy file(s) removed");
+                }
+            } catch (RuntimeException e) {
+                YaaccLogger.w(Yaacc.class.getName(), "Sweep of old copies failed (" + e.getClass().getSimpleName() + ")");
+            }
+        }, "incoming-sweep");
+        thread.setDaemon(true);
+        thread.start();
     }
 
     /**
@@ -159,6 +223,18 @@ public class Yaacc extends Application {
                 shareRegistry.expire();
             } catch (RuntimeException e) {
                 YaaccLogger.w(Yaacc.class.getName(), "Share sweep failed", e);
+            }
+            try {
+                // a share no player took within the claim window gives its slot (and, for a file, its descriptor) back
+                List<String> unclaimed = unclaimedShares.dueForRemoval(shareClockMillis());
+                for (String key : unclaimed) {
+                    shareRegistry.remove(key);
+                }
+                if (!unclaimed.isEmpty()) {
+                    YaaccLogger.i(Yaacc.class.getName(), unclaimed.size() + " unclaimed share(s) removed");
+                }
+            } catch (RuntimeException e) {
+                YaaccLogger.w(Yaacc.class.getName(), "Unclaimed share sweep failed (" + e.getClass().getSimpleName() + ")");
             }
             try {
                 // readers that stalled or trickle give their slot back (a response that resumes asks for a slot again and only aborts when the share's cap is full)

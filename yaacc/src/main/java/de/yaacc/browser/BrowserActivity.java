@@ -111,14 +111,14 @@ public class BrowserActivity extends AppCompatActivity implements BrowserHost {
                 upnpClient, this::showReceivers);
         miniPlayerBar = new MiniPlayerBar(findViewById(R.id.miniPlayerBar), upnpClient);
         shareIntentHandler = new ShareIntentHandler(getApplicationContext(), upnpClient);
-        shareIntentHandler.handle(getIntent(), null);
+        shareIntentHandler.handle(getIntent(), null, this);
     }
 
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         if (shareIntentHandler != null) {
-            shareIntentHandler.handle(intent, null);
+            shareIntentHandler.handle(intent, null, this);
         }
     }
 

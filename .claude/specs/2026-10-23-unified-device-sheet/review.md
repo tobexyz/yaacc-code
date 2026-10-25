@@ -836,3 +836,98 @@ HTTP_LINK streaming and range forwarding against a real upstream, a renderer tha
 
 ### Verdict: FAIL
 One Warning (ImageFragment logs the exception object, whose message carries the proxy URL and key). All other cycle 1 findings are fixed and verified. The fix is one line; after it the group passes.
+
+## Cycle 1 — 2026-10-26
+Reviewing: Group 14 (phase 3) — commits 8e11433a (14a, pure classes) and 02f47c60 (14b, Android glue)
+
+Build (real, `ANDROID_HOME=/root/android-sdk`): `:yaacc:assembleDebug` builds `yaacc-debug.apk`; `testDebugUnitTest` = 1203 tests, 11 failures, all in `ReceiverPickResultTest` (Group 15 red skeleton), all `AssertionError`; `lintDebug` = 189 issues (72 errors / 117 warnings), none in a file touched by Group 14 (the only `strings.xml` hit is the old `MissingTranslation toggle_view_mode`), 1 fewer than the 190 baseline. `git diff 071fc9d2 -- yaacc/src/main/AndroidManifest.xml` is empty. Strings `share_unnamed_file` / `share_open_failed` exist in all 7 locales with correct translations. No attribution trailers in commits, code or docs.
+
+What holds (file:line, read in the code):
+- LauncherActivity (`LauncherActivity.java`): stream path only for SEND + media type (`:115-117`) + `decideStream` (`:124-131`); fresh `Intent(this, target)` with SEND, the declared type, ONE `ClipData.newRawUri` item and only `FLAG_GRANT_READ_URI_PERMISSION` (`:146-151`; no `EXTRA_STREAM`, data, categories, selector, other flags); own-package check via `OwnProviders.isOwnAuthority` -> `PackageManager.resolveContentProvider` (`:133-137`, fails closed on null manager/exception, `OwnProviders.java`); API 35+ `getInitialCaller().checkContentUriPermission` only when `SDK_INT >= 35`, every `RuntimeException` = do not forward (`:140-145`, `SenderGrantCheck.mayForward`); `SecurityException` from `startActivity` -> plain launch (`:91-100`); `finish()` in `finally` (`:103-105`); exactly one of text/stream path (a failed stream check falls to the unchanged text path, which only accepts text/plain); nothing is logged except class names. Manifest unchanged, so the exported surface is the one reviewed before.
+- Intake (`ShareIntentHandler.java`, `StreamIntake.java`): main-thread checks SEND, exactly ONE clip item, no `data`, item 0 only (never `EXTRA_STREAM`), own READ flag, `isAcceptableUri` with `<pkg>.fileprovider`, own-package provider test (`:253-290`); the intent is consumed before validation (`:280`); `getType`/display name run in `BoundedCall` (2 daemon threads, timeout 3 s, busy pool = refusal) (`:333`); MIME is `chooseMimeType` output only (`:339`); `PendingShare.offer` holds URI text, cleaned name, MIME, token; no descriptor/copy/registry slot while pending; host callback failure or no host cancels (`:357-370`). Flood: one intake at a time (`intakeBusy`, `:295`), pending gate (`:291`), bounded probe pool, so intents cannot exhaust threads; they are dropped with a payload-free log.
+- `confirm()` (`:387-407`): `take` once, empty receiver set rejected (never defaults to this device), file open and copy off the main thread, `SharedFileService.prepare` closes the source / removes the key / deletes the copy on every failure branch (`SharedFileService.java:105-166`, `finally` at `:159-166`), registration through `ShareRegistrar` (evict-and-retry once) with the CHOSEN ids (`ShareAddressResolver.resolve(.., receiverIds)`), `UnclaimedShares.registered` right after `register` and `claimed`/`released` in `UpnpClient.shareLifetimeListener` (`UpnpClient.java:1866-1877`), sweeper on the same `System.nanoTime()/1e6` clock as the registry (`Yaacc.java`), play on the main thread, `discardShareOf` when no player took it, `afterStarted` runs once after the receivers were set and the start was attempted (finally in `playFile`), not when nothing changed.
+- Copy fallback: `SharedFileOpener.copyAndHold` (one copy at a time `:59,168`, budget `IncomingCache.remainingCopyBudget` = min(512 MiB, 1 GiB dir cap), per-chunk `CopyBudget` in `BudgetedCopier`, deadline 5 min, random `share-<32 hex>.bin` names created with `CREATE_NEW`, `afd` closed and partial copy deleted in `finally`, `DeleteOnCloseSource`). Startup sweep deletes only regular files with our exact names, `NOFOLLOW_LINKS` (`IncomingCache.sweep`), on a daemon thread.
+- Links (`UpnpClient.createPlayableItem` `:1646-1700`): `isFetchable` first, `LinkTargetPolicy` before any fetch when the proxy option is on, refused -> `null` and `ShareIntentHandler.prepareAndPlay` plays nothing (`:497-501`); `http://null` is gone (`ShareProxyUrl.build` returns null without an address, `createHttpLinkShare` falls back to the direct link); metadata reader released before the slow HEAD (`:1713-1731`); the HEAD fallback (`LinkContentType`) is http/https only, 3 hand-followed redirects each checked, timeouts, body never read, `concreteMediaType` accepts only a concrete lower-cased audio/video/image type (CRLF impossible in `HttpURLConnection`, odd values such as `audio/x y` -> null); `image/*` only when no concrete type could be found; logs print class names only.
+- Group 13 leftovers: lease released if `RangeStreamer`/`ShareEntityProducer` construction throws (`ProxyShareResponder.java:179-189`); `localFileContentType` re-validates the MIME with `octet-stream` fallback; tests added.
+- Tests: Mockito handler test (31) asserts behavior (what the host is told, what is pending, what the file preparer got, which UpnpClient methods were or were not called); pure classes have table/boundary tests; `LinkContentTypeTest` binds `ServerSocket(0)` on 127.0.0.1 (ephemeral port) and closes it in `tearDown`; no test depends on a fixed port.
+
+### Critical
+- None.
+
+### Warning
+- [`ShareIntentHandlerFileTest.java`, covering `ShareIntentHandler.java:295-298` and `:428-433`] Two failure/abuse branches of the intake have no test. (1) The single-flight gate `intakeBusy` (the flood control this task asks to be judged: a second intent while a provider probe runs must be dropped and `intakeBusy` reset afterwards) is only exercised indirectly through the `isPending` gate. (2) The branch "player service never comes up" (`ReadinessWait.await` false -> `discardShareOf(prepared.getItem())` + toast, the registered key and its open descriptor are released) is untested; the 10 s wait is a constant (`WAIT_FOR_PLAYER_SERVICE_MAX_MS`), which is why it was skipped. Both are cleanup/DoS paths where a regression leaks a registry slot with an open descriptor or lets intents queue. Fix: make the wait/poll values and the executor injectable through the existing package-private test constructor (or a package-private field), then add: second `handle()` during a blocked `getType` is ignored and a third after it finishes is accepted; `isPlayerServiceInitialized()` false with a short wait -> `discardShareOf(item)` called, `playFile` never reached, hook not run. (testing.md: missing edge-case tests are a Warning.)
+
+### Suggestion
+- [`UpnpClient.java:1661,1667,1679-1680`, tasks.md Group 14 constraint (3)] The loopback/link-local/own-address refusal runs only when the proxy option is on. Judgment: acceptable for the relayed-content risk (with the option off the receiver, not the phone, fetches the link, so a link to loopback just fails or plays on the receiver as before), but the PHONE itself still requests the link before anything is played: `MediaMetadataRetriever.setDataSource(link)` (`:1715`, follows redirects, unchecked) and the HEAD with `hop -> !proxy || ...`. Those are blind requests to loopback/link-local/own services, and with the option on the retriever's redirects bypass the policy. Apply `LinkTargetPolicy` to the phone-side reads (metadata + HEAD) regardless of the option (cost: such a link is then typed `image/*`/direct as before), and record the decision in decisions.md, since the task text says "refuse at link intake" without the condition. Hostnames that resolve to loopback are not covered by design (no resolution); say so in the Group 16 docs.
+- [`SharedFileOpener.java:205-208`, `ShareIntentHandler.java:402`] The copy deadline is checked only between reads; a provider that blocks inside `read()` after the user confirmed holds `COPY_SLOT` and the single `fileExecutor` thread (shared with intake) until the process dies, so later file shares are dropped. Needs the user's confirm first, so low severity. Close the `AssetFileDescriptor` from a watchdog when the deadline passes (or run the copy on its own bounded thread).
+- [`ShareIntentHandler.java:96`, `BoundedCall.java:79`] `PROBE_CALLS` is static with 2 threads. Two intents naming a provider whose `getType` never returns pin both threads for the life of the process (binder calls cannot be interrupted), and every later file share is refused with "provider did not answer". No thread or memory exhaustion, only feature lock-out until restart; for the security review. Possible mitigation: a short quarantine/log, or rebuild the pool when both threads are stuck longer than a minute.
+- [`ShareIntentHandler.java:253-280`] After process death Android re-delivers the original activity intent (clip still attached) and the share is offered again, so the picker can reappear without a new user action (still needs a confirm). Rotation is covered by `consume`. Consider a saved-state flag in the Group 15 host work.
+- [`BrowserHost.onPendingShare` default, `ShareIntentHandler.java:291`] Until Group 15 a share in classic is announced to nobody and stays pending for 2 minutes; a direct intent to the exported `TabBrowserActivity` can keep the single slot occupied (drop-new is the specified policy). Group 15 must show/cancel it; record the residual in the security review.
+- [`SharedFileService.prepare`, `SharedFileOpener`, `LauncherActivity`] The register/cleanup ordering cannot run on the JVM (Android `Uri`, `Yaacc`, `Context`). It was read carefully and is correct, but consider extracting the sequence (open -> register -> claim -> build item, with the close/remove-on-failure rules) into a plain-Java helper next to `ShareRegistrar` so it can be tested with fakes. Needs a device check in any case: `getInitialCaller()` with the system chooser as sender on API 35+, descriptor `dup` while the sender dies, copy of a pipe provider.
+- [`ShareIntentHandlerFileTest.java:376-390`] `aProviderThatDoesNotAnswerDropsTheShare` asserts `< 3_900 ms` against a 3 s timeout (0.9 s margin) and several negative checks rely on `Thread.sleep(300-500)`; they can only produce false passes, but the timing bound may flake on a loaded CI. Widen the margin or inject the timeout.
+- [`ShareIntentHandler.java:214,493`] The two toasts "start in %s seconds" and "no receiver found using local device" are hard-coded English (pre-existing, Backlog topic 4); `Yaacc.shareClockMillis()` duplicates the lambda in `ShareRegistry.createDefault()` instead of sharing it. `tasks.md` Group 14 boxes are still `[ ]`.
+- Docs for Group 16: the receiver-picker flow is unreachable until Group 15 (no manifest filter, `onPendingShare` default does nothing), so do not describe sharing a file as available before the filters land.
+
+### Tests
+- [x] All tests passing (only the 11 expected `ReceiverPickResultTest` AssertionErrors, Group 15)
+- [ ] Coverage adequate for the change (two intake branches untested, see Warning; device-only glue listed above)
+
+### Verdict: FAIL
+No Critical. One Warning: the intake's single-flight gate and the "player service never up -> discard" cleanup path have no test. The code itself checks out on every point of the checklist; after the two tests are added (and the injectable wait), the group passes.
+
+## Group 14 — Cycle 2 — 2026-10-25
+Reviewing: commit 2589e3eb (fix for the cycle 1 Warning) on top of 8e11433a / 02f47c60
+
+Build (real, `ANDROID_HOME=/root/android-sdk`): `:yaacc:assembleDebug` builds `yaacc-debug.apk`; `testDebugUnitTest` = 1208 tests, 11 failures, all `ReceiverPickResultTest` (Group 15 red skeleton), `ShareIntentHandlerFileTest` 36/36 green; `lintDebug` = 189 issues (72 errors / 117 warnings), none in `ShareIntentHandler`; `git diff 071fc9d2 -- yaacc/src/main/AndroidManifest.xml` is empty. `git status` clean (nothing edited, nothing committed).
+
+Production diff of 2589e3eb (read in full): the 8-arg package-private constructor only adds three final fields (player wait, poll, provider timeout); the 5-arg constructor delegates with the old defaults (10 s / 100 ms / `ShareLimits.PROVIDER_CALL_TIMEOUT_MILLIS`), so production behaviour is unchanged. `settled` replaces `prepared = null`: set before `discardShareOf` in the give-up path and before the hand-off to the main thread, so the catch cannot discard twice; the control flow is otherwise identical. `toast()` now catches `RuntimeException` and logs the class name only. No regression found.
+
+How I checked the tests (mutation runs on a throw-away copy of HEAD, the repo was not touched):
+- Mutant A, remove `discardShareOf` from the give-up path: 4 tests fail. Killed.
+- Mutant B, never reset `intakeBusy` after the intake: 2 tests fail. Killed (so the "accepted again after it finished" half of the flood test is real).
+- Mutant C, replace the `intakeBusy.compareAndSet` drop by `intakeBusy.set(true)` (gate removed): all 36 tests pass. SURVIVES. See Warning.
+- With one added assertion (below) Mutant C is killed (1 failure) and the unmutated code stays green.
+
+### Critical
+- None.
+
+### Warning
+- [`ShareIntentHandlerFileTest.java` `aSecondIntakeWhileOneIsStillRunningIsDroppedWithoutAnotherProviderCall`, covering `ShareIntentHandler.java:312-315`] The "second intent is dropped" half of the cycle 1 Warning is still not tested; the test does not discriminate the gate. `fileExecutor` is a single-thread executor, so without the gate the 2nd and 3rd intent are only queued behind the blocked first one and their `getType` calls start after the test already asserted `asked == 1` (the assertions run while the first call is still blocked, and `gate.countDown()` is in the `finally` after them). The remaining checks (`verify(second).setClipData(null)` is done by `consume` before the gate; empty tokens/no pending while the first is blocked) also hold without the gate, and the final accept-again loop passes because queued extras are dropped by the `isPending` check. Result: removing the flood gate (unbounded queueing of intake tasks on the executor that also runs `confirm`, i.e. the DoS the task asks to be judged) goes undetected (Mutant C). Fix, one line: after `String first = host.tokens.get(0); assertNotNull(pendingShare.peek(first));` add `Thread.sleep(300); assertEquals("the dropped intents were never probed", 1, asked.get());` (verified: green on HEAD, red on Mutant C).
+
+### Suggestion
+- [`ShareIntentHandlerFileTest.java` `aFailingMessageDoesNotDiscardTheShareASecondTime`] The test is green because the new `toast()` catch swallows the stubbed `Toast` failure, so the outer catch in `prepareAndPlayFile` is never reached and `settled` is not what is under test (removing `settled = true` from the give-up path alone does not fail it). Harmless defence in depth, but the name over-claims; either rename it to the toast behaviour or make the main-thread executor of that test throw so that `settled` is needed.
+- [`ShareIntentHandlerFileTest.java`] The give-up tests wait with fixed `Thread.sleep(300-500)` after `waitUntil(preparedFor.size() == 1)`; they can only produce false passes on a slow CI, not false failures (the positive assertions `verify(discardShareOf)`, `registry.lookup == null`, `closes == 1` are exact). Polling for the expected effect (as `waitUntil` already does) would remove the guess.
+- The cycle 1 Suggestions (phone-side link reads without `LinkTargetPolicy` when the proxy option is off, copy deadline only between reads, static 2-thread probe pool lock-out, re-delivery after process death, pending share until Group 15, device-only glue, hard-coded English toasts) are unchanged by this commit and remain open for the security review / Group 15 / Group 16. The provider-timeout suggestion from cycle 1 is resolved (timeout is injectable, `aProviderThatDoesNotAnswerDropsTheShareAndFreesTheGateForTheNext` uses 200 ms and also proves the gate is released after a timeout).
+
+### Tests
+- [x] All tests passing (only the 11 expected `ReceiverPickResultTest` AssertionErrors, Group 15)
+- [ ] Coverage adequate for the change (the player-service give-up cleanup, the copy deletion, the timeout path and the gate reset are properly covered; the gate's drop branch is not discriminated)
+
+### Verdict: FAIL
+The "player service never comes up" cleanup is now genuinely tested (source closed once, registry key removed, copy deleted, no playback, hook not run, single main-thread message) and the production changes are sound. The flood gate's drop branch is still not pinned: the new test passes with the gate removed. One Warning, one-line test fix; after it the group passes.
+
+## Group 14 — Cycle 3 — 2026-10-25
+Reviewing: commit 2c746cc7 (fix for the cycle 2 Warning) on top of 2589e3eb
+
+Scope check: `git diff 2589e3eb 2c746cc7 --stat` = `review.md` (+31) and `ShareIntentHandlerFileTest.java` (+4). No production file changed since cycle 2, so the cycle 2 build/lint/full-suite results and the production-code review stand; no full build re-run.
+
+The change: after `assertNotNull(pendingShare.peek(first))` in `aSecondIntakeWhileOneIsStillRunningIsDroppedWithoutAnotherProviderCall`, `Thread.sleep(300)` and `assertEquals("the dropped intents were never probed", 1, asked.get())` while the first provider call is still blocked.
+
+Verification (on a throw-away copy made with `git archive HEAD` in the scratchpad; the repo was not touched, `git status` clean):
+- HEAD (unmutated): `ShareIntentHandlerFileTest` 36 tests, 0 failures, 0 errors.
+- Mutant C (the `intakeBusy.compareAndSet(false, true)` drop replaced by `intakeBusy.set(true); if (false)`, i.e. gate removed): 36 tests, 1 failure, exactly `aSecondIntakeWhileOneIsStillRunningIsDroppedWithoutAnotherProviderCall`, `AssertionError` at `ShareIntentHandlerFileTest.java:470` (the new assertion). Killed. In cycle 2 the same mutant passed all 36.
+
+### Critical
+- None.
+
+### Warning
+- None. The cycle 2 Warning is resolved.
+
+### Suggestion
+- Unchanged from cycle 2 and non-blocking: the `aFailingMessageDoesNotDiscardTheShareASecondTime` name over-claims (the toast catch swallows the failure before `settled` matters); fixed `Thread.sleep` waits instead of polling (can only give false passes on slow CI; the new 300 ms wait is the same kind, and is safe on the failure side because it asserts a count that must stay 1); the cycle 1 Suggestions remain open for the security review / Group 15 / Group 16.
+
+### Tests
+- [x] All tests passing (`ShareIntentHandlerFileTest` 36/36 on HEAD; the full-suite state from cycle 2 is unchanged: only the 11 expected `ReceiverPickResultTest` Group 15 red-skeleton failures)
+- [x] Coverage adequate for the change (all three mutants A/B/C from cycles 2-3 are now killed: give-up cleanup, gate reset, gate drop)
+
+### Verdict: PASS

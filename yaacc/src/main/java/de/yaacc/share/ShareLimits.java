@@ -56,6 +56,66 @@ public final class ShareLimits {
      */
     public static final int MIN_PROGRESS_BYTES = 16 * 1024;
 
+    /**
+     * How long a share that no player claimed may stay in the registry (and, for a file, hold its
+     * descriptor): the player is created right after the registration, so two minutes is generous.
+     */
+    public static final long CLAIM_WINDOW_MILLIS = 2L * 60L * 1000L;
+
+    /** How long a pending (unconfirmed) share waits for the user's receiver pick. */
+    public static final long PENDING_SHARE_TIMEOUT_MILLIS = 2L * 60L * 1000L;
+
+    /** Free space that must stay on the volume while a provider file is copied: 64 MiB. */
+    public static final long COPY_FREE_SPACE_RESERVE_BYTES = 64L * 1024L * 1024L;
+
+    /** All copies together in {@code cache/incoming/}: 1 GiB. */
+    public static final long INCOMING_DIR_MAX_BYTES = 1024L * 1024L * 1024L;
+
+    /** The longest a provider call (type, name, opening the descriptor) may take before the share is dropped. */
+    public static final long PROVIDER_CALL_TIMEOUT_MILLIS = 3_000L;
+
+    /**
+     * The longest opening a provider descriptor may take after the user confirmed (some providers
+     * fetch the file first); longer than the type and name queries.
+     */
+    public static final long PROVIDER_OPEN_TIMEOUT_MILLIS = 20_000L;
+
+    /** The longest the copy fallback may run: a provider that trickles must not hold the copy slot forever. */
+    public static final long COPY_MAX_MILLIS = 5L * 60L * 1000L;
+
+    /**
+     * How long the token that the launcher puts into the intent it forwards stays valid: the
+     * browser reads it in {@code onCreate}/{@code onNewIntent}, which follows the forward at once.
+     */
+    public static final long LAUNCH_NONCE_TTL_MILLIS = 30_000L;
+
+    /** Tokens minted but not yet used; the oldest is dropped beyond this (one forward is one token). */
+    public static final int LAUNCH_NONCE_MAX_OUTSTANDING = 8;
+
+    /**
+     * Threads of each provider pool (intake probe, confirmed open). A Binder call into another
+     * process cannot be interrupted, so a hung provider pins its thread. The per-provider gate
+     * ({@link #PROVIDER_MAX_TRACKED}) keeps one provider to one thread, for as long as its call is
+     * outstanding, and lets at most that many threads into provider calls at once; the pool is
+     * larger, so a thread is left for everything else (a call that has just returned and is still
+     * finishing, a new provider).
+     */
+    public static final int PROVIDER_POOL_THREADS = 4;
+
+    /**
+     * Providers that may have a call outstanding at the same time, hung ones included. Below
+     * {@link #PROVIDER_POOL_THREADS}: at most 3 of the 4 threads are ever inside provider calls.
+     * One hung provider holds one place; three distinct hung providers use up all places until a
+     * call returns.
+     */
+    public static final int PROVIDER_MAX_TRACKED = 3;
+
+    /**
+     * Copy workers that may stay stuck (abandoned after the deadline) at the same time; beyond
+     * this a new copy is turned away as busy instead of starting one more thread.
+     */
+    public static final int COPY_MAX_STUCK_WORKERS = 3;
+
     private ShareLimits() {
     }
 }

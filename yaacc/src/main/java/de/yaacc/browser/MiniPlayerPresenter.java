@@ -17,6 +17,8 @@
  */
 package de.yaacc.browser;
 
+import de.yaacc.share.DisplayName;
+
 /**
  * The Android-free decisions behind the mini-player rows: what the play/pause button does, and
  * how the strings that come from LAN devices (track title, receiver and player
@@ -35,7 +37,7 @@ public final class MiniPlayerPresenter {
     }
 
     /** Longest text the bar will hold; the view ellipsizes far earlier. */
-    static final int MAX_TEXT_LENGTH = 200;
+    static final int MAX_TEXT_LENGTH = DisplayName.MAX_LENGTH;
 
     private MiniPlayerPresenter() {
     }
@@ -64,47 +66,10 @@ public final class MiniPlayerPresenter {
     }
 
     /**
-     * Makes {@code untrusted} safe to show on one line: whitespace runs (including line breaks and
-     * tabs) become one space, control characters, bidirectional controls and zero-width
-     * characters are dropped, the
-     * result is trimmed and cut at {@link #MAX_TEXT_LENGTH} chars without splitting a surrogate
-     * pair. Null becomes the empty string.
+     * Makes {@code untrusted} safe to show on one line (see {@link DisplayName#clean(String)} for
+     * the rules). Null becomes the empty string.
      */
     static String cleanText(String untrusted) {
-        if (untrusted == null) {
-            return "";
-        }
-        StringBuilder out = new StringBuilder(Math.min(untrusted.length(), MAX_TEXT_LENGTH));
-        boolean pendingSpace = false;
-        int index = 0;
-        while (index < untrusted.length()) {
-            int codePoint = untrusted.codePointAt(index);
-            index += Character.charCount(codePoint);
-            if (Character.isWhitespace(codePoint) || Character.isSpaceChar(codePoint) || codePoint == 0x85) {
-                pendingSpace = out.length() > 0;
-                continue;
-            }
-            if (Character.getType(codePoint) == Character.CONTROL || isBidiControl(codePoint)) {
-                continue;
-            }
-            int needed = Character.charCount(codePoint) + (pendingSpace ? 1 : 0);
-            if (out.length() + needed > MAX_TEXT_LENGTH) {
-                break;
-            }
-            if (pendingSpace) {
-                out.append(' ');
-                pendingSpace = false;
-            }
-            out.appendCodePoint(codePoint);
-        }
-        return out.toString();
-    }
-
-    private static boolean isBidiControl(int codePoint) {
-        return codePoint == 0x200E || codePoint == 0x200F || codePoint == 0x061C
-                // invisible zero-width characters that make two titles look the same
-                || codePoint == 0x200B || codePoint == 0x2060 || codePoint == 0xFEFF
-                || (codePoint >= 0x202A && codePoint <= 0x202E)
-                || (codePoint >= 0x2066 && codePoint <= 0x2069);
+        return DisplayName.clean(untrusted);
     }
 }
