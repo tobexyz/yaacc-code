@@ -17,6 +17,8 @@
  */
 package de.yaacc.share;
 
+import java.util.Locale;
+
 /**
  * Decides which shared local content may be registered for serving. Plain Java so it can be
  * unit tested on the JVM; http/https text links stay with
@@ -38,6 +40,10 @@ public final class SharedContentPolicy {
     /** Cap for the copy fallback (provider descriptor is not seekable): 512 MiB. */
     public static final long MAX_COPY_BYTES = 512L * 1024L * 1024L;
 
+    private static final String CONTENT_PREFIX = "content://";
+
+    private static final String SUBTYPE_SPECIALS = ".+-_!#$&^";
+
     private SharedContentPolicy() {
     }
 
@@ -54,8 +60,35 @@ public final class SharedContentPolicy {
      *                     caller has a bug and nothing is accepted
      */
     public static boolean isAcceptableUri(String uriString, String ownAuthority) {
-        // STUB (red phase): wrong on purpose
-        return false;
+        if (uriString == null || ownAuthority == null || ownAuthority.isEmpty()
+                || uriString.length() > MAX_URI_LENGTH) {
+            return false;
+        }
+        for (int i = 0; i < uriString.length(); i++) {
+            if (!isPrintableAscii(uriString.charAt(i))) {
+                return false;
+            }
+        }
+        if (!uriString.regionMatches(true, 0, CONTENT_PREFIX, 0, CONTENT_PREFIX.length())) {
+            return false;
+        }
+        int authorityStart = CONTENT_PREFIX.length();
+        int authorityEnd = authorityStart;
+        while (authorityEnd < uriString.length()) {
+            char c = uriString.charAt(authorityEnd);
+            if (c == '/' || c == '?' || c == '#') {
+                break;
+            }
+            authorityEnd++;
+        }
+        if (authorityEnd == authorityStart) {
+            return false;
+        }
+        String authority = uriString.substring(authorityStart, authorityEnd);
+        if (authority.indexOf('@') >= 0 || authority.indexOf('%') >= 0) {
+            return false;
+        }
+        return !authority.equalsIgnoreCase(ownAuthority);
     }
 
     /**
@@ -66,14 +99,39 @@ public final class SharedContentPolicy {
      * missing subtype, null, empty and over-long texts are rejected.
      */
     public static boolean isAcceptableMimeType(String mime) {
-        // STUB (red phase): wrong on purpose
-        return false; // fail closed
+        if (mime == null || mime.length() > MAX_MIME_LENGTH) {
+            return false;
+        }
+        int slash = mime.indexOf('/');
+        if (slash < 0) {
+            return false;
+        }
+        String type = mime.substring(0, slash);
+        if (!type.equalsIgnoreCase("audio") && !type.equalsIgnoreCase("video")
+                && !type.equalsIgnoreCase("image")) {
+            return false;
+        }
+        int subtypeLength = mime.length() - slash - 1;
+        if (subtypeLength == 0) {
+            return false;
+        }
+        for (int i = slash + 1; i < mime.length(); i++) {
+            char c = mime.charAt(i);
+            boolean alnum = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+                    || (c >= '0' && c <= '9');
+            if (i == slash + 1 && !alnum) {
+                return false;
+            }
+            if (!alnum && SUBTYPE_SPECIALS.indexOf(c) < 0) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** The cap for the copy fallback in bytes, see {@link #MAX_COPY_BYTES}. */
     public static long maxCopyBytes() {
-        // STUB (red phase): wrong on purpose
-        return 0L;
+        return MAX_COPY_BYTES;
     }
 
     /**
@@ -81,8 +139,7 @@ public final class SharedContentPolicy {
      * @return true if 0 &lt;= size &lt;= {@link #MAX_COPY_BYTES}; unknown sizes are not accepted
      */
     public static boolean isWithinCopyLimit(long sizeBytes) {
-        // STUB (red phase): wrong on purpose
-        return false; // fail closed
+        return sizeBytes >= 0L && sizeBytes <= MAX_COPY_BYTES;
     }
 
     /**
@@ -104,7 +161,16 @@ public final class SharedContentPolicy {
      * @return the chosen type in lower case, or null if neither input is acceptable
      */
     public static String chooseMimeType(String providerType, String intentType) {
-        // STUB (red phase): wrong on purpose (fail closed: nothing is chosen)
+        if (isAcceptableMimeType(providerType)) {
+            return providerType.toLowerCase(Locale.ROOT);
+        }
+        if (isAcceptableMimeType(intentType)) {
+            return intentType.toLowerCase(Locale.ROOT);
+        }
         return null;
+    }
+
+    private static boolean isPrintableAscii(char c) {
+        return c >= 0x21 && c <= 0x7e;
     }
 }

@@ -17,6 +17,7 @@
  */
 package de.yaacc.share;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -58,6 +59,8 @@ public final class ByteRangeResolver {
 
     /** The last-position value that means "open" ({@code bytes=100-}). */
     public static final long OPEN = -1L;
+
+    private static final String UNIT = "bytes";
 
     private ByteRangeResolver() {
     }
@@ -208,8 +211,102 @@ public final class ByteRangeResolver {
      * Numbers that overflow {@code long} saturate at {@link Long#MAX_VALUE}.
      */
     public static List<Range> parseHeader(String rangeHeader) {
-        // STUB (red phase): wrong on purpose (every header is ignored)
-        return Collections.emptyList();
+        if (rangeHeader == null || rangeHeader.length() > MAX_HEADER_LENGTH) {
+            return Collections.emptyList();
+        }
+        int begin = 0;
+        int end = rangeHeader.length();
+        while (begin < end && isBlank(rangeHeader.charAt(begin))) {
+            begin++;
+        }
+        while (end > begin && isBlank(rangeHeader.charAt(end - 1))) {
+            end--;
+        }
+        String header = rangeHeader.substring(begin, end);
+        int equals = header.indexOf('=');
+        if (equals < 0 || !header.substring(0, equals).equalsIgnoreCase(UNIT)) {
+            return Collections.emptyList();
+        }
+        // RFC 9110: no whitespace between "=" and the first element
+        if (equals + 1 < header.length() && isBlank(header.charAt(equals + 1))) {
+            return Collections.emptyList();
+        }
+        List<Range> parsed = new ArrayList<>();
+        int pos = equals + 1;
+        while (pos <= header.length()) {
+            int comma = header.indexOf(',', pos);
+            int pieceEnd = comma < 0 ? header.length() : comma;
+            int from = pos;
+            int to = pieceEnd;
+            while (from < to && isBlank(header.charAt(from))) {
+                from++;
+            }
+            while (to > from && isBlank(header.charAt(to - 1))) {
+                to--;
+            }
+            if (from < to) {
+                Range range = parseRange(header, from, to);
+                if (range == null) {
+                    return Collections.emptyList();
+                }
+                parsed.add(range);
+            }
+            if (comma < 0) {
+                break;
+            }
+            pos = comma + 1;
+        }
+        return parsed;
+    }
+
+    /** One {@code first-last}, {@code first-} or {@code -suffix} piece, null if invalid. */
+    private static Range parseRange(String text, int from, int to) {
+        int dash = -1;
+        for (int i = from; i < to; i++) {
+            char c = text.charAt(i);
+            if (c == '-') {
+                if (dash >= 0) {
+                    return null;
+                }
+                dash = i;
+            } else if (c < '0' || c > '9') {
+                return null;
+            }
+        }
+        if (dash < 0) {
+            return null;
+        }
+        boolean hasFirst = dash > from;
+        boolean hasLast = dash + 1 < to;
+        if (!hasFirst && !hasLast) {
+            return null;
+        }
+        if (!hasFirst) {
+            return Range.suffix(parseSaturating(text, dash + 1, to));
+        }
+        long first = parseSaturating(text, from, dash);
+        if (!hasLast) {
+            return Range.from(first);
+        }
+        long last = parseSaturating(text, dash + 1, to);
+        return last < first ? null : Range.of(first, last);
+    }
+
+    /** ASCII digits only (checked by the caller); too large values stop at Long.MAX_VALUE. */
+    private static long parseSaturating(String text, int from, int to) {
+        long value = 0L;
+        for (int i = from; i < to; i++) {
+            int digit = text.charAt(i) - '0';
+            if (value > (Long.MAX_VALUE - digit) / 10L) {
+                return Long.MAX_VALUE;
+            }
+            value = value * 10L + digit;
+        }
+        return value;
+    }
+
+    private static boolean isBlank(char c) {
+        return c == ' ' || c == '\t';
     }
 
     /**
@@ -222,7 +319,50 @@ public final class ByteRangeResolver {
      * @param totalLength the length of the resource in bytes; negative means unknown (200)
      */
     public static Result resolve(List<Range> requested, long totalLength) {
-        // STUB (red phase): wrong on purpose (fail closed: nothing is served)
-        return new Result(416, 0L, -1L, 0L, null);
+        if (totalLength < 0L) {
+            return new Result(200, 0L, -1L, -1L, null);
+        }
+        Range range = singleValidRange(requested);
+        if (range == null) {
+            return whole(totalLength);
+        }
+        if (totalLength == 0L) {
+            return unsatisfiable(totalLength);
+        }
+        long start;
+        long endInclusive;
+        if (range.isSuffix()) {
+            if (range.suffixLength() == 0L) {
+                return unsatisfiable(totalLength);
+            }
+            start = Math.max(0L, totalLength - range.suffixLength());
+            endInclusive = totalLength - 1L;
+        } else {
+            if (range.first() >= totalLength) {
+                return unsatisfiable(totalLength);
+            }
+            start = range.first();
+            endInclusive = range.last() == OPEN ? totalLength - 1L
+                    : Math.min(range.last(), totalLength - 1L);
+        }
+        return new Result(206, start, endInclusive, endInclusive - start + 1L,
+                "bytes " + start + "-" + endInclusive + "/" + totalLength);
+    }
+
+    /** The one range to serve, or null when the whole resource is to be served. */
+    private static Range singleValidRange(List<Range> requested) {
+        if (requested == null || requested.size() != 1) {
+            return null;
+        }
+        Range range = requested.get(0);
+        return range != null && range.isValid() ? range : null;
+    }
+
+    private static Result whole(long totalLength) {
+        return new Result(200, 0L, totalLength - 1L, totalLength, null);
+    }
+
+    private static Result unsatisfiable(long totalLength) {
+        return new Result(416, 0L, -1L, 0L, "bytes */" + totalLength);
     }
 }
