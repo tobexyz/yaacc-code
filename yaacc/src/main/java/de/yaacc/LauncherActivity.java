@@ -20,11 +20,20 @@ package de.yaacc;
 import android.app.Activity;
 import android.content.ClipData;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
+
+import androidx.annotation.RequiresApi;
+import androidx.core.content.IntentCompat;
 
 import de.yaacc.browser.BrowserLauncher;
 import de.yaacc.browser.LauncherForwardPolicy;
 import de.yaacc.browser.ShareUriPolicy;
+import de.yaacc.share.SenderGrantCheck;
+import de.yaacc.share.SharedContentPolicy;
+import de.yaacc.upnp.server.share.OwnProviders;
 import de.yaacc.util.YaaccLogger;
 
 /**
@@ -33,9 +42,18 @@ import de.yaacc.util.YaaccLogger;
  * <p>
  * This component is exported and any app can start it with any intent, so the intent it forwards
  * is always a fresh one, built from the allowlist in {@link LauncherForwardPolicy}: a plain launch,
- * or an {@code ACTION_SEND} of {@code text/plain} with a length-capped text. No flags, data,
- * categories, selector, URIs (so no URI grants), {@code EXTRA_STREAM}, nested intents or other
- * extras are copied, and the incoming intent is never modified.
+ * an {@code ACTION_SEND} of {@code text/plain} with a length-capped text, or ONE shared file.
+ * <p>
+ * The text forward carries no flags, data, categories, selector, URIs, {@code EXTRA_STREAM}, nested
+ * intents or other extras. The file forward is the one deliberate exception: ONE {@code content:}
+ * URI as the only item of a new ClipData plus {@code FLAG_GRANT_READ_URI_PERMISSION}, and nothing
+ * else (the system checks the grant for data and ClipData, never for {@code EXTRA_STREAM}, so the
+ * URI is not repeated there). It is built only after {@link LauncherForwardPolicy#decideStream}
+ * agreed (URI in EXTRA_STREAM equals ClipData item 0, the incoming intent carried the read grant,
+ * a {@code content:} URI of another app), after the URI was found not to belong to ANY provider of
+ * this app, and, from Android 15 on, after the real sender was asked whether it holds read access.
+ * A forward the system refuses ({@code SecurityException}) falls back to a plain launch. The
+ * incoming intent is never modified. Exactly one of the paths is taken per intent.
  * <p>
  * Extends the framework {@link Activity}, not AppCompat, because {@code Theme.NoDisplay} is a
  * framework theme. An activity with that theme must call {@code finish()} before {@code onResume}
@@ -49,20 +67,98 @@ public class LauncherActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         try {
-            Intent forward = new Intent(this, BrowserLauncher.targetClass(this));
+            Class<? extends Activity> target = BrowserLauncher.targetClass(this);
+            Intent forward = null;
+            boolean streamForward = false;
             try {
-                applyShareText(getIntent(), forward);
+                forward = buildStreamForward(getIntent(), target);
+                streamForward = forward != null;
             } catch (RuntimeException e) {
-                // crafted extras can throw on read: forward nothing extra, never log the payload
-                YaaccLogger.w(TAG, "Could not read the incoming intent (" + e.getClass().getSimpleName() + ")");
-                forward = new Intent(this, BrowserLauncher.targetClass(this));
+                // crafted extras can throw on read: no file forward, never log the payload
+                YaaccLogger.w(TAG, "Could not read the incoming file share (" + e.getClass().getSimpleName() + ")");
+                forward = null;
             }
-            startActivity(forward);
+            if (forward == null) {
+                forward = new Intent(this, target);
+                try {
+                    applyShareText(getIntent(), forward);
+                } catch (RuntimeException e) {
+                    // crafted extras can throw on read: forward nothing extra, never log the payload
+                    YaaccLogger.w(TAG, "Could not read the incoming intent (" + e.getClass().getSimpleName() + ")");
+                    forward = new Intent(this, target);
+                }
+            }
+            try {
+                startActivity(forward);
+            } catch (SecurityException e) {
+                if (!streamForward) {
+                    throw e;
+                }
+                // the system did not honor the grant (the provider forbids re-granting, or the grant ended): plain launch
+                YaaccLogger.w(TAG, "The shared file could not be forwarded, starting the browser without it");
+                startActivity(new Intent(this, target));
+            }
         } catch (RuntimeException e) {
             YaaccLogger.w(TAG, "Could not start the browser (" + e.getClass().getSimpleName() + ")");
         } finally {
             finish();
         }
+    }
+
+    /**
+     * The forward for a shared file, or null if the intent is none (or fails a check) and the other
+     * path decides. Fresh intent to {@code target}: action SEND, the declared lower-case type, one
+     * ClipData item with the URI, the read flag, nothing else.
+     */
+    private Intent buildStreamForward(Intent incoming, Class<? extends Activity> target) {
+        // the common launches (MAIN, text) never touch the extras here
+        if (incoming == null || !Intent.ACTION_SEND.equals(incoming.getAction())
+                || !LauncherForwardPolicy.isStreamType(incoming.getType())) {
+            return null;
+        }
+        Uri extraStream = IntentCompat.getParcelableExtra(incoming, Intent.EXTRA_STREAM, Uri.class);
+        ClipData clip = incoming.getClipData();
+        ClipData.Item first = clip == null || clip.getItemCount() < 1 ? null : clip.getItemAt(0);
+        Uri clipUri = first == null ? null : first.getUri();
+        String ownAuthority = OwnProviders.fileProviderAuthority(getPackageName());
+        LauncherForwardPolicy.StreamDecision decision = LauncherForwardPolicy.decideStream(
+                incoming.getAction(), incoming.getType(),
+                extraStream == null ? null : extraStream.toString(),
+                clipUri == null ? null : clipUri.toString(),
+                incoming.getFlags(), ownAuthority);
+        if (!decision.isForwardStream()) {
+            return null;
+        }
+        // any provider of this app, not only the file provider: its URI would make yaacc serve its own data
+        String authority = SharedContentPolicy.authorityOf(decision.getStreamUri());
+        if (authority == null || OwnProviders.isOwnAuthority(getPackageManager(), getPackageName(), authority)) {
+            YaaccLogger.w(TAG, "A shared file was ignored: it belongs to this app");
+            return null;
+        }
+        // Android 15+: does the real sender hold read access? (below, nothing can be asked; the residual is documented)
+        final Uri uri = clipUri;
+        if (!SenderGrantCheck.mayForward(Build.VERSION.SDK_INT, () ->
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM
+                        ? senderPermission(uri) : PackageManager.PERMISSION_GRANTED)) {
+            YaaccLogger.w(TAG, "A shared file was ignored: the sender does not hold read access");
+            return null;
+        }
+        Intent forward = new Intent(this, target);
+        forward.setAction(Intent.ACTION_SEND);
+        forward.setType(incoming.getType());
+        forward.setClipData(ClipData.newRawUri("", uri));
+        // read only: never write, persistable or prefix
+        forward.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        return forward;
+    }
+
+    /**
+     * Whether the real sender (the initial caller of this activity, which is the sender because the
+     * launcher is the entry point) holds read access to the URI.
+     */
+    @RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
+    private int senderPermission(Uri uri) {
+        return getInitialCaller().checkContentUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
     }
 
     /** Turns {@code forward} into a SEND of the shared text if the policy allows it. */

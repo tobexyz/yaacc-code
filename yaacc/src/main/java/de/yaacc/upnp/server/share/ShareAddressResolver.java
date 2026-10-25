@@ -51,13 +51,26 @@ public final class ShareAddressResolver {
     }
 
     /**
+     * The addresses of the receivers currently stored as the selection.
+     *
      * @return a new unmodifiable set of normalized addresses; empty if no chosen receiver is known
      */
     public static Set<String> resolve(UpnpClient upnpClient, Context context) {
+        return resolve(upnpClient, context, upnpClient.getReceiverDeviceIds());
+    }
+
+    /**
+     * The addresses of explicitly given receivers (the ones the user picked for this share),
+     * independent of the stored selection.
+     *
+     * @param receiverIds the chosen receiver ids; null or empty gives an empty set
+     * @return a new unmodifiable set of normalized addresses; empty if no chosen receiver is known
+     */
+    public static Set<String> resolve(UpnpClient upnpClient, Context context, Set<String> receiverIds) {
         boolean localChosen = false;
         List<String> hosts = new ArrayList<>();
         // a copy: the set from the preferences must not be modified
-        for (String id : new HashSet<>(upnpClient.getReceiverDeviceIds())) {
+        for (String id : receiverIds == null ? new HashSet<String>() : new HashSet<>(receiverIds)) {
             if (UpnpClient.LOCAL_UID.equals(id)) {
                 localChosen = true;
                 continue;
@@ -79,14 +92,31 @@ public final class ShareAddressResolver {
         }
         List<String> own = new ArrayList<>();
         if (localChosen) {
-            own.add(InterfaceResolutionHelper.getIpAddress(context));
-            Iterator<InetAddress> bind = InterfaceResolutionHelper.getBindAddresses(context);
-            while (bind.hasNext()) {
-                // getHostAddress does not resolve anything
-                own.add(bind.next().getHostAddress());
-            }
+            own.addAll(ownAddresses(context));
         }
         return ShareAddresses.build(hosts, localChosen, own);
+    }
+
+    /**
+     * This phone's own addresses as text (the address used for the proxy URL and every address of
+     * the selected interface), for the link policy and for the allowed set when this phone is a
+     * chosen receiver. No name is resolved. Empty if the phone has no address.
+     */
+    public static Set<String> ownAddresses(Context context) {
+        Set<String> own = new HashSet<>();
+        String ip = InterfaceResolutionHelper.getIpAddress(context);
+        if (ip != null && !ip.isEmpty()) {
+            own.add(ip);
+        }
+        Iterator<InetAddress> bind = InterfaceResolutionHelper.getBindAddresses(context);
+        while (bind.hasNext()) {
+            // getHostAddress does not resolve anything
+            String host = bind.next().getHostAddress();
+            if (host != null && !host.isEmpty()) {
+                own.add(host);
+            }
+        }
+        return own;
     }
 
     private static void addHost(List<String> hosts, URL url) {

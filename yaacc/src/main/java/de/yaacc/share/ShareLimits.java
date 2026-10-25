@@ -68,6 +68,21 @@ public final class ShareLimits {
     /** Free space that must stay on the volume while a provider file is copied: 64 MiB. */
     public static final long COPY_FREE_SPACE_RESERVE_BYTES = 64L * 1024L * 1024L;
 
+    /** All copies together in {@code cache/incoming/}: 1 GiB. */
+    public static final long INCOMING_DIR_MAX_BYTES = 1024L * 1024L * 1024L;
+
+    /** The longest a provider call (type, name, opening the descriptor) may take before the share is dropped. */
+    public static final long PROVIDER_CALL_TIMEOUT_MILLIS = 3_000L;
+
+    /**
+     * The longest opening a provider descriptor may take after the user confirmed (some providers
+     * fetch the file first); longer than the type and name queries.
+     */
+    public static final long PROVIDER_OPEN_TIMEOUT_MILLIS = 20_000L;
+
+    /** The longest the copy fallback may run: a provider that trickles must not hold the copy slot forever. */
+    public static final long COPY_MAX_MILLIS = 5L * 60L * 1000L;
+
     private ShareLimits() {
     }
 }

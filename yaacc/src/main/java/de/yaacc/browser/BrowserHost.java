@@ -63,4 +63,17 @@ public interface BrowserHost {
     default boolean showsBackAtContentRoot() {
         return false;
     }
+
+    /**
+     * A shared file is waiting for the user to pick the receivers (see {@code ShareIntentHandler}).
+     * Called on the main thread. The host shows its receiver picker with {@code displayName} (already
+     * cleaned, safe for {@code setText}) and later calls {@code ShareIntentHandler#confirm} or
+     * {@code ShareIntentHandler#cancel} with the {@code token}. The default does nothing: the pending
+     * share then waits for its timeout (two minutes) and is dropped.
+     *
+     * @param token       binds the pending share to its pick; a result with another token changes nothing
+     * @param displayName the cleaned name of the file
+     */
+    default void onPendingShare(String token, String displayName) {
+    }
 }

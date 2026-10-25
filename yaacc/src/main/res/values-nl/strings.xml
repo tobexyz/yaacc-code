@@ -45,6 +45,8 @@
     <string name="error_no_receiver_device_found">Geen ontvangstapparaat gevonden</string>
     <string name="error_no_receiver_selected">Er is geen ontvanger geselecteerd. Selecteer eerst een ontvanger in het tabblad Ontvanger.</string>
     <string name="share_registry_full">Te veel actieve shares. Probeer het zo meteen opnieuw.</string>
+    <string name="share_unnamed_file">Gedeeld bestand</string>
+    <string name="share_open_failed">Het gedeelde bestand kon niet worden afgespeeld.</string>
     <string name="error_no_activity_found">Geen activiteit gevonden voor het spelen van mimetype \'%1$s\'</string>
     <string name="image_viewer_settings_duration">Duur van het beeldverblijf</string>
     <string name="yaacc_menu_settings">YAACC-instellingen</string>

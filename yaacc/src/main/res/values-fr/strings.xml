@@ -45,6 +45,8 @@
     <string name="error_no_receiver_device_found">Aucun appareil récepteur trouvé</string>
     <string name="error_no_receiver_selected">Aucun périphérique récepteur n\'est sélectionné. Veuillez d\'abord sélectionner un récepteur dans l\'onglet Récepteur.</string>
     <string name="share_registry_full">Trop de partages actifs. Réessayez dans un instant.</string>
+    <string name="share_unnamed_file">Fichier partagé</string>
+    <string name="share_open_failed">Impossible de lire le fichier partagé.</string>
     <string name="error_no_activity_found">Aucune activité trouvée pour la lecture du type MIME \'%1$s\'</string>
     <string name="image_viewer_settings_duration">Durée du séjour photo</string>
     <string name="yaacc_menu_settings">Paramètres YAACC</string>

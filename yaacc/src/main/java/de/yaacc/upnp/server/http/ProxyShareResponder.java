@@ -57,6 +57,7 @@ import de.yaacc.share.RangeStreamer;
 import de.yaacc.share.ShareConcurrencyLimiter;
 import de.yaacc.share.ShareLimits;
 import de.yaacc.share.ShareRegistry;
+import de.yaacc.share.SharedContentPolicy;
 import de.yaacc.settings.SettingsFragment;
 import de.yaacc.upnp.server.http.YaaccUpnpServerContentHttpHandler.ContentHolder;
 import de.yaacc.util.HttpRange;
@@ -163,7 +164,7 @@ final class ProxyShareResponder {
             trigger.submitResponse(builder.build(), httpContext);
             return;
         }
-        ContentType contentType = contentTypeOf(entry.getMimeType());
+        ContentType contentType = localFileContentType(entry.getMimeType());
         AsyncResponseBuilder builder = AsyncResponseBuilder.create(result.status());
         if (result.status() == HttpStatus.SC_PARTIAL_CONTENT) {
             builder.setHeader(HttpHeaders.CONTENT_RANGE, result.contentRangeHeader());
@@ -178,8 +179,14 @@ final class ProxyShareResponder {
                 submitConstant(trigger, httpContext, HttpStatus.SC_SERVICE_UNAVAILABLE, BUSY_BODY);
                 return;
             }
-            producer = new ShareEntityProducer(new RangeStreamer(source, result, ShareLimits.CHUNK_BYTES),
-                    result.length(), contentType, live, lease);
+            try {
+                producer = new ShareEntityProducer(new RangeStreamer(source, result, ShareLimits.CHUNK_BYTES),
+                        result.length(), contentType, live, lease);
+            } catch (RuntimeException e) {
+                // the slot goes back at once instead of waiting for the idle watchdog
+                lease.release();
+                throw e;
+            }
         }
         addStreamingHeaders(builder);
         builder.setEntity(producer);
@@ -380,6 +387,18 @@ final class ProxyShareResponder {
             // fall through
         }
         return MimeType.valueOf("application/octet-stream");
+    }
+
+    /**
+     * The Content-Type of a held file: the entry's MIME type only if it is a concrete audio,
+     * video or image type (checked again here, so free text can never reach the header), else
+     * {@code application/octet-stream}.
+     */
+    static ContentType localFileContentType(String mimeType) {
+        if (SharedContentPolicy.isAcceptableMimeType(mimeType)) {
+            return contentTypeOf(mimeType);
+        }
+        return ContentType.APPLICATION_OCTET_STREAM;
     }
 
     private static ContentType contentTypeOf(String mimeType) {

@@ -55,4 +55,11 @@ public class ShareLimitsTest {
     public void theCopyKeepsSixtyFourMiBFree() {
         assertEquals(64L * 1024L * 1024L, ShareLimits.COPY_FREE_SPACE_RESERVE_BYTES);
     }
+
+    @Test
+    public void providerCallsAndTheCopyAreBounded() {
+        assertEquals(3_000L, ShareLimits.PROVIDER_CALL_TIMEOUT_MILLIS);
+        assertEquals(5L * 60L * 1000L, ShareLimits.COPY_MAX_MILLIS);
+        assertTrue(ShareLimits.PROVIDER_CALL_TIMEOUT_MILLIS < ShareLimits.PENDING_SHARE_TIMEOUT_MILLIS);
+    }
 }

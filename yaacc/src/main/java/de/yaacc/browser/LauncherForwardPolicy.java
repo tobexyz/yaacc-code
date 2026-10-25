@@ -160,6 +160,15 @@ public final class LauncherForwardPolicy {
     }
 
     /**
+     * Whether a declared type selects the shared-file path (instead of the text path): an audio,
+     * video or image type, concrete or the sender's wildcard, exact lower case. The browser side
+     * uses the same test as the launcher so the two cannot disagree about which path an intent takes.
+     */
+    public static boolean isStreamType(String type) {
+        return isMediaType(type);
+    }
+
+    /**
      * An audio, video or image type, in lower case and without parameters: concrete
      * ({@code image/svg+xml}) or the sender's wildcard ({@code audio/*}). Lower case only, like the
      * text path: {@code Intent.setType} lower-cases, so another spelling did not come from a

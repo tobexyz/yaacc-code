@@ -92,6 +92,30 @@ public final class SharedContentPolicy {
     }
 
     /**
+     * The authority of a URI text that is well-formed in the sense of {@link #isAcceptableUri}
+     * (the own-authority rule aside), for the checks that need the Android package manager (does
+     * a provider of this app own it?).
+     *
+     * @return the authority as written (not lower-cased), or null if the text is not acceptable
+     */
+    public static String authorityOf(String uriString) {
+        // a blank own authority can never match an accepted authority: only the syntax is judged
+        if (!isAcceptableUri(uriString, " ")) {
+            return null;
+        }
+        int start = CONTENT_PREFIX.length();
+        int end = start;
+        while (end < uriString.length()) {
+            char c = uriString.charAt(end);
+            if (c == '/' || c == '?' || c == '#') {
+                break;
+            }
+            end++;
+        }
+        return uriString.substring(start, end);
+    }
+
+    /**
      * Accepts only concrete audio, video and image types: {@code audio/<subtype>},
      * {@code video/<subtype>}, {@code image/<subtype>} (type ASCII case-insensitive), the
      * subtype a non-empty token of letters, digits and {@code . + - _ ! # $ & ^} that starts

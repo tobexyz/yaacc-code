@@ -46,6 +46,8 @@
     <string name="error_no_receiver_device_found">Nenhum dispositivo receptor encontrado</string>
     <string name="error_no_receiver_selected">Nenhum dispositivo recetor selecionado. Selecione primeiro um recetor no separador Receptor.</string>
     <string name="share_registry_full">Demasiadas partilhas ativas. Tente novamente dentro de instantes.</string>
+    <string name="share_unnamed_file">Ficheiro partilhado</string>
+    <string name="share_open_failed">Não foi possível reproduzir o ficheiro partilhado.</string>
     <string name="error_no_activity_found">Nenhuma atividade encontrada para jogar o tipo MIME \'%1$s\'</string>
     <string name="image_viewer_settings_duration">Duração da permanência da imagem</string>
     <string name="yaacc_menu_settings">Configurações YAACC</string>
