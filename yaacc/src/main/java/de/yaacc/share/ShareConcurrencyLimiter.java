@@ -32,9 +32,10 @@ import java.util.function.LongSupplier;
  * <p>
  * Watchdog: a response reports its progress to the lease ({@link Lease#noteProgress}); a periodic
  * {@link #expireIdle} takes the slot away from a lease that made no progress for the idle time,
- * so a stalled or trickling reader cannot use up the cap. The response notices it at its next
- * callback ({@link Lease#isLive()} is false) and aborts; the slot is not given back a second
- * time when the response finally ends.
+ * so a stalled or trickling reader cannot hold the slots of a share. The response itself is not
+ * cut off: if it is called again (the reader resumed after a pause) it asks for a slot again
+ * ({@link Lease#tryReacquire()}, same cap) and aborts only if the share is full. The slot is
+ * given back exactly once, however often a lease expired and resumed.
  */
 public final class ShareConcurrencyLimiter {
 
@@ -77,6 +78,18 @@ public final class ShareConcurrencyLimiter {
                     lastProgress = owner.clock.getAsLong();
                 }
             }
+        }
+
+        /**
+         * A response whose slot the watchdog took away is being called again (the reader resumed,
+         * for example after a long pause): asks for a slot of the same share again, under the same
+         * cap as everybody else. The progress window starts afresh.
+         *
+         * @return true if the lease holds a slot now (also if it never lost it); false if the lease
+         * was released for good or the share is at its cap, i.e. the response must abort
+         */
+        public boolean tryReacquire() {
+            return owner.reacquire(this);
         }
 
         /** @return false once the lease was released or taken away by the watchdog: stop sending */
@@ -205,6 +218,30 @@ public final class ShareConcurrencyLimiter {
             }
             lease.state = State.CLOSED;
             lease.live = false;
+        }
+    }
+
+    private boolean reacquire(Lease lease) {
+        synchronized (lock) {
+            if (lease.state == State.LIVE) {
+                return true;
+            }
+            if (lease.state == State.CLOSED) {
+                return false;
+            }
+            int count = active.getOrDefault(lease.key, 0);
+            if (count >= max) {
+                return false;
+            }
+            active.put(lease.key, count + 1);
+            live.add(lease);
+            lease.state = State.LIVE;
+            synchronized (lease) {
+                lease.unrecordedBytes = 0L;
+                lease.lastProgress = clock.getAsLong();
+            }
+            lease.live = true;
+            return true;
         }
     }
 

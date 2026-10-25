@@ -199,6 +199,201 @@ public class ShareConcurrencyLimiterWatchdogTest {
         assertEquals(1, limiter.activeCount(KEY_B));
     }
 
+    // ---- re-acquire: an expired response that resumes asks for a slot again
+
+    @Test
+    public void aResumedLeaseGetsASlotAgainWhenOneIsFree() {
+        ShareConcurrencyLimiter.Lease lease = limiter.tryAcquire(KEY_A);
+        now.addAndGet(IDLE + 1);
+        limiter.expireIdle(IDLE);
+        assertEquals(0, limiter.activeCount(KEY_A));
+
+        assertTrue(lease.tryReacquire());
+
+        assertTrue(lease.isLive());
+        assertFalse(lease.isExpired());
+        assertEquals(1, limiter.activeCount(KEY_A));
+    }
+
+    @Test
+    public void aResumedLeaseFailsWhenAnotherResponseTookTheSlotsAndTheCapIsFull() {
+        ShareConcurrencyLimiter.Lease idle = limiter.tryAcquire(KEY_A);
+        ShareConcurrencyLimiter.Lease busy = limiter.tryAcquire(KEY_A);
+        now.addAndGet(IDLE + 1);
+        busy.noteProgress(STEP);
+        assertEquals(1, limiter.expireIdle(IDLE));
+        // the freed slot is reused by another response while the first one is paused
+        ShareConcurrencyLimiter.Lease other = limiter.tryAcquire(KEY_A);
+        assertNotNull(other);
+
+        assertFalse(idle.tryReacquire());
+
+        assertFalse(idle.isLive());
+        assertTrue(idle.isExpired());
+        assertEquals(2, limiter.activeCount(KEY_A));
+        // and it can still try again once a slot frees up
+        other.release();
+        assertTrue(idle.tryReacquire());
+        assertEquals(2, limiter.activeCount(KEY_A));
+    }
+
+    @Test
+    public void reacquiringALiveLeaseChangesNothing() {
+        ShareConcurrencyLimiter.Lease lease = limiter.tryAcquire(KEY_A);
+
+        assertTrue(lease.tryReacquire());
+        assertTrue(lease.tryReacquire());
+
+        assertEquals(1, limiter.activeCount(KEY_A));
+    }
+
+    @Test
+    public void aReleasedLeaseCanNeverBeReacquired() {
+        ShareConcurrencyLimiter.Lease lease = limiter.tryAcquire(KEY_A);
+        lease.release();
+
+        assertFalse(lease.tryReacquire());
+        assertEquals(0, limiter.activeCount(KEY_A));
+
+        ShareConcurrencyLimiter.Lease expired = limiter.tryAcquire(KEY_A);
+        now.addAndGet(IDLE + 1);
+        limiter.expireIdle(IDLE);
+        expired.release();
+
+        assertFalse(expired.tryReacquire());
+        assertEquals(0, limiter.activeCount(KEY_A));
+    }
+
+    @Test
+    public void aResumedLeaseStartsAFreshProgressWindow() {
+        ShareConcurrencyLimiter.Lease lease = limiter.tryAcquire(KEY_A);
+        now.addAndGet(IDLE + 1);
+        limiter.expireIdle(IDLE);
+        lease.tryReacquire();
+
+        now.addAndGet(IDLE - 1_000L);
+        assertEquals("not idle yet in the new window", 0, limiter.expireIdle(IDLE));
+
+        now.addAndGet(2_000L);
+        assertEquals("idle again without progress", 1, limiter.expireIdle(IDLE));
+        assertTrue(lease.isExpired());
+    }
+
+    @Test
+    public void bytesNotedBeforeTheExpiryDoNotCarryIntoTheFreshWindow() {
+        ShareConcurrencyLimiter.Lease lease = limiter.tryAcquire(KEY_A);
+        lease.noteProgress(STEP - 1);
+        now.addAndGet(IDLE + 1);
+        limiter.expireIdle(IDLE);
+        lease.tryReacquire();
+
+        lease.noteProgress(1);
+        now.addAndGet(IDLE + 1);
+
+        assertEquals("the one byte alone is no progress step", 1, limiter.expireIdle(IDLE));
+    }
+
+    @Test
+    public void expiredReacquiredAndReleasedGivesTheSlotBackExactlyOnce() {
+        ShareConcurrencyLimiter.Lease lease = limiter.tryAcquire(KEY_A);
+        now.addAndGet(IDLE + 1);
+        limiter.expireIdle(IDLE);
+        assertTrue(lease.tryReacquire());
+
+        lease.release();
+        lease.release();
+
+        assertEquals(0, limiter.activeCount(KEY_A));
+        assertEquals(0, limiter.trackedKeys());
+        assertNotNull(limiter.tryAcquire(KEY_A));
+        assertNotNull(limiter.tryAcquire(KEY_A));
+        assertNull(limiter.tryAcquire(KEY_A));
+    }
+
+    @Test
+    public void aLeaseCanExpireAndResumeRepeatedlyWithoutDrifting() {
+        ShareConcurrencyLimiter.Lease lease = limiter.tryAcquire(KEY_A);
+        for (int i = 0; i < 20; i++) {
+            now.addAndGet(IDLE + 1);
+            assertEquals(1, limiter.expireIdle(IDLE));
+            assertEquals(0, limiter.activeCount(KEY_A));
+            assertTrue(lease.tryReacquire());
+            assertEquals(1, limiter.activeCount(KEY_A));
+        }
+        lease.release();
+        assertEquals(0, limiter.activeCount(KEY_A));
+    }
+
+    @Test
+    public void theCapIsNeverExceededUnderInterleavedExpiryReacquireAndRelease() throws Exception {
+        final int cap = 3;
+        final AtomicLong clock = new AtomicLong(0L);
+        final ShareConcurrencyLimiter shared = new ShareConcurrencyLimiter(cap, clock::get);
+        final java.util.concurrent.atomic.AtomicInteger violations = new java.util.concurrent.atomic.AtomicInteger();
+        final java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(8);
+        final java.util.concurrent.CountDownLatch start = new java.util.concurrent.CountDownLatch(1);
+        java.util.List<java.util.concurrent.Future<?>> futures = new java.util.ArrayList<>();
+        for (int t = 0; t < 6; t++) {
+            final int seed = t;
+            futures.add(pool.submit(() -> {
+                java.util.Random random = new java.util.Random(seed);
+                start.await();
+                ShareConcurrencyLimiter.Lease lease = null;
+                for (int i = 0; i < 4_000; i++) {
+                    switch (random.nextInt(4)) {
+                        case 0:
+                            if (lease == null) {
+                                lease = shared.tryAcquire(KEY_A);
+                            }
+                            break;
+                        case 1:
+                            if (lease != null) {
+                                lease.tryReacquire();
+                            }
+                            break;
+                        case 2:
+                            if (lease != null) {
+                                lease.release();
+                                lease = null;
+                            }
+                            break;
+                        default:
+                            if (lease != null) {
+                                lease.noteProgress(STEP);
+                            }
+                    }
+                    if (shared.activeCount(KEY_A) > cap) {
+                        violations.incrementAndGet();
+                    }
+                }
+                if (lease != null) {
+                    lease.release();
+                }
+                return null;
+            }));
+        }
+        futures.add(pool.submit(() -> {
+            start.await();
+            for (int i = 0; i < 4_000; i++) {
+                clock.addAndGet(IDLE / 3);
+                shared.expireIdle(IDLE);
+                if (shared.activeCount(KEY_A) > cap) {
+                    violations.incrementAndGet();
+                }
+            }
+            return null;
+        }));
+        start.countDown();
+        for (java.util.concurrent.Future<?> future : futures) {
+            future.get(60, java.util.concurrent.TimeUnit.SECONDS);
+        }
+        pool.shutdownNow();
+
+        assertEquals(0, violations.get());
+        assertEquals("every lease was released exactly once", 0, shared.activeCount(KEY_A));
+        assertEquals(0, shared.trackedKeys());
+    }
+
     @Test
     public void aNonPositiveIdleTimeIsRejected() {
         try {

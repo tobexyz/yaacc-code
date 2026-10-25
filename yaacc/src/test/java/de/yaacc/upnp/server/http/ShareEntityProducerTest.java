@@ -184,7 +184,7 @@ public class ShareEntityProducerTest {
     }
 
     @Test
-    public void abortsWhenTheWatchdogTookTheLeaseAway() throws IOException {
+    public void abortsAfterTheWatchdogOnlyWhenAnotherResponseTookTheSlot() throws IOException {
         ArraySource source = new ArraySource(ProducerTestSupport.body(4 * ShareLimits.CHUNK_BYTES));
         ShareConcurrencyLimiter.Lease lease = limiter.tryAcquire(KEY);
         ShareEntityProducer producer = producerFor(source, lease);
@@ -192,17 +192,63 @@ public class ShareEntityProducerTest {
         producer.produce(channel);
         clock.addAndGet(ShareLimits.WRITE_IDLE_MILLIS + 1);
         assertEquals(1, limiter.expireIdle(ShareLimits.WRITE_IDLE_MILLIS));
+        // the cap is 1: another response uses the freed slot while this reader is paused
+        ShareConcurrencyLimiter.Lease other = limiter.tryAcquire(KEY);
+        assertNotNull(other);
 
         try {
             producer.produce(channel);
             fail("expected an IOException");
         } catch (IOException expected) {
-            assertEquals("the slot is free for the next response", 0, limiter.activeCount(KEY));
+            assertEquals("the other response keeps its slot", 1, limiter.activeCount(KEY));
         }
-        // the late end of the response must not give a second slot back
+        // the late end of the aborted response must not give a slot back
         producer.releaseResources();
+        assertEquals(1, limiter.activeCount(KEY));
+        other.release();
+        assertEquals(0, limiter.activeCount(KEY));
+    }
+
+    @Test
+    public void aPausedReaderThatResumesGetsASlotAgainAndFinishesTheDownload() throws IOException {
+        byte[] body = ProducerTestSupport.body(4 * ShareLimits.CHUNK_BYTES);
+        ArraySource source = new ArraySource(body);
+        ShareConcurrencyLimiter.Lease lease = limiter.tryAcquire(KEY);
+        ShareEntityProducer producer = producerFor(source, lease);
+        FakeChannel channel = new FakeChannel();
+        producer.produce(channel);
+        clock.addAndGet(ShareLimits.WRITE_IDLE_MILLIS * 3);
+        assertEquals(1, limiter.expireIdle(ShareLimits.WRITE_IDLE_MILLIS));
+        assertEquals(0, limiter.activeCount(KEY));
+
+        drive(producer, channel, 20);
+
+        assertArrayEquals("no byte lost or repeated across the pause", body, channel.bytes());
+        assertEquals("holds a slot again", 1, limiter.activeCount(KEY));
+        producer.releaseResources();
+        producer.releaseResources();
+        assertEquals(0, limiter.activeCount(KEY));
         assertNotNull(limiter.tryAcquire(KEY));
         assertNull(limiter.tryAcquire(KEY));
+    }
+
+    @Test
+    public void aResumedResponseStartsAFreshIdleWindow() throws IOException {
+        ArraySource source = new ArraySource(ProducerTestSupport.body(6 * ShareLimits.CHUNK_BYTES));
+        ShareConcurrencyLimiter.Lease lease = limiter.tryAcquire(KEY);
+        ShareEntityProducer producer = producerFor(source, lease);
+        FakeChannel channel = new FakeChannel();
+        channel.maxPerWrite = 0;
+        producer.produce(channel);
+        clock.addAndGet(ShareLimits.WRITE_IDLE_MILLIS * 3);
+        limiter.expireIdle(ShareLimits.WRITE_IDLE_MILLIS);
+        producer.produce(channel);
+        assertTrue(lease.isLive());
+
+        clock.addAndGet(ShareLimits.WRITE_IDLE_MILLIS - 1_000L);
+        assertEquals(0, limiter.expireIdle(ShareLimits.WRITE_IDLE_MILLIS));
+        clock.addAndGet(2_000L);
+        assertEquals(1, limiter.expireIdle(ShareLimits.WRITE_IDLE_MILLIS));
     }
 
     @Test

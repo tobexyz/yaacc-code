@@ -31,7 +31,7 @@ import de.yaacc.share.ShareConcurrencyLimiter;
 
 /**
  * Wraps the producer of an upstream (HTTP_LINK) response: aborts the response when the share is
- * no longer live or its lease was taken away by the idle watchdog, reports the bytes the client
+ * no longer live or its idle-watchdog lease cannot be re-acquired (the share is full), reports the bytes the client
  * accepts to the lease and gives the lease back when the response ends. Everything else is
  * delegated.
  */
@@ -97,8 +97,8 @@ final class GuardedEntityProducer implements AsyncEntityProducer {
         if (!shareLive.getAsBoolean()) {
             throw new IOException("share ended");
         }
-        if (!lease.isLive()) {
-            // the watchdog took the slot away: this reader made no progress for the idle time
+        if (!lease.tryReacquire()) {
+            // the watchdog took the slot away while this reader was idle and the share is full now
             throw new IOException("write idle");
         }
         delegate.produce(new ProgressChannel(channel, lease));

@@ -78,8 +78,8 @@ final class ShareEntityProducer extends AbstractBinAsyncEntityProducer {
         if (!shareLive.getAsBoolean()) {
             throw new IOException("share ended");
         }
-        if (!lease.isLive()) {
-            // the watchdog took the slot away: this reader made no progress for the idle time
+        if (!lease.tryReacquire()) {
+            // the watchdog took the slot away while this reader was idle and the share is full now
             throw new IOException("write idle");
         }
         if (pending != null && pending.hasRemaining()) {

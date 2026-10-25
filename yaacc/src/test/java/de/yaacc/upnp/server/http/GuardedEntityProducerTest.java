@@ -161,10 +161,12 @@ public class GuardedEntityProducerTest {
     }
 
     @Test
-    public void abortsWhenTheWatchdogTookTheLeaseAway() {
+    public void abortsAfterTheWatchdogOnlyWhenAnotherResponseTookTheSlot() {
         GuardedEntityProducer producer = guarded(limiter.tryAcquire(KEY));
         clock.addAndGet(ShareLimits.WRITE_IDLE_MILLIS + 1);
         assertEquals(1, limiter.expireIdle(ShareLimits.WRITE_IDLE_MILLIS));
+        ShareConcurrencyLimiter.Lease other = limiter.tryAcquire(KEY);
+        assertNotNull(other);
 
         try {
             producer.produce(new FakeChannel());
@@ -173,7 +175,29 @@ public class GuardedEntityProducerTest {
             assertTrue(delegate.calls.isEmpty());
         }
         producer.releaseResources();
-        assertNotNull("the late end must not give a second slot back", limiter.tryAcquire(KEY));
+        assertEquals("the late end must not give the other response's slot back", 1, limiter.activeCount(KEY));
+        other.release();
+        assertEquals(0, limiter.activeCount(KEY));
+    }
+
+    @Test
+    public void aPausedReaderThatResumesGetsASlotAgainAndKeepsStreaming() throws IOException {
+        delegate.chunk = new byte[]{1, 2, 3};
+        GuardedEntityProducer producer = guarded(limiter.tryAcquire(KEY));
+        clock.addAndGet(ShareLimits.WRITE_IDLE_MILLIS * 3);
+        assertEquals(1, limiter.expireIdle(ShareLimits.WRITE_IDLE_MILLIS));
+        assertEquals(0, limiter.activeCount(KEY));
+        FakeChannel channel = new FakeChannel();
+
+        producer.produce(channel);
+
+        assertEquals(List.of("produce"), delegate.calls);
+        assertEquals(3, channel.bytes().length);
+        assertEquals(1, limiter.activeCount(KEY));
+        producer.releaseResources();
+        producer.failed(new IOException("late"));
+        assertEquals(0, limiter.activeCount(KEY));
+        assertNotNull(limiter.tryAcquire(KEY));
         assertNull(limiter.tryAcquire(KEY));
     }
 

@@ -44,7 +44,9 @@ public final class ShareLimits {
     /**
      * How long a response may make no progress before the watchdog takes its slot away: a reader
      * that stalls or trickles must not hold one of the few slots of a share. (The server-wide
-     * socket timeout is 5 minutes and does not fire while a peer trickles.)
+     * socket timeout is 5 minutes and does not fire while a peer trickles.) The response itself
+     * survives a pause: when it is called again it asks for a slot again and aborts only if the
+     * share is full.
      */
     public static final long WRITE_IDLE_MILLIS = 60L * 1000L;
 
