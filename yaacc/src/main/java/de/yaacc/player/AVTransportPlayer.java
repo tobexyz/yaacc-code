@@ -22,14 +22,12 @@ import android.app.PendingIntent;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
-import android.preference.PreferenceManager;
 import android.support.v4.media.session.MediaSessionCompat;
 import android.widget.Toast;
 
@@ -82,7 +80,6 @@ import java.util.concurrent.TimeUnit;
 
 import de.yaacc.R;
 import de.yaacc.Yaacc;
-import de.yaacc.settings.SettingsFragment;
 import de.yaacc.upnp.ActionState;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.callback.avtransport.GetPositionInfo;
@@ -93,8 +90,6 @@ import de.yaacc.upnp.callback.avtransport.Seek;
 import de.yaacc.upnp.callback.avtransport.SetAVTransportURI;
 import de.yaacc.upnp.callback.avtransport.Stop;
 import de.yaacc.upnp.callback.connectionmanager.GetProtocolInfo;
-import de.yaacc.upnp.server.http.YaaccUpnpServerContentHttpHandler;
-import de.yaacc.util.InterfaceResolutionHelper;
 import de.yaacc.util.YaaccLogger;
 import de.yaacc.util.image.BitmapSampling;
 import de.yaacc.util.image.IconDownloadCacheHandler;
@@ -503,7 +498,6 @@ public class AVTransportPlayer extends AbstractPlayer {
         // Try to select best resource for this device
         PlayableItem deviceOptimizedItem = selectBestResourceForDevice(playableItem);
 
-        YaaccLogger.d(getClass().getName(), "Uri: " + deviceOptimizedItem.getUri());
         YaaccLogger.d(getClass().getName(), "Duration: " + deviceOptimizedItem.getDuration());
         YaaccLogger.d(getClass().getName(),
                 "MimeType: " + deviceOptimizedItem.getMimeType());
@@ -690,55 +684,12 @@ public class AVTransportPlayer extends AbstractPlayer {
         actionState.actionFinished = false;
         Item item = playableItem.getItem();
 
-        // Check if this device needs server-side range management
-        String deviceId = getDevice().getIdentity().getUdn().getIdentifierString();
-        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(getContext());
-        String prefKey = SettingsFragment.MANAGE_EXTERNAL_SEEKING + deviceId;
-        boolean useServerSideManagement = preferences.getBoolean(prefKey, false);
-
-        YaaccLogger.d(getClass().getName(), "Device ID: " + deviceId);
-        YaaccLogger.d(getClass().getName(), "Preference key: " + prefKey);
-        YaaccLogger.d(getClass().getName(), "Server-side management enabled: " + useServerSideManagement);
-        YaaccLogger.d(getClass().getName(), "Item is null: " + (item == null));
-
-        if (useServerSideManagement && item != null) {
-            // Make a copy of the item to avoid modifying the shared instance
-            try {
-                // Create a new item with the same properties but modifiable resources
-                Item itemCopy = new Item(item.getId(), item.getParentID(), item.getTitle(),
-                        item.getCreator(), item.getClazz());
-
-                // Copy all properties
-                for (DIDLObject.Property property : item.getProperties()) {
-                    itemCopy.addProperty(property);
-                }
-
-                // Copy and modify resources
-                for (Res resource : item.getResources()) {
-                    String originalUri = resource.getValue();
-                    String modifiedUri = modifyProxyUrlWithDeviceId(originalUri);
-
-                    Res newResource = new Res(resource.getProtocolInfo(), resource.getSize(),
-                            resource.getDuration(), resource.getBitrate(), modifiedUri);
-                    itemCopy.addResource(newResource);
-
-                    if (!originalUri.equals(modifiedUri)) {
-                        YaaccLogger.d(getClass().getName(), "Modified copied item resource URI: " + modifiedUri);
-                    }
-                }
-
-                item = itemCopy;
-            } catch (Exception e) {
-                YaaccLogger.e(getClass().getName(), "Failed to copy/modify item: " + e.getMessage());
-                item = playableItem.getItem(); // Fall back to original
-            }
-        }
-
         String metadata;
         try {
             metadata = new DIDLParser().generate((item == null) ? new DIDLContent() : new DIDLContent().addItem(item), false);
+            // not the XML: it contains the resource URL, which can be a proxy URL with a share key
             String itemTitle = item != null ? item.getTitle() : "null";
-            YaaccLogger.d(getClass().getName(), "DIDL Metadata generated - Item title: " + itemTitle + " - Metadata XML: " + metadata.substring(0, Math.min(500, metadata.length())));
+            YaaccLogger.d(getClass().getName(), "DIDL Metadata generated - Item title: " + itemTitle);
         } catch (Exception e) {
             YaaccLogger.d(getClass().getName(), "Error while generating Didl-Item xml: " + e);
             metadata = "";
@@ -766,10 +717,8 @@ public class AVTransportPlayer extends AbstractPlayer {
         }
 
         InternalSetAVTransportURI setAVTransportURI = new InternalSetAVTransportURI(
-                service, modifyProxyUrlWithDeviceId(playableItem.getUri().toString()), actionState, metadata,
+                service, playableItem.getUri().toString(), actionState, metadata,
                 getHttpRequestSender());
-        YaaccLogger.d(getClass().getName(), "Original URI: " + playableItem.getUri().toString());
-        YaaccLogger.d(getClass().getName(), "Modified URI: " + modifyProxyUrlWithDeviceId(playableItem.getUri().toString()));
         YaaccLogger.d(getClass().getName(), "SetAVTransportURI - Title: " + (item != null ? item.getTitle() : "null") + ", Metadata length: " + metadata.length());
         executorService.execute(setAVTransportURI);
         waitForActionComplete(actionState);
@@ -1359,39 +1308,6 @@ public class AVTransportPlayer extends AbstractPlayer {
 
                 long currentRemainingTime = positionInfo.getTrackRemainingSeconds();
 
-                // Update server-side position management only for external URLs on basic renderers
-                if (positionInfo.getRelTime() != null && !positionInfo.getRelTime().isEmpty()) {
-                    int currentIndex = getCurrentItemIndex();
-                    if (currentIndex >= 0 && currentIndex < getItems().size()) {
-                        PlayableItem currentPlayableItem = getItems().get(currentIndex);
-                        String itemUri = currentPlayableItem.getUri().toString();
-                        boolean isExternalUrl = itemUri != null && itemUri.contains("/proxy/");
-
-                        if (isExternalUrl) {
-                            try {
-                                String[] timeParts = positionInfo.getRelTime().split(":");
-                                if (timeParts.length >= 3) {
-                                    long hours = Long.parseLong(timeParts[0]);
-                                    long minutes = Long.parseLong(timeParts[1]);
-                                    long seconds = Long.parseLong(timeParts[2]);
-                                    long timeMs = (hours * 3600 + minutes * 60 + seconds) * 1000;
-
-                                    // Extract content key from proxy URL for renderer state key
-                                    String contentKey = itemUri.substring(itemUri.lastIndexOf("/") + 1);
-
-                                    // Check if position is stuck (paused)
-                                    boolean isPaused = (lastRemainingTime != -1 && currentRemainingTime == lastRemainingTime);
-
-                                    YaaccUpnpServerContentHttpHandler.updateRendererPosition(
-                                            "test_renderer_" + contentKey, timeMs, isPaused);
-                                }
-                            } catch (Exception e) {
-                                YaaccLogger.w(getClass().getName(), "Failed to parse position time: " + positionInfo.getRelTime(), e);
-                            }
-                        }
-                    }
-                }
-
                 // Set timer on first position info OR when remaining time changes significantly
                 if (lastRemainingTime == -1 && currentRemainingTime > 1) {
                     // First position check - set timer only if we have valid remaining time
@@ -1474,27 +1390,6 @@ public class AVTransportPlayer extends AbstractPlayer {
                 //super.success(invocation);
                 YaaccLogger.d(getClass().getName(), "success seek" + invocation);
 
-                // Update server-side position for external URLs
-                int currentIndex = getCurrentItemIndex();
-                if (currentIndex >= 0 && currentIndex < getItems().size()) {
-                    PlayableItem currentPlayableItem = getItems().get(currentIndex);
-                    String itemUri = currentPlayableItem.getUri().toString();
-                    boolean isExternalUrl = itemUri != null && itemUri.contains("/proxy/");
-
-                    if (isExternalUrl) {
-                        String contentKey = itemUri.substring(itemUri.lastIndexOf("/") + 1);
-                        String deviceId = getDevice().getIdentity().getUdn().getIdentifierString();
-                        YaaccUpnpServerContentHttpHandler.updateRendererPosition(
-                                deviceId + "_" + contentKey, millisecondsFromStart, false);
-
-                        // Also save to preferences for HTTP handler
-                        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(getContext());
-                        preferences.edit().putLong("server_position_" + deviceId, millisecondsFromStart).apply();
-
-                        YaaccLogger.d(getClass().getName(), "Updated server position after seek: " + millisecondsFromStart + "ms");
-                    }
-                }
-
                 // Don't schedule position check - let normal position polling handle it
             }
 
@@ -1528,41 +1423,6 @@ public class AVTransportPlayer extends AbstractPlayer {
             return currentPositionInfo.getTrackRemainingSeconds() * 1000;
         }
         return -1;
-    }
-
-    private String modifyProxyUrlWithDeviceId(String originalUrl) {
-        // Check if it's a proxy URL from the same YAACC server
-        if (originalUrl != null && originalUrl.contains("/proxy/")) {
-            try {
-                // Check if URL is from this YAACC server by comparing IP
-                java.net.URL url = new java.net.URL(originalUrl);
-                String urlHost = url.getHost();
-
-                // Get local server IP using YAACC method
-                String[] ifAndIp = InterfaceResolutionHelper.getIfAndIpAddress(getUpnpClient().getContext());
-                String localIP = ifAndIp != null && ifAndIp.length > 0 ? ifAndIp[0] : null;
-
-                YaaccLogger.d(getClass().getName(), "URL host: '" + urlHost + "', Local IP: '" + localIP + "'");
-                YaaccLogger.d(getClass().getName(), "IP comparison: urlHost.equals(localIP) = " + urlHost.equals(localIP));
-
-                if (urlHost.equals(localIP) || urlHost.equals("localhost") || urlHost.equals("127.0.0.1")) {
-                    // Get device UUID and URL-encode it for safe URL usage
-                    String deviceId = getDevice().getIdentity().getUdn().getIdentifierString();
-                    String encodedDeviceId = java.net.URLEncoder.encode(deviceId, "UTF-8");
-
-                    // Replace /proxy/contentKey with /proxy/encodedDeviceId/contentKey
-                    String[] parts = originalUrl.split("/proxy/");
-                    if (parts.length == 2) {
-                        String modifiedUrl = parts[0] + "/proxy/" + encodedDeviceId + "/" + parts[1];
-                        YaaccLogger.d(getClass().getName(), "Modified proxy URL: " + originalUrl + " -> " + modifiedUrl);
-                        return modifiedUrl;
-                    }
-                }
-            } catch (Exception e) {
-                YaaccLogger.w(getClass().getName(), "Failed to modify proxy URL", e);
-            }
-        }
-        return originalUrl;
     }
 
     @Override
@@ -1659,7 +1519,6 @@ public class AVTransportPlayer extends AbstractPlayer {
                                           ActionState actionState, String metadata, de.yaacc.upnp.server.http.HttpRequestSender httpRequestSender) {
             super(service, uri, metadata, httpRequestSender);
             this.actionState = actionState;
-            YaaccLogger.d(getClass().getName(), "InternalSetAVTransportURI created with URI: " + uri);
         }
 
         @Override

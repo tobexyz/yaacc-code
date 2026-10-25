@@ -91,6 +91,10 @@
     <string name="settings_local_server_proxy_off">media proxy deactivated</string>
     <string name="settings_local_server_proxy_on">media proxy activated</string>
     <string name="settings_local_server_proxy_chkbx" translatable="false">local_server_proxy_chkbx</string>
+    <string name="settings_proxy_restrict_receivers_title">Restrict the media proxy to the chosen receivers</string>
+    <string name="settings_proxy_restrict_receivers_on">Only the chosen receivers can fetch a shared file or link</string>
+    <string name="settings_proxy_restrict_receivers_off">Any device that knows the address can fetch a shared file or link while it is shared</string>
+    <string name="settings_proxy_restrict_receivers_chkbx" translatable="false">proxy_restrict_receivers_chkbx</string>
     <string name="settings_local_server_media_filter_title">media store filtering</string>
     <string name="settings_local_server_media_filter_off">media store filtering deactivated</string>
     <string name="settings_local_server_media_filter_on">media store filtering activated</string>

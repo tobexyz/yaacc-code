@@ -91,101 +91,11 @@ import de.yaacc.util.YaaccLogger;
 public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHandler<Message<HttpRequest, byte[]>> {
 
     private final Context context;
-    // Server-side position management for renderers
-    private static final Map<String, RendererState> rendererStates = new ConcurrentHashMap<>();
-
     SharedPreferences preferences;
-
-    static class RendererState {
-        long currentTimePosition = 0; // milliseconds
-        boolean isPaused = false;
-        String currentUrl = "";
-        long totalDuration = 0;
-        long lastUpdateTime = System.currentTimeMillis();
-        long lastBytePosition = 0; // Store last calculated byte position for pause
-    }
 
     public YaaccUpnpServerContentHttpHandler(Context context) {
         this.context = context;
         preferences = PreferenceManager.getDefaultSharedPreferences(context);
-    }
-
-    private long calculateBytePositionFromTime(String url, long timeMs, long totalDurationMs) {
-        // More conservative estimation for MP3 files
-        if (totalDurationMs <= 0) return 0;
-
-        try {
-            // Get total file size with HEAD request
-            HttpURLConnection con = (HttpURLConnection) new URL(url).openConnection();
-            con.setRequestMethod("HEAD");
-            con.setConnectTimeout(5000);
-            con.setReadTimeout(5000);
-            long totalSize = con.getContentLengthLong();
-            con.disconnect();
-
-            if (totalSize > 0) {
-                // More conservative calculation for MP3 files
-                // Account for MP3 headers and variable bitrate
-                double timeRatio = (double) timeMs / totalDurationMs;
-
-                // Assume first 10% of file contains headers/metadata
-                long dataSize = (long) (totalSize * 0.9);
-                long headerSize = totalSize - dataSize;
-
-                // Calculate position within the data portion
-                long estimatedDataPosition = (long) (dataSize * timeRatio);
-                long estimatedPosition = headerSize + estimatedDataPosition;
-
-                // Additional safety margin - don't go beyond 85% of file size
-                long maxSafePosition = (long) (totalSize * 0.85);
-                estimatedPosition = Math.min(estimatedPosition, maxSafePosition);
-
-                YaaccLogger.d(getClass().getName(), "Calculated byte position " + estimatedPosition + " for time " + timeMs + "ms (file size: " + totalSize + ", ratio: " + String.format("%.3f", timeRatio) + ")");
-                return estimatedPosition;
-            }
-        } catch (Exception e) {
-            YaaccLogger.w(getClass().getName(), "Failed to calculate byte position", e);
-        }
-
-        return 0;
-    }
-
-    private long getDurationFromUrl(String url) {
-        try {
-            // Get file size with HEAD request
-            HttpURLConnection con = (HttpURLConnection) new URL(url).openConnection();
-            con.setRequestMethod("HEAD");
-            con.setConnectTimeout(5000);
-            con.setReadTimeout(5000);
-            long fileSize = con.getContentLengthLong();
-            con.disconnect();
-
-            if (fileSize > 0) {
-                // Estimate duration for MP3 files based on file size
-                // Assume average bitrate of 128 kbps for MP3 files
-                // Duration (seconds) = (file size in bytes * 8) / (bitrate in bits per second)
-                long estimatedDurationMs = (fileSize * 8 * 1000) / (128 * 1024);
-                YaaccLogger.d(getClass().getName(), "Estimated duration: " + estimatedDurationMs + "ms from file size: " + fileSize + " bytes");
-                return estimatedDurationMs;
-            }
-        } catch (Exception e) {
-            YaaccLogger.w(getClass().getName(), "Failed to estimate duration from URL: " + url, e);
-        }
-        return 0;
-    }
-
-    public static void updateRendererPosition(String rendererKey, long timeMs) {
-        updateRendererPosition(rendererKey, timeMs, false);
-    }
-
-    public static void updateRendererPosition(String rendererKey, long timeMs, boolean isPaused) {
-        RendererState state = rendererStates.get(rendererKey);
-        if (state != null) {
-            state.currentTimePosition = timeMs;
-            state.isPaused = isPaused;
-            state.lastUpdateTime = System.currentTimeMillis();
-            YaaccLogger.d("YaaccUpnpServerServiceHttpHandler", "Updated renderer position: " + rendererKey + " -> " + timeMs + "ms, paused=" + isPaused);
-        }
     }
 
     @Override
@@ -200,7 +110,7 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
                        final HttpContext context) throws HttpException, IOException {
 
         YaaccLogger.d(getClass().getName(), "Processing HTTP request: "
-                + request.getHead().getRequestUri());
+                + loggableUri(request.getHead().getRequestUri()));
         final AsyncResponseBuilder responseBuilder = AsyncResponseBuilder.create(HttpStatus.SC_OK);
         // Extract what we need from the HTTP httpRequest
         String requestMethod = request.getHead().getMethod()
@@ -222,6 +132,14 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
             responseBuilder.setEntity(
                     AsyncEntityProducers.create("<html><body>I am alive</body></html>", ContentType.TEXT_HTML));
             responseTrigger.submitResponse(responseBuilder.build(), context);
+            return;
+        }
+        if (!pathSegments.isEmpty() && YaaccUpnpServerService.PROXY_PATH.equals(pathSegments.get(0))) {
+            // The shares of the in-memory registry. Answered before the preference gate below: the
+            // HTTP server runs whenever the process lives and a share is protected by its random
+            // key, its expiry and (setting) the receiver addresses, not by the proxy preference.
+            new ProxyShareResponder(getContext(), preferences).respond(request, responseTrigger, context,
+                    requestMethod.equals("HEAD"), pathSegments);
             return;
         }
         if (pathSegments.size() < 2 || pathSegments.size() > 3) {
@@ -276,19 +194,6 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
             contentHolder = lookupAlbumArt(albumId, ranges);
         } else if (!thumbId.isEmpty()) {
             contentHolder = lookupThumbnail(thumbId, ranges);
-        } else if (contentProxyEnabled && YaaccUpnpServerService.PROXY_PATH.equals(type)) {
-            YaaccLogger.d(getClass().getName(), "Processing proxy request: " + requestUri);
-            // Handle both old and new proxy URL formats
-            if (pathSegments.size() >= 3) {
-                // New format: /proxy/encodedDeviceId/contentKey
-                String encodedDeviceId = pathSegments.get(1);
-                String deviceId = java.net.URLDecoder.decode(encodedDeviceId, "UTF-8");
-                String contentKey = pathSegments.get(2);
-                contentHolder = lookupProxyContent(contentKey, ranges, deviceId);
-            } else if (pathSegments.size() >= 2) {
-                // Old format: /proxy/contentKey (fallback)
-                contentHolder = lookupProxyContent(pathSegments.get(1), ranges, null);
-            }
         } else if (contentServerEnabled && YaaccUpnpServerService.SAF_PATH.equals(type)) {
             contentHolder = lookupSafContent(pathSegments.get(1), pathSegments.get(2), ranges);
         } else if (contentServerEnabled && "live".equals(type) && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
@@ -358,6 +263,22 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
         responseBuilder.setHeader(HttpHeaders.ACCEPT_RANGES, "bytes");
         responseTrigger.submitResponse(responseBuilder.build(), context);
         YaaccLogger.d(getClass().getName(), "end doService: ");
+    }
+
+    /**
+     * The request URI for the log. The path of a proxy request carries the share key, which is
+     * never logged.
+     */
+    private static String loggableUri(String requestUri) {
+        try {
+            List<String> segments = Uri.parse(requestUri).getPathSegments();
+            if (!segments.isEmpty() && YaaccUpnpServerService.PROXY_PATH.equals(segments.get(0))) {
+                return "/" + YaaccUpnpServerService.PROXY_PATH + "/[redacted]";
+            }
+        } catch (RuntimeException e) {
+            return "[unparsable]";
+        }
+        return requestUri;
     }
 
     private void createForbiddenResponse(ResponseTrigger responseTrigger, HttpContext context,
@@ -763,119 +684,6 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
             YaaccLogger.d(getClass().getName(), "System media store is empty.");
         }
         return result;
-    }
-
-    private ContentHolder lookupProxyContent(String contentKey, List<HttpRange> ranges) {
-        return lookupProxyContent(contentKey, ranges, null);
-    }
-
-    private ContentHolder lookupProxyContent(String contentKey, List<HttpRange> ranges, String deviceId) {
-        YaaccLogger.d(getClass().getName(), "Looking up proxy content for key: " + contentKey + ", device: " + deviceId);
-
-        String targetUri = PreferenceManager.getDefaultSharedPreferences(getContext())
-                .getString(YaaccUpnpServerService.PROXY_LINK_KEY_PREFIX + contentKey, null);
-        YaaccLogger.d(getClass().getName(), "Target URI from preferences: " + targetUri);
-
-        if (targetUri == null) {
-            YaaccLogger.e(getClass().getName(), "No target URI found for proxy key: " + contentKey);
-            return null;
-        }
-        String targetMimetype = PreferenceManager.getDefaultSharedPreferences(getContext())
-                .getString(YaaccUpnpServerService.PROXY_LINK_MIME_TYPE_KEY_PREFIX + contentKey, null);
-        YaaccLogger.d(getClass().getName(), "Target MIME type: " + targetMimetype);
-
-        // Check if this renderer needs server-side position management
-        boolean useServerPositionManagement = false; // Default: no server-side management
-
-        if (deviceId != null) {
-            SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(getContext());
-            String prefKey = "manage_external_seeking_" + deviceId;
-            useServerPositionManagement = preferences.getBoolean(prefKey, false);
-            YaaccLogger.d(getClass().getName(), "Checking preference key: " + prefKey);
-            YaaccLogger.d(getClass().getName(), "Server position management for device " + deviceId + ": " + useServerPositionManagement);
-        } else {
-            YaaccLogger.d(getClass().getName(), "No device ID available, using default (no server-side management)");
-        }
-
-        if (useServerPositionManagement && !ranges.isEmpty()) {
-            YaaccLogger.d(getClass().getName(), "Server-side management enabled, processing ranges: " + ranges.size());
-            // For basic renderers, ignore their range requests and use server-managed position
-            String rendererKey = deviceId + "_" + contentKey;
-            RendererState state = rendererStates.get(rendererKey);
-            YaaccLogger.d(getClass().getName(), "Looking for renderer state: " + rendererKey + ", found: " + (state != null));
-            if (state != null && state.currentUrl.equals(targetUri)) {
-                long bytePosition;
-                if (state.isPaused) {
-                    // When paused, use the exact same byte position as before
-                    bytePosition = state.lastBytePosition;
-                    YaaccLogger.d(getClass().getName(), "Using cached byte position for pause: " + bytePosition);
-                } else {
-                    // Calculate new byte position and cache it
-                    // If we don't have duration yet, get it now
-                    if (state.totalDuration <= 0) {
-                        state.totalDuration = getDurationFromUrl(targetUri);
-                        YaaccLogger.d(getClass().getName(), "Updated renderer state duration: " + state.totalDuration + "ms");
-                    }
-                    bytePosition = calculateBytePositionFromTime(targetUri, state.currentTimePosition, state.totalDuration);
-                    if (bytePosition > 0) {
-                        state.lastBytePosition = bytePosition; // Update cache for future pause
-                    }
-                }
-
-                if (bytePosition > 0) {
-                    // Override the renderer's incorrect range request
-                    ranges.clear();
-                    ranges.add(new HttpRange("bytes", bytePosition, null, null));
-                    YaaccLogger.d(getClass().getName(), "Overriding range request with server-managed position: bytes=" + bytePosition + "- (paused=" + state.isPaused + ")");
-                }
-            } else {
-                // Initialize renderer state for new playback  
-                RendererState newState = new RendererState();
-                newState.currentUrl = targetUri;
-                // Get current server position (in case this is after a seek)
-                SharedPreferences serverPrefs = PreferenceManager.getDefaultSharedPreferences(getContext());
-                long serverPosition = serverPrefs.getLong("server_position_" + deviceId, 0);
-                newState.currentTimePosition = serverPosition;
-                newState.totalDuration = 0; // Will be determined dynamically
-                newState.isPaused = false;
-                newState.lastBytePosition = 0;
-                rendererStates.put(rendererKey, newState);
-                YaaccLogger.d(getClass().getName(), "Initialized renderer state for: " + rendererKey + " with position: " + serverPosition + "ms");
-
-                // Calculate byte position for the current server position
-                if (serverPosition > 0) {
-                    YaaccLogger.d(getClass().getName(), "Attempting to get duration for URL: " + targetUri);
-                    // Get the total duration dynamically from the media file
-                    long totalDuration = getDurationFromUrl(targetUri);
-                    YaaccLogger.d(getClass().getName(), "Retrieved duration: " + totalDuration + "ms for position: " + serverPosition + "ms");
-
-                    if (totalDuration > 0) {
-                        long bytePosition = calculateBytePositionFromTime(targetUri, serverPosition, totalDuration);
-                        YaaccLogger.d(getClass().getName(), "Calculated byte position: " + bytePosition + " for time: " + serverPosition + "ms");
-                        if (bytePosition > 0) {
-                            // Override the renderer's range request
-                            ranges.clear();
-                            ranges.add(new HttpRange("bytes", bytePosition, null, null));
-                            YaaccLogger.d(getClass().getName(), "Overriding range request with server-managed position: bytes=" + bytePosition + "- (time=" + serverPosition + "ms, duration=" + totalDuration + "ms)");
-                        } else {
-                            YaaccLogger.w(getClass().getName(), "Byte position calculation returned 0 or negative: " + bytePosition);
-                        }
-                    } else {
-                        YaaccLogger.w(getClass().getName(), "Could not determine duration for URL: " + targetUri);
-                    }
-                } else {
-                    YaaccLogger.d(getClass().getName(), "Server position is 0, no range override needed");
-                }
-            }
-        }
-
-        MimeType mimeType = MimeType.valueOf("*/*");
-        if (targetMimetype != null) {
-            mimeType = MimeType.valueOf(targetMimetype);
-        }
-
-        YaaccLogger.d(getClass().getName(), "Creating ContentHolder for proxy: " + targetUri + " with MIME: " + mimeType + ", ranges: " + ranges.size());
-        return new ContentHolder(mimeType, targetUri, ranges, context);
     }
 
     private ContentHolder lookupSafContent(String contentKey, String contentEnc, List<HttpRange> ranges) {

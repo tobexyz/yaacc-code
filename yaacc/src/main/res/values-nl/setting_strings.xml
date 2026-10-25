@@ -70,6 +70,9 @@
     <string name="settings_local_server_proxy_title">mediaproxy-service</string>
     <string name="settings_local_server_proxy_off">mediaproxy gedeactiveerd</string>
     <string name="settings_local_server_proxy_on">mediaproxy geactiveerd</string>
+    <string name="settings_proxy_restrict_receivers_title">Mediaproxy beperken tot de gekozen ontvangers</string>
+    <string name="settings_proxy_restrict_receivers_on">Alleen de gekozen ontvangers kunnen een gedeeld bestand of een gedeelde link ophalen</string>
+    <string name="settings_proxy_restrict_receivers_off">Elk apparaat dat het adres kent, kan een gedeeld bestand of een gedeelde link ophalen zolang het gedeeld wordt</string>
     <string name="settings_local_server_media_filter_title">filteren van media store</string>
     <string name="settings_local_server_media_filter_off">media store filtering gedeactiveerd</string>
     <string name="settings_local_server_media_filter_on">media store filtering geactiveerd</string>

@@ -70,6 +70,9 @@
     <string name="settings_local_server_proxy_title">service proxy multimédia</string>
     <string name="settings_local_server_proxy_off">proxy média désactivé</string>
     <string name="settings_local_server_proxy_on">proxy multimédia activé</string>
+    <string name="settings_proxy_restrict_receivers_title">Limiter le proxy multimédia aux récepteurs choisis</string>
+    <string name="settings_proxy_restrict_receivers_on">Seuls les récepteurs choisis peuvent récupérer un fichier ou un lien partagé</string>
+    <string name="settings_proxy_restrict_receivers_off">Tout appareil connaissant l\'adresse peut récupérer un fichier ou un lien partagé tant qu\'il est partagé</string>
     <string name="settings_local_server_media_filter_title">filtrage du magasin multimédia</string>
     <string name="settings_local_server_media_filter_off">filtrage du magasin multimédia désactivé</string>
     <string name="settings_local_server_media_filter_on">filtrage du magasin multimédia activé</string>

@@ -42,10 +42,14 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import de.yaacc.browser.BrowserLauncher;
 import de.yaacc.player.PlayerService;
+import de.yaacc.share.ShareLimits;
+import de.yaacc.share.ShareRegistry;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.server.YaaccUpnpServerService;
 import de.yaacc.util.SAFCacheManager;
@@ -69,6 +73,9 @@ public class Yaacc extends Application {
     private final CopyOnWriteArrayList<ShutdownTimerListener> shutdownTimerListeners = new CopyOnWriteArrayList<>();
     private volatile boolean shutdownTimerRunning = false;
     private volatile long shutdownTimerRemainingMillis = 0L;
+    // Shares served by the media proxy: in memory only, lives as long as the process.
+    private final ShareRegistry shareRegistry = ShareRegistry.createDefault();
+    private ScheduledExecutorService shareSweeper;
 
 
     @Override
@@ -103,9 +110,56 @@ public class Yaacc extends Application {
 
         // Validate and cleanup SAF permissions on app startup
         SafPermissionManager.validateAndCleanupPermissions(this);
+        removeLegacyProxyLinks(preferences);
+        startShareSweeper();
         startService(new Intent(this, YaaccUpnpServerService.class));
         upnpClient = new UpnpClient(this);
 
+    }
+
+    /**
+     * The shares the media proxy serves (links and held files), process wide. Never null.
+     */
+    public ShareRegistry getShareRegistry() {
+        return shareRegistry;
+    }
+
+    /**
+     * Earlier versions kept the links that were shared through the media proxy in the
+     * preferences. Nothing reads them any more; this removes the leftovers of an update once.
+     */
+    private void removeLegacyProxyLinks(SharedPreferences preferences) {
+        try {
+            Set<String> legacy = preferences.getAll().keySet().stream()
+                    .filter(k -> k.startsWith(YaaccUpnpServerService.PROXY_LINK_KEY_PREFIX))
+                    .collect(Collectors.toSet());
+            if (!legacy.isEmpty()) {
+                SharedPreferences.Editor editor = preferences.edit();
+                legacy.forEach(editor::remove);
+                editor.apply();
+            }
+        } catch (RuntimeException e) {
+            YaaccLogger.w(getClass().getName(), "Could not remove old proxy link settings", e);
+        }
+    }
+
+    /**
+     * Drops expired shares without waiting for a request, so that an expired share does not keep
+     * its file open.
+     */
+    private void startShareSweeper() {
+        shareSweeper = Executors.newSingleThreadScheduledExecutor(runnable -> {
+            Thread thread = new Thread(runnable, "share-sweeper");
+            thread.setDaemon(true);
+            return thread;
+        });
+        shareSweeper.scheduleWithFixedDelay(() -> {
+            try {
+                shareRegistry.expire();
+            } catch (RuntimeException e) {
+                YaaccLogger.w(Yaacc.class.getName(), "Share sweep failed", e);
+            }
+        }, ShareLimits.SWEEP_INTERVAL_MILLIS, ShareLimits.SWEEP_INTERVAL_MILLIS, TimeUnit.MILLISECONDS);
     }
 
     public Executor getContentLoadExecutor() {
@@ -130,12 +184,11 @@ public class Yaacc extends Application {
     public void exit() {
         YaaccLogger.d(getClass().getName(), "Start shutdown and close");
         upnpClient.shutdown();
-        //clear proxy links from preferences
-        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
-        Set<String> proxyLinks = preferences.getAll().keySet().stream().filter(k -> k.startsWith(YaaccUpnpServerService.PROXY_LINK_MIME_TYPE_KEY_PREFIX)).collect(Collectors.toSet());
-        proxyLinks.addAll(preferences.getAll().keySet().stream().filter(k -> k.startsWith(YaaccUpnpServerService.PROXY_LINK_KEY_PREFIX)).collect(Collectors.toSet()));
-        SharedPreferences.Editor editor = preferences.edit();
-        proxyLinks.forEach(k -> editor.remove(k).commit());
+        // close every share (held files, links) at once
+        shareRegistry.removeAll();
+        if (shareSweeper != null) {
+            shareSweeper.shutdownNow();
+        }
         stopService(new Intent(this, PlayerService.class));
         stopService(new Intent(this, YaaccUpnpServerService.class));
 
