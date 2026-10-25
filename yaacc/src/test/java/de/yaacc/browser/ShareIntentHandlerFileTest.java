@@ -65,9 +65,13 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import de.yaacc.player.PlayableItem;
 import de.yaacc.player.Player;
+import de.yaacc.share.BoundedCall;
 import de.yaacc.share.DeleteOnCloseSource;
+import de.yaacc.share.LaunchNonces;
 import de.yaacc.share.PendingShare;
 import de.yaacc.share.PositionalSource;
+import de.yaacc.share.ProviderCallGate;
+import de.yaacc.share.ShareLimits;
 import de.yaacc.share.ShareRegistry;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.server.share.SharedFileService;
@@ -82,12 +86,15 @@ public class ShareIntentHandlerFileTest {
 
     private static final String SEND = "android.intent.action.SEND";
     private static final String URI = "content://media/external/audio/media/7";
+    private static final String OTHER_URI = "content://com.example.other/files/8";
 
     private Context appContext;
     private PackageManager packageManager;
     private ContentResolver resolver;
     private UpnpClient upnpClient;
     private PendingShare pendingShare;
+    private LaunchNonces nonces;
+    private BoundedCall probeCalls;
     private ShareIntentHandler handler;
     private final List<SharedFileService.Prepared> prepared = new CopyOnWriteArrayList<>();
     private final List<Set<String>> preparedFor = new CopyOnWriteArrayList<>();
@@ -164,6 +171,10 @@ public class ShareIntentHandlerFileTest {
         upnpClient = mock(UpnpClient.class);
         when(upnpClient.isPlayerServiceInitialized()).thenReturn(true);
         pendingShare = new PendingShare(() -> now, new java.util.Random(1)::nextBytes, 120_000L);
+        nonces = new LaunchNonces(() -> now, new java.util.Random(2)::nextBytes, 30_000L, 8);
+        // a pool and gate of their own: the process-wide ones would carry a stuck marker from test to test
+        probeCalls = new BoundedCall(ShareLimits.PROVIDER_POOL_THREADS, "test-probe",
+                new ProviderCallGate(() -> now, ShareLimits.PROVIDER_MAX_TRACKED, ShareLimits.PROVIDER_STUCK_MILLIS));
         preparer = (data, ids) -> {
             preparedFor.add(ids);
             SharedFileService.Prepared result = toReturn.get();
@@ -180,7 +191,7 @@ public class ShareIntentHandlerFileTest {
         return new ShareIntentHandler(appContext, upnpClient, runnable -> {
             mainThreadRuns.incrementAndGet();
             runnable.run();
-        }, preparer, pendingShare, playerWaitMillis, pollMillis, providerTimeoutMillis);
+        }, preparer, pendingShare, nonces, probeCalls, playerWaitMillis, pollMillis, providerTimeoutMillis);
     }
 
     private ShareIntentHandler replaceHandler(ShareIntentHandler replacement) {
@@ -208,7 +219,13 @@ public class ShareIntentHandlerFileTest {
         return clip;
     }
 
-    private static Intent streamIntent(String action, String type, int items, String uri, boolean data, int flags) {
+    /** A file intent as the launcher forwards it: it carries a valid single-use launch token. */
+    private Intent streamIntent(String action, String type, int items, String uri, boolean data, int flags) {
+        return streamIntentWithNonce(action, type, items, uri, data, flags, nonces.mint());
+    }
+
+    private static Intent streamIntentWithNonce(String action, String type, int items, String uri, boolean data,
+                                                int flags, String nonce) {
         // build the nested mocks first: stubbing inside another stubbing call is not allowed
         Uri dataUri = data ? mock(Uri.class) : null;
         ClipData clip = items == 0 ? null : clipOf(items, uri);
@@ -218,11 +235,16 @@ public class ShareIntentHandlerFileTest {
         when(intent.getData()).thenReturn(dataUri);
         when(intent.getFlags()).thenReturn(flags);
         when(intent.getClipData()).thenReturn(clip);
+        when(intent.getStringExtra(LaunchNonces.EXTRA_NAME)).thenReturn(nonce);
         return intent;
     }
 
-    private static Intent goodIntent() {
+    private Intent goodIntent() {
         return streamIntent(SEND, "audio/mpeg", 1, URI, false, 1);
+    }
+
+    private static Intent goodIntentWithNonce(String nonce) {
+        return streamIntentWithNonce(SEND, "audio/mpeg", 1, URI, false, 1, nonce);
     }
 
     // ---- intake
@@ -418,11 +440,12 @@ public class ShareIntentHandlerFileTest {
             assertTrue("the hung share is dropped, not announced", host.staysSilent());
             assertFalse(pendingShare.isPending());
 
-            // the timeout released the single-flight gate: a share with a responsive provider is accepted
+            // the timeout released the single-flight gate: a share from a responsive provider is
+            // accepted (another one: the hung provider is stuck, see the per-provider tests below)
             host.latch = new CountDownLatch(1);
             long deadline = System.nanoTime() + 5_000_000_000L;
             while (host.tokens.isEmpty() && System.nanoTime() < deadline) {
-                handler.handle(goodIntent(), null, host);
+                handler.handle(streamIntent(SEND, "audio/mpeg", 1, OTHER_URI, false, 1), null, host);
                 host.latch.await(300, TimeUnit.MILLISECONDS);
             }
             assertEquals(1, host.tokens.size());
@@ -823,6 +846,190 @@ public class ShareIntentHandlerFileTest {
         Thread.sleep(500);
 
         verify(upnpClient, org.mockito.Mockito.times(1)).discardShareOf(item);
+    }
+
+    // ---- launch token: a file is accepted only if it came through the launcher
+
+    @Test
+    public void aFileWithoutALaunchTokenIsDroppedSilentlyAndNeverReachesTheProvider() throws Exception {
+        RecordingHost host = new RecordingHost();
+        Intent intent = goodIntentWithNonce(null);
+
+        handler.handle(intent, null, host);
+
+        assertTrue(host.staysSilent());
+        assertFalse(pendingShare.isPending());
+        verify(resolver, never()).getType(nullable(Uri.class));
+        verify(intent).setClipData(null);
+        verify(intent).removeExtra(LaunchNonces.EXTRA_NAME);
+    }
+
+    @Test
+    public void aForgedLaunchTokenIsDropped() throws Exception {
+        RecordingHost host = new RecordingHost();
+        nonces.mint();
+
+        handler.handle(goodIntentWithNonce("00000000000000000000000000000000"), null, host);
+        handler.handle(goodIntentWithNonce("not-a-token"), null, host);
+
+        assertTrue(host.staysSilent());
+        assertFalse(pendingShare.isPending());
+        verify(resolver, never()).getType(nullable(Uri.class));
+    }
+
+    @Test
+    public void aWrongTokenDoesNotSpendTheRealOne() throws Exception {
+        RecordingHost host = new RecordingHost();
+        String real = nonces.mint();
+
+        handler.handle(goodIntentWithNonce("ffffffffffffffffffffffffffffffff"), null, host);
+        assertTrue(host.staysSilent());
+
+        handler.handle(goodIntentWithNonce(real), null, host);
+        assertTrue(host.awaitAnnouncement());
+    }
+
+    @Test
+    public void anExpiredLaunchTokenIsDropped() throws Exception {
+        RecordingHost host = new RecordingHost();
+        String nonce = nonces.mint();
+        now += 30_000L;
+
+        handler.handle(goodIntentWithNonce(nonce), null, host);
+
+        assertTrue(host.staysSilent());
+        assertFalse(pendingShare.isPending());
+        verify(resolver, never()).getType(nullable(Uri.class));
+    }
+
+    @Test
+    public void aLaunchTokenIsAcceptedOnceAndAReplayIsDropped() throws Exception {
+        RecordingHost host = new RecordingHost();
+        String nonce = nonces.mint();
+
+        handler.handle(goodIntentWithNonce(nonce), null, host);
+        assertTrue(host.awaitAnnouncement());
+        handler.cancel(host.tokens.get(0));
+        assertFalse(pendingShare.isPending());
+        host.latch = new CountDownLatch(1);
+
+        // the same token again, for instance from a re-delivered intent
+        handler.handle(goodIntentWithNonce(nonce), null, host);
+
+        assertTrue(host.staysSilent());
+        assertFalse(pendingShare.isPending());
+        assertEquals(1, host.tokens.size());
+    }
+
+    @Test
+    public void theTokenIsSpentEvenWhenALaterCheckRejectsTheShare() throws Exception {
+        RecordingHost host = new RecordingHost();
+        String nonce = nonces.mint();
+
+        handler.handle(streamIntentWithNonce(SEND, "audio/mpeg", 1, URI, false, 0, nonce), null, host);
+        handler.handle(goodIntentWithNonce(nonce), null, host);
+
+        assertTrue(host.staysSilent());
+    }
+
+    @Test
+    public void aLinkNeedsNoLaunchToken() throws Exception {
+        // the text path is unchanged: a text intent carries no token and is not looked at here
+        Intent text = streamIntentWithNonce(SEND, "text/plain", 1, URI, false, 1, null);
+
+        handler.handle(text, null, new RecordingHost());
+
+        verify(text).removeExtra(Intent.EXTRA_TEXT);
+        verify(text, never()).getStringExtra(LaunchNonces.EXTRA_NAME);
+        verify(resolver, never()).getType(nullable(Uri.class));
+    }
+
+    // ---- one provider cannot take the pool
+
+    /**
+     * The first provider call hangs until the test ends; later ones answer. Interrupts do not end
+     * it, like a Binder call into another process.
+     */
+    private CountDownLatch hangFirstProviderCall(AtomicInteger asked) throws Exception {
+        CountDownLatch hang = new CountDownLatch(1);
+        when(resolver.getType(nullable(Uri.class))).thenAnswer(invocation -> {
+            if (asked.incrementAndGet() == 1) {
+                long end = System.nanoTime() + 30_000_000_000L;
+                while (hang.getCount() > 0 && System.nanoTime() < end) {
+                    try {
+                        hang.await(100, TimeUnit.MILLISECONDS);
+                    } catch (InterruptedException ignored) {
+                        // keep waiting
+                    }
+                }
+            }
+            return "audio/mpeg";
+        });
+        return hang;
+    }
+
+    @Test
+    public void aHungProviderDoesNotStopAShareFromAnotherProvider() throws Exception {
+        replaceHandler(newHandler(10_000L, 100L, 200L));
+        AtomicInteger asked = new AtomicInteger();
+        CountDownLatch hang = hangFirstProviderCall(asked);
+        RecordingHost host = new RecordingHost();
+        try {
+            handler.handle(goodIntent(), null, host);
+            assertTrue("the hung share is dropped", host.staysSilent());
+            host.latch = new CountDownLatch(1);
+
+            handler.handle(streamIntent(SEND, "audio/mpeg", 1, OTHER_URI, false, 1), null, host);
+
+            assertTrue("a share from another provider still goes through", host.awaitAnnouncement());
+            assertEquals(2, asked.get());
+        } finally {
+            hang.countDown();
+        }
+    }
+
+    @Test
+    public void aSecondShareFromAStuckProviderIsDroppedWithoutAProviderCall() throws Exception {
+        replaceHandler(newHandler(10_000L, 100L, 200L));
+        AtomicInteger asked = new AtomicInteger();
+        CountDownLatch hang = hangFirstProviderCall(asked);
+        RecordingHost host = new RecordingHost();
+        try {
+            handler.handle(goodIntent(), null, host);
+            assertTrue(host.staysSilent());
+            assertEquals(1, asked.get());
+            host.latch = new CountDownLatch(1);
+
+            handler.handle(goodIntent(), null, host);
+            handler.handle(goodIntent(), null, host);
+
+            assertTrue(host.staysSilent());
+            assertEquals("the stuck provider was not asked again", 1, asked.get());
+            assertFalse(pendingShare.isPending());
+        } finally {
+            hang.countDown();
+        }
+    }
+
+    @Test
+    public void theStuckMarkerExpiresAndTheProviderIsAskedAgain() throws Exception {
+        replaceHandler(newHandler(10_000L, 100L, 200L));
+        AtomicInteger asked = new AtomicInteger();
+        CountDownLatch hang = hangFirstProviderCall(asked);
+        RecordingHost host = new RecordingHost();
+        try {
+            handler.handle(goodIntent(), null, host);
+            assertTrue(host.staysSilent());
+            host.latch = new CountDownLatch(1);
+
+            now += ShareLimits.PROVIDER_STUCK_MILLIS;
+            handler.handle(goodIntent(), null, host);
+
+            assertTrue(host.awaitAnnouncement());
+            assertEquals(2, asked.get());
+        } finally {
+            hang.countDown();
+        }
     }
 
     private static void waitUntil(java.util.function.BooleanSupplier condition) throws InterruptedException {

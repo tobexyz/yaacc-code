@@ -315,6 +315,10 @@ final class ProxyShareResponder {
     static void submit(ResponseTrigger trigger, HttpContext httpContext, AsyncResponseBuilder builder,
                        ShareConcurrencyLimiter.Lease lease) throws HttpException, IOException {
         builder.setHeader(HttpHeaders.ACCEPT_RANGES, "bytes");
+        // The type is the provider's (or the link's): a web browser on the LAN that is given the URL
+        // must not sniff it into something else, nor run a script from it in this server's origin.
+        builder.setHeader("X-Content-Type-Options", "nosniff");
+        builder.setHeader("Content-Security-Policy", "sandbox");
         try {
             trigger.submitResponse(builder.build(), httpContext);
         } catch (HttpException | IOException | RuntimeException e) {

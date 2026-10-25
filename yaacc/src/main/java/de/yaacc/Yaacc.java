@@ -52,6 +52,7 @@ import java.io.File;
 import java.util.List;
 
 import de.yaacc.share.IncomingCache;
+import de.yaacc.share.LaunchNonces;
 import de.yaacc.share.PendingShare;
 import de.yaacc.share.ShareConcurrencyLimiter;
 import de.yaacc.share.ShareLimits;
@@ -86,6 +87,8 @@ public class Yaacc extends Application {
     private final UnclaimedShares unclaimedShares = new UnclaimedShares();
     // The one shared file that waits for the user's receiver pick (memory only, lost with the process).
     private final PendingShare pendingShare = PendingShare.createDefault();
+    // Tokens of the launcher's file forwards (memory only, valid for seconds, used once).
+    private final LaunchNonces launchNonces = LaunchNonces.createDefault();
     private ScheduledExecutorService shareSweeper;
 
 
@@ -141,6 +144,13 @@ public class Yaacc extends Application {
      */
     public UnclaimedShares getUnclaimedShares() {
         return unclaimedShares;
+    }
+
+    /**
+     * The single-use tokens that the launcher puts into a forwarded file share. Never null.
+     */
+    public LaunchNonces getLaunchNonces() {
+        return launchNonces;
     }
 
     /**

@@ -31,6 +31,7 @@ import androidx.core.content.IntentCompat;
 import de.yaacc.browser.BrowserLauncher;
 import de.yaacc.browser.LauncherForwardPolicy;
 import de.yaacc.browser.ShareUriPolicy;
+import de.yaacc.share.LaunchNonces;
 import de.yaacc.share.SenderGrantCheck;
 import de.yaacc.share.SharedContentPolicy;
 import de.yaacc.upnp.server.share.OwnProviders;
@@ -48,7 +49,9 @@ import de.yaacc.util.YaaccLogger;
  * intents or other extras. The file forward is the one deliberate exception: ONE {@code content:}
  * URI as the only item of a new ClipData plus {@code FLAG_GRANT_READ_URI_PERMISSION}, and nothing
  * else (the system checks the grant for data and ClipData, never for {@code EXTRA_STREAM}, so the
- * URI is not repeated there). It is built only after {@link LauncherForwardPolicy#decideStream}
+ * URI is not repeated there) except one single-use launch token ({@link LaunchNonces}): the browser
+ * activities are exported too and accept a file only with a token that this class mints after its
+ * checks passed. It is built only after {@link LauncherForwardPolicy#decideStream}
  * agreed (URI in EXTRA_STREAM equals ClipData item 0, the incoming intent carried the read grant,
  * a {@code content:} URI of another app), after the URI was found not to belong to ANY provider of
  * this app, and, from Android 15 on, after the real sender was asked whether it holds read access.
@@ -149,6 +152,11 @@ public class LauncherActivity extends Activity {
         forward.setClipData(ClipData.newRawUri("", uri));
         // read only: never write, persistable or prefix
         forward.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        // The browser activities are exported, so an app could send them a file directly and skip the
+        // checks above. They accept a file only with this single-use token, which only exists after
+        // those checks passed and is never visible outside this process.
+        forward.putExtra(LaunchNonces.EXTRA_NAME,
+                ((Yaacc) getApplicationContext()).getLaunchNonces().mint());
         return forward;
     }
 

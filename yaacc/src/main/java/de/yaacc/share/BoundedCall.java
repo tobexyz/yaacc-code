@@ -39,6 +39,10 @@ import java.util.function.Consumer;
  * else.</li>
  * <li>Every failure (timeout, refusal, exception of the call, interrupt) is a null result; the
  * exception is not kept or logged, it may carry the provider's text.</li>
+ * <li>With a {@link ProviderCallGate} and a key per provider ({@link #call(String, Callable, long,
+ * Consumer)}), one provider has at most one call in flight: a call whose provider still has an
+ * earlier call running or stuck is dropped at once without taking a thread, so one hostile
+ * provider can pin one thread, not the pool.</li>
  * </ul>
  */
 public final class BoundedCall {
@@ -67,12 +71,24 @@ public final class BoundedCall {
     }
 
     private final ThreadPoolExecutor pool;
+    private final ProviderCallGate gate;
 
     /**
      * @param maxThreads the most calls that may run (or hang) at once, at least 1
      * @param threadName the name of the pool's threads
      */
     public BoundedCall(int maxThreads, String threadName) {
+        this(maxThreads, threadName, null);
+    }
+
+    /**
+     * @param maxThreads the most calls that may run (or hang) at once, at least 1
+     * @param threadName the name of the pool's threads
+     * @param gate       the per-provider gate used by {@link #call(String, Callable, long, Consumer)},
+     *                   may be null (then a key is not checked)
+     */
+    public BoundedCall(int maxThreads, String threadName, ProviderCallGate gate) {
+        this.gate = gate;
         if (maxThreads < 1) {
             throw new IllegalArgumentException("at least one thread");
         }
@@ -93,11 +109,42 @@ public final class BoundedCall {
      * the waiting thread was interrupted (its interrupt flag is kept)
      */
     public <T> T call(Callable<T> task, long timeoutMillis, Consumer<T> disposeLate) {
+        return run(null, task, timeoutMillis, disposeLate);
+    }
+
+    /**
+     * Same, for one provider: at most one call per {@code key} is in flight (see
+     * {@link ProviderCallGate}). The key must be non-null when the pool has a gate.
+     *
+     * @param key the provider, for example its package name
+     * @return as {@link #call(Callable, long, Consumer)}, and null at once, without any thread
+     * or provider call, if the provider has a call in flight or is stuck
+     */
+    public <T> T call(String key, Callable<T> task, long timeoutMillis, Consumer<T> disposeLate) {
+        if (gate == null) {
+            return run(null, task, timeoutMillis, disposeLate);
+        }
+        ProviderCallGate.Permit permit = gate.tryAcquire(key);
+        if (permit == null) {
+            return null;
+        }
+        return run(permit, task, timeoutMillis, disposeLate);
+    }
+
+    private <T> T run(ProviderCallGate.Permit permit, Callable<T> task, long timeoutMillis, Consumer<T> disposeLate) {
         final Handoff<T> handoff = new Handoff<>();
         Future<Void> future;
         try {
             future = pool.submit(() -> {
-                T result = task.call();
+                T result;
+                try {
+                    result = task.call();
+                } finally {
+                    // the provider has answered (or failed): its call no longer holds a place, however it ended
+                    if (permit != null) {
+                        gate.release(permit);
+                    }
+                }
                 if (result != null && !handoff.put(result) && disposeLate != null) {
                     try {
                         disposeLate.accept(result);
@@ -108,18 +155,30 @@ public final class BoundedCall {
                 return null;
             });
         } catch (RejectedExecutionException e) {
+            if (permit != null) {
+                gate.release(permit);
+            }
             return null;
         }
         try {
             future.get(timeoutMillis, TimeUnit.MILLISECONDS);
         } catch (TimeoutException e) {
-            future.cancel(true);
+            giveUp(permit, future);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            future.cancel(true);
+            giveUp(permit, future);
         } catch (ExecutionException e) {
             // the call failed: no result
         }
         return handoff.takeAndAbandon();
+    }
+
+    /** The caller stops waiting: the call may still run (a Binder call cannot be interrupted). */
+    private void giveUp(ProviderCallGate.Permit permit, Future<Void> future) {
+        future.cancel(true);
+        if (permit != null) {
+            // a no-op if the call returned meanwhile
+            gate.markStuck(permit);
+        }
     }
 }

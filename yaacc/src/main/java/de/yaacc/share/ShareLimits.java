@@ -83,6 +83,41 @@ public final class ShareLimits {
     /** The longest the copy fallback may run: a provider that trickles must not hold the copy slot forever. */
     public static final long COPY_MAX_MILLIS = 5L * 60L * 1000L;
 
+    /**
+     * How long the token that the launcher puts into the intent it forwards stays valid: the
+     * browser reads it in {@code onCreate}/{@code onNewIntent}, which follows the forward at once.
+     */
+    public static final long LAUNCH_NONCE_TTL_MILLIS = 30_000L;
+
+    /** Tokens minted but not yet used; the oldest is dropped beyond this (one forward is one token). */
+    public static final int LAUNCH_NONCE_MAX_OUTSTANDING = 8;
+
+    /**
+     * Threads of each provider pool (intake probe, confirmed open). A Binder call into another
+     * process cannot be interrupted, so a hung provider pins its thread; the per-provider gate
+     * below keeps one provider to one thread, and the pool is larger than the number of providers
+     * the gate lets in, so a thread is always left for a call that has just returned.
+     */
+    public static final int PROVIDER_POOL_THREADS = 4;
+
+    /**
+     * Providers that may have a call in flight or stuck at the same time. Two stuck providers
+     * leave a place for everybody else; this is below {@link #PROVIDER_POOL_THREADS}.
+     */
+    public static final int PROVIDER_MAX_TRACKED = 3;
+
+    /**
+     * How long a provider whose call outlived the caller's wait gets no further call (it is
+     * freed earlier if the call returns).
+     */
+    public static final long PROVIDER_STUCK_MILLIS = 10L * 60L * 1000L;
+
+    /**
+     * Copy workers that may stay stuck (abandoned after the deadline) at the same time; beyond
+     * this a new copy is turned away as busy instead of starting one more thread.
+     */
+    public static final int COPY_MAX_STUCK_WORKERS = 3;
+
     private ShareLimits() {
     }
 }

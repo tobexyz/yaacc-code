@@ -47,13 +47,16 @@ import de.yaacc.player.PlayableItem;
 import de.yaacc.player.Player;
 import de.yaacc.share.BoundedCall;
 import de.yaacc.share.DisplayName;
+import de.yaacc.share.LaunchNonces;
 import de.yaacc.share.PendingShare;
+import de.yaacc.share.ProviderCallGate;
 import de.yaacc.share.ReadinessWait;
 import de.yaacc.share.ShareLimits;
 import de.yaacc.share.SharedContentPolicy;
 import de.yaacc.share.StreamIntake;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.server.share.OwnProviders;
+import de.yaacc.upnp.server.share.ProviderKeys;
 import de.yaacc.upnp.server.share.ProviderProbe;
 import de.yaacc.upnp.server.share.SharedFileService;
 import de.yaacc.util.YaaccLogger;
@@ -71,7 +74,9 @@ import de.yaacc.util.YaaccLogger;
  * checked is trusted: {@link StreamIntake} repeats the checks (exactly ONE ClipData item whose URI
  * is the only one read, never {@code EXTRA_STREAM}; no {@code data}; the read grant in the intent's
  * own flags; the content policy; no provider of this app). The intent is consumed at once (rotation
- * and recents never replay it). On a worker thread, with a timeout, the provider is asked for its
+ * and recents never replay it). A file is accepted only if the intent carries a valid launch token
+ * ({@link LaunchNonces}): only {@code LauncherActivity}, after its checks, mints one, so a file sent
+ * straight to an exported browser activity is dropped. On a worker thread, with a timeout, the provider is asked for its
  * type and display name; the MIME type is {@code SharedContentPolicy#chooseMimeType} output only.
  * Then ONE share becomes <i>pending</i> ({@link PendingShare}): it holds only the validated URI
  * text, the cleaned name and the type, no descriptor, no copy, no registry slot. The host is told
@@ -92,8 +97,14 @@ public final class ShareIntentHandler {
     private static final long DEFAULT_WAIT_FOR_PLAYER_SERVICE_MS = 10_000L;
     private static final long DEFAULT_POLL_MS = 100L;
 
-    /** Provider questions at intake; a provider that hangs can tie up at most two threads. */
-    private static final BoundedCall PROBE_CALLS = new BoundedCall(2, "share-probe");
+    /**
+     * Provider questions at intake. A provider that hangs pins its thread (a Binder call cannot be
+     * interrupted), so one provider (package) gets at most ONE call in flight and a provider whose
+     * call outlived the wait gets none for a while ({@link ProviderCallGate}); the pool has
+     * {@link ShareLimits#PROVIDER_POOL_THREADS} threads, more than the gate lets in.
+     */
+    private static final BoundedCall PROBE_CALLS = new BoundedCall(ShareLimits.PROVIDER_POOL_THREADS,
+            "share-probe", ProviderCallGate.createDefault());
 
     /** What opens, registers and builds the item of a confirmed file (replaceable in tests). */
     interface FilePreparer {
@@ -105,6 +116,8 @@ public final class ShareIntentHandler {
     private final Executor mainThread;
     private final FilePreparer filePreparer;
     private final PendingShare pendingShare;
+    private final LaunchNonces launchNonces;
+    private final BoundedCall probeCalls;
     private final long playerServiceWaitMillis;
     private final long pollMillis;
     private final long providerTimeoutMillis;
@@ -137,17 +150,20 @@ public final class ShareIntentHandler {
     /** For tests: the main thread, the file preparation and the pending share can be replaced. */
     ShareIntentHandler(Context appContext, UpnpClient upnpClient, Executor mainThread,
                        FilePreparer filePreparer, PendingShare pendingShare) {
-        this(appContext, upnpClient, mainThread, filePreparer, pendingShare,
+        this(appContext, upnpClient, mainThread, filePreparer, pendingShare, null, null,
                 DEFAULT_WAIT_FOR_PLAYER_SERVICE_MS, DEFAULT_POLL_MS, ShareLimits.PROVIDER_CALL_TIMEOUT_MILLIS);
     }
 
     /**
-     * For tests: also the waits. The defaults are 10 s for the player service (polled every 100 ms)
-     * and {@link ShareLimits#PROVIDER_CALL_TIMEOUT_MILLIS} for the provider's type and name.
+     * For tests: also the launch tokens, the pool for the provider questions (a test must not share
+     * the process-wide gate) and the waits. The defaults are 10 s for the player service (polled
+     * every 100 ms) and {@link ShareLimits#PROVIDER_CALL_TIMEOUT_MILLIS} for the provider's type
+     * and name.
      */
     ShareIntentHandler(Context appContext, UpnpClient upnpClient, Executor mainThread,
-                       FilePreparer filePreparer, PendingShare pendingShare,
-                       long playerServiceWaitMillis, long pollMillis, long providerTimeoutMillis) {
+                       FilePreparer filePreparer, PendingShare pendingShare, LaunchNonces launchNonces,
+                       BoundedCall probeCalls, long playerServiceWaitMillis, long pollMillis,
+                       long providerTimeoutMillis) {
         this.playerServiceWaitMillis = playerServiceWaitMillis;
         this.pollMillis = pollMillis;
         this.providerTimeoutMillis = providerTimeoutMillis;
@@ -158,6 +174,9 @@ public final class ShareIntentHandler {
                 : new SharedFileService(this.appContext, upnpClient)::prepare;
         this.pendingShare = pendingShare != null ? pendingShare
                 : ((Yaacc) this.appContext).getPendingShare();
+        this.launchNonces = launchNonces != null ? launchNonces
+                : ((Yaacc) this.appContext).getLaunchNonces();
+        this.probeCalls = probeCalls != null ? probeCalls : PROBE_CALLS;
     }
 
     /**
@@ -271,6 +290,7 @@ public final class ShareIntentHandler {
         String action;
         String type;
         String uriText = null;
+        String nonce;
         int clipItemCount = 0;
         boolean hasData;
         int flags;
@@ -279,6 +299,7 @@ public final class ShareIntentHandler {
             if (!Intent.ACTION_SEND.equals(action)) {
                 return;
             }
+            nonce = intent.getStringExtra(LaunchNonces.EXTRA_NAME);
             type = intent.getType();
             hasData = intent.getData() != null;
             flags = intent.getFlags();
@@ -296,6 +317,13 @@ public final class ShareIntentHandler {
         // whatever happens next, this intent is spent: a recreated activity must not replay it
         consume(intent);
 
+        // Only the launcher, after its checks (including the Android 15 sender check), mints a
+        // token. These activities are exported, so an app that starts one directly has none: its
+        // file is dropped here, silently.
+        if (!launchNonces.consume(nonce)) {
+            YaaccLogger.w(TAG, "Ignoring shared file: it did not come through the launcher");
+            return;
+        }
         final PackageManager packageManager = appContext.getPackageManager();
         final String ownPackage = appContext.getPackageName();
         String validated = StreamIntake.validate(action, clipItemCount, uriText, hasData, flags,
@@ -334,6 +362,7 @@ public final class ShareIntentHandler {
         try {
             intent.setClipData(null);
             intent.removeExtra(Intent.EXTRA_STREAM);
+            intent.removeExtra(LaunchNonces.EXTRA_NAME);
         } catch (RuntimeException e) {
             YaaccLogger.w(TAG, "Could not clear the shared file intent (" + e.getClass().getSimpleName() + ")");
         }
@@ -347,10 +376,13 @@ public final class ShareIntentHandler {
         try {
             final ContentResolver resolver = appContext.getContentResolver();
             final Uri uri = Uri.parse(uriText);
-            ProviderProbe.Info info = PROBE_CALLS.call(() -> ProviderProbe.query(resolver, uri),
+            // one call per provider (package) at a time: a provider that hangs cannot take the pool
+            final String providerKey = ProviderKeys.of(appContext.getPackageManager(),
+                    SharedContentPolicy.authorityOf(uriText));
+            ProviderProbe.Info info = probeCalls.call(providerKey, () -> ProviderProbe.query(resolver, uri),
                     providerTimeoutMillis, null);
             if (info == null) {
-                YaaccLogger.w(TAG, "Ignoring shared file: the provider did not answer in time");
+                YaaccLogger.w(TAG, "Ignoring shared file: the provider did not answer in time or is still busy");
                 return;
             }
             String mimeType = SharedContentPolicy.chooseMimeType(info.getProviderType(), declaredType);

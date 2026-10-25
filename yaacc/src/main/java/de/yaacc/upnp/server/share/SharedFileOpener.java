@@ -26,18 +26,12 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
-import java.nio.file.Files;
 import java.security.SecureRandom;
-import java.util.concurrent.Semaphore;
-import java.util.function.BooleanSupplier;
-import java.util.function.LongSupplier;
 
-import de.yaacc.share.BudgetedCopier;
-import de.yaacc.share.DeleteOnCloseSource;
 import de.yaacc.share.IncomingCache;
 import de.yaacc.share.PositionalSource;
 import de.yaacc.share.ShareLimits;
+import de.yaacc.share.WatchedCopy;
 import de.yaacc.util.YaaccLogger;
 
 /**
@@ -53,10 +47,13 @@ import de.yaacc.util.YaaccLogger;
 public final class SharedFileOpener {
 
     private static final String TAG = SharedFileOpener.class.getName();
-    private static final int COPY_BUFFER_BYTES = 64 * 1024;
 
-    /** At most one copy runs at a time: a copy is up to 512 MiB of I/O and cache. */
-    private static final Semaphore COPY_SLOT = new Semaphore(1);
+    /**
+     * At most one copy runs at a time (a copy is up to 512 MiB of I/O and cache) and each is
+     * watched: see {@link #copyAndHold}.
+     */
+    private static final WatchedCopy WATCHED_COPY = new WatchedCopy(ShareLimits.COPY_MAX_MILLIS,
+            ShareLimits.COPY_MAX_STUCK_WORKERS);
     private static final SecureRandom RANDOM = new SecureRandom();
 
     /** Why a file could not be opened. */
@@ -157,65 +154,79 @@ public final class SharedFileOpener {
 
     /**
      * The copy fallback: copies the provider's descriptor to {@code cache/incoming/} (byte cap, free
-     * space reserve, directory cap, one copy at a time, time limit) and holds the copy; the
-     * returned source deletes the copy when it is closed. Closes {@code afd} in every case and
-     * deletes a partial copy on every failure. Takes as long as the copy takes: not through a
-     * short timeout, but off the main thread.
+     * space reserve, directory cap, one copy at a time) and holds the copy; the returned source
+     * deletes the copy when it is closed. Closes {@code afd} in every case and deletes a partial
+     * copy on every failure.
+     * <p>
+     * Takes as long as the copy takes, off the main thread, but at most
+     * {@link ShareLimits#COPY_MAX_MILLIS}: the copy runs on its own worker and this call waits with
+     * a deadline ({@link WatchedCopy}), because a provider whose pipe never delivers a byte would
+     * block the read for ever. At the deadline the descriptor is closed from this thread (which
+     * wakes the blocked read), the partial file is deleted, the copy slot is given back and the call
+     * fails, even if the worker stays stuck.
      *
      * @throws OpenException for every failure
      */
     public static PositionalSource copyAndHold(AssetFileDescriptor afd, File incomingDir) throws OpenException {
-        if (!COPY_SLOT.tryAcquire()) {
-            closeQuietly(afd);
-            throw new OpenException(Reason.BUSY);
-        }
-        File copy = null;
         try {
-            long budget = IncomingCache.remainingCopyBudget(incomingDir);
-            if (budget <= 0L) {
-                throw new OpenException(Reason.NO_SPACE);
-            }
-            copy = IncomingCache.createCopyFile(incomingDir, RANDOM::nextBytes);
-            copyInto(afd, copy, budget);
-            PositionalSource held = holdCopy(copy);
-            // from here on the source deletes the copy when it is closed
-            PositionalSource source = new DeleteOnCloseSource(held, copy);
-            copy = null;
-            return source;
-        } catch (OpenException e) {
-            throw e;
-        } catch (IOException | RuntimeException e) {
-            YaaccLogger.w(TAG, "Could not copy the shared file (" + e.getClass().getSimpleName() + ")");
-            throw new OpenException(Reason.UNUSABLE);
-        } finally {
-            closeQuietly(afd);
-            if (copy != null) {
-                //noinspection ResultOfMethodCallIgnored
-                copy.delete();
-            }
-            COPY_SLOT.release();
+            return WATCHED_COPY.copy(new DescriptorInput(afd),
+                    () -> IncomingCache.createCopyFile(incomingDir, RANDOM::nextBytes),
+                    () -> IncomingCache.remainingCopyBudget(incomingDir),
+                    incomingDir::getUsableSpace,
+                    SharedFileOpener::holdCopy);
+        } catch (WatchedCopy.Failure e) {
+            // the reason is an enum name, no payload
+            YaaccLogger.w(TAG, "Could not copy the shared file (" + e.getReason() + ")");
+            throw new OpenException(toReason(e.getReason()));
         }
     }
 
-    private static void copyInto(AssetFileDescriptor afd, File target, long budget) throws IOException, OpenException {
-        final long deadline = System.nanoTime() + ShareLimits.COPY_MAX_MILLIS * 1_000_000L;
-        BooleanSupplier timedOut = () -> System.nanoTime() - deadline > 0L;
-        LongSupplier usable = target.getParentFile()::getUsableSpace;
-        BudgetedCopier.Result result;
-        try (InputStream in = afd.createInputStream(); OutputStream out = Files.newOutputStream(target.toPath())) {
-            result = BudgetedCopier.copy(in, out, afd.getDeclaredLength(), budget, usable, timedOut,
-                    new byte[COPY_BUFFER_BYTES]);
-        }
-        switch (result.outcome()) {
-            case COPIED:
-                return;
+    private static Reason toReason(WatchedCopy.Reason reason) {
+        switch (reason) {
             case TOO_BIG:
-                throw new OpenException(Reason.TOO_BIG);
+                return Reason.TOO_BIG;
             case NO_SPACE:
-                throw new OpenException(Reason.NO_SPACE);
+                return Reason.NO_SPACE;
+            case BUSY:
+                return Reason.BUSY;
             default:
-                // cancelled by the deadline, or empty
-                throw new OpenException(Reason.UNUSABLE);
+                // unusable, or timed out
+                return Reason.UNUSABLE;
+        }
+    }
+
+    /** The provider's descriptor as the input of {@link WatchedCopy}; closing it wakes a blocked read. */
+    private static final class DescriptorInput implements WatchedCopy.Input {
+        private final AssetFileDescriptor afd;
+        private volatile InputStream stream;
+
+        DescriptorInput(AssetFileDescriptor afd) {
+            this.afd = afd;
+        }
+
+        @Override
+        public InputStream open() throws IOException {
+            InputStream opened = afd.createInputStream();
+            stream = opened;
+            return opened;
+        }
+
+        @Override
+        public long declaredLength() {
+            return afd.getDeclaredLength();
+        }
+
+        @Override
+        public void close() {
+            InputStream opened = stream;
+            if (opened != null) {
+                try {
+                    opened.close();
+                } catch (IOException | RuntimeException ignored) {
+                    // nothing sensible to do
+                }
+            }
+            closeQuietly(afd);
         }
     }
 

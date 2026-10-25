@@ -257,6 +257,18 @@ public class ProxyShareResponderTest {
     }
 
     @Test
+    public void aShareResponseCannotBeSniffedOrScriptedByAWebBrowser() throws Exception {
+        Sent whole = get(RECEIVER, null);
+        Sent range = get(RECEIVER, "bytes=100-199");
+
+        for (Sent sent : List.of(whole, range)) {
+            assertEquals("nosniff", sent.response.getFirstHeader("X-Content-Type-Options").getValue());
+            assertEquals("sandbox", sent.response.getFirstHeader("Content-Security-Policy").getValue());
+            sent.entity.releaseResources();
+        }
+    }
+
+    @Test
     public void aRangeIsAnsweredWith206AndContentRange() throws Exception {
         Sent sent = get(RECEIVER, "bytes=100-199");
 

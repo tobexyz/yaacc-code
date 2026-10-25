@@ -36,11 +36,13 @@ import de.yaacc.share.BoundedCall;
 import de.yaacc.share.IncomingCache;
 import de.yaacc.share.PendingShare;
 import de.yaacc.share.PositionalSource;
+import de.yaacc.share.ProviderCallGate;
 import de.yaacc.share.ReadinessWait;
 import de.yaacc.share.ShareLimits;
 import de.yaacc.share.ShareProxyUrl;
 import de.yaacc.share.ShareRegistrar;
 import de.yaacc.share.ShareRegistry;
+import de.yaacc.share.SharedContentPolicy;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.server.YaaccUpnpServerService;
 import de.yaacc.util.InterfaceResolutionHelper;
@@ -60,8 +62,14 @@ public final class SharedFileService {
     private static final long SERVER_READY_MAX_MILLIS = 3_000L;
     private static final long SERVER_READY_POLL_MILLIS = 200L;
 
-    /** Provider calls of confirmed shares; a provider that hangs can tie up at most two threads. */
-    private static final BoundedCall PROVIDER_CALLS = new BoundedCall(2, "share-provider");
+    /**
+     * Provider calls of confirmed shares. A provider that hangs pins its thread (a Binder call
+     * cannot be interrupted), so one provider (package) gets at most ONE call in flight and a
+     * provider whose call outlived the wait gets none for a while ({@link ProviderCallGate}); the
+     * pool has {@link ShareLimits#PROVIDER_POOL_THREADS} threads, more than the gate lets in.
+     */
+    private static final BoundedCall PROVIDER_CALLS = new BoundedCall(ShareLimits.PROVIDER_POOL_THREADS,
+            "share-provider", ProviderCallGate.createDefault());
 
     private final Context appContext;
     private final UpnpClient upnpClient;
@@ -170,7 +178,9 @@ public final class SharedFileService {
     private PositionalSource openSource(Uri uri) {
         final ContentResolver resolver = appContext.getContentResolver();
         final AtomicReference<SharedFileOpener.Reason> reason = new AtomicReference<>(SharedFileOpener.Reason.UNUSABLE);
-        SharedFileOpener.Opened opened = PROVIDER_CALLS.call(() -> {
+        final String providerKey = ProviderKeys.of(appContext.getPackageManager(),
+                SharedContentPolicy.authorityOf(uri.toString()));
+        SharedFileOpener.Opened opened = PROVIDER_CALLS.call(providerKey, () -> {
             try {
                 return SharedFileOpener.openDescriptor(resolver, uri);
             } catch (SharedFileOpener.OpenException e) {
