@@ -464,6 +464,10 @@ public class ShareIntentHandlerFileTest {
         assertEquals(1, host.tokens.size());
         String first = host.tokens.get(0);
         assertNotNull(pendingShare.peek(first));
+        // the fileExecutor is single-threaded: without the gate the dropped intents would only be
+        // queued behind the blocked call and be probed now, so give them the chance to run
+        Thread.sleep(300);
+        assertEquals("the dropped intents were never probed", 1, asked.get());
 
         // once it is released and finished, a new intake is accepted again
         handler.cancel(first);

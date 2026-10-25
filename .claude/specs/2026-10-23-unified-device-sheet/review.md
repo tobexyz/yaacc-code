@@ -874,3 +874,34 @@ What holds (file:line, read in the code):
 
 ### Verdict: FAIL
 No Critical. One Warning: the intake's single-flight gate and the "player service never up -> discard" cleanup path have no test. The code itself checks out on every point of the checklist; after the two tests are added (and the injectable wait), the group passes.
+
+## Group 14 — Cycle 2 — 2026-10-25
+Reviewing: commit 2589e3eb (fix for the cycle 1 Warning) on top of 8e11433a / 02f47c60
+
+Build (real, `ANDROID_HOME=/root/android-sdk`): `:yaacc:assembleDebug` builds `yaacc-debug.apk`; `testDebugUnitTest` = 1208 tests, 11 failures, all `ReceiverPickResultTest` (Group 15 red skeleton), `ShareIntentHandlerFileTest` 36/36 green; `lintDebug` = 189 issues (72 errors / 117 warnings), none in `ShareIntentHandler`; `git diff 071fc9d2 -- yaacc/src/main/AndroidManifest.xml` is empty. `git status` clean (nothing edited, nothing committed).
+
+Production diff of 2589e3eb (read in full): the 8-arg package-private constructor only adds three final fields (player wait, poll, provider timeout); the 5-arg constructor delegates with the old defaults (10 s / 100 ms / `ShareLimits.PROVIDER_CALL_TIMEOUT_MILLIS`), so production behaviour is unchanged. `settled` replaces `prepared = null`: set before `discardShareOf` in the give-up path and before the hand-off to the main thread, so the catch cannot discard twice; the control flow is otherwise identical. `toast()` now catches `RuntimeException` and logs the class name only. No regression found.
+
+How I checked the tests (mutation runs on a throw-away copy of HEAD, the repo was not touched):
+- Mutant A, remove `discardShareOf` from the give-up path: 4 tests fail. Killed.
+- Mutant B, never reset `intakeBusy` after the intake: 2 tests fail. Killed (so the "accepted again after it finished" half of the flood test is real).
+- Mutant C, replace the `intakeBusy.compareAndSet` drop by `intakeBusy.set(true)` (gate removed): all 36 tests pass. SURVIVES. See Warning.
+- With one added assertion (below) Mutant C is killed (1 failure) and the unmutated code stays green.
+
+### Critical
+- None.
+
+### Warning
+- [`ShareIntentHandlerFileTest.java` `aSecondIntakeWhileOneIsStillRunningIsDroppedWithoutAnotherProviderCall`, covering `ShareIntentHandler.java:312-315`] The "second intent is dropped" half of the cycle 1 Warning is still not tested; the test does not discriminate the gate. `fileExecutor` is a single-thread executor, so without the gate the 2nd and 3rd intent are only queued behind the blocked first one and their `getType` calls start after the test already asserted `asked == 1` (the assertions run while the first call is still blocked, and `gate.countDown()` is in the `finally` after them). The remaining checks (`verify(second).setClipData(null)` is done by `consume` before the gate; empty tokens/no pending while the first is blocked) also hold without the gate, and the final accept-again loop passes because queued extras are dropped by the `isPending` check. Result: removing the flood gate (unbounded queueing of intake tasks on the executor that also runs `confirm`, i.e. the DoS the task asks to be judged) goes undetected (Mutant C). Fix, one line: after `String first = host.tokens.get(0); assertNotNull(pendingShare.peek(first));` add `Thread.sleep(300); assertEquals("the dropped intents were never probed", 1, asked.get());` (verified: green on HEAD, red on Mutant C).
+
+### Suggestion
+- [`ShareIntentHandlerFileTest.java` `aFailingMessageDoesNotDiscardTheShareASecondTime`] The test is green because the new `toast()` catch swallows the stubbed `Toast` failure, so the outer catch in `prepareAndPlayFile` is never reached and `settled` is not what is under test (removing `settled = true` from the give-up path alone does not fail it). Harmless defence in depth, but the name over-claims; either rename it to the toast behaviour or make the main-thread executor of that test throw so that `settled` is needed.
+- [`ShareIntentHandlerFileTest.java`] The give-up tests wait with fixed `Thread.sleep(300-500)` after `waitUntil(preparedFor.size() == 1)`; they can only produce false passes on a slow CI, not false failures (the positive assertions `verify(discardShareOf)`, `registry.lookup == null`, `closes == 1` are exact). Polling for the expected effect (as `waitUntil` already does) would remove the guess.
+- The cycle 1 Suggestions (phone-side link reads without `LinkTargetPolicy` when the proxy option is off, copy deadline only between reads, static 2-thread probe pool lock-out, re-delivery after process death, pending share until Group 15, device-only glue, hard-coded English toasts) are unchanged by this commit and remain open for the security review / Group 15 / Group 16. The provider-timeout suggestion from cycle 1 is resolved (timeout is injectable, `aProviderThatDoesNotAnswerDropsTheShareAndFreesTheGateForTheNext` uses 200 ms and also proves the gate is released after a timeout).
+
+### Tests
+- [x] All tests passing (only the 11 expected `ReceiverPickResultTest` AssertionErrors, Group 15)
+- [ ] Coverage adequate for the change (the player-service give-up cleanup, the copy deletion, the timeout path and the gate reset are properly covered; the gate's drop branch is not discriminated)
+
+### Verdict: FAIL
+The "player service never comes up" cleanup is now genuinely tested (source closed once, registry key removed, copy deleted, no playback, hook not run, single main-thread message) and the production changes are sound. The flood gate's drop branch is still not pinned: the new test passes with the gate removed. One Warning, one-line test fix; after it the group passes.
