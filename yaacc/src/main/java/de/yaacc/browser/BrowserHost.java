@@ -47,8 +47,9 @@ public interface BrowserHost {
 
     /**
      * Whether the host shows the receiver bar itself, at every level (new layout). A content
-     * list then hides its own bar and opens the device sheet through {@link #showReceivers()}.
-     * False for the classic tabs, where the content list owns the bar.
+     * list then hides its own footer and opens the device sheet through {@link #showReceivers()}.
+     * False for the classic tabs, where the content list shows the original static footer
+     * (current provider, selected receivers) and there is no sheet.
      */
     default boolean providesReceiverBar() {
         return false;

@@ -819,22 +819,26 @@ unchanged.
 
 ### 8. As built: how the pieces fit
 
-- **Receiver bar.** `contentListCurrentProvider` is gone from both
-  `fragment_content_list.xml` layouts; the server name now only starts the
-  path label. `contentListCurrentReceivers` is the receiver bar: clickable,
-  D-pad focusable, never `GONE` (views above anchor to it). Its text comes
-  from `ReceiverBarLabel.build` (selected receivers' friendly names, trimmed,
-  sorted case-insensitively, joined with `"; "`, or
-  `receiver_bar_none_selected`), refreshed whenever `UpnpClient` reports a
-  receiver selection change, including changes made in the sheet. A tap calls
-  `ContentListFragment#showDeviceSheet()`.
-- **No-receiver prompt.** Play, play-all (`BrowseContentItemAdapter`) and an
-  item tap (`ContentListClickListener`) call
-  `ContentListFragment#openDeviceSheetIfNoReceiverSelected()` first; with no
-  receiver selected it opens the sheet and playback doesn't start, so the
-  user picks a receiver and taps play again. "Add to playlist" isn't gated.
-  The `error_no_receiver_selected` toast in `PlayerService.createPlayer`
-  stays for non-UI callers.
+- **Entry points (new layout only).** The sheet is reached from the new layout's
+  receiver bar (`R.id.browserReceiverBar` in `activity_browser.xml`, bound by
+  `ReceiverBarController`) and from the no-receiver prompt below, both through
+  `BrowserHost.showReceivers()`. The classic layout (`TabBrowserActivity`) has no
+  entry point: `showReceivers()` there still switches to the Receiver tab, and no
+  classic fragment opens `DeviceSheetFragment`. (Phase 1 had put the sheet into
+  the classic Content tab; owner feedback, Group 11, reverted that.)
+- **Receiver bar label.** `ReceiverBarLabel.build` gives the selected receivers'
+  friendly names, trimmed, sorted case-insensitively, joined with `"; "`, or
+  `receiver_bar_none_selected`; the bar is refreshed whenever `UpnpClient`
+  reports a receiver selection change, including changes made in the sheet.
+- **No-receiver prompt (new layout only).** Play, play-all (`BrowseContentItemAdapter`)
+  and an item tap (`ContentListClickListener`) call
+  `ContentListFragment#openDeviceSheetIfNoReceiverSelected()` first. It returns
+  true only when the host `providesReceiverBar()`, the fragment is added and no
+  receiver is selected; then it opens the sheet and playback doesn't start, so
+  the user picks a receiver and taps play again. In classic it always returns
+  false, so play behaves as on `origin/feat/issue287`. "Add to playlist" isn't
+  gated. The `error_no_receiver_selected` toast in `PlayerService.createPlayer`
+  stays for classic and for non-UI callers.
 - **Sheet contents.** `DeviceSheetFragment.show(FragmentManager)` does
   nothing if the sheet is already showing or the state is saved.
   `DeviceSheetAdapter#refresh()` takes the receivers from
@@ -877,7 +881,9 @@ unchanged.
 - **Cleanup.** `onDestroyView()` calls `DeviceSheetAdapter#release()`, which
   shuts down the sheet's `ReceiverRowBinder` executor, so no thread is left
   behind per open.
-- **Known limitations (follow-ups in the spec's decisions.md).** The sheet
+- **Known limitations (follow-ups in the spec's decisions.md).** The classic
+  layout does not offer the sheet (owner decision, Group 11); there the Receiver
+  and Player tabs are the only way to control receivers and players. The sheet
   doesn't add or remove receivers that appear or vanish on the network while
   it is open (known receivers' status does update). After rotation it returns
   to its initial half/full position. `RendererStatusMonitor` polls on a
@@ -893,7 +899,9 @@ and a mini-player on every level). The "Layout" setting picks one. This section
 records the layout as built for spec `2026-10-23-unified-device-sheet`, Phase 2
 (Groups 5-9), verified 2026-10-24 against the checkout at `e312ee8b` on branch
 `feat/unified-device-sheet`, followed by the Group 5 research it was built
-from (kept for its citations). "As built" subsections cite classes, not line
+from (kept for its citations). Group 11 (owner feedback, see "Owner feedback
+(Group 11)") changed three behaviors after that verification: the timer entry,
+the classic footer and the mini-player. "As built" subsections cite classes, not line
 numbers; the research subsections cite line numbers of the checkout *before*
 Group 6, which have since moved.
 
@@ -935,14 +943,14 @@ All classes are in `de.yaacc.browser` unless a package is given.
 | `BrowserHost` | Navigation the fragments and helpers may ask of their activity. |
 | `BrowserActivitySupport` | Moved verbatim out of `TabBrowserActivity`: runtime permission request (code 101, result not handled), battery-optimization prompt (started on every `onCreate`), and the common menu items (exit, settings, about, log). |
 | `ServerListFragment` | Server list for both layouts (see "Server list"). |
-| `ContentListFragment` | Content of one server for both layouts. |
+| `ContentListFragment` | Content of one server for both layouts. Classic: shows the original static footer (provider line, receivers line). New: hides it; the host owns the receiver bar. |
 | `BrowserBackNavigation` | Plain Java: back decision of the new layout. |
 | `ShareIntentHandler`, `ShareUriPolicy` | Shared handler for a link shared into yaacc. |
-| `ShutdownTimerController`, `ShutdownTimerToggle` | Shutdown timer UI logic and the toolbar tap decision. |
+| `ShutdownTimerController`, `ShutdownTimerToggle` | Shutdown timer UI logic and the toolbar tap decision (stop, or ask for a duration). |
 | `StreamingPermissionHelper` | MediaProjection permission flow of the yaacc server row. |
 | `BackgroundIdleTimer`, `StartedBrowserCounter` | One process-wide idle exit. |
-| `ReceiverBarController`, `ReceiverBarLabel` | Receiver bar binding and label. |
-| `MiniPlayerBar`, `MiniPlayerPresenter`, `MiniPlayerPicker` | Mini-player. |
+| `ReceiverBarController`, `ReceiverBarLabel` | Receiver bar binding and label (new layout only). |
+| `MiniPlayerBar`, `MiniPlayerAdapter`, `MiniPlayerRows`, `MiniPlayerArtKeys`, `MaxHeightRecyclerView`, `MiniPlayerPresenter` | Mini-player (new layout only): controller, row adapter, row order and art key, per-player art bookkeeping, height-capped list, text cleaning. |
 | `de.yaacc.upnp.server.LocalServerLifecycle` | Starts or stops `YaaccUpnpServerService` from the preferences; both browsers call it from `onResume`. |
 
 ### As built: `BrowserHost`
@@ -954,7 +962,7 @@ public interface BrowserHost {
     void showReceivers();
     void showPlayers();
     default boolean providesShutdownTimer()  { return false; }  // toolbar owns the timer
-    default boolean providesReceiverBar()    { return false; }  // activity owns the receiver bar
+    default boolean providesReceiverBar()    { return false; }  // activity owns the receiver bar and the sheet
     default boolean showsBackAtContentRoot() { return false; }  // back arrow also at a server's root
 }
 ```
@@ -1063,16 +1071,20 @@ never arms.
   `activity_main.xml` for settings, log, about and exit so
   `BrowserActivitySupport.handleCommonMenuItem` serves both): checkable
   shutdown-timer item (`ifRoom`; while a timer runs it is checked, always shown
-  and its title is the remaining time), overflow "Set shutdown timer"
-  (`menu_shutdown_timer_set`, opens the picker), settings, log, about, and an
-  always-visible exit item. The item is updated in place (the timer ticks every
+  and its title is the remaining time; it is the only entry of the timer),
+  settings, log, about, and an always-visible exit item. The item is updated in place (the timer ticks every
   second), not through `invalidateOptionsMenu()`. The controller lives in the
   activity (attach in `onStart`, detach in `onStop`) so the item keeps updating
   on every level.
-- **Timer tap** (`ShutdownTimerToggle.decide(running, configuredMillis)`):
-  running: stop; not running and a duration is configured: start; otherwise open
-  the picker (starting with 0 ms would call `Yaacc.exit()` at once). The picker
-  stores the duration; it restarts a running timer.
+- **Timer tap** (`ShutdownTimerToggle.decide(running)`): running: `STOP`;
+  otherwise `ASK_DURATION`, which opens the picker with
+  `ShutdownTimerController.showPicker(fm, title, true)`. Confirming stores the
+  chosen duration and, only if it is above 0, starts the timer; a duration of 0
+  is stored but never starts a timer (starting with 0 ms would call
+  `Yaacc.exit()` at once). A tap never starts a timer from the stored duration
+  unseen. `setConfiguredMillis` still restarts a running timer with the new
+  value. The former overflow entry and its string were removed in Group 11
+  (see "Owner feedback (Group 11)" below).
 - **Settings round trip.** `SettingsActivity.onPause()` sets a main-thread
   static `leftSettings`; `SettingsActivity.consumeLeftSettings()` reads and
   resets it. Both browsers call `LocalServerLifecycle.apply(this,
@@ -1208,42 +1220,65 @@ browser's `onStop` runs after the new browser's `onResume`, so "arm in
 `onStop`, cancel in `onResume`" would leave a timer running that quits the app
 five minutes later.
 
-### As built: receiver bar
+### As built: receiver bar and classic footer
 
-`ReceiverBarController(TextView bar, UpnpClient, Runnable openSheet)` is shared
-by the classic `ContentListFragment` and `BrowserActivity`. `bind()` tints the
-compound drawables, sets the click listener (tap or D-pad select opens the
-sheet), an accessibility delegate (click action "Choose receivers") and adds
-itself as `UpnpClientListener`; `unbind()` removes all of it. It refreshes
-through `receiverDeviceAdded` / `receiverDeviceRemoved` (hopping to the main
-thread) and once on every `bind()`; late events after `unbind()` are ignored.
-The label is `ReceiverBarLabel.build` (trimmed friendly names, case-insensitive
+**New layout.** `ReceiverBarController(TextView bar, UpnpClient, Runnable
+openSheet)` is owned by `BrowserActivity` only. `bind()` tints the compound
+drawables, sets the click listener (tap or D-pad select opens the sheet), an
+accessibility delegate (click action "Choose receivers") and adds itself as
+`UpnpClientListener`; `unbind()` removes all of it. It refreshes through
+`receiverDeviceAdded` / `receiverDeviceRemoved` (hopping to the main thread)
+and once on every `bind()`; late events after `unbind()` are ignored. The
+label is `ReceiverBarLabel.build` (trimmed friendly names, case-insensitive
 sort, joined with `"; "`, else `receiver_bar_none_selected`), set with
-`setText`. In the new layout `BrowserActivity` owns one bar below the container
-(`activity_browser.xml`: separator, mini-player, receiver bar in a vertical
-`LinearLayout`, so a hidden mini-player cannot move an anchor) and binds it in
-`onStart`/unbinds in `onStop` (and `onDestroy` as a backstop). Its
-`ContentListFragment` hides its own bar when `providesReceiverBar()` is true and
-opens the sheet through `showReceivers()`. Classic's portrait content layout
-wraps the separator and the bar in a never-`GONE` `contentListBottomBar` that
-the list anchors to. The no-receiver prompt
-(`openDeviceSheetIfNoReceiverSelected`) works from both layouts and is called
-only from item/play taps.
+`setText`. `BrowserActivity` owns one bar below the container
+(`activity_browser.xml`: separator, mini-player list, receiver bar in a
+vertical `LinearLayout`, so a hidden mini-player cannot move an anchor) and
+binds it in `onStart`/unbinds in `onStop` (and `onDestroy` as a backstop).
+
+**Classic layout.** `ContentListFragment` shows the original static two-line
+footer of `origin/feat/issue287`: `contentListCurrentProvider` (the provider's
+friendly name, icon `ic_baseline_sensors_32`) and `contentListCurrentReceivers`
+(the selected receivers' friendly names joined with `"; "`, in the client's
+order, icon `ic_baseline_devices_32`), under `contentListBottomSeperator`. They
+are not clickable and not focusable; the compound drawables are tinted with
+`ThemeHelper.tintDrawable`; the texts are set when the provider is selected
+and on receiver add/remove (`showCurrentProvider()` / `showCurrentReceivers()`).
+The fragment does not use `ReceiverBarController` or `DeviceSheetFragment` any
+more. Which footer shows is decided in `initFooter()` from the host:
+`showsStaticFooter = host == null || !host.providesReceiverBar()`. When the host
+provides the bar (new layout) the three footer views are set `GONE`, and nothing
+visible anchors to them: in portrait the three sit in a never-`GONE`
+`contentListBottomBar` container that the list anchors to; the landscape layout
+(`layout-land/fragment_content_list.xml`) keeps the original chain (separator
+above provider above receivers) that nothing outside the chain anchors to.
 
 ### As built: mini-player
 
-`MiniPlayerBar` (`mini_player_bar.xml`, a `MaterialCardView` included above the
-receiver bar, `GONE` while no player exists) is bound by `BrowserActivity`
-between `onStart` and `onStop`.
+`MiniPlayerBar` (controller) drives `mini_player_bar.xml`, a
+`MaxHeightRecyclerView` (`R.id.miniPlayerBar`) included above the receiver bar in
+`activity_browser.xml`. It shows **every** running player as one row
+(`mini_player_row.xml`, a `MaterialCardView`: art, title, receiver name, previous /
+play-pause / next / stop). The list is `GONE` while no player exists and is bound
+by `BrowserActivity` between `onStart` and `onStop`. It replaced the single
+"featured player" bar of Groups 8-10 (Group 11); `MiniPlayerPicker` and its tests
+are gone.
 
-- **Featured session.** `MiniPlayerPicker.pick(List<PlayerRef>)`: a playing
-  session beats a non-playing one; then the higher creation sequence
+- **Order.** `MiniPlayerRows.order(List<PlayerRef>)` reuses the device sheet's
+  ordering (`DeviceSessionGrouper.sortedOldestFirst`): creation sequence
   (`UpnpClient#getPlayerCreationSequence`, assigned by `PlayerService` per added
-  player); then the higher player id; null entries are skipped; the list is not
-  modified. Same ordering as `DeviceSessionGrouper.primarySession`, without the
-  device filter. `refresh()` hands it `PlayerRef` copies built from an
-  `ArrayList` copy of `getCurrentPlayers()` and catches `RuntimeException` (a
-  player mutating under the poll; retried on the next poll).
+  player) ascending, oldest first, equal sequences by player id; null entries are
+  skipped, a duplicate player id keeps only its first entry (stable ids must not
+  repeat), the input is not modified. `refresh()` hands it `PlayerRef` copies built
+  from an `ArrayList` copy of `getCurrentPlayers()` and catches `RuntimeException`
+  (a player mutating under the poll; retried on the next poll).
+- **Height cap.** `MaxHeightRecyclerView` caps a `wrap_content` list at
+  `mini_player_list_max_height` (180dp, three rows of 60dp including margins) and
+  at most 40 % of the height offered to it, whichever is smaller; beyond that the
+  list scrolls inside. An `EXACTLY` height is left alone.
+- **Rows.** `MiniPlayerAdapter` has stable ids (the player ids) and diffs with
+  `DiffUtil`, so a poll that changes nothing rebinds nothing and a changed title,
+  play state or art key rebinds only its own row. Item animations are off.
 - **Updates.** While bound: a `PlayerListChangeNotifier.Listener` registered
   through `UpnpClient#addPlayerListChangeListener` (main thread) plus a 2 s
   `Handler` poll (`POLL_INTERVAL_MS = 2000`) for title and play state, plus one
@@ -1253,7 +1288,7 @@ between `onStart` and `onStop`.
 - **Text.** Title: the current item's title, else the player name
   (`MiniPlayerPresenter.title`). Receiver: the device name resolved with
   `UpnpClient#getDevice(deviceId)` (also answers `LOCAL_UID` with this device),
-  cached (one slot: the last resolved device id and name) until `unbind()`, else the player name
+  cached per device id once resolved, until `unbind()`, else the player name
   (`receiverLabel`). Both are set with `setText` into one-line, ellipsized
   views (no `autoLink`, no HTML). `MiniPlayerPresenter.cleanText` (these strings
   come from LAN devices): whitespace runs, including line breaks, tabs, U+2028/2029,
@@ -1268,26 +1303,36 @@ between `onStart` and `onStop`.
   characters U+206A-206F, U+FFFC, and blank fillers (U+115F, U+1160, U+3164,
   U+FFA0, U+17B4, U+17B5), so a name made only of those can render empty.
   Strong RTL letters can still reorder neighbouring text.
-- **Album art.** Dedup key `"M:" + playerId + ":" + albumArtUri`.
-  `Player#getIcon()` is read **at most once per key change**, never on the poll
-  path: `AVTransportPlayer#getIcon()` queues a new download on every call while
-  the 512x512 art is not cached, so calling it each poll would request a broken or
-  hostile art URL every 2 s. Then the art loads only through
-  `IconDownloadTask(art, key)`, which drops its result unless `art.getTag()` still
-  equals the key; `unbind()` clears the tag. While uncached this costs two
-  downloads of the same URL per key change (the `getIcon()` one and the task's).
-  A flip between two featured players with uncached art repeats that once per
-  flip (at most one flip per poll).
+- **Album art (per row).** The art key is `MiniPlayerRows.artKey(playerId,
+  artUri)` = `playerId + ":" + artUri`, built from `Player#getAlbumArt()`
+  (in-memory) and never from `getIcon()`. `Player#getIcon()` is read **once per
+  player and key** (`MiniPlayerArtKeys.isNewKey`, in `MiniPlayerAdapter.bindArt`),
+  never on the poll path: `AVTransportPlayer#getIcon()` queues a new download on
+  every call while the 512x512 art is not cached, so calling it each poll would
+  request a broken or hostile art URL every 2 s. On that first sight the row
+  also starts `IconDownloadTask(art, key)`, which drops its result unless
+  `art.getTag()` still equals the key. The adapter keeps that one `getIcon()`
+  result per player (a `SparseArray`), so a recycled view holder bound again to a
+  key already seen shows the stored icon (or the placeholder) and then reads only
+  the in-memory `IconDownloadCacheHandler` (48x48): no request, so scrolling
+  rows in and out of view or players flipping order floods nothing. A holder
+  that was recycled clears its tag, so a late result for the old key drops
+  itself. A player that disappears takes its key and icon with it
+  (`retainOnly`); `unbind()` clears all of it. While uncached this costs two
+  downloads of the same URL per player and key change (the `getIcon()` one and the
+  task's).
 - **Commands.** Previous, play/pause (`MiniPlayerPresenter.toggleAction(isPlaying)`),
   next and stop run on a single-thread executor created in `bind()` and shut
   down in `unbind()` (commands already queued still run). A command goes to the
-  player featured at that moment. The tap on the card sends the player's own
-  `getNotificationIntent()` through `ReceiverRowBinder.openPlayer` with an empty
-  fill-in `Intent` (no extras, data or action).
-- **Accessibility / D-pad.** The card is focusable before its descendants; each
-  button has a content description (`mini_player_*` strings), the card has a
-  click action label (`mini_player_open`), the art is
-  `importantForAccessibility=no`.
+  player of the row that was tapped; the play/pause decision follows that
+  player's state at the moment of the tap. A tap on the row sends the player's
+  own `getNotificationIntent()` through `ReceiverRowBinder.openPlayer` with an
+  empty fill-in `Intent` (no extras, data or action).
+- **Accessibility / D-pad.** The list itself is not focusable; each row is
+  focusable and clickable before its buttons, so the D-pad reaches every row and
+  then each of its buttons; each button has a content description (`mini_player_*` strings),
+  each row has a click action label (`mini_player_open`), the art is marked
+  decorative.
 
 ### As built: Layout preference
 
@@ -1345,7 +1390,7 @@ Re-checked 2026-10-24 with `./gradlew :yaacc:processDebugManifest --offline`
   set it either.
 - The source manifest was changed by Group 6 (`LauncherActivity` added, filters
   moved off `TabBrowserActivity`) and Group 7 (`BrowserActivity` added); Groups
-  8 and 9 did not touch it. `yaacc/build.gradle` has no Phase 2 change and no
+  8, 9 and 11 did not touch it. `yaacc/build.gradle` has no Phase 2 change and no
   dependency was added.
 
 ### Known limitations / owner decisions
@@ -1367,13 +1412,19 @@ Re-checked 2026-10-24 with `./gradlew :yaacc:processDebugManifest --offline`
   mini-player are focusable by design. Recovery is the same Settings screen.
 - **`ImageDownloader` / `IconDownloadTask`** accept any URL scheme the JVM
   handles, with no connect/read timeout and no byte cap, and run on the serial
-  AsyncTask executor. The mini-player makes the exposure continuous (the featured
-  player's art is fetched on every browser screen). A scheme allowlist
+  AsyncTask executor. The mini-player makes the exposure continuous (the art of
+  every running player is fetched once per player and art URI on every browser screen). A scheme allowlist
   (http/https), timeouts and a size cap are follow-ups.
-- **Names from the LAN.** `ReceiverBarLabel` (receiver bar) and the device-sheet
-  and server-list name bindings show raw friendly names (trim only): bidi controls
-  and a name such as `Kitchen; Bedroom` are not neutralised, while the
-  mini-player's text goes through `cleanText`.
+- **Names from the LAN.** `ReceiverBarLabel` (receiver bar), the device-sheet
+  and server-list name bindings and the classic footer lines show raw friendly
+  names (trim only, as the original footer did): bidi controls and a name such as
+  `Kitchen; Bedroom` are not neutralised, while the mini-player's text goes
+  through `cleanText`.
+- **Classic does not offer the device sheet** (owner decision, Group 11). The
+  Receiver and Player tabs are the only way to control receivers and players in
+  the classic layout, and playing with no receiver selected shows the old toast
+  (`error_no_receiver_selected`) instead of a prompt. Whether the classic layout
+  should ever get the sheet is closed with "no" (PRD open question 4).
 - **Share, Backlog 1** (waiting for a discussion with the owner): which share
   (receiving into yaacc, or also the per-item share out of yaacc); whether files
   or `content://` URIs may become playable without opening the proxy hole; more MIME
@@ -1401,7 +1452,35 @@ Re-checked 2026-10-24 with `./gradlew :yaacc:processDebugManifest --offline`
   notification after a switch; rotation in both layouts (fragment state, timer
   state, mini-player); process death and restore; the 5-minute idle exit after a
   rotation; the Android TV launcher entry and D-pad reach; the toolbar timer, the
-  mini-player buttons and the receiver sheet at every level.
+  mini-player rows (several players, scrolling beyond about three rows, buttons,
+  tap to open) and the receiver sheet at every level; the restored classic footer
+  in portrait and landscape. Group 11 was built and unit-tested, not run on a device.
+
+### Owner feedback (Group 11)
+
+After the first on-device check the owner asked for three changes (decisions.md
+2026-10-24 "Owner feedback after the first on-device check"; tasks.md Group 11).
+They supersede earlier text of this section wherever the two differ.
+
+1. **One shutdown-timer entry (new layout).** The toolbar icon is the only
+   entry; the overflow entry "Set shutdown timer" and its string
+   (`shutdown_timer_set`, 7 locales) are removed. A tap stops a running timer;
+   otherwise it opens the duration picker and confirming a duration above 0
+   starts the timer (`ShutdownTimerToggle.decide(running)`, picker with
+   `startOnConfirm`). While running, the icon shows the remaining time. Classic's
+   Server tab is unchanged.
+2. **Classic keeps the original footer, the sheet is new-layout only.** The
+   classic Content tab ends in the static provider line and receivers line (not
+   clickable) as on `origin/feat/issue287`; the receiver sheet and the tappable
+   receiver bar exist only in the new layout, and the "no receiver selected
+   opens the sheet" prompt is not active in classic. PRD open question 4 is
+   answered "no". See "As built: receiver bar and classic footer".
+3. **Mini-player shows all running players.** One compact row per player,
+   in the sheet's session order (oldest first), height capped at about three rows
+   with an inner scroll, hidden when nothing runs. `MiniPlayerPicker` and its
+   "featured session" notion are gone, replaced by `MiniPlayerRows`,
+   `MiniPlayerArtKeys`, `MiniPlayerAdapter` and `MaxHeightRecyclerView`. See
+   "As built: mini-player".
 
 ## Research notes (Group 5)
 

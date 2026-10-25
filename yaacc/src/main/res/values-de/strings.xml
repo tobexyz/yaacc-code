@@ -129,7 +129,6 @@
     <string name="shared_folders">wähle freizugebende Ordner</string>
     <string name="reset_shared_folders">freigegebene Ordner zurücksetzen</string>
     <string name="shutdown_timer">Ausschalttimer</string>
-    <string name="shutdown_timer_set">Ausschalttimer einstellen</string>
     <string name="browser_servers_header">Server</string>
     <string name="add_saf_content">Quelle hinzufügen</string>
     <string name="clear_saf_cache">SAF-Cache leeren</string>

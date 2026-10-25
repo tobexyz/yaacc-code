@@ -134,7 +134,6 @@
     <string name="shared_folders">select shared folders</string>
     <string name="reset_shared_folders">reset shared folders</string>
     <string name="shutdown_timer">Shutdown timer</string>
-    <string name="shutdown_timer_set">Set shutdown timer</string>
     <string name="browser_servers_header">Servers</string>
     <string name="add_saf_content">add source</string>
     <string name="clear_saf_cache">clear SAF cache</string>

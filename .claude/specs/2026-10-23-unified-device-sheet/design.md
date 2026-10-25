@@ -196,6 +196,7 @@ Top level (servers):                       Inside a server:
 - The **receiver bar** and the **mini-player** are owned by the activity, so
   they appear on every level. Both open or drive the existing device sheet /
   player screens; the Receiver and Player tabs do not exist in this layout.
+- **Superseded (2026-10-24, owner feedback, decisions.md "Owner feedback after the first on-device check"):** the mini-player shows *all* running players, one row each, oldest first; the single-featured-session text that follows is the original design.
 - The **mini-player** shows one *featured* session: the playing session with
   the highest creation sequence, else the highest sequence overall, picked
   by a plain-Java function (same ordering rules as

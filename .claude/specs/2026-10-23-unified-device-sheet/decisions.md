@@ -160,3 +160,8 @@ for later would leave the new layout without quick access to running players.
 - "Layout" `ListPreference` (key `settings_browser_layout_key`, values `classic`/`new`, default classic) is the first item under Appearance; entries/strings in 7 locales (`values/browser_layout.xml` + `strings.xml`); `BrowserLayoutValuesTest` pins the XML values and default to the `BrowserLayoutChoice` constants.
 - A change applies when the user returns to a browser screen (resume check); players, `PlayerService` and the UPnP client are untouched by a switch; the idle timer counts 1 -> 2 -> 1 across the switch and never arms.
 - Known and left for the owner's manual check: stale notification PendingIntents may stack a second browser instance; the setting is visible on Android TV although the new layout's D-pad reach is unverified (default stays classic); `allowBackup` (backup can restore a stored `new`) remains an open follow-up.
+
+## 2026-10-24 - Owner feedback after the first on-device check (Group 11)
+1. The toolbar timer was shown twice (icon and overflow entry): the overflow entry is removed; the icon stops a running timer and otherwise opens the picker, whose confirmation starts the timer.
+2. The mini-player must show all players, not only the featured one: one compact row per player, oldest first like the sheet, capped height with scrolling.
+3. Classic keeps the original static footer (provider line and receivers line, not clickable) in the content browsing and does not open the sheet; the sheet and receiver bar live in the new layout only. This answers PRD open question 4 with "no" and undoes the phase 1 footer change for classic.

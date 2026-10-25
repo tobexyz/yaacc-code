@@ -15,4 +15,7 @@
          base margin above; see values-land/dimens.xml for why landscape
          overrides this to just the base margin. -->
     <dimen name="folder_name_margin_start_with_back">53dp</dimen>
+
+    <!-- Cap of the mini-player list (MaxHeightRecyclerView): three rows of 60dp (56dp + 2 x 2dp margin). -->
+    <dimen name="mini_player_list_max_height">180dp</dimen>
 </resources>

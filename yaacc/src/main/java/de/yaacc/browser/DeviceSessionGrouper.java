@@ -195,7 +195,8 @@ public final class DeviceSessionGrouper {
         return OLDEST_FIRST.compare(candidate, current) > 0;
     }
 
-    private static List<PlayerRef> sortedOldestFirst(List<PlayerRef> players) {
+    /** Copy without null entries, oldest first (also the mini-player list's order, see {@link MiniPlayerRows}). */
+    static List<PlayerRef> sortedOldestFirst(List<PlayerRef> players) {
         List<PlayerRef> sorted = new ArrayList<>();
         if (players != null) {
             for (PlayerRef player : players) {

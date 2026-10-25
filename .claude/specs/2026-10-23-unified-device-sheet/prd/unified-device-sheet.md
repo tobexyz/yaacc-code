@@ -61,3 +61,5 @@ See requirements.md.
 5. **Share feature improvements** (backlog 1 in tasks.md): which of the
    listed topics (scheme policy, more MIME types, receiver choice, feedback,
    waits) are wanted? To be discussed before any implementation.
+
+**Resolved 2026-10-24 (question 4):** classic does NOT keep the receiver bar and sheet in the content browsing; it shows the original static server/receiver footer. The sheet is part of the new layout only.

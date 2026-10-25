@@ -122,6 +122,14 @@ public final class ShutdownTimerController implements ShutdownTimerListener {
      * @param title           title of the picker
      */
     public void showPicker(FragmentManager fragmentManager, String title) {
+        showPicker(fragmentManager, title, false);
+    }
+
+    /**
+     * @param startOnConfirm start the timer with the chosen time when the user confirms (a
+     *                       duration of 0 only stores it and never starts a timer)
+     */
+    public void showPicker(FragmentManager fragmentManager, String title, boolean startOnConfirm) {
         long totalMinutes = configuredMillis() / 60_000L;
         int hours = (int) Math.min(23L, totalMinutes / 60L);
         int minutes = (int) (totalMinutes % 60L);
@@ -135,6 +143,9 @@ public final class ShutdownTimerController implements ShutdownTimerListener {
             long millis = (picker.getHour() * 3600L + picker.getMinute() * 60L) * 1000L;
             YaaccLogger.d(ShutdownTimerController.class.getName(), "time set: " + picker.getHour() + ":" + picker.getMinute() + " millis: " + millis);
             setConfiguredMillis(millis);
+            if (startOnConfirm && millis > 0L) {
+                start();
+            }
         });
         picker.show(fragmentManager, PICKER_TAG);
     }
