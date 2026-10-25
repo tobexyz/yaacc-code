@@ -905,3 +905,29 @@ How I checked the tests (mutation runs on a throw-away copy of HEAD, the repo wa
 
 ### Verdict: FAIL
 The "player service never comes up" cleanup is now genuinely tested (source closed once, registry key removed, copy deleted, no playback, hook not run, single main-thread message) and the production changes are sound. The flood gate's drop branch is still not pinned: the new test passes with the gate removed. One Warning, one-line test fix; after it the group passes.
+
+## Group 14 — Cycle 3 — 2026-10-25
+Reviewing: commit 2c746cc7 (fix for the cycle 2 Warning) on top of 2589e3eb
+
+Scope check: `git diff 2589e3eb 2c746cc7 --stat` = `review.md` (+31) and `ShareIntentHandlerFileTest.java` (+4). No production file changed since cycle 2, so the cycle 2 build/lint/full-suite results and the production-code review stand; no full build re-run.
+
+The change: after `assertNotNull(pendingShare.peek(first))` in `aSecondIntakeWhileOneIsStillRunningIsDroppedWithoutAnotherProviderCall`, `Thread.sleep(300)` and `assertEquals("the dropped intents were never probed", 1, asked.get())` while the first provider call is still blocked.
+
+Verification (on a throw-away copy made with `git archive HEAD` in the scratchpad; the repo was not touched, `git status` clean):
+- HEAD (unmutated): `ShareIntentHandlerFileTest` 36 tests, 0 failures, 0 errors.
+- Mutant C (the `intakeBusy.compareAndSet(false, true)` drop replaced by `intakeBusy.set(true); if (false)`, i.e. gate removed): 36 tests, 1 failure, exactly `aSecondIntakeWhileOneIsStillRunningIsDroppedWithoutAnotherProviderCall`, `AssertionError` at `ShareIntentHandlerFileTest.java:470` (the new assertion). Killed. In cycle 2 the same mutant passed all 36.
+
+### Critical
+- None.
+
+### Warning
+- None. The cycle 2 Warning is resolved.
+
+### Suggestion
+- Unchanged from cycle 2 and non-blocking: the `aFailingMessageDoesNotDiscardTheShareASecondTime` name over-claims (the toast catch swallows the failure before `settled` matters); fixed `Thread.sleep` waits instead of polling (can only give false passes on slow CI; the new 300 ms wait is the same kind, and is safe on the failure side because it asserts a count that must stay 1); the cycle 1 Suggestions remain open for the security review / Group 15 / Group 16.
+
+### Tests
+- [x] All tests passing (`ShareIntentHandlerFileTest` 36/36 on HEAD; the full-suite state from cycle 2 is unchanged: only the 11 expected `ReceiverPickResultTest` Group 15 red-skeleton failures)
+- [x] Coverage adequate for the change (all three mutants A/B/C from cycles 2-3 are now killed: give-up cleanup, gate reset, gate drop)
+
+### Verdict: PASS
