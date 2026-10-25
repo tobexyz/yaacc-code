@@ -243,7 +243,7 @@ Scoped with the owner on 2026-10-25 (decisions.md "Share feature scoped"). Repla
 ### Decisions (owner)
 1. **Per-share temporary proxy**, not the persistent "media proxy" setting. A share that needs yaacc as a server starts the local server for that share only and stops it afterwards if it started it. The user's settings are never changed.
 2. **Local files are kept readable by holding the file descriptor open (option A).** The descriptor is opened when the share arrives, while the sender's read permission is valid; no copy. If the provider's descriptor cannot seek, fall back to a copy in the app cache (option B), with a size cap.
-3. **Every share served through the proxy** (files and http/https links) gets a random unguessable key, lives in memory only (no more `proxy_link_*` in the preferences), is only served to the chosen receivers' IP addresses, and expires (when its player ends plus a grace period, and after an absolute timeout).
+3. **Every share served through the proxy** (files and http/https links) gets a random unguessable key, lives in memory only (no more `proxy_link_*` in the preferences), is only served to the chosen receivers' IP addresses (a setting, on by default, lets the user switch this check off for receivers that fetch from another address), and expires (when its player ends plus a grace period, and after an absolute timeout).
 4. **Receivers are picked per action in the new layout:** share, play and play-all open the receiver picker (the device sheet in a pick mode); after the playback has started the receiver selection is cleared. The classic layout is unchanged (it keeps its tab-based selection and static footer).
 5. **One file per share** in the first version (no `SEND_MULTIPLE`).
 
@@ -258,7 +258,7 @@ The share entry (the exported launcher) accepts intents from every app.
 Play, play-all and share open the device sheet in a *pick mode* (title "Play on...", checkboxes, a confirm button). Confirming sets the receivers, starts the playback and then clears the selection. The receiver bar then shows no selection by design; it opens the sheet for controlling receivers and players.
 
 ### Known risks of the design
-- A strict per-IP check can fail with renderers that fetch from another address than their descriptor host (multi-homed devices, IPv6); then playback fails with a 403 and a log line. A manual check with the user's receivers is part of the plan.
+- A strict per-IP check can fail with renderers that fetch from another address than their descriptor host (multi-homed devices, IPv6); then playback fails with a 403 and a log line. Mitigation (owner decision 2026-10-25): a setting "Restrict the media proxy to the chosen receivers", default on; switching it off keeps the random key and expiry but skips the IP check. A manual check with the user's receivers is part of the plan.
 - Holding the descriptor needs a seekable provider for range requests; the copy fallback covers the rest.
 
 ## Risks

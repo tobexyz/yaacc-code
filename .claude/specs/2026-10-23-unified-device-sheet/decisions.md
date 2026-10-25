@@ -175,3 +175,6 @@ for later would leave the new layout without quick access to running players.
 **Owner decisions**: (1) per-share temporary proxy, not the persistent setting; (2) keep a local file readable by holding its descriptor open (option A), copy to the app cache only for non-seekable providers; (3) every share served through the proxy is restricted to the chosen receivers' IPs and expires; (4) receivers are picked per action (share, play, play-all) in the new layout and the selection is cleared afterwards; (5) one file only at first.
 **Readings to confirm**: (4) applies to the new layout only (classic keeps its tab-based selection and static footer); (3) applies to every share served through the proxy, including http(s) links, which also moves them out of the preferences (`proxy_link_*` retired).
 **See** design.md "Phase 3" for the threat model and risks, and tasks.md Groups 12-16.
+
+## 2026-10-25 - Share feature: readings confirmed, IP check becomes a setting
+The owner confirmed both readings (receiver picking in the new layout only; every share served through the proxy, links included, moves to the in-memory registry). The strict IP check gets a checkbox setting, default on, so a user whose receiver fetches from another address can switch it off (random key and expiry stay). The picker title "Play on..." was proposed and not objected to.

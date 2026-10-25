@@ -191,13 +191,13 @@ Scoped with the owner on 2026-10-25; **waiting for the owner's sign-off on this 
   - **Verify**: each statement cites file:line or a doc URL; verified/reasoned claims are labelled
   - **Constraints**: no code
 - [ ] Test skeletons (red) | `yaacc/src/test/java/de/yaacc/...`
-  - **Accept**: plain-Java stubs and tests for: `ShareRegistry` (random 128-bit keys, in-memory only, add/lookup/remove, per-entry allowed IP set, expiry by time and by release, max active entries, no key reuse, input validation); `SharedContentPolicy` (accepts only `content:` URIs, rejects `file:`, `http:`, own-authority URIs, null/empty/oversized strings, non-audio/video/image MIME types; http/https text policy stays `ShareUriPolicy`); `ProxyAccessPolicy` (decides allow/deny from the key's allowed IPs and the request's remote address, incl. loopback/own address for the local device, IPv4-mapped IPv6, missing address -> deny); `ReceiverPickResult`/selection-clearing decision (after a confirmed pick the selection is cleared; cancelling the pick changes nothing)
+  - **Accept**: plain-Java stubs and tests for: `ShareRegistry` (random 128-bit keys, in-memory only, add/lookup/remove, per-entry allowed IP set, expiry by time and by release, max active entries, no key reuse, input validation); `SharedContentPolicy` (accepts only `content:` URIs, rejects `file:`, `http:`, own-authority URIs, null/empty/oversized strings, non-audio/video/image MIME types; http/https text policy stays `ShareUriPolicy`); `ProxyAccessPolicy` (decides allow/deny from the key's allowed IPs, the request's remote address and the `restrictToReceivers` flag: with the flag on, incl. loopback/own address for the local device, IPv4-mapped IPv6, missing address -> deny; with the flag off every address passes the IP step, the key and expiry checks still apply); `ReceiverPickResult`/selection-clearing decision (after a confirmed pick the selection is cleared; cancelling the pick changes nothing)
   - **Verify**: tests fail on assertions only; all other tests stay green
   - **Constraints**: no `android.*` imports in these classes
 
 ## Group 13: Ephemeral proxy
 - [ ] Registry-backed proxy | `YaaccUpnpServerContentHttpHandler.java`, `UpnpClient.java`, new `ShareRegistry` etc.
-  - **Accept**: the proxy path serves only registry entries (random key, allowed IPs, expiry); the persistent `proxy_link_*` preference path and the sha256-of-URI keys are retired; http/https shares with the proxy option behave as before for the user, but through the registry; content shares stream from the held descriptor with correct `Range` handling (seek via `FileChannel`/offset), MIME type from the provider; a request from a non-allowed IP gets 403 and a payload-free log line; expiry closes the descriptor; the server is started for the share if it is not running and stopped afterwards if the share started it; the user's settings are untouched
+  - **Accept**: the proxy path serves only registry entries (random key, allowed IPs, expiry); the persistent `proxy_link_*` preference path and the sha256-of-URI keys are retired; http/https shares with the proxy option behave as before for the user, but through the registry; content shares stream from the held descriptor with correct `Range` handling (seek via `FileChannel`/offset), MIME type from the provider; a new checkbox setting "Restrict the media proxy to the chosen receivers" (key `settings_proxy_restrict_receivers_chkbx`, default **on**, in the media proxy part of the settings, strings in 7 locales) switches the IP check; with it on, a request from a non-allowed IP gets 403 and a payload-free log line; with it off only the random key and the expiry protect the entry; expiry closes the descriptor; the server is started for the share if it is not running and stopped afterwards if the share started it; the user's settings are untouched
   - **Verify**: `./gradlew :yaacc:assembleDebug :yaacc:testDebugUnitTest :yaacc:lintDebug`; the Group 12 tests green
   - **Constraints**: security review checks key entropy, IP check on every request, no URI/path from preferences, descriptor lifetime, no path traversal, no logging of keys or URIs
 
@@ -214,8 +214,8 @@ Scoped with the owner on 2026-10-25; **waiting for the owner's sign-off on this 
   - **Constraints**: no second status poller; accessibility for the confirm button and the pick title; strings in 7 locales
 
 ## Group 16: Documentation
-- [ ] Docs | `docs/index.md`, `CHANGELOG.md`, `docs/tech.md`, `README.md` if needed
-  - **Accept**: users can read how to share a file or link, how the receiver is picked, that the server is started temporarily, and what changed for the media proxy; tech notes are as built with the threat model and known risks
+- [ ] Docs | `docs/index.md`, `docs/settings.md`, `CHANGELOG.md`, `docs/tech.md`, `README.md` if needed
+  - **Accept**: users can read how to share a file or link, what the IP restriction setting does and when to switch it off, how the receiver is picked, that the server is started temporarily, and what changed for the media proxy; tech notes are as built with the threat model and known risks
   - **Verify**: placeholder grep; every cited class exists
   - **Constraints**: nothing descoped is documented
 
