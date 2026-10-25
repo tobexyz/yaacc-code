@@ -181,3 +181,13 @@ The owner confirmed both readings (receiver picking in the new layout only; ever
 
 ## 2026-10-25 - Build environment: the Android build works in a fresh container
 An earlier reviewer reported "no SDK, cannot build" and I repeated it; the owner corrected this. The container simply has no SDK pre-installed. Installing the Android command-line tools (https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip), accepting the licenses and installing `platforms;android-36` plus `platform-tools` into `/root/android-sdk` (AGP then downloads the build tools itself), with `sdk.dir=/root/android-sdk` in `local.properties` (git-ignored), makes `./gradlew` work. Maven Central answers some downloads with HTTP 429; re-running the build a few times lets Gradle cache what it got. Verified result for 3d6b6ea0: 337 tests, 0 failures, lint 190. To avoid redoing this per container, the SDK install belongs into the environment's setup script.
+
+## 2026-10-25 - Phase 3 plan corrected by the Group 12 research
+1. The HTTP server is not off when the "local server" setting is off (it always runs while the process lives): nothing is started or stopped per share; registry entries are served before the settings gate and the share waits until the server answers.
+2. Residual confused deputy (broad media permissions/SAF grants): accepted and documented, mitigated by the type check, the per-share receiver pick that shows the file name, and the IP/expiry limits. To be confirmed by the owner.
+3. `createPlayableItem` must handle `content:` URIs properly (provider MIME type, metadata through a `MediaDataSource`).
+4. Clearing the receiver selection after every action breaks "add to playlist" in the new layout; proposal: it uses the picker too. Owner decision pending.
+5. New `UpnpClient.clearReceiverDevices()` (fires the events the receiver bar needs); fix the mutation of the `SharedPreferences` set.
+6. `Os.pread` instead of a shared `FileChannel`; `dup()` the descriptor so the provider process is not pinned; close locked against reads.
+7. The old range code and the proxy handler's `new File(uri)` path are replaced for registry entries (new `ByteRangeResolver`, tested first).
+8. The forward from the launcher carries one ClipData item plus the read flag (the system never checks `EXTRA_STREAM`), after verifying that both match; failures fall back to a plain launch.
