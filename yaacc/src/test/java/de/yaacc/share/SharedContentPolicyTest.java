@@ -197,7 +197,7 @@ public class SharedContentPolicyTest {
         assertFalse(uri("content://com.example.provider/my song.mp3"));
         assertFalse(uri("content://com.example.provider/a.mp3 "));
         assertFalse(uri("content://com.example .provider/a.mp3"));
-        assertFalse(uri("content://com.example.provider/a b.mp3"));
+        assertFalse(uri("content://com.example.provider/a\u00a0b.mp3"));
     }
 
     @Test
@@ -212,8 +212,8 @@ public class SharedContentPolicyTest {
 
     @Test
     public void nonAsciiCharactersAreRejected() {
-        assertFalse(uri("content://com.example.provider/söng.mp3"));
-        assertFalse(uri("content://com.examplе.provider/a.mp3"));
+        assertFalse(uri("content://com.example.provider/s\u00f6ng.mp3"));
+        assertFalse(uri("content://com.exampl\u0435.provider/a.mp3"));
     }
 
     @Test
@@ -334,7 +334,7 @@ public class SharedContentPolicyTest {
     @Test
     public void controlAndNonAsciiCharactersInTheSubtypeAreRejected() {
         assertFalse(mime("audio/mp\u0000eg"));
-        assertFalse(mime("audio/mpég"));
+        assertFalse(mime("audio/mp\u00e9g"));
     }
 
     @Test
@@ -500,7 +500,7 @@ public class SharedContentPolicyTest {
     public void chooseMimeTypeNeverReturnsATypeThatIsNotAcceptable() {
         String[] inputs = {null, "", " ", "audio/mpeg", "AUDIO/MPEG", "audio/*", "*/*",
                 "application/octet-stream", "text/plain", "video/mp4; x=y", "image/", "/",
-                "audio/mp\u0000eg", "audio/mpég"};
+                "audio/mp\u0000eg", "audio/mp\u00e9g"};
 
         for (String provider : inputs) {
             for (String intent : inputs) {

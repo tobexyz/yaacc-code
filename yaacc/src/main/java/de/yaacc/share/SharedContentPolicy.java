@@ -67,7 +67,7 @@ public final class SharedContentPolicy {
      */
     public static boolean isAcceptableMimeType(String mime) {
         // STUB (red phase): wrong on purpose
-        return true;
+        return false; // fail closed
     }
 
     /** The cap for the copy fallback in bytes, see {@link #MAX_COPY_BYTES}. */
@@ -82,7 +82,7 @@ public final class SharedContentPolicy {
      */
     public static boolean isWithinCopyLimit(long sizeBytes) {
         // STUB (red phase): wrong on purpose
-        return true;
+        return false; // fail closed
     }
 
     /**

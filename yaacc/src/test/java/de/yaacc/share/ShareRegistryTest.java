@@ -412,7 +412,7 @@ public class ShareRegistryTest {
         for (int i = 0; i < 100_000; i++) {
             huge.append('x');
         }
-        String[] garbage = {null, "", " ", "\n", "../../etc/passwd", "%00", "a\u0000b", "äöü",
+        String[] garbage = {null, "", " ", "\n", "../../etc/passwd", "%00", "a\u0000b", "\u00e4\u00f6\u00fc",
                 "*", "' OR '1'='1", huge.toString()};
 
         for (String key : garbage) {
@@ -1127,11 +1127,11 @@ public class ShareRegistryTest {
     public void unicodeLettersAndDigitsAreNotWellFormed() {
         String valid = repeated('A', 21);
 
-        assertFalse(ShareRegistry.isWellFormedKey(valid + "é"));        // e acute
-        assertFalse(ShareRegistry.isWellFormedKey(valid + "Ａ"));        // fullwidth A
-        assertFalse(ShareRegistry.isWellFormedKey(valid + "١"));        // arabic-indic digit one
-        assertFalse(ShareRegistry.isWellFormedKey(valid + "А"));        // cyrillic A
-        assertFalse(ShareRegistry.isWellFormedKey(valid + "K"));        // kelvin sign
+        assertFalse(ShareRegistry.isWellFormedKey(valid + "\u00e9"));        // e acute
+        assertFalse(ShareRegistry.isWellFormedKey(valid + "\uff21"));        // fullwidth A
+        assertFalse(ShareRegistry.isWellFormedKey(valid + "\u0661"));        // arabic-indic digit one
+        assertFalse(ShareRegistry.isWellFormedKey(valid + "\u0410"));        // cyrillic A
+        assertFalse(ShareRegistry.isWellFormedKey(valid + "\u212a"));        // kelvin sign
     }
 
     @Test
@@ -1150,5 +1150,61 @@ public class ShareRegistryTest {
         assertFalse(ShareRegistry.isWellFormedKey("AAAAAAAAAAAAAAAAAAAAAA=="));
         assertFalse(ShareRegistry.isWellFormedKey("AAAAAAAAAAAAAAAAAAAAA+"));
         assertFalse(ShareRegistry.isWellFormedKey("AAAAAAAAAAAAAAAAAAAAA/"));
+    }
+
+    // ---- retired keys are not handed out again (review: Group 12, Warning 3)
+
+    @Test
+    public void aRetiredKeyIsNotHandedOutAgainAfterRemove() {
+        ShareRegistry repeating = new ShareRegistry(() -> now, bytes -> Arrays.fill(bytes, (byte) 7));
+        String first = repeating.register(fileEntry("a"));
+        assertNotNull(first);
+        assertTrue(repeating.remove(first));
+
+        String second = repeating.register(fileEntry("b"));
+
+        // the only key this broken source can produce was used and retired: no reuse, no new entry
+        assertNull(second);
+        assertEquals(0, repeating.size());
+        assertNull(repeating.lookup(first));
+    }
+
+    @Test
+    public void aRetiredKeyIsNotHandedOutAgainAfterExpiry() {
+        ShareRegistry repeating = new ShareRegistry(() -> now, bytes -> Arrays.fill(bytes, (byte) 7));
+        String first = repeating.register(fileEntry("a", GRACE, ABSOLUTE));
+        assertNotNull(first);
+        now += ABSOLUTE; // absolute maximum reached
+        assertNull(repeating.lookup(first));
+
+        String second = repeating.register(fileEntry("b"));
+
+        assertNull(second);
+        assertEquals(0, repeating.size());
+    }
+
+    // ---- default registry and grace period (review: suggestions)
+
+    @Test
+    public void twoDefaultRegistriesGiveDifferentKeys() {
+        String a = ShareRegistry.createDefault().register(fileEntry("a"));
+        String b = ShareRegistry.createDefault().register(fileEntry("b"));
+
+        assertNotNull(a);
+        assertNotNull(b);
+        assertNotEquals(a, b);
+        assertTrue(ShareRegistry.isWellFormedKey(a));
+    }
+
+    @Test
+    public void aLookupDuringTheGracePeriodDoesNotExtendIt() {
+        String key = registerOk("a");
+        registry.release(key);
+        now += GRACE - 1;
+        assertNotNull(registry.lookup(key)); // still inside the grace period
+
+        now += 1; // grace over; the lookup above must not have restarted it
+
+        assertNull(registry.lookup(key));
     }
 }

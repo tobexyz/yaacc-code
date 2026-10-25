@@ -2753,6 +2753,8 @@ backstop).
 
 ### (g) Recommended API for the Group 12 red tests (package `de.yaacc.share`, plain Java)
 
+> **Status (2026-10-25, review of Group 12):** the red tests were written against a slightly different API than the sketch below, and the tests are the contract: `ByteRangeResolver.parseHeader(String)` + `resolve(List<Range>, long)` returning `Result` (`status()`, `start()`, `endInclusive()`, `length()`, `contentRangeHeader()`) instead of `HttpRange`/`Resolution`; more than one range is served as 200 whole (not "first range only"); the launcher glue is `LauncherForwardPolicy.decideStream(...)` returning a `StreamDecision` instead of an 8-argument `decide`; `ReceiverPickResult.Decision` has an extra `keepPickerOpen()`. Where the sketch and the tests differ, follow the tests.
+
 The four classes **already exist as red stubs** in `yaacc/src/main/java/de/yaacc/share/` with tests in
 `yaacc/src/test/java/de/yaacc/share/` (committed before this research finished; not touched here). The API below
 is what the research supports; where it differs from the stubs it is marked **change**.

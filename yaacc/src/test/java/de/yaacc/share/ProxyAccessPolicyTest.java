@@ -540,4 +540,12 @@ public class ProxyAccessPolicyTest {
         assertTrue(restricted(allowed, "::ffff:192.168.1.20"));
         assertFalse(restricted(allowed, "192.168.1.21"));
     }
+
+    // ---- a remote with a port is not an address (the handler passes getHostAddress())
+
+    @Test
+    public void aRemoteAddressWithAPortIsDenied() {
+        assertFalse(restricted(set("192.168.1.5"), "192.168.1.5:8080"));
+        assertFalse(restricted(set("0:0:0:0:0:0:0:1"), "[::1]:80"));
+    }
 }

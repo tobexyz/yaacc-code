@@ -260,7 +260,7 @@ public class LauncherForwardPolicyStreamTest {
         for (String uri : new String[]{"content://com.example.provider/my song.mp3",
                 "content://com.example.provider/a\n.mp3", "content://user@com.example.provider/a.mp3",
                 "content://com.example%2Eprovider/a.mp3", "content://", "content:///a.mp3",
-                "content://com.example.provider/söng.mp3", " content://com.example.provider/a.mp3"}) {
+                "content://com.example.provider/s\u00f6ng.mp3", " content://com.example.provider/a.mp3"}) {
             assertNoForward(decide(SEND, "audio/mpeg", uri, uri, READ));
         }
     }

@@ -440,7 +440,7 @@ public class ByteRangeResolverTest {
         String[] headers = {"bytes=abc", "bytes=a-b", "bytes=1-2-3", "bytes=--5", "bytes=-", "bytes=-5-",
                 "bytes=5", "bytes=0-99x", "bytes=x0-99", "bytes=0-9,x", "bytes=x,0-9", "bytes=0-9;5-9",
                 "bytes=0-9 5-9", "bytes=+5-10", "bytes=0x10-20", "bytes=1e3-2e3", "bytes=0.5-9",
-                "bytes==0-9", "bytes=0-9=", "bytes=0_9", "bytes=0–9", "bytes=*"};
+                "bytes==0-9", "bytes=0-9=", "bytes=0_9", "bytes=0\u20139", "bytes=*"};
 
         for (String header : headers) {
             assertNotNull(header, ByteRangeResolver.parseHeader(header));
@@ -471,8 +471,8 @@ public class ByteRangeResolverTest {
 
     @Test
     public void nonAsciiDigitsAndControlCharactersIgnoreTheHeader() {
-        assertTrue(ByteRangeResolver.parseHeader("bytes=١-٢").isEmpty());      // arabic-indic digits
-        assertTrue(ByteRangeResolver.parseHeader("bytes=０-９").isEmpty());      // fullwidth digits
+        assertTrue(ByteRangeResolver.parseHeader("bytes=\u0661-\u0662").isEmpty());      // arabic-indic digits
+        assertTrue(ByteRangeResolver.parseHeader("bytes=\uff10-\uff19").isEmpty());      // fullwidth digits
         assertTrue(ByteRangeResolver.parseHeader("bytes=0-9\n").isEmpty());              // only spaces and tabs are trimmed
         assertTrue(ByteRangeResolver.parseHeader("\nbytes=0-9").isEmpty());
         assertTrue(ByteRangeResolver.parseHeader("bytes=0-\u00009").isEmpty());
