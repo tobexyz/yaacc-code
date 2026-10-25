@@ -1187,8 +1187,12 @@ public class ShareRegistryTest {
 
     @Test
     public void twoDefaultRegistriesGiveDifferentKeys() {
-        String a = ShareRegistry.createDefault().register(fileEntry("a"));
-        String b = ShareRegistry.createDefault().register(fileEntry("b"));
+        ShareRegistry first = ShareRegistry.createDefault();
+        ShareRegistry second = ShareRegistry.createDefault();
+        assertNotNull(first);
+        assertNotNull(second);
+        String a = first.register(fileEntry("a"));
+        String b = second.register(fileEntry("b"));
 
         assertNotNull(a);
         assertNotNull(b);

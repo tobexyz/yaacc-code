@@ -27,7 +27,8 @@ import java.util.function.LongSupplier;
  * <p>
  * Every entry gets a random key: 16 bytes from the random source, encoded as unpadded base64url
  * (22 characters). The key depends on nothing but the random bytes (not on the target), is never
- * handed out twice while the registry lives, and is the only way to reach the entry. Nothing is
+ * handed out twice while the registry lives (retired keys are remembered for a bounded window of
+ * recent keys, which is plenty for a 128-bit random source and keeps the memory bounded), and is the only way to reach the entry. Nothing is
  * persisted.
  * <p>
  * Lifetime of an entry: it expires {@code absoluteMaxMillis} after registration, or, once

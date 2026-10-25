@@ -713,3 +713,34 @@ Reviewing: Group 12 (phase 3): research (`docs/tech.md` "Sharing local files"), 
 
 ### Verdict: FAIL
 No Critical. Four Warnings: Group 13/14 Accept text and the tech.md sketch disagree with the red tests' API; stale "server started temporarily" (Group 16) and "EXTRA_STREAM" (design.md:253) text; missing no-reuse-after-remove test; non-ASCII literals in the tests. All are small edits; the build, the failure profile (assertions only, new classes only) and the research accuracy are as expected.
+
+## Cycle 2 — 2026-10-25
+Reviewing: Group 12 (phase 3), fixes for the four cycle 1 Warnings (commit b2016e39)
+
+### Critical
+- None.
+
+### Warning
+- None. All four cycle 1 Warnings are resolved:
+  - W1: Group 13 Accept now names `parseHeader(String)` (never throws, returns `Range`s), `resolve(List<Range>, long)` returning `Result` (200/206/416, `start()`, `endInclusive()`, `length()`, `contentRangeHeader()`), invalid header and several ranges -> 200 whole; matches `ByteRangeResolverTest` and the stub. Group 14/`decideStream` and `keepPickerOpen` were aligned the same way (status note under tech.md "(g)").
+  - W2: tasks.md Group 16 no longer says "started temporarily" (Group 13 now says the server always runs, nothing started or stopped per share); design.md:253 now says one `content:` URI as ONE ClipData item plus the read flag, after checking `EXTRA_STREAM` == ClipData item 0 and the incoming read flag.
+  - W3: new tests `aRetiredKeyIsNotHandedOutAgainAfterRemove` and `...AfterExpiry` (constant random source: first key, retire it, next `register` must return null, `size()` 0, old key not resolvable). A correct "collision check against live map only" implementation now fails them.
+  - W4: `grep -rnP '[^\x00-\x7F]'` over `yaacc/src/test/java/de/yaacc/share`, `LauncherForwardPolicyStreamTest.java` and `yaacc/src/main/java/de/yaacc/share` is empty. Every escape was compared with the removed literal (old file at HEAD~1 vs new): U+00F6 (o umlaut), U+2013 (en dash), U+0661/U+0662 (Arabic-Indic 1/2), U+FF10/U+FF19 (fullwidth 0/9), U+00A0 (NBSP, previously an invisible literal in `a b.mp3`), U+0435 (Cyrillic e in `com.examplе.provider`), U+00E9, U+00E4/F6/FC, U+FF21, U+0410 (Cyrillic A), U+212A (Kelvin sign). Same code points in the same positions; no `\u000a`/`\u000d`/`"` hazards.
+  - The two stubs `SharedContentPolicy.isAcceptableMimeType` / `isWithinCopyLimit` now return false (fail closed).
+
+### Suggestion
+- [ShareRegistry.java:28-31 class Javadoc, register() Javadoc] "never handed out twice while the registry lives" is the contract the new tests encode, but the Javadoc does not say how long retired keys are remembered. The tests do NOT force unbounded state: they retire exactly one key and require that it is not reissued; a correct implementation that remembers a bounded window of recently retired keys (say the last few hundred / a set that is capped, or all keys of the last N minutes) passes both, and so does a retry loop with any small retry count (`aRandomSourceThatRepeatsOnceIsRetried` needs at least one retry). Because a 128-bit `SecureRandom` key makes a repeat practically impossible, the implementer will probably want the bounded window; say so in the Javadoc ("retired keys are remembered for at least the last <N> retirements; with a working random source reuse is impossible anyway") and keep the tests as they are. Not a Warning because no test needs more than one remembered key; if the Javadoc keeps the literal "while the registry lives", an implementation with an unbounded `HashSet<String>` would be a slow memory leak in a long-lived service (8 live keys, but one retired key per share).
+- [ShareRegistryTest `twoDefaultRegistriesGiveDifferentKeys`] Against the stub (`createDefault()` returns null) the test throws `NullPointerException`, not `AssertionError` (the only non-assertion failure of the 217). Still red, so harmless; use `assertNotNull(ShareRegistry.createDefault())` first if exact failure type matters. Consider also a 1000-key distinctness check over one default registry (the earlier suggestion; the existing `manyKeysAreAllDifferent` uses its own `SecureRandom`, not `createDefault()`).
+- [carried over, still open] `LauncherForwardPolicyStreamTest` reflection tests (`theDecisionExposesOnlyTheUriAndTheReadGrant`, `theDecisionHoldsNoStateBeyondTheUri`) over-specify (a `toString`/`equals` on the decision fails them); `ProxyAccessPolicyTest` could add `::ffff:127.0.0.1` with only `192.168.1.5` allowed -> denied.
+
+### Checks performed
+- Build: `./gradlew :yaacc:assembleDebug :yaacc:testDebugUnitTest --continue -q --console=plain` (ANDROID_HOME=/root/android-sdk): assemble OK, test task fails as expected. 670 tests, 217 failures, 0 errors. Failures (from the XML reports): LauncherForwardPolicyStreamTest 10/28, ByteRangeResolverTest 53/60, ProxyAccessPolicyTest 42/73, ReceiverPickResultTest 11/19, ShareRegistryTest 78/93, SharedContentPolicyTest 23/60 (31 before the stubs were flipped). All six are the red classes; no other class fails, so the 337 earlier tests are green. 216 failures are `java.lang.AssertionError`; one is the NPE noted above.
+- Escape check as described under W4 (programmatic comparison of non-ASCII characters in HEAD~1 against `\u` escapes in HEAD for the four edited test files).
+- Registry tests against the Javadoc: the stub fails both new no-reuse tests; a correct implementation (bounded or unbounded retired-key memory) passes; `aBrokenRandomSourceThatRepeatsNeverGivesTheSameKeyTwice` and `aRandomSourceThatRepeatsOnceIsRetried` stay consistent with "returns null when no unused key could be drawn, nothing stored". `aLookupDuringTheGracePeriodDoesNotExtendIt` and `aRemoteAddressWithAPortIsDenied` assert the intended behavior and are red against the stubs.
+- Lint not run.
+
+### Tests
+- [x] All tests passing in the sense the red phase requires (217 failures, all in the six new classes, 216 AssertionError + 1 NPE from the null `createDefault()` stub; 337 earlier tests green)
+- [x] Coverage adequate for the change
+
+### Verdict: PASS
