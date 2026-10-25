@@ -792,3 +792,47 @@ Os.pread/dup on real provider descriptors and killing the sender while streaming
 
 ### Verdict: FAIL
 One Critical (shares are never released when a player ends, so the grace period, eviction and descriptor lifetime do not work) and five Warnings (idle-time cap missing, no visible feedback when the registry is full, server-ready wait not wired, upstream links in ContentHolder failure logs, missing tests for the producers/release logic). The pure classes, the handler's access and range logic, the adapters, the setting and its translations are sound.
+
+## Cycle 2 — 2026-10-26
+Reviewing: Group 13 (phase 3)
+
+Scope: commits f51e6648 and 0c991cda against the cycle 1 findings. Verified in code, not from the commit messages.
+
+### Critical
+None. The cycle 1 Critical is fixed (see "Cycle 1 findings: status").
+
+### Warning
+- [ImageFragment.java:173] The redaction fix is incomplete here: `YaaccLogger.e(..., "Failed to load image: " + redact(imageUri), e)` passes the exception object. The path is `new java.net.URL(imageUri).openStream()`; for an http error the JDK/Android exception message is the full URL (`FileNotFoundException: http://<ip>:<port>/proxy/<key>` for 404, `Server returned HTTP response code: 502 for URL: ...`). With the proxy on and the local device as receiver, the image URL IS the proxy URL, ERROR is the default log level, so the key lands in logcat (and in the bug reports users post). Same class of defect as cycle 1 Warning 4. Fix: log `e.getClass().getSimpleName()` instead of `e` (as `ProxyShareResponder`, `exceptionName`, `FileDownloader` do), or catch the http branch separately.
+
+### Suggestion
+- [AvTransportMediaRendererPaused.java:70, Playing.java:111, Stopped.java:84] `"metaData: " + metaData` is still raw (DIDL `<res>` carries the URL) while the `uri:` line next to it and `NoMediaPresent` are redacted. Debug level and on the receiving device (which has the URL anyway), so not blocking; wrap in `ShareLogRedactor.redact` for consistency.
+- [UpnpClient.java:1647] `createPlayableItem` still logs the exception object (already a recorded Group 14 TODO; `MediaMetadataRetriever` messages normally carry no URL).
+- [Yaacc.java:164 comment, ShareEntityProducer.java class Javadoc] Still say a stalled response "aborts at its next callback"; since 0c991cda it re-acquires and aborts only when the share is full. Reword.
+- [UpnpClient.notifyRegistryFull / share_registry_full] The toast says "try again in a moment" but the link is played unproxied right away; add "playing without the proxy" or similar in a later strings pass.
+- [Group 15 note] `addToPlaylist`/`addItems` do not call `itemsSet`. Harmless today (only DIDL items; `onPlayerRemoving` still reads the intact list at removal), but when shares can be added to an existing player call `rememberShares` for it, or a released share is not re-activated.
+- [ShareKeyTracker] A player that is created but never added to the service (service never connects, id 0) stays in the identity map and its shares live to the 6 h maximum. Minor.
+- [Residual trickle risk] Agree with the acceptance, conditioned on the IP restriction staying default-on. Precisely: the cap now bounds progressing connections, not open ones; an expired connection that keeps trickling stays open until the peer stops (HttpCore offers no handler-side close), so a peer that has the key AND passes the IP check could open about 4 new connections per minute. With the restriction on that peer must be a chosen receiver. With the restriction off, any LAN host can read the key (GetPositionInfo on the renderer) and do this. The setting's summary should say so; the security reviewer should confirm.
+
+### Cycle 1 findings: status
+1. Critical (shares never released): FIXED. `PlayerListChangeNotifier.removeAndNotify` and the replace branch of `putAndNotify` call `announceRemoving` (RuntimeException swallowed per listener) synchronously after the player left the map and before `post`; `PlayerService.shutdown` calls `removeAndNotify` before `player.onDestroy()`. All removal paths (`shutdown`, `AbstractPlayer.onDestroy`/`onServiceDisconnected`/`LocalImagePlayer` via `removePlayer`) go through `removeAndNotify`; no other writer of `currentActivePlayer`. `ShareKeyTracker` is fed by add callback, `itemsSet` (called from `initializePlayers(List)` and `initializePlayersWithPlayableItems`, the only two `createPlayer` callers with items) and the removing hook; keys are only unioned, released only when no other tracked player uses them; `onPlayerRemoved` refreshes the other active players first, so two players sharing a key, replaced players (same id) and "both shut down before the callbacks run" release each key once; a late `itemsSet` of a replacement re-activates via `markActive`. `ShareLifetimeListenerTest` drives the real notifier with a queued executor in the PlayerService order; `releasesTheShareWhenTheAddCallbackRanBeforeTheItemsWereSet...` and the ordering test fail without the hook (reasoned: the tracker would know no key and `onPlayerRemoved` would read the cleared list). `shutdownReleasesTheShareEvenThoughOnDestroy...` alone would pass without the hook (the add callback already saw the items); that is covered by the other test.
+2. Idle cap: FIXED. State machine LIVE/EXPIRED/CLOSED under the limiter lock; `give` is only reached on LIVE->CLOSED/EXPIRED, `reacquire` re-adds exactly one slot only from EXPIRED under the same cap, CLOSED is terminal: slot returned exactly once. Lock order is limiter lock then lease monitor (`reacquire`), `noteProgress` takes only the lease monitor and calls the clock, `expireIdle` reads the volatile `lastProgress`; no inversion. Both producers call `tryReacquire` (not `isLive`; `isLive` has no production caller), after the share-live check, and abort with `IOException` only when the cap is full; `failed`/`releaseResources` release idempotently. `Yaacc` sweeper runs `expireIdle(WRITE_IDLE_MILLIS)` in its own try block next to `expire()`; the responder and the sweeper use `ShareConcurrencyLimiter.shared()`. Progress is counted in 16 KiB steps within 60 s (at most about 270 B/s keeps a slot); zero/negative writes and overflow handled.
+3. Registry-full toast: FIXED. `share_registry_full` present in values, -de, -es, -fr, -nl, -pt, -zh; posted through `Handler(Looper.getMainLooper())` with the application context, no payload, after the one eviction retry.
+4. Server-ready wait: FIXED. `createPlayableItem` has one caller (`ShareIntentHandler.prepareAndPlay`, scheduled/executed on the handler's executor; grep). `awaitHttpServer` polls `isHttpServerRunning` (3 s max, 200 ms), skips wait and probe on the main thread, falls back to the direct link on timeout. `ReadinessWaitTest` (8 tests: immediate, polling, timeout with final check, shortened last sleep, zero max, zero poll, throwing check, interrupt).
+5. Log redaction: FIXED except the Warning above. `ContentHolder` failure logs use `exceptionName` (class only); `ProxyShareResponder` logs class only; UpnpClient, `YaaccAVTransportService`, `AvTransportMediaRenderer*` (`uri:` lines), `FileDownloader`, `HttpRequestSender` go through `ShareLogRedactor`; handler first log line uses `loggableUri`. Remaining items are listed above.
+6. Tests: FIXED. `GuardedEntityProducerTest` (13), `ShareEntityProducerTest` (18), `LengthOnlyEntityProducerTest`, `ProxyShareResponderTest` (20), `ShareKeyTrackerTest` (11), `ShareLifetimeListenerTest` (11), watchdog tests (24, incl. a concurrent cap invariant). Assertions are on bytes, slot counts and status codes, not mirrors of the implementation. `FakeChannel` models short writes, zero writes (client not reading) and write failures; `ArraySource` counts closes; a pending chunk the raw channel took partly is covered. Not testable on the JVM and still open: the HTTP_LINK branch of the responder end to end (needs a device / real upstream), `UpnpClient.shareKeysOf` (Android `Uri`), the notification of the toast, `Os.pread` adapters.
+
+### Checks performed
+- `export ANDROID_HOME=/root/android-sdk; ./gradlew :yaacc:assembleDebug :yaacc:testDebugUnitTest :yaacc:lintDebug --continue -q --console=plain`: APK `yaacc-debug.apk` built; 916 tests, 21 failures, only `ReceiverPickResultTest` (11) and `LauncherForwardPolicyStreamTest` (10); lint 189 issues, none new against the baseline (ids and locations are the pre-existing ones, e.g. `MissingTranslation toggle_view_mode`).
+- `git diff 2743c16d~1 -- yaacc/src/main/AndroidManifest.xml`: empty. The 21 red test classes and the code they test (`ReceiverPickResult`, `browser/`) are unchanged since 2743c16d.
+- No `Claude-Session` / `claude.ai/code` trailer lines in any code, docs or spec file (grep over the tree excluding build output).
+- Greps over `yaacc/src/main/java` for log calls that print URIs/URLs/keys/metadata/exception objects in the named files and `player/`, `imageviewer/`, `util/`.
+
+### Needs a device
+HTTP_LINK streaming and range forwarding against a real upstream, a renderer that pauses longer than 60 s and resumes, cold-start timing of the loopback probe, the toast appearance, `Os.pread`/`dup` on real descriptors (Group 14).
+
+### Tests
+- [x] All tests passing in the sense required (only the 21 expected red tests of Groups 14/15 fail, all AssertionError)
+- [x] Coverage adequate for the change
+
+### Verdict: FAIL
+One Warning (ImageFragment logs the exception object, whose message carries the proxy URL and key). All other cycle 1 findings are fixed and verified. The fix is one line; after it the group passes.
