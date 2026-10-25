@@ -19,12 +19,16 @@ package de.yaacc.share;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 import org.junit.Test;
@@ -354,5 +358,186 @@ public class ProxyAccessPolicyTest {
 
         assertEquals("fe80:0:0:0:0:0:0:abcd", once);
         assertEquals(once, ProxyAccessPolicy.normalize(once));
+    }
+
+    // ---- isAllowed normalizes BOTH sides (raw strings in the set are fine)
+
+    @Test
+    public void rawIpv4EntryMatchesAnIpv4MappedIpv6Remote() {
+        assertTrue(restricted(set("192.168.1.5"), "::ffff:192.168.1.5"));
+        assertTrue(restricted(set("192.168.1.5"), "::FFFF:C0A8:105"));
+    }
+
+    @Test
+    public void upperCaseIpv4MappedEntryMatchesAnIpv4Remote() {
+        assertTrue(restricted(set("::FFFF:192.168.1.5"), "192.168.1.5"));
+        assertTrue(restricted(set("::FFFF:C0A8:0105"), "192.168.1.5"));
+    }
+
+    @Test
+    public void ipv4MappedEntryMatchesAnIpv4MappedRemoteInAnotherNotation() {
+        assertTrue(restricted(set("::ffff:192.168.1.5"), "0:0:0:0:0:ffff:c0a8:105"));
+    }
+
+    @Test
+    public void upperCaseIpv6EntryWithZoneAndSpacesMatchesLowerCaseRemote() {
+        assertTrue(restricted(set("  FE80::ABCD%wlan0 "), "fe80:0:0:0:0:0:0:abcd"));
+    }
+
+    @Test
+    public void entryThatDoesNotNormalizeIsIgnoredNotMatched() {
+        Set<String> allowed = set("receiver.local", "192.168.1.5%eth0", "1.2.3", "");
+
+        assertFalse(restricted(allowed, "192.168.1.5"));
+        assertFalse(restricted(allowed, "receiver.local"));
+        assertFalse(restricted(allowed, "1.2.3"));
+    }
+
+    @Test
+    public void aGarbageEntryDoesNotHideAValidOne() {
+        assertTrue(restricted(set("receiver.local", "::FFFF:10.0.0.2", "garbage"), "10.0.0.2"));
+    }
+
+    @Test
+    public void aBracketedEntryInARawSetIsNotMatchedButItIsOnceNormalizedAll() {
+        // isAllowed only normalizes (and normalize rejects brackets), the glue strips the
+        // brackets of a URL host with normalizeAll first
+        Set<String> raw = set("[::1]");
+        Set<String> cleaned = ProxyAccessPolicy.normalizeAll(raw);
+
+        assertFalse(restricted(raw, "::1"));
+        assertTrue(restricted(cleaned, "::1"));
+        assertTrue(restricted(cleaned, "0:0:0:0:0:0:0:1"));
+    }
+
+    @Test
+    public void aBracketedRemoteAddressIsDenied() {
+        assertTrue(restricted(set("::1"), "::1"));
+        assertFalse(restricted(set("::1"), "[::1]"));
+    }
+
+    // ---- normalizeAll
+
+    @Test
+    public void normalizeAllNormalizesEveryElement() {
+        Set<String> result = ProxyAccessPolicy.normalizeAll(Arrays.asList(
+                "192.168.1.5", " 10.0.0.2 ", "::FFFF:172.16.0.9", "FE80::ABCD%wlan0", "::1"));
+
+        assertEquals(set("192.168.1.5", "10.0.0.2", "172.16.0.9", "fe80:0:0:0:0:0:0:abcd",
+                "0:0:0:0:0:0:0:1"), result);
+    }
+
+    @Test
+    public void normalizeAllStripsOnePairOfBrackets() {
+        Set<String> result = ProxyAccessPolicy.normalizeAll(Arrays.asList(
+                "[::1]", "[2001:db8::1]", "[fe80::1%wlan0]", " [::ffff:192.168.1.5] "));
+
+        assertEquals(set("0:0:0:0:0:0:0:1", "2001:db8:0:0:0:0:0:1", "fe80:0:0:0:0:0:0:1",
+                "192.168.1.5"), result);
+    }
+
+    @Test
+    public void normalizeAllStripsOnlyOnePairOfBrackets() {
+        assertTrue(ProxyAccessPolicy.normalizeAll(Arrays.asList("[[::1]]", "[[::1]", "[::1]]")).isEmpty());
+    }
+
+    @Test
+    public void normalizeAllDropsUnbalancedBracketsAndBracketsAroundNonAddresses() {
+        assertTrue(ProxyAccessPolicy.normalizeAll(Arrays.asList(
+                "[::1", "::1]", "[", "]", "[]", "[receiver.local]", "[192.168.1.5%eth0]")).isEmpty());
+    }
+
+    @Test
+    public void normalizeAllDropsNullEmptyAndInvalidElementsButKeepsTheValidOnes() {
+        Set<String> result = ProxyAccessPolicy.normalizeAll(
+                Arrays.asList(null, "", "   ", "receiver.local", "256.1.1.1", "192.168.1.5", "*",
+                        "10.0.0.0/8", "10.0.0.2"));
+
+        assertEquals(set("192.168.1.5", "10.0.0.2"), result);
+    }
+
+    @Test
+    public void normalizeAllCollapsesDifferentSpellingsOfTheSameAddress() {
+        Set<String> result = ProxyAccessPolicy.normalizeAll(Arrays.asList(
+                "192.168.1.5", "::ffff:192.168.1.5", "[::FFFF:C0A8:105]", " 192.168.1.5 "));
+
+        assertEquals(set("192.168.1.5"), result);
+    }
+
+    @Test
+    public void normalizeAllWithNullReturnsAnEmptySetNeverNull() {
+        Set<String> result = ProxyAccessPolicy.normalizeAll(null);
+
+        assertNotNull(result);
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    public void normalizeAllWithAnEmptyCollectionReturnsAnEmptySet() {
+        Set<String> result = ProxyAccessPolicy.normalizeAll(Collections.<String>emptyList());
+
+        assertNotNull(result);
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    public void normalizeAllResultIsUnmodifiable() {
+        Set<String> result = ProxyAccessPolicy.normalizeAll(Arrays.asList("192.168.1.5"));
+
+        assertEquals(set("192.168.1.5"), result);
+        try {
+            result.add("10.0.0.2");
+            fail("the result must be unmodifiable");
+        } catch (UnsupportedOperationException expected) {
+            // expected
+        }
+        try {
+            result.clear();
+            fail("the result must be unmodifiable");
+        } catch (UnsupportedOperationException expected) {
+            // expected
+        }
+        assertEquals(set("192.168.1.5"), result);
+    }
+
+    @Test
+    public void normalizeAllResultIsUnmodifiableEvenWhenEmpty() {
+        Set<String> result = ProxyAccessPolicy.normalizeAll(Arrays.asList("garbage"));
+
+        try {
+            result.add("10.0.0.2");
+            fail("the result must be unmodifiable");
+        } catch (UnsupportedOperationException expected) {
+            // expected
+        }
+    }
+
+    @Test
+    public void normalizeAllDoesNotChangeItsInputAndIsNotBackedByIt() {
+        List<String> input = new ArrayList<>(Arrays.asList("[::1]", "192.168.1.5"));
+
+        Set<String> result = ProxyAccessPolicy.normalizeAll(input);
+        input.add("10.0.0.2");
+
+        assertEquals(Arrays.asList("[::1]", "192.168.1.5", "10.0.0.2"), input);
+        assertEquals(set("0:0:0:0:0:0:0:1", "192.168.1.5"), result);
+    }
+
+    @Test
+    public void normalizeAllAcceptsAnySetOfStrings() {
+        Set<String> input = set("192.168.1.5", "[::1]");
+
+        assertEquals(set("192.168.1.5", "0:0:0:0:0:0:0:1"), ProxyAccessPolicy.normalizeAll(input));
+    }
+
+    @Test
+    public void normalizeAllOutputWorksWithIsAllowedForTheLocalDeviceAddresses() {
+        Set<String> allowed = ProxyAccessPolicy.normalizeAll(
+                Arrays.asList("127.0.0.1", "[::1]", "192.168.1.20"));
+
+        assertTrue(restricted(allowed, "127.0.0.1"));
+        assertTrue(restricted(allowed, "::1"));
+        assertTrue(restricted(allowed, "::ffff:192.168.1.20"));
+        assertFalse(restricted(allowed, "192.168.1.21"));
     }
 }

@@ -1033,4 +1033,122 @@ public class ShareRegistryTest {
         assertEquals(Arrays.asList(ShareRegistry.Kind.HTTP_LINK, ShareRegistry.Kind.LOCAL_FILE),
                 Arrays.asList(ShareRegistry.Kind.values()));
     }
+
+    // ---- isWellFormedKey (the handler's format check before the lookup)
+
+    private static String repeated(char c, int count) {
+        StringBuilder sb = new StringBuilder(count);
+        for (int i = 0; i < count; i++) {
+            sb.append(c);
+        }
+        return sb.toString();
+    }
+
+    @Test
+    public void keyTextLengthIs22() {
+        assertEquals(22, ShareRegistry.KEY_TEXT_LENGTH);
+    }
+
+    @Test
+    public void aKeyOf22UrlSafeBase64CharactersIsWellFormed() {
+        assertTrue(ShareRegistry.isWellFormedKey(repeated('A', 22)));
+        assertTrue(ShareRegistry.isWellFormedKey(repeated('z', 22)));
+        assertTrue(ShareRegistry.isWellFormedKey(repeated('7', 22)));
+        assertTrue(ShareRegistry.isWellFormedKey("abcdefghijklmnopqrstuv"));
+        assertTrue(ShareRegistry.isWellFormedKey("ABCDEFGHIJKLMNOPQRSTUV"));
+        assertTrue(ShareRegistry.isWellFormedKey("0123456789-_ABCDEFGHIJ"));
+    }
+
+    @Test
+    public void dashAndUnderscoreAreAllowed() {
+        assertTrue(ShareRegistry.isWellFormedKey(repeated('-', 22)));
+        assertTrue(ShareRegistry.isWellFormedKey(repeated('_', 22)));
+        assertTrue(ShareRegistry.isWellFormedKey("-_-_-_-_-_-_-_-_-_-_-_"));
+    }
+
+    @Test
+    public void everyKeyTheRegistryHandsOutIsWellFormed() {
+        for (int i = 0; i < 5; i++) {
+            String key = registry.register(fileEntry(new CloseCounter()));
+
+            assertNotNull(key);
+            assertTrue(key, ShareRegistry.isWellFormedKey(key));
+            assertEquals(ShareRegistry.KEY_TEXT_LENGTH, key.length());
+            registry.remove(key);
+        }
+    }
+
+    @Test
+    public void nullAndEmptyAreNotWellFormed() {
+        assertFalse(ShareRegistry.isWellFormedKey(null));
+        assertFalse(ShareRegistry.isWellFormedKey(""));
+    }
+
+    @Test
+    public void twentyOneAndTwentyThreeCharactersAreNotWellFormed() {
+        assertFalse(ShareRegistry.isWellFormedKey(repeated('A', 21)));
+        assertFalse(ShareRegistry.isWellFormedKey(repeated('A', 23)));
+        assertFalse(ShareRegistry.isWellFormedKey(repeated('A', 1)));
+        assertFalse(ShareRegistry.isWellFormedKey(repeated('A', 43)));
+        assertFalse(ShareRegistry.isWellFormedKey(repeated('A', 4096)));
+    }
+
+    @Test
+    public void aValidLengthWithAForeignCharacterIsNotWellFormed() {
+        String valid = repeated('A', 21);
+
+        assertFalse(ShareRegistry.isWellFormedKey(valid + " "));
+        assertFalse(ShareRegistry.isWellFormedKey(valid + "/"));
+        assertFalse(ShareRegistry.isWellFormedKey(valid + "."));
+        assertFalse(ShareRegistry.isWellFormedKey(valid + "%"));
+        assertFalse(ShareRegistry.isWellFormedKey(valid + "+"));
+        assertFalse(ShareRegistry.isWellFormedKey(valid + "="));
+        assertFalse(ShareRegistry.isWellFormedKey(valid + "\\"));
+        assertFalse(ShareRegistry.isWellFormedKey(valid + "?"));
+        assertFalse(ShareRegistry.isWellFormedKey(valid + "*"));
+        assertFalse(ShareRegistry.isWellFormedKey(" " + valid));
+        assertFalse(ShareRegistry.isWellFormedKey("/" + valid));
+        assertFalse(ShareRegistry.isWellFormedKey("A.AAAAAAAAAAAAAAAAAAAA"));
+    }
+
+    @Test
+    public void linebreaksAndControlCharactersAreNotWellFormed() {
+        String valid = repeated('A', 21);
+
+        assertFalse(ShareRegistry.isWellFormedKey(valid + "\n"));
+        assertFalse(ShareRegistry.isWellFormedKey(valid + "\r"));
+        assertFalse(ShareRegistry.isWellFormedKey(valid + "\u0000"));
+        assertFalse(ShareRegistry.isWellFormedKey("\n" + valid));
+        // a valid key plus a trailing newline is 23 characters; also 22 characters with a newline
+        assertFalse(ShareRegistry.isWellFormedKey(repeated('A', 20) + "\nA"));
+    }
+
+    @Test
+    public void unicodeLettersAndDigitsAreNotWellFormed() {
+        String valid = repeated('A', 21);
+
+        assertFalse(ShareRegistry.isWellFormedKey(valid + "é"));        // e acute
+        assertFalse(ShareRegistry.isWellFormedKey(valid + "Ａ"));        // fullwidth A
+        assertFalse(ShareRegistry.isWellFormedKey(valid + "١"));        // arabic-indic digit one
+        assertFalse(ShareRegistry.isWellFormedKey(valid + "А"));        // cyrillic A
+        assertFalse(ShareRegistry.isWellFormedKey(valid + "K"));        // kelvin sign
+    }
+
+    @Test
+    public void pathTraversalAndPercentEncodingAreNotWellFormed() {
+        assertFalse(ShareRegistry.isWellFormedKey("../x"));
+        assertFalse(ShareRegistry.isWellFormedKey("../../../../etc/passwd"));
+        assertFalse(ShareRegistry.isWellFormedKey("..%2F..%2F..%2Fetc%2Fpasswd"));
+        assertFalse(ShareRegistry.isWellFormedKey(repeated('.', 22)));
+        assertFalse(ShareRegistry.isWellFormedKey("AAAAAAAAAA%2FAAAAAAAAAA"));
+        assertFalse(ShareRegistry.isWellFormedKey("AAAAAAAAAAAAAAAAAAAAA%"));
+    }
+
+    @Test
+    public void paddedAndStandardBase64FormsAreNotWellFormed() {
+        // 16 bytes as padded standard base64 is 24 characters, ending in "=="
+        assertFalse(ShareRegistry.isWellFormedKey("AAAAAAAAAAAAAAAAAAAAAA=="));
+        assertFalse(ShareRegistry.isWellFormedKey("AAAAAAAAAAAAAAAAAAAAA+"));
+        assertFalse(ShareRegistry.isWellFormedKey("AAAAAAAAAAAAAAAAAAAAA/"));
+    }
 }

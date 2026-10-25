@@ -17,6 +17,8 @@
  */
 package de.yaacc.share;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Set;
 
 /**
@@ -29,6 +31,10 @@ import java.util.Set;
  * {@link #normalize(String)}; anything unclear is denied (fail closed). Loopback is not special:
  * it passes only if the set contains it (the caller adds loopback and the own address when the
  * receiver is the local device). Names are never resolved, networks and wildcards never match.
+ * <p>
+ * Both sides are normalized before comparing: the remote address AND every element of the allowed
+ * set, so the glue may add raw strings (mapped IPv6 vs IPv4, upper case, zone ids, whitespace);
+ * elements that do not normalize to an IP literal are ignored (they never match).
  */
 public final class ProxyAccessPolicy {
 
@@ -66,5 +72,25 @@ public final class ProxyAccessPolicy {
     public static String normalize(String address) {
         // STUB (red phase): wrong on purpose
         return null;
+    }
+
+    /**
+     * Builds a ready-to-use allowed set from raw address texts (e.g. a URL host or
+     * {@code InetAddress#getHostAddress()}): for each element surrounding whitespace is removed,
+     * then ONE pair of surrounding brackets ({@code [::1]}, as in a URL host) is stripped, then
+     * {@link #normalize(String)} is applied. Elements that are null or do not normalize to an IP
+     * literal (host names, garbage, {@code [[::1]]}, a bracket pair around an IPv4 address with
+     * a zone, ...) are dropped; duplicates collapse.
+     * <p>
+     * {@link #isAllowed(boolean, Set, String)} itself does NOT strip brackets (it only
+     * normalizes, so a bracketed element of a raw set never matches): the glue passes its raw
+     * texts through this method first.
+     *
+     * @param rawAddresses may be null
+     * @return a new unmodifiable set, never null (null input gives an empty set)
+     */
+    public static Set<String> normalizeAll(Collection<String> rawAddresses) {
+        // STUB (red phase): wrong on purpose (fail closed: nothing is allowed)
+        return Collections.emptySet();
     }
 }

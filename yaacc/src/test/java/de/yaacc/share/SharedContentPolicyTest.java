@@ -19,6 +19,7 @@ package de.yaacc.share;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
@@ -383,5 +384,135 @@ public class SharedContentPolicyTest {
     public void unknownOrNegativeSizeIsOutsideTheLimit() {
         assertFalse(SharedContentPolicy.isWithinCopyLimit(-1L));
         assertFalse(SharedContentPolicy.isWithinCopyLimit(Long.MIN_VALUE));
+    }
+
+    // ---- chooseMimeType: provider type first, concrete intent type as the fallback
+
+    private static String choose(String providerType, String intentType) {
+        return SharedContentPolicy.chooseMimeType(providerType, intentType);
+    }
+
+    @Test
+    public void anAcceptableProviderTypeWins() {
+        assertEquals("audio/mpeg", choose("audio/mpeg", null));
+        assertEquals("video/mp4", choose("video/mp4", null));
+        assertEquals("image/png", choose("image/png", null));
+    }
+
+    @Test
+    public void anAcceptableProviderTypeWinsOverAnAcceptableIntentType() {
+        assertEquals("audio/mpeg", choose("audio/mpeg", "video/mp4"));
+        assertEquals("image/png", choose("image/png", "image/jpeg"));
+    }
+
+    @Test
+    public void anAcceptableProviderTypeWinsOverAWildcardOrForeignIntentType() {
+        assertEquals("audio/mpeg", choose("audio/mpeg", "audio/*"));
+        assertEquals("audio/mpeg", choose("audio/mpeg", "*/*"));
+        assertEquals("audio/mpeg", choose("audio/mpeg", "text/plain"));
+    }
+
+    @Test
+    public void theIntentTypeIsTheFallbackWhenTheProviderHasNoType() {
+        assertEquals("video/mp4", choose(null, "video/mp4"));
+        assertEquals("video/mp4", choose("", "video/mp4"));
+    }
+
+    @Test
+    public void theIntentTypeIsTheFallbackWhenTheProviderTypeIsNotAcceptable() {
+        assertEquals("audio/flac", choose("application/octet-stream", "audio/flac"));
+        assertEquals("audio/flac", choose("text/plain", "audio/flac"));
+        assertEquals("audio/flac", choose("audio/*", "audio/flac"));
+        assertEquals("audio/flac", choose("*/*", "audio/flac"));
+        assertEquals("audio/flac", choose("audio/flac; charset=utf-8", "audio/flac"));
+    }
+
+    @Test
+    public void aGenericProviderTypeWithoutAConcreteIntentTypeIsRejected() {
+        assertNull(choose("application/octet-stream", null));
+        assertNull(choose("application/octet-stream", ""));
+        assertNull(choose("application/octet-stream", "audio/*"));
+        assertNull(choose("application/octet-stream", "*/*"));
+    }
+
+    @Test
+    public void wildcardsAreNeverReturned() {
+        assertNull(choose("audio/*", "video/*"));
+        assertNull(choose("*/*", "*/*"));
+        assertNull(choose(null, "audio/*"));
+        assertNull(choose(null, "video/*"));
+        assertNull(choose(null, "image/*"));
+        assertNull(choose(null, "*/*"));
+        assertNull(choose("*/mpeg", "audio/*"));
+    }
+
+    @Test
+    public void nonMediaTypesAreNeverReturned() {
+        assertNull(choose("text/plain", "application/pdf"));
+        assertNull(choose(null, "application/octet-stream"));
+        assertNull(choose("application/x-sh", "text/html"));
+        assertNull(choose("multipart/mixed", null));
+    }
+
+    @Test
+    public void nullAndEmptyInputsGiveNull() {
+        assertNull(choose(null, null));
+        assertNull(choose("", ""));
+        assertNull(choose(null, ""));
+        assertNull(choose("", null));
+        assertNull(choose(" ", " "));
+    }
+
+    @Test
+    public void theResultIsTheLowerCaseCanonicalForm() {
+        assertEquals("audio/mpeg", choose("AUDIO/MPEG", null));
+        assertEquals("video/mp4", choose("Video/Mp4", "image/png"));
+        assertEquals("image/png", choose(null, "IMAGE/PNG"));
+        assertEquals("image/svg+xml", choose("Image/SVG+XML", null));
+    }
+
+    @Test
+    public void anUpperCaseGenericProviderTypeStillFallsBack() {
+        assertEquals("audio/flac", choose("APPLICATION/OCTET-STREAM", "AUDIO/FLAC"));
+    }
+
+    @Test
+    public void whitespaceAndParametersAreNotStrippedSoTheyAreNotAccepted() {
+        assertNull(choose(" audio/mpeg", null));
+        assertNull(choose("audio/mpeg ", null));
+        assertNull(choose("audio/mpeg\n", null));
+        assertNull(choose(null, "audio/mpeg; codecs=mp3"));
+        assertEquals("video/mp4", choose("audio/mpeg;charset=x", "video/mp4"));
+    }
+
+    @Test
+    public void overlongTypesAreNotChosen() {
+        StringBuilder sb = new StringBuilder("audio/");
+        while (sb.length() <= SharedContentPolicy.MAX_MIME_LENGTH) {
+            sb.append('a');
+        }
+
+        assertNull(choose(sb.toString(), sb.toString()));
+        assertEquals("video/mp4", choose(sb.toString(), "video/mp4"));
+    }
+
+    @Test
+    public void chooseMimeTypeNeverReturnsATypeThatIsNotAcceptable() {
+        String[] inputs = {null, "", " ", "audio/mpeg", "AUDIO/MPEG", "audio/*", "*/*",
+                "application/octet-stream", "text/plain", "video/mp4; x=y", "image/", "/",
+                "audio/mp\u0000eg", "audio/mpég"};
+
+        for (String provider : inputs) {
+            for (String intent : inputs) {
+                String chosen = choose(provider, intent);
+                if (chosen != null) {
+                    assertTrue(provider + " / " + intent + " -> " + chosen,
+                            SharedContentPolicy.isAcceptableMimeType(chosen));
+                    assertEquals(chosen.toLowerCase(java.util.Locale.ROOT), chosen);
+                }
+            }
+        }
+        // and the table above does choose something for the plain cases
+        assertEquals("audio/mpeg", choose("audio/mpeg", "audio/mpeg"));
     }
 }

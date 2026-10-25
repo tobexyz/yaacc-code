@@ -49,6 +49,9 @@ public final class ShareRegistry {
     /** Number of random bytes behind a key (128 bit). */
     public static final int KEY_BYTES = 16;
 
+    /** Length of a key in characters: {@link #KEY_BYTES} bytes as unpadded base64url. */
+    public static final int KEY_TEXT_LENGTH = 22;
+
     /** What the target of an entry is. */
     public enum Kind {
         /** An http or https link the proxy relays; the target is the URL text. */
@@ -202,5 +205,19 @@ public final class ShareRegistry {
     public int size() {
         // STUB (red phase): wrong on purpose
         return -1;
+    }
+
+    /**
+     * Format check for the key from a request path, used by the proxy handler BEFORE the lookup
+     * (no registry state needed): exactly {@value #KEY_TEXT_LENGTH} characters, each one of
+     * {@code A-Z a-z 0-9 - _} (the unpadded base64url form of {@link #KEY_BYTES} bytes). ASCII
+     * only: no padding {@code =}, no {@code + / . %}, no whitespace, no unicode letters or digits.
+     * Nothing is trimmed or decoded.
+     *
+     * @return false for null, empty, any other length and any other character
+     */
+    public static boolean isWellFormedKey(String key) {
+        // STUB (red phase): wrong on purpose (fail closed)
+        return false;
     }
 }

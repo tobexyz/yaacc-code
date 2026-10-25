@@ -186,14 +186,15 @@ The owner tried Groups 1-10 on a phone and asked for three changes. Same gates a
 Scoped with the owner on 2026-10-25; **waiting for the owner's sign-off on this plan before Group 12 starts.** Same gates per group: build -> reviewer -> security-reviewer. Test-first; pure logic in plain Java.
 
 ## Group 12: Research and test skeletons
-- [ ] Research | `docs/tech.md`
+- [x] Research | `docs/tech.md`
   - **Accept**: a section "Sharing local files" records, with sources: how `ACTION_SEND` delivers a single `EXTRA_STREAM` URI and its grant (`ClipData`, `FLAG_GRANT_READ_URI_PERMISSION`) and what the exported `LauncherActivity` can forward safely; how long the grant lasts and that an open `ParcelFileDescriptor`/`AssetFileDescriptor` survives it; which descriptors are seekable (`FileChannel`, `AssetFileDescriptor#getStartOffset/getLength`, `ContentResolver#openFileDescriptor("r")`) and how to detect it; how the existing proxy HTTP handler streams and handles ranges (`YaaccUpnpServerContentHttpHandler`, `ContentHolder`); how to get a receiver's IP from the registered device; how to start/stop the local server programmatically for one share (`LocalServerLifecycle`, `YaaccUpnpServerService`); how the device sheet selects receivers and what a "pick mode" needs (`DeviceSheetFragment`, `DeviceSheetAdapter`, `ReceiverRowBinder`, `UpnpClient` receiver methods, `ContentItemPlayTask`)
   - **Verify**: each statement cites file:line or a doc URL; verified/reasoned claims are labelled
   - **Constraints**: no code
-- [ ] Test skeletons (red) | `yaacc/src/test/java/de/yaacc/...`
+- [x] Test skeletons (red) | `yaacc/src/test/java/de/yaacc/...`
   - **Accept**: plain-Java stubs and tests for: `ShareRegistry` (random 128-bit keys, in-memory only, add/lookup/remove, per-entry allowed IP set, expiry by time and by release, max active entries, no key reuse, input validation); `SharedContentPolicy` (accepts only `content:` URIs, rejects `file:`, `http:`, own-authority URIs, null/empty/oversized strings, non-audio/video/image MIME types; http/https text policy stays `ShareUriPolicy`); `ProxyAccessPolicy` (decides allow/deny from the key's allowed IPs, the request's remote address and the `restrictToReceivers` flag: with the flag on, incl. loopback/own address for the local device, IPv4-mapped IPv6, missing address -> deny; with the flag off every address passes the IP step, the key and expiry checks still apply); `ReceiverPickResult`/selection-clearing decision (after a confirmed pick the selection is cleared; cancelling the pick changes nothing)
   - **Verify**: tests fail on assertions only; all other tests stay green
   - **Constraints**: no `android.*` imports in these classes
+- Status (Group 12): done 2026-10-25. Research is `docs/tech.md` "Sharing local files" (it corrected the plan: decisions.md 2026-10-25). Red tests: `ShareRegistry`, `SharedContentPolicy`, `ProxyAccessPolicy`, `ReceiverPickResult`, `ByteRangeResolver` (pure range logic), `LauncherForwardPolicy.decideStream`; fail-closed stubs, assertion failures only, 80 earlier-passing share tests still green.
 
 ## Group 13: Ephemeral proxy
 - [ ] Registry-backed proxy | `YaaccUpnpServerContentHttpHandler.java`, `UpnpClient.java`, `ShareRegistry` etc., new `ByteRangeResolver`

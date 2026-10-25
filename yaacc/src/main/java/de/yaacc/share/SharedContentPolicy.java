@@ -84,4 +84,27 @@ public final class SharedContentPolicy {
         // STUB (red phase): wrong on purpose
         return true;
     }
+
+    /**
+     * Picks the MIME type of a shared file. The provider's answer ({@code ContentResolver.getType},
+     * untrusted but about the actual content) wins; the type declared on the intent is only a
+     * fallback:
+     * <ol>
+     * <li>{@code providerType} if {@link #isAcceptableMimeType(String)} accepts it;</li>
+     * <li>else {@code intentType} if it is accepted too (so a wildcard such as {@code audio/*},
+     * {@code *}{@code /*} or a non-media type never wins);</li>
+     * <li>else null (reject the share).</li>
+     * </ol>
+     * The result is the lower-case canonical form (ASCII, {@code Locale.ROOT}) of the chosen
+     * input, so callers compare and store one spelling. Nothing is trimmed or stripped: a type
+     * with whitespace or parameters is not accepted (see {@link #isAcceptableMimeType(String)}),
+     * and the provider type {@code application/octet-stream} falls through to the intent type.
+     * Never throws; null and empty inputs count as "not acceptable".
+     *
+     * @return the chosen type in lower case, or null if neither input is acceptable
+     */
+    public static String chooseMimeType(String providerType, String intentType) {
+        // STUB (red phase): wrong on purpose (fail closed: nothing is chosen)
+        return null;
+    }
 }
