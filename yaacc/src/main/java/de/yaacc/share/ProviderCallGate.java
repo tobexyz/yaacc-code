@@ -18,27 +18,25 @@
 package de.yaacc.share;
 
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
-import java.util.function.LongSupplier;
 
 /**
  * Lets at most ONE call per content provider be in flight, so that one hostile or hanging
- * provider can never occupy more than one thread of the shared pool, and remembers a provider
- * whose call outlived the caller's wait ("stuck") so that further calls to it are dropped without
- * taking a thread. Plain Java.
- * <ul>
- * <li>{@link #tryAcquire} refuses a provider that has a call in flight or a live stuck marker, and
- * refuses everybody when {@code maxTracked} providers are already in flight or stuck (the map is
- * bounded by that number, whatever keys arrive).</li>
- * <li>{@link #release} (the call returned, in whatever way) frees the provider at once, also when
- * it was stuck: the thread is free again, so there is nothing left to protect.</li>
- * <li>{@link #markStuck} (the caller stopped waiting, the call still runs) keeps the provider
- * blocked for {@code stuckMillis}; after that it may be tried again. A marker is not a ban for a
- * provider that answers, only a bound on how long a provider that never returns keeps a place.
- * Residual: a call that never returns still pins its thread physically; the pool bound and
- * {@code maxTracked} keep the other providers working.</li>
- * </ul>
+ * provider can never occupy more than one thread of the shared pool, however often it is asked.
+ * Plain Java.
+ * <p>
+ * A permit lives exactly as long as its call: {@link #tryAcquire} refuses a provider whose
+ * earlier call has not returned (it may be running, or hung in a Binder call that cannot be
+ * interrupted, with the caller long gone), and {@link #release}, which the pooled task runs in a
+ * {@code finally} the moment the call returns, frees it. There is deliberately NO expiry: a
+ * thread that is still pinned must stay accounted for, or the same provider could pin one more
+ * thread per interval until the whole pool is gone. The gate also refuses everybody when
+ * {@code maxTracked} providers already have a call outstanding, so the map is bounded by that
+ * number whatever keys arrive, and so are the pool threads inside provider calls.
+ * <p>
+ * Residual: a call that never returns keeps its thread and its place until the process ends;
+ * {@code maxTracked} such providers (distinct packages) use up all places.
+ * <p>
  * The key is whatever identifies the provider: the package that owns the authority where it can be
  * resolved (one app with many authorities is one provider), else the authority.
  */
@@ -47,50 +45,33 @@ public final class ProviderCallGate {
     /** Proof of one admitted call; hand it back to {@link #release} when the call returned. */
     public static final class Permit {
         private final String key;
-        // guarded by the gate
-        private boolean stuck;
-        private long stuckSinceMillis;
-        private boolean released;
 
         private Permit(String key) {
             this.key = key;
         }
     }
 
-    private final LongSupplier nowMillis;
     private final int maxTracked;
-    private final long stuckMillis;
 
     // guarded by "this"
     private final Map<String, Permit> tracked = new HashMap<>();
 
-    /**
-     * @param nowMillis  a monotonic clock
-     * @param maxTracked providers in flight or stuck at once, at least 1
-     * @param stuckMillis how long a stuck marker blocks its provider, positive
-     */
-    public ProviderCallGate(LongSupplier nowMillis, int maxTracked, long stuckMillis) {
-        if (nowMillis == null || maxTracked < 1 || stuckMillis <= 0L) {
-            throw new IllegalArgumentException("clock, a size and a positive duration are required");
+    /** @param maxTracked providers with a call outstanding at once, at least 1 */
+    public ProviderCallGate(int maxTracked) {
+        if (maxTracked < 1) {
+            throw new IllegalArgumentException("at least one place");
         }
-        this.nowMillis = nowMillis;
         this.maxTracked = maxTracked;
-        this.stuckMillis = stuckMillis;
     }
 
-    /** The production gate with the numbers of {@link ShareLimits}. */
+    /** The production gate with the number of {@link ShareLimits}. */
     public static ProviderCallGate createDefault() {
-        return new ProviderCallGate(() -> System.nanoTime() / 1_000_000L, ShareLimits.PROVIDER_MAX_TRACKED,
-                ShareLimits.PROVIDER_STUCK_MILLIS);
+        return new ProviderCallGate(ShareLimits.PROVIDER_MAX_TRACKED);
     }
 
-    /** @return a permit, or null if this provider has a call in flight or is stuck, or the gate is full */
+    /** @return a permit, or null if this provider has a call outstanding or the gate is full */
     public synchronized Permit tryAcquire(String key) {
-        if (key == null) {
-            return null;
-        }
-        purgeExpired(nowMillis.getAsLong());
-        if (tracked.containsKey(key) || tracked.size() >= maxTracked) {
+        if (key == null || tracked.containsKey(key) || tracked.size() >= maxTracked) {
             return null;
         }
         Permit permit = new Permit(key);
@@ -98,39 +79,15 @@ public final class ProviderCallGate {
         return permit;
     }
 
-    /** The call returned (result, failure or refusal by the pool). Safe to call more than once. */
+    /** The call returned (result, failure, refusal by the pool or never started). Safe to call more than once. */
     public synchronized void release(Permit permit) {
-        if (permit == null) {
-            return;
-        }
-        permit.released = true;
-        // not the entry of a newer call of the same provider (this one may have expired meanwhile)
-        if (tracked.get(permit.key) == permit) {
+        if (permit != null && tracked.get(permit.key) == permit) {
             tracked.remove(permit.key);
         }
     }
 
-    /** The caller stopped waiting but the call still runs. No effect if it already returned. */
-    public synchronized void markStuck(Permit permit) {
-        if (permit == null || permit.released || tracked.get(permit.key) != permit) {
-            return;
-        }
-        permit.stuck = true;
-        permit.stuckSinceMillis = nowMillis.getAsLong();
-    }
-
-    /** @return how many providers are in flight or stuck (for tests) */
+    /** @return how many providers have a call outstanding (for tests) */
     synchronized int trackedCount() {
-        purgeExpired(nowMillis.getAsLong());
         return tracked.size();
-    }
-
-    private void purgeExpired(long now) {
-        for (Iterator<Permit> it = tracked.values().iterator(); it.hasNext(); ) {
-            Permit permit = it.next();
-            if (permit.stuck && now - permit.stuckSinceMillis >= stuckMillis) {
-                it.remove();
-            }
-        }
     }
 }

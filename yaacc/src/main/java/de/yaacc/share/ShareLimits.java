@@ -94,23 +94,21 @@ public final class ShareLimits {
 
     /**
      * Threads of each provider pool (intake probe, confirmed open). A Binder call into another
-     * process cannot be interrupted, so a hung provider pins its thread; the per-provider gate
-     * below keeps one provider to one thread, and the pool is larger than the number of providers
-     * the gate lets in, so a thread is always left for a call that has just returned.
+     * process cannot be interrupted, so a hung provider pins its thread. The per-provider gate
+     * ({@link #PROVIDER_MAX_TRACKED}) keeps one provider to one thread, for as long as its call is
+     * outstanding, and lets at most that many threads into provider calls at once; the pool is
+     * larger, so a thread is left for everything else (a call that has just returned and is still
+     * finishing, a new provider).
      */
     public static final int PROVIDER_POOL_THREADS = 4;
 
     /**
-     * Providers that may have a call in flight or stuck at the same time. Two stuck providers
-     * leave a place for everybody else; this is below {@link #PROVIDER_POOL_THREADS}.
+     * Providers that may have a call outstanding at the same time, hung ones included. Below
+     * {@link #PROVIDER_POOL_THREADS}: at most 3 of the 4 threads are ever inside provider calls.
+     * One hung provider holds one place; three distinct hung providers use up all places until a
+     * call returns.
      */
     public static final int PROVIDER_MAX_TRACKED = 3;
-
-    /**
-     * How long a provider whose call outlived the caller's wait gets no further call (it is
-     * freed earlier if the call returns).
-     */
-    public static final long PROVIDER_STUCK_MILLIS = 10L * 60L * 1000L;
 
     /**
      * Copy workers that may stay stuck (abandoned after the deadline) at the same time; beyond

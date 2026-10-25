@@ -388,6 +388,82 @@ public class WatchedCopyTest {
         assertEquals(0, filesInDir());
     }
 
+    /** Delivers some bytes, then blocks until {@code release}, ignoring the close. */
+    private WatchedCopy.Input partialThenStuck(int firstBytes) {
+        return new WatchedCopy.Input() {
+            @Override
+            public InputStream open() {
+                return new InputStream() {
+                    private boolean first = true;
+
+                    @Override
+                    public int read() {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public int read(byte[] b, int off, int len) {
+                        if (first) {
+                            first = false;
+                            return firstBytes;
+                        }
+                        while (true) {
+                            try {
+                                release.await();
+                                return -1;
+                            } catch (InterruptedException ignored) {
+                                // not interruptible, like a blocked read(2)
+                            }
+                        }
+                    }
+                };
+            }
+
+            @Override
+            public long declaredLength() {
+                return -1L;
+            }
+
+            @Override
+            public void close() {
+            }
+        };
+    }
+
+    /** Files of {@code dir} that this process still has open (also deleted ones); Linux only. */
+    private java.util.List<String> openDescriptorsInto(File directory) throws IOException {
+        java.util.List<String> found = new java.util.ArrayList<>();
+        File[] fds = new File("/proc/self/fd").listFiles();
+        if (fds == null) {
+            return found;
+        }
+        String prefix = directory.getCanonicalPath();
+        for (File fd : fds) {
+            try {
+                String target = java.nio.file.Files.readSymbolicLink(fd.toPath()).toString();
+                if (target.startsWith(prefix)) {
+                    found.add(target);
+                }
+            } catch (IOException | RuntimeException ignored) {
+                // the descriptor of the directory listing itself, or gone
+            }
+        }
+        return found;
+    }
+
+    @Test
+    public void aStuckWorkerDoesNotKeepTheDeletedPartialFileOpen() throws Exception {
+        org.junit.Assume.assumeTrue(new File("/proc/self/fd").isDirectory());
+        WatchedCopy copier = new WatchedCopy(TIMEOUT, 2);
+
+        assertEquals(WatchedCopy.Reason.TIMED_OUT, failureOf(copier, partialThenStuck(4096)));
+
+        assertEquals("the file is deleted", 0, filesInDir());
+        assertEquals("and the stuck worker's output stream is closed, so its blocks are freed",
+                java.util.Collections.emptyList(), openDescriptorsInto(dir));
+        assertEquals("the worker is still stuck in its read", 1, copier.stuckWorkers());
+    }
+
     @Test
     public void aLateWorkerThatFinishesIsANoOp() throws Exception {
         WatchedCopy copier = new WatchedCopy(TIMEOUT, 2);

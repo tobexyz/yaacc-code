@@ -174,7 +174,7 @@ public class ShareIntentHandlerFileTest {
         nonces = new LaunchNonces(() -> now, new java.util.Random(2)::nextBytes, 30_000L, 8);
         // a pool and gate of their own: the process-wide ones would carry a stuck marker from test to test
         probeCalls = new BoundedCall(ShareLimits.PROVIDER_POOL_THREADS, "test-probe",
-                new ProviderCallGate(() -> now, ShareLimits.PROVIDER_MAX_TRACKED, ShareLimits.PROVIDER_STUCK_MILLIS));
+                new ProviderCallGate(ShareLimits.PROVIDER_MAX_TRACKED));
         preparer = (data, ids) -> {
             preparedFor.add(ids);
             SharedFileService.Prepared result = toReturn.get();
@@ -1012,7 +1012,7 @@ public class ShareIntentHandlerFileTest {
     }
 
     @Test
-    public void theStuckMarkerExpiresAndTheProviderIsAskedAgain() throws Exception {
+    public void aStuckProviderStaysBlockedLongAfterAndIsFreedWhenItsCallReturns() throws Exception {
         replaceHandler(newHandler(10_000L, 100L, 200L));
         AtomicInteger asked = new AtomicInteger();
         CountDownLatch hang = hangFirstProviderCall(asked);
@@ -1022,14 +1022,23 @@ public class ShareIntentHandlerFileTest {
             assertTrue(host.staysSilent());
             host.latch = new CountDownLatch(1);
 
-            now += ShareLimits.PROVIDER_STUCK_MILLIS;
+            // no amount of waiting frees it: its thread is still pinned
+            now += 24L * 60L * 60L * 1000L;
             handler.handle(goodIntent(), null, host);
-
-            assertTrue(host.awaitAnnouncement());
-            assertEquals(2, asked.get());
+            assertTrue(host.staysSilent());
+            assertEquals("the pinned provider was not asked again", 1, asked.get());
         } finally {
             hang.countDown();
         }
+
+        // the late return of the call frees the provider
+        host.latch = new CountDownLatch(1);
+        long deadline = System.nanoTime() + 5_000_000_000L;
+        while (host.tokens.isEmpty() && System.nanoTime() < deadline) {
+            handler.handle(goodIntent(), null, host);
+            host.latch.await(300, TimeUnit.MILLISECONDS);
+        }
+        assertEquals(1, host.tokens.size());
     }
 
     private static void waitUntil(java.util.function.BooleanSupplier condition) throws InterruptedException {

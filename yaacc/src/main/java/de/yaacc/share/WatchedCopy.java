@@ -26,6 +26,7 @@ import java.nio.file.StandardOpenOption;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
 
@@ -37,7 +38,8 @@ import java.util.function.LongSupplier;
  * holding the copy slot (and, behind it, the intake gate). Here the copy runs on its own daemon
  * worker ({@link AbandonableCall}) and the caller waits at most {@code timeoutMillis}. At the
  * deadline the caller, from its own thread, closes the {@link Input} (closing a descriptor wakes a
- * blocked libcore read), deletes the partial file, gives the copy slot back and reports
+ * blocked libcore read) and the worker's output stream (so a stuck worker does not keep the
+ * partial file's blocks allocated after the delete), deletes the partial file, gives the copy slot back and reports
  * {@link Reason#TIMED_OUT}, even if the worker stays stuck: it is abandoned. A worker that wakes up
  * later finds out, stops, and cannot leave anything behind: the file was deleted and is only ever
  * opened for writing without creating it, and a held copy it still produces is closed (which
@@ -138,9 +140,16 @@ public final class WatchedCopy {
             }
             target = creator.create();
             final File file = target;
+            final AtomicReference<OutputStream> output = new AtomicReference<>();
             PositionalSource source = worker.call(
-                    abandoned -> copyOnWorker(input, file, maxBytes, usable, holder, abandoned),
-                    timeoutMillis, input::close, PositionalSource::close);
+                    abandoned -> copyOnWorker(input, file, output, maxBytes, usable, holder, abandoned),
+                    timeoutMillis, () -> {
+                        input.close();
+                        // A worker that stays stuck would keep this stream open on the file that is
+                        // deleted below, and the blocks it holds (up to the byte cap) would stay
+                        // allocated and unseen by the budget, which sums the directory.
+                        closeQuietly(output.get());
+                    }, PositionalSource::close);
             // from here on the source deletes the file when it is closed
             target = null;
             return source;
@@ -162,19 +171,36 @@ public final class WatchedCopy {
         }
     }
 
+    private static void closeQuietly(OutputStream out) {
+        if (out == null) {
+            return;
+        }
+        try {
+            out.close();
+        } catch (IOException | RuntimeException ignored) {
+            // nothing sensible to do
+        }
+    }
+
     /** @return abandoned copy workers that are still alive (for tests and diagnostics) */
     public int stuckWorkers() {
         return worker.abandonedAliveCount();
     }
 
     /** The worker. Never creates the file: a late worker must not bring a deleted file back. */
-    private PositionalSource copyOnWorker(Input input, File file, long maxBytes, LongSupplier usable, Holder holder,
-                                          BooleanSupplier abandoned) throws Exception {
+    private PositionalSource copyOnWorker(Input input, File file, AtomicReference<OutputStream> output, long maxBytes,
+                                          LongSupplier usable, Holder holder, BooleanSupplier abandoned)
+            throws Exception {
         final long deadline = System.nanoTime() + timeoutMillis * 1_000_000L;
         BooleanSupplier cancelled = () -> abandoned.getAsBoolean() || System.nanoTime() - deadline > 0L;
         BudgetedCopier.Result result;
         try (InputStream in = input.open();
              OutputStream out = Files.newOutputStream(file.toPath(), StandardOpenOption.WRITE)) {
+            output.set(out);
+            if (abandoned.getAsBoolean()) {
+                // the caller gave up before the stream existed and could not close it
+                throw new Failure(Reason.TIMED_OUT);
+            }
             result = BudgetedCopier.copy(in, out, input.declaredLength(), maxBytes, usable, cancelled,
                     new byte[BUFFER_BYTES]);
         } finally {

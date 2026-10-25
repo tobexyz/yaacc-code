@@ -20,31 +20,27 @@ package de.yaacc.share;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
-
-import java.util.concurrent.atomic.AtomicLong;
+import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
 /**
- * {@link ProviderCallGate}: at most one call per provider is in flight, a provider whose call
- * outlived the caller's wait is "stuck" for a while and gets no further call, and the number of
- * providers that may be in flight or stuck at once is bounded. Plain JVM, injected clock.
+ * {@link ProviderCallGate}: at most one call per provider is outstanding, for exactly as long as
+ * the call is (a hung call keeps its place until it returns, however long that takes), and the
+ * number of providers with a call outstanding is bounded. Plain JVM.
  */
 public class ProviderCallGateTest {
 
-    private static final long STUCK = 600_000L;
-
-    private final AtomicLong clock = new AtomicLong(0L);
-
-    private ProviderCallGate newGate(int maxTracked) {
-        return new ProviderCallGate(clock::get, maxTracked, STUCK);
+    private static ProviderCallGate newGate(int maxTracked) {
+        return new ProviderCallGate(maxTracked);
     }
 
     @Test
-    public void aSecondCallToTheSameProviderIsRefusedWhileTheFirstIsInFlight() {
+    public void aSecondCallToTheSameProviderIsRefusedWhileTheFirstIsOutstanding() {
         ProviderCallGate gate = newGate(3);
 
         assertNotNull(gate.tryAcquire("pkg:a"));
+        assertNull(gate.tryAcquire("pkg:a"));
         assertNull(gate.tryAcquire("pkg:a"));
     }
 
@@ -68,77 +64,57 @@ public class ProviderCallGateTest {
     }
 
     @Test
-    public void aStuckProviderIsRefusedUntilItsCallReturns() {
+    public void aPermitHasNoExpiryItLivesUntilItsCallReturns() throws Exception {
+        // a hung Binder call keeps its thread: the provider must stay blocked however long that takes
         ProviderCallGate gate = newGate(3);
         ProviderCallGate.Permit permit = gate.tryAcquire("pkg:a");
-        gate.markStuck(permit);
-        clock.addAndGet(STUCK - 1L);
 
-        assertNull(gate.tryAcquire("pkg:a"));
+        for (int i = 0; i < 50; i++) {
+            assertNull(gate.tryAcquire("pkg:a"));
+        }
+        assertEquals(1, gate.trackedCount());
 
         gate.release(permit);
-        assertNotNull("the late return frees it before the marker expires", gate.tryAcquire("pkg:a"));
+        assertNotNull("the late return frees it", gate.tryAcquire("pkg:a"));
     }
 
     @Test
-    public void theStuckMarkerExpires() {
+    public void oneKeyNeverTakesMoreThanOnePlaceHoweverOftenItIsAsked() {
         ProviderCallGate gate = newGate(3);
-        ProviderCallGate.Permit permit = gate.tryAcquire("pkg:a");
-        gate.markStuck(permit);
+        int granted = 0;
+        for (int i = 0; i < 1_000; i++) {
+            if (gate.tryAcquire("pkg:a") != null) {
+                granted++;
+            }
+        }
 
-        clock.addAndGet(STUCK);
-
-        assertNotNull(gate.tryAcquire("pkg:a"));
+        assertEquals(1, granted);
+        assertEquals(1, gate.trackedCount());
+        assertNotNull("two places are left for others", gate.tryAcquire("pkg:b"));
+        assertNotNull(gate.tryAcquire("pkg:c"));
     }
 
     @Test
-    public void theStuckClockStartsWhenTheCallerGaveUpNotWhenItBegan() {
-        ProviderCallGate gate = newGate(3);
-        ProviderCallGate.Permit permit = gate.tryAcquire("pkg:a");
-        clock.addAndGet(5_000L);
-        gate.markStuck(permit);
-        clock.addAndGet(STUCK - 1L);
-
-        assertNull(gate.tryAcquire("pkg:a"));
-        clock.addAndGet(1L);
-        assertNotNull(gate.tryAcquire("pkg:a"));
-    }
-
-    @Test
-    public void theLateReturnOfAnExpiredCallDoesNotFreeTheNewerCallOfTheSameProvider() {
+    public void theLateReturnOfAnOldPermitDoesNotFreeANewerOneOfTheSameKey() {
         ProviderCallGate gate = newGate(3);
         ProviderCallGate.Permit old = gate.tryAcquire("pkg:a");
-        gate.markStuck(old);
-        clock.addAndGet(STUCK);
+        gate.release(old);
         ProviderCallGate.Permit newer = gate.tryAcquire("pkg:a");
-        assertNotNull(newer);
 
         gate.release(old);
 
-        assertNull("the newer call is still in flight", gate.tryAcquire("pkg:a"));
+        assertNull("the newer call is still outstanding", gate.tryAcquire("pkg:a"));
         gate.release(newer);
-        assertNotNull(gate.tryAcquire("pkg:a"));
-    }
-
-    @Test
-    public void markingACallThatAlreadyReturnedDoesNothing() {
-        ProviderCallGate gate = newGate(3);
-        ProviderCallGate.Permit permit = gate.tryAcquire("pkg:a");
-        gate.release(permit);
-
-        gate.markStuck(permit);
-
-        assertEquals(0, gate.trackedCount());
         assertNotNull(gate.tryAcquire("pkg:a"));
     }
 
     @Test
     public void onlyTheConfiguredNumberOfProvidersAreTrackedAtOnce() {
         ProviderCallGate gate = newGate(3);
-        gate.markStuck(gate.tryAcquire("pkg:a"));
-        gate.markStuck(gate.tryAcquire("pkg:b"));
+        gate.tryAcquire("pkg:a");
+        gate.tryAcquire("pkg:b");
 
-        // two stuck providers still leave one place for everybody else
+        // two outstanding providers still leave one place for everybody else
         ProviderCallGate.Permit c = gate.tryAcquire("pkg:c");
         assertNotNull(c);
         assertNull("a fourth provider is refused, not tracked", gate.tryAcquire("pkg:d"));
@@ -159,18 +135,6 @@ public class ProviderCallGateTest {
     }
 
     @Test
-    public void expiredMarkersFreeTheirPlaceForOtherProviders() {
-        ProviderCallGate gate = newGate(1);
-        gate.markStuck(gate.tryAcquire("pkg:a"));
-        assertNull(gate.tryAcquire("pkg:b"));
-
-        clock.addAndGet(STUCK);
-
-        assertNotNull(gate.tryAcquire("pkg:b"));
-        assertEquals(1, gate.trackedCount());
-    }
-
-    @Test
     public void aMissingKeyIsRefused() {
         assertNull(newGate(3).tryAcquire(null));
     }
@@ -179,17 +143,19 @@ public class ProviderCallGateTest {
     public void releasingNullIsHarmless() {
         ProviderCallGate gate = newGate(3);
         gate.release(null);
-        gate.markStuck(null);
         assertEquals(0, gate.trackedCount());
     }
 
     @Test
-    public void theDefaultsAreFourThreadsThreePlacesAndTenMinutes() {
+    public void theDefaultsLeaveAThreadOfThePoolFree() {
         assertEquals(4, ShareLimits.PROVIDER_POOL_THREADS);
         assertEquals(3, ShareLimits.PROVIDER_MAX_TRACKED);
-        assertEquals(10L * 60L * 1000L, ShareLimits.PROVIDER_STUCK_MILLIS);
-        // one thread is never needed by a tracked provider: a call that just returned can be followed at once
-        org.junit.Assert.assertTrue(ShareLimits.PROVIDER_MAX_TRACKED < ShareLimits.PROVIDER_POOL_THREADS);
-        assertNotNull(ProviderCallGate.createDefault().tryAcquire("pkg:a"));
+        // at most this many threads are inside provider calls, so one is never taken by them
+        assertTrue(ShareLimits.PROVIDER_MAX_TRACKED < ShareLimits.PROVIDER_POOL_THREADS);
+        ProviderCallGate gate = ProviderCallGate.createDefault();
+        for (int i = 0; i < 10; i++) {
+            gate.tryAcquire("pkg:" + i);
+        }
+        assertEquals(ShareLimits.PROVIDER_MAX_TRACKED, gate.trackedCount());
     }
 }

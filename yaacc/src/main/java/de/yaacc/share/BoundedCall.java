@@ -25,6 +25,7 @@ import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 /**
@@ -41,7 +42,7 @@ import java.util.function.Consumer;
  * exception is not kept or logged, it may carry the provider's text.</li>
  * <li>With a {@link ProviderCallGate} and a key per provider ({@link #call(String, Callable, long,
  * Consumer)}), one provider has at most one call in flight: a call whose provider still has an
- * earlier call running or stuck is dropped at once without taking a thread, so one hostile
+ * earlier call outstanding (running, or hung) is dropped at once without taking a thread, so one hostile
  * provider can pin one thread, not the pool.</li>
  * </ul>
  */
@@ -69,6 +70,10 @@ public final class BoundedCall {
             return result;
         }
     }
+
+    private static final int NEW = 0;
+    private static final int STARTED = 1;
+    private static final int CANCELLED = 2;
 
     private final ThreadPoolExecutor pool;
     private final ProviderCallGate gate;
@@ -118,7 +123,7 @@ public final class BoundedCall {
      *
      * @param key the provider, for example its package name
      * @return as {@link #call(Callable, long, Consumer)}, and null at once, without any thread
-     * or provider call, if the provider has a call in flight or is stuck
+     * or provider call, if the provider has a call outstanding (running, or hung)
      */
     public <T> T call(String key, Callable<T> task, long timeoutMillis, Consumer<T> disposeLate) {
         if (gate == null) {
@@ -133,9 +138,15 @@ public final class BoundedCall {
 
     private <T> T run(ProviderCallGate.Permit permit, Callable<T> task, long timeoutMillis, Consumer<T> disposeLate) {
         final Handoff<T> handoff = new Handoff<>();
+        // NEW -> STARTED (the task began) or NEW -> CANCELLED (the caller gave up before it began)
+        final AtomicInteger state = new AtomicInteger(NEW);
         Future<Void> future;
         try {
             future = pool.submit(() -> {
+                if (!state.compareAndSet(NEW, STARTED)) {
+                    // cancelled before it began: nothing ran, the caller already gave the place back
+                    return null;
+                }
                 T result;
                 try {
                     result = task.call();
@@ -163,22 +174,25 @@ public final class BoundedCall {
         try {
             future.get(timeoutMillis, TimeUnit.MILLISECONDS);
         } catch (TimeoutException e) {
-            giveUp(permit, future);
+            giveUp(permit, future, state);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            giveUp(permit, future);
+            giveUp(permit, future, state);
         } catch (ExecutionException e) {
             // the call failed: no result
         }
         return handoff.takeAndAbandon();
     }
 
-    /** The caller stops waiting: the call may still run (a Binder call cannot be interrupted). */
-    private void giveUp(ProviderCallGate.Permit permit, Future<Void> future) {
+    /**
+     * The caller stops waiting. A call that already began may still run (a Binder call cannot be
+     * interrupted) and keeps its place until it returns; a call that never began gives it back now.
+     */
+    private void giveUp(ProviderCallGate.Permit permit, Future<Void> future, AtomicInteger state) {
+        boolean neverBegan = state.compareAndSet(NEW, CANCELLED);
         future.cancel(true);
-        if (permit != null) {
-            // a no-op if the call returned meanwhile
-            gate.markStuck(permit);
+        if (neverBegan && permit != null) {
+            gate.release(permit);
         }
     }
 }

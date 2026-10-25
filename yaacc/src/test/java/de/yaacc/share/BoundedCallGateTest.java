@@ -24,7 +24,6 @@ import static org.junit.Assert.assertTrue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 
 import org.junit.After;
 import org.junit.Test;
@@ -35,13 +34,11 @@ import org.junit.Test;
  */
 public class BoundedCallGateTest {
 
-    private static final long STUCK = 600_000L;
     private static final long WAIT = 100L;
     private static final long LONG = 5_000L;
 
-    private final AtomicLong clock = new AtomicLong(0L);
     private final CountDownLatch release = new CountDownLatch(1);
-    private final ProviderCallGate gate = new ProviderCallGate(clock::get, 3, STUCK);
+    private final ProviderCallGate gate = new ProviderCallGate(3);
     private final BoundedCall calls = new BoundedCall(4, "test-gated-call", gate);
 
     @After
@@ -118,13 +115,68 @@ public class BoundedCallGateTest {
     }
 
     @Test
-    public void theStuckMarkerExpiresAndTheProviderIsAskedAgain() {
+    public void aStuckProviderStaysBlockedForAsLongAsItsCallIsOutstanding() throws Exception {
         assertNull(calls.call("pkg:a", this::hang, WAIT, null));
-        assertNull(calls.call("pkg:a", () -> "dropped", LONG, null));
+        AtomicInteger asked = new AtomicInteger();
 
-        clock.addAndGet(STUCK);
+        // however many attempts and however much later: the earlier call still pins its thread
+        for (int i = 0; i < 10; i++) {
+            Thread.sleep(20);
+            assertNull(calls.call("pkg:a", () -> {
+                asked.incrementAndGet();
+                return "x";
+            }, LONG, null));
+        }
 
-        assertEquals("asked again", calls.call("pkg:a", () -> "asked again", LONG, null));
+        assertEquals(0, asked.get());
+        assertEquals(1, gate.trackedCount());
+    }
+
+    @Test
+    public void oneProviderCanNeverPinMoreThanOneThreadOfThePool() throws Exception {
+        AtomicInteger inProvider = new AtomicInteger();
+        for (int i = 0; i < 12; i++) {
+            calls.call("pkg:a", () -> {
+                inProvider.incrementAndGet();
+                return hang();
+            }, 20L, null);
+            Thread.sleep(10);
+        }
+
+        assertEquals("only the first of twelve attempts reached the provider", 1, inProvider.get());
+        // three places: a, and two more; the pool still has free threads for them and for more
+        assertEquals("b", calls.call("pkg:b", () -> "b", LONG, null));
+        assertEquals("c", calls.call("pkg:c", () -> "c", LONG, null));
+        assertEquals("a thread beyond the gate's places is free", "plain", calls.call(() -> "plain", LONG, null));
+    }
+
+    @Test
+    public void threeHungProvidersUseUpThePlacesButNotTheLastThread() throws Exception {
+        assertNull(calls.call("pkg:a", this::hang, 20L, null));
+        assertNull(calls.call("pkg:b", this::hang, 20L, null));
+        assertNull(calls.call("pkg:c", this::hang, 20L, null));
+        AtomicInteger asked = new AtomicInteger();
+
+        assertNull("the gate is full, a fourth provider is not asked", calls.call("pkg:d", () -> {
+            asked.incrementAndGet();
+            return "x";
+        }, LONG, null));
+
+        assertEquals(0, asked.get());
+        assertEquals("one pool thread is still free", "plain", calls.call(() -> "plain", LONG, null));
+    }
+
+    @Test
+    public void aCallThatTimesOutBeforeItBeganNeverLeaksItsPlace() throws Exception {
+        for (int i = 0; i < 200; i++) {
+            calls.call("pkg:a", () -> "x", 0L, null);
+        }
+
+        long deadline = System.nanoTime() + 5_000_000_000L;
+        while (gate.trackedCount() != 0 && System.nanoTime() < deadline) {
+            Thread.sleep(10);
+        }
+        assertEquals("every call either ran and returned or never began", 0, gate.trackedCount());
     }
 
     @Test
