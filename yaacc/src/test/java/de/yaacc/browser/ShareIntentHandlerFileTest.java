@@ -28,6 +28,7 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.nullable;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.timeout;
@@ -45,8 +46,12 @@ import android.net.Uri;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -60,7 +65,10 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import de.yaacc.player.PlayableItem;
 import de.yaacc.player.Player;
+import de.yaacc.share.DeleteOnCloseSource;
 import de.yaacc.share.PendingShare;
+import de.yaacc.share.PositionalSource;
+import de.yaacc.share.ShareRegistry;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.server.share.SharedFileService;
 
@@ -87,6 +95,11 @@ public class ShareIntentHandlerFileTest {
     private String providerType;
     private String providerName;
     private long now;
+    private final AtomicInteger mainThreadRuns = new AtomicInteger();
+    private ShareIntentHandler.FilePreparer preparer;
+
+    @Rule
+    public TemporaryFolder temp = new TemporaryFolder();
 
     /** Collects what the picker would be told. */
     private static final class RecordingHost implements BrowserHost {
@@ -151,15 +164,29 @@ public class ShareIntentHandlerFileTest {
         upnpClient = mock(UpnpClient.class);
         when(upnpClient.isPlayerServiceInitialized()).thenReturn(true);
         pendingShare = new PendingShare(() -> now, new java.util.Random(1)::nextBytes, 120_000L);
-        handler = new ShareIntentHandler(appContext, upnpClient, Runnable::run,
-                (data, ids) -> {
-                    preparedFor.add(ids);
-                    SharedFileService.Prepared result = toReturn.get();
-                    if (result != null) {
-                        prepared.add(result);
-                    }
-                    return result;
-                }, pendingShare);
+        preparer = (data, ids) -> {
+            preparedFor.add(ids);
+            SharedFileService.Prepared result = toReturn.get();
+            if (result != null) {
+                prepared.add(result);
+            }
+            return result;
+        };
+        handler = newHandler(10_000L, 100L, 3_000L);
+    }
+
+    /** The main thread is the calling thread; every run on it is counted. */
+    private ShareIntentHandler newHandler(long playerWaitMillis, long pollMillis, long providerTimeoutMillis) {
+        return new ShareIntentHandler(appContext, upnpClient, runnable -> {
+            mainThreadRuns.incrementAndGet();
+            runnable.run();
+        }, preparer, pendingShare, playerWaitMillis, pollMillis, providerTimeoutMillis);
+    }
+
+    private ShareIntentHandler replaceHandler(ShareIntentHandler replacement) {
+        handler.shutdown();
+        handler = replacement;
+        return replacement;
     }
 
     @After
@@ -373,19 +400,83 @@ public class ShareIntentHandlerFileTest {
     }
 
     @Test
-    public void aProviderThatDoesNotAnswerDropsTheShare() throws Exception {
+    public void aProviderThatDoesNotAnswerDropsTheShareAndFreesTheGateForTheNext() throws Exception {
+        replaceHandler(newHandler(10_000L, 100L, 200L));
+        CountDownLatch hang = new CountDownLatch(1);
+        AtomicInteger asked = new AtomicInteger();
         when(resolver.getType(nullable(Uri.class))).thenAnswer(invocation -> {
-            Thread.sleep(4_000);
+            if (asked.incrementAndGet() == 1) {
+                // a provider that never answers (until the test ends)
+                hang.await(30, TimeUnit.SECONDS);
+            }
             return "audio/mpeg";
         });
         RecordingHost host = new RecordingHost();
-        long begin = System.nanoTime();
+        try {
+            handler.handle(goodIntent(), null, host);
 
-        handler.handle(goodIntent(), null, host);
+            assertTrue("the hung share is dropped, not announced", host.staysSilent());
+            assertFalse(pendingShare.isPending());
 
-        assertTrue(host.staysSilent());
+            // the timeout released the single-flight gate: a share with a responsive provider is accepted
+            host.latch = new CountDownLatch(1);
+            long deadline = System.nanoTime() + 5_000_000_000L;
+            while (host.tokens.isEmpty() && System.nanoTime() < deadline) {
+                handler.handle(goodIntent(), null, host);
+                host.latch.await(300, TimeUnit.MILLISECONDS);
+            }
+            assertEquals(1, host.tokens.size());
+        } finally {
+            hang.countDown();
+        }
+    }
+
+    @Test
+    public void aSecondIntakeWhileOneIsStillRunningIsDroppedWithoutAnotherProviderCall() throws Exception {
+        CountDownLatch gate = new CountDownLatch(1);
+        AtomicInteger asked = new AtomicInteger();
+        when(resolver.getType(nullable(Uri.class))).thenAnswer(invocation -> {
+            asked.incrementAndGet();
+            gate.await(30, TimeUnit.SECONDS);
+            return "audio/mpeg";
+        });
+        RecordingHost host = new RecordingHost();
+        try {
+            handler.handle(goodIntent(), null, host);
+            waitUntil(() -> asked.get() == 1);
+            assertEquals("the first intake is inside the provider call", 1, asked.get());
+
+            Intent second = goodIntent();
+            handler.handle(second, null, host);
+            handler.handle(goodIntent(), null, host);
+            Thread.sleep(400);
+
+            assertEquals("no second provider call was started", 1, asked.get());
+            verify(second).setClipData(null);
+            assertTrue(host.tokens.isEmpty());
+            assertFalse(pendingShare.isPending());
+        } finally {
+            gate.countDown();
+        }
+
+        // the first one finishes normally and leaves exactly one pending share
+        assertTrue(host.awaitAnnouncement());
+        assertEquals(1, host.tokens.size());
+        String first = host.tokens.get(0);
+        assertNotNull(pendingShare.peek(first));
+
+        // once it is released and finished, a new intake is accepted again
+        handler.cancel(first);
         assertFalse(pendingShare.isPending());
-        assertTrue("bounded by the provider timeout", (System.nanoTime() - begin) / 1_000_000L < 3_900L);
+        host.latch = new CountDownLatch(1);
+        long deadline = System.nanoTime() + 5_000_000_000L;
+        while (host.tokens.size() < 2 && System.nanoTime() < deadline) {
+            handler.handle(goodIntent(), null, host);
+            host.latch.await(300, TimeUnit.MILLISECONDS);
+        }
+        assertEquals(2, host.tokens.size());
+        assertNull("the first token is dead", pendingShare.peek(first));
+        assertNotNull(pendingShare.peek(host.tokens.get(1)));
     }
 
     @Test
@@ -606,6 +697,128 @@ public class ShareIntentHandlerFileTest {
         handler.confirm(host.tokens.get(0), Set.of("receiver-1"));
 
         verify(upnpClient).startService();
+    }
+
+    // ---- the player service never comes up
+
+    /** A source that counts its closes. */
+    private static final class CountingSource extends PositionalSource {
+        final AtomicInteger closes = new AtomicInteger();
+
+        CountingSource() {
+            super(10L);
+        }
+
+        @Override
+        protected int readAtInternal(long position, byte[] buf, int off, int len) {
+            return -1;
+        }
+
+        @Override
+        protected void closeInternal() {
+            closes.incrementAndGet();
+        }
+    }
+
+    private ShareRegistry registryWhoseRemovalIsTheDiscard(String[] keyOut, PlayableItem item, PositionalSource source) {
+        ShareRegistry registry = new ShareRegistry(() -> now, new java.util.Random(2)::nextBytes, 4);
+        String key = registry.register(new ShareRegistry.Entry(ShareRegistry.Kind.LOCAL_FILE, source, "audio/mpeg",
+                Set.of("192.168.1.20"), 600_000L, 3_600_000L));
+        assertNotNull(key);
+        keyOut[0] = key;
+        // the real UpnpClient.discardShareOf removes the key from the registry; the mock does the same
+        doAnswer(invocation -> registry.remove(key)).when(upnpClient).discardShareOf(item);
+        toReturn.set(new SharedFileService.Prepared(key, item));
+        return registry;
+    }
+
+    private void confirmWithAPlayerServiceThatNeverComesUp(AtomicInteger hook) throws Exception {
+        when(upnpClient.isPlayerServiceInitialized()).thenReturn(false);
+        RecordingHost host = new RecordingHost();
+        handler.handle(goodIntent(), null, host);
+        assertTrue(host.awaitAnnouncement());
+
+        handler.confirm(host.tokens.get(0), Set.of("receiver-1"), hook::incrementAndGet);
+
+        waitUntil(() -> preparedFor.size() == 1);
+        // the wait is 50 ms: give the worker time to give up and clean up
+        Thread.sleep(500);
+    }
+
+    @Test
+    public void ifThePlayerServiceNeverComesUpTheShareIsRemovedAndTheSourceClosed() throws Exception {
+        replaceHandler(newHandler(50L, 10L, 3_000L));
+        PlayableItem item = new PlayableItem();
+        CountingSource source = new CountingSource();
+        String[] key = new String[1];
+        ShareRegistry registry = registryWhoseRemovalIsTheDiscard(key, item, source);
+        AtomicInteger hook = new AtomicInteger();
+
+        confirmWithAPlayerServiceThatNeverComesUp(hook);
+
+        verify(upnpClient).discardShareOf(item);
+        assertNull("the key is gone from the registry", registry.lookup(key[0]));
+        assertEquals("the source was closed once", 1, source.closes.get());
+        verify(upnpClient, never()).setReceiverDeviceIds(anySet());
+        verify(upnpClient, never()).initializePlayersWithPlayableItems(anyList());
+        assertEquals("nothing changed, so the selection hook does not run", 0, hook.get());
+    }
+
+    @Test
+    public void ifThePlayerServiceNeverComesUpACopyIsDeletedToo() throws Exception {
+        replaceHandler(newHandler(50L, 10L, 3_000L));
+        PlayableItem item = new PlayableItem();
+        File copy = temp.newFile("share-0123456789abcdef0123456789abcdef.bin");
+        CountingSource inner = new CountingSource();
+        String[] key = new String[1];
+        ShareRegistry registry = registryWhoseRemovalIsTheDiscard(key, item, new DeleteOnCloseSource(inner, copy));
+        AtomicInteger hook = new AtomicInteger();
+
+        confirmWithAPlayerServiceThatNeverComesUp(hook);
+
+        assertNull(registry.lookup(key[0]));
+        assertEquals(1, inner.closes.get());
+        assertFalse("the copy file is deleted", copy.exists());
+        assertEquals(0, hook.get());
+    }
+
+    @Test
+    public void theGiveUpIsReportedOnceThroughTheMainThreadAndNeverStartsPlayback() throws Exception {
+        replaceHandler(newHandler(50L, 10L, 3_000L));
+        PlayableItem item = new PlayableItem();
+        toReturn.set(new SharedFileService.Prepared("key", item));
+        when(upnpClient.isPlayerServiceInitialized()).thenReturn(false);
+        RecordingHost host = new RecordingHost();
+        handler.handle(goodIntent(), null, host);
+        assertTrue(host.awaitAnnouncement());
+        int runsBefore = mainThreadRuns.get();
+
+        handler.confirm(host.tokens.get(0), Set.of("receiver-1"));
+        waitUntil(() -> mainThreadRuns.get() > runsBefore);
+        Thread.sleep(300);
+
+        // exactly one run on the main thread: the message to the user, not playFile
+        assertEquals(runsBefore + 1, mainThreadRuns.get());
+        verify(upnpClient, never()).initializePlayersWithPlayableItems(anyList());
+        verify(upnpClient).discardShareOf(item);
+    }
+
+    @Test
+    public void aFailingMessageDoesNotDiscardTheShareASecondTime() throws Exception {
+        // Toast.makeText is a stub that returns null here, so showing the message throws; the clean-up already happened
+        replaceHandler(newHandler(50L, 10L, 3_000L));
+        PlayableItem item = new PlayableItem();
+        toReturn.set(new SharedFileService.Prepared("key", item));
+        when(upnpClient.isPlayerServiceInitialized()).thenReturn(false);
+        RecordingHost host = new RecordingHost();
+        handler.handle(goodIntent(), null, host);
+        assertTrue(host.awaitAnnouncement());
+
+        handler.confirm(host.tokens.get(0), Set.of("receiver-1"));
+        waitUntil(() -> preparedFor.size() == 1);
+        Thread.sleep(500);
+
+        verify(upnpClient, org.mockito.Mockito.times(1)).discardShareOf(item);
     }
 
     private static void waitUntil(java.util.function.BooleanSupplier condition) throws InterruptedException {

@@ -89,8 +89,8 @@ public final class ShareIntentHandler {
     private static final long WAIT_FOR_RECEIVERS_MS = 3000L;
     private static final long WAIT_FOR_PLAYER_SERVICE_MS = 3000L;
 
-    private static final long WAIT_FOR_PLAYER_SERVICE_MAX_MS = 10_000L;
-    private static final long POLL_MS = 100L;
+    private static final long DEFAULT_WAIT_FOR_PLAYER_SERVICE_MS = 10_000L;
+    private static final long DEFAULT_POLL_MS = 100L;
 
     /** Provider questions at intake; a provider that hangs can tie up at most two threads. */
     private static final BoundedCall PROBE_CALLS = new BoundedCall(2, "share-probe");
@@ -105,6 +105,9 @@ public final class ShareIntentHandler {
     private final Executor mainThread;
     private final FilePreparer filePreparer;
     private final PendingShare pendingShare;
+    private final long playerServiceWaitMillis;
+    private final long pollMillis;
+    private final long providerTimeoutMillis;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
     // files: intake probes and confirmed shares run here, apart from the link executor, so a slow
@@ -134,6 +137,20 @@ public final class ShareIntentHandler {
     /** For tests: the main thread, the file preparation and the pending share can be replaced. */
     ShareIntentHandler(Context appContext, UpnpClient upnpClient, Executor mainThread,
                        FilePreparer filePreparer, PendingShare pendingShare) {
+        this(appContext, upnpClient, mainThread, filePreparer, pendingShare,
+                DEFAULT_WAIT_FOR_PLAYER_SERVICE_MS, DEFAULT_POLL_MS, ShareLimits.PROVIDER_CALL_TIMEOUT_MILLIS);
+    }
+
+    /**
+     * For tests: also the waits. The defaults are 10 s for the player service (polled every 100 ms)
+     * and {@link ShareLimits#PROVIDER_CALL_TIMEOUT_MILLIS} for the provider's type and name.
+     */
+    ShareIntentHandler(Context appContext, UpnpClient upnpClient, Executor mainThread,
+                       FilePreparer filePreparer, PendingShare pendingShare,
+                       long playerServiceWaitMillis, long pollMillis, long providerTimeoutMillis) {
+        this.playerServiceWaitMillis = playerServiceWaitMillis;
+        this.pollMillis = pollMillis;
+        this.providerTimeoutMillis = providerTimeoutMillis;
         this.appContext = appContext.getApplicationContext();
         this.upnpClient = upnpClient;
         this.mainThread = mainThread != null ? mainThread : mainHandler::post;
@@ -331,7 +348,7 @@ public final class ShareIntentHandler {
             final ContentResolver resolver = appContext.getContentResolver();
             final Uri uri = Uri.parse(uriText);
             ProviderProbe.Info info = PROBE_CALLS.call(() -> ProviderProbe.query(resolver, uri),
-                    ShareLimits.PROVIDER_CALL_TIMEOUT_MILLIS, null);
+                    providerTimeoutMillis, null);
             if (info == null) {
                 YaaccLogger.w(TAG, "Ignoring shared file: the provider did not answer in time");
                 return;
@@ -419,24 +436,27 @@ public final class ShareIntentHandler {
     /** Worker thread. */
     private void prepareAndPlayFile(PendingShare.Data data, Set<String> chosen, Runnable afterStarted) {
         SharedFileService.Prepared prepared = null;
+        // true once the share is cleaned up or handed to the main thread: the catch must not touch it again
+        boolean settled = false;
         try {
             prepared = filePreparer.prepare(data, chosen);
             if (prepared == null) {
                 return;
             }
             // the player service is awaited here, not busy-waited on the main thread
-            if (!ReadinessWait.await(upnpClient::isPlayerServiceInitialized, WAIT_FOR_PLAYER_SERVICE_MAX_MS, POLL_MS)) {
+            if (!ReadinessWait.await(upnpClient::isPlayerServiceInitialized, playerServiceWaitMillis, pollMillis)) {
                 YaaccLogger.w(TAG, "The player service did not come up, dropping the shared file");
+                settled = true;
                 upnpClient.discardShareOf(prepared.getItem());
                 toast(R.string.share_open_failed);
                 return;
             }
             final SharedFileService.Prepared ready = prepared;
-            prepared = null;
+            settled = true;
             mainThread.execute(() -> playFile(ready.getItem(), chosen, afterStarted));
         } catch (RuntimeException e) {
             YaaccLogger.w(TAG, "Could not prepare the shared file (" + e.getClass().getSimpleName() + ")");
-            if (prepared != null) {
+            if (prepared != null && !settled) {
                 upnpClient.discardShareOf(prepared.getItem());
             }
         }
@@ -483,7 +503,13 @@ public final class ShareIntentHandler {
     }
 
     private void toast(int resId) {
-        mainThread.execute(() -> Toast.makeText(appContext, resId, Toast.LENGTH_LONG).show());
+        mainThread.execute(() -> {
+            try {
+                Toast.makeText(appContext, resId, Toast.LENGTH_LONG).show();
+            } catch (RuntimeException e) {
+                YaaccLogger.w(TAG, "Could not show a message (" + e.getClass().getSimpleName() + ")");
+            }
+        });
     }
 
     /** Worker thread. Nothing here may throw or log the shared link. */
