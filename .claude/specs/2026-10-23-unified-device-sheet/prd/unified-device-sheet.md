@@ -63,3 +63,5 @@ See requirements.md.
    waits) are wanted? To be discussed before any implementation.
 
 **Resolved 2026-10-24 (question 4):** classic does NOT keep the receiver bar and sheet in the content browsing; it shows the original static server/receiver footer. The sheet is part of the new layout only.
+
+**Update 2026-10-25 (question 5):** share improvements were scoped with the owner: see design.md "Phase 3" and tasks.md Groups 12-16.

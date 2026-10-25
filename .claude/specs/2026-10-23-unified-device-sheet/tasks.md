@@ -181,9 +181,47 @@ The owner tried Groups 1-10 on a phone and asked for three changes. Same gates a
   - **Status**: built 2026-10-24 (340 tests green, lint 189, manifest unchanged): `MiniPlayerRows` ordering (reuses the sheet's comparator), `MiniPlayerArtKeys`, `MiniPlayerAdapter`, `MaxHeightRecyclerView` (180dp cap); `MiniPlayerPicker` and its tests deleted. Docs pass dropped the 'featured session' wording. Review cycle 1 (2026-10-25, fresh container without Android SDK, so the full Gradle build was not re-run there): FAIL on one Warning, dead code `MiniPlayerPresenter.isVisible` + 3 tests, removed afterwards (presenter tests 22/22 via javac+JUnit; full suite expected 337). Not run on a device.
 - Status (Group 11): all three tasks built 2026-10-24; general review PASS (cycle 2, 2026-10-25), security review PASS (cycle 1, 2026-10-25). The last full Gradle run (340 tests, lint 189) was before the removal of the dead `isVisible` helper; the fresh container had no Android SDK, so the final state (expected 337 tests, lint 189) still needs one full `assembleDebug testDebugUnitTest lintDebug` run where the SDK exists. Follow-ups are listed under Suggestion in security-review.md.
 
+# Phase 3: sharing local files and picking receivers per action (design.md "Phase 3")
+
+Scoped with the owner on 2026-10-25; **waiting for the owner's sign-off on this plan before Group 12 starts.** Same gates per group: build -> reviewer -> security-reviewer. Test-first; pure logic in plain Java.
+
+## Group 12: Research and test skeletons
+- [ ] Research | `docs/tech.md`
+  - **Accept**: a section "Sharing local files" records, with sources: how `ACTION_SEND` delivers a single `EXTRA_STREAM` URI and its grant (`ClipData`, `FLAG_GRANT_READ_URI_PERMISSION`) and what the exported `LauncherActivity` can forward safely; how long the grant lasts and that an open `ParcelFileDescriptor`/`AssetFileDescriptor` survives it; which descriptors are seekable (`FileChannel`, `AssetFileDescriptor#getStartOffset/getLength`, `ContentResolver#openFileDescriptor("r")`) and how to detect it; how the existing proxy HTTP handler streams and handles ranges (`YaaccUpnpServerContentHttpHandler`, `ContentHolder`); how to get a receiver's IP from the registered device; how to start/stop the local server programmatically for one share (`LocalServerLifecycle`, `YaaccUpnpServerService`); how the device sheet selects receivers and what a "pick mode" needs (`DeviceSheetFragment`, `DeviceSheetAdapter`, `ReceiverRowBinder`, `UpnpClient` receiver methods, `ContentItemPlayTask`)
+  - **Verify**: each statement cites file:line or a doc URL; verified/reasoned claims are labelled
+  - **Constraints**: no code
+- [ ] Test skeletons (red) | `yaacc/src/test/java/de/yaacc/...`
+  - **Accept**: plain-Java stubs and tests for: `ShareRegistry` (random 128-bit keys, in-memory only, add/lookup/remove, per-entry allowed IP set, expiry by time and by release, max active entries, no key reuse, input validation); `SharedContentPolicy` (accepts only `content:` URIs, rejects `file:`, `http:`, own-authority URIs, null/empty/oversized strings, non-audio/video/image MIME types; http/https text policy stays `ShareUriPolicy`); `ProxyAccessPolicy` (decides allow/deny from the key's allowed IPs and the request's remote address, incl. loopback/own address for the local device, IPv4-mapped IPv6, missing address -> deny); `ReceiverPickResult`/selection-clearing decision (after a confirmed pick the selection is cleared; cancelling the pick changes nothing)
+  - **Verify**: tests fail on assertions only; all other tests stay green
+  - **Constraints**: no `android.*` imports in these classes
+
+## Group 13: Ephemeral proxy
+- [ ] Registry-backed proxy | `YaaccUpnpServerContentHttpHandler.java`, `UpnpClient.java`, new `ShareRegistry` etc.
+  - **Accept**: the proxy path serves only registry entries (random key, allowed IPs, expiry); the persistent `proxy_link_*` preference path and the sha256-of-URI keys are retired; http/https shares with the proxy option behave as before for the user, but through the registry; content shares stream from the held descriptor with correct `Range` handling (seek via `FileChannel`/offset), MIME type from the provider; a request from a non-allowed IP gets 403 and a payload-free log line; expiry closes the descriptor; the server is started for the share if it is not running and stopped afterwards if the share started it; the user's settings are untouched
+  - **Verify**: `./gradlew :yaacc:assembleDebug :yaacc:testDebugUnitTest :yaacc:lintDebug`; the Group 12 tests green
+  - **Constraints**: security review checks key entropy, IP check on every request, no URI/path from preferences, descriptor lifetime, no path traversal, no logging of keys or URIs
+
+## Group 14: Share intake
+- [ ] Single-file `SEND` | `AndroidManifest.xml` (SEND filters for `audio/*`, `video/*`, `image/*` on `LauncherActivity`), `LauncherActivity.java`, `LauncherForwardPolicy`, `ShareIntentHandler.java`, `SharedContentPolicy`
+  - **Accept**: the launcher forwards exactly one `EXTRA_STREAM` `content:` URI with a read grant for it, nothing else; `ShareIntentHandler` validates it (policy), opens the descriptor immediately (copy fallback with a size cap if not seekable), registers it, and hands it to the receiver-pick flow; rejected input is ignored with a payload-free log; text links keep working; the new exported filters are the only manifest change
+  - **Verify**: `./gradlew ...`; manifest diff shows only the intended filters
+  - **Constraints**: no `file:` and no own-authority URIs; one file per share
+
+## Group 15: Receiver picking in the new layout
+- [ ] Pick mode | `DeviceSheetFragment.java`, `DeviceSheetAdapter.java`, `BrowserActivity.java`, `ContentListFragment.java`, `ContentItemPlayTask.java`, `ShareIntentHandler.java`, strings x7
+  - **Accept**: in the new layout, play, play-all and share open the sheet in pick mode; confirming sets the chosen receivers, starts the playback and clears the selection afterwards; cancelling leaves everything as it was and releases a pending share; the receiver bar and the normal sheet keep working; classic is unchanged
+  - **Verify**: `./gradlew ...`; JVM tests for the pick decision
+  - **Constraints**: no second status poller; accessibility for the confirm button and the pick title; strings in 7 locales
+
+## Group 16: Documentation
+- [ ] Docs | `docs/index.md`, `CHANGELOG.md`, `docs/tech.md`, `README.md` if needed
+  - **Accept**: users can read how to share a file or link, how the receiver is picked, that the server is started temporarily, and what changed for the media proxy; tech notes are as built with the threat model and known risks
+  - **Verify**: placeholder grep; every cited class exists
+  - **Constraints**: nothing descoped is documented
+
 # Backlog (not part of Groups 1-10; discuss with the owner before any work)
 
-## Backlog 1: Improve the share feature
+## Backlog 1: Improve the share feature (SCOPED 2026-10-25: see Phase 3 above; the remaining topics stay open)
 - [ ] **DISCUSS FIRST - do not implement before the owner has agreed the scope** | `ShareIntentHandler.java`, `LauncherActivity.java` (`LauncherForwardPolicy`), `ShareUriPolicy.java`, `AndroidManifest.xml`, strings x7
   - **Status**: not started; waiting for a discussion. Which share ("share into yaacc" = receiving, or also "share out of yaacc" = the per-item share shipped on feat/issue287) is to be confirmed; the candidates below are about *receiving*.
   - **Candidate topics** (collected while building Group 6; none is decided):

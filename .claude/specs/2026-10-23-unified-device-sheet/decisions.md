@@ -170,3 +170,8 @@ for later would leave the new layout without quick access to running players.
 **Context**: Auto Backup (default on) copied the default preferences file, including the `proxy_link_*` entries (shared URLs, possibly with tokens), the receiver selection, SAF cache entries and the stored layout, to the user's Google account; raised in the Group 7-9 security reviews.
 **Decision**: `android:allowBackup="false"` on `<application>`. Settings are re-entered on a new device (the owner: the setup is easy). No exclusion rules.
 **Rationale**: simplest and safest; the privacy exposure of stored proxy links outweighs the convenience of restored settings. Not verified with a full Gradle build in this container (no SDK): a manifest merge conflict is only possible if a dependency sets the attribute itself, which none is known to.
+
+## 2026-10-25 - Share feature scoped (Phase 3)
+**Owner decisions**: (1) per-share temporary proxy, not the persistent setting; (2) keep a local file readable by holding its descriptor open (option A), copy to the app cache only for non-seekable providers; (3) every share served through the proxy is restricted to the chosen receivers' IPs and expires; (4) receivers are picked per action (share, play, play-all) in the new layout and the selection is cleared afterwards; (5) one file only at first.
+**Readings to confirm**: (4) applies to the new layout only (classic keeps its tab-based selection and static footer); (3) applies to every share served through the proxy, including http(s) links, which also moves them out of the preferences (`proxy_link_*` retired).
+**See** design.md "Phase 3" for the threat model and risks, and tasks.md Groups 12-16.
