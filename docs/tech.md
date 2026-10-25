@@ -2749,7 +2749,7 @@ share while one is pending is dropped. The host shows the picker. Only on confir
 grant is valid while the receiving activity record lives), the addresses of the chosen devices computed, the
 registry entry created and the item built and played; then the selection is cleared. On cancel or timeout the
 pending share is simply released (nothing was opened). In classic the same pending share is confirmed through an
-explicit dialog (cleaned file name and the selected receivers) instead of the picker. `getType` and the display
+the same pick-mode sheet (cleaned file name in the title; the classic selection is the initial tick state and is restored after the playback has started). `getType` and the display
 name are read on a worker thread with a timeout (a hostile provider must not hang the main thread before the
 user has confirmed anything).
 

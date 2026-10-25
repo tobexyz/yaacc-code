@@ -194,7 +194,11 @@ An earlier reviewer reported "no SDK, cannot build" and I repeated it; the owner
 
 ## 2026-10-25 - Phase 3 plan amended by the Group 12 security review
 1. Nothing is opened or registered at intake: a pending share holds only the validated URI and a cleaned name; the descriptor/copy and the registry slot come after the user's confirmation; one pending share, with a timeout; a second share while one is pending is dropped.
-2. Classic has no receiver pick: stream shares get an explicit confirmation dialog there (file name + selected receivers). The owner may prefer refusing file shares in classic - pending.
+2. Classic has no receiver pick of its own: a shared file opens the pick-mode sheet there too (owner decision 2026-10-25, replacing the confirmation dialog).
 3. `ShareIntentHandler` repeats all intake checks (the activities can be started directly); own-authority is checked through `PackageManager.resolveContentProvider` as well; API 35+ additionally verifies the sender's grant via `getInitialCaller()` in the LAUNCHER before the forward (in the browser the initial caller is the launcher, so the check cannot live in the handler).
 4. Registry eviction of released entries, non-blocking close, clamped offsets, concurrency/idle caps, IP setting default-true everywhere, loopback only for a chosen local receiver.
 5. Docs: no exploit-level detail about the existing released proxy behavior in the public docs (the passage in docs/tech.md was softened); document that the key is visible to LAN control points. Recommendation to the owner: ship the share hardening (http/https only) as a patch release from develop before this branch is merged, since 5.4.0 still has the old behavior.
+
+## 2026-10-25 - Owner answers: classic shares and "add to playlist" both open the picker
+1. A shared file in the classic layout opens the same "Play on..." pick-mode sheet (no confirmation dialog, no refusal). Normal classic browsing still never shows the sheet. In classic the selection is not cleared: it is the initial tick state and the previous selection is restored once the playback has started (assumption, say if you want "clear" there too).
+2. "Add to playlist" in the new layout opens the picker, adds to the chosen receivers' playlists and clears the selection afterwards.
