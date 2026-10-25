@@ -78,4 +78,22 @@ public class ShareLogRedactorTest {
         assertFalse(out.contains(KEY));
         assertTrue(out.startsWith("/proxy/[redacted] "));
     }
+
+    @Test
+    public void redactsUpperAndMixedCaseProxyPaths() {
+        assertEquals("http://h:1/proxy/[redacted] x", ShareLogRedactor.redact("http://h:1/PROXY/" + KEY + " x"));
+        assertEquals("http://h:1/proxy/[redacted]", ShareLogRedactor.redact("http://h:1/Proxy/" + KEY));
+    }
+
+    @Test
+    public void redactsPercentEncodedProxyPaths() {
+        assertEquals("http://h:1/proxy/[redacted]", ShareLogRedactor.redact("http://h:1%2Fproxy%2F" + KEY));
+        assertEquals("a /proxy/[redacted] b", ShareLogRedactor.redact("a %2fPROXY%2f" + KEY + " b"));
+    }
+
+    @Test
+    public void leavesOtherPathsContainingTheWordProxyAlone() {
+        String text = "http://h:1/proxying/info and /myproxy/x";
+        assertEquals(text, ShareLogRedactor.redact(text));
+    }
 }
