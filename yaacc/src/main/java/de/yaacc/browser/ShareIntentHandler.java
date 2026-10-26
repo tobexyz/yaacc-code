@@ -525,6 +525,19 @@ public final class ShareIntentHandler {
     }
 
     /**
+     * Removes every share payload (text, clip data, stream, launch token) without reading it, for an
+     * activity that must not act on the share (see {@link ShareIntakeGate}). Never throws.
+     */
+    static void discard(Intent intent) {
+        try {
+            intent.removeExtra(Intent.EXTRA_TEXT);
+        } catch (RuntimeException e) {
+            YaaccLogger.w(TAG, "Could not clear the shared text (" + e.getClass().getSimpleName() + ")");
+        }
+        consume(intent);
+    }
+
+    /**
      * Worker thread. Asks the provider (bounded) for the type and the name, then makes the share
      * pending and tells the host. Nothing is opened.
      */

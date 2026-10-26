@@ -119,13 +119,24 @@ public class BrowserActivity extends AppCompatActivity implements BrowserHost {
                 upnpClient, this::showReceivers);
         miniPlayerBar = new MiniPlayerBar(findViewById(R.id.miniPlayerBar), upnpClient);
         shareIntentHandler = new ShareIntentHandler(getApplicationContext(), upnpClient);
-        shareIntentHandler.handle(getIntent(), null, this);
+        handOverShare(getIntent());
     }
 
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
-        if (shareIntentHandler != null) {
+        handOverShare(intent);
+    }
+
+    /**
+     * Same gate as the classic activity: a share is handed to the handler only while the new layout
+     * is the effective one (the setting may have changed since the launcher chose this activity).
+     */
+    private void handOverShare(Intent intent) {
+        if (shareIntentHandler == null) {
+            return;
+        }
+        if (ShareIntakeGate.admitOrDiscard(Layout.NEW, BrowserLauncher.effectiveLayout(this), intent)) {
             shareIntentHandler.handle(intent, null, this);
         }
     }

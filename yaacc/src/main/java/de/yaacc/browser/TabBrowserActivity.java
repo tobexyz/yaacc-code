@@ -136,14 +136,28 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
         }
 
         shareIntentHandler = new ShareIntentHandler(getApplicationContext(), upnpClient);
-        shareIntentHandler.handle(getIntent(), this::showPlayers, this);
+        handOverShare(getIntent());
         YaaccLogger.d(this.getClass().getName(), "on create took: " + (System.currentTimeMillis() - start));
     }
 
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
-        if (shareIntentHandler != null) {
+        handOverShare(intent);
+    }
+
+    /**
+     * Hands a shared item to the handler only while the classic layout is the effective one. This
+     * activity is exported, so an app can send it a share even when the user chose the new layout;
+     * the handler would then play a link on this device without the receiver picker. Otherwise the
+     * payload is consumed (the relaunch in {@code onResume} uses a fresh intent).
+     */
+    private void handOverShare(Intent intent) {
+        if (shareIntentHandler == null) {
+            return;
+        }
+        if (ShareIntakeGate.admitOrDiscard(BrowserLayoutChoice.Layout.CLASSIC,
+                BrowserLauncher.effectiveLayout(this), intent)) {
             shareIntentHandler.handle(intent, this::showPlayers, this);
         }
     }

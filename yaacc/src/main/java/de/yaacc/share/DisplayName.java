@@ -25,8 +25,9 @@ package de.yaacc.share;
  * <p>
  * This is the one cleaner for LAN- and app-supplied texts; {@code MiniPlayerPresenter} delegates
  * here, so the rules are the same everywhere: whitespace runs (including line breaks and tabs)
- * become one space, control characters, bidirectional controls and zero-width characters are
- * dropped (a zero-width joiner is kept so emoji sequences survive), the result is trimmed and cut
+ * become one space, control characters, format characters (Unicode category Cf: bidirectional controls, zero-width
+ * characters, soft hyphen, tag characters, ...) and the blank Hangul letters are dropped (the
+ * zero-width joiner is kept so emoji sequences survive, and the non-joiner for scripts that need it), the result is trimmed and cut
  * at {@link #MAX_LENGTH} chars without splitting a surrogate pair. Show the result with
  * {@code setText}; it is not markup-escaped.
  */
@@ -59,7 +60,7 @@ public final class DisplayName {
                 pendingSpace = out.length() > 0;
                 continue;
             }
-            if (Character.getType(codePoint) == Character.CONTROL || isBidiOrZeroWidth(codePoint)) {
+            if (Character.getType(codePoint) == Character.CONTROL || isInvisible(codePoint)) {
                 continue;
             }
             int needed = Character.charCount(codePoint) + (pendingSpace ? 1 : 0);
@@ -92,11 +93,19 @@ public final class DisplayName {
         return cleanedFallback.isEmpty() ? LAST_RESORT : cleanedFallback;
     }
 
-    private static boolean isBidiOrZeroWidth(int codePoint) {
-        return codePoint == 0x200E || codePoint == 0x200F || codePoint == 0x061C
-                // invisible zero-width characters that make two titles look the same
-                || codePoint == 0x200B || codePoint == 0x2060 || codePoint == 0xFEFF
-                || (codePoint >= 0x202A && codePoint <= 0x202E)
-                || (codePoint >= 0x2066 && codePoint <= 0x2069);
+    /**
+     * Characters that draw nothing but can make two names look the same, hide a part of a name or
+     * leave a "blank" name: every Unicode format character (category Cf: bidi controls, zero-width
+     * space, word joiner, soft hyphen, invisible math operators, tag characters, ...), except the
+     * zero-width joiner (emoji sequences) and the zero-width non-joiner (Persian and other scripts
+     * need it), plus the blank Hangul letters.
+     */
+    private static boolean isInvisible(int codePoint) {
+        if (codePoint == 0x200D || codePoint == 0x200C) {
+            return false;
+        }
+        return Character.getType(codePoint) == Character.FORMAT
+                // letters that draw nothing
+                || codePoint == 0x115F || codePoint == 0x1160 || codePoint == 0x3164 || codePoint == 0xFFA0;
     }
 }
