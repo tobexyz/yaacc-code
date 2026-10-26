@@ -39,12 +39,12 @@ in order to play media from your device on any UPnP renderer in your network.
 * Live streaming - stream system audio and screen to network devices (Android 10+)
 * SAF support - browse and share files from external storage, USB drives, SD cards
 * Lock screen controls - hardware volume buttons and media controls
-* Receiver controls - play/pause/stop directly from receiver tab with status display
+* Receiver controls - play/pause/stop directly from receiver tab (classic) or the receiver sheet (new layout) with status display
 * Optional single-screen layout with a mini-player (Settings > Appearance > Layout); the classic tabs stay the default
 * Sort browsed folders by name or date added, with server-side sorting when supported
 * Control multiple media renderer
 * Allow download files to the device
-* Allow sharing of URLs and sending them to the current media renderers
+* Share a link or one audio, video or image file from another app and play it on the receivers you pick
 * Use your device as an proxy if your media renderer can't process https media URLs
 * Battery optimized with smart WiFi lock and foreground service management
 
