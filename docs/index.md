@@ -22,12 +22,12 @@ layout: default
 * A Shutdown timer stops the running players and the app after a given time
 * Sort browsed content by name or date, ascending or descending
 * Android TV support (leanback launcher)
-* Two layouts: the classic tabs (default) or a single screen with a mini-player, chosen in the settings
+* Two layouts: the classic tabs or a single screen (the default of a fresh install) with a mini-player, chosen in the settings
 
 # Usage
 
-YAACC has two layouts. The classic layout with tabs is the default. A new
-single-screen layout is available in the settings under *Appearance* >
+YAACC has two layouts. A fresh install starts in the new layout; an updated installation keeps the classic layout with tabs until you change it. You switch
+in the settings under *Appearance* >
 *Layout*: choose "Classic (tabs)" or "New (single screen)". The change takes
 effect when you return from the settings to the app screen; running players keep
 playing. This page describes the classic layout first, see

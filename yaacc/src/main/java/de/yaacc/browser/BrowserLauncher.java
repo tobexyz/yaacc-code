@@ -65,8 +65,24 @@ public final class BrowserLauncher {
     }
 
     /**
-     * Reads the stored "Layout" preference with default {@code null}: installs that never opened
-     * the setting have no value (opening it persists "classic"), and
+     * To be called once at app start, after the preference defaults were applied: a fresh install
+     * has the default ("new") by then; an install that was updated from a version without the
+     * "Layout" setting has no value yet and keeps the classic layout it always had (otherwise
+     * merely opening the setting would persist the new default for it).
+     *
+     * @return true if the classic layout was stored
+     */
+    public static boolean keepClassicForUpdatedInstall(SharedPreferences preferences, String key) {
+        if (preferences.contains(key)) {
+            return false;
+        }
+        preferences.edit().putString(key, BrowserLayoutChoice.STORED_CLASSIC).apply();
+        return true;
+    }
+
+    /**
+     * Reads the stored "Layout" preference with default {@code null}: only an install that
+     * skipped the app start logic has no value, and
      * {@link BrowserLayoutChoice#resolve(String)} turns null into classic.
      */
     public static Layout effectiveLayout(Context context) {

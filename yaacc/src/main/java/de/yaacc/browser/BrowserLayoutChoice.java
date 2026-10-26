@@ -21,8 +21,10 @@ package de.yaacc.browser;
  * Maps the stored "Layout" preference value to the browser layout to launch:
  * the classic tab activity or the new tab-less one. Anything that is not
  * exactly {@link #STORED_NEW} (null, empty, unknown, differently cased)
- * resolves to classic, so every device including Android TV defaults to
- * classic and an explicit "new" is honored on any device.
+ * resolves to classic, so an install without a stored value (an update from a version that
+ * had no "Layout" setting) keeps the classic layout and an explicit "new" is honored on any
+ * device. A fresh install gets {@link #DEFAULT_STORED_VALUE} from the preference defaults
+ * (res/xml/preference.xml), so it starts in the new layout.
  * <p>
  * Deliberately has no {@code android.*} imports so it can be unit-tested on
  * the plain JVM, like {@link DeviceSessionGrouper}.
@@ -33,8 +35,8 @@ public final class BrowserLayoutChoice {
     public static final String STORED_CLASSIC = "classic";
     /** Stored preference value for the new layout. */
     public static final String STORED_NEW = "new";
-    /** Stored value used when the preference was never set. */
-    public static final String DEFAULT_STORED_VALUE = STORED_CLASSIC;
+    /** Stored value a fresh install gets from the preference defaults. */
+    public static final String DEFAULT_STORED_VALUE = STORED_NEW;
 
     public enum Layout { CLASSIC, NEW }
 

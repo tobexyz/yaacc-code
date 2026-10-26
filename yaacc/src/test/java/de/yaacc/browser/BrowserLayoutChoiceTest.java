@@ -26,8 +26,8 @@ import de.yaacc.browser.BrowserLayoutChoice.Layout;
 /**
  * Unit tests for {@link BrowserLayoutChoice}, which turns the stored "Layout"
  * preference into the activity to launch. Everything except an exact "new"
- * must give classic, so existing installs and Android TV never change layout
- * by accident. Plain JVM, no Android runtime.
+ * must give classic, so an install without a stored value never changes
+ * layout by accident; only a fresh install is given "new" by the preference default. Plain JVM, no Android runtime.
  */
 public class BrowserLayoutChoiceTest {
 
@@ -77,13 +77,13 @@ public class BrowserLayoutChoiceTest {
     }
 
     @Test
-    public void defaultStoredValueIsClassic() {
-        assertEquals("classic", BrowserLayoutChoice.DEFAULT_STORED_VALUE);
+    public void defaultStoredValueIsNew() {
+        assertEquals("new", BrowserLayoutChoice.DEFAULT_STORED_VALUE);
     }
 
     @Test
-    public void defaultStoredValueResolvesToClassic() {
-        assertEquals(Layout.CLASSIC,
+    public void defaultStoredValueResolvesToNew() {
+        assertEquals(Layout.NEW,
                 BrowserLayoutChoice.resolve(BrowserLayoutChoice.DEFAULT_STORED_VALUE));
     }
 

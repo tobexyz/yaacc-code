@@ -22,7 +22,7 @@
 
     <PreferenceCategory android:title="@string/settings_category_appearance">
         <ListPreference
-            android:defaultValue="classic"
+            android:defaultValue="new"
             android:entries="@array/browser_layout_entries"
             android:entryValues="@array/browser_layout_values"
             android:key="@string/settings_browser_layout_key"
