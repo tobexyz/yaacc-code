@@ -63,10 +63,15 @@ use that address.
   shared. Only the random key and the expiry limit access.
 
 Switch it off if playback fails on a receiver you chose although it can reach the
-phone. Typical reasons are a receiver that fetches from another address than the one
-it announces (several network interfaces, IPv6 next to IPv4), or a receiver whose description names a host name instead of an address
-(host names are not resolved, so the receiver is never allowed). At log level "info" the log view
-then shows "Media proxy refused a request from `<address>`".
+phone. Typical reasons are:
+
+* a receiver that fetches from another address than the one it announces
+  (several network interfaces, IPv6 next to IPv4);
+* a receiver whose description names a host name instead of an address (host
+  names are not resolved, so the receiver is never allowed).
+
+At log level "info" the log view then shows
+"Media proxy refused a request from `<address>`".
 
 Do not rely on the random key as protection when the setting is off. The address
 a receiver is playing, including the key, is visible to any UPnP control point in
@@ -75,9 +80,8 @@ such a device can read it. With the setting on, the same device is still refused
 because its address is not one of the chosen receivers. Switch it off only on a
 network you trust.
 
-The preference key is `proxy_restrict_receivers_chkbx` (string resource
-`settings_proxy_restrict_receivers_chkbx`). Changing this setting applies to requests from then on, including shares that are
-already playing.
+The preference key is `proxy_restrict_receivers_chkbx`. Changing this setting
+applies to requests from then on, including shares that are already playing.
 
 ## Media proxy and the settings file
 

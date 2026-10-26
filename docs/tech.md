@@ -1184,9 +1184,17 @@ onPlayersStarted)` and `shutdown()` are main-thread. Both browsers call
 `handle(getIntent(), ...)` in `onCreate` and `handle(intent, ...)` in
 `onNewIntent`, and `shutdown()` in `onDestroy`.
 
+This subsection is the Phase 2 state of the TEXT path. Phase 3 added a second overload,
+`handle(Intent, Runnable, BrowserHost pickHost)`, which both browsers call through `ShareIntakeGate`, and the file path with
+the pending share and the picker; see "Sharing local files" ("As built: from the share menu to a pending share", "As built: links").
+In short: in the new layout (`pickHost.providesReceiverBar()`) a link is not played at once, it goes through the "Play on..."
+picker and never falls back to `UpnpClient.LOCAL_UID`; classic keeps the behavior described below; a file is read from ClipData
+item 0 (only, after the launch-token check). Where the text below differs, the Phase 3 section wins.
+
 - Only `ACTION_SEND`. Text source: `EXTRA_TEXT`, else the text of the last
-  `ClipData` item that has text and is at most 2048 chars. A clip item's URI is
-  never used (before Phase 2 it was).
+  `ClipData` item that has text and is at most 2048 chars. For a text share a clip
+  item's URI is never used (before Phase 2 it was); a SHARED FILE is the exception
+  added in Phase 3: its one `content:` URI is read from ClipData item 0 only.
 - The text is removed from the intent (`removeExtra(EXTRA_TEXT)`,
   `setClipData(null)`) so a recreated activity does not replay it. After
   process death the system re-delivers the original intent and the link plays
@@ -1197,7 +1205,8 @@ onPlayersStarted)` and `shutdown()` are main-thread. Both browsers call
   `http://a\nfile:///x` pass (pinned by `ShareUriPolicyTest#onlyTheSchemeAndLengthAreChecked`;
   tightening is Backlog 1 item 8). A rejected text is only logged, with no
   payload. The text is never used to build an intent, PendingIntent or file path.
-- **Waits and fallback** unchanged: 0 s; +3 s when no receiver is ready; +3 s
+- **Waits and fallback** (classic and a missing host; in the new layout a link goes through the
+  picker instead and does not wait or fall back): 0 s; +3 s when no receiver is ready; +3 s
   and `upnpClient.startService()` when the player service is not initialized.
   The worker then falls back to `UpnpClient.LOCAL_UID` when still no receiver
   is ready. The toasts ("start in N seconds", "no receiver found using local
@@ -1411,7 +1420,7 @@ Re-checked 2026-10-24 with `./gradlew :yaacc:processDebugManifest --offline`
 ### Known limitations / owner decisions
 
 - **`allowBackup` (decided: off).** Auto Backup used to copy the default
-  preferences file (layout, receiver selection, `proxy_link_*` (retired in Phase 3), SAF cache entries)
+  preferences file (layout, receiver selection, stored shared-link entries (retired in Phase 3), SAF cache entries)
   to the user's Google account. The owner chose `android:allowBackup="false"`
   (2026-10-25): users set the app up again on a new device. No backup or
   `dataExtractionRules` exclusion rules are needed then.
@@ -1490,7 +1499,7 @@ They supersede earlier text of this section wherever the two differ.
    classic Content tab ends in the static provider line and receivers line (not
    clickable) as on `origin/feat/issue287`; the receiver sheet and the tappable
    receiver bar exist only in the new layout, and the "no receiver selected
-   opens the sheet" prompt is not active in classic. PRD open question 4 is
+   opens the sheet" prompt is not active in classic (removed altogether in Phase 3). PRD open question 4 is
    answered "no". See "As built: receiver bar and classic footer".
 3. **Mini-player shows all running players.** One compact row per player,
    in the sheet's session order (oldest first), height capped at about three rows
@@ -2317,7 +2326,10 @@ and is only used for the preference reads and that bounded map. The research cla
 - New layout: `ContentListFragment#startPlayAction` (play, play-all, item tap, add to playlist): confirm sets the chosen ids
   (`UpnpClient#setReceiverDeviceIds`), runs `ContentItemPlayTask`, and `UpnpClient#clearReceiverDevices()` clears the selection in
   `finally`; cancel changes nothing. A share's confirm calls `ShareIntentHandler#confirm` with the ids; its after-start hook applies
-  `AfterStartSelection` (new layout clear, classic restore the selection read at confirm time).
+  `AfterStartSelection` (new layout clear, classic restore the selection read at confirm time). Add to playlist
+  (`UpnpClient#addToPlaylist`, unchanged by Phase 3): if none of the chosen receivers has a player, `initializePlayers` starts a
+  new player on each chosen receiver; otherwise the item is added only to the playlists of the chosen receivers that already have
+  one, and a chosen receiver without a player gets nothing (open owner question, decisions.md).
 - Classic: normal browsing never shows the sheet and `startPlayAction` starts at once; the static footer stays. A pending SHARED FILE
   opens the same picker, with the classic selection as the initial ticks (see "Known limitations").
 - Receiver bar: `ReceiverBarLabel` names the receivers that have a player in `PlayerService.getCurrentPlayers()` (names as in the
@@ -2372,7 +2384,7 @@ The share feature has known, accepted limitations; the full technical list is ke
   chosen receivers"). With that setting off, or on a device that is a chosen receiver, the key is the only protection.
 - When "this device" plays a shared video, the video app that opens it receives the proxy address.
 - Providers are called one at a time per app with timeouts; a provider that never answers can make later shares fail with a
-  "busy" message until the app is restarted.
+  "busy" message until its call returns.
 - The picker has no cool-down after a cancel; in the classic layout a shared file opens the picker with the saved receivers ticked.
 - A rotation or process death while the picker is open drops the share.
 
@@ -2394,11 +2406,10 @@ proxy URL not appearing on the notification or lock screen of the local player.
   provider type and no duration. Links go through the rewritten `createPlayableItem`.
 - Finding 4 (add to playlist breaks when the selection is cleared): add to playlist opens the picker too.
 - Finding 5, 6, 7 (`Os.pread`, no close under a running read, `dup`): as researched.
-- Finding 8 (the old range code): replaced for registry entries by `ByteRangeResolver`.
+- Finding 8 (the old range and proxy-path code): replaced for registry entries by `ByteRangeResolver` and `ProxyShareResponder`.
 - Finding 9: `UpnpClient#clearReceiverDevices()` clears and fires the removal events; `getReceiverDevices()` no longer mutates the set
   returned by `SharedPreferences`.
-- Section (c): the 3-segment form is produced for server-side seeking (see "As built: serving"); the `new File(uri)` branch and the
-  `lookupProxyContent` preference path are gone for the proxy.
+- Section (c): the 3-segment form is produced for server-side seeking (see "As built: serving"); the preference-based proxy path is gone.
 - Section (f): "Share flow in the new layout" and the pick-mode sketch are as built; the share is confirmed through the same picker
   in classic.
 - Section (g): the API sketch is superseded by the code and tests; the order of the Group 13/14/15 work followed the plan, with the
@@ -2474,8 +2485,8 @@ How each claim is marked:
 7. **Holding a descriptor from `ContentResolver` holds a stable reference to the provider's process** until the
    descriptor is closed; if the sender app dies, the platform may kill yaacc. Duplicating the descriptor and
    closing the original releases that reference (see (b)).
-8. **The existing range code is not reusable as is** (suffix ranges, `Content-Range`, malformed header throws,
-   path segment echoed into the 404 page, keys written to the log). See (c).
+8. **The existing range and proxy-path code is not reusable as is** and was replaced for registry entries (details of that
+   research are kept with the project specification).
 9. **Group 13 and the receiver picker must also clear the selection through a new method that fires the
    listener events**, because `ReceiverBarController` only refreshes on `receiverDeviceAdded/Removed`
    (see (f)).
@@ -2730,90 +2741,12 @@ How each claim is marked:
   `ShareRegistry.removeAll()` (service stop, `Yaacc.exit()`); and a sweep of `cache/incoming/` at process start
   (the registry is memory-only, so any file found there is an orphan).
 
-### (c) The existing proxy HTTP path, and what must change
+### (c) The proxy HTTP path, and the remote address of a request
 
-All in `upnp/server/http/YaaccUpnpServerContentHttpHandler.java` (1774 lines) unless stated; [code].
-
-**Request flow (`handle`, `:198-360`).**
-
-- `:210` only `GET` and `HEAD` (others -> `MethodNotSupportedException`); `:220` `/health` answers 200 for
-  everyone (used as a readiness probe below); `:227` anything but 2 or 3 path segments is 403.
-- **Gate `:231-236`**: `contentServerEnabled` = `settings_local_server_provider_chkbx`, `contentProxyEnabled` =
-  `settings_local_server_proxy_chkbx`; both false -> 403 for everything, including `/proxy/`. Neither reads
-  `settings_local_server_chkbx` (finding 1). A registry branch must run **before** this gate; the proxy
-  preference then only means "proxy shared http(s) links" and is consulted by `createPlayableItem`.
-- `:266-267` logs every header at debug; `:268-271` `HttpRange.parseRangeHeader(...)`, which **throws
-  `RuntimeException`** for a header it does not understand (`util/HttpRange.java:75-110`); the handler does not
-  catch it. A registry path must catch and either ignore the header (200, full body) or answer 416.
-- **`/proxy/` branch `:279-291`**: logs the whole request URI including the key (`:280`); the 3-segment form
-  `/proxy/<urlencoded deviceId>/<key>` (`:283-287`, enables the `manage_external_seeking_<deviceId>` pref path)
-  was **not produced** at the time of the research (the only producer was `UpnpClient.java:1646`, `/proxy/<key>`).
-  **As built it is produced again** for server-side seeking, see "As built: serving"; `Uri.getPathSegments()` decodes segments, so `%2F` cannot smuggle a path, and a key is only a map key.
-- `:312-320` not found: the page echoes `pathSegments.get(1)` unescaped into HTML and logs it (`:314-316`);
-  replace with a constant body. `:322-325` logs type/length/ranges; `ContentHolder#getContentLength()` is called
-  from the log line and again for `Content-Range`, which for an http target is a blocking `HEAD` to the remote
-  host on a reactor thread each time (`:1187-1206`, 5 s timeouts).
-- `:326-342` partial content: status 206 whenever `ranges` is non-empty; `Content-Range` is computed from
-  `ranges.get(0)` as `start = range.start or 0`, `end = range.end or size-1` and **ignores suffix ranges**
-  (`-N` gives `start 0`), so the header is wrong for them; no 416; header only if `fileSize > 0`.
-- `:345-347` fixed headers `Connection: close`, `transferMode.dlna.org: Streaming`, `contentFeatures.dlna.org:
-  DLNA.ORG_OP=01;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=0170...`; `:358` `Accept-Ranges: bytes`; `:359` submit. `Connection:
-  close` means each range request is a new TCP connection (so concurrent ranges are separate connections).
-
-**Content holders.**
-
-- `lookupProxyContent(String, List<HttpRange>, String)` `:772-878`: reads
-  `PROXY_LINK_KEY_PREFIX + key` (`:775-777`) and `PROXY_LINK_MIME_TYPE_KEY_PREFIX + key` (`:783-785`) from the
-  default preferences, logs the target URI (`:777`), applies the optional per-device server-side seeking, and
-  returns `new ContentHolder(mimeType, targetUri, ranges, context)` (`:878`). The MIME comes from
-  `MimeType.valueOf(targetMimetype)` (`:871-875`; an unparsable stored value throws).
-- `ContentHolder` `:1147-1590`: for `http(s)` it opens the upstream with the same `Range` header, up to 3 tries
-  with 1 s sleeps, on the reactor thread (`:1274-1330`); for other targets it reads a local file (`:1397`) and
-  serves it (`AsyncEntityProducers.create(file, ...)`, `readRangeFormFile` `:1230` has an off-by-one in the end
-  position, `createStreamingEntityProducer` `:1506` for files > 50 MiB) or a `DocumentFile` (`:1405-1490`,
-  "range requests not implemented"). This non-http branch is what the design replaces for registry entries. `SafContentHolder` `:1005-1145` is the best template for a range
-  producer (inclusive end, suffix handled, clamps) but computes the range separately from the header in
-  `handle`.
-
-**Writers/readers of `proxy_link_`** (grep of the whole repo): writer `UpnpClient.java:1647-1648`
-(content key derived from the shared string, `:1645`, `:1657-1676`; proxy URL built at `:1646`, only when
-`settings_local_server_proxy_chkbx` is on, `:1644`); readers `YaaccUpnpServerContentHttpHandler.java:776,
-784`; bulk deleter on exit `Yaacc.java:135-139` (collects all keys starting with `proxy_link_mime_type` or
-`proxy_link_`, removes them with `commit()`); the two constants `YaaccUpnpServerService.java:114-115`
-(`"proxy_link_"`, `"proxy_link_mime_type"`; `PROXY_PATH = "proxy"` `:116` stays). No test, no doc other than
-`docs/tech.md` lines 1182 and 1399 refers to them. Related and unchanged: `AVTransportPlayer.java:1385-1390,
-1480-1487` recognizes a proxy item by `"/proxy/"` in the URI and takes the **last path segment** as the key for
-`updateRendererPosition`/`server_position_<device>`; a random 22-character key keeps that working.
-`settings_local_server_proxy_chkbx` is also read by `BackgroundIdleTimer.java:79`, `ServerListFragment.java:302`,
-`YaaccUpnpServerControlActivity.java:99-104`, `YaaccUpnpServerService.java:377,385`.
-
-**What must change for an in-memory registry with random keys.**
-
-1. A process-wide `ShareRegistry` (e.g. a field of `Yaacc` next to `upnpClient`, reachable from the handler through
-   `getApplicationContext()`: the handler is built with the application context, `YaaccUpnpServerService.java:787`).
-2. `handle`: before the gate, if `pathSegments.size() == 2` and `PROXY_PATH.equals(segment0)`, validate the key
-   syntax (22 chars of `[A-Za-z0-9_-]`), `registry.lookup(key)`, then the IP step, then serve; unknown, expired and
-   malformed keys get the same answer. Delete the 3-segment form and `lookupProxyContent`. Uniform failures:
-   403 for IP denied (payload-free log line with the remote address and no key), 404 constant body for the rest.
-3. A holder for `HTTP_LINK` entries: the existing http branch of `ContentHolder`, fed with `entry.getTarget()`
-   (a `String` URL) and `entry.getMimeType()`; its blocking upstream calls (5 s `HEAD`, 15 s connect, 60 s read, `:1187-1206`, `:1274-1330`)
-   already run on reactor threads; do not add more. A holder for `LOCAL_FILE`: positional producer over the shared source with the range math below.
-4. Range math in one pure class (recommended, see (g)): from `(List<HttpRange>, long length)` to
-   `{200 | 206 | 416, start, endInclusive}`; used for both the status/`Content-Range` and the producer, so they
-   cannot disagree. Rules: no `Range` or an unparsable one -> 200 full; multiple ranges -> first range only
-   (RFC 9110 allows ignoring `Range`); `start >= length` -> 416 with `Content-Range: bytes */<length>`; end
-   clamped to `length - 1`; suffix `-N` = last N bytes (N > length -> whole file); `-0` unsatisfiable.
-5. `UpnpClient.createPlayableItem`: no preference writes; `ShareRegistry.register(...)` and the URL
-   `http://<ip>:49157/proxy/<key>` (the IP from `InterfaceResolutionHelper.getIpAddress`, as now); for content
-   shares the MIME and metadata come from the provider and the shared source (finding 3). `Yaacc.exit()` calls
-   `registry.removeAll()` instead of the `proxy_link_` loop. One-time cleanup of stale `proxy_link_*` keys of
-   existing installs at start (they hold the URLs users shared; `allowBackup` is already off).
-6. A sweeper: `expire()` must run without requests (a scheduled task every ~30 s on the existing executor or a
-   `Handler`), otherwise an expired descriptor stays open. `release(key)` when the share's player is removed
-   (`UpnpClient.addPlayerListChangeListener`, `PlayerListChangeNotifier.Listener.onPlayerRemoved`; keep a
-   `playerId -> key` map) [reasoned].
-7. Logging: no key, URI, path or display name anywhere on this path (`:280`, `:773-777`, `:314-318`, and
-   `PlayableItem` logging in the players).
+The details of the pre-share media proxy research (the handler's old request flow, content holders and the preference-based
+link storage) are kept with the project specification. What changed: the `/proxy/` path is served from the in-memory registry
+before the handler's preference gate, with its own key check, address check and range resolution, see "As built: serving"; the
+preference-based storage is retired, see "As built: the registry".
 
 **The remote address of a request.** `handle(Message<HttpRequest, byte[]>, ResponseTrigger, HttpContext)`
 (`:198-200`) receives a `HttpContext` that the stream handlers create as `HttpCoreContext.create()` and fill with

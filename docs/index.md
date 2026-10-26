@@ -139,8 +139,10 @@ In the new layout the receiver is chosen for each action:
 and change nothing: nothing starts. While a previous action is still starting, a
 short message says so and the list does not open.
 
-"Add to playlist" adds to the playlists of the chosen receivers that already play;
-a chosen receiver without a player gets a new one.
+"Add to playlist" adds the item to the playlists of the chosen receivers that
+already have a player. Only if none of the chosen receivers has a player yet,
+YAACC starts a new player on each chosen receiver. A chosen receiver without a
+player is skipped while another chosen receiver already plays.
 
 The classic layout keeps its way: tick receivers on the receiver tab, they stay
 selected, and the bottom of the content tab shows two read-only lines (the
