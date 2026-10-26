@@ -74,7 +74,7 @@ import de.yaacc.share.ProviderCallGate;
 import de.yaacc.share.ShareLimits;
 import de.yaacc.share.ShareRegistry;
 import de.yaacc.upnp.UpnpClient;
-import de.yaacc.upnp.server.share.SharedFileService;
+import de.yaacc.share.ShareService;
 
 /**
  * The shared-file path of {@link ShareIntentHandler}: the intake checks it repeats itself, the
@@ -96,9 +96,9 @@ public class ShareIntentHandlerFileTest {
     private LaunchNonces nonces;
     private BoundedCall probeCalls;
     private ShareIntentHandler handler;
-    private final List<SharedFileService.Prepared> prepared = new CopyOnWriteArrayList<>();
+    private final List<ShareService.Prepared> prepared = new CopyOnWriteArrayList<>();
     private final List<Set<String>> preparedFor = new CopyOnWriteArrayList<>();
-    private final AtomicReference<SharedFileService.Prepared> toReturn = new AtomicReference<>();
+    private final AtomicReference<ShareService.Prepared> toReturn = new AtomicReference<>();
     private String providerType;
     private String providerName;
     private long now;
@@ -177,7 +177,7 @@ public class ShareIntentHandlerFileTest {
                 new ProviderCallGate(ShareLimits.PROVIDER_MAX_TRACKED));
         preparer = (data, ids) -> {
             preparedFor.add(ids);
-            SharedFileService.Prepared result = toReturn.get();
+            ShareService.Prepared result = toReturn.get();
             if (result != null) {
                 prepared.add(result);
             }
@@ -650,7 +650,7 @@ public class ShareIntentHandlerFileTest {
     @Test
     public void aConfirmedFileIsPlayedOnTheChosenReceiversAndTheHookRuns() throws Exception {
         PlayableItem item = new PlayableItem();
-        toReturn.set(new SharedFileService.Prepared("key", item));
+        toReturn.set(new ShareService.Prepared("key", item));
         Player player = mock(Player.class);
         when(upnpClient.initializePlayersWithPlayableItems(anyList())).thenReturn(List.of(player));
         RecordingHost host = new RecordingHost();
@@ -669,7 +669,7 @@ public class ShareIntentHandlerFileTest {
     @Test
     public void whenNoPlayerIsCreatedTheShareIsDiscardedAndTheHookStillRuns() throws Exception {
         PlayableItem item = new PlayableItem();
-        toReturn.set(new SharedFileService.Prepared("key", item));
+        toReturn.set(new ShareService.Prepared("key", item));
         when(upnpClient.initializePlayersWithPlayableItems(anyList())).thenReturn(new ArrayList<Player>());
         RecordingHost host = new RecordingHost();
         handler.handle(goodIntent(), null, host);
@@ -685,7 +685,7 @@ public class ShareIntentHandlerFileTest {
     @Test
     public void whenStartingThrowsTheShareIsDiscardedAndTheHookStillRuns() throws Exception {
         PlayableItem item = new PlayableItem();
-        toReturn.set(new SharedFileService.Prepared("key", item));
+        toReturn.set(new ShareService.Prepared("key", item));
         when(upnpClient.initializePlayersWithPlayableItems(anyList())).thenThrow(new IllegalStateException("boom"));
         RecordingHost host = new RecordingHost();
         handler.handle(goodIntent(), null, host);
@@ -756,7 +756,7 @@ public class ShareIntentHandlerFileTest {
         keyOut[0] = key;
         // the real UpnpClient.discardShareOf removes the key from the registry; the mock does the same
         doAnswer(invocation -> registry.remove(key)).when(upnpClient).discardShareOf(item);
-        toReturn.set(new SharedFileService.Prepared(key, item));
+        toReturn.set(new ShareService.Prepared(key, item));
         return registry;
     }
 
@@ -776,7 +776,7 @@ public class ShareIntentHandlerFileTest {
 
     @Test
     public void finishedRunsOnceAfterAPlayedFile() throws Exception {
-        toReturn.set(new SharedFileService.Prepared("key", new PlayableItem()));
+        toReturn.set(new ShareService.Prepared("key", new PlayableItem()));
         Player player = mock(Player.class);
         when(upnpClient.initializePlayersWithPlayableItems(anyList())).thenReturn(List.of(player));
 
@@ -786,7 +786,7 @@ public class ShareIntentHandlerFileTest {
 
     @Test
     public void finishedRunsOnceWhenNoPlayerWasCreated() throws Exception {
-        toReturn.set(new SharedFileService.Prepared("key", new PlayableItem()));
+        toReturn.set(new ShareService.Prepared("key", new PlayableItem()));
         when(upnpClient.initializePlayersWithPlayableItems(anyList())).thenReturn(new ArrayList<Player>());
 
         assertEquals(1, confirmAndCountFinished(Set.of("receiver-1"), 500));
@@ -794,7 +794,7 @@ public class ShareIntentHandlerFileTest {
 
     @Test
     public void finishedRunsOnceWhenStartingThrows() throws Exception {
-        toReturn.set(new SharedFileService.Prepared("key", new PlayableItem()));
+        toReturn.set(new ShareService.Prepared("key", new PlayableItem()));
         when(upnpClient.initializePlayersWithPlayableItems(anyList())).thenThrow(new IllegalStateException("boom"));
 
         assertEquals(1, confirmAndCountFinished(Set.of("receiver-1"), 500));
@@ -819,7 +819,7 @@ public class ShareIntentHandlerFileTest {
     @Test
     public void finishedRunsOnceWhenThePlayerServiceNeverComesUp() throws Exception {
         replaceHandler(newHandler(50L, 10L, 3_000L));
-        toReturn.set(new SharedFileService.Prepared("key", new PlayableItem()));
+        toReturn.set(new ShareService.Prepared("key", new PlayableItem()));
         when(upnpClient.isPlayerServiceInitialized()).thenReturn(false);
 
         assertEquals(1, confirmAndCountFinished(Set.of("receiver-1"), 700));
@@ -905,7 +905,7 @@ public class ShareIntentHandlerFileTest {
     public void theGiveUpIsReportedOnceThroughTheMainThreadAndNeverStartsPlayback() throws Exception {
         replaceHandler(newHandler(50L, 10L, 3_000L));
         PlayableItem item = new PlayableItem();
-        toReturn.set(new SharedFileService.Prepared("key", item));
+        toReturn.set(new ShareService.Prepared("key", item));
         when(upnpClient.isPlayerServiceInitialized()).thenReturn(false);
         RecordingHost host = new RecordingHost();
         handler.handle(goodIntent(), null, host);
@@ -927,7 +927,7 @@ public class ShareIntentHandlerFileTest {
         // Toast.makeText is a stub that returns null here, so showing the message throws; the clean-up already happened
         replaceHandler(newHandler(50L, 10L, 3_000L));
         PlayableItem item = new PlayableItem();
-        toReturn.set(new SharedFileService.Prepared("key", item));
+        toReturn.set(new ShareService.Prepared("key", item));
         when(upnpClient.isPlayerServiceInitialized()).thenReturn(false);
         RecordingHost host = new RecordingHost();
         handler.handle(goodIntent(), null, host);

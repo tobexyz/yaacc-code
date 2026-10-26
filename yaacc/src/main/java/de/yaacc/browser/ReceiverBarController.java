@@ -32,7 +32,10 @@ import org.fourthline.cling.model.meta.Device;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 
 import de.yaacc.R;
@@ -45,7 +48,7 @@ import de.yaacc.util.YaaccLogger;
 
 /**
  * Binds the receiver bar (a {@code TextView}): its label (the names of the receivers that have a
- * running player, built by {@link ReceiverBarLabel}; the receiver selection is not shown, it only
+ * running player, built by {@link #label}; the receiver selection is not shown, it only
  * exists while the picker is open), the tap / D-pad select that opens the device sheet, and the
  * refresh whenever a player is added or removed or {@link UpnpClient} reports a receiver change.
  * It reads the player list the mini-player and the sheet already follow; it has no poller of its
@@ -61,6 +64,7 @@ import de.yaacc.util.YaaccLogger;
 final class ReceiverBarController implements UpnpClientListener, PlayerListChangeNotifier.Listener {
 
     private static final String TAG = ReceiverBarController.class.getName();
+    static final String LABEL_SEPARATOR = "; ";
 
     private final TextView bar;
     private final UpnpClient upnpClient;
@@ -134,13 +138,43 @@ final class ReceiverBarController implements UpnpClientListener, PlayerListChang
             return;
         }
         // Untrusted LAN names: cleaned by the label, plain text only.
-        bar.setText(ReceiverBarLabel.build(names, bar.getContext().getString(R.string.receiver_bar_none_playing)));
+        bar.setText(label(names, bar.getContext().getString(R.string.receiver_bar_none_playing)));
+    }
+
+    /**
+     * The cleaned, non-empty names without duplicates (several players on one receiver show that
+     * receiver once), sorted case-insensitively and joined with {@link #LABEL_SEPARATOR}, so the label
+     * does not depend on the order the players come in. Returns {@code nonePlayingText} when no
+     * name is left.
+     * <p>
+     * Names come from untrusted LAN devices: each one is cleaned like every other LAN text
+     * ({@link MiniPlayerPresenter#cleanText}: one line, no control or bidi characters, length cap);
+     * the result is only ever set as plain {@code TextView} text, never parsed as HTML or used as a
+     * format string. There is no "+N" collapse: the bar is limited to two lines and ellipsizes.
+     */
+    static String label(Collection<String> playingReceiverNames, String nonePlayingText) {
+        Set<String> unique = new LinkedHashSet<>();
+        if (playingReceiverNames != null) {
+            for (String name : playingReceiverNames) {
+                String cleaned = MiniPlayerPresenter.cleanText(name);
+                if (!cleaned.isEmpty()) {
+                    unique.add(cleaned);
+                }
+            }
+        }
+        if (unique.isEmpty()) {
+            return nonePlayingText;
+        }
+        List<String> names = new ArrayList<>(unique);
+        names.sort(Comparator.comparing((String name) -> name, String.CASE_INSENSITIVE_ORDER)
+                .thenComparing(Comparator.naturalOrder()));
+        return String.join(LABEL_SEPARATOR, names);
     }
 
     /**
      * One entry per player: the friendly name of the device it plays on, else the player's own name
      * (cleaned, see {@link MiniPlayerPresenter#receiverLabel}). Duplicates are NOT merged here
-     * ({@link ReceiverBarLabel#build} does that), a null player is skipped.
+     * ({@link #label} does that), a null player is skipped.
      *
      * @param resolveName the friendly name of a device id, or null if it is not known
      */

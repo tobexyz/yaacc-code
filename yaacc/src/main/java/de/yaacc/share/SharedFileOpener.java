@@ -15,7 +15,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
-package de.yaacc.upnp.server.share;
+package de.yaacc.share;
 
 import android.content.ContentResolver;
 import android.content.res.AssetFileDescriptor;
@@ -28,10 +28,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.security.SecureRandom;
 
-import de.yaacc.share.IncomingCache;
-import de.yaacc.share.PositionalSource;
-import de.yaacc.share.ShareLimits;
-import de.yaacc.share.WatchedCopy;
 import de.yaacc.util.YaaccLogger;
 
 /**

@@ -15,7 +15,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
-package de.yaacc.upnp.server.share;
+package de.yaacc.share;
 
 import android.content.ContentResolver;
 import android.content.Context;
@@ -26,24 +26,14 @@ import android.os.Looper;
 import android.widget.Toast;
 
 import java.io.File;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import de.yaacc.R;
 import de.yaacc.Yaacc;
 import de.yaacc.player.PlayableItem;
-import de.yaacc.share.BoundedCall;
-import de.yaacc.share.IncomingCache;
-import de.yaacc.share.PendingShare;
-import de.yaacc.share.PositionalSource;
-import de.yaacc.share.ProviderCallGate;
-import de.yaacc.share.ReadinessWait;
-import de.yaacc.share.ShareFailureMessage;
-import de.yaacc.share.ShareLimits;
-import de.yaacc.share.ShareProxyUrl;
-import de.yaacc.share.ShareRegistrar;
-import de.yaacc.share.ShareRegistry;
-import de.yaacc.share.SharedContentPolicy;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.server.YaaccUpnpServerService;
 import de.yaacc.util.InterfaceResolutionHelper;
@@ -57,9 +47,9 @@ import de.yaacc.util.YaaccLogger;
  * <p>
  * Nothing here logs the URI, the name, the key or the proxy URL.
  */
-public final class SharedFileService {
+public final class ShareService {
 
-    private static final String TAG = SharedFileService.class.getName();
+    private static final String TAG = ShareService.class.getName();
     private static final long SERVER_READY_MAX_MILLIS = 3_000L;
     private static final long SERVER_READY_POLL_MILLIS = 200L;
 
@@ -76,7 +66,7 @@ public final class SharedFileService {
     private final UpnpClient upnpClient;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
-    public SharedFileService(Context appContext, UpnpClient upnpClient) {
+    public ShareService(Context appContext, UpnpClient upnpClient) {
         this.appContext = appContext.getApplicationContext();
         this.upnpClient = upnpClient;
     }
@@ -128,7 +118,7 @@ public final class SharedFileService {
                 return null;
             }
             String ip = InterfaceResolutionHelper.getIpAddress(appContext);
-            if (ShareProxyUrl.build(ip, YaaccUpnpServerService.PORT, YaaccUpnpServerService.PROXY_PATH, "x") == null) {
+            if (!hasAddress(ip)) {
                 // offline: there is no address a receiver could fetch from
                 YaaccLogger.w(TAG, "No network address, the shared file is dropped");
                 toast(R.string.share_open_failed);
@@ -137,7 +127,7 @@ public final class SharedFileService {
             ShareRegistry.Entry entry = new ShareRegistry.Entry(ShareRegistry.Kind.LOCAL_FILE, source,
                     data.getMimeType(), ShareAddressResolver.resolve(upnpClient, appContext, receiverIds),
                     ShareLimits.IDLE_GRACE_MILLIS, ShareLimits.ABSOLUTE_MAX_MILLIS);
-            key = ShareRegistrar.register(registry, entry);
+            key = registry.registerOrEvict(entry);
             if (key == null) {
                 YaaccLogger.w(TAG, "The share registry is full, the shared file is dropped");
                 toast(R.string.share_registry_full);
@@ -147,8 +137,7 @@ public final class SharedFileService {
             PositionalSource registered = source;
             source = null;
             yaacc.getUnclaimedShares().registered(key, Yaacc.shareClockMillis());
-            Uri proxyUri = Uri.parse(ShareProxyUrl.build(ip, YaaccUpnpServerService.PORT,
-                    YaaccUpnpServerService.PROXY_PATH, key));
+            Uri proxyUri = Uri.parse(proxyUrl(ip, key));
             PlayableItem item = SharedItemFactory.create(data.getMimeType(), data.getDisplayName(), proxyUri,
                     registered.size(), 0L, 0L);
             if (item == null) {
@@ -194,8 +183,7 @@ public final class SharedFileService {
             // the reason is an enum name, no payload
             YaaccLogger.w(TAG, "The shared file was not opened (" + reason.get()
                     + (outcome.isRefusedBusy() ? ", provider gate or pool full)" : ")"));
-            toast(ShareFailureMessage.of(outcome.isRefusedBusy(), false) == ShareFailureMessage.Kind.BUSY
-                    ? R.string.share_busy : R.string.share_open_failed);
+            toast(failureTextRes(outcome.isRefusedBusy(), false));
             return null;
         }
         if (opened.getSource() != null) {
@@ -207,10 +195,57 @@ public final class SharedFileService {
             return SharedFileOpener.copyAndHold(afd, new File(appContext.getCacheDir(), IncomingCache.DIR_NAME));
         } catch (SharedFileOpener.OpenException e) {
             YaaccLogger.w(TAG, "The shared file was not copied (" + e.getReason() + ")");
-            toast(ShareFailureMessage.of(false, e.getReason() == SharedFileOpener.Reason.BUSY)
-                    == ShareFailureMessage.Kind.BUSY ? R.string.share_busy : R.string.share_open_failed);
+            toast(failureTextRes(false, e.getReason() == SharedFileOpener.Reason.BUSY));
             return null;
         }
+    }
+
+    /**
+     * Whether there is an address a receiver could fetch from. Offline the phone has none; the
+     * check comes before anything is registered so that no URL with the text "null" in it exists.
+     *
+     * @param ip this phone's address as text, null or blank when it is not known
+     */
+    public static boolean hasAddress(String ip) {
+        return ip != null && !ip.trim().isEmpty();
+    }
+
+    /**
+     * The URL a receiver fetches a share from: {@code http://<ip>:<port>/proxy/<key>}. An IPv6
+     * literal is put in brackets by {@link URI}; a zone id is kept.
+     *
+     * @param ip  this phone's address as text, surrounding blanks are ignored
+     * @param key the registry key
+     * @return the URL, or null if there is no address, no key or the address is no valid host
+     * (never a URL with the text "null" in it); nothing is logged, the key is a secret
+     */
+    public static String proxyUrl(String ip, String key) {
+        if (!hasAddress(ip) || key == null || key.isEmpty()) {
+            return null;
+        }
+        try {
+            return new URI("http", null, ip.trim(), YaaccUpnpServerService.PORT,
+                    "/" + YaaccUpnpServerService.PROXY_PATH + "/" + key, null, null).toString();
+        } catch (URISyntaxException e) {
+            return null;
+        }
+    }
+
+    /**
+     * The message the user gets when a shared file or link could not be taken or opened. The
+     * messages are fixed texts: nothing the provider or the file said ever reaches them. "Busy"
+     * means the app turned the share away for lack of room (the provider already has a call
+     * outstanding, too many providers are busy, or another copy is running), which the user can
+     * understand and retry later; everything else stays the generic "could not play" message.
+     *
+     * @param providerCallRefusedBusy the provider call was refused for lack of room
+     *                                ({@link BoundedCall.Result#isRefusedBusy()})
+     * @param copySlotBusy            the copy fallback was refused because another copy runs or
+     *                                too many stuck copies are left
+     * @return the string resource of the toast
+     */
+    public static int failureTextRes(boolean providerCallRefusedBusy, boolean copySlotBusy) {
+        return providerCallRefusedBusy || copySlotBusy ? R.string.share_busy : R.string.share_open_failed;
     }
 
     private void toast(int resId) {
