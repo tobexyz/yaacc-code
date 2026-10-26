@@ -72,6 +72,32 @@ Moved here from `docs/tech.md` (published by the docs site) on 2026-10-26: the p
     is therefore part of the saved instance state. It is not a URI, token or key, and a restored sheet closes at once because its
     pick is gone; passing the name through the host at show time would avoid it (cosmetic gain, more activity state).
 
+19. **The classic layout auto-plays a shared link.** A shared `http`/`https` link from any app is played at once, without a prompt, on
+    the stored receivers (or on this phone when none is ready), exactly as before this branch (`ShareIntentHandler`, classic and a
+    missing host). The new layout asks first (picker). Owner-accepted and pre-existing (Group 12 cycle 1 W2, Group 15 cycle 1 S9);
+    `TabBrowserActivity` is exported without a filter, so any app can send it the intent directly. A file never auto-plays in either
+    layout. Process death re-delivers the link text and classic plays it again.
+20. **Link metadata reads have no overall deadline.** At link intake `UpnpClient#readLinkMetadata` calls
+    `MediaMetadataRetriever#setDataSource(String)`, a network call without a timeout of its own, and the content-type fallback
+    (`LinkContentType`, HEAD with a 5 s timeout per hop) can follow up to 3 redirects. A server that drips bytes can pin the single
+    link worker thread (and the 3 queued-share slots) for as long as it keeps answering. Fix: a total deadline around the reads, run
+    on a thread that can be abandoned (Group 14 cycle 1 Suggestion 2).
+21. **`ShareUriPolicy` checks only the scheme and the length** (2048 chars): `http:` followed by junk passes. No sink builds an intent, a
+    path or a file from the text, and the later link policy and fetch checks apply; tightening is Backlog 1 item 8.
+22. **Link-local zone ids collide.** `ProxyAccessPolicy` strips an IPv6 zone id (`%wlan0`) before comparing, so the same `fe80::` address
+    on two interfaces counts as one address. Accepted and documented in the Group 12 plan.
+23. **A share that races a layout switch is dropped.** `ShareIntakeGate` discards the payload in an activity that is not the effective
+    layout, so a share arriving in the roughly two seconds of a relaunch is lost; the sender shares again.
+24. **Some names display as empty.** `DisplayName` removes format characters, but a name made only of ZWJ/ZWNJ, variation selectors,
+    U+034F, the Khmer inherent vowels or U+2800 is shown as an empty-looking line instead of the fixed "Shared file" text (cosmetic;
+    review S1 of Group 15 cycle 2).
+25. **Carried hardening nits.** In `ShareIntentHandler` `consume` and `discard` remove the extras inside one `try` each, so a crafted
+    `EXTRA_STREAM` that makes the bundle's lazy unparcel throw skips the removals after it, including the launch token (one `try` per
+    removal, nonce first, would complete in every case). `ShareIntakeGate` removes the token from the intent but does not spend its
+    entry in the store (it expires after 30 s, at most 8 are held). `intakeBusy` is an instance field, not static, so two handlers
+    (a rotation overlap) may each run one intake probe; the pending slot, the probe pool and the provider gate are process-wide and
+    bound it anyway. No effect found today (Group 15 cycle 2 S3, S4; Group 14 carry-over 4).
+
 ## Research findings about the pre-existing proxy (moved from docs/tech.md)
 
 Moved on 2026-10-26 from "Research notes (Group 12)" (c) and finding 8 of `docs/tech.md`, which the docs site publishes. Line numbers are of the checkout before the build (`d8696971`). Finding 8 said: the existing range code is not reusable as is (suffix ranges, `Content-Range`, a malformed header throws, a path segment echoed into the 404 page, keys written to the log); see the text below. All of this concerns the proxy as released in 5.4.0 and was replaced for registry entries in Group 13.

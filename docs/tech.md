@@ -2277,11 +2277,12 @@ unconditionally); a share starts and stops nothing and waits only until the serv
    share is full). Every share response carries `X-Content-Type-Options: nosniff` and `Content-Security-Policy: sandbox`;
    `Content-Type` is the entry's MIME type.
 
-The share code paths do not log the proxy key or the proxy URL, and at the default log level they do not appear in the log:
+The share code paths do not log the proxy key or the proxy URL, and no share URI, name, key or proxy URL is written at the default log level:
 `ShareLogRedactor` (case- and percent-insensitive `/proxy/...`) is applied to the SOAP request, AV-transport, image-load and download
 log lines that can carry them. Not redacted: the VERBOSE traces of incoming SOAP/GENA messages (`ReceivingAction`,
 `YaaccUpnpServerProtocolRequestHandler`) and the DEBUG album-art URL logs (`ImageDownloader`); someone who turns those levels on and
-shares the log can disclose a proxy address.
+shares the log can disclose a proxy address. Other URIs are logged at the default level (ERROR) by existing code that is not part
+of the share feature: album-art URIs (`AVTransportPlayer`) and local storage (SAF) URIs.
 
 **3-segment form and server-side seeking.** `/proxy/<deviceId>/<key>` IS produced: `AVTransportPlayer#modifyProxyUrlWithDeviceId`
 rewrites a proxy URL of this server into it, but only for a remote renderer whose per-renderer preference
@@ -2373,8 +2374,9 @@ decision of the reviewed design (design.md "Phase 3", decisions.md).
 - **Link fetch (SSRF).** With the proxy option on, the phone fetches the shared link for the receivers. `LinkTargetPolicy` narrows
   what it will fetch (see "As built: links"); the answer goes to the chosen receivers only, not back to the sender.
 - **Resources.** Provider calls are bounded as described above; the copy is capped and watched; descriptors are closed on expiry,
-  release, eviction, `removeAll()` and exit; the share code paths log no URI, name, key or proxy URL (a refused request logs the remote address only). At the default log
-  level that holds for the whole app; the VERBOSE protocol traces and DEBUG album-art logs are not redacted (see "As built: serving").
+  release, eviction, `removeAll()` and exit; the share code paths log no URI, name, key or proxy URL (a refused request logs the remote address only). No share URI, name, key or
+  proxy URL is written at the default log level; the VERBOSE protocol traces and DEBUG album-art logs are not redacted, and existing
+  non-share code logs other URIs (album art, local storage URIs) at ERROR (see "As built: serving").
 
 ### Known limitations
 
