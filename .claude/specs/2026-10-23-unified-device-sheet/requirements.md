@@ -48,3 +48,6 @@ Phase 1 (this spec's Groups 1-4, done) excluded the items below; Phase 2
   UI must not assume they are.
 - No duplicated receiver-row logic: the tab and the sheet must share one
   binder.
+
+## Phase 4 note (2026-10-26)
+The share code of Phase 3 is consolidated without changing behaviour (design.md "Phase 4", tasks.md Groups 17-22, decisions.md "Phase 4"): fewer, more cohesive classes in one package `de.yaacc.share`, Android types allowed in them, every test case and every security behaviour kept. Goals, non-goals, success metrics and constraints above are unchanged; the added constraint is "same tests, same numbers (1472 + the characterization tests), same manifest".

@@ -1,4 +1,4 @@
-# Tasks: Unified device sheet (phase 1: Groups 1-4, done; phase 2: Groups 5-10)
+# Tasks: Unified device sheet (phase 1: Groups 1-4, done; phase 2: Groups 5-11, done; phase 3: Groups 12-16, done; phase 4: Groups 17-22, consolidate the share code, planned)
 
 Plan: `specs/2026-10-23-unified-device-sheet/requirements.md` and `specs/2026-10-23-unified-device-sheet/design.md`
 
@@ -14,7 +14,7 @@ Plan: `specs/2026-10-23-unified-device-sheet/requirements.md` and `specs/2026-10
 - [x] Write `DeviceSessionGrouperTest` (red) | `yaacc/src/test/java/de/yaacc/browser/DeviceSessionGrouperTest.java`
   - **Accept**: tests compile against the `DeviceSessionGrouper` API in design.md and fail; cases: (a) receiver with no sessions, (b) local device with image + music sessions, ascending playerId, (c) remote renderer with music + image sessions, (d) session whose deviceId isn't a receiver -> trailing group, never dropped, (e) receiver order preserved, (f) empty inputs, (g) `primarySession` prefers playing, else highest playerId, else null
   - **Verify**: `./gradlew :yaacc:testDebugUnitTest --tests '*DeviceSessionGrouperTest*'` (expected: fails to compile or fails assertions)
-  - **Constraints**: plain JVM, no Robolectric, no `android.*` imports
+  - **Constraints**: plain JVM, no Robolectric (Android types are allowed in main code, Phase 4, 2026-10-26; tests mock them with Mockito as the existing tests do; this class needs none)
 
 ## Fix Group 1: Address review cycle 1
 - [x] Tighten `DeviceSessionGrouperTest` | `yaacc/src/test/java/de/yaacc/browser/DeviceSessionGrouperTest.java`
@@ -29,7 +29,7 @@ Plan: `specs/2026-10-23-unified-device-sheet/requirements.md` and `specs/2026-10
 - [x] Implement `DeviceSessionGrouper` | `yaacc/src/main/java/de/yaacc/browser/DeviceSessionGrouper.java`
   - **Accept**: all `DeviceSessionGrouperTest` cases pass
   - **Verify**: `./gradlew :yaacc:testDebugUnitTest --tests '*DeviceSessionGrouperTest*'`
-  - **Constraints**: no `android.*` imports; no Java records (keep plain classes); replace the stub's `primarySession` Javadoc (still the old rule) with design.md's wording (review cycle 2 suggestion); device ids come from untrusted LAN devices, so handle them deterministically and add tests for it: a duplicate receiver id keeps only its first occurrence, a `null` receiver or session device id never throws and never drops a session (null-device sessions go in the trailing group), and a remote device spoofing `UpnpClient.LOCAL_UID` is grouped like any other id (security review cycle 1)
+  - **Constraints**: no Java records (keep plain classes); replace the stub's `primarySession` Javadoc (still the old rule) with design.md's wording (review cycle 2 suggestion); device ids come from untrusted LAN devices, so handle them deterministically and add tests for it: a duplicate receiver id keeps only its first occurrence, a `null` receiver or session device id never throws and never drops a session (null-device sessions go in the trailing group), and a remote device spoofing `UpnpClient.LOCAL_UID` is grouped like any other id (security review cycle 1)
 - [x] Extract `ReceiverRowBinder` from `BrowseReceiverDeviceAdapter`, fix first-match bug | `yaacc/src/main/java/de/yaacc/browser/BrowseReceiverDeviceAdapter.java`, `yaacc/src/main/java/de/yaacc/browser/ReceiverRowBinder.java`
   - **Accept**: Receiver tab looks and behaves the same; `getPlayerForDevice` is gone and the row's player comes from `DeviceSessionGrouper.primarySession(...)` built from `Player#getDeviceId()` (not `instanceof` checks)
   - **Verify**: `./gradlew :yaacc:assembleDebug :yaacc:testDebugUnitTest`
@@ -193,14 +193,14 @@ Scoped with the owner on 2026-10-25; **waiting for the owner's sign-off on this 
 - [x] Test skeletons (red) | `yaacc/src/test/java/de/yaacc/...`
   - **Accept**: plain-Java stubs and tests for: `ShareRegistry` (random 128-bit keys, in-memory only, add/lookup/remove, per-entry allowed IP set, expiry by time and by release, max active entries, no key reuse, input validation); `SharedContentPolicy` (accepts only `content:` URIs, rejects `file:`, `http:`, own-authority URIs, null/empty/oversized strings, non-audio/video/image MIME types; http/https text policy stays `ShareUriPolicy`); `ProxyAccessPolicy` (decides allow/deny from the key's allowed IPs, the request's remote address and the `restrictToReceivers` flag: with the flag on, incl. loopback/own address for the local device, IPv4-mapped IPv6, missing address -> deny; with the flag off every address passes the IP step, the key and expiry checks still apply); `ReceiverPickResult`/selection-clearing decision (after a confirmed pick the selection is cleared; cancelling the pick changes nothing; `Decision.keepPickerOpen()` distinguishes "confirmed with no receiver" from "cancel"); in Group 12b also `ByteRangeResolver`, `LauncherForwardPolicy.decideStream`, `ShareRegistry.isWellFormedKey`, `SharedContentPolicy.chooseMimeType`, `ProxyAccessPolicy.normalizeAll`
   - **Verify**: tests fail on assertions only; all other tests stay green
-  - **Constraints**: no `android.*` imports in these classes
+  - **Constraints**: Android types are allowed in these classes (Phase 4, 2026-10-26); tests mock them with Mockito as the existing tests do
 - Status (Group 12): done 2026-10-25. Research is `docs/tech.md` "Sharing local files" (it corrected the plan: decisions.md 2026-10-25). Red tests: `ShareRegistry`, `SharedContentPolicy`, `ProxyAccessPolicy`, `ReceiverPickResult`, `ByteRangeResolver` (pure range logic), `LauncherForwardPolicy.decideStream`; fail-closed stubs, assertion failures only. Review cycle 1 (real build: 665 tests, 221 AssertionErrors all in the new red classes, the earlier 337 green) found four warnings, fixed afterwards: Accept text aligned with the tests' API, stale 'server started temporarily'/'EXTRA_STREAM' text, tests for key non-reuse after remove/expiry, non-ASCII literals escaped; plus the two fail-open stubs made fail-closed.
 
 ## Group 13: Ephemeral proxy
 - [x] Registry-backed proxy | `YaaccUpnpServerContentHttpHandler.java`, `UpnpClient.java`, `ShareRegistry` etc., new `ByteRangeResolver`
   - **Accept**: the proxy path serves only registry entries (random key, allowed IPs, expiry); the old persistent preference path and its URI-derived keys are retired (softened 2026-10-26); http/https shares with the proxy option behave as before for the user, but through the registry; content shares stream from the held descriptor with correct `Range` handling (seek via `FileChannel`/offset), MIME type from the provider; a new checkbox setting "Restrict the media proxy to the chosen receivers" (key `settings_proxy_restrict_receivers_chkbx`, default **on**, in the media proxy part of the settings, strings in 7 locales) switches the IP check; with it on, a request from a non-allowed IP gets 403 and a payload-free log line; with it off only the random key and the expiry protect the entry; expiry closes the descriptor; registry entries are served BEFORE the preference gate of the handler (the HTTP server always runs while the process lives; nothing is started or stopped for a share; before handing out a URL the share waits until the server answers, e.g. a small `isHttpServerRunning()`/health probe on loopback); the user's settings are untouched; the range logic is the new pure `ByteRangeResolver` (`parseHeader(String)` never throws and returns `Range`s; `resolve(List<Range>, long)` returns a `Result` with `status()` 200/206/416, `start()`, `endInclusive()`, `length()`, `contentRangeHeader()`; an invalid header and more than one range are served as 200 whole, an unsatisfiable single range as 416 `bytes */len`) replacing the old `HttpRange.parseRangeHeader`/`Content-Range` code for registry entries; positional reads use `Os.pread` (not a shared `FileChannel`) with the close locked against reads; the held descriptor is `ParcelFileDescriptor.dup()` of the provider's, original closed; `openAssetFileDescriptor(uri,"r")` with start offset/length honored; the 404 page does not echo the key and the key is never logged; the old local-path fallback for non-http targets is removed (the 3-segment `/proxy/<deviceId>/<key>` form was restored for server-side seeking, decisions.md 2026-10-26); `ShareRegistry.isWellFormedKey` (22 chars of [A-Za-z0-9_-]) is checked before lookup
   - **Verify**: `./gradlew :yaacc:assembleDebug :yaacc:testDebugUnitTest :yaacc:lintDebug`; the Group 12 tests green
-  - **Constraints**: security review checks key entropy, IP check on every request, no URI/path from preferences, descriptor lifetime, no path traversal, no logging of keys or URIs. Security review (Group 12) requires: registering when the registry is full first evicts released entries still in their grace period, and a full registry gives visible feedback; closing is non-blocking (an in-flight counter, the actual close outside the registry lock, never while a read is running); provider start offset and length are clamped to the real size; caps on concurrent responses per share and on idle time (the server-wide socket timeout is 5 minutes, HTTP/2 allows 100 streams per connection); the IP-restriction setting defaults to true in code, in the preference XML and when the read fails; loopback and the phone's own address are added to the allowed set only when the local device is a chosen receiver; never `InetAddress.getByName` on addresses (literals are parsed by `ProxyAccessPolicy`); zone ids are stripped so link-local addresses can collide across interfaces (accepted, documented); `SecureRandom` and a monotonic non-`android.*` clock in `createDefault()`; a constant 404 body; the remote address comes only from the endpoint details; an upstream `Range` header is re-serialized from the parsed ranges, never passed through; a sweeper plus `removeAll()` on exit; no logging of keys or full proxy URLs in `AVTransportPlayer` and `PlayableItem`
+  - **Constraints**: security review checks key entropy, IP check on every request, no URI/path from preferences, descriptor lifetime, no path traversal, no logging of keys or URIs. Security review (Group 12) requires: registering when the registry is full first evicts released entries still in their grace period, and a full registry gives visible feedback; closing is non-blocking (an in-flight counter, the actual close outside the registry lock, never while a read is running); provider start offset and length are clamped to the real size; caps on concurrent responses per share and on idle time (the server-wide socket timeout is 5 minutes, HTTP/2 allows 100 streams per connection); the IP-restriction setting defaults to true in code, in the preference XML and when the read fails; loopback and the phone's own address are added to the allowed set only when the local device is a chosen receiver; never `InetAddress.getByName` on addresses (literals are parsed by `ProxyAccessPolicy`); zone ids are stripped so link-local addresses can collide across interfaces (accepted, documented); `SecureRandom` and a monotonic clock (not wall-clock time) in `createDefault()`; a constant 404 body; the remote address comes only from the endpoint details; an upstream `Range` header is re-serialized from the parsed ranges, never passed through; a sweeper plus `removeAll()` on exit; no logging of keys or full proxy URLs in `AVTransportPlayer` and `PlayableItem`
 
 ## Group 14: Share intake
 - [x] Single-file `SEND` | `AndroidManifest.xml` (SEND filters for `audio/*`, `video/*`, `image/*` on `LauncherActivity`), `LauncherActivity.java`, `LauncherForwardPolicy.decideStream(...)` returning a `StreamDecision` (forward flag + the single URI; the 3-argument `decide` stays), `ShareIntentHandler.java`, `SharedContentPolicy.chooseMimeType`, `UpnpClient.createPlayableItem`
@@ -222,6 +222,190 @@ Scoped with the owner on 2026-10-25; **waiting for the owner's sign-off on this 
   - **Verify**: placeholder grep; every cited class exists
   - **Constraints**: nothing descoped is documented; document that the share key is visible to any LAN control point that can query the receiver (e.g. `GetMediaInfo`), so with the IP restriction switched off the random key is not a protection; keep exploit-level detail about the existing (released) proxy behavior out of the public docs
 - Status (Group 16): done 2026-10-26. Docs as built in `docs/index.md`, `docs/settings.md`, `docs/tech.md`, `CHANGELOG.md`, `README.md`; the detailed risk list and the research about the pre-existing proxy are kept in `known-risks.md` (spec folder), the published pages keep a neutral "Known limitations" summary. General review: cycle 1 FAIL (add-to-playlist wording, exploit-level research text in the published tech page, stale Phase 2 handler text), cycle 2 PASS. Security review: cycle 1 FAIL (logging claims too strong, incomplete risk list), cycle 2 FAIL (two more open items), cycle 3 PASS. OPEN FOR THE OWNER: `.claude/specs/` is tracked in the public repository (see decisions.md 2026-10-26); device checks; classic pre-tick. (The 5.4.x patch before the merge was dropped by the owner 2026-10-26, decisions.md; softened 2026-10-26.)
+
+# Phase 4: consolidate the share code (design.md "Phase 4")
+
+Owner decision 2026-10-26; plan written the same day, **waiting for the owner's sign-off before Group 17 starts** (open questions at the end of decisions.md "Phase 4"). A behaviour-preserving refactor: 68 share/pick files -> 33, one package `de.yaacc.share`, Android types allowed. BASE = `ecb26c59`. Same gates per group: build -> reviewer PASS -> security-reviewer PASS (sequential, max 3 cycles). Test-first where code is new; otherwise tests move with the code. The orchestrator keeps `PROGRESS.md`.
+
+## Phase 4 rules (every group)
+- **No new packages, no dependency change, no manifest change, no new string, no new preference key.** `ShareLimits` values, the public methods of `UpnpClient` and `ShareIntentHandler`, and every `@Test` assertion stay as they are, except where the ledger below says otherwise.
+- **Moves, not rewrites** (design.md "Move discipline"): renames/package moves are their own commits (`git mv`, similarity 100%); merges copy the absorbed code unchanged (same statements, same order); no drive-by fixes; known-risks.md items stay open. Commit messages carry `phase4-group-N` (Conventional Commits, plus the session trailer). No history rewriting, no force-push.
+- **The Phase 4 gate (G)**, run in a clean checkout of the group's HEAD, all of it must hold:
+  1. `ANDROID_HOME=/root/android-sdk ./gradlew :yaacc:cleanTestDebugUnitTest :yaacc:assembleDebug :yaacc:testDebugUnitTest :yaacc:lintDebug` -> BUILD SUCCESSFUL.
+  2. Tests: `cat yaacc/build/test-results/testDebugUnitTest/TEST-*.xml | sed -n 's/.*<testsuite [^>]* tests="\([0-9]*\)" skipped="\([0-9]*\)" failures="\([0-9]*\)" errors="\([0-9]*\)".*/\1 \2 \3 \4/p' | awk '{t+=$1;s+=$2;f+=$3;e+=$4} END{print t,s,f,e}'` -> `1472 0 0 0` plus the characterization tests of Group 17 task 2 (the builder reports N there; every later group expects `1472+N 0 0 0`).
+  3. Lint: `grep -cE '^\s*<issue(\s|$)' yaacc/build/reports/lint-results-debug.xml` -> 189, of which `grep -c 'severity="Error"'` -> 72 and `grep -c 'severity="Warning"'` -> 117; no issue in a file that did not have one at BASE.
+  4. Manifest: `git diff 071fc9d2 -- yaacc/src/main/AndroidManifest.xml | grep -E '^[+-][^+-]'` prints exactly the one `<intent-filter>` of `LauncherActivity` (SEND, DEFAULT, `audio/*`, `video/*`, `image/*`; 7 added lines, 0 removed). Build files: `git diff --quiet ecb26c59 -- build.gradle yaacc/build.gradle settings.gradle gradle.properties gradle yaacc/lint.xml && echo unchanged`.
+  5. Public API: for `yaacc/src/main/java/de/yaacc/upnp/UpnpClient.java` and `yaacc/src/main/java/de/yaacc/browser/ShareIntentHandler.java`: `diff <(git show ecb26c59:$f | grep -E '^\s+(public|protected) ' | sed -E 's/\s*\{.*//' | sort) <(grep -E '^\s+(public|protected) ' $f | sed -E 's/\s*\{.*//' | sort)` prints nothing.
+  6. Ledger: the multiset of test method names (`sed -n 's/.*<testcase name="\([^"]*\)".*/\1/p'` over the XML, sorted) of a throw-away worktree of BASE (scratchpad) diffed against HEAD shows exactly the ledger entries of the groups done so far, nothing else.
+  7. `git diff -M --color-moved=dimmed-zebra ecb26c59..HEAD -- yaacc/src/main` read by the reviewer: every changed main line that is not part of a moved block is a qualifier, visibility, javadoc or documented call-site change (the reviewer lists them in review.md).
+  8. Mutation checks (design.md "Mutation checks"): at least 6 mutants of the classes the group touched, run before (group parent) and after (group HEAD) on throw-away worktrees in the scratchpad; same mutants killed both times; result table in review.md / security-review.md.
+- The security reviewer checks the group against SI-1 ... SI-19 (design.md "Security invariants") and reads the moved code, not the summary.
+
+## Test ledger (planned; each group fills "Actual")
+| Id | Group | BASE test class (cases) | Moves to | Change in form |
+|---|---|---|---|---|
+| L1 | 17 | `ShareProxyUrlTest` (4) | `ShareServiceTest` | `proxyUrl(ip, key)` / `hasAddress(ip)`; `noKeyOrPathMeansNoUrl` becomes `noKeyMeansNoUrl` (the path is no longer an argument); +1 case: IPv6 with zone id equals BASE output. Cases 4 -> 5 (the only planned increase besides N) |
+| L2 | 17 | `ShareFailureMessageTest` (10) | 4 `Kind` cases -> `ShareServiceTest` on `failureTextRes`; 6 `isRefusedBusy` cases -> `BoundedCallTest` | `Kind.BUSY` / `Kind.OPEN_FAILED` become `R.string.share_busy` / `R.string.share_open_failed`; the six `BoundedCall` cases verbatim |
+| L3 | 17 | `ReceiverSelectionTest` (8) | `UpnpClientReceiverSelectionTest` | same names, driven through `getReceiverDeviceIds()` / `getReceiverDevices()` |
+| L4 | 17 | `ShareRegistrarTest` (3) | `ShareRegistryEvictionTest` | `ShareRegistry#registerOrEvict` instead of `ShareRegistrar.register` |
+| L5 | 17 | `DescriptorWindowTest` (10) | `HeldFileSourceTest` (new file) | `HeldFileSource.clampLength` |
+| L6 | 17 | `ReceiverBarLabelTest` (13) | `ReceiverBarControllerTest` | `ReceiverBarController.label` |
+| L7 | 17 | the 4 test files of `upnp.server.share` | same names in `de.yaacc.share` | package only |
+| L8 | 18 | `RendererIdPolicyTest` (4), `RendererStateMapTest` (11), `SeekPositionCalculatorTest` (9) | `ServerSideSeekingTest` (10 -> 34) | class qualifiers |
+| L9 | 18 | `ShareAddressesTest` (9) | `ProxyAccessPolicyTest` (73 -> 82) | `ProxyAccessPolicy.allowedAddresses` |
+| L10 | 18 | `LinkTargetPolicyTest` (38), `HttpLinkTargetTest` (12), `LinkContentTypeTest` (14) | `ShareLink*Test` (topic-named files allowed) | `ShareLink` qualifiers; `HttpLinkTarget.of` is `ShareLink.of` |
+| L11 | 18 | `RangeStreamerTest` (24) | same | `ChunkSink` is `RangeStreamer.Sink` |
+| L12 | 18 | `ShareEntityProducerTest` (18), `GuardedEntityProducerTest` (13), `LengthOnlyEntityProducerTest` (4) | `ShareProducersTest` (+ `ProducerTestSupport`) | nested class qualifiers |
+| L13 | 19 | `BoundedCallTest` (8+6), `BoundedCallGateTest` (13), `ProviderCallGateTest` (11), `ProviderKeysTest` (7) | `ProviderCallsTest` | `ProviderCalls` qualifiers |
+| L14 | 19 | `ProviderProbeTest` (7) | `SharedFileOpenerTest` (new file) | `SharedFileOpener.probe` |
+| L15 | 19 | `AbandonableCallTest` (11) | `WatchedCopyTest` (14 -> 25) | qualifiers |
+| L16 | 19 | `CopyBudgetTest` (16) | `BudgetedCopierTest` (12 -> 28) | qualifiers |
+| L17 | 19 | `IncomingFileNamesTest` (8), `DeleteOnCloseSourceTest` (7) | `IncomingCacheTest` (13 -> 28) | qualifiers |
+| L18 | 20 | `SharedContentPolicyTest` (60), `SharedContentPolicyAuthorityTest` (2), `OwnProvidersTest` (6), `StreamIntakeTest` (11), `ShareUriPolicyTest` (10) | `SharedContentPolicy*Test` | `validateStream` / `isOwnAuthority` / `isAllowedText` on `SharedContentPolicy` |
+| L19 | 20 | `SenderGrantCheckTest` (5) | `LauncherForwardPolicyTest` | `LauncherForwardPolicy.mayForward` |
+| L20 | 20 | `SharedItemFactoryTest` (7) | `ShareServiceTest` | `ShareService.createItem` |
+| L21 | 20 | `ShareIntakeGateTest` (13) | `ShareIntentHandlerGateTest` (new file, topic) | `ShareIntentHandler.admits` / `admitOrDiscard` |
+| L22 | 21 | `ReceiverPickResultTest` (19), `PickSheetResultTest` (12) | `PendingPickTest` (24 -> 55) | `PendingPick.Decision`, `PendingPick.SheetGate` |
+| L23 | 21 | `ActionFlightTest` (15, includes the guard cases) | same | `ActionFlight.guard` |
+| L24 | 21 | `AfterStartSelectionTest` (10) | `ReceiverPickControllerAfterStartHookTest` (5 -> 15) | `ReceiverPickController` static plan |
+| L25 | 21 | `PickTitleTest` (8) | `DeviceSheetFragmentTest` (new file) | `DeviceSheetFragment.nameOrFallback` / `subtitle` |
+Expected total after Group 21: `1472 + N + 1` (L1 adds one case). Anything else in the diff is a defect.
+
+## Group 17: Rule removal, characterization, package move, trivial classes
+Order inside this group is fixed (shared files); one builder, one commit per task. Spec text (tasks.md, design.md) already had the "no `android.*`" rule removed when this plan was written.
+- [ ] Research `java.net.URI` and the Mockito setup | `docs/tech.md`
+  - **Packages**: none (JDK `java.net.URI`; Mockito `mockito-core:5.24.0` already in `yaacc/build.gradle`)
+  - **Accept**: `docs/tech.md` "Sharing local files" gets a "Phase 4 notes" subsection with: (a) the behaviour of `new URI(scheme, userInfo, host, port, path, query, fragment)` for an IPv4 host, an IPv6 literal without brackets (brackets are added), an already bracketed literal, an IPv6 literal with a zone id, a host with a leading or inner blank (throws `URISyntaxException`), checked against the Android API reference for minSdk 27 / compileSdk 36 (`yaacc/build.gradle:75,111`) and against a run on the desktop JDK (planning-time result: `fe80::1` -> `http://[fe80::1]:49157/proxy/AbC-_9`, `fe80::1%wlan0` -> `[fe80::1%wlan0]`, `" 192.168.1.5"` and `"a b"` throw; so the caller must trim first, as `ShareProxyUrl.build` did); (b) how existing tests mock Android types (`ShareIntentHandlerFileTest`, `ProviderProbeTest`, `ShareIntakeGateTest` for `mockStatic`) and what `unitTests.returnDefaultValues` returns for `Uri.parse`, `Handler`, `Looper` (`yaacc/build.gradle:120-122`)
+  - **Verify**: each statement cites a URL or file:line; `grep -n "Phase 4 notes" docs/tech.md`
+  - **Constraints**: no code; do not add dependencies; if the Android result differs from the desktop result, the plan's `proxyUrl` task builds the string as the Android result requires and says so in decisions.md
+- [ ] Characterization tests for the untested glue (they must PASS on BASE) | `yaacc/src/test/java/de/yaacc/upnp/server/share/SharedFileServicePrepareTest.java`, optionally a `UpnpClient` link-share test
+  - **Accept**: tests on `SharedFileService#prepare` pin, with Mockito mocks of `Context`/`Yaacc`/`UpnpClient` and `mockStatic(InterfaceResolutionHelper.class)`: (1) server not ready -> the opened source is closed, nothing registered, result null; (2) no network address -> source closed, nothing registered; (3) registry full after one evict-retry -> source closed, result null; (4) success -> a `Prepared` with a registered key, the key counted as unclaimed, the registry (not the caller) owns the source (removing the key closes it), the item URI has the shape `http://<ip>:<port>/proxy/<key>`; (5) `SharedItemFactory.create` returns null -> the key is removed (source closed), result null; (6) an exception inside -> source closed, key removed, result null; (7) the open step refused as busy picks the busy text path (assert the effect, not the toast: `Handler` is not injectable). If `UpnpClient#createHttpLinkShare` can be reached through a spy without `MediaMetadataRetriever`, add the same four effects for links; if not, say so and the reviewer reads that diff by eye
+  - **Verify**: `./gradlew :yaacc:testDebugUnitTest --tests '*SharedFileServicePrepareTest*'` passes on a BASE worktree and at the group HEAD; the builder writes the number N of added tests into the ledger
+  - **Constraints**: written against BASE code, no production change in this task; the mocks of the registry may be real `ShareRegistry` instances with an injected clock and random (as `ShareRegistryTest` does); these tests are the only planned addition to the 1472
+- [ ] Package move `de.yaacc.upnp.server.share` -> `de.yaacc.share` (pure rename) | 9 main files, 4 test files, imports in `UpnpClient`, `ShareIntentHandler`, `LauncherActivity`, tests
+  - **Accept**: `yaacc/src/main/java/de/yaacc/upnp/server/share` and the test folder of the same name no longer exist; the only changed lines are `package` and `import` lines; ledger L7
+  - **Verify**: gate (G) 1-5; for the move commit, `git show -M --summary <commit> | grep -c 'rename.*upnp/server/share'` -> 9 main + 4 test renames (similarity as git reports it for the changed package and import lines)
+  - **Constraints**: separate commit; no member is renamed, no visibility changed
+- [ ] Rename `SharedFileService` -> `ShareService`; replace `ShareProxyUrl`; delete `ShareFailureMessage` | `ShareService.java`, `UpnpClient.java`, `ShareIntentHandler.java`, `ShareServiceTest.java`, `BoundedCallTest.java`
+  - **Accept**: `ShareProxyUrl` and `ShareFailureMessage` are gone; `ShareService.proxyUrl(String ip, String key)` trims `ip`, builds the URL with `java.net.URI` from the constants `http`, `YaaccUpnpServerService.PORT` and the path `/` + `YaaccUpnpServerService.PROXY_PATH` + `/` + key, and returns null for a blank ip, a null/empty key or a `URISyntaxException`; `ShareService.hasAddress(String ip)` (non-null, non-blank) replaces the `"x"` probe in `UpnpClient#createHttpLinkShare` and `ShareService#prepare`; `ShareService.failureTextRes(boolean providerRefusedBusy, boolean copySlotBusy)` replaces the three `ShareFailureMessage.of(...) == BUSY` expressions (two in the service, one in `ShareIntentHandler`); before the old class is deleted the builder prints old and new output for the five inputs of the research task and they are equal; ledger L1, L2; `ShareIntentHandler.FilePreparer` uses `ShareService.Prepared`
+  - **Verify**: gate; `grep -rn 'ShareProxyUrl\|ShareFailureMessage' yaacc/src` -> nothing; `grep -rn '"x"' yaacc/src/main/java/de/yaacc/share yaacc/src/main/java/de/yaacc/upnp/UpnpClient.java` -> no key probe
+  - **Constraints**: no ip, key or exception text in any log (SI-16); when the address is `0.0.0.0` (what `InterfaceResolutionHelper.getIpAddress` returns offline, not null) the behaviour stays exactly as at BASE (the URL is built); `Uri.parse` stays at the call sites; the renaming commit contains no other change
+- [ ] Delete `ReceiverSelection` | `UpnpClient.java`, `UpnpClientReceiverSelectionTest.java`
+  - **Accept**: `getReceiverDeviceIds()` returns a modifiable copy of the stored set (a null stored set becomes an empty set, as at BASE); `getReceiverDevices()` removes the unknown ids from the already-copied set; the set returned by `SharedPreferences.getStringSet` is never modified; ledger L3
+  - **Verify**: gate; `grep -rn ReceiverSelection yaacc/src` -> nothing
+  - **Constraints**: exactly the BASE semantics, including "an empty stored set stays empty" and the copy being modifiable
+- [ ] Merge `ShareRegistrar`, `DescriptorWindow`, `ReceiverBarLabel` | `ShareRegistry.java`, `HeldFileSource.java`, `ReceiverBarController.java`, callers, tests
+  - **Accept**: `ShareRegistry#registerOrEvict(Entry)` = `register`, then on null `evictOldestReleased()` and one retry, exactly the BASE body of `ShareRegistrar.register` (callers: `UpnpClient#createHttpLinkShare`, `ShareService#prepare`); `HeldFileSource.clampLength(long startOffset, long declaredLength, long realSize)` is the BASE body of `DescriptorWindow.clampLength` and `HeldFileSource.open` calls it; `ReceiverBarController.label(Collection<String>, String)` is the BASE body of `ReceiverBarLabel.build`; ledger L4, L5, L6
+  - **Verify**: gate; `grep -rn 'ShareRegistrar\|DescriptorWindow\|ReceiverBarLabel' yaacc/src` -> nothing
+  - **Constraints**: `ShareRegistry` stays free of any logging and any Android type it does not need today (SI-1, SI-2); the `ShareRegistry` and `HeldFileSource` mutants of design.md "Mutation checks" run before/after
+- [ ] Gate for Group 17 | n/a
+  - **Accept**: Phase 4 gate (G) 1-8 hold; the file count of the share/pick classes equals 62 by the inventory table in design.md (68 minus `ShareProxyUrl`, `ShareFailureMessage`, `ReceiverSelection`, `ShareRegistrar`, `DescriptorWindow`, `ReceiverBarLabel`)
+  - **Verify**: the commands in "Phase 4 rules"; results recorded in review.md and security-review.md
+  - **Constraints**: reviewer, then security-reviewer, sequentially
+- Status (Group 17): not started.
+
+## Group 18: Serving side (registry neighbours, policies, link, producers)
+- [ ] `ServerSideSeeking` absorbs `RendererIdPolicy`, `RendererStateMap`, `SeekPositionCalculator` | `ServerSideSeeking.java`, callers `ProxyShareResponder`, `YaaccUpnpServerContentHttpHandler`, `AVTransportPlayer`, `HttpLinkTarget`, tests
+  - **Accept**: `ServerSideSeeking.isValidRendererId(String)` (charset `[A-Za-z0-9:._-]`, 1-200), a nested `ServerSideSeeking.RendererStates` (the BASE `RendererStateMap`, same bound and LRU, created only by `create`), and the position estimate are the BASE bodies; all callers use the new names; ledger L8 (34 cases in `ServerSideSeekingTest`)
+  - **Verify**: gate; `grep -rn 'RendererIdPolicy\|RendererStateMap\|SeekPositionCalculator' yaacc/src` -> nothing
+  - **Constraints**: SI-3 (renderer id checked after key and IP), per-share state bounded at 8 renderers; `AVTransportPlayer` keeps validating the id before building a URL or writing a preference
+- [ ] `ProxyAccessPolicy` absorbs `ShareAddresses` | `ProxyAccessPolicy.java`, `ShareAddressResolver.java`, tests
+  - **Accept**: `ProxyAccessPolicy.allowedAddresses(Collection<String> receiverHosts, boolean localDeviceChosen, Collection<String> localAddresses)` returns the BASE result of `ShareAddresses.build` (unmodifiable, normalized, loopback + own addresses only when the local device was chosen); ledger L9
+  - **Verify**: gate; `grep -rn 'ShareAddresses' yaacc/src` -> nothing
+  - **Constraints**: SI-4: no `InetAddress.getByName`, zone ids stripped, mapped IPv4 normalized; mutants for `ProxyAccessPolicy` run
+- [ ] `ShareLink` = `LinkTargetPolicy` + `HttpLinkTarget` + `LinkContentType` | new `ShareLink.java` (rename of `LinkTargetPolicy.java` with `git mv`, then merge), callers `UpnpClient`, `ProxyShareResponder`, `YaaccUpnpServerContentHttpHandler`, tests
+  - **Accept**: `ShareLink` keeps every static method of `LinkTargetPolicy` and `LinkContentType` under the same names (`isAllowedTarget`, `find`, ...) and becomes the registry target type of an `HTTP_LINK` entry (`of(String)`, `isFetchable(String)`, `getUrl()`, `getRendererStates()`, `equals`/`hashCode`, a `toString()` that never shows the link); `instanceof HttpLinkTarget` in the responder and the handler becomes `instanceof ShareLink`; ledger L10
+  - **Verify**: gate; `grep -rn 'HttpLinkTarget\|LinkTargetPolicy\|LinkContentType' yaacc/src` -> nothing
+  - **Constraints**: SI-15, nothing resolved, no `URL`/`URI`/`InetAddress` in the parser; `docs/tech.md` and known-risks.md names are updated in Group 22, not here
+- [ ] `ChunkSink` becomes `RangeStreamer.Sink` | `RangeStreamer.java`, `RangeStreamerTest.java`
+  - **Accept**: the interface is nested, `serve(...)` keeps both overloads; ledger L11; `ChunkSink.java` gone
+  - **Verify**: gate; `grep -rn ChunkSink yaacc/src` -> nothing
+  - **Constraints**: `serve` stays (test-only API, open question Q2)
+- [ ] `ShareProducers` (optional; drop it if the diff stops being reviewable) | `ShareEntityProducer`, `GuardedEntityProducer`, `LengthOnlyEntityProducer` -> `yaacc/src/main/java/de/yaacc/upnp/server/http/ShareProducers.java`, tests
+  - **Accept**: three package-private nested classes with the BASE bodies; `ProxyShareResponder` uses them; ledger L12; `ProducerTestSupport` stays
+  - **Verify**: gate
+  - **Constraints**: do not unify the two guards (`ShareEntityProducer` and `GuardedEntityProducer` repeat the live check and lease handling; unifying changes the SI-7 surface and is not part of this phase); lease release on construction failure (SI-7) stays in the responder
+- [ ] Gate for Group 18 | n/a
+  - **Accept**: Phase 4 gate (G) 1-8; inventory count 53; mutants for `ServerSideSeeking`, `ProxyAccessPolicy`, `ShareLink`, `ShareProducers`, `ProxyShareResponder`
+  - **Verify**: as in "Phase 4 rules"
+  - **Constraints**: reviewer then security-reviewer
+- Status (Group 18): not started.
+
+## Group 19: Provider calls, file open and copy
+- [ ] `BoundedCall` becomes `ProviderCalls` and absorbs `ProviderCallGate` and `ProviderKeys` | `ProviderCalls.java` (`git mv` of `BoundedCall.java` first), `ShareIntentHandler.java`, `ShareService.java`, tests
+  - **Accept**: `ProviderCalls` has the BASE `call`/`callDetailed`/`Result` API, a nested `Gate` (BASE `ProviderCallGate`, `createDefault()` unchanged: one call per provider, no expiry, `ShareLimits.PROVIDER_MAX_TRACKED`) and `ProviderCalls.keyOf(PackageManager, String authority)` (BASE `ProviderKeys.of`, same `"unresolved"` fallback); `ShareIntentHandler.PROBE_CALLS` and `ShareService.PROVIDER_CALLS` stay two separate instances with two separate gates and `ShareLimits.PROVIDER_POOL_THREADS` threads each; ledger L13 (the six `isRefusedBusy` cases of L2 are already in `BoundedCallTest`)
+  - **Verify**: gate; `grep -rn 'BoundedCall\|ProviderCallGate\|ProviderKeys' yaacc/src` -> nothing
+  - **Constraints**: SI-12; the permit is released in the pooled task's `finally` as at BASE; do not share a gate between the two pools; mutants for `ProviderCalls`
+- [ ] `SharedFileOpener` absorbs `ProviderProbe` | `SharedFileOpener.java`, `ShareIntentHandler.java`, tests
+  - **Accept**: `SharedFileOpener.probe(ContentResolver, Uri)` returning the BASE `Info` (type, name cut at 1024 chars, string columns only, `RuntimeException` -> null); ledger L14
+  - **Verify**: gate; `grep -rn ProviderProbe yaacc/src` -> nothing
+  - **Constraints**: the probe still runs only through `ProviderCalls` off the main thread (SI-12); no logging of the provider's text
+- [ ] `WatchedCopy` absorbs `AbandonableCall`; `BudgetedCopier` absorbs `CopyBudget` | the four classes, `SharedFileOpener.java`, tests
+  - **Accept**: `AbandonableCall` is a nested class of `WatchedCopy` (same cap, same `onAbandon` on the caller's thread, same `disposeLate`), `CopyBudget` is a nested `BudgetedCopier.Budget` with the same `Decision` values and the same check order ("too big wins over no space"); ledger L15, L16
+  - **Verify**: gate; `grep -rn 'AbandonableCall\|CopyBudget' yaacc/src` -> only the nested names
+  - **Constraints**: SI-13: the budget is still asked before EVERY chunk, `COPY_MAX_STUCK_WORKERS` still 3, the output stream of an abandoned worker is still closed from the caller; mutants for both
+- [ ] `IncomingCache` absorbs `IncomingFileNames` and `DeleteOnCloseSource` | `IncomingCache.java`, `WatchedCopy.java`/`SharedFileOpener.java` callers, tests
+  - **Accept**: `IncomingCache.randomName(Consumer<byte[]>)` / `isOurIncomingName(String)` and a nested `IncomingCache.HeldCopy` (BASE `DeleteOnCloseSource`: close the delegate first, then delete); ledger L17
+  - **Verify**: gate; `grep -rn 'IncomingFileNames\|DeleteOnCloseSource' yaacc/src` -> nothing
+  - **Constraints**: SI-13: names stay `share-<32 hex>.bin` from the injected `SecureRandom` bytes, `CREATE_NEW`, the sweep deletes only exact-shape regular files and never follows links
+- [ ] Gate for Group 19 | n/a
+  - **Accept**: Phase 4 gate (G) 1-8; inventory count 46; mutants for `ProviderCalls`, `SharedFileOpener`, `WatchedCopy`, `BudgetedCopier`, `IncomingCache`, `HeldFileSource`
+  - **Verify**: as above
+  - **Constraints**: reviewer then security-reviewer; `HeldFileSource`/`SharedFileOpener` I/O has no unit test at BASE, so the reviewer reads those diffs line by line
+- Status (Group 19): not started.
+
+## Group 20: Intake and the share service
+- [ ] `SharedContentPolicy` absorbs `OwnProviders`, `StreamIntake`, `ShareUriPolicy` | `SharedContentPolicy.java`, `LauncherActivity.java`, `LauncherForwardPolicy.java`, `ShareIntentHandler.java`, tests
+  - **Accept**: `SharedContentPolicy.isOwnAuthority(PackageManager, String ownPackage, String authority)` and `fileProviderAuthority(String)` (BASE `OwnProviders`, fail closed), `validateStream(...)` (BASE `StreamIntake.validate`, same checks in the same order, `READ_FLAG`), `isAllowedText(String)` / `MAX_TEXT_LENGTH` (BASE `ShareUriPolicy`); the string-level parsers stay string-level; ledger L18; optional and only if it deletes wiring: `validateStream` takes `PackageManager` + own package instead of the `Predicate`/`ownAuthority` pair (the 11 `StreamIntakeTest` cases change their arrange code only)
+  - **Verify**: gate; `grep -rn 'OwnProviders\|StreamIntake\|ShareUriPolicy' yaacc/src` -> nothing
+  - **Constraints**: SI-8, SI-10 (any provider of this app refused, check throws -> refused, the intent is consumed before validation in the handler); no `android.net.Uri` parsing in the policy; mutants for `SharedContentPolicy`
+- [ ] `LauncherForwardPolicy` absorbs `SenderGrantCheck` | `LauncherForwardPolicy.java`, `LauncherActivity.java`, tests
+  - **Accept**: `LauncherForwardPolicy.mayForward(int sdkInt, IntSupplier permissionCheck)` and `FIRST_SDK_WITH_CALLER_CHECK` are the BASE bodies; ledger L19
+  - **Verify**: gate; `grep -rn SenderGrantCheck yaacc/src` -> nothing
+  - **Constraints**: SI-8 (below 35 allowed, 35+ fail closed on denial, null check or any `RuntimeException`); `LauncherActivity` changes only the call
+- [ ] `ShareService` absorbs `ShareAddressResolver`, `SharedItemFactory`, `HttpServerProbe` | `ShareService.java`, `UpnpClient.java`, tests
+  - **Accept**: `ShareService.allowedAddresses(UpnpClient, Context, Set<String> receiverIds)` (BASE `ShareAddressResolver.resolve`), `ShareService.createItem(...)` (BASE `SharedItemFactory.create`), `ShareService.isHttpServerRunning()` (BASE `HttpServerProbe.isRunning`, 500 ms loopback connect); `UpnpClient#isHttpServerRunning()` stays public and delegates; `UpnpClient#createHttpLinkShare` stays in `UpnpClient` and calls the new homes plus `registry.registerOrEvict`; ledger L20
+  - **Verify**: gate; `grep -rn 'ShareAddressResolver\|SharedItemFactory\|HttpServerProbe' yaacc/src` -> nothing; the Group 17 characterization tests still pass unchanged
+  - **Constraints**: SI-4 (allowed set from the ids captured at confirm, local device rule), SI-14 (ownership pairing in `prepare`); do not move `discardShareOf` or `createHttpLinkShare` out of `UpnpClient` (tests verify them on the client)
+- [ ] `ShareIntentHandler` absorbs `ShareIntakeGate` | `ShareIntentHandler.java`, `TabBrowserActivity.java`, `BrowserActivity.java`, tests
+  - **Accept**: `ShareIntentHandler.admits(Layout own, Layout effective)` and `admitOrDiscard(Layout, Layout, Intent)` are the BASE bodies and are what both activities call from `handOverShare`; ledger L21
+  - **Verify**: gate; `grep -rn ShareIntakeGate yaacc/src` -> nothing
+  - **Constraints**: SI-10; the rule stays the same as `BrowserLayoutSwitch.shouldRelaunch`; public API list unchanged (the new methods are package-private/static as the gate was)
+- [ ] Gate for Group 20 | n/a
+  - **Accept**: Phase 4 gate (G) 1-8; inventory count 38; no `upnp/server/share` anywhere in `yaacc/src`; mutants for `SharedContentPolicy`, `LauncherForwardPolicy`, `ShareIntentHandler`, `ShareService`, `LaunchNonces`, `PendingShare`
+  - **Verify**: as above
+  - **Constraints**: reviewer then security-reviewer; the security reviewer re-walks the launcher -> nonce -> browser -> pending share chain on the real code (as in Group 15 cycle 2)
+- Status (Group 20): not started.
+
+## Group 21: Receiver picker
+- [ ] `PendingPick` absorbs `ReceiverPickResult` and `PickSheetResult` | `PendingPick.java`, `DeviceSheetFragment.java`, `ReceiverPickController.java`, tests
+  - **Accept**: `PendingPick.Decision` + `PendingPick.decide(boolean, Set<String>)` (BASE `ReceiverPickResult`, incl. `keepPickerOpen()`, `receiversToUse()`, `startPlayback()`, `clearSelectionAfterStart()`), `PendingPick.SheetGate` (BASE `PickSheetResult`: `confirm`, `dismissed`, `silence`, `isDelivered`, `confirmedIds`); `PendingPick.Callbacks` and `Outcome` unchanged; ledger L22
+  - **Verify**: gate; `grep -rn 'ReceiverPickResult\|PickSheetResult' yaacc/src` -> nothing
+  - **Constraints**: SI-11 (a second `open` never replaces, stale/forged ids ignored, state cleared before callbacks, one answer per sheet); the three test-only members stay (Q2); mutants for `PendingPick`
+- [ ] `ActionFlight` absorbs `GuardedPickedAction` | `ActionFlight.java`, `ReceiverPickController.java`, tests
+  - **Accept**: `ActionFlight#guard(PickedAction)` returns the `PendingPick.Callbacks` the BASE `new GuardedPickedAction(flight, action)` was (flight begun at confirm, refused -> `onCancelled`, throwing action ends the flight and rethrows); `PickedAction` stays a top-level interface; ledger L23
+  - **Verify**: gate; `grep -rn GuardedPickedAction yaacc/src` -> nothing
+  - **Constraints**: SI-11 (watchdog `ACTION_FLIGHT_MAX_MILLIS`, a stale ticket cannot end the next flight)
+- [ ] `ReceiverPickController` absorbs `AfterStartSelection`; `DeviceSheetFragment` absorbs `PickTitle` | `ReceiverPickController.java`, `DeviceSheetFragment.java`, `TabBrowserActivity.java` (javadoc), tests
+  - **Accept**: `ReceiverPickController.afterStartHook(UpnpClient, boolean newLayout)` keeps its signature and builds the plan (clear in the new layout; classic: restore a copy of the previous ids, null/empty ids dropped, `CLASSIC_MODE` stays the one constant that decides) inside the controller; `DeviceSheetFragment.nameOrFallback` / `subtitle` are the BASE `PickTitle` bodies (static, package-private, still going through `MiniPlayerPresenter.cleanText`); ledger L24, L25
+  - **Verify**: gate; `grep -rn 'AfterStartSelection\|PickTitle' yaacc/src` -> nothing
+  - **Constraints**: SI-11, SI-19 (`filterTouchesWhenObscured` untouched, fixed fallback text); new layout never restores, classic never clears
+- [ ] Gate for Group 21 | n/a
+  - **Accept**: Phase 4 gate (G) 1-8; inventory count 33; mutants for `PendingPick`, `ActionFlight`, `ReceiverPickController`, `ReceiverBarController`
+  - **Verify**: as above
+  - **Constraints**: reviewer then security-reviewer
+- Status (Group 21): not started.
+
+## Group 22: Documentation and spec update
+- [ ] Update documentation for Phase 4 | `docs/tech.md`, `.claude/specs/2026-10-23-unified-device-sheet/{tasks,design,decisions,known-risks}.md`
+  - **Accept**: `docs/tech.md` "Sharing local files" names the new classes everywhere (the overview table, "As built" subsections, "Known limitations", "Not verified on a device"; a short "Phase 4: what moved" note with the old -> new table; the Group 12 research section keeps its history and gets one line saying it was written under the old pure-Java rule); known-risks.md names (`LinkTargetPolicy`, `ProviderKeys.UNRESOLVED`, `ShareIntakeGate`, ...) point to the new classes; tasks.md statuses of Groups 17-21 filled with the actual numbers and ledger; design.md Phase 4 gets an "As built" paragraph with the final class list; decisions.md gets the as-built entry and the answers to the open questions; `CHANGELOG.md`, `README.md`, `docs/index.md`, `docs/settings.md` are NOT changed (no user-visible change); review.md and security-review.md are not edited by the builder
+  - **Verify**: `grep -rnE 'ShareProxyUrl|ShareFailureMessage|ShareRegistrar|DescriptorWindow|ReceiverBarLabel|ReceiverSelection|RendererIdPolicy|RendererStateMap|SeekPositionCalculator|ShareAddresses|ShareAddressResolver|HttpLinkTarget|LinkTargetPolicy|LinkContentType|ChunkSink|StreamIntake|SenderGrantCheck|OwnProviders|ShareUriPolicy|ShareIntakeGate|ProviderProbe|ProviderKeys|ProviderCallGate|BoundedCall|AbandonableCall|CopyBudget|IncomingFileNames|DeleteOnCloseSource|SharedItemFactory|HttpServerProbe|SharedFileService|ReceiverPickResult|PickSheetResult|GuardedPickedAction|AfterStartSelection|PickTitle|upnp\.server\.share' docs README.md CHANGELOG.md yaacc/src` prints only the "Phase 4: what moved" table and history notes; `grep -rn 'TODO\|FIXME\|PLACEHOLDER' docs/tech.md || true` shows nothing plan-related
+  - **Constraints**: nothing descoped is documented; keep exploit-level detail out of `docs/` (known-risks.md stays the place)
+- [ ] Final verification | n/a
+  - **Accept**: Phase 4 gate (G) 1-8 on the final HEAD; `ls yaacc/src/main/java/de/yaacc/share | wc -l` -> 27; share/pick files in `browser/` -> 4, in `upnp/server/http/` -> 2 (1 if `ShareProducers` was dropped: then 4); the on-device checklist of decisions.md (2026-10-26, Group 15 b) is handed to the owner again; `.claude/specs/currentspec.md` is deleted when all groups pass
+  - **Verify**: the commands in "Phase 4 rules"; counts pasted into review.md
+  - **Constraints**: reviewer then security-reviewer, full-diff read `git diff -M ecb26c59..HEAD -- yaacc/src/main`
+- Status (Group 22): not started.
 
 # Backlog (not part of Groups 1-10; discuss with the owner before any work)
 
