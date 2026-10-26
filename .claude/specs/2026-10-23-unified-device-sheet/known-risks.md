@@ -1,9 +1,6 @@
 # Known risks of the share feature (full technical list)
 
-Moved here from `docs/tech.md` (published by the docs site) on 2026-10-26: the published page keeps only a neutral summary, the technical detail stays with the spec. Sources: decisions.md, security-review.md.
-
-
-Not fixed in this branch; accepted or left for the owner (decisions.md, security-review.md). Public docs do not repeat the technical detail.
+Moved here from `docs/tech.md` (published by the docs site) on 2026-10-26: the published page keeps only a neutral summary ("Known limitations"), the technical detail stays with the spec. Sources: decisions.md, security-review.md. These items are not fixed in this branch; they are accepted or left for the owner. The public docs do not repeat the technical detail.
 
 1. **Host names that resolve to loopback are not caught.** `LinkTargetPolicy` never resolves names (no DNS on the intake path), so a
    host name such as `localtest.me`, a DNS record that points at `127.0.0.1`, or a rebinding name passes the link policy.
@@ -45,6 +42,35 @@ Not fixed in this branch; accepted or left for the owner (decisions.md, security
     Two receivers with identical cleaned names show once in the receiver bar. A restricted share fails with 403 for a receiver that
     fetches from another address than the one it announced, or one whose description names a host (host names are not resolved):
     that is what the setting is for.
+
+13. **Legacy 404 page and server-wide HTTP limits (pre-existing).** The old "resource not found" answer of
+    `YaaccUpnpServerContentHttpHandler` (the branch for the media-server paths, not `/proxy/`) puts a decoded path segment into a
+    `text/html` response unescaped (about lines 246-249), so a crafted request URL is reflected into a page on the LAN origin. The
+    HTTP server also runs with the default `Http1Config` (no `maxLineLength` or `maxHeaderCount`) and a 5-minute socket timeout that
+    applies before a request line has arrived. Fix when the handler or the server is next configured: escape the segment (or answer a
+    constant body) and set both limits. Not part of the share feature; the `/proxy/` path itself answers with constant bodies.
+14. **A hostile app on the phone, and the confused-deputy residual.** When "this device" is a chosen receiver, loopback and the phone's
+    own addresses pass the address step, so another app on the phone is stopped only by the 128-bit key. The app does not publish the
+    key (notification, `MediaSession` metadata and Media3 controllers carry no proxy URL; reasoned, not observed on a device), except
+    for the local video case in item 4. Separately, yaacc holds broad media permissions and SAF grants, and Android only checks that
+    yaacc itself can read a forwarded `content:` URI. Below Android 15 nothing verifies that the real sender holds the access; on
+    Android 15+ only the launcher path asks (`getInitialCaller()`, not device-verified). Accepted by the owner; mitigations are the
+    audio/video/image type check, the receiver pick that shows the cleaned name, and the address and expiry limits.
+15. **A receiver's `<URLBase>` host is allowed.** `ShareAddressResolver` adds the host of a chosen receiver's descriptor URL AND of
+    its `<URLBase>` to the allowed address set. The URL base is chosen by the receiver's own description, so a receiver the user picked
+    can name another address, for example this phone's own LAN address, which would admit local apps. It already holds the key.
+    Possible fix: drop the URL base unless its host equals the descriptor host.
+16. **Private LAN ranges are allowed by design.** `LinkTargetPolicy` refuses loopback, link-local and the phone's own addresses but
+    accepts private ranges (NAS and media-server links). With the proxy option on, a shared link can therefore make the phone fetch
+    a page of a LAN device (a router or admin page) and relay the answer to the chosen receivers. The answer does not go back to the
+    sender, and the pick shows only the fixed text "Shared link". Items 1-3 describe how names and redirects widen this.
+17. **Abandoned copy workers keep their space.** A copy worker that is stuck at the deadline is abandoned (at most 3). The caller
+    closes its streams and deletes the partial file, but a worker that stays blocked in the provider can hold what it already
+    wrote allocated until the process ends, and that space is invisible to the cache budget: up to 3 x 512 MiB. The abandon path
+    closes the output stream to reduce this; whether closing a provider stream wakes a blocked read is a device check.
+18. **The share name is in the picker's saved state.** The cleaned display name is passed to the pick sheet as a fragment argument and
+    is therefore part of the saved instance state. It is not a URI, token or key, and a restored sheet closes at once because its
+    pick is gone; passing the name through the host at show time would avoid it (cosmetic gain, more activity state).
 
 ## Research findings about the pre-existing proxy (moved from docs/tech.md)
 

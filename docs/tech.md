@@ -1189,7 +1189,7 @@ This subsection is the Phase 2 state of the TEXT path. Phase 3 added a second ov
 the pending share and the picker; see "Sharing local files" ("As built: from the share menu to a pending share", "As built: links").
 In short: in the new layout (`pickHost.providesReceiverBar()`) a link is not played at once, it goes through the "Play on..."
 picker and never falls back to `UpnpClient.LOCAL_UID`; classic keeps the behavior described below; a file is read from ClipData
-item 0 (only, after the launch-token check). Where the text below differs, the Phase 3 section wins.
+item 0 (used only after the launch-token check). Where the text below differs, the Phase 3 section wins.
 
 - Only `ACTION_SEND`. Text source: `EXTRA_TEXT`, else the text of the last
   `ClipData` item that has text and is at most 2048 chars. For a text share a clip
@@ -1201,8 +1201,8 @@ item 0 (only, after the launch-token check). Where the text below differs, the P
   again (as in classic before).
 - **Scheme policy.** `ShareUriPolicy.isAllowed(text)`: non-empty, at most 2048
   chars, and the part before the first `':'` equals `http` or `https`
-  (ASCII, case-insensitive). Nothing is trimmed. Reason: only web links are relayed by the proxy. The check looks only at the scheme and length, so `http:` and
-  `http://a\nfile:///x` pass (pinned by `ShareUriPolicyTest#onlyTheSchemeAndLengthAreChecked`;
+  (ASCII, case-insensitive). Nothing is trimmed. Reason: only web links are relayed by the proxy. The check looks only at the scheme and length, so an `http:` text with
+  trailing junk also passes (pinned by `ShareUriPolicyTest#onlyTheSchemeAndLengthAreChecked`;
   tightening is Backlog 1 item 8). A rejected text is only logged, with no
   payload. The text is never used to build an intent, PendingIntent or file path.
 - **Waits and fallback** (classic and a missing host; in the new layout a link goes through the
@@ -1213,8 +1213,7 @@ item 0 (only, after the launch-token check). Where the text below differs, the P
   device") are hard-coded English.
 - **Threads.** One `newSingleThreadScheduledExecutor()` per handler. A main
   `Handler` (application context only) posts the toasts and `play()`. Exceptions
-  on the worker are caught and logged by class name only (the old code rethrew an
-  `IOException` as `RuntimeException` and crashed the app).
+  on the worker are caught and logged by class name only (before Phase 2 a failure on the worker thread was not caught).
 - **Shutdown policy.** `shutdown()` sets a flag, clears the callback and calls
   the executor's graceful `shutdown()`: a share that is already waiting still
   plays (a rotation must not drop it), later `handle` calls are ignored. This is a
@@ -1856,7 +1855,7 @@ Behavior before Phase 2 [code]:
    device" (on the UI thread via `runOnUiThread`) and
    `upnpClient.setReceiverDeviceIds(Set.of(UpnpClient.LOCAL_UID))`
    (`:302-306`); `upnpClient.createPlayableItem(uri)` (`throws IOException`,
-   rethrown as `RuntimeException` on the worker thread: crashes the app,
+   not caught on the worker thread before Phase 2,
    `:317-319`); posts to the main looper: `initializePlayersWithPlayableItems`,
    `player.play()` for each, then `setCurrentTab(PLAYER)` (`:309-316`).
 
@@ -2261,7 +2260,7 @@ server listens whenever the app process lives (`Yaacc.onCreate` starts `YaaccUpn
 unconditionally); a share starts and stops nothing and waits only until the server answers. Order of decisions:
 
 1. Path `/proxy/<key>` or `/proxy/<deviceId>/<key>` with a well-formed key, a registry entry that is live: else the same constant
-   404 page (no path, key or link echoed, nothing logged). Other segment counts: 404.
+   404 page (no path, key or link is echoed, and the responder logs none of them). Other segment counts: 404.
 2. `ProxyAccessPolicy.isAllowed(restrictToReceivers, entry addresses, remote address)`; the remote address comes only from the
    connection's endpoint details, never from a header; a missing or unparsable address is denied. Failure: 403 and a log line
    "Media proxy refused a request from <address>" (no key). The flag is read on every request:
@@ -2278,8 +2277,11 @@ unconditionally); a share starts and stops nothing and waits only until the serv
    share is full). Every share response carries `X-Content-Type-Options: nosniff` and `Content-Security-Policy: sandbox`;
    `Content-Type` is the entry's MIME type.
 
-The proxy key and the proxy URL are not logged: `ShareLogRedactor` (case- and percent-insensitive `/proxy/...`) covers the SOAP,
-AV-transport, image and download traces that can carry them.
+The share code paths do not log the proxy key or the proxy URL, and at the default log level they do not appear in the log:
+`ShareLogRedactor` (case- and percent-insensitive `/proxy/...`) is applied to the SOAP request, AV-transport, image-load and download
+log lines that can carry them. Not redacted: the VERBOSE traces of incoming SOAP/GENA messages (`ReceivingAction`,
+`YaaccUpnpServerProtocolRequestHandler`) and the DEBUG album-art URL logs (`ImageDownloader`); someone who turns those levels on and
+shares the log can disclose a proxy address.
 
 **3-segment form and server-side seeking.** `/proxy/<deviceId>/<key>` IS produced: `AVTransportPlayer#modifyProxyUrlWithDeviceId`
 rewrites a proxy URL of this server into it, but only for a remote renderer whose per-renderer preference
@@ -2298,7 +2300,8 @@ and is only used for the preference reads and that bounded map. The research cla
   missing host keep the old behavior: wait up to 3 s (+3 s) for receivers, else play on `UpnpClient.LOCAL_UID`.
 - `UpnpClient#createPlayableItem(Uri, Set<String> receiverIds)` (worker thread): reads metadata with `MediaMetadataRetriever`; if
   that fails, the type comes from a bounded `HEAD` (`LinkContentType`, redirects followed by hand, at most 3, every hop checked); only
-  if that fails too the link is assumed to be an image, with a payload-free log line. The link is never logged.
+  if that fails too the link is assumed to be an image, with a payload-free log line. The share code paths do not log the link; the DEBUG album-art logs and VERBOSE protocol traces
+  listed under "As built: serving" are not redacted.
 - With the media proxy option (`settings_local_server_proxy_chkbx`) ON the link is registered (`HTTP_LINK`, allowed addresses
   from `receiverIds` captured at confirm time through `ShareAddressResolver`, never from the stored selection) and the receiver gets
   `http://<phone ip>:49157/proxy/<key>`. With it OFF the receiver gets the link itself and no registry entry exists. If the phone has
@@ -2365,13 +2368,13 @@ decision of the reviewed design (design.md "Phase 3", decisions.md).
 - **Confused deputy.** Android checks only that yaacc can read the URI. Yaacc holds broad media permissions and SAF grants, so a
   hostile sender could name MediaStore or SAF content that it cannot read itself. Mitigations: the audio/video/image type check; a
   human in the loop (every share needs a receiver pick that shows the cleaned file name); the address and expiry limits; on Android 15+
-  the launcher's check that the sender holds the access. Below Android 15 that sender check does not exist; the residual is accepted by the owner. A browser activity started directly
+  the launcher's check that the sender holds the access (`getInitialCaller()`; reasoned, not device-verified). Below Android 15 that sender check does not exist; the residual is accepted by the owner. A browser activity started directly
   cannot bypass the launcher's checks for a file (launch token).
 - **Link fetch (SSRF).** With the proxy option on, the phone fetches the shared link for the receivers. `LinkTargetPolicy` narrows
   what it will fetch (see "As built: links"); the answer goes to the chosen receivers only, not back to the sender.
 - **Resources.** Provider calls are bounded as described above; the copy is capped and watched; descriptors are closed on expiry,
-  release, eviction, `removeAll()` and exit; nothing is logged that holds a URI, name, key or proxy URL (a refused request logs the
-  remote address only).
+  release, eviction, `removeAll()` and exit; the share code paths log no URI, name, key or proxy URL (a refused request logs the remote address only). At the default log
+  level that holds for the whole app; the VERBOSE protocol traces and DEBUG album-art logs are not redacted (see "As built: serving").
 
 ### Known limitations
 
@@ -2381,7 +2384,7 @@ The share feature has known, accepted limitations; the full technical list is ke
 - The link policy is a best-effort filter, not a complete protection: it is enforced only when the media proxy option is on and
   it does not resolve host names.
 - A share is protected by a random key and, by default, by the receivers' addresses (setting "Restrict the media proxy to the
-  chosen receivers"). With that setting off, or on a device that is a chosen receiver, the key is the only protection.
+  chosen receivers"). With that setting off, or when this phone itself is a chosen receiver (other apps on the phone then only need the key), the key is the only protection.
 - When "this device" plays a shared video, the video app that opens it receives the proxy address.
 - Providers are called one at a time per app with timeouts; a provider that never answers can make later shares fail with a
   "busy" message until its call returns.

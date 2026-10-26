@@ -73,6 +73,10 @@ phone. Typical reasons are:
 At log level "info" the log view then shows
 "Media proxy refused a request from `<address>`".
 
+The restriction is a check of the network address, not a login: a device that
+can use a chosen receiver's address, or another app on this phone when "this
+device" was chosen, is not stopped by it.
+
 Do not rely on the random key as protection when the setting is off. The address
 a receiver is playing, including the key, is visible to any UPnP control point in
 your network that can query that receiver (for example with `GetMediaInfo`), so
