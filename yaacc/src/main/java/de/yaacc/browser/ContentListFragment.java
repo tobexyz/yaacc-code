@@ -26,6 +26,7 @@ import android.view.View;
 import android.view.View.OnClickListener;
 import android.view.ViewGroup;
 import android.widget.ImageButton;
+import android.widget.Toast;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -47,7 +48,7 @@ import java.util.stream.Collectors;
 import de.yaacc.R;
 import de.yaacc.Yaacc;
 import de.yaacc.player.Player;
-import de.yaacc.share.PendingPick;
+import de.yaacc.share.PickedAction;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.UpnpClientListener;
 import de.yaacc.upnp.callback.contentdirectory.ContentDirectoryBrowseResult;
@@ -433,7 +434,9 @@ public class ContentListFragment extends Fragment implements OnClickListener,
      * "Play on..." sheet opens first; cancelling leaves everything as it was. Confirming stores the
      * chosen receivers ({@link UpnpClient#setReceiverDeviceIds}), then starts the task, and the
      * selection is cleared again once the players have been started ({@link #play(List)} and
-     * {@link #addToPlayList}). A request while a pick is open is dropped.
+     * {@link #addToPlayList}). Only one picked action may be starting at a time (the selection is
+     * global): a request while a pick is open or another action is still starting is dropped, with
+     * a short message.
      * <p>
      * Classic (no host, or a host without the receiver bar): the task starts at once with the
      * tab-based selection, exactly as before, and nothing is cleared.
@@ -448,34 +451,73 @@ public class ContentListFragment extends Fragment implements OnClickListener,
             return;
         }
         BrowserHost host = browserHost();
-        Runnable start = () -> {
-            if (onStarted != null) {
-                onStarted.run();
-            }
-            new ContentItemPlayTask(this, object, onComplete).execute(mode);
-        };
         if (host == null || !host.providesReceiverBar()) {
-            start.run();
+            runPlayTask(object, mode, onStarted, onComplete);
             return;
         }
-        if (!isAdded() || upnpClient == null) {
-            return;
-        }
-        host.pickReceivers(new PendingPick.Callbacks() {
+        if (!isAdded() || upnpClient == null
+                || !host.pickReceivers(new PickedAction() {
             @Override
-            public void onConfirmed(Set<String> receiverIds) {
+            public void onConfirmed(Set<String> receiverIds, Runnable done) {
                 if (!isAdded()) {
-                    return; // the screen is gone; nothing was changed yet
+                    done.run(); // the screen is gone; nothing was changed yet
+                    return;
                 }
-                upnpClient.setReceiverDeviceIds(receiverIds);
-                start.run();
+                try {
+                    upnpClient.setReceiverDeviceIds(receiverIds);
+                    // the single flight ends with the task: play() / addToPlayList() have cleared the
+                    // selection by then
+                    runPlayTask(object, mode, onStarted, () -> {
+                        try {
+                            if (onComplete != null) {
+                                onComplete.run();
+                            }
+                        } finally {
+                            done.run();
+                        }
+                    });
+                } catch (RuntimeException e) {
+                    done.run();
+                    throw e;
+                }
             }
 
             @Override
             public void onCancelled() {
                 // nothing was changed
             }
-        }, null, null);
+        }, null, null)) {
+            // a pick is open or an action is still starting, or the screen is not ready: say so
+            showBusyMessage();
+        }
+    }
+
+    private void runPlayTask(DIDLObject object, int mode, Runnable onStarted, Runnable onComplete) {
+        if (onStarted != null) {
+            onStarted.run();
+        }
+        new ContentItemPlayTask(this, object, onComplete).execute(mode);
+    }
+
+    /** A short, fixed message: the tap did not open the receiver picker. */
+    private void showBusyMessage() {
+        try {
+            if (getContext() != null) {
+                Toast.makeText(getContext().getApplicationContext(), R.string.receiver_pick_busy, Toast.LENGTH_SHORT).show();
+            }
+        } catch (RuntimeException e) {
+            YaaccLogger.w("ContentListFragment", "Could not show a message (" + e.getClass().getSimpleName() + ")");
+        }
+    }
+
+    /**
+     * For tests: the client and the layout this fragment acts for, without a view. {@code newLayout}
+     * means the host owns the receiver bar, so the receivers are picked per action and cleared
+     * after it.
+     */
+    void attachForTest(UpnpClient client, boolean newLayout) {
+        this.upnpClient = client;
+        this.showsStaticFooter = !newLayout;
     }
 
     @Override

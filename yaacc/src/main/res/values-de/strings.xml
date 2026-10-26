@@ -151,7 +151,9 @@
     <string name="receiver_bar_description">Empfänger auswählen</string>
     <string name="receiver_pick_title">Wiedergabe auf…</string>
     <string name="receiver_pick_none_hint">Wähle mindestens einen Empfänger.</string>
-    <string name="receiver_pick_confirm_description">Auf den gewählten Empfängern wiedergeben</string>
+    <string name="receiver_pick_confirm_description">%1$s, auf den gewählten Empfängern wiedergeben</string>
+    <string name="receiver_pick_confirm">OK</string>
+    <string name="receiver_pick_busy">Die letzte Aktion läuft noch. Versuche es gleich noch einmal.</string>
     <string name="mini_player_previous">Vorheriger Titel</string>
     <string name="mini_player_play">Wiedergabe</string>
     <string name="mini_player_pause">Pause</string>

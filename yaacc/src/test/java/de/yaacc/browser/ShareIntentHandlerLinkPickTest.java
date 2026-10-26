@@ -23,7 +23,9 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
@@ -75,6 +77,7 @@ public class ShareIntentHandlerLinkPickTest {
     private PendingShare pendingShare;
     private ShareIntentHandler handler;
     private long now;
+    private final AtomicInteger mainThreadRuns = new AtomicInteger();
 
     /** Collects what the picker would be told; {@code newLayout} decides whether the host owns the picker. */
     private static final class RecordingHost implements BrowserHost {
@@ -134,7 +137,10 @@ public class ShareIntentHandlerLinkPickTest {
     private ShareIntentHandler newHandler() {
         // launch tokens of their own: the real ones live in the Application, which a mock context lacks
         LaunchNonces nonces = new LaunchNonces(() -> now, new java.util.Random(2)::nextBytes, 30_000L, 8);
-        return new ShareIntentHandler(appContext, upnpClient, Runnable::run, (data, ids) -> null, pendingShare,
+        return new ShareIntentHandler(appContext, upnpClient, runnable -> {
+            mainThreadRuns.incrementAndGet();
+            runnable.run();
+        }, (data, ids) -> null, pendingShare,
                 nonces, null, 2_000L, 20L, 1_000L);
     }
 
@@ -163,6 +169,7 @@ public class ShareIntentHandlerLinkPickTest {
         PendingShare.Data data = pendingShare.peek(host.tokens.get(0));
         assertNotNull(data);
         assertEquals(LINK, data.getUri());
+        assertEquals(PendingShare.Kind.LINK, data.getKind());
     }
 
     @Test
@@ -184,7 +191,7 @@ public class ShareIntentHandlerLinkPickTest {
         // give a wrongly started old path time to run (it waits for receivers and then picks this device)
         Thread.sleep(400);
         verify(upnpClient, never()).setReceiverDeviceIds(any());
-        verify(upnpClient, never()).createPlayableItem(nullable(Uri.class));
+        verify(upnpClient, never()).createPlayableItem(nullable(Uri.class), anySet());
         verify(upnpClient, never()).initializePlayersWithPlayableItems(anyList());
     }
 
@@ -197,6 +204,18 @@ public class ShareIntentHandlerLinkPickTest {
 
         assertEquals(1, host.tokens.size());
         assertEquals(LINK, pendingShare.peek(host.tokens.get(0)).getUri());
+    }
+
+    @Test
+    public void aDroppedSecondLinkIsToldToTheUserWithAFixedText() {
+        RecordingHost host = new RecordingHost(true);
+        handler.handle(linkIntent(LINK), null, host);
+        mainThreadRuns.set(0);
+
+        handler.handle(linkIntent(OTHER_LINK), null, host);
+
+        // exactly one message on the main thread, built from a resource, never from the link
+        assertEquals(1, mainThreadRuns.get());
     }
 
     @Test
@@ -223,10 +242,28 @@ public class ShareIntentHandlerLinkPickTest {
     // ---- confirm and cancel
 
     @Test
-    public void confirmSetsTheChosenReceiversBeforeTheItemIsBuiltAndPlaysIt() throws Exception {
+    public void theItemIsBuiltFromTheChosenIdsNotFromTheStoredSelection() throws Exception {
         PlayableItem item = mock(PlayableItem.class);
         Player player = mock(Player.class);
-        when(upnpClient.createPlayableItem(nullable(Uri.class))).thenReturn(item);
+        when(upnpClient.createPlayableItem(nullable(Uri.class), anySet())).thenReturn(item);
+        when(upnpClient.initializePlayersWithPlayableItems(anyList())).thenReturn(Collections.singletonList(player));
+        // the stored selection belongs to somebody else by now: it must not matter
+        when(upnpClient.getReceiverDeviceIds()).thenReturn(Set.of("somebody-else"));
+        RecordingHost host = new RecordingHost(true);
+        handler.handle(linkIntent(LINK), null, host);
+
+        handler.confirm(host.tokens.get(0), Set.of("receiver-1", "receiver-2"));
+
+        verify(player, timeout(3_000)).play();
+        verify(upnpClient).createPlayableItem(nullable(Uri.class), eq(Set.of("receiver-1", "receiver-2")));
+        verify(upnpClient, never()).createPlayableItem(nullable(Uri.class));
+    }
+
+    @Test
+    public void theSelectionIsStoredOnlyRightBeforeThePlayersAreCreatedNotBeforeTheNetworkWork() throws Exception {
+        PlayableItem item = mock(PlayableItem.class);
+        Player player = mock(Player.class);
+        when(upnpClient.createPlayableItem(nullable(Uri.class), anySet())).thenReturn(item);
         when(upnpClient.initializePlayersWithPlayableItems(anyList())).thenReturn(Collections.singletonList(player));
         RecordingHost host = new RecordingHost(true);
         handler.handle(linkIntent(LINK), null, host);
@@ -235,8 +272,8 @@ public class ShareIntentHandlerLinkPickTest {
 
         verify(player, timeout(3_000)).play();
         InOrder order = inOrder(upnpClient);
+        order.verify(upnpClient).createPlayableItem(nullable(Uri.class), anySet());
         order.verify(upnpClient).setReceiverDeviceIds(Set.of("receiver-1", "receiver-2"));
-        order.verify(upnpClient).createPlayableItem(nullable(Uri.class));
         order.verify(upnpClient).initializePlayersWithPlayableItems(anyList());
     }
 
@@ -244,7 +281,7 @@ public class ShareIntentHandlerLinkPickTest {
     public void confirmRunsTheHookOnceAfterThePlaybackStarted() throws Exception {
         PlayableItem item = mock(PlayableItem.class);
         Player player = mock(Player.class);
-        when(upnpClient.createPlayableItem(nullable(Uri.class))).thenReturn(item);
+        when(upnpClient.createPlayableItem(nullable(Uri.class), anySet())).thenReturn(item);
         when(upnpClient.initializePlayersWithPlayableItems(anyList())).thenReturn(Collections.singletonList(player));
         RecordingHost host = new RecordingHost(true);
         handler.handle(linkIntent(LINK), null, host);
@@ -262,22 +299,125 @@ public class ShareIntentHandlerLinkPickTest {
     }
 
     @Test
-    public void aRefusedLinkStillRunsTheHookBecauseTheSelectionWasChanged() throws Exception {
-        when(upnpClient.createPlayableItem(nullable(Uri.class))).thenReturn(null);
+    public void aRefusedLinkChangedNoSelectionSoTheHookStaysQuietButTheFlightIsFinished() throws Exception {
+        when(upnpClient.createPlayableItem(nullable(Uri.class), anySet())).thenReturn(null);
         RecordingHost host = new RecordingHost(true);
         handler.handle(linkIntent(LINK), null, host);
-        CountDownLatch hook = new CountDownLatch(1);
+        CountDownLatch finished = new CountDownLatch(1);
+        AtomicInteger hookRuns = new AtomicInteger();
 
-        handler.confirm(host.tokens.get(0), Set.of("receiver-1"), hook::countDown);
+        handler.confirm(host.tokens.get(0), Set.of("receiver-1"), hookRuns::incrementAndGet, finished::countDown);
 
-        assertTrue(hook.await(3, TimeUnit.SECONDS));
+        assertTrue(finished.await(3, TimeUnit.SECONDS));
+        assertEquals(0, hookRuns.get());
+        verify(upnpClient, never()).setReceiverDeviceIds(any());
         verify(upnpClient, never()).initializePlayersWithPlayableItems(anyList());
+    }
+
+    // ---- the finished callback: exactly once, whatever the outcome
+
+    private AtomicInteger finishedCounter() {
+        return new AtomicInteger();
+    }
+
+    @Test
+    public void finishedRunsOnceAfterASuccessfulLink() throws Exception {
+        PlayableItem item = mock(PlayableItem.class);
+        Player player = mock(Player.class);
+        when(upnpClient.createPlayableItem(nullable(Uri.class), anySet())).thenReturn(item);
+        when(upnpClient.initializePlayersWithPlayableItems(anyList())).thenReturn(Collections.singletonList(player));
+        RecordingHost host = new RecordingHost(true);
+        handler.handle(linkIntent(LINK), null, host);
+        AtomicInteger finished = finishedCounter();
+
+        handler.confirm(host.tokens.get(0), Set.of("receiver-1"), null, finished::incrementAndGet);
+
+        verify(player, timeout(3_000)).play();
+        Thread.sleep(200);
+        assertEquals(1, finished.get());
+    }
+
+    @Test
+    public void finishedRunsAfterTheHookNotBefore() throws Exception {
+        PlayableItem item = mock(PlayableItem.class);
+        Player player = mock(Player.class);
+        when(upnpClient.createPlayableItem(nullable(Uri.class), anySet())).thenReturn(item);
+        when(upnpClient.initializePlayersWithPlayableItems(anyList())).thenReturn(Collections.singletonList(player));
+        RecordingHost host = new RecordingHost(true);
+        handler.handle(linkIntent(LINK), null, host);
+        List<String> order = new CopyOnWriteArrayList<>();
+        CountDownLatch finished = new CountDownLatch(1);
+
+        handler.confirm(host.tokens.get(0), Set.of("receiver-1"), () -> order.add("hook"), () -> {
+            order.add("finished");
+            finished.countDown();
+        });
+
+        assertTrue(finished.await(3, TimeUnit.SECONDS));
+        assertEquals(List.of("hook", "finished"), order);
+    }
+
+    @Test
+    public void finishedRunsWhenTheTokenIsWrongSoNoFlightStaysOpen() {
+        AtomicInteger finished = finishedCounter();
+
+        handler.confirm("0123456789abcdef0123456789abcdef", Set.of("receiver-1"), null, finished::incrementAndGet);
+
+        assertEquals(1, finished.get());
+    }
+
+    @Test
+    public void finishedRunsWhenTheShareTimedOut() {
+        RecordingHost host = new RecordingHost(true);
+        handler.handle(linkIntent(LINK), null, host);
+        now = 120_000L;
+        AtomicInteger finished = finishedCounter();
+
+        handler.confirm(host.tokens.get(0), Set.of("receiver-1"), null, finished::incrementAndGet);
+
+        assertEquals(1, finished.get());
+    }
+
+    @Test
+    public void finishedRunsWhenNoReceiverWasChosen() {
+        RecordingHost host = new RecordingHost(true);
+        handler.handle(linkIntent(LINK), null, host);
+        AtomicInteger finished = finishedCounter();
+
+        handler.confirm(host.tokens.get(0), Collections.<String>emptySet(), null, finished::incrementAndGet);
+
+        assertEquals(1, finished.get());
+    }
+
+    @Test
+    public void finishedRunsWhenTheHandlerIsAlreadyShutDown() {
+        RecordingHost host = new RecordingHost(true);
+        handler.handle(linkIntent(LINK), null, host);
+        handler.shutdown();
+        AtomicInteger finished = finishedCounter();
+
+        handler.confirm(host.tokens.get(0), Set.of("receiver-1"), null, finished::incrementAndGet);
+
+        assertEquals(1, finished.get());
+    }
+
+    @Test
+    public void finishedRunsWhenThePlayerServiceNeverComesUp() throws Exception {
+        when(upnpClient.isPlayerServiceInitialized()).thenReturn(false);
+        RecordingHost host = new RecordingHost(true);
+        handler.handle(linkIntent(LINK), null, host);
+        CountDownLatch finished = new CountDownLatch(1);
+
+        handler.confirm(host.tokens.get(0), Set.of("receiver-1"), null, finished::countDown);
+
+        assertTrue(finished.await(5, TimeUnit.SECONDS));
+        verify(upnpClient, never()).createPlayableItem(nullable(Uri.class), anySet());
     }
 
     @Test
     public void whenNoPlayerTakesTheLinkItsShareIsGivenBackAndTheHookStillRuns() throws Exception {
         PlayableItem item = mock(PlayableItem.class);
-        when(upnpClient.createPlayableItem(nullable(Uri.class))).thenReturn(item);
+        when(upnpClient.createPlayableItem(nullable(Uri.class), anySet())).thenReturn(item);
         when(upnpClient.initializePlayersWithPlayableItems(anyList())).thenReturn(new ArrayList<Player>());
         RecordingHost host = new RecordingHost(true);
         handler.handle(linkIntent(LINK), null, host);
@@ -293,7 +433,7 @@ public class ShareIntentHandlerLinkPickTest {
     public void confirmTakesTheLinkOnce() throws Exception {
         PlayableItem item = mock(PlayableItem.class);
         Player player = mock(Player.class);
-        when(upnpClient.createPlayableItem(nullable(Uri.class))).thenReturn(item);
+        when(upnpClient.createPlayableItem(nullable(Uri.class), anySet())).thenReturn(item);
         when(upnpClient.initializePlayersWithPlayableItems(anyList())).thenReturn(Collections.singletonList(player));
         RecordingHost host = new RecordingHost(true);
         handler.handle(linkIntent(LINK), null, host);
@@ -317,7 +457,7 @@ public class ShareIntentHandlerLinkPickTest {
 
         Thread.sleep(300);
         assertFalse(pendingShare.isPending());
-        verify(upnpClient, never()).createPlayableItem(nullable(Uri.class));
+        verify(upnpClient, never()).createPlayableItem(nullable(Uri.class), anySet());
         verify(upnpClient, never()).setReceiverDeviceIds(any());
     }
 
@@ -332,7 +472,7 @@ public class ShareIntentHandlerLinkPickTest {
 
         Thread.sleep(300);
         assertFalse(pendingShare.isPending());
-        verify(upnpClient, never()).createPlayableItem(nullable(Uri.class));
+        verify(upnpClient, never()).createPlayableItem(nullable(Uri.class), anySet());
     }
 
     @Test
@@ -356,7 +496,7 @@ public class ShareIntentHandlerLinkPickTest {
         handler.confirm(host.tokens.get(0), Set.of("receiver-1"));
 
         Thread.sleep(300);
-        verify(upnpClient, never()).createPlayableItem(nullable(Uri.class));
+        verify(upnpClient, never()).createPlayableItem(nullable(Uri.class), anySet());
     }
 
     // ---- classic keeps the old behavior

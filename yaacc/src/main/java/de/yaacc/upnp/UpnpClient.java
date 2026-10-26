@@ -1662,6 +1662,18 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      * @return the item, or null if the link is refused (the caller plays nothing)
      */
     public PlayableItem createPlayableItem(Uri uri) throws IOException {
+        return createPlayableItem(uri, getReceiverDeviceIds());
+    }
+
+    /**
+     * Same as {@link #createPlayableItem(Uri)}, with the receivers the share is made for given
+     * explicitly: the addresses a proxied link is served to are built from exactly these ids, never
+     * from the stored selection, which another action may have replaced or cleared during the
+     * network work.
+     *
+     * @param receiverIds the receivers chosen for this share, captured at confirm time
+     */
+    public PlayableItem createPlayableItem(Uri uri, Set<String> receiverIds) throws IOException {
         if (uri == null) {
             return null;
         }
@@ -1705,7 +1717,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         String playUrl = link;
         String shareKey = null;
         if (proxy) {
-            String proxyUrl = createHttpLinkShare(link, mimeType);
+            String proxyUrl = createHttpLinkShare(link, mimeType, receiverIds);
             if (proxyUrl != null) {
                 playUrl = proxyUrl;
                 shareKey = ShareKeyTracker.keyOfProxyPath(Uri.parse(proxyUrl).getPath(), YaaccUpnpServerService.PROXY_PATH);
@@ -1769,7 +1781,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      * {@code ShareIntentHandler.prepareAndPlay} runs on its executor; on the main thread the
      * wait is skipped, so the UI never blocks. Nothing here logs the link or the key.
      */
-    private String createHttpLinkShare(String link, String mimeType) {
+    private String createHttpLinkShare(String link, String mimeType, Set<String> receiverIds) {
         HttpLinkTarget target = HttpLinkTarget.of(link);
         if (target == null) {
             return null;
@@ -1786,7 +1798,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         }
         ShareRegistry registry = getShareRegistry();
         ShareRegistry.Entry entry = new ShareRegistry.Entry(ShareRegistry.Kind.HTTP_LINK, target, mimeType,
-                ShareAddressResolver.resolve(this, getContext()),
+                ShareAddressResolver.resolve(this, getContext(), receiverIds),
                 ShareLimits.IDLE_GRACE_MILLIS, ShareLimits.ABSOLUTE_MAX_MILLIS);
         String key = ShareRegistrar.register(registry, entry);
         if (key == null) {

@@ -151,7 +151,9 @@
     <string name="receiver_bar_description">Elegir receptores</string>
     <string name="receiver_pick_title">Reproducir en…</string>
     <string name="receiver_pick_none_hint">Elige al menos un receptor.</string>
-    <string name="receiver_pick_confirm_description">Reproducir en los receptores elegidos</string>
+    <string name="receiver_pick_confirm_description">%1$s, reproducir en los receptores elegidos</string>
+    <string name="receiver_pick_confirm">Aceptar</string>
+    <string name="receiver_pick_busy">La última acción aún está en curso. Inténtalo de nuevo en un momento.</string>
     <string name="mini_player_previous">Pista anterior</string>
     <string name="mini_player_play">Reproducir</string>
     <string name="mini_player_pause">Pausa</string>

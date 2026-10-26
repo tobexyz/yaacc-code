@@ -92,7 +92,6 @@
             android:id="@+id/deviceSheetPickConfirm"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:contentDescription="@string/receiver_pick_confirm_description"
-            android:text="@android:string/ok" />
+            android:text="@string/receiver_pick_confirm" />
     </LinearLayout>
 </LinearLayout>

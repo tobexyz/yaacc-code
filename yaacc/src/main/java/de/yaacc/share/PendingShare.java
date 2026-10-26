@@ -53,16 +53,31 @@ public final class PendingShare {
     private static final int TOKEN_BYTES = 16;
     private static final char[] HEX = "0123456789abcdef".toCharArray();
 
+    /** What the pending share is, set by whoever offered it (never guessed from the text). */
+    public enum Kind {
+        /** One {@code content:} file; confirming opens and registers it. */
+        FILE,
+        /** An http(s) link from shared text; confirming builds its playable item. */
+        LINK
+    }
+
     /** What a pending share holds. Immutable. */
     public static final class Data {
+        private final Kind kind;
         private final String uri;
         private final String displayName;
         private final String mimeType;
 
-        private Data(String uri, String displayName, String mimeType) {
+        private Data(Kind kind, String uri, String displayName, String mimeType) {
+            this.kind = kind;
             this.uri = uri;
             this.displayName = displayName;
             this.mimeType = mimeType;
+        }
+
+        /** @return whether this is a file or a link, never null */
+        public Kind getKind() {
+            return kind;
         }
 
         /** @return the validated {@code content:} URI as text, never null or empty */
@@ -127,8 +142,17 @@ public final class PendingShare {
      * @return the token that binds the pending action, or null (and nothing changes) if a share is
      * already pending and not expired, or if the URI is null or empty
      */
-    public synchronized String offer(String uri, String displayName, String mimeType) {
-        if (uri == null || uri.isEmpty()) {
+    public String offer(String uri, String displayName, String mimeType) {
+        return offer(Kind.FILE, uri, displayName, mimeType);
+    }
+
+    /**
+     * Same as {@link #offer(String, String, String)} with an explicit kind.
+     *
+     * @param kind what the share is; null is refused (returns null, nothing changes)
+     */
+    public synchronized String offer(Kind kind, String uri, String displayName, String mimeType) {
+        if (kind == null || uri == null || uri.isEmpty()) {
             return null;
         }
         long now = nowMillis.getAsLong();
@@ -137,7 +161,7 @@ public final class PendingShare {
         }
         byte[] fresh = new byte[TOKEN_BYTES];
         randomBytes.accept(fresh);
-        data = new Data(uri, DisplayName.clean(displayName), mimeType == null ? "" : mimeType);
+        data = new Data(kind, uri, DisplayName.clean(displayName), mimeType == null ? "" : mimeType);
         tokenBytes = fresh;
         offeredAtMillis = now;
         return toHex(fresh);

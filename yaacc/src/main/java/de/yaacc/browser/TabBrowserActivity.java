@@ -50,7 +50,7 @@ import java.util.Collection;
 import de.yaacc.R;
 import de.yaacc.Yaacc;
 import de.yaacc.settings.SettingsActivity;
-import de.yaacc.share.PendingPick;
+import de.yaacc.share.PickedAction;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.server.LocalServerLifecycle;
 import de.yaacc.util.ThemeHelper;
@@ -183,8 +183,8 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
     }
 
     @Override
-    public boolean pickReceivers(PendingPick.Callbacks callbacks, String shareName, Collection<String> initialIds) {
-        return pickController != null && pickController.start(callbacks, shareName, initialIds);
+    public boolean pickReceivers(PickedAction action, String shareName, Collection<String> initialIds) {
+        return pickController != null && pickController.start(action, shareName, initialIds);
     }
 
     @Override

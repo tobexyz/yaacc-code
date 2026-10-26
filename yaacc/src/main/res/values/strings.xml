@@ -154,7 +154,9 @@
     <string name="receiver_bar_description">Choose receivers</string>
     <string name="receiver_pick_title">Play on…</string>
     <string name="receiver_pick_none_hint">Choose at least one receiver.</string>
-    <string name="receiver_pick_confirm_description">Play on the chosen receivers</string>
+    <string name="receiver_pick_confirm_description">%1$s, play on the chosen receivers</string>
+    <string name="receiver_pick_confirm">OK</string>
+    <string name="receiver_pick_busy">Still busy with the last action. Try again in a moment.</string>
     <string name="mini_player_previous">Previous track</string>
     <string name="mini_player_play">Play</string>
     <string name="mini_player_pause">Pause</string>

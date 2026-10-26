@@ -300,7 +300,11 @@ public class DeviceSheetFragment extends BottomSheetDialogFragment {
             subtitleView.setVisibility(View.VISIBLE);
         }
         pickHint = view.findViewById(R.id.deviceSheetPickHint);
-        view.findViewById(R.id.deviceSheetPickConfirm).setOnClickListener(v -> onConfirmPressed());
+        View confirm = view.findViewById(R.id.deviceSheetPickConfirm);
+        confirm.setOnClickListener(v -> onConfirmPressed());
+        // the accessible name starts with the visible word, so "OK" works for Voice Access too
+        confirm.setContentDescription(getString(R.string.receiver_pick_confirm_description,
+                getString(R.string.receiver_pick_confirm)));
         // closing is reported as a cancel from onDismiss, the same as back, a tap outside or a swipe
         view.findViewById(R.id.deviceSheetPickCancel).setOnClickListener(v -> dismissAllowingStateLoss());
     }

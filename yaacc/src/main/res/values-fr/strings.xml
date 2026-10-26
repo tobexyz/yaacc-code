@@ -151,7 +151,9 @@
     <string name="receiver_bar_description">Choisir les récepteurs</string>
     <string name="receiver_pick_title">Lire sur…</string>
     <string name="receiver_pick_none_hint">Choisissez au moins un récepteur.</string>
-    <string name="receiver_pick_confirm_description">Lire sur les récepteurs choisis</string>
+    <string name="receiver_pick_confirm_description">%1$s, lire sur les récepteurs choisis</string>
+    <string name="receiver_pick_confirm">OK</string>
+    <string name="receiver_pick_busy">La dernière action est encore en cours. Réessayez dans un instant.</string>
     <string name="mini_player_previous">Piste précédente</string>
     <string name="mini_player_play">Lecture</string>
     <string name="mini_player_pause">Pause</string>

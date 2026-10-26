@@ -31,7 +31,9 @@ import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 import org.fourthline.cling.model.meta.Device;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.function.Function;
 
 import de.yaacc.R;
 import de.yaacc.player.Player;
@@ -69,7 +71,7 @@ final class ReceiverBarController implements UpnpClientListener, PlayerListChang
 
     /**
      * @param bar       the receiver bar view
-     * @param upnpClient the client that knows the selected receivers
+     * @param upnpClient the client whose player list the bar follows
      * @param openSheet what a tap on the bar does (opens the device sheet)
      */
     ReceiverBarController(@NonNull TextView bar, @NonNull UpnpClient upnpClient, @NonNull Runnable openSheet) {
@@ -121,15 +123,10 @@ final class ReceiverBarController implements UpnpClientListener, PlayerListChang
         if (!bound) {
             return;
         }
-        List<String> names = new ArrayList<>();
+        List<String> names;
         try {
             // the player service hands out its live collection: copy before iterating
-            for (Player player : new ArrayList<>(upnpClient.getCurrentPlayers())) {
-                if (player != null) {
-                    names.add(MiniPlayerPresenter.receiverLabel(
-                            resolveReceiverName(player.getDeviceId()), player.getName()));
-                }
-            }
+            names = receiverNames(new ArrayList<>(upnpClient.getCurrentPlayers()), this::resolveReceiverName);
         } catch (RuntimeException e) {
             // a player changing under the read; the next player or receiver event refreshes.
             // Never log names.
@@ -138,6 +135,23 @@ final class ReceiverBarController implements UpnpClientListener, PlayerListChang
         }
         // Untrusted LAN names: cleaned by the label, plain text only.
         bar.setText(ReceiverBarLabel.build(names, bar.getContext().getString(R.string.receiver_bar_none_playing)));
+    }
+
+    /**
+     * One entry per player: the friendly name of the device it plays on, else the player's own name
+     * (cleaned, see {@link MiniPlayerPresenter#receiverLabel}). Duplicates are NOT merged here
+     * ({@link ReceiverBarLabel#build} does that), a null player is skipped.
+     *
+     * @param resolveName the friendly name of a device id, or null if it is not known
+     */
+    static List<String> receiverNames(Collection<? extends Player> players, Function<String, String> resolveName) {
+        List<String> names = new ArrayList<>();
+        for (Player player : players) {
+            if (player != null) {
+                names.add(MiniPlayerPresenter.receiverLabel(resolveName.apply(player.getDeviceId()), player.getName()));
+            }
+        }
+        return names;
     }
 
     /** The receiver's friendly name as the device sheet resolves it; null while it is not known. */

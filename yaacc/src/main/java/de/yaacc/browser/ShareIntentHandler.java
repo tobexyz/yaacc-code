@@ -295,45 +295,45 @@ public final class ShareIntentHandler {
     private void offerLinkForPick(String text, BrowserHost pickHost) {
         if (pendingShare.isPending()) {
             YaaccLogger.w(TAG, "Ignoring shared link: another share is waiting for its receivers");
+            toast(R.string.receiver_pick_busy);
             return;
         }
         host = pickHost;
-        String token = pendingShare.offer(text, "", "");
+        String token = pendingShare.offer(PendingShare.Kind.LINK, text, "", "");
         if (token == null) {
             YaaccLogger.w(TAG, "Ignoring shared link: another share is waiting for its receivers");
+            toast(R.string.receiver_pick_busy);
             return;
         }
         announce(token, appContext.getString(R.string.share_unnamed_link));
     }
 
-    /** A pending share is a link when its text passes the link policy; files are always {@code content:} URIs. */
-    private static boolean isLink(PendingShare.Data data) {
-        return ShareUriPolicy.isAllowed(data.getUri());
-    }
-
-    /**
-     * Confirmed link, main thread. The chosen receivers are stored first on the worker, because the
-     * addresses a proxied link is served to are read from the selection when the item is built.
-     */
-    private void confirmLink(PendingShare.Data data, Set<String> chosen, Runnable afterStarted) {
+    /** Confirmed link, main thread. {@code finished} runs exactly once, whatever happens. */
+    private void confirmLink(PendingShare.Data data, Set<String> chosen, Runnable afterStarted, Runnable finished) {
         if (!upnpClient.isPlayerServiceInitialized()) {
             upnpClient.startService();
         }
         try {
-            executor.execute(() -> prepareAndPlayLink(data.getUri(), chosen, afterStarted));
+            executor.execute(() -> prepareAndPlayLink(data.getUri(), chosen, afterStarted, finished));
         } catch (RejectedExecutionException e) {
             // nothing was created yet
             YaaccLogger.w(TAG, "Share handler already shut down, dropping the shared link");
+            finished.run();
         }
     }
 
-    /** Worker thread. Nothing here may throw or log the shared link. */
-    private void prepareAndPlayLink(String link, Set<String> chosen, Runnable afterStarted) {
+    /**
+     * Worker thread. Builds the item from the receivers chosen at confirm time (never from the stored
+     * selection, which may belong to another action by the time the network work is done); the
+     * selection is stored only on the main thread, right before the players are created. Nothing
+     * here may throw or log the shared link.
+     */
+    private void prepareAndPlayLink(String link, Set<String> chosen, Runnable afterStarted, Runnable finished) {
         PlayableItem item = null;
+        boolean handedOver = false;
         try {
-            upnpClient.setReceiverDeviceIds(chosen);
             if (ReadinessWait.await(upnpClient::isPlayerServiceInitialized, playerServiceWaitMillis, pollMillis)) {
-                item = upnpClient.createPlayableItem(Uri.parse(link));
+                item = upnpClient.createPlayableItem(Uri.parse(link), chosen);
             } else {
                 YaaccLogger.w(TAG, "The player service did not come up, dropping the shared link");
             }
@@ -345,15 +345,31 @@ public final class ShareIntentHandler {
             toast(R.string.share_link_failed);
         }
         final PlayableItem ready = item;
-        // always: the selection was changed, so the caller must get the chance to clear or restore it
-        mainThread.execute(() -> playLink(ready, afterStarted));
+        try {
+            mainThread.execute(() -> playLink(ready, chosen, afterStarted, finished));
+            handedOver = true;
+        } finally {
+            if (!handedOver) {
+                if (item != null) {
+                    upnpClient.discardShareOf(item);
+                }
+                finished.run();
+            }
+        }
     }
 
-    /** Main thread: plays the item of a confirmed link, if there is one, then runs the hook. */
-    private void playLink(PlayableItem item, Runnable afterStarted) {
+    /**
+     * Main thread: plays the item of a confirmed link, if there is one. The chosen receivers are
+     * stored only now, right before the players are created, and the hook gives the selection back
+     * (clears or restores it) afterwards; {@code finished} runs last.
+     */
+    private void playLink(PlayableItem item, Set<String> chosen, Runnable afterStarted, Runnable finished) {
         boolean started = false;
+        boolean selectionChanged = false;
         try {
             if (item != null) {
+                upnpClient.setReceiverDeviceIds(chosen);
+                selectionChanged = true;
                 List<PlayableItem> items = new ArrayList<>();
                 items.add(item);
                 List<Player> players = upnpClient.initializePlayersWithPlayableItems(items);
@@ -378,8 +394,25 @@ public final class ShareIntentHandler {
                 // no player took the share: give its registry slot back at once
                 upnpClient.discardShareOf(item);
             }
-            runHook(afterStarted);
+            if (selectionChanged) {
+                runHook(afterStarted);
+            }
+            finished.run();
         }
+    }
+
+    /** A callback that runs its target at most once, whichever thread gets there first; null is a no-op. */
+    private static Runnable once(Runnable target) {
+        final AtomicBoolean ran = new AtomicBoolean();
+        return () -> {
+            if (target != null && ran.compareAndSet(false, true)) {
+                try {
+                    target.run();
+                } catch (RuntimeException e) {
+                    YaaccLogger.w(TAG, "The finish callback failed (" + e.getClass().getSimpleName() + ")");
+                }
+            }
+        };
     }
 
     private static void runHook(Runnable afterStarted) {
@@ -456,10 +489,12 @@ public final class ShareIntentHandler {
         }
         if (pendingShare.isPending()) {
             YaaccLogger.w(TAG, "Ignoring shared file: another one is waiting for its receivers");
+            toast(R.string.receiver_pick_busy);
             return;
         }
         if (!intakeBusy.compareAndSet(false, true)) {
             YaaccLogger.w(TAG, "Ignoring shared file: another one is being checked");
+            toast(R.string.receiver_pick_busy);
             return;
         }
         final String uriToProbe = validated;
@@ -520,6 +555,7 @@ public final class ShareIntentHandler {
             String token = pendingShare.offer(uriText, name, mimeType);
             if (token == null) {
                 YaaccLogger.w(TAG, "Ignoring shared file: another one is waiting for its receivers");
+                toast(R.string.receiver_pick_busy);
                 return;
             }
             mainThread.execute(() -> announce(token, name));
@@ -554,41 +590,53 @@ public final class ShareIntentHandler {
      * @param token           the token {@link BrowserHost#onPendingShare} delivered
      * @param chosenReceiverIds the ids of the receivers the user ticked; empty means nothing is played
      *                        and the share is released (a file never plays on this device by default)
-     * @param afterStarted    runs on the main thread, once, after the receivers were set and the
+     * @param afterStarted    runs on the main thread, once, after the receivers were stored and the
      *                        playback was attempted (started or not), so the caller can clear or
-     *                        restore the receiver selection; not called if nothing was changed (wrong
-     *                        token, empty selection, file not opened); for a link it always runs once
-     *                        the receivers were stored; may be null
+     *                        restore the receiver selection; not called if the selection was never
+     *                        changed (wrong token, empty selection, nothing opened or built); may be null
+     * @param finished        runs exactly once, after {@code afterStarted} and on whichever thread ends
+     *                        the work, in EVERY case (a played share, a failed one, a wrong token, an
+     *                        empty selection, a shut-down handler): the caller ends its single flight
+     *                        here. May be null.
      */
-    public void confirm(String token, Set<String> chosenReceiverIds, Runnable afterStarted) {
+    public void confirm(String token, Set<String> chosenReceiverIds, Runnable afterStarted, Runnable finished) {
+        final Runnable done = once(finished);
         PendingShare.Data data = pendingShare.take(token);
         if (data == null) {
+            done.run();
             return;
         }
         final Set<String> chosen = chosenReceiverIds == null ? Collections.<String>emptySet()
                 : Collections.unmodifiableSet(new HashSet<>(chosenReceiverIds));
         if (chosen.isEmpty()) {
-            YaaccLogger.w(TAG, "Shared file released: no receiver was chosen");
+            YaaccLogger.w(TAG, "Shared item released: no receiver was chosen");
+            done.run();
             return;
         }
-        if (isLink(data)) {
-            confirmLink(data, chosen, afterStarted);
+        if (data.getKind() == PendingShare.Kind.LINK) {
+            confirmLink(data, chosen, afterStarted, done);
             return;
         }
         if (!upnpClient.isPlayerServiceInitialized()) {
             upnpClient.startService();
         }
         try {
-            fileExecutor.execute(() -> prepareAndPlayFile(data, chosen, afterStarted));
+            fileExecutor.execute(() -> prepareAndPlayFile(data, chosen, afterStarted, done));
         } catch (RejectedExecutionException e) {
             // nothing was opened yet
             YaaccLogger.w(TAG, "Share handler already shut down, dropping the shared file");
+            done.run();
         }
+    }
+
+    /** Same without a finish callback. */
+    public void confirm(String token, Set<String> chosenReceiverIds, Runnable afterStarted) {
+        confirm(token, chosenReceiverIds, afterStarted, null);
     }
 
     /** Same without a hook. */
     public void confirm(String token, Set<String> chosenReceiverIds) {
-        confirm(token, chosenReceiverIds, null);
+        confirm(token, chosenReceiverIds, null, null);
     }
 
     /** The user dismissed the picker: releases the pending share (nothing was opened). A wrong token does nothing. */
@@ -597,10 +645,13 @@ public final class ShareIntentHandler {
     }
 
     /** Worker thread. */
-    private void prepareAndPlayFile(PendingShare.Data data, Set<String> chosen, Runnable afterStarted) {
+    private void prepareAndPlayFile(PendingShare.Data data, Set<String> chosen, Runnable afterStarted,
+                                    Runnable finished) {
         SharedFileService.Prepared prepared = null;
         // true once the share is cleaned up or handed to the main thread: the catch must not touch it again
         boolean settled = false;
+        // true once the main thread owns the end of the work (it runs `finished`)
+        boolean handedOver = false;
         try {
             prepared = filePreparer.prepare(data, chosen);
             if (prepared == null) {
@@ -616,17 +667,22 @@ public final class ShareIntentHandler {
             }
             final SharedFileService.Prepared ready = prepared;
             settled = true;
-            mainThread.execute(() -> playFile(ready.getItem(), chosen, afterStarted));
+            mainThread.execute(() -> playFile(ready.getItem(), chosen, afterStarted, finished));
+            handedOver = true;
         } catch (RuntimeException e) {
             YaaccLogger.w(TAG, "Could not prepare the shared file (" + e.getClass().getSimpleName() + ")");
             if (prepared != null && !settled) {
                 upnpClient.discardShareOf(prepared.getItem());
             }
+        } finally {
+            if (!handedOver) {
+                finished.run();
+            }
         }
     }
 
     /** Main thread. */
-    private void playFile(PlayableItem item, Set<String> chosen, Runnable afterStarted) {
+    private void playFile(PlayableItem item, Set<String> chosen, Runnable afterStarted, Runnable finished) {
         boolean selectionChanged = false;
         boolean started = false;
         try {
@@ -658,6 +714,7 @@ public final class ShareIntentHandler {
             if (selectionChanged) {
                 runHook(afterStarted);
             }
+            finished.run();
         }
     }
 

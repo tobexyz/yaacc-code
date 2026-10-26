@@ -20,6 +20,7 @@ package de.yaacc.browser;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.widget.Toast;
 
 import androidx.fragment.app.FragmentActivity;
 import androidx.fragment.app.FragmentManager;
@@ -30,8 +31,12 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
+import de.yaacc.R;
+import de.yaacc.share.ActionFlight;
 import de.yaacc.share.AfterStartSelection;
+import de.yaacc.share.GuardedPickedAction;
 import de.yaacc.share.PendingPick;
+import de.yaacc.share.PickedAction;
 import de.yaacc.share.ShareLimits;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.util.YaaccLogger;
@@ -53,6 +58,12 @@ final class ReceiverPickController {
     private static final String TAG = ReceiverPickController.class.getName();
     static final String REQUEST_KEY = "de.yaacc.receiverPick";
 
+    /**
+     * The one picked action that may be between its confirm and its end, process-wide: the receiver
+     * selection it stores is global, so a second action must wait (see {@link ActionFlight}).
+     */
+    private static final ActionFlight FLIGHT = ActionFlight.createDefault();
+
     private final FragmentActivity activity;
     private final PendingPick pick = PendingPick.createDefault();
     private final Handler handler = new Handler(Looper.getMainLooper());
@@ -66,18 +77,19 @@ final class ReceiverPickController {
 
     /**
      * {@link BrowserHost#pickReceivers}: opens the picker, unless one is open or the screen cannot
-     * show it now. For a pending share (a name is given) the picker closes itself after the share's
-     * own timeout, which cancels the pick.
+     * show it now, or another picked action is still starting (see {@link ActionFlight}). For a
+     * pending share (a name is given) the picker closes itself after the share's own timeout, which
+     * cancels the pick.
      *
-     * @return false if nothing was opened; the callbacks are then never called
+     * @return false if nothing was opened; the action is then never called
      */
-    boolean start(PendingPick.Callbacks callbacks, String shareName, Collection<String> initialIds) {
+    boolean start(PickedAction action, String shareName, Collection<String> initialIds) {
         FragmentManager fragmentManager = activity.getSupportFragmentManager();
-        if (callbacks == null || activity.isFinishing() || activity.isDestroyed()
+        if (action == null || FLIGHT.isActive() || activity.isFinishing() || activity.isDestroyed()
                 || fragmentManager.isStateSaved() || DeviceSheetFragment.isPickerShowing(fragmentManager)) {
             return false;
         }
-        String pickId = pick.open(callbacks);
+        String pickId = pick.open(new GuardedPickedAction(FLIGHT, action));
         if (pickId == null) {
             return false;
         }
@@ -117,10 +129,11 @@ final class ReceiverPickController {
      */
     void offerShare(ShareIntentHandler shareHandler, String token, String displayName, UpnpClient upnpClient,
                     boolean newLayout, Collection<String> initialIds) {
-        PendingPick.Callbacks callbacks = new PendingPick.Callbacks() {
+        PickedAction action = new PickedAction() {
             @Override
-            public void onConfirmed(Set<String> receiverIds) {
-                shareHandler.confirm(token, receiverIds, afterStartHook(upnpClient, newLayout));
+            public void onConfirmed(Set<String> receiverIds, Runnable done) {
+                // done ends the single flight, whatever becomes of the share
+                shareHandler.confirm(token, receiverIds, afterStartHook(upnpClient, newLayout), done);
             }
 
             @Override
@@ -128,9 +141,10 @@ final class ReceiverPickController {
                 shareHandler.cancel(token);
             }
         };
-        if (!start(callbacks, displayName == null ? "" : displayName, initialIds)) {
+        if (!start(action, displayName == null ? "" : displayName, initialIds)) {
             shareHandler.cancel(token);
             YaaccLogger.w(TAG, "Dropped a shared item: the receiver picker is busy or not available");
+            toast(R.string.receiver_pick_busy);
         }
     }
 
@@ -178,6 +192,14 @@ final class ReceiverPickController {
             // an action that failed must not take the activity down; the pick is closed already
             YaaccLogger.w(TAG, "The action after the receiver pick failed (" + e.getClass().getSimpleName() + ")");
             cancelExpiry();
+        }
+    }
+
+    private void toast(int resId) {
+        try {
+            Toast.makeText(activity.getApplicationContext(), resId, Toast.LENGTH_SHORT).show();
+        } catch (RuntimeException e) {
+            YaaccLogger.w(TAG, "Could not show a message (" + e.getClass().getSimpleName() + ")");
         }
     }
 
