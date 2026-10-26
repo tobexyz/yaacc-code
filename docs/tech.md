@@ -669,8 +669,9 @@ unchanged.
 - **Initial focus.** design.md wants focus on the first receiver's
   checkbox. Nothing in Material sets initial focus. **As built:** when not
   in touch mode, the fragment calls `DeviceSheetAdapter#requestInitialFocus()`,
-  and the adapter posts `checkBox.requestFocus()` when it binds the first
-  receiver row. Stable ids (`R:<udn>` / `P:<playerId>` keys) and `DiffUtil`
+  and the adapter posts a focus request when it binds the first
+  receiver row (the checkbox in Phase 1; since Phase 3 the normal sheet has no
+  checkbox and the row takes the focus, in pick mode the first checkbox). Stable ids (`R:<udn>` / `P:<playerId>` keys) and `DiffUtil`
   keep focus on the same row across refreshes.
 
 ### 6. How the Player tab learns about new or ended players
@@ -821,24 +822,27 @@ unchanged.
 
 - **Entry points (new layout only).** The sheet is reached from the new layout's
   receiver bar (`R.id.browserReceiverBar` in `activity_browser.xml`, bound by
-  `ReceiverBarController`) and from the no-receiver prompt below, both through
-  `BrowserHost.showReceivers()`. The classic layout (`TabBrowserActivity`) has no
+  `ReceiverBarController`) through `BrowserHost.showReceivers()`. (Phase 3: the
+  no-receiver prompt is gone; the same fragment also serves as the "Play on..."
+  picker, see "Sharing local files", "As built: the receiver picker".) The classic layout (`TabBrowserActivity`) has no
   entry point: `showReceivers()` there still switches to the Receiver tab, and no
   classic fragment opens `DeviceSheetFragment`. (Phase 1 had put the sheet into
   the classic Content tab; owner feedback, Group 11, reverted that.)
-- **Receiver bar label.** `ReceiverBarLabel.build` gives the selected receivers'
-  friendly names, trimmed, sorted case-insensitively, joined with `"; "`, or
-  `receiver_bar_none_selected`; the bar is refreshed whenever `UpnpClient`
-  reports a receiver selection change, including changes made in the sheet.
-- **No-receiver prompt (new layout only).** Play, play-all (`BrowseContentItemAdapter`)
-  and an item tap (`ContentListClickListener`) call
-  `ContentListFragment#openDeviceSheetIfNoReceiverSelected()` first. It returns
-  true only when the host `providesReceiverBar()`, the fragment is added and no
-  receiver is selected; then it opens the sheet and playback doesn't start, so
-  the user picks a receiver and taps play again. In classic it always returns
-  false, so play behaves as on `origin/feat/issue287`. "Add to playlist" isn't
-  gated. The `error_no_receiver_selected` toast in `PlayerService.createPlayer`
-  stays for classic and for non-UI callers.
+- **Receiver bar label.** Phase 1 showed the selected receivers; since Phase 3
+  `ReceiverBarLabel` names the receivers that have a player in
+  `PlayerService.getCurrentPlayers()` (a paused player counts), cleaned, merged,
+  sorted and joined with `"; "`, or `receiver_bar_none_playing` ("No receiver
+  playing"). The bar refreshes on the player-list listener and the receiver
+  events. See "Sharing local files", "As built: the receiver picker".
+- **Receiver choice per action (new layout only).** Phase 1 opened the sheet
+  when playing with no receiver selected
+  (`ContentListFragment#openDeviceSheetIfNoReceiverSelected()` and the
+  `receiver_bar_none_selected` text; both are removed). Now play, play-all, an
+  item tap and add to playlist call `ContentListFragment#startPlayAction`, which
+  opens the "Play on..." picker first. In classic `startPlayAction` starts at
+  once, so play behaves as on `origin/feat/issue287`, and the
+  `error_no_receiver_selected` toast in `PlayerService.createPlayer` stays for
+  classic and for non-UI callers.
 - **Sheet contents.** `DeviceSheetFragment.show(FragmentManager)` does
   nothing if the sheet is already showing or the state is saved.
   `DeviceSheetAdapter#refresh()` takes the receivers from
@@ -847,7 +851,9 @@ unchanged.
   `UpnpClient.getDevice(id)`, and lays the rows out with
   `DeviceSessionGrouper.group`. Receiver rows are bound by
   `ReceiverRowBinder`, the same binder the Receiver tab's
-  `BrowseReceiverDeviceAdapter` uses. Session rows
+  `BrowseReceiverDeviceAdapter` uses; the sheet's rows have no selection
+  checkbox (Phase 3; the classic Receiver tab keeps its checkbox through the
+  four-argument `bind`). Session rows
   (`device_sheet_player_session_item.xml`) show the player name, current
   title and album art (through `IconDownloadTask`), plus the device id for
   sessions whose device isn't a receiver; all LAN strings are set with plain
@@ -945,7 +951,7 @@ All classes are in `de.yaacc.browser` unless a package is given.
 | `ServerListFragment` | Server list for both layouts (see "Server list"). |
 | `ContentListFragment` | Content of one server for both layouts. Classic: shows the original static footer (provider line, receivers line). New: hides it; the host owns the receiver bar. |
 | `BrowserBackNavigation` | Plain Java: back decision of the new layout. |
-| `ShareIntentHandler`, `ShareUriPolicy` | Shared handler for a link shared into yaacc. |
+| `ShareIntentHandler`, `ShareUriPolicy` | Shared handler for a link or one file shared into yaacc (Phase 3 added the file path, the pending share and the picker, see "Sharing local files"). |
 | `ShutdownTimerController`, `ShutdownTimerToggle` | Shutdown timer UI logic and the toolbar tap decision (stop, or ask for a duration). |
 | `StreamingPermissionHelper` | MediaProjection permission flow of the yaacc server row. |
 | `BackgroundIdleTimer`, `StartedBrowserCounter` | One process-wide idle exit. |
@@ -964,6 +970,10 @@ public interface BrowserHost {
     default boolean providesShutdownTimer()  { return false; }  // toolbar owns the timer
     default boolean providesReceiverBar()    { return false; }  // activity owns the receiver bar and the sheet
     default boolean showsBackAtContentRoot() { return false; }  // back arrow also at a server's root
+    // Phase 3, see "Sharing local files": default no-ops returning false
+    default boolean pickReceivers(PickedAction action, String shareName, Collection<String> initialIds) { return false; }
+    default boolean isPickOpen(String pickId)                { return false; }
+    default void    onPendingShare(String token, String displayName) { }
 }
 ```
 
@@ -999,7 +1009,9 @@ AppCompat; `Theme.NoDisplay` is a framework theme), no `launchMode`, no
 `taskAffinity`, label `@string/title_activity_main`. It holds the three filters
 that used to sit on `TabBrowserActivity`, unchanged: `VIEW`+`MAIN` /
 `DEFAULT`+`LAUNCHER` (the `VIEW` half has no `<data>`), `MAIN` /
-`LEANBACK_LAUNCHER`, and `SEND` / `DEFAULT` with `text/plain`. `onCreate`
+`LEANBACK_LAUNCHER`, and `SEND` / `DEFAULT` with `text/plain`. Phase 3 added a
+fourth, `SEND` / `DEFAULT` with `audio/*`, `video/*` and `image/*` (see "Sharing
+local files"). `onCreate`
 builds a **fresh** `Intent(this, BrowserLauncher.targetClass(this))`, applies
 the forward policy, calls `startActivity` and `finish()` in `finally`
 (`Theme.NoDisplay` requires `finish()` before `onResume` completes). Any
@@ -1007,7 +1019,11 @@ the forward policy, calls `startActivity` and `finish()` in `finally`
 class name only, and the launch is plain.
 
 **Forward policy** (`LauncherForwardPolicy.decide(action, type, text)`, plain
-Java, compared exactly and case-sensitively):
+Java, compared exactly and case-sensitively). This subsection is the Phase 2
+state; Phase 3 adds ONE more forward, a single `content:` file (fresh intent,
+one ClipData item, the read flag and a launch token, see "Sharing local files",
+"As built: from the share menu to a pending share"). Everything below still
+holds for the text forward and the plain launch:
 
 - Forwarded: only `android.intent.action.SEND` with type `text/plain` and a
   non-empty text of at most `ShareUriPolicy.MAX_TEXT_LENGTH` (2048) chars. The
@@ -1044,12 +1060,12 @@ activity stays and logs). Then it starts `new Intent(activity, targetClass(effec
 `CLEAR_TASK`: `finish()` only, so players and the other activities stay.
 `TabBrowserActivity` calls it at the top of `onResume`; `BrowserActivity`
 calls it first in `onCreate` (before `setContentView`, the share handler or any
-listener) and again in `onResume`. Consequence of the order: a share that
-reaches a `TabBrowserActivity` whose layout is no longer the effective one is
-handled by its `onCreate` handler and still plays (the graceful shutdown lets it
-finish), while the same share reaching a stale `BrowserActivity` is dropped.
-The launcher normally starts the right class, so this only affects stale
-explicit launches. A switch does not touch players, `PlayerService` or the UPnP
+listener) and again in `onResume`. Consequence of the order (Phase 2): a share that reached a
+`TabBrowserActivity` whose layout was no longer the effective one was handled by
+its `onCreate` handler. Since Phase 3 `ShareIntakeGate` makes both activities
+discard the payload unread when they are not the effective layout, so such a
+share is dropped, not played in the wrong branch. The launcher normally starts
+the right class, so this only affects stale explicit launches. A switch does not touch players, `PlayerService` or the UPnP
 client (they hang off the `Application`); the idle counter goes 1, 2, 1 and
 never arms.
 
@@ -1177,8 +1193,7 @@ onPlayersStarted)` and `shutdown()` are main-thread. Both browsers call
   again (as in classic before).
 - **Scheme policy.** `ShareUriPolicy.isAllowed(text)`: non-empty, at most 2048
   chars, and the part before the first `':'` equals `http` or `https`
-  (ASCII, case-insensitive). Nothing is trimmed. Reason: with the proxy option on,
-  a local path would have been reachable through the proxy. The check looks only at the scheme and length, so `http:` and
+  (ASCII, case-insensitive). Nothing is trimmed. Reason: only web links are relayed by the proxy. The check looks only at the scheme and length, so `http:` and
   `http://a\nfile:///x` pass (pinned by `ShareUriPolicyTest#onlyTheSchemeAndLengthAreChecked`;
   tightening is Backlog 1 item 8). A rejected text is only logged, with no
   payload. The text is never used to build an intent, PendingIntent or file path.
@@ -1228,9 +1243,10 @@ accessibility delegate (click action "Choose receivers") and adds itself as
 `UpnpClientListener`; `unbind()` removes all of it. It refreshes through
 `receiverDeviceAdded` / `receiverDeviceRemoved` (hopping to the main thread)
 and once on every `bind()`; late events after `unbind()` are ignored. The
-label is `ReceiverBarLabel.build` (trimmed friendly names, case-insensitive
-sort, joined with `"; "`, else `receiver_bar_none_selected`), set with
-`setText`. `BrowserActivity` owns one bar below the container
+label is `ReceiverBarLabel.build` (Phase 3: the cleaned names of the receivers
+that have a player, case-insensitive sort, joined with `"; "`, else
+`receiver_bar_none_playing`; it no longer shows the selection), set with
+`setText`; besides the receiver events the controller listens to the player list. `BrowserActivity` owns one bar below the container
 (`activity_browser.xml`: separator, mini-player list, receiver bar in a
 vertical `LinearLayout`, so a hidden mini-player cannot move an anchor) and
 binds it in `onStart`/unbinds in `onStop` (and `onDestroy` as a backstop).
@@ -1367,7 +1383,7 @@ are gone.
 Re-checked 2026-10-24 with `./gradlew :yaacc:processDebugManifest --offline`
 (`yaacc/build/intermediates/merged_manifests/debug/processDebugManifest/AndroidManifest.xml`).
 
-- `LauncherActivity`: exported, `Theme.NoDisplay`, the three filters above. The
+- `LauncherActivity`: exported, `Theme.NoDisplay`, the three filters above (plus the Phase 3 media `SEND` filter, see "Sharing local files"). The
   only `MAIN`+`LAUNCHER` and `MAIN`+`LEANBACK_LAUNCHER` component (read the
   research check "exactly one exported launcher" as `MAIN`+`LAUNCHER`: four other
   activities declare `LAUNCHER` with `VIEW` only).
@@ -1395,7 +1411,7 @@ Re-checked 2026-10-24 with `./gradlew :yaacc:processDebugManifest --offline`
 ### Known limitations / owner decisions
 
 - **`allowBackup` (decided: off).** Auto Backup used to copy the default
-  preferences file (layout, receiver selection, `proxy_link_*`, SAF cache entries)
+  preferences file (layout, receiver selection, `proxy_link_*` (retired in Phase 3), SAF cache entries)
   to the user's Google account. The owner chose `android:allowBackup="false"`
   (2026-10-25): users set the app up again on a new device. No backup or
   `dataExtractionRules` exclusion rules are needed then.
@@ -1413,23 +1429,26 @@ Re-checked 2026-10-24 with `./gradlew :yaacc:processDebugManifest --offline`
   AsyncTask executor. The mini-player makes the exposure continuous (the art of
   every running player is fetched once per player and art URI on every browser screen). A scheme allowlist
   (http/https), timeouts and a size cap are follow-ups.
-- **Names from the LAN.** `ReceiverBarLabel` (receiver bar), the device-sheet
-  and server-list name bindings and the classic footer lines show raw friendly
-  names (trim only, as the original footer did): bidi controls and a name such as
-  `Kitchen; Bedroom` are not neutralised, while the mini-player's text goes
-  through `cleanText`.
+- **Names from the LAN.** The device-sheet and server-list name bindings and the
+  classic footer lines show raw friendly names (trim only, as the original footer
+  did): bidi controls and a name such as `Kitchen; Bedroom` are not neutralised.
+  The mini-player's text and, since Phase 3, the receiver bar's names go through
+  `MiniPlayerPresenter.cleanText`; the picker's rows use the cleaned friendly name.
 - **Classic does not offer the device sheet** (owner decision, Group 11). The
   Receiver and Player tabs are the only way to control receivers and players in
   the classic layout, and playing with no receiver selected shows the old toast
   (`error_no_receiver_selected`) instead of a prompt. Whether the classic layout
-  should ever get the sheet is closed with "no" (PRD open question 4).
-- **Share, Backlog 1** (waiting for a discussion with the owner): which share
-  (receiving into yaacc, or also the per-item share out of yaacc); whether files
-  or `content://` URIs may become playable (now scoped: Phase 3); more MIME
-  types; picking the receiver in the sheet; localized toasts and feedback for a
-  rejected link; replacing the blind 3 s waits; what the new layout shows when a
-  share starts; rotation/process death; tightening `ShareUriPolicy` (require
-  `://`, reject whitespace and control characters).
+  should ever get the sheet is closed with "no" (PRD open question 4). The one
+  exception (Phase 3): a shared file opens the pick-mode sheet in classic too.
+- **Share, Backlog 1** (still open, waiting for a discussion with the owner): which
+  share (receiving into yaacc, or also the per-item share out of yaacc); the
+  classic link auto-play and its blind 3 s waits; a notice when a share is dropped
+  for its type; what the new layout shows when a share starts; a cool-down after a
+  cancelled pick; re-opening the picker after a rotation; tightening
+  `ShareUriPolicy` (require `://`, reject whitespace and control characters).
+  Done in Phase 3: files and `content:` URIs, audio/video/image `SEND` filters,
+  picking the receiver per action, localized feedback for failed shares (see
+  "Sharing local files").
 - **Other open items.** No timeout around `MediaMetadataRetriever#setDataSource`
   (share worker); `RendererStatusMonitor` polls on one thread (one slow renderer
   delays all status); `PlayerService.getPlayer()` returns a mutable view; remote
@@ -2104,10 +2123,294 @@ Findings of this research that changed the plan (decisions.md 2026-10-24,
 
 ## Sharing local files
 
+What another app can share into yaacc (a link, or ONE audio, video or image file), how a share is served to the
+receivers, and how the receiver is picked per action. Spec `2026-10-23-unified-device-sheet`, Phase 3 (Groups 12-16).
+The "As built" subsections describe the code at `e3e0a247` on branch `feat/unified-device-sheet` (Groups 12-15 passed
+the general and the security review); they cite classes, not line numbers. The Group 12 research the build started
+from follows under "Research notes (Group 12)", kept for its citations; where it differs, the as-built text wins
+("Where the build differs from the research" lists the differences). Nothing here was run on a device: "Not verified
+on a device" lists what only a device can confirm.
+
+### As built: overview
+
+| Class | Role |
+|---|---|
+| `de.yaacc.LauncherActivity` | Exported entry. Forwards a text share or ONE file to the browser of the effective layout with a fresh intent. The SEND filters for `audio/*`, `video/*` and `image/*` are its only manifest change of Phase 3. |
+| `de.yaacc.share.LaunchNonces` | Single-use launch token, minted by the launcher after its checks, required for a file at the browsers. |
+| `browser.ShareIntentHandler`, `browser.ShareIntakeGate`, `share.StreamIntake`, `share.SharedContentPolicy`, `share.PendingShare` | Intake in the browser: repeats every check, keeps ONE pending share (text only), confirm/cancel by token. |
+| `upnp.server.share.SharedFileService`, `SharedFileOpener`, `HeldFileSource`, `share.WatchedCopy`, `share.IncomingCache` | After the confirm: open (hold) or copy the file, register it, build the item. |
+| `share.ShareRegistry`, `share.UnclaimedShares`, `share.ShareKeyTracker`, `player.ShareLifetimeListener` | The in-memory registry (random keys, allowed addresses, expiry), the claim window and the release when a player ends. |
+| `upnp.server.http.YaaccUpnpServerContentHttpHandler`, `ProxyShareResponder` | Serve `/proxy/<key>` before the preference gate. |
+| `share.ProxyAccessPolicy`, `share.ShareAddresses`, `upnp.server.share.ShareAddressResolver` | Which remote addresses may fetch a share. |
+| `share.ByteRangeResolver`, `share.RangeStreamer`, `share.PositionalSource`, `share.ShareConcurrencyLimiter` | Range maths, streaming from the held file, per-share response cap. |
+| `share.LinkTargetPolicy`, `share.HttpLinkTarget`, `share.LinkContentType`, `UpnpClient#createPlayableItem` | The link path (http/https). |
+| `share.ProviderCallGate`, `share.BoundedCall`, `share.AbandonableCall`, `upnp.server.share.ProviderKeys` | Bound what a content provider can pin. |
+| `browser.ReceiverPickController`, `browser.DeviceSheetFragment` (pick mode), `share.PendingPick`, `share.PickSheetResult`, `share.ActionFlight`, `share.AfterStartSelection`, `share.ReceiverPickResult` | The "Play on..." picker. |
+| `browser.ReceiverBarLabel`, `browser.ReceiverBarController` | Receiver bar: the receivers that play. |
+
+### As built: from the share menu to a pending share
+
+1. **Manifest.** `LauncherActivity` has four filters: `MAIN`+`VIEW`/`LAUNCHER` (unchanged), `MAIN`/`LEANBACK_LAUNCHER`,
+   `SEND`+`DEFAULT` with `text/plain`, and `SEND`+`DEFAULT` with three `<data>` elements `audio/*`, `video/*`,
+   `image/*`. `git diff 071fc9d2 -- yaacc/src/main/AndroidManifest.xml` is exactly that one filter (7 lines).
+   `TabBrowserActivity` stays exported without a filter, `BrowserActivity` stays `exported="false"`. No `SEND_MULTIPLE`.
+2. **Launcher forward** (`LauncherForwardPolicy.decideStream`, `LauncherActivity#buildStreamForward`). The filter only
+   looks at the sender's declared type, so the launcher checks: action `SEND`; a stream type (`audio/`, `video/`,
+   `image/`); `EXTRA_STREAM` equals ClipData item 0; the incoming flags carry `FLAG_GRANT_READ_URI_PERMISSION`;
+   `SharedContentPolicy` accepts the URI (a `content:` URI, not `file:`/`http:`, no own authority, length cap);
+   `OwnProviders.isOwnAuthority` finds no provider of this app behind the authority (the app has more than one);
+   on Android 15+ `SenderGrantCheck.mayForward` asks `getInitialCaller().checkContentUriPermission(...)` whether the real
+   sender holds read access. Then it forwards a FRESH intent: action `SEND`, the declared type, ONE ClipData item
+   (`ClipData.newRawUri`), `FLAG_GRANT_READ_URI_PERMISSION` only (the system checks the grant for `data` and
+   ClipData, never for `EXTRA_STREAM`, so the URI is not repeated there), and the launch token
+   (`LaunchNonces.EXTRA_NAME`). Any failure, or a `SecurityException` from `startActivity`, falls back to a plain launch.
+   Text shares are forwarded exactly as before.
+3. **Launch token.** The browsers are exported (classic) or reachable by internal intents, so any app can send them a file
+   and skip the launcher's checks (including the Android 15 sender check). `LaunchNonces.mint()` returns 128 bits from a
+   `SecureRandom`, kept only in the `Yaacc` application object: valid 30 s (`ShareLimits.LAUNCH_NONCE_TTL_MILLIS`), single
+   use, at most 8 unused (oldest dropped), constant-time compare, monotonic clock. `ShareIntentHandler` accepts a FILE only if
+   `consume(token)` succeeds; otherwise the intent is consumed and the share dropped with a payload-free log, before any
+   provider call. Text needs no token. A re-delivery after process death carries a dead token and is dropped.
+4. **Layout gate.** `ShareIntakeGate.admitOrDiscard(own, effective, intent)` runs in `onCreate` and `onNewIntent` of both
+   browsers before the handler: an activity takes the payload only if it renders the effective layout (the same rule as
+   the relaunch check), else the payload (text, clip data, `EXTRA_STREAM`, token) is removed unread. The launcher always
+   starts the activity of the effective layout, so a launcher share is admitted in both layouts. A share that races a
+   layout switch (about 2 s) is lost.
+5. **Intake checks in the handler** (`ShareIntentHandler`, `StreamIntake.validate`). Repeated in full because the activities
+   can be started directly: action `SEND`; exactly ONE ClipData item (only item 0 is read, never `EXTRA_STREAM`); no `data`;
+   the read flag in the intent's own flags; content policy; not an own provider. The intent is consumed once. On a worker
+   thread (`BoundedCall`, 3 s) the provider is asked for its type (`ContentResolver.getType`) and display name; the MIME is
+   `SharedContentPolicy.chooseMimeType(providerType, intentType)` output only (concrete `audio/`, `video/`, `image/`,
+   else the share is dropped); the name goes through `DisplayName` (control, bidi and other Unicode format characters removed,
+   whitespace collapsed, 200 chars, fixed fallback text `share_unnamed_file`).
+6. **Pending share** (`PendingShare`). At most ONE, holding only the validated URI text, the cleaned name, the type and the kind
+   (`FILE` or `LINK`): no descriptor, no copy, no registry slot. A second share while one is pending or a probe runs is dropped
+   (never replaces), with the fixed toast `receiver_pick_busy`. It is bound to a random token and times out after 2 minutes
+   (`ShareLimits.PENDING_SHARE_TIMEOUT_MILLIS`). `BrowserHost#onPendingShare(token, name)` tells the activity, which opens the
+   picker (`ReceiverPickController#offerShare`).
+7. **Provider gate** (`ProviderCallGate`, `BoundedCall`, `ProviderKeys`). A binder call into a provider cannot be
+   interrupted. One provider (the package that owns the authority, from `PackageManager.resolveContentProvider`) gets at most
+   ONE call in flight, for as long as that call is outstanding (no expiry); at most 3 providers have a call outstanding
+   (`PROVIDER_MAX_TRACKED`); each pool (intake probe, confirmed open) has 4 threads (`PROVIDER_POOL_THREADS`). Providers whose
+   package cannot be resolved all share ONE key (`ProviderKeys.UNRESOLVED`). At intake a call the gate or pool refuses
+   gives the toast `share_busy` (`ShareFailureMessage`); a timeout or a failing provider at intake is only logged; after the
+   confirm a failure gives `share_open_failed` (or `share_busy` when the gate or the copy slot was full).
+
+### As built: after the confirm
+
+`ShareIntentHandler#confirm(token, ids, afterStarted, finished)` takes the pending share by token and runs `SharedFileService#prepare`
+on the file executor:
+
+1. **Open** (`SharedFileOpener.openDescriptor`, through `BoundedCall`, 20 s): `openAssetFileDescriptor(uri, "r")`. A descriptor
+   is "seekable" if `fstat` says regular file and `lseek` works. A seekable one becomes a `HeldFileSource` (below). Otherwise
+   the copy fallback runs.
+2. **`HeldFileSource`** (`PositionalSource`): the provider's descriptor is `dup`ed and the provider's closed, so the provider
+   process is not pinned by a stable reference; the provider's start offset and length are clamped to the real file size
+   (`DescriptorWindow`); reads are `Os.pread` (no shared file offset, so ranges run concurrently, 64 KiB chunks); an in-flight
+   counter defers the close to the last reader, so a descriptor number is never reused under a running read, and close never
+   blocks the caller.
+3. **Copy fallback** (`SharedFileOpener.copyAndHold`, `WatchedCopy`, `BudgetedCopier`, `CopyBudget`, `IncomingCache`): to
+   `getCacheDir()/incoming/` (never `cache/shared/`, which `FileProvider` exposes), random file names, at most 512 MiB per file
+   (`SharedContentPolicy.MAX_COPY_BYTES`), at most 1 GiB in the directory, 64 MiB of free space must remain. One copy at a time,
+   on its own daemon thread, caller waits at most 5 minutes (`COPY_MAX_MILLIS`); at the deadline the caller closes the input and
+   output, deletes the partial file and returns, the worker is abandoned (at most 3 abandoned workers at once, then "busy").
+   The copy is deleted when its source is closed (`DeleteOnCloseSource`), and `Yaacc` sweeps `incoming/` at start (the registry is
+   memory-only, so any file found is an orphan).
+4. **Register.** After the local HTTP server answers (`HttpServerProbe`, a loopback connect, polled for up to 3 s) and the phone
+   has an address, `ShareRegistrar.register` puts a `LOCAL_FILE` entry with the allowed addresses of exactly the chosen
+   receivers into the `ShareRegistry`. When the registry is full, `evictOldestReleased()` runs once and `register` is retried;
+   still full gives the toast `share_registry_full`. On any failure the source is closed, the copy deleted and the key removed
+   before `prepare` returns null.
+5. **Item.** `SharedItemFactory.create(mime, cleanedName, proxyUri, size, 0, 0)`: the provider type, size and cleaned name; no
+   metadata is read from the shared file, so no duration is announced (the research planned a `MediaDataSource`; it was not built).
+   The item is played on the receivers; the selection is cleared (new layout) or restored (classic) afterwards.
+6. **Claim window.** `UnclaimedShares.registered` is called after `register`; a key that no player claimed within 2 minutes
+   (`CLAIM_WINDOW_MILLIS`) is removed by the sweeper, which closes the descriptor.
+
+### As built: the registry
+
+`ShareRegistry` (plain Java, thread safe, injectable clock and random source):
+
+- Key: 16 bytes from a `SecureRandom`, unpadded base64url, 22 characters of `[A-Za-z0-9_-]`
+  (`ShareRegistry.isWellFormedKey`). Never reused while the registry lives (the last 256 retired keys are remembered, 8 draws per
+  register). Nothing is persisted.
+- Entry: kind (`HTTP_LINK` with an `HttpLinkTarget`, `LOCAL_FILE` with an `AutoCloseable` `PositionalSource`), MIME type, the
+  allowed address set (normalized, fixed at registration), grace and absolute maximum.
+- Lifetime: 10 minutes after the first `release` (`IDLE_GRACE_MILLIS`), at most 6 hours after registration
+  (`ABSOLUTE_MAX_MILLIS`), at most 8 entries. An expired entry is never returned and its target is closed exactly once, outside the
+  lock. `Yaacc` runs a sweeper every 60 s (`share-sweeper`: expiry, unclaimed shares, idle responses) and `removeAll()` on exit.
+- Release: `ShareLifetimeListener` and `ShareKeyTracker` remember the keys of each player and release them when the player is
+  removed (`PlayerListChangeNotifier.Listener#onPlayerRemoving` runs before `onDestroy()` empties the item list); a key is released
+  only when no other player still uses it. Cancel, a failed start and a timeout remove or release the share they created.
+- The old `proxy_link_*` preferences are retired: `Yaacc#removeLegacyProxyLinks` deletes them at start, nothing reads or writes them.
+
+### As built: serving
+
+`YaaccUpnpServerContentHttpHandler` routes every path whose first segment is exactly `proxy` to `ProxyShareResponder` BEFORE the
+handler's preference gate, so a share is served whatever `settings_local_server_chkbx`, the provider or the proxy preference say. The HTTP
+server listens whenever the app process lives (`Yaacc.onCreate` starts `YaaccUpnpServerService`, which creates the server
+unconditionally); a share starts and stops nothing and waits only until the server answers. Order of decisions:
+
+1. Path `/proxy/<key>` or `/proxy/<deviceId>/<key>` with a well-formed key, a registry entry that is live: else the same constant
+   404 page (no path, key or link echoed, nothing logged). Other segment counts: 404.
+2. `ProxyAccessPolicy.isAllowed(restrictToReceivers, entry addresses, remote address)`; the remote address comes only from the
+   connection's endpoint details, never from a header; a missing or unparsable address is denied. Failure: 403 and a log line
+   "Media proxy refused a request from <address>" (no key). The flag is read on every request:
+   `settings_proxy_restrict_receivers_chkbx` (stored key `proxy_restrict_receivers_chkbx`), default `true` in code, in
+   `preference.xml` and when the read fails. With the flag off every address passes this step; key and expiry still apply.
+3. `deviceId` (3-segment form), only now: `RendererIdPolicy.isValid` (`[A-Za-z0-9:._-]`, 1-200), else 404.
+4. `LOCAL_FILE`: `ByteRangeResolver.parseHeader` + `resolve` against the source size: no header, an invalid header or more than one
+   range is 200 whole; one satisfiable range is 206 with `Content-Range`; an unsatisfiable one is 416 with `bytes */<len>`; suffix
+   ranges are handled. `HEAD` opens and reads nothing. The body streams from the held file by `Os.pread` through `RangeStreamer`.
+5. `HTTP_LINK`: the existing upstream relay (see "As built: links"); an upstream `Range` is rebuilt from the parsed numbers, never
+   passed through.
+6. Limits: at most 4 concurrent responses per share (`ShareConcurrencyLimiter`, 503 beyond); a response that makes less than
+   16 KiB of progress in 60 s loses its slot (not its stream: if the reader resumes it asks for a slot again and aborts only when the
+   share is full). Every share response carries `X-Content-Type-Options: nosniff` and `Content-Security-Policy: sandbox`;
+   `Content-Type` is the entry's MIME type.
+
+The proxy key and the proxy URL are not logged: `ShareLogRedactor` (case- and percent-insensitive `/proxy/...`) covers the SOAP,
+AV-transport, image and download traces that can carry them.
+
+**3-segment form and server-side seeking.** `/proxy/<deviceId>/<key>` IS produced: `AVTransportPlayer#modifyProxyUrlWithDeviceId`
+rewrites a proxy URL of this server into it, but only for a remote renderer whose per-renderer preference
+`manage_external_seeking_<deviceId>` ("enable server-side seeking for external URLs", `SettingsFragment.MANAGE_EXTERNAL_SEEKING`)
+is on. It is served for `HTTP_LINK` entries only (`ServerSideSeeking`, `SeekPositionCalculator`, `RendererStateMap`: at most 8
+renderer states per share, least recently used first, dropped with the share). The device id is validated after key and address
+and is only used for the preference reads and that bounded map. The research claim that this form is never produced no longer holds.
+
+### As built: links (http and https)
+
+- Intake: text of at most 2048 characters (`ShareUriPolicy`, scheme `http`/`https` only; the check looks at scheme and length, see
+  "As built: share handler"). In the new layout (`BrowserHost#providesReceiverBar`) a link is not played at once: it becomes the one
+  pending share (kind `LINK`, shown as the fixed "Shared link" text, never as the link), the picker opens, and `confirm` stores the
+  chosen receivers, builds the item and plays it; a refused link or a start without a player gives the share back
+  (`UpnpClient#discardShareOf`) and shows `share_link_failed`. A link never falls back to this device in the new layout. Classic and a
+  missing host keep the old behavior: wait up to 3 s (+3 s) for receivers, else play on `UpnpClient.LOCAL_UID`.
+- `UpnpClient#createPlayableItem(Uri, Set<String> receiverIds)` (worker thread): reads metadata with `MediaMetadataRetriever`; if
+  that fails, the type comes from a bounded `HEAD` (`LinkContentType`, redirects followed by hand, at most 3, every hop checked); only
+  if that fails too the link is assumed to be an image, with a payload-free log line. The link is never logged.
+- With the media proxy option (`settings_local_server_proxy_chkbx`) ON the link is registered (`HTTP_LINK`, allowed addresses
+  from `receiverIds` captured at confirm time through `ShareAddressResolver`, never from the stored selection) and the receiver gets
+  `http://<phone ip>:49157/proxy/<key>`. With it OFF the receiver gets the link itself and no registry entry exists. If the phone has
+  no address, the server does not answer in 3 s or the registry is full (`share_registry_full`), the direct link is used.
+- `LinkTargetPolicy.isAllowedTarget` (plain Java, nothing is resolved) runs only when the proxy option is on: it refuses literal
+  loopback, unspecified and link-local addresses (including IPv4 hidden in IPv6 and non-dotted-decimal IPv4 spellings), `localhost`,
+  `*.localhost` and every address of the phone itself; private LAN ranges stay allowed (NAS links). Known gaps are listed under
+  "Known limitations".
+
+### As built: the receiver picker
+
+- Pick mode is `DeviceSheetFragment#showPicker` (tag `DeviceSheetPicker`; own layouts `fragment_device_sheet_pick.xml`,
+  `device_sheet_pick_item.xml`): title "Play on..." (`receiver_pick_title`, accessibility heading), for a share the cleaned name
+  below it (`PickTitle`), one `CheckBox` row per receiver including this device, hint `receiver_pick_none_hint`, Cancel and OK.
+  The ticks live in the adapter, never in `UpnpClient`'s stored selection (the normal sheet writes through, a cancel could not be
+  silent). `filterTouchesWhenObscured` is set on the rows and both buttons. The list refreshes when a device appears or leaves.
+- The answer is delivered once through `FragmentManager.setFragmentResult` (`PickSheetResult` gates it): confirm from OK, cancel from
+  `onDismiss` (back, outside tap, swipe, Cancel). `PendingPick` (in the activity, via `ReceiverPickController`) holds the one open pick:
+  a new request never replaces it; a confirm with receivers runs the action once; a confirm with none keeps the sheet open
+  (`ReceiverPickResult.decide`); a cancel runs `onCancelled` once and never hands out the ticks; a stale id changes nothing. The
+  pending action lives in the activity: a rotation or process death with the picker open cancels it and releases a pending share.
+- `ActionFlight`/`PickedAction`/`GuardedPickedAction`: from the confirm until the action reports `done`, no second picked action may
+  begin (the stored selection is global and is read back by `PlayerService.createPlayer`); the picker refuses to open meanwhile
+  (toast `receiver_pick_busy`). A flight nobody ends expires after the copy maximum plus 1 minute.
+- New layout: `ContentListFragment#startPlayAction` (play, play-all, item tap, add to playlist): confirm sets the chosen ids
+  (`UpnpClient#setReceiverDeviceIds`), runs `ContentItemPlayTask`, and `UpnpClient#clearReceiverDevices()` clears the selection in
+  `finally`; cancel changes nothing. A share's confirm calls `ShareIntentHandler#confirm` with the ids; its after-start hook applies
+  `AfterStartSelection` (new layout clear, classic restore the selection read at confirm time).
+- Classic: normal browsing never shows the sheet and `startPlayAction` starts at once; the static footer stays. A pending SHARED FILE
+  opens the same picker, with the classic selection as the initial ticks (see "Known limitations").
+- Receiver bar: `ReceiverBarLabel` names the receivers that have a player in `PlayerService.getCurrentPlayers()` (names as in the
+  mini-player: friendly name, else the player's name, cleaned by `MiniPlayerPresenter.cleanText`, duplicates merged, sorted, joined
+  with "; "), else `receiver_bar_none_playing`. It refreshes from the player-list listener and the receiver events.
+  `receiver_bar_none_selected` and `ContentListFragment#openDeviceSheetIfNoReceiverSelected()` no longer exist. The normal sheet has
+  no checkboxes (`ReceiverRowBinder#bind(holder, device)`), its title is `device_sheet_title` ("Receivers").
+
+### Threat model
+
+Entry: the launcher is exported and accepts `SEND` from every app; `TabBrowserActivity` is exported too. Everything below is a
+decision of the reviewed design (design.md "Phase 3", decisions.md).
+
+- **Own data.** `file:` URIs and any `content:` URI of a provider of this app (not only the file provider) are rejected at the
+  launcher and again at the browser. Only audio, video and image content of other apps is accepted, by the provider's own type.
+- **Permission forwarding.** Android honors the read flag only if the forwarding app holds the access; the launcher forwards one
+  URI, read flag only, nothing else of the incoming intent, behind the launch token. The grant lasts as long as the receiving
+  activity record; a held descriptor outlives it, so the descriptor is opened only after the user confirmed, while the activity is
+  alive.
+- **Exposure on the LAN.** A share is reachable only by a 128-bit random key (22 characters), from the chosen receivers' addresses
+  while the restriction setting is on (default), for at most the player's life plus 10 minutes (6 hours at most), at most 8 at once,
+  4 responses each. The HTTP server itself runs whenever the app runs (existing behavior); without registry entries `/proxy/` answers
+  404.
+- **The key is not a secret from the LAN.** The proxy URL, key included, is what the receiver is told to play, so any UPnP control
+  point that can query that receiver (for example `GetMediaInfo` or `GetPositionInfo` on its AVTransport service) can read it. With the
+  restriction ON such a device is still refused, because its address is not one of the chosen receivers' addresses. With the
+  restriction OFF the key is NOT a protection against anybody on the network: it only stops blind guessing. The setting's
+  texts and docs say so.
+- **Local apps.** When this device is a chosen receiver, loopback and the phone's own addresses are allowed (the in-app player fetches
+  from them), so a hostile app on the phone is stopped only by the key. The key is not published by the app: the notification and
+  the legacy `MediaSession` metadata carry title and name only; Media3 does not send `MediaItem.localConfiguration` to controllers
+  (reasoned from the media3 1.11.1 bytecode, not observed on a device). Exception: see "Known limitations" (local video).
+- **Confused deputy.** Android checks only that yaacc can read the URI. Yaacc holds broad media permissions and SAF grants, so a
+  hostile sender could name MediaStore or SAF content that it cannot read itself. Mitigations: the audio/video/image type check; a
+  human in the loop (every share needs a receiver pick that shows the cleaned file name); the address and expiry limits; on Android 15+
+  the launcher's check that the sender holds the access. Below Android 15 that sender check does not exist; the residual is accepted by the owner. A browser activity started directly
+  cannot bypass the launcher's checks for a file (launch token).
+- **Link fetch (SSRF).** With the proxy option on, the phone fetches the shared link for the receivers. `LinkTargetPolicy` narrows
+  what it will fetch (see "As built: links"); the answer goes to the chosen receivers only, not back to the sender.
+- **Resources.** Provider calls are bounded as described above; the copy is capped and watched; descriptors are closed on expiry,
+  release, eviction, `removeAll()` and exit; nothing is logged that holds a URI, name, key or proxy URL (a refused request logs the
+  remote address only).
+
+### Known limitations
+
+The share feature has known, accepted limitations; the full technical list is kept with the project specification
+(`.claude/specs/2026-10-23-unified-device-sheet/known-risks.md`), not in the published docs. In summary:
+
+- The link policy is a best-effort filter, not a complete protection: it is enforced only when the media proxy option is on and
+  it does not resolve host names.
+- A share is protected by a random key and, by default, by the receivers' addresses (setting "Restrict the media proxy to the
+  chosen receivers"). With that setting off, or on a device that is a chosen receiver, the key is the only protection.
+- When "this device" plays a shared video, the video app that opens it receives the proxy address.
+- Providers are called one at a time per app with timeouts; a provider that never answers can make later shares fail with a
+  "busy" message until the app is restarted.
+- The picker has no cool-down after a cancel; in the classic layout a shared file opens the picker with the saved receivers ticked.
+- A rotation or process death while the picker is open drops the share.
+
+### Not verified on a device
+
+Everything in this section is code, tests and reading of platform sources; no device or emulator run exists. Still open (owner
+checklist, decisions.md "Group 15 as built"): the whole chain sender - launcher - browser with a real grant on Android 11-16 and real
+senders (gallery, files, messengers); `getInitialCaller()` for the system chooser on Android 15+; the launcher's `SecurityException`
+fallback; whether `resolveContentProvider` sees a freshly forwarded provider on Android 11+; whether closing a provider stream wakes a
+blocked read; whether a descriptor keeps working after the grant ends and after the sender app dies; which providers return pipes;
+the address real renderers fetch from compared with their SSDP location; the picker with 10+ receivers, on a small screen, in
+landscape, with TalkBack and D-pad, on rotation; the classic share path; a share arriving while the browser is in the background; the
+proxy URL not appearing on the notification or lock screen of the local player.
+
+### Where the build differs from the research
+
+- Finding 1 (the server always runs) held and is the design: nothing is started or stopped, the share waits for the server.
+- Finding 3 (`createPlayableItem` for `content:` URIs): files do not go through it; `SharedFileService` builds the item with the
+  provider type and no duration. Links go through the rewritten `createPlayableItem`.
+- Finding 4 (add to playlist breaks when the selection is cleared): add to playlist opens the picker too.
+- Finding 5, 6, 7 (`Os.pread`, no close under a running read, `dup`): as researched.
+- Finding 8 (the old range code): replaced for registry entries by `ByteRangeResolver`.
+- Finding 9: `UpnpClient#clearReceiverDevices()` clears and fires the removal events; `getReceiverDevices()` no longer mutates the set
+  returned by `SharedPreferences`.
+- Section (c): the 3-segment form is produced for server-side seeking (see "As built: serving"); the `new File(uri)` branch and the
+  `lookupProxyContent` preference path are gone for the proxy.
+- Section (f): "Share flow in the new layout" and the pick-mode sketch are as built; the share is confirmed through the same picker
+  in classic.
+- Section (g): the API sketch is superseded by the code and tests; the order of the Group 13/14/15 work followed the plan, with the
+  SEND filters added at the end of Group 15.
+
+## Research notes (Group 12)
+
 Research for spec `2026-10-23-unified-device-sheet`, Phase 3 (Group 12, first task). Verified
-2026-10-25 against the checkout at `d8696971` on branch `feat/unified-device-sheet`. Nothing was run on a
-device and the container has no Android SDK, so every platform statement rests on documentation or on
-platform source, and the last section lists what only a device can confirm. No code was written.
+2026-10-25 against the checkout at `d8696971` on branch `feat/unified-device-sheet`, BEFORE the build; read it as history.
+Nothing was run on a
+device and the container had no Android SDK, so every platform statement rests on documentation or on
+platform source. No code was written.
 
 Versions that matter: `targetSdkVersion 33`, `minSdkVersion 27`, `compileSdk 36`
 (`yaacc/build.gradle:75,110,111`); `httpcore5:5.3.6`, `httpcore5-h2:5.3.6`, `httpclient5:5.3.1`
@@ -2142,7 +2445,7 @@ How each claim is marked:
    afterwards if it started it") and the threat-model line "the server is only up while a share is active
    unless the user runs it anyway" do not match the code. Group 13's Accept ("the server is started for the
    share if it is not running and stopped afterwards") reduces to: wait until the HTTP server answers, do not
-   start or stop anything, serve registry entries before the preference gate. Needs a decisions.md entry.
+   start or stop anything, serve registry entries before the preference gate (recorded in decisions.md, 2026-10-25; built that way).
 2. **Another app's `content:` URI can still be one that yaacc may read on its own.** The manifest requests
    `MANAGE_EXTERNAL_STORAGE`, `READ_MEDIA_*` (`yaacc/src/main/AndroidManifest.xml:20-31`) and the app keeps
    SAF tree grants. The forward check in the system (see (a)) passes when the *caller* holds access by its own
@@ -2161,7 +2464,7 @@ How each claim is marked:
    `UpnpClient.addToPlaylist` (`:1593-1607`) uses `getReceiverDevices()`; with an empty selection it ends in
    `PlayerService.createPlayer`, which shows "no receiver selected" and does nothing
    (`PlayerService.java:322-329`). The button is `BrowseContentItemAdapter.java:593`. design.md lists play,
-   play-all and share only. Owner decision needed (pick too, or target the receivers of the running players).
+   play-all and share only. Owner decision needed (pick too, or target the receivers of the running players). **Decided and built:** add to playlist opens the picker too.
 5. **`FileChannel` is a poor fit for a long-lived shared descriptor; `Os.pread` is the better primitive**
    (tasks.md Group 13 says "seek via `FileChannel`/offset"). Reasons in (b). Both are safe for concurrent
    positional reads.
@@ -2398,7 +2701,7 @@ How each claim is marked:
   the native side seeks and reads it, which moves the shared offset (harmless for `pread` users, but also the
   documentation says "it is safe to close as soon as this call returns" only for a descriptor you own) [docs:
   `https://developer.android.com/reference/android/media/MediaMetadataRetriever#setDataSource(java.io.FileDescriptor,%20long,%20long)`].
-  Better: a small `MediaDataSource` over the shared source (`readAt(position, buffer, offset, size)` is
+  Better (**not built**: a shared file's item has no duration): a small `MediaDataSource` over the shared source (`readAt(position, buffer, offset, size)` is
   exactly positional; `getSize()`; `close()` a no-op), set with `setDataSource(MediaDataSource)` (API 23,
   minSdk is 27).
 - Threading: the handler runs on the reactor's I/O threads (`setIoThreadCount(8)`,
@@ -2444,8 +2747,8 @@ All in `upnp/server/http/YaaccUpnpServerContentHttpHandler.java` (1774 lines) un
   catch it. A registry path must catch and either ignore the header (200, full body) or answer 416.
 - **`/proxy/` branch `:279-291`**: logs the whole request URI including the key (`:280`); the 3-segment form
   `/proxy/<urlencoded deviceId>/<key>` (`:283-287`, enables the `manage_external_seeking_<deviceId>` pref path)
-  is **never produced** (the only producer is `UpnpClient.java:1646`, `/proxy/<key>`), so it is dead for current
-  URLs; `Uri.getPathSegments()` decodes segments, so `%2F` cannot smuggle a path, and a key is only a map key.
+  was **not produced** at the time of the research (the only producer was `UpnpClient.java:1646`, `/proxy/<key>`).
+  **As built it is produced again** for server-side seeking, see "As built: serving"; `Uri.getPathSegments()` decodes segments, so `%2F` cannot smuggle a path, and a key is only a map key.
 - `:312-320` not found: the page echoes `pathSegments.get(1)` unescaped into HTML and logs it (`:314-316`);
   replace with a constant body. `:322-325` logs type/length/ranges; `ContentHolder#getContentLength()` is called
   from the log line and again for `Content-Range`, which for an http target is a blocking `HEAD` to the remote
@@ -2711,7 +3014,7 @@ a reactor, so the glue stays a four-line function and the decision lives in `Pro
    (`PlayerService.java:322,331`). Either way, the per-receiver IP set for the share is computed from the same
    device list.
 
-**Where the actions start playback and read the receivers.**
+**Where the actions start playback and read the receivers** (state before the build; the `openDeviceSheetIfNoReceiverSelected()` guard was replaced by `ContentListFragment#startPlayAction`, which opens the picker in the new layout):
 
 | Entry | Code | Receivers read at |
 |---|---|---|
@@ -2742,20 +3045,22 @@ alone is not enough:
 - `ShareIntentHandler.prepareAndPlay`'s "no receiver ready -> set `LOCAL_UID`" fallback (`:156-159`) is replaced in
   the new layout by the picker; classic keeps it.
 
-**Share flow in the new layout** (as amended by the Group 12 security review): `handle` validates and keeps a
+**Share flow** (as amended by the Group 12 security review; as built in both layouts, see "As built: from the share menu to a pending
+share" and "As built: the receiver picker"): `handle` validates and keeps a
 PENDING share that holds only the validated URI, the cleaned display name, a token and the intent's read grant;
 no descriptor, no copy and no registry slot exist yet. There is at most one pending share, it times out, and a new
 share while one is pending is dropped. The host shows the picker. Only on confirm are the descriptor opened (the
 grant is valid while the receiving activity record lives), the addresses of the chosen devices computed, the
 registry entry created and the item built and played; then the selection is cleared. On cancel or timeout the
-pending share is simply released (nothing was opened). In classic the same pending share is confirmed through an
-the same pick-mode sheet (cleaned file name in the title; the classic selection is the initial tick state and is restored after the playback has started). `getType` and the display
+pending share is simply released (nothing was opened). In classic the same pending share is confirmed through the
+same pick-mode sheet (cleaned file name in the title; the classic selection is the initial tick state and is restored after the
+playback has started). `getType` and the display
 name are read on a worker thread with a timeout (a hostile provider must not hang the main thread before the
 user has confirmed anything).
 
 ### (g) Recommended API for the Group 12 red tests (package `de.yaacc.share`, plain Java)
 
-> **Status (2026-10-25, review of Group 12):** the red tests were written against a slightly different API than the sketch below, and the tests are the contract: `ByteRangeResolver.parseHeader(String)` + `resolve(List<Range>, long)` returning `Result` (`status()`, `start()`, `endInclusive()`, `length()`, `contentRangeHeader()`) instead of `HttpRange`/`Resolution`; more than one range is served as 200 whole (not "first range only"); the launcher glue is `LauncherForwardPolicy.decideStream(...)` returning a `StreamDecision` instead of an 8-argument `decide`; `ReceiverPickResult.Decision` has an extra `keepPickerOpen()`. Where the sketch and the tests differ, follow the tests.
+> **Status (2026-10-25, review of Group 12; superseded by the as-built code, see "As built" above):** the red tests were written against a slightly different API than the sketch below, and the tests are the contract: `ByteRangeResolver.parseHeader(String)` + `resolve(List<Range>, long)` returning `Result` (`status()`, `start()`, `endInclusive()`, `length()`, `contentRangeHeader()`) instead of `HttpRange`/`Resolution`; more than one range is served as 200 whole (not "first range only"); the launcher glue is `LauncherForwardPolicy.decideStream(...)` returning a `StreamDecision` instead of an 8-argument `decide`; `ReceiverPickResult.Decision` has an extra `keepPickerOpen()`. Where the sketch and the tests differ, follow the tests.
 
 The four classes **already exist as red stubs** in `yaacc/src/main/java/de/yaacc/share/` with tests in
 `yaacc/src/test/java/de/yaacc/share/` (committed before this research finished; not touched here). The API below
