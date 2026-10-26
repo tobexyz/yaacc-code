@@ -577,23 +577,16 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
             holder.icon.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
         }
 
-        holder.playAll.setOnClickListener((v) -> {
-            if (contentListFragment.openDeviceSheetIfNoReceiverSelected()) {
-                return; // no receiver: let the user pick one first
-            }
-            new ContentItemPlayTask(contentListFragment, currentObject, null).execute(ContentItemPlayTask.PLAY_ALL);
-        });
-        holder.play.setOnClickListener((v) -> {
-            if (contentListFragment.openDeviceSheetIfNoReceiverSelected()) {
-                return; // no receiver: let the user pick one first
-            }
-            new ContentItemPlayTask(contentListFragment, currentObject, null).execute(ContentItemPlayTask.PLAY_CURRENT);
-        });
-        holder.playlistAdd.setOnClickListener((v) -> {
-            new ContentItemPlayTask(contentListFragment, currentObject, null).execute(ContentItemPlayTask.ADD_TO_PLAYLIST);
-            Toast toast = Toast.makeText(contentListFragment.getActivity(), R.string.add_to_playlist, Toast.LENGTH_SHORT);
-            toast.show();
-        });
+        // new layout: each of these opens the receiver picker first; classic starts at once
+        holder.playAll.setOnClickListener((v) ->
+                contentListFragment.startPlayAction(currentObject, ContentItemPlayTask.PLAY_ALL, null, null));
+        holder.play.setOnClickListener((v) ->
+                contentListFragment.startPlayAction(currentObject, ContentItemPlayTask.PLAY_CURRENT, null, null));
+        holder.playlistAdd.setOnClickListener((v) ->
+                contentListFragment.startPlayAction(currentObject, ContentItemPlayTask.ADD_TO_PLAYLIST, () -> {
+                    Toast toast = Toast.makeText(contentListFragment.getActivity(), R.string.add_to_playlist, Toast.LENGTH_SHORT);
+                    toast.show();
+                }, null));
         holder.download.setOnClickListener((v) -> {
             try {
                 upnpClient.downloadItem(currentObject);

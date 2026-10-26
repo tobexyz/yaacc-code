@@ -45,10 +45,12 @@ import androidx.viewpager2.widget.ViewPager2;
 
 import com.google.android.material.tabs.TabLayout;
 
+import java.util.Collection;
 
 import de.yaacc.R;
 import de.yaacc.Yaacc;
 import de.yaacc.settings.SettingsActivity;
+import de.yaacc.share.PickedAction;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.server.LocalServerLifecycle;
 import de.yaacc.util.ThemeHelper;
@@ -68,6 +70,8 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
 
     private UpnpClient upnpClient = null;
     private ShareIntentHandler shareIntentHandler = null;
+    // Opens the receiver picker for a shared file only; normal classic browsing never shows the sheet.
+    private ReceiverPickController pickController;
 
     @Override
     protected void onSaveInstanceState(@NonNull Bundle outState) {
@@ -80,6 +84,7 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
         long start = System.currentTimeMillis();
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_tab_browse);
+        pickController = new ReceiverPickController(this);
         viewPager = findViewById(R.id.browserTabPager);
         tabLayout = findViewById(R.id.browserTabLayout);
         pagerAdapter = new TabBrowserFragmentStateAdapter(this);
@@ -131,20 +136,39 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
         }
 
         shareIntentHandler = new ShareIntentHandler(getApplicationContext(), upnpClient);
-        shareIntentHandler.handle(getIntent(), this::showPlayers, this);
+        handOverShare(getIntent());
         YaaccLogger.d(this.getClass().getName(), "on create took: " + (System.currentTimeMillis() - start));
     }
 
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
-        if (shareIntentHandler != null) {
+        handOverShare(intent);
+    }
+
+    /**
+     * Hands a shared item to the handler only while the classic layout is the effective one. This
+     * activity is exported, so an app can send it a share even when the user chose the new layout;
+     * the handler would then play a link on this device without the receiver picker. Otherwise the
+     * payload is consumed (the relaunch in {@code onResume} uses a fresh intent).
+     */
+    private void handOverShare(Intent intent) {
+        if (shareIntentHandler == null) {
+            return;
+        }
+        if (ShareIntakeGate.admitOrDiscard(BrowserLayoutChoice.Layout.CLASSIC,
+                BrowserLauncher.effectiveLayout(this), intent)) {
             shareIntentHandler.handle(intent, this::showPlayers, this);
         }
     }
 
     @Override
     protected void onDestroy() {
+        // an open pick is cancelled first: that releases a pending share
+        if (pickController != null) {
+            pickController.release();
+            pickController = null;
+        }
         if (shareIntentHandler != null) {
             shareIntentHandler.shutdown();
             shareIntentHandler = null;
@@ -170,6 +194,34 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
     @Override
     public void showPlayers() {
         setCurrentTab(BrowserTabs.PLAYER);
+    }
+
+    @Override
+    public boolean pickReceivers(PickedAction action, String shareName, Collection<String> initialIds) {
+        return pickController != null && pickController.start(action, shareName, initialIds);
+    }
+
+    @Override
+    public boolean isPickOpen(String pickId) {
+        return pickController != null && pickController.isOpen(pickId);
+    }
+
+    /**
+     * A shared file is waiting: the same "Play on..." sheet as in the new layout, showing the cleaned
+     * file name, with the classic receiver selection as the initial ticks. The selection is put
+     * back once the playback has started ({@link de.yaacc.share.AfterStartSelection}).
+     */
+    @Override
+    public void onPendingShare(String token, String displayName) {
+        ShareIntentHandler handler = shareIntentHandler;
+        if (handler == null) {
+            return;
+        }
+        if (pickController == null || upnpClient == null) {
+            handler.cancel(token);
+            return;
+        }
+        pickController.offerShare(handler, token, displayName, upnpClient, false, upnpClient.getReceiverDeviceIds());
     }
 
     public void setCurrentTab(final BrowserTabs content) {

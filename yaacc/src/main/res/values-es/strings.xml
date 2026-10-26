@@ -47,6 +47,9 @@
     <string name="share_registry_full">Demasiados recursos compartidos activos. Inténtelo de nuevo en un momento.</string>
     <string name="share_unnamed_file">Archivo compartido</string>
     <string name="share_open_failed">No se pudo reproducir el archivo compartido.</string>
+    <string name="share_busy">Otro archivo compartido aún se está procesando. Inténtalo de nuevo en un momento.</string>
+    <string name="share_unnamed_link">Enlace compartido</string>
+    <string name="share_link_failed">No se pudo reproducir el enlace compartido.</string>
     <string name="error_no_activity_found">No se encontró actividad para jugar tipo MIME \'%1$s\'</string>
     <string name="image_viewer_settings_duration">Duración de la estancia de la foto</string>
     <string name="yaacc_menu_settings">Configuración de YAACC</string>
@@ -143,9 +146,14 @@
     <string name="paused">PAUSADO</string>
     <string name="stopped">INTERRUMPIDO</string>
     <string name="no_media">SIN MEDIOS</string>
-    <string name="device_sheet_title">Reproducir en</string>
-    <string name="receiver_bar_none_selected">Ningún receptor seleccionado. Toca para elegir</string>
+    <string name="device_sheet_title">Receptores</string>
+    <string name="receiver_bar_none_playing">Ningún receptor reproduciendo</string>
     <string name="receiver_bar_description">Elegir receptores</string>
+    <string name="receiver_pick_title">Reproducir en…</string>
+    <string name="receiver_pick_none_hint">Elige al menos un receptor.</string>
+    <string name="receiver_pick_confirm_description">%1$s, reproducir en los receptores elegidos</string>
+    <string name="receiver_pick_confirm">Aceptar</string>
+    <string name="receiver_pick_busy">La última acción aún está en curso. Inténtalo de nuevo en un momento.</string>
     <string name="mini_player_previous">Pista anterior</string>
     <string name="mini_player_play">Reproducir</string>
     <string name="mini_player_pause">Pausa</string>

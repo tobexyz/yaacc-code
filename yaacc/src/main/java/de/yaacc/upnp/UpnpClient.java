@@ -204,7 +204,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     }
 
     private void fireReceiverDeviceRemoved(Device<?, ?, ?> device) {
-        for (UpnpClientListener listener : listeners) {
+        for (UpnpClientListener listener : new ArrayList<>(listeners)) {
             listener.receiverDeviceRemoved(device);
         }
     }
@@ -1031,12 +1031,14 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      * Gets the receiver IDs, if none is defined the local device will be
      * returned
      *
-     * @return the receiverDeviceIds
+     * @return the receiverDeviceIds, a copy the caller may modify (the set that
+     * {@code SharedPreferences.getStringSet} returns must never be changed); an empty stored
+     * set stays empty
      */
     public Set<String> getReceiverDeviceIds() {
         HashSet<String> defaultReceiverSet = new HashSet<>();
         defaultReceiverSet.add(UpnpClient.LOCAL_UID);
-        return preferences.getStringSet(getContext().getString(R.string.settings_selected_receivers_title), defaultReceiverSet);
+        return ReceiverSelection.copy(preferences.getStringSet(getContext().getString(R.string.settings_selected_receivers_title), defaultReceiverSet));
     }
 
     /**
@@ -1069,10 +1071,26 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
                 unknowsIds.add(id);
             }
         }
-        // remove all unknown ids
-        unknowsIds.forEach(receiverDeviceIds::remove);
-        setReceiverDeviceIds(receiverDeviceIds);
+        // remove all unknown ids (from a copy: the stored set is never changed in place)
+        if (!unknowsIds.isEmpty()) {
+            setReceiverDeviceIds(ReceiverSelection.without(receiverDeviceIds, unknowsIds));
+        }
         return result;
+    }
+
+    /**
+     * Clears the receiver selection: the stored set becomes empty (and stays empty, it is not
+     * replaced by the local device) and a "receiver removed" event is fired for every receiver
+     * that was selected, so views that follow the selection refresh. Does nothing to running
+     * players or to the allowed set of an existing share (that was fixed when the share was
+     * registered).
+     */
+    public void clearReceiverDevices() {
+        Collection<Device<?, ?, ?>> previous = getReceiverDevices();
+        setReceiverDeviceIds(new HashSet<>());
+        for (Device<?, ?, ?> device : previous) {
+            fireReceiverDeviceRemoved(device);
+        }
     }
 
     public int getReceiverDevicesReadyCount() {
@@ -1644,6 +1662,18 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      * @return the item, or null if the link is refused (the caller plays nothing)
      */
     public PlayableItem createPlayableItem(Uri uri) throws IOException {
+        return createPlayableItem(uri, getReceiverDeviceIds());
+    }
+
+    /**
+     * Same as {@link #createPlayableItem(Uri)}, with the receivers the share is made for given
+     * explicitly: the addresses a proxied link is served to are built from exactly these ids, never
+     * from the stored selection, which another action may have replaced or cleared during the
+     * network work.
+     *
+     * @param receiverIds the receivers chosen for this share, captured at confirm time
+     */
+    public PlayableItem createPlayableItem(Uri uri, Set<String> receiverIds) throws IOException {
         if (uri == null) {
             return null;
         }
@@ -1687,7 +1717,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         String playUrl = link;
         String shareKey = null;
         if (proxy) {
-            String proxyUrl = createHttpLinkShare(link, mimeType);
+            String proxyUrl = createHttpLinkShare(link, mimeType, receiverIds);
             if (proxyUrl != null) {
                 playUrl = proxyUrl;
                 shareKey = ShareKeyTracker.keyOfProxyPath(Uri.parse(proxyUrl).getPath(), YaaccUpnpServerService.PROXY_PATH);
@@ -1751,7 +1781,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      * {@code ShareIntentHandler.prepareAndPlay} runs on its executor; on the main thread the
      * wait is skipped, so the UI never blocks. Nothing here logs the link or the key.
      */
-    private String createHttpLinkShare(String link, String mimeType) {
+    private String createHttpLinkShare(String link, String mimeType, Set<String> receiverIds) {
         HttpLinkTarget target = HttpLinkTarget.of(link);
         if (target == null) {
             return null;
@@ -1768,7 +1798,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         }
         ShareRegistry registry = getShareRegistry();
         ShareRegistry.Entry entry = new ShareRegistry.Entry(ShareRegistry.Kind.HTTP_LINK, target, mimeType,
-                ShareAddressResolver.resolve(this, getContext()),
+                ShareAddressResolver.resolve(this, getContext(), receiverIds),
                 ShareLimits.IDLE_GRACE_MILLIS, ShareLimits.ABSOLUTE_MAX_MILLIS);
         String key = ShareRegistrar.register(registry, entry);
         if (key == null) {

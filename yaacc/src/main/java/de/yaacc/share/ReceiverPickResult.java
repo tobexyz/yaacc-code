@@ -17,7 +17,8 @@
  */
 package de.yaacc.share;
 
-import java.util.HashSet;
+import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.Set;
 
 /**
@@ -86,7 +87,22 @@ public final class ReceiverPickResult {
      * @return what to do next, never null
      */
     public static Decision decide(boolean confirmed, Set<String> chosenReceiverIds) {
-        // STUB (red phase): wrong on purpose
-        return new Decision(false, false, false, new HashSet<>());
+        Set<String> chosen = new LinkedHashSet<>();
+        if (chosenReceiverIds != null) {
+            for (String id : chosenReceiverIds) {
+                if (id != null && !id.isEmpty()) {
+                    chosen.add(id);
+                }
+            }
+        }
+        if (!confirmed) {
+            // cancel: nothing starts, nothing is cleared, the ticked ids are not handed out
+            return new Decision(false, false, false, Collections.<String>emptySet());
+        }
+        if (chosen.isEmpty()) {
+            // confirmed without a receiver: stay open so the user can choose
+            return new Decision(false, false, true, Collections.<String>emptySet());
+        }
+        return new Decision(true, true, false, Collections.unmodifiableSet(chosen));
     }
 }

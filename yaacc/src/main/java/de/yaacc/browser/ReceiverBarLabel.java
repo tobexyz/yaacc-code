@@ -20,14 +20,20 @@ package de.yaacc.browser;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
- * Text of the Content tab's receiver bar: the selected receivers' names.
+ * Text of the new layout's receiver bar: the names of the receivers that currently have a running
+ * player, or the "No receiver playing" text. (The bar no longer shows the receiver selection; the
+ * selection exists only while the receiver picker is open.)
  * <p>
  * Plain Java, no {@code android.*} imports, so it is unit-tested on the JVM.
- * Names come from untrusted LAN devices; the result is only ever set as plain
- * {@code TextView} text, never parsed as HTML or used as a format string.
+ * Names come from untrusted LAN devices: each one is cleaned like every other LAN text
+ * ({@link MiniPlayerPresenter#cleanText}: one line, no control or bidi characters, length cap);
+ * the result is only ever set as plain {@code TextView} text, never parsed as HTML or used as a
+ * format string. There is no "+N" collapse: the bar is limited to two lines and ellipsizes.
  */
 final class ReceiverBarLabel {
     static final String SEPARATOR = "; ";
@@ -36,22 +42,25 @@ final class ReceiverBarLabel {
     }
 
     /**
-     * The non-blank names, trimmed, sorted case-insensitively and joined with
-     * {@link #SEPARATOR}, so the label doesn't change with the receiver set's
-     * HashSet order. Returns {@code noneSelectedText} when no name is left.
+     * The cleaned, non-empty names without duplicates (several players on one receiver show that
+     * receiver once), sorted case-insensitively and joined with {@link #SEPARATOR}, so the label
+     * does not depend on the order the players come in. Returns {@code nonePlayingText} when no
+     * name is left.
      */
-    static String build(Collection<String> receiverNames, String noneSelectedText) {
-        List<String> names = new ArrayList<>();
-        if (receiverNames != null) {
-            for (String name : receiverNames) {
-                if (name != null && !name.trim().isEmpty()) {
-                    names.add(name.trim());
+    static String build(Collection<String> playingReceiverNames, String nonePlayingText) {
+        Set<String> unique = new LinkedHashSet<>();
+        if (playingReceiverNames != null) {
+            for (String name : playingReceiverNames) {
+                String cleaned = MiniPlayerPresenter.cleanText(name);
+                if (!cleaned.isEmpty()) {
+                    unique.add(cleaned);
                 }
             }
         }
-        if (names.isEmpty()) {
-            return noneSelectedText;
+        if (unique.isEmpty()) {
+            return nonePlayingText;
         }
+        List<String> names = new ArrayList<>(unique);
         names.sort(Comparator.comparing((String name) -> name, String.CASE_INSENSITIVE_ORDER)
                 .thenComparing(Comparator.naturalOrder()));
         return String.join(SEPARATOR, names);

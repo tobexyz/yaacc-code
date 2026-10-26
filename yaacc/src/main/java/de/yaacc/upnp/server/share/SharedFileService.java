@@ -38,6 +38,7 @@ import de.yaacc.share.PendingShare;
 import de.yaacc.share.PositionalSource;
 import de.yaacc.share.ProviderCallGate;
 import de.yaacc.share.ReadinessWait;
+import de.yaacc.share.ShareFailureMessage;
 import de.yaacc.share.ShareLimits;
 import de.yaacc.share.ShareProxyUrl;
 import de.yaacc.share.ShareRegistrar;
@@ -180,7 +181,7 @@ public final class SharedFileService {
         final AtomicReference<SharedFileOpener.Reason> reason = new AtomicReference<>(SharedFileOpener.Reason.UNUSABLE);
         final String providerKey = ProviderKeys.of(appContext.getPackageManager(),
                 SharedContentPolicy.authorityOf(uri.toString()));
-        SharedFileOpener.Opened opened = PROVIDER_CALLS.call(providerKey, () -> {
+        BoundedCall.Result<SharedFileOpener.Opened> outcome = PROVIDER_CALLS.callDetailed(providerKey, () -> {
             try {
                 return SharedFileOpener.openDescriptor(resolver, uri);
             } catch (SharedFileOpener.OpenException e) {
@@ -188,10 +189,13 @@ public final class SharedFileService {
                 return null;
             }
         }, ShareLimits.PROVIDER_OPEN_TIMEOUT_MILLIS, SharedFileOpener.Opened::close);
+        SharedFileOpener.Opened opened = outcome.value();
         if (opened == null) {
             // the reason is an enum name, no payload
-            YaaccLogger.w(TAG, "The shared file was not opened (" + reason.get() + ")");
-            toast(R.string.share_open_failed);
+            YaaccLogger.w(TAG, "The shared file was not opened (" + reason.get()
+                    + (outcome.isRefusedBusy() ? ", provider gate or pool full)" : ")"));
+            toast(ShareFailureMessage.of(outcome.isRefusedBusy(), false) == ShareFailureMessage.Kind.BUSY
+                    ? R.string.share_busy : R.string.share_open_failed);
             return null;
         }
         if (opened.getSource() != null) {
@@ -203,7 +207,8 @@ public final class SharedFileService {
             return SharedFileOpener.copyAndHold(afd, new File(appContext.getCacheDir(), IncomingCache.DIR_NAME));
         } catch (SharedFileOpener.OpenException e) {
             YaaccLogger.w(TAG, "The shared file was not copied (" + e.getReason() + ")");
-            toast(R.string.share_open_failed);
+            toast(ShareFailureMessage.of(false, e.getReason() == SharedFileOpener.Reason.BUSY)
+                    == ShareFailureMessage.Kind.BUSY ? R.string.share_busy : R.string.share_open_failed);
             return null;
         }
     }

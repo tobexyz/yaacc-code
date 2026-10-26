@@ -47,6 +47,9 @@
     <string name="share_registry_full">Zu viele aktive Freigaben. Bitte gleich noch einmal versuchen.</string>
     <string name="share_unnamed_file">Geteilte Datei</string>
     <string name="share_open_failed">Die geteilte Datei konnte nicht abgespielt werden.</string>
+    <string name="share_busy">Eine andere geteilte Datei wird noch verarbeitet. Versuche es gleich noch einmal.</string>
+    <string name="share_unnamed_link">Geteilter Link</string>
+    <string name="share_link_failed">Der geteilte Link konnte nicht wiedergegeben werden.</string>
     <string name="error_no_activity_found">Keine Aktivität zum Abspielen vom Typ \'%1$s\' gefunden</string>
     <string name="image_viewer_settings_duration">Dauer der Bildanzeige</string>
     <string name="no_valid_uri_data_found_to_display">Keine gültigen Uri-Informationen zum Anzeigen gefunden</string>
@@ -143,9 +146,14 @@
     <string name="paused">PAUSE</string>
     <string name="stopped">GESTOPPT</string>
     <string name="no_media">KEINE MEDIEN</string>
-    <string name="device_sheet_title">Wiedergabe auf</string>
-    <string name="receiver_bar_none_selected">Kein Empfänger ausgewählt. Zum Auswählen tippen</string>
+    <string name="device_sheet_title">Empfänger</string>
+    <string name="receiver_bar_none_playing">Kein Empfänger spielt</string>
     <string name="receiver_bar_description">Empfänger auswählen</string>
+    <string name="receiver_pick_title">Wiedergabe auf…</string>
+    <string name="receiver_pick_none_hint">Wähle mindestens einen Empfänger.</string>
+    <string name="receiver_pick_confirm_description">%1$s, auf den gewählten Empfängern wiedergeben</string>
+    <string name="receiver_pick_confirm">OK</string>
+    <string name="receiver_pick_busy">Die letzte Aktion läuft noch. Versuche es gleich noch einmal.</string>
     <string name="mini_player_previous">Vorheriger Titel</string>
     <string name="mini_player_play">Wiedergabe</string>
     <string name="mini_player_pause">Pause</string>

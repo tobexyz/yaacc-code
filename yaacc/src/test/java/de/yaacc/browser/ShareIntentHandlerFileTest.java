@@ -423,6 +423,7 @@ public class ShareIntentHandlerFileTest {
 
     @Test
     public void aProviderThatDoesNotAnswerDropsTheShareAndFreesTheGateForTheNext() throws Exception {
+        resolveTheTwoTestProvidersToDifferentPackages();
         replaceHandler(newHandler(10_000L, 100L, 200L));
         CountDownLatch hang = new CountDownLatch(1);
         AtomicInteger asked = new AtomicInteger();
@@ -759,6 +760,97 @@ public class ShareIntentHandlerFileTest {
         return registry;
     }
 
+    // ---- the finished callback: exactly once, whatever the outcome (the single flight ends on it)
+
+    private int confirmAndCountFinished(Set<String> ids, long settleMillis) throws Exception {
+        RecordingHost host = new RecordingHost();
+        handler.handle(goodIntent(), null, host);
+        assertTrue(host.awaitAnnouncement());
+        AtomicInteger finished = new AtomicInteger();
+
+        handler.confirm(host.tokens.get(0), ids, null, finished::incrementAndGet);
+
+        Thread.sleep(settleMillis);
+        return finished.get();
+    }
+
+    @Test
+    public void finishedRunsOnceAfterAPlayedFile() throws Exception {
+        toReturn.set(new SharedFileService.Prepared("key", new PlayableItem()));
+        Player player = mock(Player.class);
+        when(upnpClient.initializePlayersWithPlayableItems(anyList())).thenReturn(List.of(player));
+
+        assertEquals(1, confirmAndCountFinished(Set.of("receiver-1"), 500));
+        verify(player).play();
+    }
+
+    @Test
+    public void finishedRunsOnceWhenNoPlayerWasCreated() throws Exception {
+        toReturn.set(new SharedFileService.Prepared("key", new PlayableItem()));
+        when(upnpClient.initializePlayersWithPlayableItems(anyList())).thenReturn(new ArrayList<Player>());
+
+        assertEquals(1, confirmAndCountFinished(Set.of("receiver-1"), 500));
+    }
+
+    @Test
+    public void finishedRunsOnceWhenStartingThrows() throws Exception {
+        toReturn.set(new SharedFileService.Prepared("key", new PlayableItem()));
+        when(upnpClient.initializePlayersWithPlayableItems(anyList())).thenThrow(new IllegalStateException("boom"));
+
+        assertEquals(1, confirmAndCountFinished(Set.of("receiver-1"), 500));
+    }
+
+    @Test
+    public void finishedRunsOnceWhenTheFileCouldNotBePrepared() throws Exception {
+        toReturn.set(null);
+
+        assertEquals(1, confirmAndCountFinished(Set.of("receiver-1"), 500));
+    }
+
+    @Test
+    public void finishedRunsOnceWhenThePreparationThrows() throws Exception {
+        replaceHandler(new ShareIntentHandler(appContext, upnpClient, Runnable::run, (data, ids) -> {
+            throw new IllegalStateException("boom");
+        }, pendingShare, nonces, probeCalls, 10_000L, 100L, 3_000L));
+
+        assertEquals(1, confirmAndCountFinished(Set.of("receiver-1"), 500));
+    }
+
+    @Test
+    public void finishedRunsOnceWhenThePlayerServiceNeverComesUp() throws Exception {
+        replaceHandler(newHandler(50L, 10L, 3_000L));
+        toReturn.set(new SharedFileService.Prepared("key", new PlayableItem()));
+        when(upnpClient.isPlayerServiceInitialized()).thenReturn(false);
+
+        assertEquals(1, confirmAndCountFinished(Set.of("receiver-1"), 700));
+    }
+
+    @Test
+    public void finishedRunsOnceForAWrongTokenAnEmptySelectionAndAShutDownHandler() throws Exception {
+        RecordingHost host = new RecordingHost();
+        handler.handle(goodIntent(), null, host);
+        assertTrue(host.awaitAnnouncement());
+        AtomicInteger finished = new AtomicInteger();
+
+        handler.confirm("0123456789abcdef0123456789abcdef", Set.of("receiver-1"), null, finished::incrementAndGet);
+        assertEquals(1, finished.get());
+        handler.confirm(host.tokens.get(0), Collections.<String>emptySet(), null, finished::incrementAndGet);
+        assertEquals(2, finished.get());
+    }
+
+    @Test
+    public void finishedRunsOnceWhenTheHandlerIsShutDown() throws Exception {
+        RecordingHost host = new RecordingHost();
+        handler.handle(goodIntent(), null, host);
+        assertTrue(host.awaitAnnouncement());
+        handler.shutdown();
+        AtomicInteger finished = new AtomicInteger();
+
+        handler.confirm(host.tokens.get(0), Set.of("receiver-1"), null, finished::incrementAndGet);
+
+        assertEquals(1, finished.get());
+    }
+
     private void confirmWithAPlayerServiceThatNeverComesUp(AtomicInteger hook) throws Exception {
         when(upnpClient.isPlayerServiceInitialized()).thenReturn(false);
         RecordingHost host = new RecordingHost();
@@ -968,8 +1060,22 @@ public class ShareIntentHandlerFileTest {
         return hang;
     }
 
+    /**
+     * Providers whose package cannot be resolved share one gate key (the mock returns null for
+     * every authority by default), so a test about TWO providers has to make them resolvable.
+     */
+    private void resolveTheTwoTestProvidersToDifferentPackages() {
+        ProviderInfo media = new ProviderInfo();
+        media.packageName = "com.example.mediaprovider";
+        ProviderInfo other = new ProviderInfo();
+        other.packageName = "com.example.other";
+        when(packageManager.resolveContentProvider("media", 0)).thenReturn(media);
+        when(packageManager.resolveContentProvider("com.example.other", 0)).thenReturn(other);
+    }
+
     @Test
     public void aHungProviderDoesNotStopAShareFromAnotherProvider() throws Exception {
+        resolveTheTwoTestProvidersToDifferentPackages();
         replaceHandler(newHandler(10_000L, 100L, 200L));
         AtomicInteger asked = new AtomicInteger();
         CountDownLatch hang = hangFirstProviderCall(asked);

@@ -84,6 +84,50 @@ public class DisplayNameTest {
     }
 
     @Test
+    public void otherFormatCharactersAreRemoved() {
+        // soft hyphen, Mongolian vowel separator, invisible math operators, deprecated format controls
+        assertEquals("ab", DisplayName.clean("a\u00ADb"));
+        assertEquals("ab", DisplayName.clean("a\u180Eb"));
+        assertEquals("ab", DisplayName.clean("a\u2061\u2062\u2063\u2064b"));
+        assertEquals("ab", DisplayName.clean("a\u206A\u206B\u206C\u206D\u206E\u206Fb"));
+        // tag characters (a supplementary-plane run, two chars each)
+        assertEquals("ab", DisplayName.clean("a\uDB40\uDC41\uDB40\uDC7Fb"));
+    }
+
+    @Test
+    public void blankLettersAreRemoved() {
+        assertEquals("ab", DisplayName.clean("a\u3164b"));
+        assertEquals("ab", DisplayName.clean("a\u115Fb"));
+        assertEquals("ab", DisplayName.clean("a\u1160b"));
+        assertEquals("ab", DisplayName.clean("a\uFFA0b"));
+    }
+
+    @Test
+    public void aNonJoinerIsKeptBecauseSomeScriptsNeedIt() {
+        // Persian: "mi-khaham" is written with a zero-width non-joiner
+        String persian = "\u0645\u06CC\u200C\u062E\u0648\u0627\u0647\u0645";
+
+        assertEquals(persian, DisplayName.clean(persian));
+    }
+
+    @Test
+    public void variationSelectorsAndOrdinaryLettersAreKept() {
+        assertEquals("\u2764\uFE0F caf\u00E9 \u65E5\u672C\u8A9E", DisplayName.clean("\u2764\uFE0F caf\u00E9 \u65E5\u672C\u8A9E"));
+    }
+
+    @Test
+    public void aNameMadeOnlyOfBlankLettersAndFormatCharactersBecomesEmpty() {
+        assertEquals("", DisplayName.clean("\u3164\u115F\u1160\uFFA0\u00AD\u2062\uDB40\uDC41"));
+    }
+
+    @Test
+    public void forShareFallsBackForAnInvisibleOnlyName() {
+        assertEquals(FALLBACK, DisplayName.forShare("\u3164\u3164", FALLBACK));
+        assertEquals(FALLBACK, DisplayName.forShare("\u00AD\u2063\uFFA0", FALLBACK));
+        assertEquals(FALLBACK, DisplayName.forShare("\uDB40\uDC20", FALLBACK));
+    }
+
+    @Test
     public void aNameOfInvisibleCharactersOnlyBecomesEmpty() {
         assertEquals("", DisplayName.clean("‮​\u0000﻿ ⁦"));
     }

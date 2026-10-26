@@ -23,6 +23,7 @@ import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.CheckBox;
 import android.widget.ImageView;
 import android.widget.TextView;
 
@@ -35,7 +36,9 @@ import org.fourthline.cling.model.meta.Device;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Collection;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -53,13 +56,20 @@ import de.yaacc.util.image.IconDownloadTask;
  * List of the device sheet: every receiver row (bound by
  * {@link ReceiverRowBinder}, exactly like the Receiver tab), each followed by
  * the yaacc player sessions running on it, as {@link DeviceSessionGrouper}
- * orders them. Sessions on a device that isn't a receiver follow at the end.
+ * orders them. Sessions on a device that isn't a receiver follow at the end. The rows have no
+ * selection checkbox: the receivers are picked per action, in pick mode.
+ * <p>
+ * <b>Pick mode</b> ("Play on...", see {@link #DeviceSheetAdapter(Context, UpnpClient, boolean, Collection)}):
+ * only the receivers, each one a checkbox row, no controls and no sessions. The ticks live in the
+ * adapter's own set, the sheet's selection sink: nothing is written to {@link UpnpClient} until the
+ * caller of the picker acts on the confirmed ids, so a cancel leaves everything as it was.
  * <p>
  * Main thread only. Call {@link #release()} when the hosting view goes away.
  */
 final class DeviceSheetAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     private static final int TYPE_RECEIVER = 0;
     private static final int TYPE_SESSION = 1;
+    private static final int TYPE_PICK = 2;
 
     /** One list entry: a receiver (device set) or a player session (player set). */
     private static final class Entry {
@@ -91,19 +101,48 @@ final class DeviceSheetAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
     private final List<Entry> entries = new ArrayList<>();
     // Stable ids keep D-pad focus on the same row across refreshes.
     private final Map<String, Long> stableIds = new HashMap<>();
-    // The checkbox already shows the new state and UpnpClient fires
-    // receiverDeviceAdded/Removed (which updates the Content tab's bar), so
-    // the sheet has nothing else to do on a selection change.
-    private final ReceiverRowBinder.SelectionListener selectionListener = (device, selected) -> {
-    };
+    private final boolean pickMode;
+    // Pick mode: the ticked receiver ids. Only this adapter writes it; it is never UpnpClient's stored set.
+    private final Set<String> picked = new LinkedHashSet<>();
     private String localStatusSignature;
     private boolean focusFirstReceiver;
 
+    /** The normal sheet: receivers with their controls, and their player sessions. */
     DeviceSheetAdapter(Context context, UpnpClient upnpClient) {
+        this(context, upnpClient, false, null);
+    }
+
+    /**
+     * @param pickMode     true for the receiver picker (checkbox rows, no controls, no sessions)
+     * @param initiallyPicked the receiver ids that start ticked (pick mode only), may be null
+     */
+    DeviceSheetAdapter(Context context, UpnpClient upnpClient, boolean pickMode, Collection<String> initiallyPicked) {
         this.context = context;
         this.upnpClient = upnpClient;
+        this.pickMode = pickMode;
+        if (pickMode && initiallyPicked != null) {
+            for (String id : initiallyPicked) {
+                if (id != null && !id.isEmpty()) {
+                    picked.add(id);
+                }
+            }
+        }
         this.rowBinder = new ReceiverRowBinder(context, upnpClient);
         setHasStableIds(true);
+    }
+
+    /**
+     * Pick mode: the ticked receivers that are listed right now (an id of a receiver that has
+     * disappeared meanwhile is not handed out). In list order.
+     */
+    Set<String> pickedIds() {
+        Set<String> result = new LinkedHashSet<>();
+        for (Entry entry : entries) {
+            if (entry.kind == Row.Kind.RECEIVER && picked.contains(entry.deviceId)) {
+                result.add(entry.deviceId);
+            }
+        }
+        return result;
     }
 
     /**
@@ -140,7 +179,7 @@ final class DeviceSheetAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
                 PlayerRef primary = DeviceSessionGrouper.primarySession(row.deviceId(), refs);
                 receiver.primaryPlayerId = primary == null ? 0 : primary.playerId();
                 newEntries.add(receiver);
-            } else {
+            } else if (!pickMode) {
                 Player player = playersById.get(row.playerId());
                 if (player != null) {
                     newEntries.add(new Entry(Row.Kind.PLAYER_SESSION, row.deviceId(), null, player,
@@ -191,7 +230,7 @@ final class DeviceSheetAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
         diff.dispatchUpdatesTo(this);
     }
 
-    /** Asks for focus on the first receiver's checkbox once that row is bound (D-pad start). */
+    /** Asks for focus on the first receiver's row once it is bound (D-pad start). */
     void requestInitialFocus() {
         focusFirstReceiver = true;
     }
@@ -254,13 +293,32 @@ final class DeviceSheetAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
 
     @Override
     public int getItemViewType(int position) {
-        return entries.get(position).kind == Row.Kind.RECEIVER ? TYPE_RECEIVER : TYPE_SESSION;
+        if (entries.get(position).kind != Row.Kind.RECEIVER) {
+            return TYPE_SESSION;
+        }
+        return pickMode ? TYPE_PICK : TYPE_RECEIVER;
     }
 
     @NonNull
     @Override
     public RecyclerView.ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
         LayoutInflater inflater = LayoutInflater.from(parent.getContext());
+        if (viewType == TYPE_PICK) {
+            CheckBox box = (CheckBox) inflater.inflate(R.layout.device_sheet_pick_item, parent, false);
+            PickHolder holder = new PickHolder(box);
+            // the box toggles itself first; the set follows what it shows
+            box.setOnClickListener(v -> {
+                Entry entry = entryAt(holder.getBindingAdapterPosition());
+                if (entry != null && entry.deviceId != null) {
+                    if (box.isChecked()) {
+                        picked.add(entry.deviceId);
+                    } else {
+                        picked.remove(entry.deviceId);
+                    }
+                }
+            });
+            return holder;
+        }
         if (viewType == TYPE_RECEIVER) {
             View view = inflater.inflate(R.layout.browse_receiver_device_item, parent, false);
             ReceiverHolder holder = new ReceiverHolder(view);
@@ -279,7 +337,8 @@ final class DeviceSheetAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
                         v.performClick();
                         return true;
                     case KeyEvent.KEYCODE_DPAD_RIGHT:
-                        holder.views.checkBox.requestFocus();
+                        // the row has no checkbox: the first control is the play button
+                        holder.views.btnPlay.requestFocus();
                         return true;
                     default:
                         return false;
@@ -301,16 +360,27 @@ final class DeviceSheetAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
     @Override
     public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
         Entry entry = entries.get(position);
-        if (holder instanceof ReceiverHolder) {
+        if (holder instanceof PickHolder) {
+            CheckBox box = ((PickHolder) holder).box;
+            // untrusted LAN name: cleaned, plain setText
+            String name = MiniPlayerPresenter.cleanText(entry.device == null || entry.device.getDetails() == null
+                    ? null : entry.device.getDetails().getFriendlyName());
+            box.setText(name.isEmpty() ? entry.deviceId : name);
+            box.setChecked(picked.contains(entry.deviceId));
+            requestFocusIfFirst(position, box);
+        } else if (holder instanceof ReceiverHolder) {
             ReceiverHolder receiverHolder = (ReceiverHolder) holder;
-            Set<String> selectedIds = upnpClient.getReceiverDeviceIds();
-            rowBinder.bind(receiverHolder.views, entry.device, selectedIds.contains(entry.deviceId), selectionListener);
-            if (focusFirstReceiver && position == firstReceiverPosition()) {
-                focusFirstReceiver = false;
-                receiverHolder.views.checkBox.post(receiverHolder.views.checkBox::requestFocus);
-            }
+            rowBinder.bind(receiverHolder.views, entry.device);
+            requestFocusIfFirst(position, receiverHolder.itemView);
         } else {
             bindSession((SessionHolder) holder, entry);
+        }
+    }
+
+    private void requestFocusIfFirst(int position, View focusTarget) {
+        if (focusFirstReceiver && position == firstReceiverPosition()) {
+            focusFirstReceiver = false;
+            focusTarget.post(focusTarget::requestFocus);
         }
     }
 
@@ -392,6 +462,15 @@ final class DeviceSheetAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
         ReceiverHolder(@NonNull View itemView) {
             super(itemView);
             views = new ReceiverRowBinder.RowViews(itemView);
+        }
+    }
+
+    static final class PickHolder extends RecyclerView.ViewHolder {
+        final CheckBox box;
+
+        PickHolder(@NonNull CheckBox itemView) {
+            super(itemView);
+            box = itemView;
         }
     }
 

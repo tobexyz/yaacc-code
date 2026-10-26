@@ -71,6 +71,35 @@ public final class BoundedCall {
         }
     }
 
+    /**
+     * The outcome of {@link #callDetailed}: the value (null on any failure) and whether the call
+     * was turned away because there was no room (the provider's gate or the pool was full), as
+     * opposed to a provider that did not answer in time or failed. Holds no provider text.
+     */
+    public static final class Result<T> {
+        private final T value;
+        private final boolean refusedBusy;
+
+        private Result(T value, boolean refusedBusy) {
+            this.value = value;
+            this.refusedBusy = refusedBusy;
+        }
+
+        /** The result of the call, or null if there was none. */
+        public T value() {
+            return value;
+        }
+
+        /**
+         * True if the call never started because the provider already had a call outstanding,
+         * too many providers were busy, or the pool had no free thread. False for a timeout, a
+         * failing call, an interrupt, and for a call that returned null.
+         */
+        public boolean isRefusedBusy() {
+            return refusedBusy;
+        }
+    }
+
     private static final int NEW = 0;
     private static final int STARTED = 1;
     private static final int CANCELLED = 2;
@@ -114,7 +143,7 @@ public final class BoundedCall {
      * the waiting thread was interrupted (its interrupt flag is kept)
      */
     public <T> T call(Callable<T> task, long timeoutMillis, Consumer<T> disposeLate) {
-        return run(null, task, timeoutMillis, disposeLate);
+        return run(null, task, timeoutMillis, disposeLate).value();
     }
 
     /**
@@ -126,17 +155,26 @@ public final class BoundedCall {
      * or provider call, if the provider has a call outstanding (running, or hung)
      */
     public <T> T call(String key, Callable<T> task, long timeoutMillis, Consumer<T> disposeLate) {
+        return callDetailed(key, task, timeoutMillis, disposeLate).value();
+    }
+
+    /**
+     * Same as {@link #call(String, Callable, long, Consumer)}, but also says whether a missing
+     * result is because there was no room (see {@link Result#isRefusedBusy()}), so the caller can
+     * tell the user "busy" instead of a generic failure.
+     */
+    public <T> Result<T> callDetailed(String key, Callable<T> task, long timeoutMillis, Consumer<T> disposeLate) {
         if (gate == null) {
             return run(null, task, timeoutMillis, disposeLate);
         }
         ProviderCallGate.Permit permit = gate.tryAcquire(key);
         if (permit == null) {
-            return null;
+            return new Result<>(null, true);
         }
         return run(permit, task, timeoutMillis, disposeLate);
     }
 
-    private <T> T run(ProviderCallGate.Permit permit, Callable<T> task, long timeoutMillis, Consumer<T> disposeLate) {
+    private <T> Result<T> run(ProviderCallGate.Permit permit, Callable<T> task, long timeoutMillis, Consumer<T> disposeLate) {
         final Handoff<T> handoff = new Handoff<>();
         // NEW -> STARTED (the task began) or NEW -> CANCELLED (the caller gave up before it began)
         final AtomicInteger state = new AtomicInteger(NEW);
@@ -169,7 +207,7 @@ public final class BoundedCall {
             if (permit != null) {
                 gate.release(permit);
             }
-            return null;
+            return new Result<>(null, true);
         }
         try {
             future.get(timeoutMillis, TimeUnit.MILLISECONDS);
@@ -181,7 +219,7 @@ public final class BoundedCall {
         } catch (ExecutionException e) {
             // the call failed: no result
         }
-        return handoff.takeAndAbandon();
+        return new Result<>(handoff.takeAndAbandon(), false);
     }
 
     /**

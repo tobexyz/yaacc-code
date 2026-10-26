@@ -44,7 +44,7 @@
 
     <include layout="@layout/mini_player_bar" />
 
-    <!-- Receiver bar: selected receivers' names; tap or D-pad select opens the device sheet. -->
+    <!-- Receiver bar: names of the receivers with a running player; tap or D-pad select opens the device sheet. -->
     <TextView
         android:id="@+id/browserReceiverBar"
         android:layout_width="match_parent"
@@ -59,7 +59,7 @@
         android:minHeight="48dp"
         android:paddingStart="5dp"
         android:paddingEnd="8dp"
-        android:text="@string/receiver_bar_none_selected"
+        android:text="@string/receiver_bar_none_playing"
         android:textAppearance="@android:style/TextAppearance.Material.Medium"
         android:textColor="?android:attr/colorForeground"
         app:drawableEndCompat="@drawable/ic_baseline_expand_less_24"

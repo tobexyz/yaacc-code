@@ -200,6 +200,43 @@ public class PendingShareTest {
         assertFalse(data.toString().contains("song"));
     }
 
+    // ---- kind: a file or a link, decided by the offerer and never re-derived from the text
+
+    @Test
+    public void anOfferWithoutAKindIsAFile() {
+        PendingShare pending = newPending();
+
+        assertEquals(PendingShare.Kind.FILE, pending.take(pending.offer(URI, "song.mp3", "audio/mpeg")).getKind());
+    }
+
+    @Test
+    public void aLinkOfferKeepsItsKind() {
+        PendingShare pending = newPending();
+
+        PendingShare.Data data = pending.take(pending.offer(PendingShare.Kind.LINK, "https://example.org/a.mp3", "", ""));
+
+        assertEquals(PendingShare.Kind.LINK, data.getKind());
+    }
+
+    @Test
+    public void theKindIsNotDerivedFromTheText() {
+        PendingShare pending = newPending();
+
+        // a "file" whose text looks like a link stays a file, and the other way round
+        assertEquals(PendingShare.Kind.FILE,
+                pending.take(pending.offer(PendingShare.Kind.FILE, "https://example.org/a.mp3", "x", "audio/mpeg")).getKind());
+        assertEquals(PendingShare.Kind.LINK,
+                pending.take(pending.offer(PendingShare.Kind.LINK, "content://media/1", "", "")).getKind());
+    }
+
+    @Test
+    public void aNullKindIsRefused() {
+        PendingShare pending = newPending();
+
+        assertNull(pending.offer(null, URI, "x", "audio/mpeg"));
+        assertFalse(pending.isPending());
+    }
+
     // ---- take: once only, token bound
 
     @Test

@@ -84,6 +84,12 @@ public final class ShareLimits {
     public static final long COPY_MAX_MILLIS = 5L * 60L * 1000L;
 
     /**
+     * The longest one picked action may hold the single flight ({@link ActionFlight}) before it
+     * counts as lost: longer than the copy fallback ({@link #COPY_MAX_MILLIS}), the slowest start.
+     */
+    public static final long ACTION_FLIGHT_MAX_MILLIS = COPY_MAX_MILLIS + 60_000L;
+
+    /**
      * How long the token that the launcher puts into the intent it forwards stays valid: the
      * browser reads it in {@code onCreate}/{@code onNewIntent}, which follows the forward at once.
      */
