@@ -80,7 +80,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
     private ImageButton sortByDateButton;
     private BrowseContentItemAdapter.SortMode currentSortMode = BrowseContentItemAdapter.SortMode.NAME;
     private ImageButton viewModeToggleButton;
-    private BrowseContentItemAdapter.ViewMode currentViewMode = BrowseContentItemAdapter.ViewMode.LIST;
+    private BrowseContentItemAdapter.ViewMode currentViewMode = BrowseContentItemAdapter.ViewMode.DEFAULT;
 
     /**
      * Target width of a single card in CARD mode, in dp -- chosen so a
@@ -278,11 +278,11 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         }
 
         String persisted = PreferenceManager.getDefaultSharedPreferences(getContext())
-                .getString(getString(R.string.settings_browse_view_mode_key), BrowseContentItemAdapter.ViewMode.LIST.name());
+                .getString(getString(R.string.settings_browse_view_mode_key), BrowseContentItemAdapter.ViewMode.DEFAULT.name());
         try {
             currentViewMode = BrowseContentItemAdapter.ViewMode.valueOf(persisted);
         } catch (IllegalArgumentException e) {
-            currentViewMode = BrowseContentItemAdapter.ViewMode.LIST;
+            currentViewMode = BrowseContentItemAdapter.ViewMode.DEFAULT;
         }
         applyLayoutManagerForViewMode(currentViewMode);
 

@@ -136,15 +136,16 @@ public class BrowseContentItemAdapterTest {
     @Test
     public void getItemViewTypeReturnsOrdinalOfCurrentViewMode() {
         BrowseContentItemAdapter adapter = newAdapter();
-        assertEquals(BrowseContentItemAdapter.ViewMode.LIST, adapter.getViewMode());
+        // nothing persisted (a fresh install): the card view is the default
+        assertEquals(BrowseContentItemAdapter.ViewMode.CARD, adapter.getViewMode());
 
         adapter.addAll(java.util.List.of(container("c1", "Folder")));
 
-        assertEquals(BrowseContentItemAdapter.ViewMode.LIST.ordinal(), adapter.getItemViewType(0));
-
-        adapter.setViewMode(BrowseContentItemAdapter.ViewMode.CARD);
-
         assertEquals(BrowseContentItemAdapter.ViewMode.CARD.ordinal(), adapter.getItemViewType(0));
+
+        adapter.setViewMode(BrowseContentItemAdapter.ViewMode.LIST);
+
+        assertEquals(BrowseContentItemAdapter.ViewMode.LIST.ordinal(), adapter.getItemViewType(0));
     }
 
     // 2. setViewMode with a new mode persists the pref and triggers exactly
@@ -159,11 +160,11 @@ public class BrowseContentItemAdapterTest {
         RecyclerView.AdapterDataObserver observer = mock(RecyclerView.AdapterDataObserver.class);
         registerObserverDirectly(adapter, observer);
 
-        adapter.setViewMode(BrowseContentItemAdapter.ViewMode.CARD);
+        adapter.setViewMode(BrowseContentItemAdapter.ViewMode.LIST);
 
-        assertEquals(BrowseContentItemAdapter.ViewMode.CARD, adapter.getViewMode());
+        assertEquals(BrowseContentItemAdapter.ViewMode.LIST, adapter.getViewMode());
         // Persisted.
-        verify(sharedPreferencesEditor, times(1)).putString(any(), eq(BrowseContentItemAdapter.ViewMode.CARD.name()));
+        verify(sharedPreferencesEditor, times(1)).putString(any(), eq(BrowseContentItemAdapter.ViewMode.LIST.name()));
         // Notified (notifyDataSetChanged()).
         verify(observer, times(1)).onChanged();
         // No reload: the previously-loaded item is still there untouched,
@@ -178,14 +179,14 @@ public class BrowseContentItemAdapterTest {
     @Test
     public void setViewModeWithSameModeIsANoOp() {
         BrowseContentItemAdapter adapter = newAdapter();
-        assertEquals(BrowseContentItemAdapter.ViewMode.LIST, adapter.getViewMode());
+        assertEquals(BrowseContentItemAdapter.ViewMode.CARD, adapter.getViewMode());
 
         RecyclerView.AdapterDataObserver observer = mock(RecyclerView.AdapterDataObserver.class);
         registerObserverDirectly(adapter, observer);
 
-        adapter.setViewMode(BrowseContentItemAdapter.ViewMode.LIST);
+        adapter.setViewMode(BrowseContentItemAdapter.ViewMode.CARD);
 
-        assertEquals(BrowseContentItemAdapter.ViewMode.LIST, adapter.getViewMode());
+        assertEquals(BrowseContentItemAdapter.ViewMode.CARD, adapter.getViewMode());
         verify(sharedPreferencesEditor, never()).putString(any(), any());
         verify(observer, never()).onChanged();
     }

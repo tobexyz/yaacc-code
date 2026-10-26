@@ -90,7 +90,10 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
      */
     public enum ViewMode {
         LIST,
-        CARD
+        CARD;
+
+        /** Used when nothing is stored yet, e.g. on a fresh install, or the stored value is unreadable. */
+        public static final ViewMode DEFAULT = CARD;
     }
 
     /**
@@ -183,11 +186,11 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
     }
 
     private ViewMode readPersistedViewMode() {
-        String persisted = sharedPreferences.getString(context.getString(R.string.settings_browse_view_mode_key), ViewMode.LIST.name());
+        String persisted = sharedPreferences.getString(context.getString(R.string.settings_browse_view_mode_key), ViewMode.DEFAULT.name());
         try {
             return ViewMode.valueOf(persisted);
         } catch (IllegalArgumentException | NullPointerException e) {
-            return ViewMode.LIST;
+            return ViewMode.DEFAULT;
         }
     }
 
