@@ -965,3 +965,59 @@ Mutation check (throw-away copy, deleted afterwards, repo untouched). Killed: `P
 
 ### Verdict: FAIL
 No Critical finding; the pick/result/cancel/token logic, the lifecycle handling and the manifest diff are sound. FAIL on three Warnings, all small: the link-confirm selection race (single-flight guard or explicit ids), the missing test of `afterStartHook` / the bar's name collection, and the Traditional-script Chinese share strings.
+
+## Group 15 — Cycle 2 — 2026-10-26
+Reviewing: the fix commit a54ee1d5 (`git diff 783f85a8..HEAD`, 31 files) for the cycle 1 Warnings W1 (selection race), W2 (untested application points), W3 (Chinese script) and the cheap Suggestions. `git diff 071fc9d2 -- yaacc/src/main/AndroidManifest.xml` is still exactly the one SEND `<intent-filter>` (audio/*, video/*, image/*). Repo untouched by the review (`git status` clean, nothing committed).
+
+Verification (real, `ANDROID_HOME=/root/android-sdk ./gradlew :yaacc:cleanTestDebugUnitTest :yaacc:assembleDebug :yaacc:testDebugUnitTest :yaacc:lintDebug`): BUILD SUCCESSFUL; result XML = 1453 tests, 0 failures, 0 errors, 0 skipped; lint 189 (72 errors / 117 warnings), the only hits in a touched file are three old `UseCompatLoadingForDrawables` in `ContentListFragment` (lines 119/250/251, not in the diff).
+
+### W1 (link/play/play-all selection race): resolved
+- Links: `UpnpClient.createPlayableItem(Uri, Set<String>)` builds the proxy's allowed addresses from the ids captured at confirm (`ShareAddressResolver.resolve(client, ctx, ids)`); the one-argument form delegates with the stored ids (classic path unchanged). The confirmed link now stores the selection only on the main thread right before `initializePlayersWithPlayableItems`, as the file path already did; the hook runs only if the selection was changed.
+- Single flight: `ActionFlight` (synchronized; ticket `end()` idempotent and ends only its own flight; watchdog = copy maximum + 1 min = 6 min, monotonic clock, backwards clock counts as expired), `GuardedPickedAction` (begins at the confirm, refuses with `onCancelled` if one is active, ends the ticket if the action throws and rethrows), static `FLIGHT` in `ReceiverPickController`. The flight starts at the CONFIRM, not at the open, so a picker that fails to show, is cancelled, dismissed, times out (2 min) or is abandoned by `release()` never holds it. No lock is held across a callback, so no deadlock; `ReceiverPickController.onResult` catches and logs a failing action after the ticket is ended.
+- Every exit path walked, all end the flight exactly once (`ShareIntentHandler.once`):
+  - share, wrong/expired token, empty selection, `RejectedExecutionException` (handler already shut down): `done.run()` in `confirm`/`confirmLink`; a throw out of `confirm` before the hand-off (`startService`) is caught by `GuardedPickedAction`.
+  - file: `prepareAndPlayFile` `finally` runs `finished` unless the main thread owns the end (`handedOver`); `playFile` `finally` runs hook (only if the selection changed) then `finished`; `discardShareOf` and `runHook` swallow runtime exceptions, so nothing in those `finally` blocks can skip `finished`.
+  - link: `prepareAndPlayLink` hands over in a `try/finally` that discards the item and finishes if the post throws; `playLink` `finally` the same as the file; an item that is null (refused link, no player service) still gets `finished`.
+  - activity destroyed / handler shut down: `shutdown()` is the graceful `shutdown()` (not `shutdownNow()`), so queued or running confirmed work still runs to its `finished`; the pending pick is cancelled in `release()` and holds no flight. `mainHandler::post` cannot reject while the process lives.
+  - content actions: `ContentListFragment.startPlayAction` ends the flight in the `ContentItemPlayTask` completion after `play()`/`addToPlayList()` cleared the selection, immediately if the fragment is gone (`!isAdded()`), and if `onStarted`/`execute` throws. `AsyncTask.onPostExecute` runs even for a detached fragment (nothing cancels the task); a throw in `doInBackground` crashes the process (pre-existing), so no live process is left with a stuck flight.
+  - lost callback of any kind: bounded by the 6-minute watchdog; a stale ticket cannot end the next flight. No path leaves a flight permanently active.
+- New UX consequence (picker refuses to open while an action is in flight, up to 5 min in the copy fallback): acceptable. The flight starts at the confirm and ends when the players are started, so for a link it is seconds, for play/play-all the cold-start wait (up to 10 s) plus the re-browse, and only the rare non-seekable-provider file copy approaches minutes. The refusal is explained by a fixed, translated toast (`receiver_pick_busy`: "Still busy with the last action. Try again in a moment."); it is shown on the main thread with the application context, in a try/catch, at all three refusal points that matter (`ReceiverPickController.offerShare`, `ContentListFragment.startPlayAction` via `showBusyMessage`, and the intake drops in `ShareIntentHandler`, which post to the main thread). A second share during a flight is released (`cancel(token)`) and not left pending. Safety does not depend on the toast or on the `start` check: `GuardedPickedAction` still refuses a confirm that finds a flight active.
+- decisions.md "tiny window" wording is corrected (line 296 and the new "cycle 1 fixes" entry), and the explicit-ids-through-the-player-service alternative is recorded as not done with a reason.
+
+### W2 (application points tested): resolved
+New tests: `ReceiverPickControllerAfterStartHookTest` (5), `ContentListFragmentPickedSelectionTest` (15), `UpnpClientClearReceiversTest` (4), `ReceiverBarControllerTest` (8, static `receiverNames`), `ActionFlightTest` (15), plus `finishedRuns...` tests in `ShareIntentHandlerFileTest`/`LinkPickTest`, `PendingShareTest` kind. Mutation check on a throw-away copy (deleted afterwards): 13 mutants, 11 KILLED, 2 survived (both in untestable Android glue, see Suggestions).
+Killed: M1 `if (plan.clear())` inverted in `afterStartHook` (4 tests); M2 `clearPickedSelection` disabled (5); M3 `clearReceiverDevices` body emptied (4); M3b only the removal events dropped (2); M4 `receiverNames` ignores the resolver/player (6); M4b null-player skip removed (1); M5 `tryBegin` always begins (5); M6 `GuardedPickedAction` no longer ends the ticket when the action throws (1); M7 link uses the stored selection instead of the chosen ids (`theItemIsBuiltFromTheChosenIdsNotFromTheStoredSelection`); M8 `playFile` without `finished` (3); M9 `prepareAndPlayFile` without `finished` (3); M10 rejected link executor without `finished` (1); M11 selection stored before the network work (1).
+Survived: M12 the flight is no longer ended in the `ContentItemPlayTask` completion lambda (`ContentListFragment`); M13 `FLIGHT.isActive()` removed from `ReceiverPickController.start`.
+
+### W3 (Chinese): resolved
+`values-zh` `share_busy`, `share_unnamed_link`, `share_link_failed`, `share_registry_full`, `share_unnamed_file`, `share_open_failed` are Simplified and consistent with `browse_share_menu_file` and the `receiver_pick_*` strings.
+
+### Cheap Suggestions
+- OK button: visible text is the new `receiver_pick_confirm` ("OK"; "Aceptar" in es; "确定" in zh), content description `receiver_pick_confirm_description` = "%1$s, ..." filled with the same visible text in code (`DeviceSheetFragment`); the layout no longer has a static description or `@android:string/ok`. Present in all 7 locales, positional placeholder used correctly.
+- Busy toast: `receiver_pick_busy` in all 7 locales (values, de, es, fr, nl, pt, zh); `values-pt` additions follow the European wording of the share strings, as recorded.
+- `PendingShare.Kind` (FILE/LINK) set by the offerer; `ShareIntentHandler.confirm` branches on it, the `ShareUriPolicy.isAllowed` re-parse is gone; `offer(String,String,String)` stays a file; a null kind is refused.
+- Stale javadoc of `ReceiverBarController` corrected. Group 14 carry-overs are now explicit decisions in decisions.md (toast done; re-announce, cool-down and static `intakeBusy` to Backlog with reasons).
+
+### Classic
+`startPlayAction` in classic (no host or no receiver bar) runs the task at once exactly as before (`runPlayTask`), nothing is cleared, no flight; `createPlayableItem(Uri)` delegates with the stored ids; the classic link path (`prepareAndPlay`) is untouched; classic still opens the picker only for a pending share, now also behind the flight check. No new regression found.
+
+### Critical
+- None.
+
+### Warning
+- None.
+
+### Suggestion
+- [`ContentListFragment.java` `startPlayAction`, the nested `onComplete` lambda; `ReceiverPickController.java:start`] M12 and M13 survive: the end of the content-action flight (needs an `AsyncTask`, cannot run on the JVM) and the "do not open the picker while in flight" check are not pinned by a test. Worst case of a regression in M12 is that picking is blocked until the 6-minute watchdog (bounded, safe); of M13 that the picker opens and the confirm is then silently refused. A small seam would do (let `runPlayTask` take the executor, as `attachForTest` does for the client; or extract the "completion = onComplete then done" lambda into a static method and test it). Not blocking.
+- [`ContentListFragment.java` `startPlayAction`] `!isAdded() || upnpClient == null || !pickReceivers(...)` shows the "busy" toast also when `upnpClient == null` (not busy), and `ReceiverPickController.start` returns true (no toast) when the sheet itself fails to show (`pick.abandon()`), so that tap does nothing visibly. Both are rare; a distinct message or a `false` return for the failed show would be more honest.
+- [`ContentListFragment.playAllChildsOfParentFrom`] returns without `play()` for a null item, so the stored selection is not cleared on that path (a null object is already filtered in `startPlayAction`, so unreachable today). Clearing in the completion wrapper (next to `done`) would make "cleared before the flight ends" independent of the play methods.
+- [`ReceiverPickController.afterStartHook`, classic only, pre-existing since 15b] the selection to restore is read at confirm time, but the hook can run minutes later (copy fallback); a user who changed the classic Receiver tab meanwhile has it overwritten by the stale value. Reading it right before `setReceiverDeviceIds` in `playFile`/`playLink` would restore what is really there. The test pins "confirm time, not hook time" (correct against the temporary set), so only the capture point would move.
+- While a copy runs (up to 5 min) the user sees nothing and every pick gets the generic busy toast; a progress or "preparing the shared file" hint, or an explicit cancel, is a later UX improvement (the owner's device checks should include a large non-seekable share).
+- Unchanged and non-blocking from cycle 1: `Decision.clearSelectionAfterStart()` and `PickSheetResult.isDelivered()` remain test-only API (recorded in decisions.md); the shared link is shown as the fixed "Shared link"; device checks (picker with 10+ receivers, `onNewIntent` while in the background, TalkBack on the bar) stay with the owner.
+
+### Tests
+- [x] All tests passing (1453, 0 failures; lint 189 = 72 errors / 117 warnings, unchanged; manifest diff = the one SEND filter)
+- [x] Coverage adequate for the change (W1 exit paths, the application points and the bar names are pinned and 11 of 13 mutants killed; the two survivors are Android glue with a bounded failure mode)
+
+### Verdict: PASS
+Zero Critical, zero Warning, all tests green. W1, W2 and W3 are fixed and verified (by reading every exit path and by mutation); the suggestions above do not block.
