@@ -22,67 +22,67 @@ import static org.junit.Assert.assertEquals;
 import org.junit.Test;
 
 /**
- * Tests for {@link DescriptorWindow}: the window a provider declares ({@code startOffset} and
- * length) is untrusted and is clamped to the real size of the file behind the descriptor.
+ * Tests for {@link HeldFileSource#clampLength}: the window a provider declares ({@code startOffset}
+ * and length) is untrusted and is clamped to the real size of the file behind the descriptor.
  */
-public class DescriptorWindowTest {
+public class HeldFileSourceTest {
 
     private static final long UNKNOWN = -1L;
 
     @Test
     public void aWholeFileWithUnknownLengthIsTheRealSize() {
-        assertEquals(1000L, DescriptorWindow.clampLength(0L, UNKNOWN, 1000L));
+        assertEquals(1000L, HeldFileSource.clampLength(0L, UNKNOWN, 1000L));
     }
 
     @Test
     public void aDeclaredLengthWithinTheFileIsKept() {
-        assertEquals(300L, DescriptorWindow.clampLength(100L, 300L, 1000L));
+        assertEquals(300L, HeldFileSource.clampLength(100L, 300L, 1000L));
     }
 
     @Test
     public void aDeclaredLengthBeyondTheFileIsClampedToWhatIsThere() {
-        assertEquals(900L, DescriptorWindow.clampLength(100L, 5000L, 1000L));
-        assertEquals(1000L, DescriptorWindow.clampLength(0L, Long.MAX_VALUE, 1000L));
+        assertEquals(900L, HeldFileSource.clampLength(100L, 5000L, 1000L));
+        assertEquals(1000L, HeldFileSource.clampLength(0L, Long.MAX_VALUE, 1000L));
     }
 
     @Test
     public void anUnknownLengthStartsAtTheOffset() {
-        assertEquals(750L, DescriptorWindow.clampLength(250L, UNKNOWN, 1000L));
+        assertEquals(750L, HeldFileSource.clampLength(250L, UNKNOWN, 1000L));
     }
 
     @Test
     public void anyNegativeDeclaredLengthCountsAsUnknown() {
-        assertEquals(1000L, DescriptorWindow.clampLength(0L, -2L, 1000L));
-        assertEquals(1000L, DescriptorWindow.clampLength(0L, Long.MIN_VALUE, 1000L));
+        assertEquals(1000L, HeldFileSource.clampLength(0L, -2L, 1000L));
+        assertEquals(1000L, HeldFileSource.clampLength(0L, Long.MIN_VALUE, 1000L));
     }
 
     @Test
     public void aNegativeOffsetIsRejected() {
-        assertEquals(-1L, DescriptorWindow.clampLength(-1L, 10L, 1000L));
-        assertEquals(-1L, DescriptorWindow.clampLength(Long.MIN_VALUE, UNKNOWN, 1000L));
+        assertEquals(-1L, HeldFileSource.clampLength(-1L, 10L, 1000L));
+        assertEquals(-1L, HeldFileSource.clampLength(Long.MIN_VALUE, UNKNOWN, 1000L));
     }
 
     @Test
     public void anOffsetAtOrBeyondTheEndIsRejected() {
-        assertEquals(-1L, DescriptorWindow.clampLength(1000L, UNKNOWN, 1000L));
-        assertEquals(-1L, DescriptorWindow.clampLength(1001L, 10L, 1000L));
-        assertEquals(-1L, DescriptorWindow.clampLength(Long.MAX_VALUE, 10L, 1000L));
+        assertEquals(-1L, HeldFileSource.clampLength(1000L, UNKNOWN, 1000L));
+        assertEquals(-1L, HeldFileSource.clampLength(1001L, 10L, 1000L));
+        assertEquals(-1L, HeldFileSource.clampLength(Long.MAX_VALUE, 10L, 1000L));
     }
 
     @Test
     public void aZeroLengthWindowIsRejected() {
-        assertEquals(-1L, DescriptorWindow.clampLength(0L, 0L, 1000L));
-        assertEquals(-1L, DescriptorWindow.clampLength(0L, UNKNOWN, 0L));
+        assertEquals(-1L, HeldFileSource.clampLength(0L, 0L, 1000L));
+        assertEquals(-1L, HeldFileSource.clampLength(0L, UNKNOWN, 0L));
     }
 
     @Test
     public void aNegativeRealSizeIsRejected() {
-        assertEquals(-1L, DescriptorWindow.clampLength(0L, UNKNOWN, -1L));
+        assertEquals(-1L, HeldFileSource.clampLength(0L, UNKNOWN, -1L));
     }
 
     @Test
     public void offsetPlusLengthNeverOverflows() {
         long real = Long.MAX_VALUE;
-        assertEquals(10L, DescriptorWindow.clampLength(real - 10L, Long.MAX_VALUE, real));
+        assertEquals(10L, HeldFileSource.clampLength(real - 10L, Long.MAX_VALUE, real));
     }
 }

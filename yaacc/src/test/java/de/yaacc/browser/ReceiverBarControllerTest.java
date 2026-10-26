@@ -47,7 +47,7 @@ import de.yaacc.upnp.UpnpClient;
  * The receiver bar's step from players to names ({@link ReceiverBarController#receiverNames}) and
  * the controller's use of it: the bar shows the receivers that have a player in the client's list
  * (one name per receiver, the player's own name when its device is unknown), else the
- * "no receiver playing" text. Mocked client and view.
+ * "no receiver playing" text, and the label built from the names. Mocked client and view.
  */
 public class ReceiverBarControllerTest {
 
@@ -69,7 +69,7 @@ public class ReceiverBarControllerTest {
                 id -> "tv".equals(id) ? "Living room TV" : null);
 
         assertEquals(Arrays.asList("Living room TV", "Living room TV"), names);
-        assertEquals("Living room TV", ReceiverBarLabel.build(names, NONE));
+        assertEquals("Living room TV", ReceiverBarController.label(names, NONE));
     }
 
     @Test
@@ -93,6 +93,90 @@ public class ReceiverBarControllerTest {
         assertEquals(Collections.singletonList("A"), ReceiverBarController.receiverNames(
                 Arrays.asList(null, player("a", "A")), id -> null));
         assertTrue(ReceiverBarController.receiverNames(Collections.<Player>emptyList(), id -> "x").isEmpty());
+    }
+
+    // ---- the label (the cleaned, de-duplicated, sorted names; was ReceiverBarLabelTest)
+
+    @Test
+    public void noPlayingReceiversShowsTheFallbackText() {
+        assertEquals(NONE, ReceiverBarController.label(Collections.emptyList(), NONE));
+        assertEquals(NONE, ReceiverBarController.label(null, NONE));
+    }
+
+    @Test
+    public void singleReceiverShowsItsName() {
+        assertEquals("Living room TV",
+                ReceiverBarController.label(Collections.singletonList("Living room TV"), NONE));
+    }
+
+    @Test
+    public void severalReceiversAreSortedCaseInsensitivelyAndJoined() {
+        assertEquals("kitchen; Living room TV; this device",
+                ReceiverBarController.label(Arrays.asList("this device", "Living room TV", "kitchen"), NONE));
+    }
+
+    @Test
+    public void orderDoesNotDependOnInputOrder() {
+        assertEquals(
+                ReceiverBarController.label(Arrays.asList("b", "A", "a", "B"), NONE),
+                ReceiverBarController.label(Arrays.asList("B", "a", "A", "b"), NONE));
+    }
+
+    @Test
+    public void blankAndNullNamesAreSkippedAndNamesTrimmed() {
+        assertEquals("TV", ReceiverBarController.label(Arrays.asList(null, "  ", " TV "), NONE));
+        assertEquals(NONE, ReceiverBarController.label(Arrays.asList(null, ""), NONE));
+    }
+
+    @Test
+    public void severalPlayersOnOneReceiverShowTheReceiverOnce() {
+        assertEquals("TV", ReceiverBarController.label(Arrays.asList("TV", "TV", " TV "), NONE));
+        assertEquals("Speaker; TV",
+                ReceiverBarController.label(Arrays.asList("TV", "Speaker", "TV"), NONE));
+    }
+
+    @Test
+    public void namesThatDifferOnlyInCaseAreDifferentReceivers() {
+        assertEquals("TV; tv", ReceiverBarController.label(Arrays.asList("tv", "TV"), NONE));
+    }
+
+    @Test
+    public void namesAreCleanedLikeEveryOtherLanText() {
+        // line break, tab, bidi override and zero-width characters are removed or folded
+        assertEquals("Living room TV",
+                ReceiverBarController.label(Collections.singletonList("Living\n\troom \u202E\u200BTV"), NONE));
+    }
+
+    @Test
+    public void aNameThatCleansToNothingIsSkipped() {
+        assertEquals(NONE, ReceiverBarController.label(Arrays.asList("\u202E", "\u200B\n"), NONE));
+        assertEquals("TV", ReceiverBarController.label(Arrays.asList("\u202E", "TV"), NONE));
+    }
+
+    @Test
+    public void namesThatAreEqualAfterCleaningAreMerged() {
+        assertEquals("TV", ReceiverBarController.label(Arrays.asList("TV", "T\u200BV", "TV\n"), NONE));
+    }
+
+    @Test
+    public void aVeryLongNameIsCapped() {
+        StringBuilder longName = new StringBuilder();
+        for (int i = 0; i < 1000; i++) {
+            longName.append('x');
+        }
+        String label = ReceiverBarController.label(Collections.singletonList(longName.toString()), NONE);
+        assertEquals(MiniPlayerPresenter.MAX_TEXT_LENGTH, label.length());
+    }
+
+    @Test
+    public void markupInDeviceNamesIsPassedThroughVerbatim() {
+        // Rendered as plain TextView text; the label must not alter or interpret it.
+        assertEquals("<b>%s</b>", ReceiverBarController.label(Collections.singletonList("<b>%s</b>"), NONE));
+    }
+
+    @Test
+    public void theFallbackTextIsReturnedUnchanged() {
+        assertEquals("  %s <i> ", ReceiverBarController.label(null, "  %s <i> "));
     }
 
     // ---- the controller

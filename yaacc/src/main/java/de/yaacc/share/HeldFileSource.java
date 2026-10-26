@@ -15,7 +15,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
-package de.yaacc.upnp.server.share;
+package de.yaacc.share;
 
 import android.content.res.AssetFileDescriptor;
 import android.os.ParcelFileDescriptor;
@@ -27,8 +27,6 @@ import android.system.StructStat;
 import java.io.FileDescriptor;
 import java.io.IOException;
 
-import de.yaacc.share.DescriptorWindow;
-import de.yaacc.share.PositionalSource;
 
 /**
  * A file of another app that is kept readable by holding its descriptor open. The registry
@@ -39,7 +37,7 @@ import de.yaacc.share.PositionalSource;
  * read different ranges of the one descriptor. The held descriptor is a {@code dup} of the
  * provider's one, and the provider's is closed, so the provider process is not pinned by a
  * stable reference. The start offset and length the provider declares are clamped to the real
- * file size ({@link DescriptorWindow}).
+ * file size ({@link #clampLength}).
  */
 public final class HeldFileSource extends PositionalSource {
 
@@ -107,7 +105,7 @@ public final class HeldFileSource extends PositionalSource {
         } catch (ErrnoException e) {
             throw new IOException("fstat failed");
         }
-        long length = DescriptorWindow.clampLength(afd.getStartOffset(), afd.getDeclaredLength(), realSize);
+        long length = clampLength(afd.getStartOffset(), afd.getDeclaredLength(), realSize);
         if (length < 0L) {
             throw new IOException("unusable descriptor window");
         }
@@ -119,6 +117,28 @@ public final class HeldFileSource extends PositionalSource {
             // the dup is ours; a failing close of the provider's descriptor changes nothing
         }
         return source;
+    }
+
+    /**
+     * Clamps the window of a file descriptor handed out by a content provider. The provider
+     * declares a start offset and a length ({@code AssetFileDescriptor}); both come from another
+     * app and are untrusted, so they are limited to the real size of the file behind the
+     * descriptor before any read. Long arithmetic that cannot overflow.
+     *
+     * @param startOffset    declared start offset of the data in the file
+     * @param declaredLength declared length; any negative value means "to the end of the file"
+     * @param realSize       size of the file as reported by {@code fstat}
+     * @return the number of readable bytes ({@code > 0}), clamped so that
+     * {@code startOffset + length <= realSize}; or -1 if the window is unusable: negative
+     * offset or size, an offset at or beyond the end, or no bytes left
+     */
+    static long clampLength(long startOffset, long declaredLength, long realSize) {
+        if (startOffset < 0L || realSize <= 0L || startOffset >= realSize) {
+            return -1L;
+        }
+        long available = realSize - startOffset;
+        long length = declaredLength < 0L ? available : Math.min(declaredLength, available);
+        return length > 0L ? length : -1L;
     }
 
     @Override

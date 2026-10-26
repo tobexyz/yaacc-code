@@ -2420,6 +2420,58 @@ proxy URL not appearing on the notification or lock screen of the local player.
 - Section (g): the API sketch is superseded by the code and tests; the order of the Group 13/14/15 work followed the plan, with the
   SEND filters added at the end of Group 15.
 
+### Phase 4 notes (consolidating the share code)
+
+Verified 2026-10-26 for Group 17 of Phase 4. Android types are allowed in the share classes; these are the two facts the
+refactor relies on. Phase 4 changes no behaviour, so nothing here is a new feature.
+
+**(a) `java.net.URI` builds the proxy URL (`ShareService#proxyUrl`).** The 7-argument constructor
+`new URI(scheme, userInfo, host, port, path, query, fragment)` is documented for Android (API level 1) as: "If a host is given
+then it is appended. If the host is a literal IPv6 address but is not enclosed in square brackets (`'['` and `']'`) then the
+square brackets are added", and it throws `URISyntaxException` when the components do not form a valid URI
+(<https://developer.android.com/reference/java/net/URI#URI(java.lang.String,%20java.lang.String,%20java.lang.String,%20int,%20java.lang.String,%20java.lang.String,%20java.lang.String)>,
+read through the android-docs reference for compileSdk 36; `yaacc/build.gradle:75` compileSdk, `:111` minSdkVersion 27). The
+Android class is the same OpenJDK-derived implementation as the desktop one; the run below is on the desktop JDK 21.0.12
+(`java V.java` with `new URI("http", null, host, 49157, "/proxy/AbC-_9", null, null)`), not on a device:
+
+| host argument | result |
+|---|---|
+| `192.168.1.5` | `http://192.168.1.5:49157/proxy/AbC-_9` |
+| `fd00::1` and `fe80::1` | `http://[fd00::1]:49157/proxy/AbC-_9` (brackets added) |
+| `[fd00::1]` (already bracketed) | unchanged brackets |
+| `fe80::1%wlan0` (zone id) | `http://[fe80::1%wlan0]:49157/proxy/AbC-_9` (zone kept) |
+| `0.0.0.0` | `http://0.0.0.0:49157/proxy/AbC-_9` |
+| ` 192.168.1.5` or `192.168.1.5 ` (blank at the ends), `a b` | `URISyntaxException: Illegal character in authority` |
+
+So `proxyUrl` trims the address first, as the string builder it replaced did, and returns null for a blank address, an empty or
+null key and for a `URISyntaxException` (an address with an inner blank, which the old builder would have put into the URL
+unchecked; the address comes from `InterfaceResolutionHelper.getIpAddress`, which returns an interface address or `"0.0.0.0"`,
+never such a text). Characters of the key that `URI` would quote cannot occur: a registry key is 22 characters of unpadded
+base64url (`ShareRegistry.isWellFormedKey`). The old and the new output were compared on these inputs before the old class was
+deleted (identical for every row that is valid; the only differences are the two throwing rows, where the old builder returned
+a URL with a blank in it). `ShareService#hasAddress(ip)` (non-null, non-blank) replaces the `"x"` probe of
+`UpnpClient#createHttpLinkShare` and `ShareService#prepare`; it is true for `"0.0.0.0"`, so the offline behaviour is unchanged.
+
+**(b) Mocking Android types in the unit tests.** There is no Robolectric. `yaacc/build.gradle:121`
+`unitTests.returnDefaultValues = true` makes the platform stubs return `null`, `0` and `false` instead of throwing, so
+`Looper.getMainLooper()` is null (`UpnpClient#awaitHttpServer` relies on it, `UpnpClient.java:1841`), `new Handler(looper)` does
+nothing and posts nothing, and `Uri.parse` returns null (a test that needs a parsed `Uri` stubs it). Mockito is
+`mockito-core:5.24.0` (`yaacc/build.gradle:15`) with its default inline mock maker, which can mock final classes and methods and
+static methods. Existing tests mock Android types by instance only: `Context`, `ContentResolver`, `Cursor`, `PackageManager` and
+`Uri` in `ShareIntentHandlerFileTest` (lines 155-230) and `ProviderProbeTest` (lines 37-38), `Intent` and `ClipData` in
+`ShareIntakeGateTest` (line 47) and `ShareIntentHandlerFileTest` (209-232). None of them uses `mockStatic` or
+`mockConstruction` (the Phase 4 plan assumed `ShareIntakeGateTest` did; it does not). `ShareServicePrepareTest` and
+`UpnpClientLinkShareTest` (Group 17) are the first to use them, with these findings:
+- `mockStatic(Uri.class)`, `mockStatic(Toast.class)`, `mockStatic(InterfaceResolutionHelper.class)` and
+  `mockConstruction(Handler.class)` work on the stub jar. A posted toast is then visible as a resource id (the captured
+  `Runnable` is run with `Toast.makeText` mocked).
+- A static mock is bound to the thread that created it. `ShareService#prepare` runs the provider call on its own pool thread
+  (`BoundedCall`), where the stubs of the test thread do not apply and `Os.fstat` returns null, so a real `HeldFileSource` can
+  never be opened in a unit test. The test installs `mockStatic(HeldFileSource.class)` from the answer of the mocked
+  `ContentResolver.openAssetFileDescriptor`, which runs on that pool thread, and closes the static mock in its own answer.
+  A second prepare on another thread needs its own `mockStatic(Uri.class)`.
+- `PositionalSource#size` and `#close` are final; Mockito stubs and verifies them on a `mock(HeldFileSource.class)`.
+
 ## Research notes (Group 12)
 
 Research for spec `2026-10-23-unified-device-sheet`, Phase 3 (Group 12, first task). Verified

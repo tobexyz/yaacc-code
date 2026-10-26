@@ -63,6 +63,11 @@ public class ShareRegistryEvictionTest {
                 "audio/mpeg", Collections.<String>emptySet(), GRACE, ABSOLUTE));
     }
 
+    private ShareRegistry.Entry entry(Object target) {
+        return new ShareRegistry.Entry(ShareRegistry.Kind.LOCAL_FILE, target, "audio/mpeg",
+                Collections.<String>emptySet(), GRACE, ABSOLUTE);
+    }
+
     @Test
     public void nothingToEvictWhenNoEntryWasReleased() {
         Source running = new Source();
@@ -132,5 +137,42 @@ public class ShareRegistryEvictionTest {
 
         assertNotNull(register(new Source()));
         assertEquals(2, registry.size());
+    }
+
+    // ---- registerOrEvict (was ShareRegistrarTest): one eviction and one retry, the caller keeps what was refused
+
+    @Test
+    public void aFreeSlotIsUsedAtOnce() {
+        assertNotNull(registry.registerOrEvict(entry(new Source())));
+    }
+
+    @Test
+    public void aFullRegistryEvictsAReleasedLeftoverAndRetries() {
+        Source leftover = new Source();
+        String leftoverKey = registry.registerOrEvict(entry(leftover));
+        registry.registerOrEvict(entry(new Source()));
+        registry.release(leftoverKey);
+
+        String key = registry.registerOrEvict(entry(new Source()));
+
+        assertNotNull(key);
+        assertEquals(1, leftover.closes.get());
+        assertNull(registry.lookup(leftoverKey));
+    }
+
+    @Test
+    public void runningSharesAreNeverEvictedAndTheCallerKeepsTheRefusedTarget() {
+        Source a = new Source();
+        Source b = new Source();
+        registry.registerOrEvict(entry(a));
+        registry.registerOrEvict(entry(b));
+        Source refused = new Source();
+
+        String key = registry.registerOrEvict(entry(refused));
+
+        assertNull(key);
+        assertEquals(0, a.closes.get());
+        assertEquals(0, b.closes.get());
+        assertEquals("the registry does not close a target it refused", 0, refused.closes.get());
     }
 }

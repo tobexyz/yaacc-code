@@ -105,8 +105,7 @@ import de.yaacc.share.ReadinessWait;
 import de.yaacc.share.SharedContentPolicy;
 import de.yaacc.share.ShareLimits;
 import de.yaacc.share.ShareKeyTracker;
-import de.yaacc.share.ShareProxyUrl;
-import de.yaacc.share.ShareRegistrar;
+import de.yaacc.share.ShareService;
 import de.yaacc.share.ShareRegistry;
 import de.yaacc.share.UnclaimedShares;
 import de.yaacc.upnp.callback.contentdirectory.Browse.Status;
@@ -121,9 +120,9 @@ import de.yaacc.upnp.registry.Registry;
 import de.yaacc.upnp.registry.RegistryListener;
 import de.yaacc.upnp.server.YaaccUpnpServerService;
 import de.yaacc.upnp.server.avtransport.AvTransport;
-import de.yaacc.upnp.server.share.HttpServerProbe;
-import de.yaacc.upnp.server.share.ShareAddressResolver;
-import de.yaacc.upnp.server.share.SharedItemFactory;
+import de.yaacc.share.HttpServerProbe;
+import de.yaacc.share.ShareAddressResolver;
+import de.yaacc.share.SharedItemFactory;
 import de.yaacc.util.FileDownloader;
 import de.yaacc.util.InterfaceResolutionHelper;
 import de.yaacc.util.Watchdog;
@@ -1038,7 +1037,10 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     public Set<String> getReceiverDeviceIds() {
         HashSet<String> defaultReceiverSet = new HashSet<>();
         defaultReceiverSet.add(UpnpClient.LOCAL_UID);
-        return ReceiverSelection.copy(preferences.getStringSet(getContext().getString(R.string.settings_selected_receivers_title), defaultReceiverSet));
+        Set<String> stored = preferences.getStringSet(getContext().getString(R.string.settings_selected_receivers_title), defaultReceiverSet);
+        // a copy: the set returned by getStringSet must never be modified (it may be the very object
+        // the preferences keep); an empty stored set stays empty, it is not replaced by a default
+        return stored == null ? new HashSet<>() : new HashSet<>(stored);
     }
 
     /**
@@ -1071,9 +1073,10 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
                 unknowsIds.add(id);
             }
         }
-        // remove all unknown ids (from a copy: the stored set is never changed in place)
+        // remove all unknown ids (from the copy above: the stored set is never changed in place)
         if (!unknowsIds.isEmpty()) {
-            setReceiverDeviceIds(ReceiverSelection.without(receiverDeviceIds, unknowsIds));
+            receiverDeviceIds.removeAll(unknowsIds);
+            setReceiverDeviceIds(receiverDeviceIds);
         }
         return result;
     }
@@ -1788,7 +1791,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         }
         // no address (offline) means no URL: never "http://null:..."; checked before anything is registered
         String ip = InterfaceResolutionHelper.getIpAddress(getContext());
-        if (ShareProxyUrl.build(ip, YaaccUpnpServerService.PORT, YaaccUpnpServerService.PROXY_PATH, "x") == null) {
+        if (!ShareService.hasAddress(ip)) {
             YaaccLogger.w(getClass().getName(), "No network address, using the link directly");
             return null;
         }
@@ -1800,7 +1803,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         ShareRegistry.Entry entry = new ShareRegistry.Entry(ShareRegistry.Kind.HTTP_LINK, target, mimeType,
                 ShareAddressResolver.resolve(this, getContext(), receiverIds),
                 ShareLimits.IDLE_GRACE_MILLIS, ShareLimits.ABSOLUTE_MAX_MILLIS);
-        String key = ShareRegistrar.register(registry, entry);
+        String key = registry.registerOrEvict(entry);
         if (key == null) {
             YaaccLogger.w(getClass().getName(), "Media proxy is full, using the link directly");
             notifyRegistryFull();
@@ -1808,7 +1811,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         }
         // a share no player takes within the claim window is removed by the sweeper
         getUnclaimedShares().registered(key, Yaacc.shareClockMillis());
-        return ShareProxyUrl.build(ip, YaaccUpnpServerService.PORT, YaaccUpnpServerService.PROXY_PATH, key);
+        return ShareService.proxyUrl(ip, key);
     }
 
     /**

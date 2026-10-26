@@ -34,7 +34,7 @@ import de.yaacc.browser.ShareUriPolicy;
 import de.yaacc.share.LaunchNonces;
 import de.yaacc.share.SenderGrantCheck;
 import de.yaacc.share.SharedContentPolicy;
-import de.yaacc.upnp.server.share.OwnProviders;
+import de.yaacc.share.OwnProviders;
 import de.yaacc.util.YaaccLogger;
 
 /**

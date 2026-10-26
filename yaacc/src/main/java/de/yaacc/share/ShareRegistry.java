@@ -249,6 +249,25 @@ public final class ShareRegistry {
     }
 
     /**
+     * The one way the glue puts an entry into the registry: if the registry is full, the entry
+     * that was released the longest ago (a leftover of an ended playback) is evicted
+     * ({@link #evictOldestReleased()}) and the registration is tried ONCE more.
+     * <p>
+     * The registry does not close the target of an entry it refused: when this returns null the
+     * caller still owns the target and must close it.
+     *
+     * @return the new key, or null if there was no room even after an eviction (the caller keeps
+     * ownership of the target)
+     */
+    public String registerOrEvict(Entry entry) {
+        String key = register(entry);
+        if (key == null && evictOldestReleased()) {
+            key = register(entry);
+        }
+        return key;
+    }
+
+    /**
      * @return the live entry for the key, or null for an unknown, garbage, expired or
      * released-and-grace-over key (an expired entry is removed and closed on the way)
      */

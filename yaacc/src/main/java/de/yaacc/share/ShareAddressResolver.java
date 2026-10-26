@@ -15,7 +15,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
-package de.yaacc.upnp.server.share;
+package de.yaacc.share;
 
 import android.content.Context;
 
@@ -31,7 +31,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
-import de.yaacc.share.ShareAddresses;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.util.InterfaceResolutionHelper;
 

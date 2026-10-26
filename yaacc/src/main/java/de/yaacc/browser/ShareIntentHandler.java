@@ -51,15 +51,14 @@ import de.yaacc.share.LaunchNonces;
 import de.yaacc.share.PendingShare;
 import de.yaacc.share.ProviderCallGate;
 import de.yaacc.share.ReadinessWait;
-import de.yaacc.share.ShareFailureMessage;
 import de.yaacc.share.ShareLimits;
+import de.yaacc.share.ShareService;
 import de.yaacc.share.SharedContentPolicy;
 import de.yaacc.share.StreamIntake;
 import de.yaacc.upnp.UpnpClient;
-import de.yaacc.upnp.server.share.OwnProviders;
-import de.yaacc.upnp.server.share.ProviderKeys;
-import de.yaacc.upnp.server.share.ProviderProbe;
-import de.yaacc.upnp.server.share.SharedFileService;
+import de.yaacc.share.OwnProviders;
+import de.yaacc.share.ProviderKeys;
+import de.yaacc.share.ProviderProbe;
 import de.yaacc.util.YaaccLogger;
 
 /**
@@ -115,7 +114,7 @@ public final class ShareIntentHandler {
 
     /** What opens, registers and builds the item of a confirmed file (replaceable in tests). */
     interface FilePreparer {
-        SharedFileService.Prepared prepare(PendingShare.Data data, Set<String> receiverIds);
+        ShareService.Prepared prepare(PendingShare.Data data, Set<String> receiverIds);
     }
 
     private final Context appContext;
@@ -178,7 +177,7 @@ public final class ShareIntentHandler {
         this.upnpClient = upnpClient;
         this.mainThread = mainThread != null ? mainThread : mainHandler::post;
         this.filePreparer = filePreparer != null ? filePreparer
-                : new SharedFileService(this.appContext, upnpClient)::prepare;
+                : new ShareService(this.appContext, upnpClient)::prepare;
         this.pendingShare = pendingShare != null ? pendingShare
                 : ((Yaacc) this.appContext).getPendingShare();
         this.launchNonces = launchNonces != null ? launchNonces
@@ -553,7 +552,7 @@ public final class ShareIntentHandler {
             ProviderProbe.Info info = outcome.value();
             if (info == null) {
                 YaaccLogger.w(TAG, "Ignoring shared file: the provider did not answer in time or is still busy");
-                if (ShareFailureMessage.of(outcome.isRefusedBusy(), false) == ShareFailureMessage.Kind.BUSY) {
+                if (ShareService.failureTextRes(outcome.isRefusedBusy(), false) == R.string.share_busy) {
                     // payload-free and fixed: the user learns the share was turned away, not why a provider is slow
                     toast(R.string.share_busy);
                 }
@@ -660,7 +659,7 @@ public final class ShareIntentHandler {
     /** Worker thread. */
     private void prepareAndPlayFile(PendingShare.Data data, Set<String> chosen, Runnable afterStarted,
                                     Runnable finished) {
-        SharedFileService.Prepared prepared = null;
+        ShareService.Prepared prepared = null;
         // true once the share is cleaned up or handed to the main thread: the catch must not touch it again
         boolean settled = false;
         // true once the main thread owns the end of the work (it runs `finished`)
@@ -678,7 +677,7 @@ public final class ShareIntentHandler {
                 toast(R.string.share_open_failed);
                 return;
             }
-            final SharedFileService.Prepared ready = prepared;
+            final ShareService.Prepared ready = prepared;
             settled = true;
             mainThread.execute(() -> playFile(ready.getItem(), chosen, afterStarted, finished));
             handedOver = true;
