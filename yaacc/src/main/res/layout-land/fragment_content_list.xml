@@ -65,6 +65,15 @@
                 android:contentDescription="@string/sort_by_date"
                 app:srcCompat="@drawable/ic_baseline_date_range_32"
                 app:tint="?attr/colorControlNormal" />
+
+            <ImageButton
+                android:id="@+id/contentListViewModeToggle"
+                style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:contentDescription="@string/toggle_view_mode"
+                app:srcCompat="@drawable/ic_baseline_grid_view_32"
+                app:tint="?attr/colorControlNormal" />
         </LinearLayout>
 
         <!-- layout_below anchors to contentListSortToggle, not

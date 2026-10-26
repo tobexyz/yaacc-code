@@ -273,10 +273,12 @@ public class ContentListFragment extends Fragment implements OnClickListener,
      */
     private void initViewModeToggle(View contentlistView) {
         viewModeToggleButton = contentlistView.findViewById(R.id.contentListViewModeToggle);
-        if (viewModeToggleButton == null || getContext() == null) {
+        if (getContext() == null) {
             return;
         }
 
+        // The persisted view mode applies even when a layout has no toggle button: the adapter reads the
+        // same preference, so without a matching LayoutManager the cards would be drawn one per row.
         String persisted = PreferenceManager.getDefaultSharedPreferences(getContext())
                 .getString(getString(R.string.settings_browse_view_mode_key), BrowseContentItemAdapter.ViewMode.DEFAULT.name());
         try {
@@ -286,8 +288,10 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         }
         applyLayoutManagerForViewMode(currentViewMode);
 
-        viewModeToggleButton.setOnClickListener((v) -> onViewModeToggleClicked());
-        updateViewModeToggleUi();
+        if (viewModeToggleButton != null) {
+            viewModeToggleButton.setOnClickListener((v) -> onViewModeToggleClicked());
+            updateViewModeToggleUi();
+        }
 
         // Covers rotation and multi-window resize (design.md decision 3):
         // only reacts while in CARD mode, and only on an actual width
