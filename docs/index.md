@@ -57,9 +57,10 @@ the sender and receiver tab to trigger a new search for devices
 ## New layout (single screen)
 
 Switch to it with *Settings* > *Appearance* > *Layout* > "New (single screen)".
-Switching back to "Classic (tabs)" works the same way. The classic layout stays
-the default, also on Android TV; the new layout has not been checked with a TV
-remote yet. There are no tabs. The screen shows one level at a time:
+Switching back to "Classic (tabs)" works the same way. A fresh install starts in
+the new layout (also on Android TV, where it has not been checked with a TV
+remote yet); an updated installation keeps the classic layout until you switch.
+There are no tabs. The screen shows one level at a time:
 
 * **Servers** is the top level. The "Servers" header has the refresh button to
   search for devices again. Below it all UPnP/DLNA servers in your network are
@@ -117,6 +118,11 @@ In the new layout the receiver bar at the bottom shows the receivers that are
 playing; tap it to open the device sheet. Playing does not use a stored selection:
 play, play all, tapping an item, and add to playlist first open the "Play on…"
 list, see [Choosing receivers](#choosing-receivers-new-layout).
+
+A button in the folder header switches between a list and a grid of cards (the
+same entries and the same buttons); the cards are the default of a fresh install
+and your choice is remembered. In landscape the cards are laid out in several
+columns.
 
 A toggle in the folder header lets you sort the current folder by name or date,
 ascending or descending. yaacc uses the server's own sort support when browsing
@@ -427,6 +433,16 @@ refused, see [Settings](settings/) for when to switch this off.
 For renderers with "enable server-side seeking for external URLs" switched on
 (settings, per renderer), a shared link that is proxied also supports seeking
 through the proxy, see [Settings](settings/).
+
+## Appearance and log
+
+*Settings* > *Appearance* > *Theme* offers "System" (follow the system setting), "Dark" and "Light"; a fresh install
+starts with "Dark". The app is gray scale: check boxes, switches, sliders and progress bars are gray in both themes, and
+the title bar is dark gray with light text and icons.
+
+The log opens from the overflow menu ("log"). It shows the entries of the level chosen in the settings
+(*Appearance* > *Log level*), refreshes every two seconds while it is open and scrolls down by itself only while you are
+at the end. The clear button hides all entries from before the moment you pressed it.
 
 ## Shutdown timer
 

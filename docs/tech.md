@@ -73,23 +73,16 @@ Files: `YaaccContentDirectory`, `SortSupport`, and the 20
 
 ## Browse card-grid view
 
-Research notes for spec `2026-10-17-browse-card-grid-view` (Group 1,
-research task). Verified by direct inspection of the actual vendored
-AndroidX bytecode (`javap` disassembly of the `classes.jar` extracted
-from the exact `.aar` Gradle resolves for this project) and, for
-`View.addOnLayoutChangeListener`, the official platform doc fetched
-live — not assumption, not training-data recall. Exact artifacts
-inspected:
+The content tab can show a list or a grid of cards (`ContentListFragment` + `BrowseContentItemAdapter`,
+`yaacc/src/main/java/de/yaacc/browser/`). The feature is built, reviewed and security-reviewed; its planning folder
+was removed after shipping (the full history is in git). This section holds the platform facts it relies on; the
+decisions and the shipped numbers follow in "Browse card-grid view: decisions and as shipped". The facts were verified by
+direct inspection of the vendored AndroidX bytecode (`javap` of the `classes.jar` in the exact `.aar` Gradle resolves) and,
+for `View.addOnLayoutChangeListener`, the official platform doc fetched live. Artifacts inspected:
 
-- `androidx.recyclerview:recyclerview:1.3.1` — the version this
-  project's dependency graph resolves to (confirmed present under
-  `~/.gradle/caches/modules-2/files-2.1/androidx.recyclerview/recyclerview/1.3.1/`;
-  no explicit `implementation 'androidx.recyclerview:...'` line exists
-  in `yaacc/build.gradle` today — it's pulled in transitively, e.g. via
-  `androidx.appcompat`/`com.google.android.material`).
-- `androidx.cardview:cardview:1.0.0` — already the version in actual
-  use (`browse_content_item.xml:31` wraps the list row in
-  `<androidx.cardview.widget.CardView>`, confirmed by grep).
+- `androidx.recyclerview:recyclerview:1.3.1`, the version the dependency graph resolves to (there is no explicit
+  `implementation` line in `yaacc/build.gradle`; it comes transitively through `appcompat`/`material`).
+- `androidx.cardview:cardview:1.0.0`, already in use (`browse_content_item.xml` wraps the row in a `CardView`).
 
 ### 1. `GridLayoutManager.setSpanCount(int)` mutates a live instance — confirmed
 
@@ -116,8 +109,8 @@ public void setSpanCount(int spanCount) {
 No constructor call, no `RecyclerView.setLayoutManager(...)` call —
 the method only writes `mSpanCount` on the receiver and calls
 `requestLayout()`. This confirms `((GridLayoutManager)
-contentList.getLayoutManager()).setSpanCount(newCount)` (as `design.md`
-decision 3 calls for, from a width-change listener) can be called
+contentList.getLayoutManager()).setSpanCount(newCount)` (called from a
+width-change listener) can be called
 repeatedly on the one `GridLayoutManager` the `RecyclerView` already
 holds, with no need to call `setLayoutManager` again.
 
@@ -164,9 +157,7 @@ public void scrollToPositionId(Integer id) {
   `LinearLayoutManager` — behavior is unchanged, not just "compiles".
 - Net: this method needs **zero code changes** when the adapter's
   `RecyclerView` is switched to a `GridLayoutManager` for `CARD` mode,
-  confirming `design.md`'s claim ("only the cast target type needs
-  loosening to the common base" — and in fact it doesn't even need
-  loosening, since `LinearLayoutManager` already is that common base).
+  since `LinearLayoutManager` already is the common base.
 
 ### 3. `RecyclerView.addOnLayoutChangeListener` fires on width changes (rotation, multi-window resize) — confirmed
 
@@ -200,130 +191,24 @@ verbatim:
 
 A rotation or multi-window resize changes the `RecyclerView`'s
 measured width/height, which triggers a layout pass and therefore a
-bounds change — so the listener fires in both cases, consistent with
-`design.md` decision 3's plan to recompute span count from such a
-listener instead of a separate `onConfigurationChanged` hook. API
+bounds change — so the listener fires in both cases, and a span count recomputed from such a
+listener needs no separate `onConfigurationChanged` hook. API
 level 11 is far below this project's `minSdk`, so no
 `SDK_INT` guard is needed.
 
-### 4. `IconDownloadTask` constructor signatures — confirmed, with one correction to the task's assumption
+### 4. `IconDownloadTask` constructors: the `(ImageView, int, int)` overload leaks a task list entry
 
-`yaacc/src/main/java/de/yaacc/util/image/IconDownloadTask.java:43-72`
-(read directly — this class is yaacc's own code, not a library):
+`yaacc/src/main/java/de/yaacc/util/image/IconDownloadTask.java` (yaacc's own code) has these constructors:
+`(ImageView)` (48x48), `(ImageView, BrowseContentItemAdapter)` (48x48, keeps the adapter), `(ImageView, String deviceId)`
+(48x48) and `(ImageView, int width, int height)`. The last one is also used by `BrowseReceiverDeviceAdapter` for 512x512
+album art, and it always sets `browseContentItemAdapter = null`.
 
-```java
-public IconDownloadTask(ImageView imageView) {                                   // L43-45
-    this(imageView, 48, 48);
-}
-
-public IconDownloadTask(ImageView imageView, BrowseContentItemAdapter browseContentItemAdapter) {  // L47-54
-    this.imageView = imageView;
-    this.cache = IconDownloadCacheHandler.getInstance();
-    this.browseContentItemAdapter = browseContentItemAdapter;
-    this.deviceId = null;
-    this.targetWidth = 48;
-    this.targetHeight = 48;
-}
-
-public IconDownloadTask(ImageView imageView, String deviceId) {                  // L56-63
-    this.imageView = imageView;
-    this.cache = IconDownloadCacheHandler.getInstance();
-    this.browseContentItemAdapter = null;
-    this.deviceId = deviceId;
-    this.targetWidth = 48;
-    this.targetHeight = 48;
-}
-
-public IconDownloadTask(ImageView imageView, int width, int height) {            // L65-72
-    this.imageView = imageView;
-    this.cache = IconDownloadCacheHandler.getInstance();
-    this.browseContentItemAdapter = null;
-    this.deviceId = null;
-    this.targetWidth = width;
-    this.targetHeight = height;
-}
-```
-
-The `(ImageView, int, int)` overload exists exactly as the task
-described, at the line range the task cited.
-
-**Deviation from the task's assumption**: the task description states
-this overload is "unused today". A repo-wide grep
-(`grep -rn "new IconDownloadTask(" --include=*.java .`) shows it is
-**already called once**, elsewhere in the same package:
-
-```
-yaacc/src/main/java/de/yaacc/browser/BrowseReceiverDeviceAdapter.java:197:
-    new IconDownloadTask(holder.albumArt, 512, 512).execute(Uri.parse(player.getAlbumArt().toString()));
-```
-
-(`BrowseReceiverDeviceAdapter` loads 512×512 album art for a receiver
-device's "now playing" view — a different adapter, different
-`ImageView` field, unrelated to the browse-content-item list this spec
-touches.) The other call sites are:
-
-```
-BrowseReceiverDeviceAdapter.java:213: new IconDownloadTask(holder.icon, device.getIdentity()...)   // (ImageView, String) overload
-BrowseContentItemAdapter.java:489-490: new IconDownloadTask(holder.icon, this)                     // (ImageView, BrowseContentItemAdapter) overload — the one this spec replaces
-BrowseDeviceAdapter.java:171: new IconDownloadTask(holder.icon)                                     // (ImageView) overload
-```
-
-This does not make the `(ImageView, int, int)` overload unsafe to add
-a second, independent call site for in
-`BrowseContentItemAdapter.onBindViewHolder` — each call constructs an
-independent `IconDownloadTask` instance with its own final fields, and
-`BrowseReceiverDeviceAdapter`'s existing usage shares no state with
-`BrowseContentItemAdapter`'s. But Group 2 must account for one real
-behavioral side effect of switching constructors, found by reading
-`onPostExecute` (`IconDownloadTask.java:106-120`) together with how
-`BrowseContentItemAdapter` uses its `asyncTasks` list
-(`BrowseContentItemAdapter.java:85, 118, 491, 583-591, 593-597`):
-
-```java
-protected void onPostExecute(Bitmap result) {
-    if (deviceId != null && !deviceId.equals(imageView.getTag())) {
-        return;
-    }
-    if (result != null) {
-        imageView.setVisibility(android.view.View.VISIBLE);
-        imageView.setImageBitmap(result);
-    }
-    if (browseContentItemAdapter != null) {
-        browseContentItemAdapter.removeTask(this);   // only called when this ctor set the field
-    }
-}
-```
-
-- `onBindViewHolder` (`BrowseContentItemAdapter.java:489-491`)
-  explicitly does `asyncTasks.add(iconDownloadTask)` itself for every
-  `IconDownloadTask` it creates, regardless of which constructor is
-  used — that add call is unconditional.
-- Removal from `asyncTasks` happens **only** via
-  `removeTask(this)` inside `onPostExecute`, and that call is itself
-  gated on `browseContentItemAdapter != null`.
-- The `(ImageView, BrowseContentItemAdapter)` constructor (today's
-  call) sets that field to `this`, so every successfully-completed
-  thumbnail load removes itself from `asyncTasks`.
-- The `(ImageView, int, int)` constructor always sets
-  `browseContentItemAdapter = null` — it has no parameter for it. If
-  `onBindViewHolder` is changed to call this overload instead (as the
-  spec's Group 2 task describes), completed `IconDownloadTask`s will
-  **stop removing themselves from `asyncTasks`**. Nothing else in
-  `BrowseContentItemAdapter` clears or trims that list on success —
-  `clear()` (`BrowseContentItemAdapter.java:291-299`) doesn't touch it,
-  and the only other reader, `cancelRunningTasks()`
-  (`BrowseContentItemAdapter.java:583-589`), only iterates/cancels, it
-  doesn't remove entries either. So `asyncTasks` would grow by one
-  finished (never-removed) `AsyncTask` + its captured `ImageView`
-  reference per bound row for the lifetime of the adapter instance —
-  a small but real unbounded-growth leak, not present today.
-- This is a finding for Group 2 to resolve (e.g. keep passing a
-  removal callback some other way, or accept/mitigate the growth), not
-  something this research task fixes — flagging it per this task's
-  scope (`tasks.md`'s Group 1 Constraints: "do not let Group 2 write
-  code against unverified AndroidX API behavior" — this is yaacc's own
-  code, not AndroidX, but the same "verify before Group 2 builds on it"
-  spirit applies, so it's recorded here for Group 2 to see).
+`BrowseContentItemAdapter#onBindViewHolder` adds every task it creates to `asyncTasks`, and a task removes itself only in
+`onPostExecute` through `browseContentItemAdapter.removeTask(this)`, which is gated on the adapter field being non-null.
+Calling the `(ImageView, int, int)` overload from the adapter would therefore never remove finished tasks and
+`asyncTasks` would grow by one entry (with its `ImageView`) per bound row for the life of the adapter. Resolution as built:
+a fourth overload `IconDownloadTask(ImageView, BrowseContentItemAdapter, int width, int height)` sets both the adapter
+(cleanup preserved) and the size; no existing constructor changed.
 
 ### Sources
 
@@ -346,118 +231,112 @@ protected void onPostExecute(Bitmap result) {
   and `yaacc/src/main/java/de/yaacc/browser/BrowseContentItemAdapter.java:85,118,291-299,489-491,583-597,626-629`
   — read directly from this repo's working tree.
 
-## As shipped: reconciliation with the design above (spec `2026-10-17-browse-card-grid-view`)
+## Browse card-grid view: decisions and as shipped
 
-This section was written during planning/research, before implementation.
-The feature is now built and both review gates have passed (general
-review and security review — see
-`.claude/specs/2026-10-17-browse-card-grid-view/review.md` and
-`security-review.md`; the one security Critical, an inherited
-`httpcore5` CVE regression, is covered below and fully traced in that
-spec's `decisions.md`). The notes below record the concrete numbers and
-gaps a future reader needs, rather than re-deriving them from the diff.
+Both review gates passed. Planning history (requirements, design, tasks, decisions, review cycles) was removed after
+shipping; git history has it. What a maintainer needs:
 
-**Card icon size — 96dp, confirmed shipped.** The research above left
-the exact dp value open ("~96-120dp"); the implementation settled on
-the lower end, **96dp**, in two places that must stay in sync:
-`yaacc/src/main/res/layout/browse_content_item_card.xml:67-68`
-(`browseContentItemIcon`'s `layout_width`/`layout_height`, with a
-layout comment explaining the choice) and
-`BrowseContentItemAdapter.CARD_ICON_SIZE_DP = 96`
-(`yaacc/src/main/java/de/yaacc/browser/BrowseContentItemAdapter.java:100`),
-which feeds `dpToPx(...)` to size the `IconDownloadTask`'s requested
-width/height for `CARD` mode (vs. the existing 48dp `LIST_ICON_SIZE_DP`
-for list mode) — this is the actual fix for the fixed-48px thumbnail
-bug `design.md`'s "Thumbnail resolution" section targeted.
+**Design.** One `BrowseContentItemAdapter`, one backing list, one set of click handlers; only the view layer varies.
+- `BrowseContentItemAdapter.ViewMode { LIST, CARD }`, `ViewMode.DEFAULT = CARD` (used on a fresh install and when the stored
+  value is unreadable; an explicit earlier choice stays). Persisted as a string under `settings_browse_view_mode_key`
+  (stored key `browse_view_mode_key`), read by the adapter and by `ContentListFragment`. `setViewMode` persists and calls
+  `notifyDataSetChanged()`, no reload (the data does not change, unlike a sort change).
+- `getItemViewType` returns `viewMode.ordinal()` (it used to return the position, which defeated view recycling). The list
+  row (`browse_content_item.xml`) and the card (`browse_content_item_card.xml`) use the same view ids and the same
+  `ViewHolder`, so the per-content-type button visibility, click handlers and thumbnail loading are shared.
+- The header has an `ImageButton` `contentListViewModeToggle` next to the sort toggle, in the portrait and the landscape
+  layout. `ContentListFragment#applyLayoutManagerForViewMode` sets a `LinearLayoutManager` (list) or a `GridLayoutManager`
+  (cards), also for a persisted mode when a layout has no button. While in card mode a layout-change listener re-applies the
+  span count with `setSpanCount` on every width change (rotation, multi-window), never recreating the layout manager
+  (facts 1-3 above). `scrollToPositionId` needs no change because `GridLayoutManager` is a `LinearLayoutManager`.
+- Span count: `CardGridSpanCount.computeSpanCount(availableWidthPx, targetCardWidthPx) = max(2, availableWidthPx /
+  targetCardWidthPx)` (pure JDK, unit-tested), with `ContentListFragment.TARGET_CARD_WIDTH_DP = 160` scaled by the display
+  density: two columns on a normal phone in portrait, more on a landscape phone or a tablet.
+- Thumbnails: the card image is a `SquareImageView` (height equals width) and `CARD_ICON_SIZE_DP = 320` is requested for it
+  (`LIST_ICON_SIZE_DP = 48` for the list), through the four-argument `IconDownloadTask` constructor (fact 4). The first
+  design said a 96dp icon; the square view replaced it.
+- D-pad: movement inside a card reuses the generic key listener of the list row; movement between cards uses Android's
+  default focus search (nothing is hand-wired). Revisit only if a TV check shows it feels wrong.
 
-**`targetCardWidthPx` / `TARGET_CARD_WIDTH_DP` — 160dp, lives in
-`ContentListFragment`.** The span-count math (`CardGridSpanCount
-.computeSpanCount`) is driven by `ContentListFragment
-.TARGET_CARD_WIDTH_DP = 160`
-(`yaacc/src/main/java/de/yaacc/browser/ContentListFragment.java:85`),
-converted to pixels by the private `targetCardWidthPx()` method
-(`ContentListFragment.java:342-344`, `TARGET_CARD_WIDTH_DP *
-getResources().getDisplayMetrics().density` — density-scaled, not a
-hardcoded pixel constant). Both the initial span-count computation on
-toggle (`ContentListFragment.java:330`) and the width-change listener's
-recompute (`ContentListFragment.java:294`) call this same method, so
-there is one source of truth for the target width.
+**Dependency pin and its residual risk (`yaacc/build.gradle`).** `httpclient5:5.3.1`, `httpcore5:5.3.6` and
+`httpcore5-h2:5.3.6` are the newest versions that run on Android. From the 5.4 line on, `httpclient5`'s
+`DefaultHttpClientConnectionOperator` and `httpcore5`'s `ReflectionUtils` get a static initializer that probes
+`jdk.net.Sockets`/`ExtendedSocketOptions` (hidden JDK APIs that ART blocks for app code), so merely loading either class
+crashes with `NoSuchMethodError` on a device (confirmed by decompiling several versions; the `httpcore5` path is the
+embedded server's `SingleCoreIOReactor.prepareSocket`). An intermediate pairing of `httpclient5:5.2.1` with
+`httpcore5:5.4.4` was tried to get the `httpcore5` security fixes and crashed on a device for that reason.
+Accepted residual risk: `httpcore5` CVE-2026-54399 (HTTP/1.1 header parsing, memory exhaustion) and CVE-2026-54428
+(HTTP/2 HPACK decoder in `httpcore5-h2`) are fixed only from 5.4.3 on; there is no 5.3.x backport. The exposure is the
+embedded UPnP HTTP server against a malicious or compromised device on the LAN. Options to close it, not done (both are real
+work): a local shim of `org.apache.hc.core5.util.ReflectionUtils` that wraps the probe (needs a build step that removes the
+class from the dependency jar, else the duplicate class fails the build, and a re-check on every version bump), or moving the
+embedded server off the asynchronous reactor stack (unconfirmed that the blocking classes avoid the same path). Check the
+bytecode again before bumping either library.
 
-**Not verified headlessly — needs on-device confirmation.** Per this
-project's existing pattern for runtime-only concerns (see the
-httpclient5 Android-crash issue and the media3 runtime behavior
-documented elsewhere in this file, neither of which a unit test or
-`javap` inspection can exercise), the following are implemented and
-compile/lint clean but have **not** been visually or interactively
-confirmed, and need checking on a real device or emulator before
-calling this feature done end-to-end:
+**Tests.** `CardGridSpanCountTest` (floor behaviour: phone width gives 2, just under 3 cards still 2, wide gives more, narrower
+than one card never below 2) and `BrowseContentItemAdapterTest` (view type per mode, `setViewMode` persists and does not
+reload, thumbnail size per mode). Open device checks (grid spacing and button fit, thumbnail sharpness at 320dp,
+D-pad between cards, column count on a tablet, in multi-window and in landscape) are listed in "Not verified on a device".
 
-- **Grid visual layout** — card spacing, `CardView` elevation/corner
-  radius consistency with the list row, and whether the four
-  `ImageButton`s fit comfortably under the 96dp icon + title without
-  crowding at the chosen `targetCardWidthPx`.
-- **Thumbnail sharpness** — whether 96dp-requested bitmaps actually
-  render crisp (not upscaled/blurry) at the card's rendered size across
-  density buckets; `IconDownloadTask`'s request size is correct by
-  inspection, but the resulting bitmap's visual quality on screen is
-  not.
-- **DPAD cross-card navigation feel** — per `design.md` decision 4, v1
-  deliberately relies on Android's default focus-search for movement
-  *between* cards (nothing was hand-wired); whether that default
-  behavior actually feels right for grid navigation on a TV/DPAD-driven
-  device is unverified. Within-card button navigation needs no separate
-  check — it reuses the same generic `onCreateViewHolder` wiring the
-  list layout already uses, unchanged.
+## Design decisions and rationale
 
-Flag these three for whoever reviews the PR as open on-device items, not
-as silently assumed-working.
+The reasons behind the design of the #287 work, per feature area, each pointing at the section that describes the code as built.
+The planning folder `.claude/specs/2026-10-23-unified-device-sheet/` (`design.md`, `decisions.md`, `known-risks.md`) holds the same
+decisions in more detail while the share-code consolidation (Phase 4) is open; the earlier planning history is in git.
 
-**Column count "scales with screen width" — unit-tested for the
-span-count math only, not tablet-visually-confirmed.** `CardGridSpanCount
-.computeSpanCount` has unit test coverage for its floor-division
-behavior (phone-portrait width → 2, just-under-3× width → still 2,
-wide/tablet-sized width → more than 2, narrower-than-target width →
-never below 2 — see `CardGridSpanCountTest`), and the width-change
-listener wiring that calls it on rotation/resize is implemented. None of
-that has been confirmed by actually running the app on a tablet or a
-resized multi-window on a larger screen — do not read "scales with
-width" as tablet-tested; it is math-tested only.
+### Device sheet (as built: "Unified device sheet")
+- One bottom sheet with one list grouped by receiver, 0..N player-session rows under each receiver. Players and receivers are not 1:1: a
+  renderer can hold a music and an image player and the local device up to three singletons, so a merged row would hide sessions.
+  Sessions whose device is not a receiver (a renderer that dropped off) are listed in a trailing group, never hidden.
+- Sessions are ordered by a creation sequence that `PlayerService` assigns, not by player id (`AVTransportPlayer` ids are random, local
+  ids are fixed per type). The receiver tab's single row shows the newest playing session, else the newest overall.
+- `ReceiverRowBinder` is shared by the tab and the sheet, `RendererStatusMonitor.getShared()` is the one status poller, and the sheet polls
+  and listens only while started.
+- The sheet opens at half height on touch devices and fully expanded in D-pad mode, because rows below the screen edge can take focus
+  without scrolling; `setFitToContents(false)` must come before `STATE_HALF_EXPANDED`, and an app overlay supplies the DayNight theme.
 
-**Known v1 limitation — no view-mode toggle button in landscape.**
-`yaacc/src/main/res/layout-land/fragment_content_list.xml` has its own
-`contentListSortToggle` row but, unlike the portrait
-`fragment_content_list.xml`, was never given a
-`contentListViewModeToggle` button (confirmed absent by grep — the
-toggle button only exists in the portrait layout,
-`fragment_content_list.xml:69`). `initViewModeToggle()` null-checks and
-returns early in landscape, so nothing crashes, and a mode chosen in
-portrait still *applies* correctly after rotating to landscape (the
-persisted preference and the "set up LayoutManager for the persisted
-mode" step both run regardless of the button's existence) — landscape
-just has no way to *change* the mode via that button. This is a
-deliberate, accepted v1 gap (see `decisions.md`'s "No view-mode toggle
-in the landscape layout" entry), not an oversight silently left
-unfixed; a follow-up to add the button to the landscape layout is
-out of scope for this spec.
+### Classic and new layout (as built: "Classic and new layout")
+- Two activities, not one with hidden tabs: tab positions are tied to the `BrowserTabs` order in adapter, activity and saved state, and the
+  server list is a different navigation model. A "Layout" setting picks one; classic stays byte-for-byte what it was (its footer, tabs and
+  back behaviour), apart from leak fixes.
+- An invisible `LauncherActivity` holds the filters and forwards a fresh allowlisted intent. The layout is compared on `onResume`
+  (effective layout, 2 s relaunch guard), never on a preference listener or a result code. One process-wide idle timer counts started browsers.
+- A fresh install starts in the new layout, an updated install keeps classic (`keepClassicForUpdatedInstall`); the new layout owns the receiver
+  bar (receivers that play now) and a mini-player with one row per running player; the device sheet is new-layout only.
+- The toolbar has one timer symbol; the remaining time is the toolbar subtitle because narrow screens drop an action item's text. A stored
+  duration of 0 never starts the timer.
+- Android backup is off, because it copied settings, stored share links and the receiver selection off the device.
 
-**Dependency note — httpcore5 CVE regression, fixed on this branch.**
-This branch inherited an `httpclient5`/`httpcore5` version pairing from
-`feat/issue252` that reintroduced two patched CVEs in `httpcore5`/
-`httpcore5-h2`; Fix Group 1 corrected it by keeping `httpclient5` at
-`5.2.1` (avoids the unrelated Android crash that version pairing was
-chosen for) while bumping `httpcore5` and the transitively-pulled
-`httpcore5-h2` to `5.4.4` (`yaacc/build.gradle:30,38,44`). This is part
-of this branch's shipped state and both review gates passed against it;
-the full CVE identification, decompilation evidence, and rationale are
-already documented in
-`.claude/specs/2026-10-17-browse-card-grid-view/decisions.md` and
-`security-review.md` — not repeated here.
+### Sharing files and links (as built: "Sharing local files")
+- A per-share, in-memory registry entry (128-bit random key, expiry, allowed addresses) instead of the persistent proxy setting, so a share
+  never changes the user's settings. The HTTP server already runs whenever the process lives, so nothing is started or stopped for a share.
+- A local file is held by its descriptor, opened only after the user confirmed the receivers (the sender's read grant lives as long as the
+  receiving activity record); nothing is opened, copied or registered for an unconfirmed share. Non-seekable descriptors fall back to a capped,
+  watched copy in `cache/incoming`.
+- The strict address check is a setting (default on) because some renderers fetch from another address than they announce; off keeps key and
+  expiry only. The key is not secret from the LAN: any control point that can query the receiver can read it.
+- The exported launcher forwards one `content:` URI as one ClipData item plus the read flag behind a single-use launch token; the browsers
+  repeat every check and take a file only with a valid token, and only in the effective layout. Only other apps' audio, video and image
+  content is accepted (`file:` and any provider of this app are refused).
+- Provider calls are bounded, because a Binder call cannot be interrupted: one call per provider, 3 tracked providers, 4 threads per pool.
+- Receivers are picked per action in the new layout (the sheet in pick mode); the normal sheet has no selection checkboxes; one picked action
+  at a time, because the stored selection is global and read back by `PlayerService.createPlayer`. Classic keeps its tab selection; only a
+  shared file opens the picker there, with the selection pre-ticked and restored afterwards.
+- Residual risk accepted by the owner: Android checks only that yaacc itself can read a forwarded URI, and yaacc holds broad media permissions.
+  Mitigations are the type check, the human-in-the-loop pick that shows the cleaned name, the address and expiry limits and, on Android 15+, the
+  launcher's sender check. See "Threat model", "Security invariants of the share feature" and "Known limitations".
+
+### Look and settings (as built: "Look and settings: theme, gray scale, log viewer")
+- Theme is a three-state list setting (System, Dark, Light) that replaces the "Dark mode" check box; an existing choice migrates once.
+- The whole app is gray scale: every theme color is a gray with a dark variant in `values-night`, so controls look the same in both themes;
+  the title bar is dark gray with light content in both themes.
+- Card view is the default on a fresh install; the log viewer's "Clear" is a time marker because the system may refuse to empty an app's log
+  buffer; mini-player rows have an exit button besides stop (stop keeps the player, exit removes it).
 
 ## Unified device sheet
 
-Research notes for spec `2026-10-23-unified-device-sheet` (Group 1),
-updated to match the code as built (Groups 2-3). Line numbers quoted in
-section 6 are from the Group 1 research and may have moved. Section 8
+Research notes for the device sheet (Phase 1), updated to match the code as built. Line numbers quoted in
+section 6 are from the first research and may have moved. Section 8
 summarizes how the pieces fit together as built.
 Verified 2026-10-23 against `com.google.android.material:material:1.14.0`,
 the version already declared in `yaacc/build.gradle:20` (nothing added).
@@ -555,7 +434,7 @@ Verified behavior [javap: `javap -c -p ... BottomSheetBehavior`]:
   (default 0, or the top inset when padding for the system window). With
   `fitToContents = false`, "expanded" therefore means the **top of the
   screen**, and the user drags up from half to get there.
-- **Sheet height. This is something design.md doesn't cover.** The dialog's
+- **Sheet height (not in the original plan).** The dialog's
   sheet container (`design_bottom_sheet_dialog.xml`, id
   `design_bottom_sheet`) is `layout_height="wrap_content"` [javap: the
   AAR's `res/layout/design_bottom_sheet_dialog.xml`]. With
@@ -600,7 +479,7 @@ public void onStart() {
 }
 ```
 
-### 4. Theme. This is something design.md doesn't cover.
+### 4. Theme (not in the original plan)
 
 `BottomSheetDialogFragment.onCreateDialog` builds
 `new BottomSheetDialog(getContext(), getTheme())`. With theme 0, the private
@@ -666,7 +545,7 @@ unchanged.
   activity's decor view isn't in touch mode
   (`DeviceSheetFragment#isTouchInput`), and in `STATE_HALF_EXPANDED`
   otherwise. Still to confirm in the manual TV check.
-- **Initial focus.** design.md wants focus on the first receiver's
+- **Initial focus.** The plan wanted focus on the first receiver's
   checkbox. Nothing in Material sets initial focus. **As built:** when not
   in touch mode, the fragment calls `DeviceSheetAdapter#requestInitialFocus()`,
   and the adapter posts a focus request when it binds the first
@@ -764,8 +643,7 @@ unchanged.
     decides from what `put` returns: `null` fires **"added"**; the same
     instance fires nothing (a re-add); a *different* instance fires
     **"removed"** for the replaced player and then **"added"** for the new
-    one (a same-id replacement - `MultiContentPlayer`'s id is fixed, see
-    decisions.md). Removal uses `remove(id, player)` and fires
+    one (a same-id replacement - `MultiContentPlayer`'s id is fixed). Removal uses `remove(id, player)` and fires
     **"removed"** only if that exact instance was still in the map, so the
     second removal from `onDestroy()`, or a stale instance after a
     replacement, notifies nothing. Otherwise one player start or stop
@@ -793,7 +671,7 @@ unchanged.
 ### 7. `DeviceSessionGrouper`
 
 - `yaacc/src/main/java/de/yaacc/browser/DeviceSessionGrouper.java` has the
-  public API from design.md, implemented in Group 2. `PlayerRef` exposes
+  public API of the design, implemented in Group 2. `PlayerRef` exposes
   record-style accessors `playerId()`, `deviceId()`, `playing()` and
   `sequence()` (the creation sequence), matching `Row`'s `kind()`,
   `deviceId()` and `playerId()`. These are plain final classes, not
@@ -806,7 +684,7 @@ unchanged.
   player id is only the lookup key: `AVTransportPlayer` ids are random
   and local player ids are fixed per type, so they say nothing about age.
 - `yaacc/src/test/java/de/yaacc/browser/DeviceSessionGrouperTest.java`
-  (JUnit 4.13.2, plain JVM) pins two readings of design.md that it left
+  (JUnit 4.13.2, plain JVM) pins two readings that the design left
   open:
   1. Sessions on a device that isn't a receiver get **no RECEIVER row**.
      A receiver row means bound device controls, which a vanished device
@@ -815,7 +693,7 @@ unchanged.
      ascending creation-sequence order (oldest first), after all receiver
      groups. As built in Group 2 (fix cycle 1), sessions are ordered by the
      creation sequence `PlayerService#getPlayerCreationSequence` assigns,
-     not by player id (see the spec's decisions.md).
+     not by player id (see "Design decisions and rationale").
   2. With no receivers at all, every session is still listed.
 
 ### 8. As built: how the pieces fit
@@ -887,7 +765,7 @@ unchanged.
 - **Cleanup.** `onDestroyView()` calls `DeviceSheetAdapter#release()`, which
   shuts down the sheet's `ReceiverRowBinder` executor, so no thread is left
   behind per open.
-- **Known limitations (follow-ups in the spec's decisions.md).** The classic
+- **Known limitations (follow-ups).** The classic
   layout does not offer the sheet (owner decision, Group 11); there the Receiver
   and Player tabs are the only way to control receivers and players. The sheet
   doesn't add or remove receivers that appear or vanish on the network while
@@ -902,14 +780,13 @@ Two browser activities share one app: the **classic** layout
 (`TabBrowserActivity`: four tabs) and the **new** single-screen layout
 (`BrowserActivity`: server list, then a server's content, with a receiver bar
 and a mini-player on every level). The "Layout" setting picks one. This section
-records the layout as built for spec `2026-10-23-unified-device-sheet`, Phase 2
-(Groups 5-9), verified 2026-10-24 against the checkout at `e312ee8b` on branch
+records the layout as built (Phase 2, Groups 5-9), verified 2026-10-24 against the checkout at `e312ee8b` on branch
 `feat/unified-device-sheet`, followed by the Group 5 research it was built
-from (kept for its citations). Group 11 (owner feedback, see "Owner feedback
+from (condensed to the platform facts). Group 11 (owner feedback, see "Owner feedback
 (Group 11)") changed three behaviors after that verification: the timer entry,
 the classic footer and the mini-player. "As built" subsections cite classes, not line
-numbers; the research subsections cite line numbers of the checkout *before*
-Group 6, which have since moved.
+numbers. The look and settings changes made afterwards (layout default, theme, gray scale,
+log viewer, server list button, mini-player exit, timer subtitle) are in "Look and settings: theme, gray scale, log viewer".
 
 Versions (nothing added by Phase 2): `yaacc/build.gradle` has `targetSdkVersion
 33`, `minSdkVersion 27`. `appcompat:1.8.0` resolves `androidx.activity:activity:1.8.0`,
@@ -1203,7 +1080,7 @@ item 0 (used only after the launch-token check). Where the text below differs, t
   chars, and the part before the first `':'` equals `http` or `https`
   (ASCII, case-insensitive). Nothing is trimmed. Reason: only web links are relayed by the proxy. The check looks only at the scheme and length, so an `http:` text with
   trailing junk also passes (pinned by `ShareUriPolicyTest#onlyTheSchemeAndLengthAreChecked`;
-  tightening is Backlog 1 item 8). A rejected text is only logged, with no
+  tightening is in the backlog, `tasks.md` "Owner's open items"). A rejected text is only logged, with no
   payload. The text is never used to build an intent, PendingIntent or file path.
 - **Waits and fallback** (classic and a missing host; in the new layout a link goes through the
   picker instead and does not wait or fall back): 0 s; +3 s when no receiver is ready; +3 s
@@ -1217,7 +1094,7 @@ item 0 (used only after the launch-token check). Where the text below differs, t
 - **Shutdown policy.** `shutdown()` sets a flag, clears the callback and calls
   the executor's graceful `shutdown()`: a share that is already waiting still
   plays (a rotation must not drop it), later `handle` calls are ignored. This is a
-  deliberate deviation from "cancel pending work" (decisions.md 2026-10-24). The
+  deliberate deviation from "cancel pending work". The
   `onPlayersStarted` callback is held in a `volatile` field that `shutdown()`
   clears, so the queue does not pin a destroyed activity and a late share does
   not switch tabs on a dead screen. At most 3 shares may be queued per handler;
@@ -1362,7 +1239,7 @@ are gone.
 - `ListPreference` in `res/xml/preference.xml`, first item of the Appearance
   category: key `@string/settings_browser_layout_key`
   (`setting_strings.xml`, non-translatable), title `settings_browser_layout_title`
-  ("Layout"), `summary="%s"`, default `classic`. Entries
+  ("Layout"), `summary="%s"`, default `new` (a fresh install; see "Look and settings"). Entries
   `settings_browser_layout_classic` ("Classic (tabs)") and
   `settings_browser_layout_new` ("New (single screen)") in 7 locales
   (`values/browser_layout.xml` and `strings.xml`); the stored values
@@ -1379,7 +1256,8 @@ are gone.
   only writer is the `ListPreference`. The stored string is only compared, never a
   class name, action, extra, path or reflection target. Do not add a second
   reader.
-- **Default** is classic on every device, Android TV included.
+- **Default** is `new` for a fresh install and classic for an installation updated from a version without the setting (`keepClassicForUpdatedInstall`, see
+  "Look and settings: theme, gray scale, log viewer"), Android TV included.
 - **Switch.** There is no relaunch in Settings. The change applies when the user
   returns to a browser screen: the resume check ("Launcher, effective layout,
   relaunch") sees the mismatch and runs `relaunchIfOtherLayout`.
@@ -1430,7 +1308,7 @@ Re-checked 2026-10-24 with `./gradlew :yaacc:processDebugManifest --offline`
   relaunch intent (fresh intent, no forwarded data) or rebuilding the notification
   on a layout change. To be observed in the manual checks.
 - **Android TV.** D-pad reach of the new layout is not verified. The setting is
-  visible on TV and the default stays classic; the new toolbar, receiver bar and
+  visible on TV and a fresh install starts in the new layout like on a phone; the new toolbar, receiver bar and
   mini-player are focusable by design. Recovery is the same Settings screen.
 - **`ImageDownloader` / `IconDownloadTask`** accept any URL scheme the JVM
   handles, with no connect/read timeout and no byte cap, and run on the serial
@@ -1446,9 +1324,9 @@ Re-checked 2026-10-24 with `./gradlew :yaacc:processDebugManifest --offline`
   Receiver and Player tabs are the only way to control receivers and players in
   the classic layout, and playing with no receiver selected shows the old toast
   (`error_no_receiver_selected`) instead of a prompt. Whether the classic layout
-  should ever get the sheet is closed with "no" (PRD open question 4). The one
+  should ever get the sheet is closed with "no" (owner decision). The one
   exception (Phase 3): a shared file opens the pick-mode sheet in classic too.
-- **Share, Backlog 1** (still open, waiting for a discussion with the owner): which
+- **Share backlog** (still open, waiting for a discussion with the owner; `tasks.md` "Owner's open items"): which
   share (receiving into yaacc, or also the per-item share out of yaacc); the
   classic link auto-play and its blind 3 s waits; a notice when a share is dropped
   for its type; what the new layout shows when a share starts; a cool-down after a
@@ -1468,23 +1346,12 @@ Re-checked 2026-10-24 with `./gradlew :yaacc:processDebugManifest --offline`
   `AVTransportPlayer#getNotificationIntent` uses `FLAG_CANCEL_CURRENT`, so
   each call cancels the previous PendingIntent with the same identity; the share
   handler also runs on every recreation after process death.
-- **Device checks still pending** (only reasoned, not run on a device; the
-  Group 9 manual-check task is open with the owner): re-tapping the launcher icon
-  with a finished root activity (no second browser instance; reasoned in (f));
-  the splash screen on Android 12+ with the invisible launcher; sharing a link
-  from another app through the share sheet (task placement, playback starts);
-  switching Layout in both directions with players running; tapping an old
-  notification after a switch; rotation in both layouts (fragment state, timer
-  state, mini-player); process death and restore; the 5-minute idle exit after a
-  rotation; the Android TV launcher entry and D-pad reach; the toolbar timer, the
-  mini-player rows (several players, scrolling beyond about three rows, buttons,
-  tap to open) and the receiver sheet at every level; the restored classic footer
-  in portrait and landscape. Group 11 was built and unit-tested, not run on a device.
+- **Device checks still pending.** The layout, mini-player, timer and footer checks are collected with all other open device checks under
+  "Not verified on a device" (in "Sharing local files").
 
 ### Owner feedback (Group 11)
 
-After the first on-device check the owner asked for three changes (decisions.md
-2026-10-24 "Owner feedback after the first on-device check"; tasks.md Group 11).
+After the first on-device check the owner asked for three changes.
 They supersede earlier text of this section wherever the two differ.
 
 1. **One shutdown-timer entry (new layout).** The toolbar icon is the only
@@ -1498,8 +1365,8 @@ They supersede earlier text of this section wherever the two differ.
    classic Content tab ends in the static provider line and receivers line (not
    clickable) as on `origin/feat/issue287`; the receiver sheet and the tappable
    receiver bar exist only in the new layout, and the "no receiver selected
-   opens the sheet" prompt is not active in classic (removed altogether in Phase 3). PRD open question 4 is
-   answered "no". See "As built: receiver bar and classic footer".
+   opens the sheet" prompt is not active in classic (removed altogether in Phase 3). The open question
+   "does classic keep the sheet" is answered "no". See "As built: receiver bar and classic footer".
 3. **Mini-player shows all running players.** One compact row per player,
    in the sheet's session order (oldest first), height capped at about three rows
    with an inner scroll, hidden when nothing runs. `MiniPlayerPicker` and its
@@ -1507,637 +1374,187 @@ They supersede earlier text of this section wherever the two differ.
    `MiniPlayerArtKeys`, `MiniPlayerAdapter` and `MaxHeightRecyclerView`. See
    "As built: mini-player".
 
-## Research notes (Group 5)
+## Look and settings: theme, gray scale, log viewer
 
-Everything below was written before any Phase 2 code existed ("recommended",
-"proposed" and "must" describe the plan, and the pre-Group-6 line numbers no
-longer match). The as-built text above wins wherever the two differ; each
-subsection ends with a short "As built" pointer where it did. The cited
-documentation and AOSP findings stay valid.
+As built for #287 (these were only in the CHANGELOG before). Rationale: "Design decisions and rationale".
 
-### (a) Host coupling: every `instanceof TabBrowserActivity` / `setCurrentTab` site
+- **Layout default.** `res/xml/preference.xml` defaults the Layout list to `new` and `BrowserLayoutChoice.DEFAULT_STORED_VALUE` is `STORED_NEW`,
+  so a fresh install starts in the new layout. `BrowserLayoutChoice.resolve(null)` is still `CLASSIC`, and `Yaacc.onCreate` calls
+  `BrowserLauncher.keepClassicForUpdatedInstall(preferences, settings_browser_layout_key)` right after `setDefaultValues`: an install updated
+  from a version without the setting has no stored value (see Research notes (Group 5), (c)), so `classic` is stored for it and merely opening
+  the setting cannot switch it. A fresh install already has the default stored, so the call does nothing. Android TV follows the same rule.
+- **Theme setting.** `ListPreference` `settings_theme_key` (stored key `settings_theme_key`) in Appearance, values `system` / `dark` / `light`
+  (`theme_values` in `res/values/theme_choice.xml`, labels `settings_theme_system|dark|light`). `ThemeChoice.nightMode` maps them to
+  `AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM|YES|NO`; null and unknown values give the mode of `DEFAULT_STORED_VALUE`, which is `dark` (the
+  check box was on by default). `Yaacc.onCreate` first runs `ThemeChoice.migrateLegacyDarkMode(preferences, settings_dark_mode_key,
+  settings_theme_key)` once: when the new key is absent and the old boolean exists, it stores `dark` for true and `system` for false and removes
+  the old key; then it applies the mode. `SettingsFragment` applies a change at once.
+- **Gray scale.** `AppTheme` (`res/values/styles.xml`) maps `colorPrimary`, `colorSecondary`, `colorAccent`, `colorControlActivated` and their
+  variants to `gray_*` colors in `res/values/colors.xml`, with dark variants in `res/values-night/colors.xml`; `GrayscaleResourcesTest` pins that
+  every color is a gray, and the launcher icon is the only colored asset. The title bar is dark gray in both themes: `android:colorPrimaryDark`
+  is `gray_bar_dark` (status bar), `actionBarStyle` is `Widget.App.ActionBar` with the background `gray_bar` (black in the dark theme), and
+  `actionBarTheme` is `ThemeOverlay.AppCompat.Dark.ActionBar`, so title and icons are light in both themes. The settings section headlines use
+  `PreferenceThemeOverlay.App` (bold, text color). Menu icons on the bar are white vectors, so `ImageViewerActivity` no longer tints them with the
+  activity's foreground color (that made them dark on dark in the light theme). The keyboard-move highlight in the playlist uses `gray_highlight`, the device state badge uses `colorSecondary`/`colorOnSecondary`, and the
+  pick sheet's hint uses the primary text color instead of the error color.
+- **Card view and landscape.** `ViewMode.DEFAULT` is `CARD`; the landscape content layout has the `contentListViewModeToggle` button and
+  `ContentListFragment` applies the grid for the stored mode in either orientation (see "Browse card-grid view: decisions and as shipped").
+- **Server list button (new layout).** `contentListServersButton` in the content header (portrait and landscape layouts; 44dp wide in landscape)
+  uses the icon of the Server tab, is visible only when `showsBackAtContentRoot()` (the new layout) and calls `BrowserHost#showServers()` from any
+  folder depth. The arrow still goes back one step. Before any content is loaded the path label already clears the back button
+  (`applyFolderNameMargin`).
+- **Mini-player exit button.** Each row has previous, play/pause, next, stop and exit (40dp wide so five fit). Exit runs `player.exit()` on the main
+  thread like the exit button of the player screen and the row disappears with the player-list notification; stop only stops the playback.
+- **Shutdown time as toolbar subtitle.** While a timer runs, `BrowserActivity#applyShutdownTimerState` sets the toolbar subtitle to
+  `ShutdownTimerToggle.subtitle(name, remaining, running)` ("Shutdown timer: HH:MM:SS", null clears it), because a toolbar drops the text of an
+  action item with an icon on narrow screens; the item itself stays checked and always shown.
+- **Pick sheet buttons.** OK is a plain bold text button like Cancel, and the pick rows and buttons use theme text colors so they are readable on
+  the dark sheet.
+- **Log viewer.** `YaaccLogActivity` reads the log on a single background thread and refreshes every 2 s while open (`REFRESH_INTERVAL_MS`), and scrolls
+  down by itself only while the user is at the end. "Clear" (menu `menu_clear_log`) stores the current time under the preference `yaacc_log_cleared_at`
+  and also tries `logcat -c`; the marker is what makes it reliable. `LogCommand.build(level, clearedAtMillis, zone)` returns `logcat -d *:<level>`,
+  or `logcat -d -T "MM-dd HH:mm:ss.SSS" *:<level>` after a clear (device time zone, `Locale.US`); the level must be one of `V D I W E F`, anything else
+  falls back to `E`.
 
-#### Finding: `getParent()` is never non-null here
+## Research notes (Group 5): platform facts behind the layouts
 
-Four sites test `requireActivity().getParent() instanceof TabBrowserActivity`.
-`Activity.getParent()` "returns the parent Activity if this is a child
-Activity of an ActivityGroup" and is deprecated since API 35 because
-`ActivityGroup` is deprecated [docs:
-`https://developer.android.com/reference/android/app/Activity#getParent()`].
-`TabBrowserActivity` is a plain `AppCompatActivity` started with
-`startActivity` (`TabBrowserActivity.java:85`, `AndroidManifest.xml:46-66`),
-and the fragments live in the activity's own `FragmentManager`, so
-`requireActivity()` is the `TabBrowserActivity` itself and its `getParent()`
-is `null` [reasoned]. Those four branches never run. The fifth live site
-(`ServerListClickListener`) works because it does not use `getParent()`.
+Written before the Phase 2 code existed and condensed afterwards to what stays true; the plans, option comparisons and
+review-driven rewording are in git. "As built" above wins wherever it differs. Marks: **[code]** read in this repo (class names,
+not line numbers, which have moved); **[javap]** `javap -public` on `activity-1.8.0.aar` from
+`~/.gradle/caches/modules-2/files-2.1/androidx.activity/activity/1.8.0/`; **[docs]** official documentation (URL given);
+**[aosp]** AOSP `android-14.0.0_r1` from `raw.githubusercontent.com/aosp-mirror/platform_frameworks_base/android-14.0.0_r1/`
+(newer releases may differ); **[reasoned]** inferred, not run on a device.
 
-#### Site inventory
-
-State before Phase 2. As built: sites 1-4 were removed, site 5 and 8 call
-`BrowserHost`, site 6 became an `instanceof BrowserHost` guard, 7 and 9 are
-classic-internal.
-
-| # | Site | Trigger | Wants from host | Live then? |
-|---|---|---|---|---|
-| 1 | `PlayerListFragment.java:105-106` | `onBackPressed()` | go to Receiver tab (`BrowserTabs.RECEIVER`) | **dead** (`getParent()` null); handler still returns `true`, so back is swallowed |
-| 2 | `ReceiverListFragment.java:157-158` | `onBackPressed()` | go to Content tab | **dead**, back swallowed |
-| 3 | `ContentListFragment.java:551-552` | `onBackPressed()` at folder root (`ITEM_ROOT_OBJECT_ID`, `:542-553`) | go to Server tab | **dead**, back swallowed. Folder pop at `:555-570` is live. |
-| 4 | `ServerListFragment.java:162-163` | `deviceAdded(device)` when `device` equals `upnpClient.getProviderDevice()` (`:155`) | auto-jump to Content tab | **dead** |
-| 5 | `ServerListClickListener.java:50-51` | click on a server row, after `upnpClient.setProviderDevice(...)` (`:49`) | go to Content tab | **live**: `parent` is the `Context` handed to `BrowseDeviceAdapter` (`BrowseDeviceAdapter.java:130`), which is `getActivity()` (`ServerListFragment.java:131`) |
-| 6 | `ServerListFragment.java:238` | `v.getContext() instanceof TabBrowserActivity` guard around `setLocalServerState(view)` after the server switch is clicked | not navigation. A "are we in the classic activity" guard. | live in classic, but the guard is pointless: `setLocalServerState` only needs the view |
-| 7 | `TabBrowserActivity.java:226, 228` | `onCreate`: restore saved tab; otherwise go to `CONTENT` if a provider device is selected | activity-internal | live |
-| 8 | `TabBrowserActivity.java:315` | share handler, after `player.play()` | go to Player tab | live |
-| 9 | `TabBrowserActivity.java:334-341` | `setCurrentTab(BrowserTabs)`: `runOnUiThread` then `tabLayout.getTabAt(ordinal).select()` | the implementation | live |
-
-`SettingsActivity.java:42` (`TabBrowserActivity.leftSettings = true`) is a
-static coupling, not navigation. See (c).
-
-Non-fragment references that only build an explicit `Intent` to the class:
-`Yaacc.java:172` (`createYaaccGroupNotification`, content intent, no extras),
-`PlayerService.java:106` (`createSessionActivity`, used for the media session)
-and `PlayerService.java:199` (`updateServiceNotification`). All three use
-`FLAG_IMMUTABLE`, the first and third without `FLAG_UPDATE_CURRENT`.
-`UpnpClient.java:97,1661` only uses `TabBrowserActivity.class.getName()` as a
-log tag.
-
-Tab order is `SERVER(0)`, `CONTENT(1)`, `RECEIVER(2)`, `PLAYER(3)`
-(`BrowserTabs.java:21-25`); `TabBrowserFragmentStateAdapter` creates one
-fragment instance per tab (`:28-97`). `TabBrowserActivity.onBackPressed`
-indexes `getSupportFragmentManager().getFragments()` by the selected tab
-position (`:420-421`), so it relies on fragment order equalling tab order.
-
-#### `BrowserHost`
-
-Built with the four methods this analysis found (`showServers()` for site 3's
-intent, `showContent()` for sites 2 and 5, `showReceivers()` for site 1,
-`showPlayers()` for site 8) plus three capability defaults; the interface and
-each activity's implementation are under "As built: `BrowserHost`". Fragments
-find the host with `getActivity() instanceof BrowserHost`,
-`ServerListClickListener` with `parent instanceof BrowserHost`; both tolerate
-"no host".
-
-#### Decision for Group 6: the four dead sites
-
-The Group 6 Accept says "classic behavior is unchanged (same tab
-switches)". Wiring sites 1-4 to `BrowserHost` would make them **live** and
-change classic: back on the Player tab would go to Receiver, Receiver to
-Content, Content root to Server (today all three are swallowed no-ops), and
-site 4 would yank the user to the Content tab whenever the selected provider
-announces itself again. Decision, as built in Group 6:
-
-- Sites 5 and 8 go through `BrowserHost` (they are live).
-- Sites 1-3: the dead `getParent()` branch is removed and `return true` kept;
-  they are not wired, so classic stays unchanged. Making classic back work
-  properly is a behavior change for the owner to decide separately.
-- Site 4: the dead branch is deleted, not wired; the new layout starts at the
-  server list and does not auto-jump.
-- The new layout needs real up-navigation anyway; it gets it from its own back
-  handling (see (b)), not from these dead handlers.
+### (a) Host coupling in the classic activity
+- `Activity.getParent()` "returns the parent Activity if this is a child Activity of an ActivityGroup" and is deprecated since
+  API 35 [docs: `https://developer.android.com/reference/android/app/Activity#getParent()`]. `TabBrowserActivity` is a plain
+  `AppCompatActivity` and its fragments live in its own `FragmentManager`, so `requireActivity().getParent()` is `null` [reasoned].
+  Four `getParent() instanceof TabBrowserActivity` branches therefore never ran: `PlayerListFragment` and `ReceiverListFragment`
+  back, `ContentListFragment` back at the folder root, and the `ServerListFragment.deviceAdded` auto-jump to the Content tab. Their
+  handlers still return `true`, so in classic back is swallowed on the Content root, Receiver and Player tabs; only the folder pop
+  and the Server-tab exit work. They were removed, not wired (wiring would change classic).
+- Live sites: `ServerListClickListener` (server row click, `parent` is the activity handed to `BrowseDeviceAdapter`) and the share
+  handler after `player.play()`; both go through `BrowserHost` now.
+- Tab order is `SERVER(0)`, `CONTENT(1)`, `RECEIVER(2)`, `PLAYER(3)` (`BrowserTabs`); `TabBrowserFragmentStateAdapter` creates one
+  fragment per tab and classic `onBackPressed` indexes `getFragments()` by the selected tab position.
+- Non-fragment references that only build an explicit `Intent` to the class: `Yaacc.createYaaccGroupNotification`,
+  `PlayerService.createSessionActivity` and `PlayerService.updateServiceNotification` (all `FLAG_IMMUTABLE`, no extras);
+  `UpnpClient` uses the class name as a log tag. No code finds "the current browser": there are no static `Activity`/`Fragment`
+  references; fragments use `getActivity()`, adapters the `Context` they were built with; `UpnpClient` and `PlayerService` hang off
+  the `Application`. `Yaacc.exit()` finishes every app task and ends with `Runtime.getRuntime().exit(0)`, so it works whichever
+  browser is on top.
 
 ### (b) Back handling
+- Classic: `TabBrowserActivity.onBackPressed()` asks the fragment of the selected tab (`OnBackPressedListener`, "return true if
+  your processing has priority"), else `super`. Server tab: `Yaacc.exit()` + `finish()` (back quits the process). Content: cancels
+  loads; below the root it pops one `Navigator` position and reloads, at the root it only refreshes the header; always `true`.
+  Receiver and Player: `true`, i.e. nothing.
+- API for the new activity [javap, activity 1.8.0; docs `https://developer.android.com/reference/androidx/activity/OnBackPressedDispatcher`]:
+  `ComponentActivity.getOnBackPressedDispatcher()` is `public final`; `addCallback(LifecycleOwner, OnBackPressedCallback)` follows the
+  owner's lifecycle and is removed on `DESTROYED`. Do not override `onBackPressed()`: from API 33 back moves to an ahead-of-time model
+  and it "should not be used" [docs: `https://developer.android.com/reference/android/app/Activity#onBackPressed()`]. The classic
+  override still works because `targetSdkVersion` is 33 and the manifest has no `android:enableOnBackInvokedCallback`.
 
-#### Flow in the classic layout [code]
+### (c) The Settings round trip, the idle timer and the relaunch
+- `SettingsActivity` is opened with a plain `startActivity` from four places (the browser, `ImageViewerActivity`,
+  `AVTransportPlayerActivity`, `YaaccUpnpServerControlActivity`), never for a result. Before Phase 2 it set a static
+  `TabBrowserActivity.leftSettings` in `onPause()`; the browser's `onResume` then stopped and restarted `YaaccUpnpServerService` when
+  the "local server" preference was on (so changed server settings took effect), else just started it, and stopped it when the
+  preference was off. Now `SettingsActivity.consumeLeftSettings()` + `LocalServerLifecycle.apply`.
+- Latent bug the relaunch made visible: the idle timer was a per-instance `Handler`; `onStop()` posted the 5-minute exit and
+  `onResume()` cancelled only that instance's callbacks, so after a rotation or relaunch the old instance still called `Yaacc.exit()`
+  five minutes later [reasoned]. A plain cancel-on-resume is not enough either: the old browser's `onStop` can arm the timer after the
+  new browser's `onResume` cancelled it, hence one process-wide timer that counts started browsers.
+- Why the layout is checked in `onResume`: Settings always sits on top of a browser or player screen, so `onResume` is a guaranteed point
+  after the user is done (no result code, no listener); it works for all four entry points and also corrects stale launches (a
+  notification `PendingIntent` posted before the switch starts the "wrong" class, which redirects itself). Rejected:
+  `OnSharedPreferenceChangeListener` (fires while Settings is on top and the browser is stopped; registry holds listeners weakly),
+  `ActivityResult` (Settings is never started for a result; default `RESULT_CANCELED` on back), `recreate()` (cannot switch classes).
+  Cost: one frame of the old UI, hidden by `overridePendingTransition(0, 0)`.
+- `PreferenceManager.setDefaultValues(this, R.xml.preference, false)` with `readAgain=false` "sets the default values only if this method
+  has never been called in the past" [docs: `https://developer.android.com/reference/androidx/preference/PreferenceManager#setDefaultValues(android.content.Context,int,boolean)`].
+  An update therefore does not get the default of a preference added later: `getString(key, null)` returns `null` for it. Always read
+  the Layout preference with default `null`; `keepClassicForUpdatedInstall` stores `classic` for such installs at app start.
+- Without the effective-layout comparison and the guard, a stored `"new"` while the new layout is unavailable (backup restore, adb,
+  downgrade) would bounce between the activities forever.
 
-1. `TabBrowserActivity.onBackPressed()` (`:417-427`) overrides the
-   deprecated `Activity` method. It takes the fragment at index
-   `tabLayout.getSelectedTabPosition()` of `getFragments()`; if it implements
-   `OnBackPressedListener` (`OnBackPressedListener.java:25-28`: "return true
-   if your processing has priority") and returns `true`, that is the end.
-   Otherwise `super.onBackPressed()` (finish).
-2. Per tab:
-   - **Server**: `ServerListFragment.onBackPressed()` (`:113-118`) calls
-     `Yaacc.exit()` and `finish()` and returns `true`. `exit()` shuts down the
-     client, stops both services, cancels notifications, finishes all app
-     tasks and ends with `Runtime.getRuntime().exit(0)` (`Yaacc.java:125-149`).
-     So back on the Server tab quits the whole process.
-   - **Content**: `ContentListFragment.onBackPressed()` (`:535-575`) cancels
-     running loads. Below the root it pops one `Navigator` position and
-     reloads that folder (`:555-570`); at the root it only refreshes the
-     header and tries the dead site 3. Always returns `true`. The in-screen
-     back arrow (`contentListBackButton`, `:112-117`) calls the same method;
-     it is hidden at the root (`updateFolderNavigationUi`, `:470-490`).
-     Possible NPE: `navigator` is dereferenced at `:537` without a null check
-     while `updateFolderNavigationUi` does check it.
-   - **Receiver**, **Player**: dead site, return `true`: back does nothing.
-3. Net effect today: only the Server tab and folder levels respond to back.
-   On the Content root, Receiver and Player tabs back is swallowed, so the
-   spec's phrase "exactly as the classic back flow does" (Group 7) describes
-   the code's intent, not its behavior.
+### (d) Shutdown timer and MediaProjection in `ServerListFragment`
+- The timer lives in `Yaacc` (`CountDownTimer`, ticks every second, `exit()` at the end); it did not know whether it ran or what was
+  left, and kept ONE listener (the fragment, never cleared: a fragment and activity leak after rotation). The configured duration is a
+  `long` under `settings_shutdown_timer`; the old UI parsed `HH:MM` back out of a formatted string. As built: `ShutdownTimerController`,
+  `Yaacc#isShutdownTimerRunning()`, `getShutdownTimerRemainingMillis()` and a listener list.
+- MediaProjection: the fragment registered a STATIC stop callback (a second instance replaced the first, nothing unregistered it);
+  `BrowseDeviceAdapter` asks the fragment (stream-permission callback) which calls `startActivityForResult(..., 2001)`; streaming state
+  is process-wide (`static isAudioStreaming`/`isVideoStreaming`, preferences reset to `false` at every process start). The result is
+  delivered to the fragment that started it, so nothing had to move to the activity (`StreamingPermissionHelper` serves every fragment
+  hosting the adapter). `registerForActivityResult` exists in fragment 1.5.4 / activity 1.8.0 [javap]; the old API still works.
 
-#### Back handling in the new activity: API checks
-
-- **API is available in appcompat 1.8.0 / activity 1.8.0 [javap]**:
-  `ComponentActivity.getOnBackPressedDispatcher()` is `public final`;
-  `OnBackPressedDispatcher.addCallback(LifecycleOwner, OnBackPressedCallback)`,
-  `addCallback(OnBackPressedCallback)`, `hasEnabledCallbacks()` exist;
-  `OnBackPressedCallback(boolean)`, `setEnabled`, `isEnabled`, `remove`,
-  `handleOnBackPressed()` (abstract) exist. API reference:
-  `https://developer.android.com/reference/androidx/activity/OnBackPressedDispatcher`
-  (that page documents the latest release; the signatures used here are
-  "Added in 1.0.0" and were checked against the 1.8.0 jar).
-- `getOnBackPressedDispatcher().addCallback(this, callback)` is called once in
-  `onCreate`. The docs say a callback registered with a `LifecycleOwner`
-  follows its lifecycle and is removed on `DESTROYED`, so nothing leaks.
-- Do not override `onBackPressed()`. The docs state that from API 33 back
-  handling moves to an ahead-of-time model and `Activity.onBackPressed()`
-  "should not be used" [docs:
-  `https://developer.android.com/reference/android/app/Activity#onBackPressed()`].
-  The classic override still works for this app because `targetSdkVersion` is
-  33 and the manifest has no `android:enableOnBackInvokedCallback`
-  [code: `build.gradle`, `AndroidManifest.xml`]; the new activity does not
-  depend on that. `enableOnBackInvokedCallback` is not set by Phase 2 (not
-  researched, and it would change classic).
-- D-pad / TV: system Back arrives as the same back event; nothing special.
-
-As built: see "As built: back, toolbar, settings round trip (new layout)"
-(`BrowserBackNavigation`, `ContentListFragment#isAtRoot()`, the back arrow at a
-server's root through `showsBackAtContentRoot()`). The new activity does not
-index `getFragments()` by tab position the way classic does.
-
-### (c) The `leftSettings` round trip
-
-#### What happened before Phase 2 [code]
-
-- `TabBrowserActivity.leftSettings` is `public static boolean`, marked
-  `//FIXME dirty` (`TabBrowserActivity.java:88-89`).
-- `SettingsActivity.onPause()` sets it to `true` (`SettingsActivity.java:40-43`).
-  `SettingsActivity` is opened by plain `startActivity` from four places:
-  `TabBrowserActivity.java:453`, `ImageViewerActivity.java:455`,
-  `AVTransportPlayerActivity.java:403`, `YaaccUpnpServerControlActivity.java:415`.
-  Never for a result.
-- `TabBrowserActivity.onResume()` (`:355-376`): if the stored "local server"
-  preference is on, it **stops and restarts** `YaaccUpnpServerService` when
-  `leftSettings` is true (so changed server settings take effect), otherwise
-  just starts it; if the preference is off it stops the service. Then resets
-  the flag. The flag may be set by a settings visit from another activity and
-  is consumed when the browser next resumes.
-- The same `onResume` also re-reads `settings_swipe_chkbx` for the
-  `ViewPager2` (classic only).
-
-#### What the new activity needed
-
-Built as `LocalServerLifecycle.apply(Context, boolean)`,
-`SettingsActivity.consumeLeftSettings()`, `BrowserActivitySupport` (permission
-request, battery prompt, menu actions) and `BackgroundIdleTimer`; see the
-as-built subsections. The reason for the process-wide, counted idle timer:
-
-- **Latent bug the relaunch makes more visible** (before Phase 2): the idle
-  timer was a per-instance `Handler` + `Runnable`. `onStop()` posted the
-  5-minute exit; `onResume()` cancelled only **this instance's** callbacks.
-  After any recreation (rotation) or a relaunch, the old instance's runnable was
-  still queued and, if there were no players and no local server/renderer/proxy
-  enabled, called `Yaacc.exit()` five minutes later even though the user was
-  active in the new instance [reasoned]. A plain "cancel on resume" is not
-  enough, because the old browser's `onStop` can arm the timer after the new
-  browser's `onResume` has cancelled it, so the timer counts started browsers
-  and arms only when the count drops to 0 (decisions.md 2026-10-24, review W4
-  and security review cycle 1).
-
-#### Relaunch when the Layout preference changes: why check on resume
-
-Each browser activity compares the **effective** layout with its own in
-`onResume()` and, on a mismatch, starts the other with a fresh intent and
-finishes, behind a relaunch guard (as built: `BrowserLauncher.relaunchIfOtherLayout`,
-see "As built: launcher, effective layout, relaunch"). The effective layout
-is `CLASSIC` while `NEW_LAYOUT_AVAILABLE` is `false`, and
-`BrowserLauncher.targetClass()` and the check use the same function.
-
-Without the effective-layout comparison and the guard, a stored `"new"`
-while the new layout is unavailable (backup/restore, adb, downgrade) would
-bounce between the two activities forever (security review cycle 1,
-Warning 2). A pending share payload is never forwarded to the other browser
-(see "Resume check" under "As built: launcher, effective layout, relaunch").
-
-Why this one:
-
-- Settings is always opened with `startActivity` on top of a browser (or a
-  player screen) and the browser then stops and resumes, so `onResume` is a
-  guaranteed point after the user is done. No result code, no listener.
-- Works for all four Settings entry points: if Settings was opened from a
-  player screen, the mismatch is caught when the user next reaches the
-  browser.
-- Also corrects **stale launches**: `Yaacc.java:172` and `PlayerService.java`
-  `:106, :199` build explicit-class `PendingIntent`s when the notification is
-  posted; after a layout change, tapping an old notification starts the
-  "wrong" class, which immediately redirects itself. Group 6's launch helper
-  alone cannot fix already-posted notifications.
-- Process death: the preference is read again on recreation; nothing to
-  persist.
-- `getString(key, null)` returns `null` for existing installs: the new
-  `ListPreference`'s default is **not** written for them, because
-  `Yaacc.onCreate` calls `PreferenceManager.setDefaultValues(this,
-  R.xml.preference, false)` and with `readAgain=false` that "sets the default
-  values only if this method has never been called in the past" [docs:
-  `https://developer.android.com/reference/androidx/preference/PreferenceManager#setDefaultValues(android.content.Context,int,boolean)`].
-  `BrowserLayoutChoice.resolve(null)` -> `CLASSIC` (the Group 5 test) handles
-  it. Never use a default other than `null` when reading.
-- Players keep running: they live in `PlayerService`/`UpnpClient`, which hang
-  off the `Application` (`Yaacc.java:62-66`, `UpnpClient(Context)` gets the
-  application), not off an activity.
-
-Rejected:
-
-- `OnSharedPreferenceChangeListener` in the browser: it fires while Settings
-  is on top and the browser is stopped; the new activity would start over
-  Settings mid-edit. Listeners must also be strongly referenced (the registry
-  holds them weakly) and unregistered.
-- `ActivityResult` from Settings: Settings is not started for a result in any
-  of its four entry points, and its default result is `RESULT_CANCELED` on
-  back.
-- `recreate()`: cannot switch classes.
-
-Cost: one frame of the old UI after returning from Settings. Acceptable;
-`overridePendingTransition(0, 0)` hides the cross-fade.
-
-### (d) `ServerListFragment`: shutdown timer, MediaProjection, streaming flags
-
-#### Shutdown timer before Phase 2 [code]
-
-State and wiring:
-
-- Timer lives in `Yaacc`: `CountDownTimer shutdownTimer`, one
-  `ShutdownTimerListener shutdownTimerListener` (`Yaacc.java:65-66`);
-  `startShutdownTimer(long)` stops any running timer, ticks every second and
-  calls the listener, and calls `exit()` on finish (`:194-213`);
-  `stopShutdownTimer()` (`:215`); getter/setter (`:221-227`).
-  `ShutdownTimerListener` has one method `onTick(long)`
-  (`util/ShutdownTimerListener.java:21`).
-- `Yaacc` cannot tell whether a timer is running, and does not keep the
-  remaining time. The UI therefore keeps its own copy.
-- `ServerListFragment` views (`fragment_server_list.xml:33-80`):
-  `serverListShutdownTimerLabel`, `serverListShutdownTimerEnabled` (switch),
-  `serverListSetShutdownTimer` (button), `serverListShutdownTimerRemaining`
-  (text). The duration is persisted as a `long` under
-  `R.string.settings_shutdown_timer` (`setting_strings.xml:157`, default `0`).
-  `FormatHelper.parseMillisToTimeStringTo(long)` renders `HH:MM:SS`
-  (`FormatHelper.java:9-16`).
-- Logic: switch on -> `setShutdownTimerListener(this)` +
-  `startShutdownTimer(stored)` (`ServerListFragment.java:259-268`); switch off
-  -> reset text to the stored duration + `stopShutdownTimer()`; set button ->
-  parse `HH:MM` back out of the formatted string
-  (`:272-299`, fragile: `Integer.parseInt(durationString.split(":")[0])`),
-  show a `MaterialTimePicker` (`CLOCK_24H`, keyboard input), store millis,
-  restart the timer if the switch is on. Remaining text is copied through
-  `onSaveInstanceState` (`:207-211`, reads `getView()` unguarded) and only
-  re-attaches the listener when restored from saved state (`:250-253`).
-- Problems to avoid copying: the `Application` holds the fragment as listener
-  and nothing ever clears it (fragment + activity leak after rotation or
-  destroy); a recreated fragment does not know a timer is already running
-  (the switch is not restored from `Yaacc`).
-
-As built: `ShutdownTimerController` with `attach` / `detach`, plus
-`Yaacc#isShutdownTimerRunning()` and `Yaacc#getShutdownTimerRemainingMillis()`
-and a multi-listener list in `Yaacc` (see "As built: shutdown timer and
-streaming permission"). Classic's `ServerListFragment` keeps its four views and
-delegates to the controller; the new layout shows the timer in the toolbar and
-the server list leaves the timer rows out when
-`BrowserHost.providesShutdownTimer()` is true. `MaterialTimePicker` was already
-used here and `material:1.14.0` is unchanged.
-
-#### MediaProjection permission flow before Phase 2 [code]
-
-- Fragment `onCreate` registers a **static** callback
-  `MediaProjectionHelper.setStopCallback(...)` capturing the fragment
-  (`ServerListFragment.java:87-110`; `MediaProjectionHelper.java:56-59`). It
-  resets both streaming preferences, both static flags and refreshes the
-  adapter. Nothing unregisters it, and a second fragment instance silently
-  replaces the first.
-- Request: `BrowseDeviceAdapter` gets a `StreamPermissionCallback` from the
-  fragment (`ServerListFragment.java:133-138`), invoked by the audio/video
-  stream buttons when `MediaProjectionHelper.hasPermission()` is false
-  (`BrowseDeviceAdapter.java:246-256, 281-291`), after it sets the static
-  `pendingAudioRequest`/`pendingVideoRequest` flags. The fragment answers with
-  `startActivityForResult(MediaProjectionHelper.createPermissionIntent(...),
-  REQUEST_CODE_MEDIA_PROJECTION)` (request code 2001,
-  `MediaProjectionHelper.java:41`).
-- Result: `ServerListFragment.onActivityResult` (`:362-415`) calls
-  `MediaProjectionHelper.handlePermissionResult`, then on grant writes the
-  matching preference(s) and sets the matching static flag(s) according to
-  which button asked, clears the pending flags and `notifyDataSetChanged()`s;
-  on denial clears both preferences, flags and refreshes.
-- Streaming state is process-wide: `isAudioStreaming`/`isVideoStreaming` are
-  `static` in `BrowseDeviceAdapter` (`:61-62`), re-read from preferences when
-  the yaacc row is bound (`:196-197`); `Yaacc.onCreate` resets both
-  preferences to `false` at every process start (`Yaacc.java:91-96`). So the
-  state survives a classic <-> new switch inside one process.
-- Fragment 1.5.4 and activity 1.8.0 both offer `registerForActivityResult`
-  [javap: `ComponentActivity.registerForActivityResult`]; the old
-  `Fragment.startActivityForResult`/`onActivityResult` still work.
-
-What had to move: **nothing has to move to the toolbar or the activity** for
-streaming. The buttons stay on the yaacc row, and the row only exists in the
-fragment that hosts `BrowseDeviceAdapter`; the permission result is delivered
-to the fragment that started it. As built, every such fragment uses
-`StreamingPermissionHelper` (stop callbacks registered in `onStart`, removed in
-`onStop`; the static `pending*` flags stay in `BrowseDeviceAdapter`).
-
-### (e) Share-intent handler: `checkIfReceivedShareIntent`
-
-`TabBrowserActivity.java:257-331`, called from `onCreate` with `null`
-(`:232`, after the `upnpClient == null` early return at `:220-223`) and from
-`onNewIntent` (`:251-255`).
-
-Behavior before Phase 2 [code]:
-
-1. Only `Intent.ACTION_SEND`. URI source order: `EXTRA_TEXT` string
-   (`Uri.parse`), else the **last** `ClipData` item that has text or a URI
-   (`:262-276`). The manifest filter is `text/plain` only (g).
-2. Clears what it read so a recreated activity does not replay it:
-   `intent.removeExtra(EXTRA_TEXT)`, `intent.setClipData(null)` (`:277-283`).
-   It therefore mutates the `Intent` object it is given.
-3. If there is a URI: delay 0 s; +3 s if
-   `upnpClient.getReceiverDevicesReadyCount() == 0` (`:286-289`); +3 s and
-   `upnpClient.startService()` if `!upnpClient.isPlayerServiceInitialized()`
-   (`:290-294`). Creates a new `Executors.newSingleThreadScheduledExecutor()`
-   per call, never shut down (thread leak) (`:297`). Toast "start in N
-   seconds" when delayed (`:324`).
-4. Worker: if still no ready receiver, toast "no receiver found using local
-   device" (on the UI thread via `runOnUiThread`) and
-   `upnpClient.setReceiverDeviceIds(Set.of(UpnpClient.LOCAL_UID))`
-   (`:302-306`); `upnpClient.createPlayableItem(uri)` (`throws IOException`,
-   not caught on the worker thread before Phase 2,
-   `:317-319`); posts to the main looper: `initializePlayersWithPlayableItems`,
-   `player.play()` for each, then `setCurrentTab(PLAYER)` (`:309-316`).
-
-Dependencies: `UpnpClient` (`getReceiverDevicesReadyCount :1056`,
-`isPlayerServiceInitialized :1673`, `startService :178`,
-`setReceiverDeviceIds :1025`, `createPlayableItem(Uri) :1599`,
-`initializePlayersWithPlayableItems :1247`), `Player.play()`, an application
-`Context` for toasts, a main-thread `Handler`, and one UI callback
-(`setCurrentTab(PLAYER)`). Nothing needs the `Activity` itself except
-`runOnUiThread` for one toast, which a main-looper `Handler` replaces (and
-stops capturing the activity for up to 6 s).
-
-As built: `ShareIntentHandler` (see "As built: share handler"): both 3 s waits
-and the fallback are unchanged, the executor is shut down, the callback is
-`showPlayers()` in classic and `null` in the new layout, and the untrusted text
-is only checked by `ShareUriPolicy`, `Uri.parse`d and passed to
-`createPlayableItem`, never executed or used to build an `Intent`.
-
-- `onNewIntent` is effectively unreachable in classic: `TabBrowserActivity`
-  has no `launchMode`, so a second `ACTION_SEND` starts a **new instance**
-  rather than delivering to the running one (for a standard-mode activity
-  whose component equals the task root, `ActivityStarter` takes the
-  "same component" branch but only calls `deliverNewIntent` for
-  `singleTop`/`FLAG_ACTIVITY_SINGLE_TOP`, otherwise it adds an instance when
-  the intent filter differs from the task's base intent, [aosp:
-  `ActivityStarter.java` `complyActivityFlags`, ~lines 2466-2492]
-  [reasoned]). Both browsers still pass `onNewIntent` to the handler, for an explicit
-  `SINGLE_TOP` start.
+### (e) The share handler before Phase 2 (`checkIfReceivedShareIntent`)
+- Only `ACTION_SEND`; text from `EXTRA_TEXT`, else the LAST `ClipData` item with text or a URI; it removed the extra and cleared the
+  clip data (mutating the intent) so a recreated activity does not replay it. Delays: 0 s, +3 s when no receiver is ready, +3 s and
+  `startService()` when the player service is not initialized; if still no receiver, a toast and `setReceiverDeviceIds({LOCAL_UID})`;
+  then `createPlayableItem(uri)` (`IOException` not caught on the worker), `initializePlayersWithPlayableItems`, `play()`, switch to the
+  Player tab. A new single-thread executor per call was never shut down. `onNewIntent` is effectively unreachable in classic:
+  `TabBrowserActivity` has no `launchMode`, so a second `ACTION_SEND` starts a new instance [aosp: `ActivityStarter.complyActivityFlags`,
+  reasoned]; both browsers still pass `onNewIntent` to the handler for an explicit `SINGLE_TOP` start.
 
 ### (f) A `Theme.NoDisplay` trampoline that forwards `ACTION_SEND`
+- `Theme.NoDisplay` is the "default theme for activities that don't actually display a UI; that is, they finish themselves before being
+  resumed" [docs: `https://developer.android.com/reference/android/R.style#Theme_NoDisplay`]. An invisible activity that has not called
+  `finish()` before `onResume()` completes logs a warning and, for `targetSdkVersion` > 22 (this app: 33), throws `IllegalStateException`
+  [aosp: `Activity.performResume`]. So `finish()` goes in a `finally` around `startActivity`. It must extend `android.app.Activity`
+  (a framework theme, not AppCompat).
+- `CATEGORY_LEANBACK_LAUNCHER` is a plain category on a `MAIN` filter (API 21) and works on a `NoDisplay` activity like `LAUNCHER`
+  [docs: `https://developer.android.com/reference/android/content/Intent#CATEGORY_LEANBACK_LAUNCHER`]; the launcher shows the launcher
+  component's label (`@string/title_activity_main`), icon and banner fall back to `<application>`; the manifest has no leanback
+  `uses-feature`.
+- `android:exported`: with intent filters `true` is required for other apps to start the activity; explicit intents ignore filters, so
+  the browsers need no filters once the trampoline holds them [docs: `https://developer.android.com/guide/topics/manifest/activity-element#exported`].
+  `launchMode`/`taskAffinity` default to `standard` / one affinity per app [docs: same page, `#lmode`, `#aff`]; none is set, so
+  trampoline, target and notification launches share a task.
+- URI grants [docs]: `FLAG_GRANT_READ_URI_PERMISSION` grants read on the intent's data and any ClipData URIs and "only the grant flags of
+  the top-level Intent are used" (`https://developer.android.com/reference/android/content/Intent#FLAG_GRANT_READ_URI_PERMISSION`);
+  `setClipData`: the flags "will operate on any URI items included in the clip data"; for `ACTION_SEND` without ClipData, `EXTRA_STREAM`
+  and `EXTRA_TEXT` "will be copied there for you when calling `Context.startActivity(Intent)`"; grants are temporary and "expire
+  automatically when the receiving app's task stack is finished" (`https://developer.android.com/training/secure-file-sharing/share-file`);
+  persistable grants need `FLAG_GRANT_PERSISTABLE_URI_PERMISSION`, which a share does not carry.
+- Forwarding a grant [aosp `android-14.0.0_r1`, not stated in the public docs]: (1) nothing strips `FLAG_GRANT_*` on the intent the receiver
+  sees; (2) on `startActivity`, `ActivityStarter` calls `UriGrantsManagerService.checkGrantUriPermissionFromIntent(intent, callingUid, ...)`
+  and requires that the caller itself holds the permission by manifest or by a strong enough URI grant, which the trampoline does (the
+  system granted it on delivery), so a re-grant to the real activity succeeds if the provider allows granting; (3) the grant is owned by the
+  receiving `ActivityRecord`'s `UriPermissionOwner` and removed with the record, the target gets its own entry, so finishing the trampoline
+  does not revoke the target's access, but `startActivity` must happen in `onCreate`, before the trampoline is destroyed; (4) same-uid
+  source and target does not bypass the check (the shortcut looks at manifest permissions only); (5) `new Intent(Intent o)` copies flags
+  and ClipData, so a copy carries the grant exactly like the original - which is why the launcher builds a fresh intent: it is exported,
+  and any app can send it any intent (no flags, no `data`, no ClipData URIs, no `EXTRA_STREAM`/`EXTRA_INTENT`, no selector).
+- Re-tapping the launcher icon: the task's root intent component stays the trampoline after it finishes, so a launcher start matches the
+  task and brings it forward rather than adding an instance [aosp `ActivityStarter.complyActivityFlags`, reasoned; confirm on a device].
+  Internal launches that name the browser class directly add an instance on top, as before. Android 12+ notification-trampoline
+  restrictions concern broadcast receivers and services started from notifications, not activities starting activities (not researched further).
 
-#### Verified from documentation
-
-- **`Theme.NoDisplay` contract**: "Default theme for activities that don't
-  actually display a UI; that is, they finish themselves before being
-  resumed." [docs: `https://developer.android.com/reference/android/R.style#Theme_NoDisplay`].
-- **Enforcement** [aosp: `Activity.java:8753-8761`, `performResume`]: an
-  invisible activity that has not called `finish()` before `onResume()`
-  completes logs a warning, and for `targetSdkVersion` > 22 throws
-  `IllegalStateException("... did not call finish() prior to onResume()
-  completing")`. This app targets 33. So `finish()` must be called in
-  `onCreate` on every path, including the one that cannot find the target
-  (wrap `startActivity` in try/catch, `finish()` in `finally`).
-- **`LEANBACK_LAUNCHER`**: `Intent.CATEGORY_LEANBACK_LAUNCHER` is "an activity
-  optimized for Leanback mode, and that should be displayed in the Leanback
-  launcher" (API 21) [docs:
-  `https://developer.android.com/reference/android/content/Intent#CATEGORY_LEANBACK_LAUNCHER`].
-  It is a plain category on a `MAIN` filter, so it works on a `NoDisplay`
-  activity exactly like `LAUNCHER`. The launcher shows the **launcher
-  component's** label/icon/banner: carry `android:label` over
-  (`@string/title_activity_main`, `AndroidManifest.xml:49`); there is no
-  `android:icon`/`android:banner` on the current entry, so both fall back to
-  the `<application>` values (`:35-43`), which stays true for the trampoline.
-  The manifest has no `<uses-feature android:name="android.software.leanback">`
-  [code]; out of scope.
-- **`android:exported`**: "If `true`, the activity is accessible to any app,
-  and is launchable by its exact class name. If `false`, the activity can be
-  launched only by components of the same application, applications with the
-  same user ID, or privileged system components." With intent filters,
-  `true` is required for other apps to start it [docs:
-  `https://developer.android.com/guide/topics/manifest/activity-element#exported`].
-  Explicit intents ignore filters, so `TabBrowserActivity`/`BrowserActivity`
-  can be `exported="false"` once the trampoline holds the filters: the
-  trampoline has the same UID.
-- **`launchMode` / `taskAffinity`**: default `standard`; "By default, all
-  activities in an application have the same affinity"; the affinity decides
-  the task for `FLAG_ACTIVITY_NEW_TASK` launches [docs:
-  `https://developer.android.com/guide/topics/manifest/activity-element#lmode`,
-  `#aff`]. The current entry sets neither (`AndroidManifest.xml:46-66`).
-  Recommendation: set **neither** on the trampoline and on the browsers, so the
-  trampoline, the target and the notification launches all share one task.
-- **URI grant semantics** [docs]:
-  `FLAG_GRANT_READ_URI_PERMISSION`: "the recipient of this Intent will be
-  granted permission to perform read operations on the URI in the Intent's data
-  and any URIs specified in its ClipData ... only the grant flags of the
-  top-level Intent are used"
-  (`https://developer.android.com/reference/android/content/Intent#FLAG_GRANT_READ_URI_PERMISSION`).
-  `setClipData`: the grant flags "will operate on any URI items included in the
-  clip data" (`.../Intent#setClipData(android.content.ClipData)`).
-  `ACTION_SEND`: if the sender sets no `ClipData`, `EXTRA_STREAM`/`EXTRA_TEXT`
-  "will be copied there for you when calling `Context.startActivity(Intent)`"
-  (`.../Intent#ACTION_SEND`). Lifetime: "The permissions you grant are
-  temporary and expire automatically when the receiving app's task stack is
-  finished" (`https://developer.android.com/training/secure-file-sharing/share-file`).
-  Persistable grants need `FLAG_GRANT_PERSISTABLE_URI_PERMISSION`, which a
-  share does not carry.
-
-#### Reasoned from AOSP (not stated in the public docs)
-
-The docs do not say whether a receiver can pass a grant on by forwarding the
-same intent. From `android-14.0.0_r1`:
-
-1. The grant flags stay on the intent the receiver sees; nothing in
-   `ActivityStarter` or `ActivityRecord` strips `FLAG_GRANT_*` (grep of both
-   files finds no `FLAG_GRANT` use). The receiver's `getIntent().getFlags()`
-   therefore still includes `FLAG_GRANT_READ_URI_PERMISSION`.
-2. On `startActivity`, `ActivityStarter` calls
-   `UriGrantsManagerService.checkGrantUriPermissionFromIntent(intent,
-   callingUid, targetPkg, ...)` (`ActivityStarter.java:605`) and later
-   `grantUriPermissionUncheckedFromIntent(intentGrants,
-   mStartActivity.getUriPermissionsLocked())` (`:1750`). The check includes
-   "Third... does the caller itself have permission to access this uri?":
-   if the caller lacks the permission by itself it must hold a strong enough
-   URI grant (`checkUriPermissionLocked(grantUri, callingUid, modeFlags)`,
-   `UriGrantsManagerService.java:~1240-1260`). The trampoline holds exactly
-   such a grant, because the system granted it when the share was delivered
-   to it. So **a re-grant to the real activity succeeds**, provided the
-   original sender's provider allows granting (`grantUriPermissions`), which
-   any correct share provider does.
-3. The grant is owned by the receiving `ActivityRecord`'s `UriPermissionOwner`
-   and removed in `ActivityRecord.removeFromHistory` ->
-   `removeUriPermissionsLocked` (`ActivityRecord.java:3967, 5164`). The
-   target activity gets its own owner entry from step 2, so finishing the
-   trampoline does not revoke the target's access. The trampoline must call
-   `startActivity` **before** it is destroyed, i.e. in `onCreate`, which the
-   `NoDisplay` rule requires anyway.
-4. Same UID for source and target (both are this app) does not bypass the
-   check: the "target already holds permission" shortcut only looks at the
-   provider's manifest permissions, not at URI grants
-   (`checkHoldingPermissionsUnlocked`, `UriGrantsManagerService.java:~1130`).
-   Step 2 still applies.
-5. `new Intent(Intent o)` copies flags and `ClipData` (`Intent.java:7534-7572`,
-   `mFlags = o.mFlags`, `mClipData = new ClipData(o.mClipData)`), so a copy
-   carries the grant exactly like the original. (Analysis only: this is why
-   the recommended body below does **not** copy the incoming intent.)
-
-The launcher is exported and an explicit intent ignores its filters, so any app
-can send it any intent. Security review cycle 1 (Group 5) therefore required a
-**fresh, allowlisted forward**, not a copy of the incoming intent (a copy would
-turn a third-party intent into a same-app intent for the non-exported
-`BrowserActivity` and keep grant bits, `ClipData` URIs, nested `EXTRA_INTENT`,
-selector and flags). As built: see "As built: launcher, effective layout,
-relaunch" (`LauncherActivity` plus `LauncherForwardPolicy`).
-
-Rules: no flags, no `data`, no `ClipData` URIs, no `EXTRA_STREAM` /
-`EXTRA_INTENT` / other extras, no selector, no categories (which drops every
-URI grant); a `ClipData` item's *text* (never its URI) may be used as the
-`EXTRA_TEXT` fallback; the browsers never trust `getIntent()` or the
-referrer.
-
-- `extends android.app.Activity`, not `AppCompatActivity`: `Theme.NoDisplay`
-  is a framework theme, not an AppCompat theme, and the trampoline never
-  inflates anything.
-- Add no `FLAG_GRANT_*` and copy no flags from the incoming intent; do not
-  call `setSelector`/`setPackage`.
-- Because the forward is explicit, `BrowserActivity` and `TabBrowserActivity`
-  need no `<intent-filter>`. `BrowserActivity` is `exported="false"`;
-  `TabBrowserActivity` stays exported without filters (see (g)).
-- Placement: trampoline and target share the default affinity, so the target
-  lands in the same task as the trampoline, which is where a
-  `TabBrowserActivity` launched from the share sheet lands today.
-- Re-tapping the launcher icon with the app running: the task's root intent
-  component is the trampoline (it stays the task's `realActivity` after it
-  finishes), so a launcher start of the trampoline matches the task and brings
-  it forward rather than adding a second instance
-  (`ActivityStarter.complyActivityFlags`, "same component as the task root"
-  branch, ~lines 2466-2506) [reasoned; confirm on device].
-- Internal launches that name the browser class directly (notifications) do
-  not match the task root once the trampoline is the root, and, like today,
-  add an instance on top because their intent differs from the task's base
-  intent (no `MAIN`/`LAUNCHER`). No regression expected, but I did not run it
-  [reasoned]. Pointing those `PendingIntent`s at `LauncherActivity` instead
-  would give the same result and always follow the setting; the
-  relaunch-on-resume check in (c) covers both choices.
-
-Not researched: Android 12+ notification-trampoline restrictions. They concern
-broadcast receivers/services started from notifications, not an activity
-starting an activity, so they should not apply here.
-
-### (g) Manifest filters on `TabBrowserActivity` and component references
-
-Current entry, `AndroidManifest.xml:46-66`: `android:name=".browser.TabBrowserActivity"`,
-`exported="true"`, `label=@string/title_activity_main`, no `launchMode`, no
-`taskAffinity`, no `theme` (inherits `AppTheme`, `:42`). Three filters:
-
-| # | Filter | Moves to `LauncherActivity`? |
-|---|---|---|
-| 1 | actions `VIEW` + `MAIN`; categories `DEFAULT` + `LAUNCHER` (`:50-56`) | **Yes**, verbatim (this is the real launcher entry because of `MAIN` + `LAUNCHER`). The `VIEW` + `DEFAULT` half has no `<data>`, so it only matches data-less `VIEW` intents; moving it unchanged is behavior-preserving, dropping it is a decision for the owner. Flag it for the security review as exported surface. |
-| 2 | `MAIN` + `LEANBACK_LAUNCHER` (`:57-60`) | **Yes** (Android TV entry). |
-| 3 | `SEND` + `DEFAULT`, `mimeType=text/plain` (`:61-65`) | **Yes** (share target). |
-
-`LauncherActivity` also takes `android:label="@string/title_activity_main"`,
-`android:theme="@android:style/Theme.NoDisplay"`, `android:exported="true"`,
-and is the **only** `MAIN`/`LAUNCHER` and `LEANBACK_LAUNCHER` component.
-`TabBrowserActivity` and `BrowserActivity` then carry no filters;
-`BrowserActivity` is `exported="false"` and `TabBrowserActivity` stays exported
-(below).
-
-Nothing outside the app needs the classic class by name:
-
-- `grep -rn TabBrowserActivity` over `yaacc/src/main`, `.github`, `fastlane`,
-  `README`/docs: only the manifest, `Yaacc.java:44,172`,
-  `PlayerService.java:49,106,199`, `UpnpClient.java:97,1661` (log tag),
-  `SettingsActivity.java:24,42` (static flag), the fragments, two layout
-  `tools:context` attributes (`activity_tab_browse.xml:24` x2) and a CHANGELOG
-  line. No shortcuts XML, no app widgets, no `res/xml` other than
-  `file_paths.xml`, `locales_config.xml`, `preference.xml`; no
-  `ComponentName`/`setClassName` building the class from a string.
-  The only explicit-class `PendingIntent`s are the three internal ones above;
-  `YaaccUpnpServerService.java:338-339` points at
-  `YaaccUpnpServerControlActivity`, player notifications at the player
-  activities (`LocalMediaSessionPlayer.java:104-106, 477-481`).
-- Nothing in-repo needs `TabBrowserActivity` exported (the Group 6 Accept
-  allowed `exported="false"` on that condition). Third-party launchers/automation that hard-code
-  the component name (for example Tasker or home-screen shortcuts that were
-  created from the launcher, which store the **launcher** component) cannot be
-  excluded from here. A home-screen shortcut created before the change stores
-  `TabBrowserActivity` as its component; making it non-exported would break
-  such an existing shortcut. That is a user-visible risk of
-  `exported="false"` that the repo cannot rule out [reasoned]. Built
-  instead: `TabBrowserActivity` stays exported without filters, and its
-  `onResume` redirects when the setting says `new`.
-- Other activities declare `LAUNCHER` without `MAIN`
-  (`ImageViewerActivity` `:93-100`, `MusicPlayerActivity` `:133-140`,
-  `AVTransportPlayerActivity` `:144-151`, `MultiContentPlayerActivity`
-  `:155-162`; all `VIEW` + `DEFAULT` + `LAUNCHER`). They do not appear in launchers (no
-  `MAIN`), but the Group 6 Verify wording "exactly one exported launcher
-  component" must be read as "exactly one `MAIN` + `LAUNCHER` component", or
-  the check fails on the existing manifest.
-- `SettingsActivity` is declared without `exported` (`:105-107`) and has no
-  filter, so it is not exported; fine.
-
-### How other code finds the "current" browser
-
-It doesn't. [code]
-
-- No `static` `Activity`/`Fragment` reference exists
-  (`grep -rn "static.*Activity"` finds only constants). `UpnpClient` is built
-  with the `Application` context (`Yaacc.java` `new UpnpClient(this)`),
-  `PlayerService` holds a `UpnpClient`/service context, not an activity.
-- Fragments reach their host only through `getActivity()`/`requireActivity()`,
-  adapters through the `Context` they were built with
-  (`BrowseDeviceAdapter.java:327-328` casts it to `Activity` for dialogs).
-- The only global back-references to UI were leaks, since fixed: the
-  single-slot `Yaacc.shutdownTimerListener` (fragment) and
-  `MediaProjectionHelper.stopCallback` (fragment lambda), both described in
-  (d), now multi-listener lists whose owners remove them; and the static
-  `TabBrowserActivity.leftSettings` of (c), now `SettingsActivity.consumeLeftSettings()`.
-- `Yaacc.exit()` finishes every app task (`getAppTasks().finishAndRemoveTask()`,
-  `Yaacc.java:144`) then kills the process, so it works regardless of which
-  browser class is on top.
-
-### Where the plan and the code differed
-
-Findings of this research that changed the plan (decisions.md 2026-10-24,
-"Phase 2 plan amended by the Group 5 research"), and how each ended up:
-
-1. **"Classic back flow goes content folder -> content root -> servers ->
-   exit"** (tasks.md Group 7). Not true of the classic code: three of four back
-   handlers were dead because `getParent()` is `null`; only folder pop and the
-   Server-tab exit work. The new activity implements the intended flow itself
-   (`BrowserBackNavigation`); the dead branches were removed, not turned on.
-2. **"Classic behavior is unchanged" vs. "no `instanceof TabBrowserActivity`
-   remains"**: wiring the four dead sites to `BrowserHost` would have changed
-   classic, so only the live sites use it.
-3. **"MediaProjection permission result is handled by the activity"**: the
-   adapter is hosted by a fragment and the result routes to that fragment; no
-   move was needed (`StreamingPermissionHelper`).
-4. **Shutdown timer**: the timer already lived in `Yaacc`; what was missing was
-   a running/remaining query and a detach path, not a move of timer logic.
-5. **"Exactly one exported launcher component"**: four other activities declare
-   `category.LAUNCHER` without `MAIN`; the check is `MAIN` + `LAUNCHER` /
-   `LEANBACK_LAUNCHER`.
-6. **`TabBrowserActivity` `exported="false"`** is safe inside this repo but could
-   break home-screen shortcuts that stored its component; it stays exported
-   without filters.
-7. **"Clearing the old activity from the back stack" on a layout change**: the
-   check-on-resume does it with `finish()`; `CLEAR_TASK` would kill the playing
-   task's other activities.
-8. **"Action allowlist MAIN and SEND only"** (tasks.md Group 6): built as "SEND
-   `text/plain` with a capped text is forwarded, every other intent is a plain
-   launch", which forwards exactly the same data.
+### (g) Manifest
+- The old `TabBrowserActivity` entry had three filters: `VIEW`+`MAIN` / `DEFAULT`+`LAUNCHER` (the `VIEW` half has no `<data>` and matches
+  only data-less `VIEW`), `MAIN` / `LEANBACK_LAUNCHER`, and `SEND` / `DEFAULT` with `text/plain`. All three moved to `LauncherActivity`.
+- "Exactly one launcher" must be read as exactly one `MAIN`+`LAUNCHER` component: `ImageViewerActivity`, `MusicPlayerActivity`,
+  `AVTransportPlayerActivity` and `MultiContentPlayerActivity` declare `LAUNCHER` with `VIEW`+`DEFAULT` only, so they do not appear in launchers.
+- Nothing in the repo needs `TabBrowserActivity` by name except the three internal `PendingIntent`s, but a home-screen shortcut created
+  before the change may store its component, so it stays exported without filters (non-exported would break such a shortcut) and its
+  resume check redirects when the setting says `new`. The repo has no shortcuts XML, no app widgets and no `ComponentName`/`setClassName` built from a
+  string; the only explicit-class `PendingIntent`s to the browser are the three internal ones (other notifications point at the player and server-control
+  activities). `SettingsActivity` has no `exported` and no filter, so it is not exported.
 
 ## Sharing local files
 
 What another app can share into yaacc (a link, or ONE audio, video or image file), how a share is served to the
-receivers, and how the receiver is picked per action. Spec `2026-10-23-unified-device-sheet`, Phase 3 (Groups 12-16).
+receivers, and how the receiver is picked per action (Phase 3, Groups 12-16).
 The "As built" subsections describe the code at `e3e0a247` on branch `feat/unified-device-sheet` (Groups 12-15 passed
-the general and the security review); they cite classes, not line numbers. The Group 12 research the build started
-from follows under "Research notes (Group 12)", kept for its citations; where it differs, the as-built text wins
-("Where the build differs from the research" lists the differences). Nothing here was run on a device: "Not verified
-on a device" lists what only a device can confirm.
+the general and the security review); they cite classes, not line numbers. The platform facts the build started
+from follow under "Research notes (Group 12)". Class names are those of Phase 3, except where Group 17 of the share-code consolidation (Phase 4)
+already changed them: `SharedFileService` is now `de.yaacc.share.ShareService` (it absorbed `ShareProxyUrl` and `ShareFailureMessage`),
+`ShareRegistrar`, `DescriptorWindow`, `ReceiverBarLabel` and `ReceiverSelection` are merged into `ShareRegistry#registerOrEvict`,
+`HeldFileSource#clampLength`, `ReceiverBarController#label` and `UpnpClient`, and `de.yaacc.upnp.server.share` is part of `de.yaacc.share`; the
+rest of the consolidation (Groups 18-21) is open and Group 22 updates the names here. Nothing here was run on a device: "Not verified on a
+device" lists what only a device can confirm.
 
 ### As built: overview
 
@@ -2333,7 +1750,7 @@ and is only used for the preference reads and that bounded map. The research cla
   `AfterStartSelection` (new layout clear, classic restore the selection read at confirm time). Add to playlist
   (`UpnpClient#addToPlaylist`, unchanged by Phase 3): if none of the chosen receivers has a player, `initializePlayers` starts a
   new player on each chosen receiver; otherwise the item is added only to the playlists of the chosen receivers that already have
-  one, and a chosen receiver without a player gets nothing (open owner question, decisions.md).
+  one, and a chosen receiver without a player gets nothing (open owner question, `tasks.md` "Owner's open items").
 - Classic: normal browsing never shows the sheet and `startPlayAction` starts at once; the static footer stays. A pending SHARED FILE
   opens the same picker, with the classic selection as the initial ticks (see "Known limitations").
 - Receiver bar: `ReceiverBarLabel` names the receivers that have a player in `PlayerService.getCurrentPlayers()` (names as in the
@@ -2345,7 +1762,7 @@ and is only used for the preference reads and that bounded map. The research cla
 ### Threat model
 
 Entry: the launcher is exported and accepts `SEND` from every app; `TabBrowserActivity` is exported too. Everything below is a
-decision of the reviewed design (design.md "Phase 3", decisions.md).
+decision of the reviewed design (see "Design decisions and rationale").
 
 - **Own data.** `file:` URIs and any `content:` URI of a provider of this app (not only the file provider) are rejected at the
   launcher and again at the browser. Only audio, video and image content of other apps is accepted, by the provider's own type.
@@ -2378,10 +1795,68 @@ decision of the reviewed design (design.md "Phase 3", decisions.md).
   proxy URL is written at the default log level; the VERBOSE protocol traces and DEBUG album-art logs are not redacted, and existing
   non-share code logs other URIs (album art, local storage URIs) at ERROR (see "As built: serving").
 
+### Security invariants of the share feature
+
+The properties the share code upholds and its tests pin (numbering as in the planning notes, `design.md`). A change to the share code must keep
+all of them; a review re-derives them from the code.
+
+- **SI-1 Keys.** 16 bytes from `SecureRandom`, 22 characters of unpadded base64url, never handed out twice while the registry lives (the last 256
+  are remembered, 8 draws per registration), format-checked before any lookup; malformed input never throws.
+- **SI-2 Registry.** Monotonic clock (not wall time); 10 minutes idle grace after release, 6 hours absolute; a cap on active entries; each target
+  closed exactly once and outside the lock; a failed `register` leaves ownership with the caller; eviction touches only released entries;
+  `removeAll()` on exit; a periodic sweeper.
+- **SI-3 Request chain.** For `/proxy/`: path shape, key format, lookup, address policy, renderer id, serving, in that order. Every bad key gets
+  the same constant 404 body, 403 only follows a valid key, HEAD and range continuations take the same chain, key and path are never echoed or logged.
+- **SI-4 Address step.** The remote address comes only from the connection's endpoint details. The restriction is ON by default in code, in
+  `preference.xml` and when the read fails. Zone ids are stripped, IPv4-mapped IPv6 is normalized, names are never resolved, an empty allowed set
+  denies everything while restricting, loopback and the phone's own addresses count only when the local device was chosen, and the allowed set is
+  built from the ids captured at confirm and copied unmodifiable into the entry.
+- **SI-5 Ranges and headers.** An invalid or multiple range is answered 200 whole, an unsatisfiable single range 416 `bytes */len`; long arithmetic
+  with saturating digits and a header length cap; an upstream `Range` is re-serialized from parsed numbers; `Content-Range` is built from numbers; no
+  `Content-Disposition`; `Content-Type` comes from the re-validated entry MIME; `X-Content-Type-Options: nosniff` and CSP `sandbox` on every response.
+- **SI-6 Held file.** `dup` of the provider's descriptor and the original closed; a regular-file and `lseek` check; start offset and length clamped to
+  the real size; `pread` at `start + position`; close deferred to the last reader, never blocking the caller, exactly once, new reads refused after
+  close; a failed open leaves the descriptor with the caller; the late result of a timed-out open is closed.
+- **SI-7 Concurrency.** At most 4 responses per share (503 on the 5th); an idle watchdog takes a stalled reader's slot; a resumed reader aborts only
+  when the share is full; release is idempotent; the lease is released when the producer cannot be built.
+- **SI-8 Launcher forward.** A fresh intent: `ACTION_SEND` with the exact lower-case media type, ONE `ClipData.newRawUri` item and
+  `FLAG_GRANT_READ_URI_PERMISSION` only, no `data`, no `EXTRA_STREAM`, no other extra. `EXTRA_STREAM` must equal ClipData item 0, the incoming flags
+  must carry the read grant, the content policy must accept the URI, any provider of this app is refused (fail closed), the API 35+ caller check
+  fails closed, a `SecurityException` falls back to a plain launch, `finish()` runs in `finally`, and the incoming intent is never modified.
+- **SI-9 Launch nonce.** 128 bits from `SecureRandom`, valid 30 s, single use, at most 8 outstanding, constant-time compare, never logged; a file
+  that reaches a browser without a valid nonce is dropped.
+- **SI-10 Browser intake.** The browser repeats every check (action, exactly one ClipData item, no `data`, the read flag in the intent's own flags,
+  item 0 only and never `EXTRA_STREAM`, content policy, own-provider check); the intent is consumed BEFORE validation; only the activity of the
+  effective layout hands a payload to the handler.
+- **SI-11 Pending state.** One pending share (a second offer is dropped, never replaces) with a 2-minute monotonic timeout, a 128-bit token compared
+  in constant time and a single `take`; nothing is opened, copied or registered before the confirm; one open pick (stale, forged or repeated ids
+  ignored, state cleared before callbacks run); the sheet answers once; one picked action in flight with a watchdog; after the start the new layout
+  clears the selection and classic restores a copy; clearing never alters an existing share's allowed set.
+- **SI-12 Provider calls.** Never on the main thread; type, name and open are bounded (3 s, 3 s, 20 s); at most one call in flight per provider (no
+  expiry), at most 3 tracked providers of a 4-thread pool, unresolved providers share one key; the MIME type only through `chooseMimeType`; the name
+  is cut at 1024 characters, only a string column is read, then cleaned by `DisplayName`.
+- **SI-13 Copy fallback.** File names `share-<32 hex>.bin` from `SecureRandom` with `CREATE_NEW` in the private `cache/incoming`, never from provider
+  data; the sweep deletes only exact-shape regular files and never follows links; budget = min(512 MiB, 1 GiB minus what is there) with a 64 MiB
+  free-space reserve re-checked before EVERY chunk; a declared size over the budget is refused before a byte is written; one copy at a time; the
+  watchdog closes the input and the worker's output, deletes the partial file, returns the slot and abandons at most 3 workers; the held copy is
+  closed first and then deleted.
+- **SI-14 Ownership.** Every `register` is paired with an owner (the source is closed if registration returns null after one evict-retry or on any
+  throw); a share no player claimed within 2 minutes is removed; claim and release are idempotent; keys are remembered before a player's `onDestroy`.
+- **SI-15 Link policy.** No DNS; the authority is taken after the LAST `@`; loopback, 0/8, link-local, the phone's own addresses, mapped / compatible /
+  NAT64 IPv6 forms, non-strict IPv4 spellings, `localhost` names and look-alike characters are refused; private LAN ranges are allowed; redirect hops
+  of the content-type probe are re-checked (max 3, HEAD only, body never read); only http and https; no address means no URL and nothing is registered.
+- **SI-16 Logging and toasts.** No key, URI, name, proxy URL or provider exception text; fixed texts, enum names and simple class names;
+  `ShareLogRedactor` removes `(?i)(?:/|%2f)proxy(?:/|%2f)[^\s"'<>]*`; toasts are fixed resources.
+- **SI-17 Limits.** The values in `ShareLimits` do not change without a security review.
+- **SI-18 Surfaces.** The manifest differs from `071fc9d2` by exactly the one SEND filter; no new component, permission, dependency or preference
+  key for shares; `BrowserActivity` is not exported; the proxy URL is on no MediaSession or notification surface.
+- **SI-19 Picker UI.** `filterTouchesWhenObscured` on OK, Cancel and the rows; names and LAN texts reach the screen only through `setText` after
+  cleaning; the share name only through the cleaner with a fixed fallback.
+
 ### Known limitations
 
 The share feature has known, accepted limitations; the full technical list is kept with the project specification
-(`.claude/specs/2026-10-23-unified-device-sheet/known-risks.md`), not in the published docs. In summary:
+(`.claude/specs/2026-10-23-unified-device-sheet/known-risks.md` while that folder exists), not in the published docs. In summary:
 
 - The link policy is a best-effort filter, not a complete protection: it is enforced only when the media proxy option is on and
   it does not resolve host names.
@@ -2395,30 +1870,33 @@ The share feature has known, accepted limitations; the full technical list is ke
 
 ### Not verified on a device
 
-Everything in this section is code, tests and reading of platform sources; no device or emulator run exists. Still open (owner
-checklist, decisions.md "Group 15 as built"): the whole chain sender - launcher - browser with a real grant on Android 11-16 and real
-senders (gallery, files, messengers); `getInitialCaller()` for the system chooser on Android 15+; the launcher's `SecurityException`
-fallback; whether `resolveContentProvider` sees a freshly forwarded provider on Android 11+; whether closing a provider stream wakes a
-blocked read; whether a descriptor keeps working after the grant ends and after the sender app dies; which providers return pipes;
-the address real renderers fetch from compared with their SSDP location; the picker with 10+ receivers, on a small screen, in
-landscape, with TalkBack and D-pad, on rotation; the classic share path; a share arriving while the browser is in the background; the
-proxy URL not appearing on the notification or lock screen of the local player.
+Everything in this document is code, tests and reading of platform sources. The owner tried the device sheet and the layouts on a phone (2026-10-24,
+the feedback is built in) and later fixes followed his feedback; the share feature, the picker and the checks below were never run on a device or an
+emulator. Open checks, by area:
 
-### Where the build differs from the research
-
-- Finding 1 (the server always runs) held and is the design: nothing is started or stopped, the share waits for the server.
-- Finding 3 (`createPlayableItem` for `content:` URIs): files do not go through it; `SharedFileService` builds the item with the
-  provider type and no duration. Links go through the rewritten `createPlayableItem`.
-- Finding 4 (add to playlist breaks when the selection is cleared): add to playlist opens the picker too.
-- Finding 5, 6, 7 (`Os.pread`, no close under a running read, `dup`): as researched.
-- Finding 8 (the old range and proxy-path code): replaced for registry entries by `ByteRangeResolver` and `ProxyShareResponder`.
-- Finding 9: `UpnpClient#clearReceiverDevices()` clears and fires the removal events; `getReceiverDevices()` no longer mutates the set
-  returned by `SharedPreferences`.
-- Section (c): the 3-segment form is produced for server-side seeking (see "As built: serving"); the preference-based proxy path is gone.
-- Section (f): "Share flow in the new layout" and the pick-mode sketch are as built; the share is confirmed through the same picker
-  in classic.
-- Section (g): the API sketch is superseded by the code and tests; the order of the Group 13/14/15 work followed the plan, with the
-  SEND filters added at the end of Group 15.
+- **Share chain.** Sender -> launcher -> browser with a real grant on Android 11-16 and real senders (gallery, files, messengers);
+  `getInitialCaller()` via the system chooser on API 35+; the launcher's `SecurityException` fallback; whether `resolveContentProvider` sees a freshly
+  forwarded provider on Android 11+; whether closing a provider stream wakes a blocked read; whether a descriptor keeps working after the grant ends
+  and after the sender app dies (and the kill behaviour of the stable provider reference with the `dup` mitigation); which providers return pipes or
+  sub-sections and how `fstat`/`lseek`/`pread` behave on FUSE-backed `DocumentsProvider` descriptors; the type of `EndpointDetails#getRemoteAddress()`
+  and the IPv4/IPv6 forms real connections report; the address real renderers fetch from compared with their SSDP location; whether they handle
+  `HEAD`, 206, 416 and `Connection: close`; the effect of `stopService` plus a bound service on notification and process priority with the local
+  server setting off, and survival of a long stream across screen-off (WifiLock, Doze); Android 15 and 16 changes to URI grants and foreground-service
+  starts (only Android 14 sources were read); the proxy URL not appearing on the notification or lock screen of the local player.
+- **Picker.** Opens on play, play-all, item tap and add to playlist; cancel, back, tap outside and swipe change nothing; OK with nothing ticked shows
+  the hint (TalkBack announces it); the pick sheet layout (fit to contents, buttons stay visible, the list scrolls) with 10+ receivers, on a small
+  screen and in landscape; D-pad and TV focus; dark mode; receivers appearing while it is open; rotation with it open (closes, no crash); Home and
+  back with it open; a share arriving while the browser is in the background; the classic share path (selection ticked, restored after the start).
+- **Layouts.** Switching in both directions with players running; a stale notification tap after a switch; rotation in both layouts; process death
+  and restore; the 5-minute idle exit; the TV launcher entry and D-pad reach of the new layout; re-tapping the launcher icon (no second browser
+  instance); the splash screen on Android 12+ with the invisible launcher; the toolbar timer and its subtitle, the mini-player rows (several
+  players, scrolling beyond about three rows, buttons incl. exit, tap to open) and the sheet at every level; the restored classic footer in portrait
+  and landscape; sharing a link from another app (task placement, playback starts).
+- **Look.** Card grid spacing and the fit of the four buttons, thumbnail sharpness of the 320dp request across densities, D-pad movement between
+  cards, the column count in landscape, on a tablet and in multi-window; toolbar colors and icons in both themes (dark title bar, light icons, also in the
+  image viewer); gray controls and bold settings headlines; the log viewer's clear and refresh.
+- **Other.** `MediaDataSource` metadata on API 27 for the formats users share is not built; the copy fallback's real speed and the cache behaviour
+  under low storage.
 
 ### Phase 4 notes (consolidating the share code)
 
@@ -2472,733 +1950,222 @@ static methods. Existing tests mock Android types by instance only: `Context`, `
   A second prepare on another thread needs its own `mockStatic(Uri.class)`.
 - `PositionalSource#size` and `#close` are final; Mockito stubs and verifies them on a `mock(HeldFileSource.class)`.
 
-## Research notes (Group 12)
+## Research notes (Group 12): platform facts behind the share feature
 
-Research for spec `2026-10-23-unified-device-sheet`, Phase 3 (Group 12, first task). Verified
-2026-10-25 against the checkout at `d8696971` on branch `feat/unified-device-sheet`, BEFORE the build; read it as history.
-Nothing was run on a
-device and the container had no Android SDK, so every platform statement rests on documentation or on
-platform source. No code was written.
+Research done on 2026-10-25 before the share code was built, condensed afterwards to the facts a maintainer needs; the plans,
+option comparisons, API sketches for the red tests and review-driven rewording are in git. The as-built text above wins where it
+differs. Nothing here was run on a device; every platform statement rests on documentation or platform source, so the chain from a
+real sender to a played file is in "Not verified on a device". Versions: `targetSdkVersion 33`, `minSdkVersion 27`, `compileSdk 36`;
+`httpcore5:5.3.6`, `httpcore5-h2:5.3.6`, `httpclient5:5.3.1`; `androidx.core:1.16.0`.
 
-Versions that matter: `targetSdkVersion 33`, `minSdkVersion 27`, `compileSdk 36`
-(`yaacc/build.gradle:75,110,111`); `httpcore5:5.3.6`, `httpcore5-h2:5.3.6`, `httpclient5:5.3.1`
-(`yaacc/build.gradle:47-49`); `androidx.core:1.16.0` (see "Classic and new layout").
+Marks: **[code]** read in this repo; **[docs]** official documentation (URL given); **[aosp]** `frameworks/base` at `android-14.0.0_r1`
+(`raw.githubusercontent.com/aosp-mirror/platform_frameworks_base/android-14.0.0_r1/...`); **[libcore]** LineageOS `android_libcore`,
+branch `lineage-21.0` (Android 14 based); **[httpcore]** the `httpcore5-5.3.6` / `httpcore5-h2-5.3.6` source jars from Maven Central;
+**[reasoned]** inferred, not run. Android 15 and 16 sources were not read and may differ.
 
-How each claim is marked:
-
-- **[code]** read in this repo, cited `file:line` (paths relative to
-  `yaacc/src/main/java/de/yaacc/` unless they start with `yaacc/`).
-- **[docs]** official documentation, URL given. The `android-docs` and `context7` MCP servers were not
-  needed; developer.android.com was fetched directly.
-- **[aosp]** platform source. `frameworks/base` at tag `android-14.0.0_r1`, from
-  `raw.githubusercontent.com/aosp-mirror/platform_frameworks_base/android-14.0.0_r1/...`. `libcore` is
-  from the LineageOS mirror `LineageOS/android_libcore`, branch `lineage-21.0` (Android 14 based;
-  `aosp-mirror/platform_libcore` and `android.googlesource.com` were not reachable). Newer Android
-  releases (15, 16) were not read and may differ.
-- **[httpcore]** source jars `httpcore5-5.3.6-sources.jar` and `httpcore5-h2-5.3.6-sources.jar` from Maven
-  Central, the exact versions the app builds with.
-- **[reasoned]** inferred from the above, not run.
-
-### Findings that change the plan (read this first)
-
-1. **The local HTTP server is already running whenever the app process is, regardless of
-   `settings_local_server_chkbx`.** `Yaacc.onCreate` always calls `startService(YaaccUpnpServerService)`
-   (`Yaacc.java:106`), `UpnpClient` binds it with `BIND_AUTO_CREATE` for the life of the process
-   (`UpnpClient.java:150,173`), `onStartCommand` never reads the preference (`YaaccUpnpServerService.java:222-270`)
-   and `initialize()` calls `createHttpServer()` unconditionally (`:476-477`), which listens on the wildcard
-   address `new InetSocketAddress(PORT)` (`:820`, port 49157). The preference only decides which UPnP
-   services the local `LocalDevice` publishes (`createUpnpDevice`, `:588-641`; with it off the device still
-   exists with the two core services) and whether `LocalServerLifecycle` keeps the service started in the
-   foreground (see (e)). So design.md Decision 1 ("starts the local server for that share only and stops it
-   afterwards if it started it") and the threat-model line "the server is only up while a share is active
-   unless the user runs it anyway" do not match the code. Group 13's Accept ("the server is started for the
-   share if it is not running and stopped afterwards") reduces to: wait until the HTTP server answers, do not
-   start or stop anything, serve registry entries before the preference gate (recorded in decisions.md, 2026-10-25; built that way).
-2. **Another app's `content:` URI can still be one that yaacc may read on its own.** The manifest requests
-   `MANAGE_EXTERNAL_STORAGE`, `READ_MEDIA_*` (`yaacc/src/main/AndroidManifest.xml:20-31`) and the app keeps
-   SAF tree grants. The forward check in the system (see (a)) passes when the *caller* holds access by its own
-   permissions, not only by a grant from the sender. A malicious sender can therefore name e.g. a MediaStore
-   URI it cannot read itself; the only gates left are the audio/video/image MIME check and the user choosing a
-   receiver. Android offers no way to tell "granted by the sender" from "readable by us anyway" (see (a)).
-   Residual risk to accept or discuss with the owner; design.md "Threat model" lists only `file:` and the own
-   authority.
-3. **`UpnpClient.createPlayableItem(Uri)` cannot be used unchanged for `content:` URIs.** It calls
-   `MediaMetadataRetriever.setDataSource(String)` (`UpnpClient.java:1621`), whose documentation names a path
-   or an http URI; a failure there is a `RuntimeException`, which the method turns into "assume shared image,
-   `image/*`" (`:1624-1636`). A shared MP3 would be announced as an image. For a held descriptor use
-   `setDataSource(FileDescriptor, long, long)` or a `MediaDataSource` (see (b)) and take the MIME type from the
-   provider.
-4. **Add-to-playlist breaks in the new layout once the selection is cleared after every action.**
-   `UpnpClient.addToPlaylist` (`:1593-1607`) uses `getReceiverDevices()`; with an empty selection it ends in
-   `PlayerService.createPlayer`, which shows "no receiver selected" and does nothing
-   (`PlayerService.java:322-329`). The button is `BrowseContentItemAdapter.java:593`. design.md lists play,
-   play-all and share only. Owner decision needed (pick too, or target the receivers of the running players). **Decided and built:** add to playlist opens the picker too.
-5. **`FileChannel` is a poor fit for a long-lived shared descriptor; `Os.pread` is the better primitive**
-   (tasks.md Group 13 says "seek via `FileChannel`/offset"). Reasons in (b). Both are safe for concurrent
-   positional reads.
-6. **Closing a descriptor that another thread is still reading is a security bug, not just an error**: the
-   number can be reused at once by an unrelated socket or file. The shared source needs a read/close lock or
-   reference count (see (b)).
-7. **Holding a descriptor from `ContentResolver` holds a stable reference to the provider's process** until the
-   descriptor is closed; if the sender app dies, the platform may kill yaacc. Duplicating the descriptor and
-   closing the original releases that reference (see (b)).
-8. **The existing range and proxy-path code is not reusable as is** and was replaced for registry entries (details of that
-   research are kept with the project specification).
-9. **Group 13 and the receiver picker must also clear the selection through a new method that fires the
-   listener events**, because `ReceiverBarController` only refreshes on `receiverDeviceAdded/Removed`
-   (see (f)).
+### Platform and code facts that shaped the design
+1. **The local HTTP server runs whenever the app process does, whatever `settings_local_server_chkbx` says** [code]: `Yaacc.onCreate`
+   always calls `startService(YaaccUpnpServerService)`, `UpnpClient` binds it with `BIND_AUTO_CREATE` for the life of the process,
+   `onStartCommand` never reads the preference and `initialize()` creates the HTTP server unconditionally on the wildcard address, port
+   49157. The preference only decides which UPnP services the local device publishes and whether `LocalServerLifecycle` keeps the service
+   in the foreground (see (e)).
+2. **Another app's `content:` URI can be one that yaacc may read on its own.** The manifest requests `MANAGE_EXTERNAL_STORAGE` and
+   `READ_MEDIA_*` and the app keeps SAF tree grants; the system's forward check passes when the CALLER holds access by its own
+   permissions, not only by a grant from the sender. Android has no public API to tell "granted by the sender" from "readable by us
+   anyway" (see (a)).
+3. **`MediaMetadataRetriever.setDataSource(String)` names a path or an http URI**; a failure is a `RuntimeException`, which
+   `createPlayableItem` turns into "assume image" (a shared MP3 would be announced as an image). For a descriptor use
+   `setDataSource(FileDescriptor, long, long)` or a `MediaDataSource` (API 23).
+4. **Closing a descriptor another thread is still reading is a security bug**: the number can be reused at once by an unrelated socket or
+   file. Holding a descriptor from `ContentResolver` also holds a stable reference to the provider's process (see (b)).
 
 ### (a) How `ACTION_SEND` delivers one file, and what the trampoline may forward
-
 **Delivery.**
+- `ACTION_SEND`: `getType()` is the MIME type, `EXTRA_STREAM` carries the data; without ClipData it "will be copied there for you when
+  calling `Context.startActivity(Intent)`"; `*/*` if the type is unknown [docs: `https://developer.android.com/reference/android/content/Intent#ACTION_SEND`].
+  `openAssetFileDescriptor(uri, "r")` already goes through `openTypedAssetFileDescriptor(uri, "*/*")` [aosp `ContentResolver.java`], so
+  use it, not `openInputStream`.
+- The copy happens in the SENDER's process: `Instrumentation.execStartActivity` calls `intent.migrateExtraStreamToClipData` [aosp]. For
+  `ACTION_SEND` it builds ClipData item 0 = the stream URI and, if there is a stream, adds `FLAG_GRANT_READ_URI_PERMISSION`; it does
+  nothing when a ClipData is already set. So a plain sender delivers item 0 = stream URI plus the read flag, but a sender that sets its own
+  ClipData and flag may have `EXTRA_STREAM` and the ClipData name DIFFERENT URIs. `ACTION_SEND_MULTIPLE` is a different action and is not
+  matched by a SEND filter.
+- Read the extra with `IntentCompat.getParcelableExtra(intent, name, Uri.class)` (androidx.core 1.10.0+; `Intent.getParcelableExtra(String,
+  Class)` is API 33, minSdk is 27) [docs: `https://developer.android.com/reference/androidx/core/content/IntentCompat`] and wrap it: a crafted
+  extra can throw.
+- `<data android:mimeType="audio/*"/>`: "MIME type matching in the Android framework is case-sensitive ... always specify MIME types using
+  lowercase letters" [docs: `https://developer.android.com/guide/topics/manifest/data-element`]; three `<data>` elements in one
+  `SEND`+`DEFAULT` filter match any of them, `*/*` and `Audio/MP3` do not. The filter sees only the SENDER's `getType()`, which is untrusted
+  and may be a wildcard, so the real type is checked on the content: `ContentResolver.getType(uri)` "returns a MIME type for the content, or
+  null if the URL is invalid or the type is unknown" [docs: `https://developer.android.com/reference/android/content/ContentResolver#getType(android.net.Uri)`];
+  a Binder call (not on the main thread) whose answer is untrusted text. Order: provider type if acceptable, else a concrete acceptable
+  intent type, else reject.
 
-- `ACTION_SEND`: `getType()` is the MIME type of the data, `EXTRA_STREAM` carries the data; "if you don't set a
-  ClipData, it will be copied there for you when calling `Context.startActivity(Intent)`"; "use `*/*` if the
-  MIME type is unknown (this will only allow senders that can handle generic data streams)" [docs:
-  `https://developer.android.com/reference/android/content/Intent#ACTION_SEND`]. With
-  `CATEGORY_TYPED_OPENABLE` the URIs "may be openable only as asset typed files" (same page); the framework's
-  own `openAssetFileDescriptor(uri, "r")` already goes through `openTypedAssetFileDescriptor(uri, "*/*")`
-  [aosp: `core/java/android/content/ContentResolver.java:1829-1862`], so use that call, not
-  `openInputStream`.
-- The copy happens in the **sender's** process: `Instrumentation.execStartActivity` calls
-  `intent.migrateExtraStreamToClipData(who)` [aosp: `core/java/android/app/Instrumentation.java:1871` and five
-  more sites]. `Intent.migrateExtraStreamToClipData` for `ACTION_SEND` builds
-  `ClipData(null, {getType()}, Item(text, html, null, stream))` and, **if there is a stream, adds
-  `FLAG_GRANT_READ_URI_PERMISSION`** [aosp: `core/java/android/content/Intent.java:12306-12360`, the `SEND` branch adds the flag at `:12353`]. It does
-  nothing if a ClipData is already set ("Bail when someone already gave us ClipData", `:12310`) or if the extras
-  are already parcelled. So: a plain sender delivers ClipData item 0 = the stream URI, plus the read flag; a
-  sender that sets its own ClipData and flag may have `EXTRA_STREAM` and the ClipData name *different* URIs.
-- `ACTION_SEND_MULTIPLE` is a different action and is not matched by a SEND filter; Phase 3 stays with one
-  file (design.md decision 5).
-- Reading the extra: `Intent.getParcelableExtra(String, Class)` is API 33; the app has `minSdk 27`, so use
-  `IntentCompat.getParcelableExtra(intent, name, Uri.class)` (androidx.core 1.10.0+, the app has 1.16.0)
-  [docs: `https://developer.android.com/reference/androidx/core/content/IntentCompat`]. It type-checks after
-  deserialization on SDK 33 and below. Wrap it: a crafted extra can throw (the existing launcher already
-  catches `RuntimeException`, `LauncherActivity.java:55-58`).
-
-**MIME type filtering.**
-
-- `<data android:mimeType="audio/*"/>` etc.: "the subtype can be the asterisk wildcard"; "MIME type matching in
-  the Android framework is case-sensitive ... always specify MIME types using lowercase letters" [docs:
-  `https://developer.android.com/guide/topics/manifest/data-element`]. Three `<data>` elements with
-  `audio/*`, `video/*`, `image/*` in the one `SEND` + `DEFAULT` filter on `LauncherActivity` match any of them.
-  A sender that uses `*/*` or `Audio/MP3` does not match. That is acceptable (declare only these three).
-- The filter only looks at the **sender's `getType()`**, which is untrusted and may be a wildcard (`image/*` for
-  a mixed selection). The real type must be checked on the content: `ContentResolver.getType(uri)` "returns a
-  MIME type for the content, or null if the URL is invalid or the type is unknown" [docs:
-  `https://developer.android.com/reference/android/content/ContentResolver#getType(android.net.Uri)`]. It is a
-  Binder call into the provider (not on the main thread) and its answer is the provider's, so it is also
-  untrusted text: run it through `SharedContentPolicy.isAcceptableMimeType` (concrete `audio/x`, `video/x`,
-  `image/x`). Recommended order: provider type if acceptable, else the intent's type if it is concrete and
-  acceptable, else reject.
-
-**Who may grant, and what Android honors.** All from `services/core/java/com/android/server/uri/` [aosp]:
-
-- Only `content:` URIs are granted at all; any other scheme returns "nothing to do" and the receiver gets no
-  access (`UriGrantsManagerService.java:1081-1100`). (`ContentResolver` itself also opens `file:` and
-  `android.resource:` URIs without any grant, `ContentResolver.java:1523,1852`, and the docs list `file` as an
-  accepted scheme: that is why the policy must reject them.)
-- A grant is checked on every start (`ActivityStarter.java:600-608`, `checkGrantUriPermissionFromIntent`) for
-  the intent's `data` **and every ClipData item URI** (`UriGrantsManagerService.java:587-660`, recursing into a
-  ClipData item's nested `Intent`). `EXTRA_STREAM` and other extras are never looked at. The flags used are the
-  top-level intent's only [docs: `Intent#FLAG_GRANT_READ_URI_PERMISSION`: "the recipient of this Intent will
-  be granted permission to perform read operations on the URI in the Intent's data and any URIs specified in
-  its ClipData ... only the grant flags of the top-level Intent are used"].
-- The check for each URI (`checkGrantUriPermissionUnlocked`, `:1081-1266`): (1) if the target already holds
-  access by manifest permissions (provider in its own uid, or exported without a permission) nothing is
-  recorded; (2) the provider must have `grantUriPermissions` (and match `uriPermissionPatterns`), else
-  `SecurityException "does not allow granting of Uri permissions"` (`:1212-1236`); (3) **the caller must hold
-  access itself**, either by manifest permission (`checkHoldingPermissionsUnlocked`) or by a strong enough
-  URI grant, else `SecurityException "UID n does not have permission to <uri>"` (`:1243-1262`). Step 3 is the
-  rule "Android honors the flag only if the sender holds the access". The target-already-has-it shortcut
-  (`:1137`) looks at manifest permissions only, not at URI grants, so a same-uid forward is not exempt
-  (`:913-1000`).
-- A grant is recorded per **target uid and URI**, with the receiving **`ActivityRecord` as owner**
-  (`ActivityStarter.java:1750` -> `ActivityRecord.getUriPermissionsLocked()`, `ActivityRecord.java:4719`; also
-  `deliverNewIntentLocked`, `:4862-4868`, for an activity that gets `onNewIntent`). It lasts until the last
-  owner is removed: `ActivityRecord.removeFromHistory` -> `removeUriPermissionsLocked` (`:3967`, `:5164`) ->
-  `UriPermissionOwner.removeUriPermissions` -> `UriPermission.removeReadOwner` (`UriPermission.java`: when the
-  owner set is empty `ownedModeFlags` loses read). The docs' wording is "expire automatically when the receiving
-  app's task stack is finished" [docs: `https://developer.android.com/training/secure-file-sharing/share-file`];
-  the source is finer: it is the lifetime of the **activity record(s)** that received the intent, and because the
-  key is the uid, every component of yaacc (services, other threads) can use it meanwhile. Process death does
-  not end it; the record does.
-- No code in `UriGrantsManagerService`, `UriPermission` or `UriPermissionOwner` refers to a
-  `FileDescriptor` (grep count 0): ending a grant never reaches descriptors already handed out (see (b)).
-
-**What happens when the trampoline forwards.**
-
-1. The share reaches `LauncherActivity` (`Theme.NoDisplay`, `LauncherActivity.java:49-65`): the system records
-   the sender's grant on the launcher's `ActivityRecord`.
-2. In `onCreate` the launcher calls `startActivity(forward)` for `TabBrowserActivity`/`BrowserActivity`. The
-   system runs the check above with `callingUid` = yaacc, for every ClipData URI of the *forward*. The launcher
-   holds a strong URI grant at this moment (its record is alive until after `onCreate` returns and the
-   asynchronous finish/destroy), so step 3 passes **only for a URI that really reached it**, and the provider
-   must still allow grants.
-3. The system records a second grant on the **target's** record (`ActivityStarter.java:1750`). Finishing the
-   trampoline removes only the trampoline's owner entry; the target's entry keeps the `UriPermission` alive.
-   Therefore the grant "transfers" in the only sense that matters: it is valid from the moment the browser
-   starts until the browser record is removed (user finishes the browser, `Yaacc.exit()`, or the system
-   destroys the record). A rotation recreates the activity inside the same record and keeps it [reasoned].
-4. If the forward names a URI the launcher cannot access, `startActivity` throws `SecurityException` in the
-   launcher (the check runs in the system server and is rethrown to the caller) [reasoned from
-   `ActivityStarter.java:605`]. The current `LauncherActivity` catches `RuntimeException`, logs the class name and
-   starts nothing (`:61-63`): the user would see the launcher vanish. Recommended: on that exception, log
-   payload-free and fall back to the plain launch.
-5. `getIntent().setClipData(null)` or removing extras in the browser (as the text path does) does not revoke
-   anything; only the record's removal does.
-
-**What the narrowest safe forward is.**
-
-- Explicit `Intent(this, targetClass)`, `setAction(ACTION_SEND)`, `setType(<validated concrete type>)`,
-  `setClipData(ClipData.newRawUri("", uri))` with **exactly one item and no `Intent` item**, and
-  `addFlags(FLAG_GRANT_READ_URI_PERMISSION)` only [docs: `Intent#setClipData`: "FLAG_GRANT_READ_URI_PERMISSION
-  and FLAG_GRANT_WRITE_URI_PERMISSION will operate on any URI items included in the clip data"]. Leave
-  `EXTRA_STREAM` out, so the forward carries one URI in one place (the system checks the ClipData, not the
-  extra). Equivalent alternative: only `putExtra(EXTRA_STREAM, uri)` and let `Instrumentation` migrate it and
-  add the flag (`Intent.java:12353`); the explicit form is easier to test.
-- Never forward: `FLAG_GRANT_WRITE_URI_PERMISSION`, `FLAG_GRANT_PERSISTABLE_URI_PERMISSION`,
-  `FLAG_GRANT_PREFIX_URI_PERMISSION` (a prefix grant would cover sibling files), `data`, more than one ClipData
-  item, an `Intent` clip item, other extras, categories, selector, the incoming flags.
-- Accept the URI in the launcher only if all of these hold: action `SEND`; `SharedContentPolicy` accepts the
-  string (content scheme, not our authority, no `@`, no `%` in the authority); the incoming ClipData has the
-  same URI in item 0 (so a mismatch between `EXTRA_STREAM` and the clip, which no grant covers, is dropped);
-  the incoming flags include `FLAG_GRANT_READ_URI_PERMISSION`. The authority check should also reject any
-  authority that resolves to a provider of our own package, not only the FileProvider: compare
-  `PackageManager.resolveContentProvider(authority, 0).packageName` with `getPackageName()` (the FileProvider's
-  authority is `${applicationId}.fileprovider`, manifest `:93`; its paths expose only
-  `cache/shared/`, `yaacc/src/main/res/xml/file_paths.xml`).
-- None of this proves that the **sender** holds the access (finding 2). `getCallingPackage()` is null for a
-  plain `startActivity`, `Activity.getReferrer()` honors a sender-supplied `EXTRA_REFERRER`, and
-  `checkUriPermission(uri, pid, uid, flags)` for our own uid is true for both grants and our own permissions.
-  There is no public API to ask "was this URI granted by the sender". Accepted as residual risk, mitigated by
-  the user-chosen receiver, the type check, no persistence and the short lifetime.
-- The browser side must treat the forwarded intent as untrusted too: it is `exported="false"` for
-  `BrowserActivity`, but `TabBrowserActivity` stays exported without filters (see "Classic and new layout",
-  (g)), so any app can send it an intent. Read the URI only from ClipData item 0 when `getItemCount() == 1`,
-  run `SharedContentPolicy` again, and keep only a PENDING share (URI, cleaned name, token); the descriptor is opened after the user's confirmation, see (f).
-- `MediaStore` hint: a `content://media/...` URI is a legitimate share from several gallery apps, so do not
-  reject the `media` authority.
+**Who may grant, and what Android honors** [aosp `services/core/java/com/android/server/uri/`, `.../wm/ActivityStarter.java`]:
+- Only `content:` URIs are granted at all; other schemes get "nothing to do" and no access. `ContentResolver` itself opens `file:` and
+  `android.resource:` URIs without any grant, which is why the policy must reject them.
+- A grant is checked on every start for the intent's `data` AND every ClipData item URI (recursing into a clip item's nested `Intent`);
+  `EXTRA_STREAM` and other extras are never looked at, and only the top-level intent's flags count.
+- Per URI (`checkGrantUriPermissionUnlocked`): (1) if the target already holds access by manifest permissions nothing is recorded; (2) the
+  provider must have `grantUriPermissions` (and match `uriPermissionPatterns`), else `SecurityException`; (3) the CALLER must hold access
+  itself, by manifest permission or a strong enough URI grant, else `SecurityException "UID n does not have permission to <uri>"`. Step 3 is
+  the rule "Android honors the flag only if the forwarder holds the access". The shortcut in (1) looks at manifest permissions only, so a
+  same-uid forward is not exempt.
+- A grant is recorded per TARGET uid and URI with the receiving `ActivityRecord` as owner and lasts until the last owner is removed
+  (`ActivityRecord.removeFromHistory` -> `removeUriPermissionsLocked`; the grant is also recorded for an activity that receives `onNewIntent`). The docs say "expire automatically when the receiving app's task
+  stack is finished" [docs: `https://developer.android.com/training/secure-file-sharing/share-file`]; the source is finer: the lifetime of
+  the activity record(s) that received the intent, usable by every component of the uid meanwhile; process death does not end it, the
+  record does. Nothing in `UriGrantsManagerService`, `UriPermission` or `UriPermissionOwner` refers to a `FileDescriptor`: ending a grant
+  never reaches descriptors already handed out.
+- The launcher's forward: the system records the sender's grant on the launcher's record; in `onCreate` the launcher calls `startActivity`
+  with `callingUid` = yaacc, the check above runs for every ClipData URI of the FORWARD and passes only for a URI that really reached the
+  launcher (and only if the provider still allows grants); a second grant is recorded on the TARGET's record, so finishing the trampoline
+  does not revoke it and it lasts until the browser's record is removed (a rotation keeps it, reasoned). A URI the launcher cannot
+  access makes `startActivity` throw `SecurityException` in the launcher [reasoned]. `setClipData(null)` or removing extras in the browser
+  revokes nothing.
+- Narrowest safe forward: explicit `Intent`, `ACTION_SEND`, the validated concrete type, `ClipData.newRawUri` with exactly ONE item and no
+  `Intent` item, `FLAG_GRANT_READ_URI_PERMISSION` only [docs `Intent#setClipData`: the flags "will operate on any URI items included in the
+  clip data"]; no `EXTRA_STREAM` (the system checks the ClipData, not the extra), never a write, persistable or prefix grant (a prefix grant
+  would cover sibling files), no `data`, more than one item, other extras, categories, selector or incoming flags. Accept the URI only if the
+  action is `SEND`, the content policy accepts it, ClipData item 0 equals `EXTRA_STREAM`, the incoming flags include the read grant, and the
+  authority is not served by any provider of this app (`PackageManager.resolveContentProvider(authority, 0).packageName`; the app has more
+  than the `${applicationId}.fileprovider`, whose paths expose only `cache/shared/`). A `content://media/...` URI is a legitimate share from
+  several gallery apps, so the `media` authority is not rejected.
+- None of this proves the SENDER holds the access: `getCallingPackage()` is null for a plain `startActivity`, `Activity.getReferrer()` honors
+  a sender-supplied `EXTRA_REFERRER`, and `checkUriPermission(uri, pid, uid, flags)` for our own uid is true for grants and our own
+  permissions alike. Accepted residual risk (see `known-risks.md` item 14). The browser side treats the forwarded intent as untrusted too:
+  `TabBrowserActivity` is exported, so any app can send it an intent.
 
 ### (b) Descriptor lifetime, seekability, serving ranges, copy fallback
+**An open descriptor outlives the grant.** Access is checked when the descriptor is OPENED (`ContentProvider.Transport.openAssetFile` /
+`openTypedAssetFile` call `enforceFilePermission` [aosp `ContentProvider.java`]); the `ParcelFileDescriptor` is duplicated into our process by
+the kernel and later reads hit the file, not the provider's permission check; ending a grant edits a table only [aosp + reasoned]. "You own
+this descriptor and are responsible for closing it when done" [docs: `https://developer.android.com/reference/android/content/ContentResolver#openFileDescriptor(android.net.Uri,%20java.lang.String)`].
+Things that end a descriptor's usefulness: the sender deleting or truncating the file while we stream (an unlinked inode stays readable,
+truncation shows as short reads), a provider that returns a pipe, the provider process dying.
+- **Stable provider reference.** `openAssetFileDescriptor` returns a `ParcelFileDescriptorInner` holding `acquireProvider(uri)` (a stable
+  reference) until closed [aosp `ContentResolver.java`]. The stable kind "turns on ... the mechanism in the platform clean up processes that
+  are dependent on a content provider if that content provider's process goes away" [docs: `ContentResolver#acquireUnstableContentProviderClient(Uri)`]:
+  if the sender is killed while we hold the descriptor, yaacc can be killed too [reasoned]. Mitigation as built: `ParcelFileDescriptor.dup(...)`
+  (a plain descriptor via `fcntl(F_DUPFD_CLOEXEC)`) and close the original at once. The dup shares the file offset with the original, which
+  does not matter with positional reads. At most one descriptor per share, at most 8 shares.
 
-**An open descriptor outlives the grant.**
+**Seekability.**
+- Mode `"r"` "could be a pipe or socket pair to enable streaming of data. Opening with the "rw" mode implies a file on disk that supports
+  seeking" [docs, same page]; do not use `"rw"` (needs write access, fails for a read grant).
+- Prefer `openAssetFileDescriptor` over `openFileDescriptor`, which throws `FileNotFoundException("Not a whole file")` for a provider that
+  returns a sub-section. Use `getStartOffset()` and `getDeclaredLength()` (`-1` = to the end, `UNKNOWN_LENGTH`); `getLength()` returns the
+  declared length or else `getStatSize()`; the constructor requires `startOffset == 0` when the length is unknown. Every read position is
+  `startOffset + position` and every read is capped by the length.
+- `ParcelFileDescriptor#getStatSize()` returns the size via `fstat`, `-1` if the descriptor is not a file [docs; aosp: size only for
+  `S_ISREG`/`S_ISLNK`]. A provider may declare a length for a pipe, so the declared length does not prove seekability.
+- Rule (public API only): seekable if `Os.fstat(fd)` reports a regular file (`OsConstants.S_ISREG`) AND `Os.lseek(fd, 0, SEEK_CUR)` succeeds
+  (ESPIPE for pipes and sockets). `android.system.Os` `fstat`, `lseek` and `pread` are "Added in API level 21" [docs: `https://developer.android.com/reference/android/system/Os`].
+  FUSE-backed `DocumentsProvider` proxy descriptors are regular files to `fstat` and seek [reasoned; may be slow]. Not seekable, unknown
+  size or zero length: copy fallback or reject.
 
-- Access is checked when the descriptor is **opened**: `ContentProvider.Transport.openAssetFile` and
-  `openTypedAssetFile` call `enforceFilePermission` and then the provider [aosp:
-  `core/java/android/content/ContentProvider.java:599-604, 656-662, 794-808`]. The result is a
-  `ParcelFileDescriptor` sent over Binder, which the kernel duplicates into our process; from then on reads
-  hit the file, not the provider's permission check. Ending a grant edits a table only (see (a), grep count 0),
-  so no code path closes or invalidates a descriptor [aosp + reasoned]. `ContentResolver#openFileDescriptor`:
-  "You own this descriptor and are responsible for closing it when done" [docs:
-  `https://developer.android.com/reference/android/content/ContentResolver#openFileDescriptor(android.net.Uri,%20java.lang.String)`].
-- It is still **not verified on a device** with real senders (see the last section). Things that do end the
-  usefulness of a descriptor: the sender deleting or truncating the file while we stream (POSIX keeps an
-  unlinked inode readable; truncation shows up as short reads), a provider that returns a pipe, and the
-  provider process dying (next bullet).
-- **Stable provider reference.** `openAssetFileDescriptor` returns an `AssetFileDescriptor` whose
-  `ParcelFileDescriptor` is a `ParcelFileDescriptorInner` holding `acquireProvider(uri)` (a stable reference)
-  until it is closed [aosp: `ContentResolver.java:1900-1910, 3907-3917`]. The documentation of the unstable
-  variant says the stable kind "turns on ... the mechanism in the platform clean up processes that are
-  dependent on a content provider if that content provider's process goes away" [docs:
-  `ContentResolver#acquireUnstableContentProviderClient(Uri)`]; i.e. if the sender app crashes or is killed
-  while we hold the descriptor, yaacc can be killed too [reasoned]. Cheap mitigation: take
-  `ParcelFileDescriptor.dup(...)` of the descriptor (a plain descriptor, not an `Inner`; `dup` is
-  `fcntl(F_DUPFD_CLOEXEC)`, `ParcelFileDescriptor.java:361-382`) and close the original at once; this releases
-  the provider reference and keeps a working kernel descriptor [reasoned; needs a device test: kill the sender
-  while streaming]. The dup shares the file offset with the original, which does not matter with positional
-  reads.
-- At most one descriptor per share and at most `ShareRegistry.DEFAULT_MAX_ACTIVE` (8) shares: no descriptor
-  pressure.
+**Serving ranges without closing the descriptor.**
+- Positional reads only: `Os.pread(FileDescriptor, byte[], int, int, long)` ("Added in API level 21", throws `ErrnoException`,
+  `InterruptedIOException`) does not touch the file offset, which a `dup` shares with the original (`ParcelFileDescriptor.dup` javadoc:
+  "shared state such as file position"). `FileChannel.read(ByteBuffer, long)` is positional too ("does not modify this channel's position"
+  [docs: `https://developer.android.com/reference/java/nio/channels/FileChannel`]; on Android it ends in a native `pread64` [libcore
+  `FileChannelImpl`/`FileDispatcherImpl`]). `Os.pread` was chosen because a `FileChannel` is an `AbstractInterruptibleChannel`:
+  interrupting a thread inside a read closes the channel for everyone and it stays closed, and HttpCore's I/O threads can be interrupted on
+  shutdown; `Os.pread` has no state. `FileInputStream(FileDescriptor)` is not the owner on Android (`isFdOwner = false`), so closing it does
+  not close the descriptor.
+- Never close the shared descriptor from a request; closing belongs to the registry (`AutoCloseable` target) on expiry, release or
+  `removeAll()`, guarded against a running read (an in-flight counter with deferred close, or a read/write lock): `readAt` after close ends
+  the response.
+- Do not hand the shared descriptor to `MediaMetadataRetriever.setDataSource(FileDescriptor, ...)`: the native side seeks and reads it
+  [docs: `https://developer.android.com/reference/android/media/MediaMetadataRetriever#setDataSource(java.io.FileDescriptor,%20long,%20long)`].
+  A `MediaDataSource` over the source would be the clean way (API 23); it is not built, so a shared file's item has no duration.
+- Threading: the handler runs on the reactor's I/O threads (`setIoThreadCount(8)`); `produceData` is called from them [httpcore]. A `pread`
+  of a local file is fine, a FUSE-proxy descriptor can block a thread: read 16-64 KiB per call and keep `availableData()` positive while
+  bytes remain. For `HEAD` HttpCore ends the stream after the headers even when the handler supplies an entity
+  (`ServerHttp1StreamHandler` [httpcore]), so the handler opens and reads nothing and sets the length headers from the known size.
 
-**Detecting seekability.**
+**Copy fallback.** Only for a non-seekable descriptor or unknown length; never copy from a seekable one. Directory: `new File(getCacheDir(),
+"incoming")`, NOT `cache/shared/` (exposed by `FileProvider` through `file_paths.xml` and used by `util/ShareFileTask`); random file names
+(never the provider's display name or the URI), no extension from the sender. Count bytes while copying, stop at the cap, also stop when
+`getUsableSpace()` is below the remaining size plus a margin. Cleanup: the copy source deletes its file on `close()`, `removeAll()` closes
+all, and `cache/incoming/` is swept at process start (the registry is memory-only, so any file found is an orphan).
 
-- `ContentResolver#openFileDescriptor`/`openAssetFileDescriptor` with mode `"r"` "could be a pipe or socket
-  pair to enable streaming of data. Opening with the "rw" mode implies a file on disk that supports seeking"
-  [docs, same page]. Do not use `"rw"`: it needs write access and fails for a read grant.
-- Prefer `openAssetFileDescriptor(uri, "r")` over `openFileDescriptor`: the latter throws
-  `FileNotFoundException("Not a whole file")` when the provider returns a sub-section of a file
-  (`ContentResolver.java:1680-1710`; docs: "so will not work with providers that return sub-sections of
-  files"). Use `getStartOffset()` and `getDeclaredLength()` (`-1` = to the end, `UNKNOWN_LENGTH`);
-  `getLength()` returns the declared length or else `getParcelFileDescriptor().getStatSize()`, and the
-  constructor requires `startOffset == 0` when the length is unknown (`AssetFileDescriptor.java:84,135-141`).
-  Every read position is `startOffset + position`, and every read is capped by the length.
-- `ParcelFileDescriptor#getStatSize()` "returns the total size of the file ... as determined by `stat()`. Returns
-  -1 if the fd is not a file" [docs; aosp `ParcelFileDescriptor.java:703-721`: `fstat`, size only for
-  `S_ISREG`/`S_ISLNK`]. So `-1` means pipe, socket or device. A provider may still declare a length for a
-  pipe, so the declared length does not prove seekability.
-- Recommended rule (public API only): a descriptor is seekable if `Os.fstat(fd)` reports a regular file
-  (`OsConstants.S_ISREG(st.st_mode)`) **and** `Os.lseek(fd, 0, OsConstants.SEEK_CUR)` succeeds (ESPIPE for
-  pipes and sockets). `android.system.Os` is public API since 21 [docs:
-  `https://developer.android.com/reference/android/system/Os`: `fstat`, `lseek`, `pread` "See pread(2)", all
-  "Added in API level 21"]. Proxy descriptors from `DocumentsProvider`s (FUSE-backed) are regular files to
-  `fstat` and seek [reasoned; may be slow, see the last section].
-- Not seekable, unknown size (<0) or a zero length: use the copy fallback or reject.
+### (c) The remote address of a request
+The `handle(Message<HttpRequest, byte[]>, ResponseTrigger, HttpContext)` method receives an `HttpContext` that the stream handlers create
+as `HttpCoreContext` and fill with `setEndpointDetails(getEndpointDetails())` for HTTP/1.1 (`ServerHttp1StreamDuplexer`) and HTTP/2
+(`ServerH2StreamMultiplexer`) [httpcore 5.3.6]. `EndpointDetails#getRemoteAddress()` returns a `java.net.SocketAddress`
+(`BasicEndpointDetails` built from `ioSession.getRemoteAddress()`):
+`EndpointDetails d = HttpCoreContext.cast(context).getEndpointDetails();` then `d.getRemoteAddress() instanceof InetSocketAddress` and
+`getAddress().getHostAddress()` (`HttpCoreContext.cast` exists since 5.3). Never use `getHostName()` (reverse DNS on the I/O thread). Missing
+details or another address type means deny. That the type is `InetSocketAddress` for a TCP session is [reasoned]. IPv6 `getHostAddress()`
+carries a scope after `%`; `ProxyAccessPolicy.normalize` strips it. The glue stays a four-line function and the decision lives in `ProxyAccessPolicy`.
 
-**Serving `Range` from the shared descriptor without closing it.**
-
-- Use **positional reads only**. `Os.pread(FileDescriptor, byte[], int, int, long)` ("Added in API level 21",
-  `throws ErrnoException, InterruptedIOException`) does not touch the file offset, which a `dup` shares with the
-  original (`ParcelFileDescriptor.dup` javadoc, `ParcelFileDescriptor.java:355-360`: "shared state such as file
-  position"). `FileChannel.read(ByteBuffer, long)` is also positional: "This method does not modify this
-  channel's position" [docs: `https://developer.android.com/reference/java/nio/channels/FileChannel`], and "File
-  channels are safe for use by multiple concurrent threads ... Other operations, in particular those that take an
-  explicit position, may proceed concurrently; whether they in fact do so is dependent upon the underlying
-  implementation and is therefore unspecified" [libcore: `ojluni/.../java/nio/channels/FileChannel.java:84-92`].
-  On Android: `FileChannelImpl.read(dst, position)` -> `readInternal` -> `IOUtil.read(fd, dst, position, nd)`
-  -> `FileDispatcherImpl.pread` -> native `pread0` [libcore: `sun/nio/ch/FileChannelImpl.java:763-798`,
-  `FileDispatcherImpl.java:52-57,147`]; `needsPositionLock()` is not overridden there [reasoned: the native
-  call is `pread64`]. So concurrent range requests on one descriptor are safe at the kernel level.
-- Why `Os.pread` over a cached `FileChannel`: (1) `new FileInputStream(fd)` is not the descriptor owner on
-  Android (`FileInputStream(FileDescriptor)` -> `isFdOwner = false`, libcore `FileInputStream.java:230-255,
-  577-579`), so closing it does not close the descriptor, but (2) a `FileChannel` is an
-  `AbstractInterruptibleChannel`: interrupting a thread that is inside a read closes the channel for everyone
-  (`FileChannelImpl.readInternal` uses `begin()/end()`), and a closed channel stays closed. HttpCore's I/O
-  threads can be interrupted on shutdown. A per-request `FileInputStream(...).getChannel()` that is never
-  closed would work but still leaks the interrupt behavior into a shared object. `Os.pread` has no state.
-- **Never close the shared descriptor from a request.** In an `AbstractBinAsyncEntityProducer`, keep only the
-  request's own counters (next position, bytes left) and make `releaseResources()`/`failed()` touch nothing
-  shared. Closing belongs to the registry (`AutoCloseable` target), on expiry, release or `removeAll()`.
-- **Close vs. read race.** If the registry closes the descriptor while a request thread is in `pread`, the number
-  can be reused immediately by another open (a socket, another file) and the read returns foreign data or fails
-  [reasoned; standard POSIX hazard]. The shared source class should guard it: a `ReentrantReadWriteLock`
-  (`readAt` takes the read lock, checks `closed`, reads; `close()` takes the write lock, sets `closed`, closes
-  the descriptor, deletes a copy file) or an in-flight counter with deferred close. `readAt` after close
-  returns -1 / throws `IOException`, the response ends.
-- For metadata, do not hand the shared descriptor to `MediaMetadataRetriever.setDataSource(FileDescriptor, ...)`:
-  the native side seeks and reads it, which moves the shared offset (harmless for `pread` users, but also the
-  documentation says "it is safe to close as soon as this call returns" only for a descriptor you own) [docs:
-  `https://developer.android.com/reference/android/media/MediaMetadataRetriever#setDataSource(java.io.FileDescriptor,%20long,%20long)`].
-  Better (**not built**: a shared file's item has no duration): a small `MediaDataSource` over the shared source (`readAt(position, buffer, offset, size)` is
-  exactly positional; `getSize()`; `close()` a no-op), set with `setDataSource(MediaDataSource)` (API 23,
-  minSdk is 27).
-- Threading: the handler runs on the reactor's I/O threads (`setIoThreadCount(8)`,
-  `YaaccUpnpServerService.java:763-769`; `produceData` is called from them [httpcore]). A `pread` of a local file
-  is fine; a FUSE-proxy descriptor from a cloud provider can block a reactor thread. Read in chunks of 16-64
-  KiB per `produceData` call and let `availableData()` return a positive number while bytes remain (the
-  existing streaming producer returns 8192 while `bytesRead < rangeLength`, `:1541-1546`).
-- HEAD: HttpCore ends the stream after the headers for a `HEAD` request even when the handler supplies an entity
-  (`ServerHttp1StreamHandler.java:185-187` [httpcore]). The handler must not open or read anything for `HEAD`
-  and must set the length headers from the known size.
-
-**Copy fallback (option B).**
-
-- When: descriptor not seekable, or length unknown/negative. Never copy from a seekable one.
-- Where: `new File(context.getCacheDir(), "incoming")` (app-private, "may be deleted by the system when low on
-  space"). **Not** `cache/shared/`: that directory is exposed by `FileProvider` (`file_paths.xml`) and used by
-  `util/ShareFileTask.java:76`. Name each file with `File.createTempFile("in", ".bin", dir)` (random name; never
-  the provider's display name or the URI), mode private, no extension from the sender.
-- Size cap: `SharedContentPolicy.MAX_COPY_BYTES` = 512 MiB in the skeleton, a sound default [reasoned]. Count
-  bytes while copying and stop at the cap (delete the partial file), also stop when
-  `getCacheDir().getUsableSpace()` is below the remaining size plus a margin (e.g. 64 MiB). Sequential copy from
-  the already open descriptor (`new FileInputStream(fd)` is not the owner, so close it freely), on a worker
-  thread; show feedback because 512 MiB takes seconds to tens of seconds. A total budget across shares is
-  advisable (e.g. at most two copies at once) because `maxActive` 8 times 512 MiB is 4 GiB [reasoned].
-- Cleanup: the copy source is an `AutoCloseable` registry target that deletes the file on `close()`; on
-  `ShareRegistry.removeAll()` (service stop, `Yaacc.exit()`); and a sweep of `cache/incoming/` at process start
-  (the registry is memory-only, so any file found there is an orphan).
-
-### (c) The proxy HTTP path, and the remote address of a request
-
-The details of the pre-share media proxy research (the handler's old request flow, content holders and the preference-based
-link storage) are kept with the project specification. What changed: the `/proxy/` path is served from the in-memory registry
-before the handler's preference gate, with its own key check, address check and range resolution, see "As built: serving"; the
-preference-based storage is retired, see "As built: the registry".
-
-**The remote address of a request.** `handle(Message<HttpRequest, byte[]>, ResponseTrigger, HttpContext)`
-(`:198-200`) receives a `HttpContext` that the stream handlers create as `HttpCoreContext.create()` and fill with
-`setEndpointDetails(getEndpointDetails())` for HTTP/1.1 (`ServerHttp1StreamDuplexer.java:321-323, 355-357`) and for
-HTTP/2 (`ServerH2StreamMultiplexer.java:107-109`) [httpcore 5.3.6]. `EndpointDetails#getRemoteAddress()` returns a
-`java.net.SocketAddress` (`BasicEndpointDetails` built from `ioSession.getRemoteAddress()`,
-`AbstractHttp1StreamDuplexer.java:578-587`). Usage:
-`EndpointDetails d = HttpCoreContext.cast(context).getEndpointDetails();`
-`if (d != null && d.getRemoteAddress() instanceof InetSocketAddress) { String ip = ((InetSocketAddress) d.getRemoteAddress()).getAddress().getHostAddress(); }`
-(`HttpCoreContext.cast` exists since 5.3, `HttpCoreContext.java:100`). Never use `getHostName()` (reverse DNS on
-the I/O thread). Missing details or another address type -> deny (fail closed). The concrete type being
-`InetSocketAddress` for a TCP session is [reasoned] (NIO socket channel); no cast failure is possible with the
-`instanceof` guard. IPv6 addresses carry a scope after `%` in `getHostAddress()`; `ProxyAccessPolicy.normalize`
-strips it. None of the code in the repo reads the endpoint details today (`grep` finds no
-`EndpointDetails`/`HttpCoreContext`). The test source of `HttpCoreContext` cannot be exercised on the JVM without
-a reactor, so the glue stays a four-line function and the decision lives in `ProxyAccessPolicy`.
-
-### (d) A receiver's IP address; who resolves the receivers for a playback
-
-**From the registered device [code].**
-
-- Remote UPnP device: `RemoteDevice#getRoot().getIdentity().getDescriptorURL()` is a `java.net.URL` (the SSDP
-  `LOCATION`), `getHost()` its host. `RemoteDeviceIdentity` is `org/fourthline/cling/model/meta/RemoteDeviceIdentity.java`
-  (vendored cling; `getDescriptorURL()`, `getDiscoveredOnLocalAddress()`). Embedded devices are built with
-  `new RemoteDeviceIdentity(udn, getIdentity())`, which copies the root's descriptor URL
-  (`RemoteDevice.java:140-146`), so the root and its children share the address; use `getRoot()` anyway
-  (`RemoteDevice.java:198-205`). `UpnpClient.getDevice(id)` may return an embedded device
-  (`getRegistry().getDevice(udn, false)`, `UpnpClient.java:524`).
-- Second candidate: `device.getDetails().getBaseURL()` (`<URLBase>`), which cling prefers for resolving
-  relative service URLs (`RemoteDevice.normalizeURI`, `:128-134`). If its host differs from the descriptor
-  host, include both.
-- `URL.getHost()` of an IPv6 literal keeps the brackets (`[fe80::1]`); `ProxyAccessPolicy.normalize` rejects
-  brackets by contract, so the glue must strip exactly one pair first. A **host name** (allowed by SSDP, rare)
-  must not be resolved on the main thread (`NetworkOnMainThreadException`); resolve with
-  `InetAddress.getAllByName` on a worker and add every result, or leave it out (then the IP check would deny; the
-  setting to switch the check off is the escape).
-- Multi-address devices (Wi-Fi + Ethernet, IPv4 + IPv6): cling keeps one `RemoteDeviceIdentity` per root, so
-  yaacc only ever knows the address of the last announcement and (maybe) the `URLBase` host. A renderer may
-  fetch from another address. That is the documented risk; the "Restrict the media proxy to the chosen
-  receivers" setting is the owner's chosen answer. A payload-free log line with the denied address helps users.
-- IPv4-mapped IPv6: whether a dual-stack accept reports `::ffff:a.b.c.d` or `Inet4Address` is not verified
-  [reasoned: the JDK maps to `Inet4Address`]; `normalize` maps both to the IPv4 text, so either way works.
-- This phone: the `UpnpClient.LOCAL_UID` dummy device (`UpnpClient.LocalDummyDevice`, `:1517`; it has no
-  `RemoteDeviceIdentity`) and, if the server publishes a renderer, a `LocalDevice` with
-  `DeviceIdentity` (no URL). The code already treats both alike (`device instanceof LocalDevice || device
-  instanceof UpnpClient.LocalDummyDevice`, e.g. `UpnpClient.java` `getMute`/`hasActionGetVolume`). Allowed
-  addresses for them: `127.0.0.1`, `::1`, `InterfaceResolutionHelper.getIpAddress(context)` (first non-loopback
-  IPv4 of the first non-blacklisted or the selected interface; falls back to `127.0.0.1`, never `0.0.0.0` in
-  practice, `util/InterfaceResolutionHelper.java:83-152`) and every address of
-  `InterfaceResolutionHelper.getBindAddresses(context)` (all addresses of that interface incl. IPv6, `:53-71`).
-  The in-app player fetches the proxy URL whose host is `getIpAddress`, so the source address of that
-  connection is that same address [reasoned] (`usesCleartextTraffic="true"`, manifest `:44`).
-- Address of **our** side for the URL: today `getIpAddress` (first IPv4 of the selected interface). A receiver on
-  another interface of a multi-homed phone would be better served by
-  `RemoteDeviceIdentity#getDiscoveredOnLocalAddress()`; optional improvement, not needed for Phase 3.
-
-**Who resolves the receiver set for a playback [code].**
-
-- Selection storage: `UpnpClient.getReceiverDeviceIds()` (`:1025-1030`, preference
-  `settings_selected_receivers_title`, default `{LOCAL_UID}` **only when the key is absent**),
-  `setReceiverDeviceIds` (`:1036`), `addReceiverDevice` (`:1099`), `removeReceiverDevice` (`:1112`), both of which
-  also fire `receiverDeviceAdded/Removed` (`:188-198`, private methods).
-- `UpnpClient.getReceiverDevices()` (`:1049-1066`) resolves ids with `getDevice(id)`, **removes unknown ids from the
-  stored set and writes it back**. It mutates the `Set` returned by `SharedPreferences.getStringSet` (`:1062`),
-  which the API forbids ("you must not modify the set instance returned by this call", `SharedPreferences.java:275-277`
-  [aosp]); copy it first. `getReceiverDevicesReadyCount()` `:1067`.
-- Playback: `UpnpClient.initializePlayers(...)` (`:724,734`) and `initializePlayersWithPlayableItems(...)` (`:1258`)
-  call `PlayerService.createPlayer(UpnpClient, List<PlayableItem>)` (`PlayerService.java:296-341`), which reads
-  `upnpClient.getReceiverDevices()` twice (`:322` empty check with the "no receiver selected" toast, `:331` loop)
-  and creates one player per receiver. The players keep the device id, so clearing the selection afterwards does
-  not stop them. `createPlayerForLocalDevice` (`:345`) is used by the inbound renderer path
-  (`AvTransportMediaRendererPlaying.java:88`) and does not read the selection.
-- Callers: `ContentItemPlayTask` (`browser/ContentItemPlayTask.java:35-46`, AsyncTask, `PLAY_CURRENT`,
-  `PLAY_ALL`, `ADD_TO_PLAYLIST`) -> `ContentListFragment.playItem` (`:774`), `playAllChildsOfParentFrom` (`:795`),
-  `addToPlayList` (`:875`) -> `initializePlayers` -> private `play(List<Player>)` (`:865-871`);
-  `ShareIntentHandler.prepareAndPlay`/`play` (`browser/ShareIntentHandler.java:154-186`, waits for receivers 3 s
-  and falls back to `LOCAL_UID`).
-- Proxy URLs are built **before** the receivers are known today (`createPlayableItem`, inside
-  `prepareAndPlay`, after the waits). With per-share IP sets the order must be: pick receivers -> compute
+### (d) A receiver's address, and who resolves the receivers for a playback
+- Remote device: `RemoteDevice#getRoot().getIdentity().getDescriptorURL()` is a `java.net.URL` (the SSDP `LOCATION`) [vendored cling
+  `RemoteDeviceIdentity`]. Embedded devices copy the root's descriptor URL, so root and children share the address; `UpnpClient.getDevice(id)`
+  may return an embedded device, so use `getRoot()`. Second candidate: `device.getDetails().getBaseURL()` (`<URLBase>`), which cling prefers
+  for relative service URLs; include both if the hosts differ. `URL.getHost()` of an IPv6 literal keeps the brackets (strip exactly one
+  pair before `ProxyAccessPolicy`); a host NAME must not be resolved on the main thread (`NetworkOnMainThreadException`).
+- cling keeps one `RemoteDeviceIdentity` per root, so yaacc only knows the address of the last announcement and maybe the `URLBase` host; a
+  multi-address renderer (Wi-Fi + Ethernet, IPv4 + IPv6) may fetch from another address. That is the documented risk and the reason for the
+  "Restrict the media proxy to the chosen receivers" setting. Whether a dual-stack accept reports `::ffff:a.b.c.d` or an `Inet4Address` is
+  not verified [reasoned: the JDK maps to `Inet4Address`]; `normalize` handles both.
+- This phone: the `UpnpClient.LOCAL_UID` dummy device (`LocalDummyDevice`, no `RemoteDeviceIdentity`) and, if the server publishes a renderer,
+  a `LocalDevice` with no URL. Allowed addresses for them: `127.0.0.1`, `::1`, `InterfaceResolutionHelper.getIpAddress(context)` and every
+  address of `getBindAddresses(context)`. `getIpAddress` returns the first non-loopback IPv4 of the first non-blacklisted (or the selected)
+  interface, and `"0.0.0.0"` (not null, not `127.0.0.1`) when there is none, e.g. wifi off. The in-app player fetches the proxy URL whose
+  host is `getIpAddress` [reasoned] (`usesCleartextTraffic="true"`).
+- Selection storage [code]: `UpnpClient.getReceiverDeviceIds()` (preference `settings_selected_receivers_title`, default `{LOCAL_UID}` ONLY
+  when the key is absent), `setReceiverDeviceIds`, `addReceiverDevice`, `removeReceiverDevice` (the last two fire
+  `receiverDeviceAdded/Removed`). An EMPTY stored set is returned as is by `getStringSet` (`SharedPreferencesImpl.getStringSet`: `v != null ?
+  v : defValues` [aosp]), so it does not revert to the default and fires no event; hence `clearReceiverDevices()`. The set returned by
+  `SharedPreferences.getStringSet` must not be modified ("you must not modify the set instance returned by this call" [aosp
+  `SharedPreferences.java`]); `getReceiverDevices()` used to do so and now works on a copy.
+- Playback reads the selection in `PlayerService.createPlayer(UpnpClient, List<PlayableItem>)` (twice: the empty check with the "no receiver
+  selected" toast, and the loop) and creates one player per receiver; players keep the device id, so clearing the selection afterwards does not
+  stop them. `createPlayerForLocalDevice` (the inbound renderer path) does not read the selection. All play variants end in
+  `ContentListFragment.play(List<Player>)`, the one place for "after the players have started". A proxy URL needs the receivers first: pick ->
   allowed addresses -> register -> build the URL -> create players.
 
-### (e) Starting and stopping the local server for one share
-
-**What is there [code].**
-
-- `LocalServerLifecycle.apply(Context, boolean restart)` (`upnp/server/LocalServerLifecycle.java:44-59`): reads
-  `settings_local_server_chkbx`; on: (optional `stopService` first when `restart`) then
-  `startForegroundService`; off: `stopService`. Callers: `onResume` of both browsers
-  (`BrowserActivity.java:163`, `TabBrowserActivity.java:207`). Other starters: `Yaacc.java:106` (plain
-  `startService`, always), `ServerAutostart.java:44` (boot, if autostart), `YaaccUpnpServerControlActivity`
-  `start()/stop()` (`:327-345`, which also write the preference).
-- `YaaccUpnpServerService`: `onCreate` registers the preference listener (`:164-179`); `onStartCommand`
-  (`:222-270`) creates the registry and `NetworkDeviceListener`, starts the `initialize()` thread (HTTP server,
-  retries, then `createUpnpDevice`) and calls `showNotification()` -> `startForeground(UPNP_SERVER, ...)`
-  (`:425`) every time; returns `START_STICKY`. `onDestroy` (`:272-320`) shuts the HTTP server down (and would
-  throw a `NullPointerException` at `networkDeviceListener.disable()` if `onStartCommand` never ran).
-  `restartServer()` (`:1377-1411`) is for interface changes.
-- The preference listener (`onSharedPreferenceChanged`, `:659-728`) reacts to `settings_local_server_chkbx`,
-  `..._provider_chkbx`, `..._receiver_chkbx` with `createUpnpDevice()` (+ notification), to the selected
-  interface with `restartServer()`, and to the serve-media toggles. `settings_local_server_proxy_chkbx` is not in
-  the list: the proxy flag is read per request (handler `:232`) and for the notification text (`:377`).
-- Therefore: **the preference does not bind the HTTP listener**; it binds the published UPnP services, the
-  foreground notification (via `LocalServerLifecycle`) and the browsers' `onResume` re-application. With the
-  preference off, `LocalServerLifecycle` calls `stopService`, but a bound `BIND_AUTO_CREATE` connection (the
-  `UpnpClient`) keeps the service alive: "if a stopped service still has ServiceConnection objects bound to it
-  with the BIND_AUTO_CREATE set, it will not be destroyed until all of these bindings are removed" and "If the
-  service is running as a foreground service when it is stopped, its associated notification will be removed"
-  [docs: `https://developer.android.com/reference/android/content/Context#stopService(android.content.Intent)`].
+### (e) The local server, the foreground service and Android 12+/14
+- `LocalServerLifecycle.apply(Context, boolean restart)`: with the preference on, optional `stopService` then `startForegroundService`; off:
+  `stopService`. Callers: `onResume` of both browsers; other starters: `Yaacc.onCreate` (plain `startService`, always), `ServerAutostart`
+  (boot), `YaaccUpnpServerControlActivity`. `onStartCommand` creates the registry and `NetworkDeviceListener`, starts the `initialize()` thread
+  (HTTP server with retries, then the UPnP device) and calls `startForeground` every time; `START_STICKY`; `onDestroy` throws a `NullPointerException` at `networkDeviceListener.disable()` if `onStartCommand` never ran. The preference listener reacts to
+  the local-server, provider and receiver checkboxes (`createUpnpDevice()`), the selected interface (`restartServer()`) and the serve-media
+  toggles; `settings_local_server_proxy_chkbx` is read per request.
+- `stopService` does not destroy a service that still has a `BIND_AUTO_CREATE` binding: "if a stopped service still has ServiceConnection
+  objects bound to it with the BIND_AUTO_CREATE set, it will not be destroyed until all of these bindings are removed", and a foreground
+  service's notification is removed when it is stopped [docs: `https://developer.android.com/reference/android/content/Context#stopService(android.content.Intent)`].
   So with the preference off the server runs without its notification.
-- **Recommendation: do not start or stop the service for a share.** What the share needs is readiness:
-  `UpnpClient.isInitialized()` is true when the service is bound and `registry != null &&
-  networkDeviceListener.isInitalized()` (`YaaccUpnpServerService.java:1248-1250`), which does **not** mean the
-  HTTP server is listening (the private `isInitialized` field is set after the server attempt; the private
-  `isHttpServerHealthy()` is not exposed). Two options: expose a small public `isHttpServerRunning()` on the
-  service, or probe `http://127.0.0.1:49157/health` (answered 200 for everyone, handler `:220`). If the port is
-  taken after 3 attempts (`HTTP_SERVER_MAX_RETRIES`, `:147`) there is no server; the share must fail with
-  feedback instead of waiting forever.
-- Knowing whether "the share started the server" is moot. If the owner nevertheless wants an explicit
-  start/stop, the only supported pattern is `startForegroundService(new Intent(ctx,
-  YaaccUpnpServerService.class))` while the app is visible, and `stopService` afterwards **only if the
-  preference is off and no other share/player needs it**; the user's preference stays untouched. But
-  `stopService` will not destroy the bound service anyway, so it would only remove the notification.
+- Readiness: `UpnpClient.isInitialized()` (service bound, registry and `networkDeviceListener` initialized) does NOT mean the HTTP server is
+  listening. A loopback connect to port 49157 (or `GET /health`, answered 200 for everyone) tells. After `HTTP_SERVER_MAX_RETRIES` (3) failed
+  starts there is no server, and a share must fail with feedback instead of waiting forever.
+- Android 12 (API 31)+: apps "can't start foreground services while the app is running in the background, except for a few special cases"
+  (`ForegroundServiceStartNotAllowedException`); exemption: "your app transitions from a user-visible state, such as an activity"
+  [docs: `https://developer.android.com/develop/background-work/services/fgs/restrictions-bg-start`]. A share arrives by an activity start, but
+  a start from a background callback is not guaranteed; the service is already running, so the constraint is avoided.
+- Android 14 (API 34): foreground services must declare a type and, for `mediaProjection`, hold a MediaProjection grant
+  [docs: `https://developer.android.com/about/versions/14/changes/fgs-types-required`]. The manifest declares
+  `foregroundServiceType="mediaProjection"` on the server service and `FOREGROUND_SERVICE_MEDIA_PROJECTION`; with `targetSdkVersion 33` this is
+  not enforced. Raising the target to 34 would make `showNotification()`'s `startForeground` fail without a projection.
+- The runtime permission `POST_NOTIFICATIONS` is requested by `BrowserActivitySupport.requestMissingPermissions` (code 101).
 
-**Android 12+/14 constraints [docs].**
-
-- Android 12 (API 31) and higher: "can't start foreground services while the app is running in the background,
-  except for a few special cases ... the system throws a `ForegroundServiceStartNotAllowedException`"; exemption:
-  "your app transitions from a user-visible state, such as an activity"
-  [`https://developer.android.com/develop/background-work/services/fgs/restrictions-bg-start`]. A share arrives by
-  an activity start from a visible sender, so a start from `BrowserActivity`/`LauncherActivity` is allowed; a start
-  from a background callback (the share handler's worker thread after 3 s waits, a timer) is not guaranteed.
-  Since the service is already running this constraint is avoided entirely.
-- Android 14 (API 34): foreground services must declare a type and, for `mediaProjection`, hold a MediaProjection
-  grant; "If your app targets Android 14, it must specify appropriate foreground service types"
-  [`https://developer.android.com/about/versions/14/changes/fgs-types-required`]. The manifest declares
-  `android:foregroundServiceType="mediaProjection"` on the server service (`AndroidManifest.xml:87-90`) and
-  `FOREGROUND_SERVICE_MEDIA_PROJECTION`; with `targetSdkVersion 33` this is not enforced. Raising the target to 34
-  would make `showNotification()`'s `startForeground` fail without a projection (out of scope; note for the
-  owner).
-- The notification: `showNotification()` posts the "Yaacc UPnP Service" ongoing notification with status text,
-  a close action, group `Yaacc` (`:380-425`); `POST_NOTIFICATIONS` is declared (`AndroidManifest.xml:12`), the
-  runtime permission is requested by `BrowserActivitySupport.requestMissingPermissions` (code 101). A share
-  that only registers an entry changes none of this.
-
-### (f) The receiver picker
-
-**How the sheet selects receivers today [code].**
-
-- `DeviceSheetFragment` (`browser/DeviceSheetFragment.java`, a `BottomSheetDialogFragment`, opened only through
-  `show(FragmentManager)` `:96-101`; `BrowserActivity.showReceivers()` `:227-229`) builds a
-  `DeviceSheetAdapter(requireContext(), upnpClient)` (`:145`). The adapter lists `getDevicesProvidingAvTransportService()`
-  (this device first, `UpnpClient.java:496-506`) as receiver rows plus player-session rows.
-- Receiver rows are bound by `ReceiverRowBinder.bind(RowViews, device, selected, SelectionListener)`
-  (`ReceiverRowBinder.java`); the checkbox click handler `:183-195` **writes through immediately**:
-  `upnpClient.removeReceiverDevice(device)` or `addReceiverDevice(device)`, then calls the listener. The initial
-  checked state is read in `DeviceSheetAdapter.onBindViewHolder`: `upnpClient.getReceiverDeviceIds()
-  .contains(deviceId)` (`:306-307`). The adapter's `selectionListener` is a no-op (`:97-98`) because the client
-  already fires the events.
-- A row tap opens the player activity for that device (`DeviceSheetAdapter.java:269-272`,
-  `ReceiverRowBinder.openPlayerActivity`); transport buttons, volume and mute live in the same row.
-- `ReceiverBarController` (new layout only) shows `upnpClient.getReceiverDevices()` names
-  (`ReceiverBarController.java:111-121`) and refreshes **only** on `receiverDeviceAdded/Removed`
-  (`:149-158`); the bar opens the sheet. The classic `ContentListFragment` footer shows the same list and does
-  not open the sheet.
-
-**What a pick mode needs.**
-
-1. *Entry point and result.* `BrowserHost` (`BrowserHost.java`) gets a method such as
-   `void pickReceivers(ReceiverPicker.Callback callback)`; `BrowserActivity` implements it by opening the sheet in
-   pick mode; `TabBrowserActivity` reports "not supported" (classic keeps its selection, so `ContentListFragment`
-   calls the host only when `providesReceiverBar()`). Deliver the result with the fragment-result API:
-   `FragmentManager.setFragmentResult(requestKey, Bundle)` from the sheet and
-   `setFragmentResultListener(requestKey, lifecycleOwner, listener)` in the activity; "if you set a result without
-   a corresponding listener, the result is stored in the FragmentManager until you set a listener with the same
-   key" [docs: `https://developer.android.com/guide/fragments/communicate`]; `fragment:1.5.4` has it
-   (`tech.md` "Classic and new layout"). The bundle carries `confirmed` and the chosen ids as
-   `ArrayList<String>`; the pending action (a lambda over the item/URI) cannot be parceled, so keep it in an
-   activity field or `ViewModel`: after a rotation it survives, after process death it is dropped and a result
-   without a pending action is ignored.
-2. *Sheet.* Argument `pick=true` + request key; a title view "Play on..." (new string, 7 locales, heading for
-   accessibility), a confirm button (accessible name, D-pad focusable, enabled or not by the "no receiver"
-   rule), cancel = back / outside tap / swipe. Report cancel from `onDismiss`/`onCancel` unless a confirm was
-   sent (`DialogFragment.onDismiss` runs in every case). In pick mode: session rows hidden, row tap toggles the
-   checkbox (it must not start another activity, which would stop the sheet), no `RendererStatusMonitor` change
-   (reuse the shared monitor, tasks.md constraint "no second status poller").
-3. *Selection must not write through.* `ReceiverRowBinder`'s checkbox click calls `UpnpClient` directly; a
-   cancelled pick must leave the stored selection as it was, so pick mode needs a sink: either a constructor
-   flag / second `bind` overload whose click handler only calls the `SelectionListener`, with the adapter keeping
-   a local `Set<String> picked` (initially empty, since the selection is cleared after every action) and
-   answering `selected` from it. The alternative (snapshot the stored ids when the pick opens and restore on
-   cancel) is worse: the bar flickers and a crash in between leaves a changed selection.
-4. *Confirm.* `ReceiverPickResult.decide(confirmed, ids)` (skeleton) says whether to start, to clear afterwards, or
-   to keep the picker open when nothing is ticked.
-5. *Starting the action.* Option 1 (design): `upnpClient.setReceiverDeviceIds(ids)`, start, then clear. Option 2
-   (cleaner, optional): an overload `PlayerService.createPlayer(upnpClient, items, Collection<Device>)` and
-   `UpnpClient.initializePlayers(..., receivers)` that take the receivers explicitly, so the global selection is
-   never written and "clearing" is free; the cost is touching `createPlayer`'s two `getReceiverDevices()` reads
-   (`PlayerService.java:322,331`). Either way, the per-receiver IP set for the share is computed from the same
-   device list.
-
-**Where the actions start playback and read the receivers** (state before the build; the `openDeviceSheetIfNoReceiverSelected()` guard was replaced by `ContentListFragment#startPlayAction`, which opens the picker in the new layout):
-
-| Entry | Code | Receivers read at |
-|---|---|---|
-| Row tap on an item | `ContentListClickListener.onClick` (`:73-90`): `openDeviceSheetIfNoReceiverSelected()` guard, then `ContentItemPlayTask` with `PLAY_CURRENT` (video) or `PLAY_ALL` | `PlayerService.createPlayer` (`:322,331`) |
-| Play button | `BrowseContentItemAdapter.java:587-590` (same guard) -> `PLAY_CURRENT` | same |
-| Play-all button | `BrowseContentItemAdapter.java:581-584` -> `PLAY_ALL` | same |
-| Add to playlist | `BrowseContentItemAdapter.java:593-594` -> `UpnpClient.addToPlaylist` (`:1593`), no guard | `getReceiverDevices()` |
-| Share | `ShareIntentHandler.handle`/`prepareAndPlay`/`play` | `getReceiverDevicesReadyCount()` (`:110,156`), then `createPlayer` |
-
-`ContentListFragment.openDeviceSheetIfNoReceiverSelected()` (`:435-444`) only fires when the selection is empty and
-`providesReceiverBar()`; with "clear after every action" the selection is always empty in the new layout, so the
-guard becomes the pick call itself (three call sites). All play variants end in `ContentListFragment.play(List<Player>)`
-(`:865-871`), so it is the single place to run "after the players have started".
-
-**Where to clear the selection.** After `player.play()` has been called for all players: in
-`ContentListFragment.play` (on the `AsyncTask` background thread; the preference write is thread-safe) and in
-`ShareIntentHandler.play` (main thread, after the loop at `:174-177`). `UpnpClient.setReceiverDeviceIds(emptySet)`
-alone is not enough:
-
-- an empty stored set is returned as is by `getStringSet` (`SharedPreferencesImpl.getStringSet`: `v != null ? v :
-  defValues`, `SharedPreferencesImpl.java:309-314` [aosp]; `putStringSet` stores a copy of an empty set,
-  `:422-427`), so `getReceiverDeviceIds()` becomes empty and the default `{LOCAL_UID}` does **not** come back
-  (it applies only if the key is absent);
-- no event fires, so `ReceiverBarController` keeps showing the old names. Add a public
-  `UpnpClient.clearReceiverDevices()` that stores the empty set and calls `fireReceiverDeviceRemoved` for each
-  previously selected device (or a new `receiverSelectionCleared()` listener method; the listener interface has
-  five methods today, `UpnpClientListener.java:29-40`);
-- `ShareIntentHandler.prepareAndPlay`'s "no receiver ready -> set `LOCAL_UID`" fallback (`:156-159`) is replaced in
-  the new layout by the picker; classic keeps it.
-
-**Share flow** (as amended by the Group 12 security review; as built in both layouts, see "As built: from the share menu to a pending
-share" and "As built: the receiver picker"): `handle` validates and keeps a
-PENDING share that holds only the validated URI, the cleaned display name, a token and the intent's read grant;
-no descriptor, no copy and no registry slot exist yet. There is at most one pending share, it times out, and a new
-share while one is pending is dropped. The host shows the picker. Only on confirm are the descriptor opened (the
-grant is valid while the receiving activity record lives), the addresses of the chosen devices computed, the
-registry entry created and the item built and played; then the selection is cleared. On cancel or timeout the
-pending share is simply released (nothing was opened). In classic the same pending share is confirmed through the
-same pick-mode sheet (cleaned file name in the title; the classic selection is the initial tick state and is restored after the
-playback has started). `getType` and the display
-name are read on a worker thread with a timeout (a hostile provider must not hang the main thread before the
-user has confirmed anything).
-
-### (g) Recommended API for the Group 12 red tests (package `de.yaacc.share`, plain Java)
-
-> **Status (2026-10-25, review of Group 12; superseded by the as-built code, see "As built" above):** the red tests were written against a slightly different API than the sketch below, and the tests are the contract: `ByteRangeResolver.parseHeader(String)` + `resolve(List<Range>, long)` returning `Result` (`status()`, `start()`, `endInclusive()`, `length()`, `contentRangeHeader()`) instead of `HttpRange`/`Resolution`; more than one range is served as 200 whole (not "first range only"); the launcher glue is `LauncherForwardPolicy.decideStream(...)` returning a `StreamDecision` instead of an 8-argument `decide`; `ReceiverPickResult.Decision` has an extra `keepPickerOpen()`. Where the sketch and the tests differ, follow the tests.
-
-The four classes **already exist as red stubs** in `yaacc/src/main/java/de/yaacc/share/` with tests in
-`yaacc/src/test/java/de/yaacc/share/` (committed before this research finished; not touched here). The API below
-is what the research supports; where it differs from the stubs it is marked **change**.
-
-```java
-public final class ShareRegistry {
-    public static final int DEFAULT_MAX_ACTIVE = 8;          // ok
-    public static final int KEY_BYTES = 16;                  // ok: 128 bit, 22 chars base64url without padding
-    public enum Kind { HTTP_LINK, LOCAL_FILE }               // ok
-    public static final class Entry {                        // ok, immutable
-        public Entry(Kind kind, Object target, String mimeType, Set<String> allowedAddresses,
-                     long idleGraceMillis, long absoluteMaxMillis) // IllegalArgumentException on null kind/target, grace<0, max<=0
-        // getKind(), getTarget(), getMimeType(), getAllowedAddresses() (unmodifiable copy), getIdleGraceMillis(), getAbsoluteMaxMillis()
-    }
-    public ShareRegistry(LongSupplier nowMillis, Consumer<byte[]> randomBytes, int maxActive);
-    public ShareRegistry(LongSupplier nowMillis, Consumer<byte[]> randomBytes);
-    public static ShareRegistry createDefault();             // SystemClock.elapsedRealtime-like monotonic clock + SecureRandom
-    public String register(Entry entry);                     // null when full / no free key; caller keeps ownership of the target then
-    public Entry lookup(String key);                         // null for unknown, garbage, expired, released+grace over
-    public boolean markActive(String key);
-    public void release(String key);                         // first release starts the grace period
-    public boolean remove(String key);                       // closes an AutoCloseable target once
-    public int expire();
-    public void removeAll();
-    public int size();
-    // change (add): format check used by the handler before lookup, no registry state needed
-    public static boolean isWellFormedKey(String key);       // exactly 22 chars of [A-Za-z0-9_-]
-}
-```
-
-- Keep `createDefault()` out of JVM tests (a monotonic clock that does not use `android.*`:
-  `System.nanoTime() / 1_000_000` is JVM and Android safe and monotonic; `SystemClock.elapsedRealtime()` would
-  break the "no `android.*`" constraint).
-- The LOCAL_FILE target on the Android side is a class outside these four (e.g. `SharedFileSource implements
-  AutoCloseable`: `long length()`, `int readAt(long position, byte[] buf, int off, int len)`, `close()` with the
-  read/close lock described in (b), deleting a copy file on close). It needs no JVM test beyond a fake backed by
-  a byte array.
-
-```java
-public final class ProxyAccessPolicy {
-    public static boolean isAllowed(boolean restrictToReceivers, Set<String> allowedAddresses, String remoteAddress);
-    public static String normalize(String address);          // see the stub's Javadoc: zone stripped, IPv4-mapped -> IPv4, IPv6 canonical
-    // change (clarify): isAllowed normalizes BOTH the remote address and every allowed element before comparing,
-    //   so the glue can add raw strings; elements that do not normalize are ignored.
-    // change (add): for the glue that builds the allowed set from a URL host or getHostAddress()
-    public static Set<String> normalizeAll(Collection<String> rawAddresses);   // drops nulls/invalid, strips one pair of [ ]
-}
-```
-
-```java
-public final class SharedContentPolicy {
-    public static final int MAX_URI_LENGTH = 2048;
-    public static final int MAX_MIME_LENGTH = 255;
-    public static final long MAX_COPY_BYTES = 512L * 1024L * 1024L;
-    public static boolean isAcceptableUri(String uriString, String ownAuthority);
-    public static boolean isAcceptableMimeType(String mime);
-    public static long maxCopyBytes();
-    public static boolean isWithinCopyLimit(long sizeBytes);
-    // change (add): the order from (a): provider type if acceptable, else a concrete intent type, else null
-    public static String chooseMimeType(String providerType, String intentType);
-}
-```
-
-```java
-public final class ReceiverPickResult {
-    public static Decision decide(boolean confirmed, Set<String> chosenReceiverIds);
-    // Decision: startPlayback(), clearSelectionAfterStart(), keepPickerOpen(), receiversToUse()  (as in the stub)
-}
-```
-
-Recommended **additional** pure classes for the red tests (the riskiest logic of Groups 13 and 14 is not covered by
-the four above):
-
-```java
-// Group 13: one source of truth for status, Content-Range header and the bytes to send
-public final class ByteRangeResolver {                       // package de.yaacc.share or de.yaacc.util; HttpRange is pure Java
-    public static final class Resolution {                   // immutable
-        public int status();            // 200, 206 or 416
-        public long start();            // inclusive, valid for 200 and 206
-        public long endInclusive();     // valid for 200 and 206
-        public long length();           // bytes to send
-        public String contentRange();   // "bytes s-e/len" for 206, "bytes */len" for 416, else null
-    }
-    public static Resolution resolve(List<HttpRange> ranges, long totalLength); // never throws; null/empty list -> 200 whole; first range only
-}
-
-// Group 14: extends the existing launcher decision without changing the three-argument decide(...)
-public final class LauncherForwardPolicy {                   // existing class, de.yaacc.browser
-    public static Decision decide(String action, String type, String text);   // unchanged
-    public static Decision decide(String action, String type, String text,
-                                  String streamUri, String clipItemZeroUri, int clipItemCount,
-                                  boolean hasReadGrantFlag, String ownAuthority);
-    // Decision gains: isSendStream(), getStreamUri(), getStreamType()
-    //   stream forward only if: action SEND, type is audio/*, video/*, image/* (or concrete), count == 1,
-    //   clip item 0 equals the stream URI, the read flag was present, SharedContentPolicy.isAcceptableUri(...).
-}
-```
-
-Test cases the research adds beyond the stubs: `ProxyAccessPolicy` with a bracketed IPv6 and a zone; the
-`ByteRangeResolver` table (no header, `0-`, `0-0`, `10-5`, `-5`, `-0`, `-9999`, `start == length`, multi-range,
-length 0); `ShareRegistry.isWellFormedKey` against `"../x"`, 21/23 chars, `+/=`; `SharedContentPolicy.chooseMimeType`
-(provider wins, provider `application/octet-stream` falls back, wildcard intent type rejected).
-
-### What could NOT be verified without a device
-
-1. The whole chain sender -> `LauncherActivity` -> `TabBrowserActivity`/`BrowserActivity` with a real grant on
-   Android 12-16, with real senders (Google Photos, Files, Gallery, VLC, a messenger): that the forward is not
-   rejected, that the grant is usable for the whole browser lifetime, and what a `SecurityException` at the
-   forward looks like for providers that forbid re-granting. Only Android 14 source was read.
-2. Whether a descriptor opened under a grant keeps working after the grant ends, after the sender task ends and
-   after the sender deletes the file, for MediaStore, FileProvider, Google Photos/Drive, SAF providers and
-   FUSE-passthrough storage (the source argument in (b) is reasoned).
-3. Which providers return pipes or sockets for mode `"r"`, which return sub-sections (`startOffset != 0`), and
-   what `fstat`/`lseek` say for `DocumentsProvider` proxy descriptors; speed and blocking of `pread` on those.
-4. The stable-provider-reference kill behavior and the dup-then-close mitigation: kill the sender while a share
-   streams.
-5. The type and form of `EndpointDetails#getRemoteAddress()` on a real device (`InetSocketAddress`; IPv4 shown as
-   IPv4 or IPv4-mapped; IPv6 scope), and the loopback/own-address cases for the in-app player.
-6. The address real renderers fetch from (Samsung/LG/Sony TVs, Kodi, BubbleUPnP, multi-homed devices) compared with
-   the SSDP `LOCATION` host; whether `HEAD`, 206, 416 and `Connection: close` are handled by them.
-7. The effect of the `stopService` + bound service on the notification and process priority when the local-server
-   preference is off, and whether the process survives screen-off during a long local-file stream (WifiLock,
-   Doze); the reactor's behavior with eight I/O threads.
-8. Android 15 and 16 changes to URI grants, foreground-service starts and `MediaProvider`; only Android 14 sources
-   and current developer.android.com pages were read.
-9. Picker UX: rotation with the sheet open, TalkBack and D-pad on TV, cancel by back, and the pending-action
-   handling across process death.
-10. `MediaDataSource` metadata extraction on API 27 for the formats users share; the copy fallback's real speed
-    and the cache-eviction behavior under low storage.
+### (f) Platform facts for the receiver picker
+- Fragment result API: "if you set a result without a corresponding listener, the result is stored in the FragmentManager until you set a
+  listener with the same key" [docs: `https://developer.android.com/guide/fragments/communicate`]; `fragment:1.5.4` has it. The bundle can carry
+  `confirmed` and the ids as `ArrayList<String>`; the pending action (a lambda) cannot be parceled, so it lives in the activity: it survives a
+  rotation only if kept in a retained holder (it is not), and is dropped with process death, where a result without a pending action is ignored.
+- `DialogFragment.onDismiss` runs in every case (back, outside tap, swipe, after a confirm), so a cancel must be reported from `onDismiss`
+  unless a confirm was already sent.
 
 ### Sources
-
-- developer.android.com: `reference/android/content/Intent` (`ACTION_SEND`, `FLAG_GRANT_READ_URI_PERMISSION`,
-  `setClipData`), `reference/androidx/core/content/IntentCompat`, `guide/topics/manifest/data-element`,
-  `training/secure-file-sharing/share-file`, `reference/android/content/ContentResolver`
-  (`openFileDescriptor`, `getType`, `acquireUnstableContentProviderClient`), `reference/android/os/ParcelFileDescriptor`,
-  `reference/android/system/Os`, `reference/java/nio/channels/FileChannel`, `reference/android/content/Context#stopService`,
-  `reference/android/media/MediaMetadataRetriever`, `guide/fragments/communicate`,
-  `develop/background-work/services/fgs/restrictions-bg-start`, `about/versions/14/changes/fgs-types-required`.
-- AOSP `platform/frameworks/base` `android-14.0.0_r1`: `services/core/java/com/android/server/uri/{UriGrantsManagerService,UriPermission,UriPermissionOwner}.java`,
-  `services/core/java/com/android/server/wm/{ActivityStarter,ActivityRecord}.java`,
-  `core/java/android/content/{Intent,ContentResolver,ContentProvider,SharedPreferences}.java`,
-  `core/java/android/content/res/AssetFileDescriptor.java`, `core/java/android/os/ParcelFileDescriptor.java`,
-  `core/java/android/app/{Instrumentation,SharedPreferencesImpl}.java`.
-- libcore (LineageOS `android_libcore`, `lineage-21.0`): `ojluni/.../java/io/FileInputStream.java`,
-  `ojluni/.../java/nio/channels/FileChannel.java`, `ojluni/.../sun/nio/ch/{FileChannelImpl,IOUtil,FileDispatcherImpl}.java`,
-  `luni/.../android/system/Os.java`.
-- Apache HttpComponents Core 5.3.6 sources (Maven Central): `HttpCoreContext`, `EndpointDetails`,
-  `BasicEndpointDetails`, `ServerHttp1StreamDuplexer`, `ServerHttp1StreamHandler`, `AbstractHttp1StreamDuplexer`,
-  `AbstractBinAsyncEntityProducer`, `ServerH2StreamMultiplexer`.
+- developer.android.com (reference): `content/Intent`, `androidx/core/content/IntentCompat`, `content/ContentResolver`, `os/ParcelFileDescriptor`,
+  `system/Os`, `java/nio/channels/FileChannel`, `content/Context#stopService`, `media/MediaMetadataRetriever`; guides: `topics/manifest/data-element`,
+  `training/secure-file-sharing/share-file`, `guide/fragments/communicate`, `develop/background-work/services/fgs/restrictions-bg-start`,
+  `about/versions/14/changes/fgs-types-required`.
+- AOSP `android-14.0.0_r1`: `services/core/java/com/android/server/uri/*`, `.../wm/{ActivityStarter,ActivityRecord}.java`,
+  `core/java/android/content/{Intent,ContentResolver,ContentProvider,SharedPreferences}.java`, `.../res/AssetFileDescriptor.java`,
+  `.../os/ParcelFileDescriptor.java`, `.../app/{Instrumentation,SharedPreferencesImpl}.java`; libcore (`lineage-21.0`): `FileInputStream`, `FileChannel`,
+  `FileChannelImpl`, `IOUtil`, `FileDispatcherImpl`, `Os`; HttpCore 5.3.6 sources: `HttpCoreContext`, `EndpointDetails`, `ServerHttp1StreamDuplexer`,
+  `ServerHttp1StreamHandler`, `ServerH2StreamMultiplexer`, `AbstractBinAsyncEntityProducer`.
