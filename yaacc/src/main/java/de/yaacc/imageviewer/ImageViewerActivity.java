@@ -53,7 +53,6 @@ import de.yaacc.settings.SettingsActivity;
 import de.yaacc.util.ActivitySwipeDetector;
 import de.yaacc.util.AboutActivity;
 import de.yaacc.util.SwipeReceiver;
-import de.yaacc.util.ThemeHelper;
 import de.yaacc.util.YaaccLogActivity;
 import de.yaacc.util.YaaccLogger;
 
@@ -434,13 +433,9 @@ public class ImageViewerActivity extends AppCompatActivity implements SwipeRecei
 
     @Override
     public boolean onCreateOptionsMenu(android.view.Menu menu) {
+        // The icons are white vectors on the title bar, which is dark in both themes; tinting them with the
+        // foreground color of the activity theme made them dark on dark in the light theme.
         getMenuInflater().inflate(R.menu.activity_image_viewer, menu);
-        for (int i = 0; i < menu.size(); i++) {
-            android.view.MenuItem item = menu.getItem(i);
-            if (item.getIcon() != null) {
-                item.setIcon(ThemeHelper.tintDrawable(item.getIcon(), getTheme()));
-            }
-        }
         return true;
     }
 
