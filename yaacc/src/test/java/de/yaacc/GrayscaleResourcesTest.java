@@ -118,6 +118,27 @@ public class GrayscaleResourcesTest {
     }
 
     @Test
+    public void theTitleBarIsDarkAndTheSettingsHeadlinesAreEmphasised() throws Exception {
+        String styles = read("src/main/res/values/styles.xml");
+        assertTrue(styles.contains("<item name=\"actionBarStyle\">@style/Widget.App.ActionBar</item>"));
+        assertTrue(styles.contains("<item name=\"actionBarTheme\">@style/ThemeOverlay.AppCompat.Dark.ActionBar</item>"));
+        assertTrue(Pattern.compile("<style name=\"Widget.App.ActionBar\"[^>]*>\\s*<item name=\"background\">@color/gray_bar</item>")
+                .matcher(styles).find());
+        assertTrue(styles.contains("<item name=\"android:colorPrimaryDark\">@color/gray_bar_dark</item>"));
+        assertTrue(styles.contains("<item name=\"preferenceTheme\">@style/PreferenceThemeOverlay.App</item>"));
+        assertTrue(styles.contains("<item name=\"preferenceCategoryTitleTextColor\">?android:attr/textColorPrimary</item>"));
+        assertTrue(Pattern.compile("<style name=\"TextAppearance.App.PreferenceCategory\"[^>]*>\\s*<item name=\"android:textStyle\">bold</item>")
+                .matcher(styles).find());
+    }
+
+    @Test
+    public void theTitleBarIsDarkInBothThemes() throws Exception {
+        assertTrue(read("src/main/res/values/colors.xml").contains("name=\"gray_bar\">#424242<"));
+        assertTrue(read("src/main/res/values-night/colors.xml").contains("name=\"gray_bar\">#121212<"));
+        assertTrue(read("src/main/res/values-night/colors.xml").contains("name=\"gray_bar_dark\">#000000<"));
+    }
+
+    @Test
     public void noResourceFileHardCodesAColor() throws Exception {
         List<String> offenders = new ArrayList<>();
         List<Path> files;

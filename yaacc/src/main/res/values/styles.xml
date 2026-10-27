@@ -30,7 +30,25 @@
         <item name="colorOnSecondary">@color/gray_on_secondary</item>
         <item name="colorAccent">@color/gray_accent</item>
         <item name="colorControlActivated">@color/gray_accent</item>
-        <item name="android:colorPrimaryDark">@color/gray_primary_variant</item>
+        <!-- Title bar: dark gray in both themes with light title and icons, status bar darker -->
+        <item name="android:colorPrimaryDark">@color/gray_bar_dark</item>
+        <item name="actionBarStyle">@style/Widget.App.ActionBar</item>
+        <item name="actionBarTheme">@style/ThemeOverlay.AppCompat.Dark.ActionBar</item>
+        <!-- Headlines of the settings sections stand out from the entries -->
+        <item name="preferenceTheme">@style/PreferenceThemeOverlay.App</item>
+    </style>
+
+    <style name="Widget.App.ActionBar" parent="Widget.AppCompat.ActionBar.Solid">
+        <item name="background">@color/gray_bar</item>
+    </style>
+
+    <style name="PreferenceThemeOverlay.App" parent="PreferenceThemeOverlay">
+        <item name="preferenceCategoryTitleTextColor">?android:attr/textColorPrimary</item>
+        <item name="preferenceCategoryTitleTextAppearance">@style/TextAppearance.App.PreferenceCategory</item>
+    </style>
+
+    <style name="TextAppearance.App.PreferenceCategory" parent="TextAppearance.AppCompat.Body2">
+        <item name="android:textStyle">bold</item>
     </style>
 
     <style name="Widget.App.Button.OutlinedButton.IconOnly" parent="Widget.MaterialComponents.Button.OutlinedButton">

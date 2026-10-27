@@ -8,6 +8,9 @@
     <color name="gray_secondary">#757575</color>
     <color name="gray_secondary_variant">#616161</color>
     <color name="gray_on_secondary">#FFFFFF</color>
+    <!-- title bar and the status bar above it: dark in both themes -->
+    <color name="gray_bar">#424242</color>
+    <color name="gray_bar_dark">#303030</color>
     <color name="gray_accent">#616161</color>
     <!-- the row that is picked up for a keyboard move in the playlist -->
     <color name="gray_highlight">#40616161</color>

@@ -7,6 +7,8 @@
     <color name="gray_secondary">#BDBDBD</color>
     <color name="gray_secondary_variant">#9E9E9E</color>
     <color name="gray_on_secondary">#212121</color>
+    <color name="gray_bar">#121212</color>
+    <color name="gray_bar_dark">#000000</color>
     <color name="gray_accent">#BDBDBD</color>
     <color name="gray_highlight">#40BDBDBD</color>
 </resources>

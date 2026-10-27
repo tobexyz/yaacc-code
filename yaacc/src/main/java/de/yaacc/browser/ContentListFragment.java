@@ -156,6 +156,10 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         contentList.setFocusableInTouchMode(false); // Good for D-Pad primary interaction
         contentList.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
         initViewModeToggle(contentlistView);
+        // Before anything is loaded (no server selected yet, a slow server) the label must already clear
+        // the back button that the new layout shows at the root; the margin was only set once content arrived.
+        backButton.setVisibility(showsBackAtContentRoot() ? View.VISIBLE : View.GONE);
+        applyFolderNameMargin(showsBackAtContentRoot());
         upnpClient.addUpnpClientListener(this);
         if (getActivity() != null) {
             getActivity().runOnUiThread(() -> {
@@ -605,6 +609,11 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         // orientation: portrait places the label beside the button (needs
         // to clear its width), landscape places it below (doesn't) -- see
         // values/dimens.xml and values-land/dimens.xml.
+        applyFolderNameMargin(showBack);
+    }
+
+    /** Sets the start margin of the path label so that it clears the back button when that is shown. */
+    private void applyFolderNameMargin(boolean showBack) {
         int marginStartDimenRes = !showBack
                 ? R.dimen.folder_name_margin_start_base
                 : R.dimen.folder_name_margin_start_with_back;
