@@ -10,6 +10,7 @@
 - **Setting "Restrict the media proxy to the chosen receivers"** (on by default): A shared file or link is only served to the network addresses of the receivers chosen for it (this phone's own addresses only if this device was chosen); other requests get "403". Switch it off if a chosen receiver is refused (for example one that fetches from another address than it announces). With it off, any device that knows the share's address can fetch it while it is shared; the random key in the address is visible to any UPnP control point that can query the receiver, so it is not a protection then.
 
 ### Changed
+- **Gray scale**: Check boxes, switches, sliders, progress bars, the headlines of the settings and the device state badge are gray in the light and the dark theme instead of the purple and teal defaults. The launcher icon is unchanged.
 - **Theme setting with three states**: *Settings* > *Appearance* > *Theme* offers System, Dark and Light instead of the former dark mode check box. An existing choice is kept (dark stays dark, "use the system settings" becomes System); a fresh install starts with Dark.
 - **Server list button** (new layout): The header of the content list has a server button that shows the list of servers from any folder depth, so you no longer have to go back folder by folder to change the server.
 - **Landscape card view**: Cards are laid out in several columns in landscape, and the landscape browser has the list/card button, as in portrait. The OK/Cancel buttons and the receivers of the receiver picker are readable on the dark sheet.

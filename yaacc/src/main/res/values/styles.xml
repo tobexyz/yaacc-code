@@ -20,6 +20,17 @@
 
     <style name="AppTheme" parent="Theme.MaterialComponents.DayNight.Bridge">
         <item name="materialTimePickerTheme">@style/ThemeOverlay.App.TimePicker</item>
+        <!-- Gray scale: check boxes, switches, sliders, progress bars and the headlines of the settings
+             take these instead of the purple and teal defaults -->
+        <item name="colorPrimary">@color/gray_primary</item>
+        <item name="colorPrimaryVariant">@color/gray_primary_variant</item>
+        <item name="colorOnPrimary">@color/gray_on_primary</item>
+        <item name="colorSecondary">@color/gray_secondary</item>
+        <item name="colorSecondaryVariant">@color/gray_secondary_variant</item>
+        <item name="colorOnSecondary">@color/gray_on_secondary</item>
+        <item name="colorAccent">@color/gray_accent</item>
+        <item name="colorControlActivated">@color/gray_accent</item>
+        <item name="android:colorPrimaryDark">@color/gray_primary_variant</item>
     </style>
 
     <style name="Widget.App.Button.OutlinedButton.IconOnly" parent="Widget.MaterialComponents.Button.OutlinedButton">
@@ -32,7 +43,7 @@
         <item name="android:minHeight">48dp</item>
     </style>
 
-    <style name="AppTheme.FullScreenDialog" parent="Theme.MaterialComponents.DayNight.Bridge" />
+    <style name="AppTheme.FullScreenDialog" parent="AppTheme" />
 
     <style name="AppTheme.Slide">
         <item name="android:windowEnterAnimation">@anim/slide_up</item>

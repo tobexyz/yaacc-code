@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark variants of res/values/colors.xml: light grays for controls, dark text on them. -->
+    <color name="gray_primary">#BDBDBD</color>
+    <color name="gray_primary_variant">#9E9E9E</color>
+    <color name="gray_on_primary">#212121</color>
+    <color name="gray_secondary">#BDBDBD</color>
+    <color name="gray_secondary_variant">#9E9E9E</color>
+    <color name="gray_on_secondary">#212121</color>
+    <color name="gray_accent">#BDBDBD</color>
+    <color name="gray_highlight">#40BDBDBD</color>
+</resources>

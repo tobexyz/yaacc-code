@@ -81,8 +81,8 @@
                     android:layout_height="wrap_content"
                     android:text="PLAYING"
                     android:textSize="12sp"
-                    android:textColor="@android:color/white"
-                    android:background="?android:attr/colorControlActivated"
+                    android:textColor="?attr/colorOnSecondary"
+                    android:background="?attr/colorSecondary"
                     android:padding="4dp"
                     android:visibility="gone" />
 

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The whole app is gray scale: every color of the theme is a gray (res/values-night has the dark
+         variants). GrayscaleResourcesTest pins that. The launcher icon is the only colored asset. -->
+    <color name="gray_primary">#616161</color>
+    <color name="gray_primary_variant">#424242</color>
+    <color name="gray_on_primary">#FFFFFF</color>
+    <color name="gray_secondary">#757575</color>
+    <color name="gray_secondary_variant">#616161</color>
+    <color name="gray_on_secondary">#FFFFFF</color>
+    <color name="gray_accent">#616161</color>
+    <!-- the row that is picked up for a keyboard move in the playlist -->
+    <color name="gray_highlight">#40616161</color>
+</resources>

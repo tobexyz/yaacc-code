@@ -102,7 +102,7 @@ public class PlaylistItemAdapter extends RecyclerView.Adapter<PlaylistItemAdapte
         if (listPosition == selectedForMovePosition) {
             // Highlight the selected item (e.g., change background color or add a border)
             YaaccLogger.d(getClass().getName(), "Item selected for keyboard move: " + item.getTitle());
-            holder.itemView.setBackgroundColor(context.getResources().getColor(R.color.design_default_color_secondary));
+            holder.itemView.setBackgroundColor(context.getResources().getColor(R.color.gray_highlight));
         } else {
             holder.itemView.setBackgroundColor(context.getResources().getColor(android.R.color.transparent));
         }
