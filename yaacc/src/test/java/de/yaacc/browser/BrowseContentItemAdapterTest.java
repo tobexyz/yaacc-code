@@ -47,7 +47,7 @@ import de.yaacc.upnp.UpnpClient;
 
 /**
  * Tests for {@link BrowseContentItemAdapter}'s {@code ViewMode} support
- * (spec {@code 2026-10-17-browse-card-grid-view}, Group 2).
+ * ("Browse card-grid view" in docs/tech.md).
  * <p>
  * Reuses {@link BrowseContentItemAdapterSortTest#newAdapter} for the same
  * plain-JVM {@code RecyclerView.Adapter} notify-safety workaround already

@@ -707,7 +707,7 @@ unchanged.
   classic fragment opens `DeviceSheetFragment`. (Phase 1 had put the sheet into
   the classic Content tab; owner feedback, Group 11, reverted that.)
 - **Receiver bar label.** Phase 1 showed the selected receivers; since Phase 3
-  `ReceiverBarLabel` names the receivers that have a player in
+  `ReceiverBarController#label` names the receivers that have a player in
   `PlayerService.getCurrentPlayers()` (a paused player counts), cleaned, merged,
   sorted and joined with `"; "`, or `receiver_bar_none_playing` ("No receiver
   playing"). The bar refreshes on the player-list listener and the receiver
@@ -832,7 +832,7 @@ All classes are in `de.yaacc.browser` unless a package is given.
 | `ShutdownTimerController`, `ShutdownTimerToggle` | Shutdown timer UI logic and the toolbar tap decision (stop, or ask for a duration). |
 | `StreamingPermissionHelper` | MediaProjection permission flow of the yaacc server row. |
 | `BackgroundIdleTimer`, `StartedBrowserCounter` | One process-wide idle exit. |
-| `ReceiverBarController`, `ReceiverBarLabel` | Receiver bar binding and label (new layout only). |
+| `ReceiverBarController` | Receiver bar binding and label (new layout only). |
 | `MiniPlayerBar`, `MiniPlayerAdapter`, `MiniPlayerRows`, `MiniPlayerArtKeys`, `MaxHeightRecyclerView`, `MiniPlayerPresenter` | Mini-player (new layout only): controller, row adapter, row order and art key, per-player art bookkeeping, height-capped list, text cleaning. |
 | `de.yaacc.upnp.server.LocalServerLifecycle` | Starts or stops `YaaccUpnpServerService` from the preferences; both browsers call it from `onResume`. |
 
@@ -1128,7 +1128,7 @@ accessibility delegate (click action "Choose receivers") and adds itself as
 `UpnpClientListener`; `unbind()` removes all of it. It refreshes through
 `receiverDeviceAdded` / `receiverDeviceRemoved` (hopping to the main thread)
 and once on every `bind()`; late events after `unbind()` are ignored. The
-label is `ReceiverBarLabel.build` (Phase 3: the cleaned names of the receivers
+label is `ReceiverBarController#label` (Phase 3: the cleaned names of the receivers
 that have a player, case-insensitive sort, joined with `"; "`, else
 `receiver_bar_none_playing`; it no longer shows the selection), set with
 `setText`; besides the receiver events the controller listens to the player list. `BrowserActivity` owns one bar below the container
@@ -1549,12 +1549,12 @@ What another app can share into yaacc (a link, or ONE audio, video or image file
 receivers, and how the receiver is picked per action (Phase 3, Groups 12-16).
 The "As built" subsections describe the code at `e3e0a247` on branch `feat/unified-device-sheet` (Groups 12-15 passed
 the general and the security review); they cite classes, not line numbers. The platform facts the build started
-from follow under "Research notes (Group 12)". Class names are those of Phase 3, except where Group 17 of the share-code consolidation (Phase 4)
-already changed them: `SharedFileService` is now `de.yaacc.share.ShareService` (it absorbed `ShareProxyUrl` and `ShareFailureMessage`),
-`ShareRegistrar`, `DescriptorWindow`, `ReceiverBarLabel` and `ReceiverSelection` are merged into `ShareRegistry#registerOrEvict`,
-`HeldFileSource#clampLength`, `ReceiverBarController#label` and `UpnpClient`, and `de.yaacc.upnp.server.share` is part of `de.yaacc.share`; the
-rest of the consolidation (Groups 18-21) is open and Group 22 updates the names here. Nothing here was run on a device: "Not verified on a
-device" lists what only a device can confirm.
+from follow under "Research notes (Group 12)". Group 17 of the share-code consolidation (Phase 4) renamed and merged some classes
+(`SharedFileService` is `ShareService`, which absorbed `ShareProxyUrl` and `ShareFailureMessage`; `ShareRegistrar`,
+`DescriptorWindow`, `ReceiverBarLabel` and `ReceiverSelection` live on as `ShareRegistry#registerOrEvict`,
+`HeldFileSource#clampLength`, `ReceiverBarController#label` and `UpnpClient`; `de.yaacc.upnp.server.share` is now part of
+`de.yaacc.share`); the names in this section are the current ones. The rest of the consolidation (Groups 18-21) is open and
+Group 22 updates the names again. Nothing here was run on a device: "Not verified on a device" lists what only a device can confirm.
 
 ### As built: overview
 
@@ -1563,15 +1563,15 @@ device" lists what only a device can confirm.
 | `de.yaacc.LauncherActivity` | Exported entry. Forwards a text share or ONE file to the browser of the effective layout with a fresh intent. The SEND filters for `audio/*`, `video/*` and `image/*` are its only manifest change of Phase 3. |
 | `de.yaacc.share.LaunchNonces` | Single-use launch token, minted by the launcher after its checks, required for a file at the browsers. |
 | `browser.ShareIntentHandler`, `browser.ShareIntakeGate`, `share.StreamIntake`, `share.SharedContentPolicy`, `share.PendingShare` | Intake in the browser: repeats every check, keeps ONE pending share (text only), confirm/cancel by token. |
-| `upnp.server.share.SharedFileService`, `SharedFileOpener`, `HeldFileSource`, `share.WatchedCopy`, `share.IncomingCache` | After the confirm: open (hold) or copy the file, register it, build the item. |
+| `share.ShareService`, `share.SharedFileOpener`, `share.HeldFileSource`, `share.WatchedCopy`, `share.IncomingCache` | After the confirm: open (hold) or copy the file, register it, build the item. |
 | `share.ShareRegistry`, `share.UnclaimedShares`, `share.ShareKeyTracker`, `player.ShareLifetimeListener` | The in-memory registry (random keys, allowed addresses, expiry), the claim window and the release when a player ends. |
 | `upnp.server.http.YaaccUpnpServerContentHttpHandler`, `ProxyShareResponder` | Serve `/proxy/<key>` before the preference gate. |
-| `share.ProxyAccessPolicy`, `share.ShareAddresses`, `upnp.server.share.ShareAddressResolver` | Which remote addresses may fetch a share. |
+| `share.ProxyAccessPolicy`, `share.ShareAddresses`, `share.ShareAddressResolver` | Which remote addresses may fetch a share. |
 | `share.ByteRangeResolver`, `share.RangeStreamer`, `share.PositionalSource`, `share.ShareConcurrencyLimiter` | Range maths, streaming from the held file, per-share response cap. |
 | `share.LinkTargetPolicy`, `share.HttpLinkTarget`, `share.LinkContentType`, `UpnpClient#createPlayableItem` | The link path (http/https). |
-| `share.ProviderCallGate`, `share.BoundedCall`, `share.AbandonableCall`, `upnp.server.share.ProviderKeys` | Bound what a content provider can pin. |
+| `share.ProviderCallGate`, `share.BoundedCall`, `share.AbandonableCall`, `share.ProviderKeys` | Bound what a content provider can pin. |
 | `browser.ReceiverPickController`, `browser.DeviceSheetFragment` (pick mode), `share.PendingPick`, `share.PickSheetResult`, `share.ActionFlight`, `share.AfterStartSelection`, `share.ReceiverPickResult` | The "Play on..." picker. |
-| `browser.ReceiverBarLabel`, `browser.ReceiverBarController` | Receiver bar: the receivers that play. |
+| `browser.ReceiverBarController` | Receiver bar: the receivers that play. |
 
 ### As built: from the share menu to a pending share
 
@@ -1618,12 +1618,12 @@ device" lists what only a device can confirm.
    ONE call in flight, for as long as that call is outstanding (no expiry); at most 3 providers have a call outstanding
    (`PROVIDER_MAX_TRACKED`); each pool (intake probe, confirmed open) has 4 threads (`PROVIDER_POOL_THREADS`). Providers whose
    package cannot be resolved all share ONE key (`ProviderKeys.UNRESOLVED`). At intake a call the gate or pool refuses
-   gives the toast `share_busy` (`ShareFailureMessage`); a timeout or a failing provider at intake is only logged; after the
+   gives the toast `share_busy` (`ShareService#failureTextRes`); a timeout or a failing provider at intake is only logged; after the
    confirm a failure gives `share_open_failed` (or `share_busy` when the gate or the copy slot was full).
 
 ### As built: after the confirm
 
-`ShareIntentHandler#confirm(token, ids, afterStarted, finished)` takes the pending share by token and runs `SharedFileService#prepare`
+`ShareIntentHandler#confirm(token, ids, afterStarted, finished)` takes the pending share by token and runs `ShareService#prepare`
 on the file executor:
 
 1. **Open** (`SharedFileOpener.openDescriptor`, through `BoundedCall`, 20 s): `openAssetFileDescriptor(uri, "r")`. A descriptor
@@ -1631,7 +1631,7 @@ on the file executor:
    the copy fallback runs.
 2. **`HeldFileSource`** (`PositionalSource`): the provider's descriptor is `dup`ed and the provider's closed, so the provider
    process is not pinned by a stable reference; the provider's start offset and length are clamped to the real file size
-   (`DescriptorWindow`); reads are `Os.pread` (no shared file offset, so ranges run concurrently, 64 KiB chunks); an in-flight
+   (`HeldFileSource#clampLength`); reads are `Os.pread` (no shared file offset, so ranges run concurrently, 64 KiB chunks); an in-flight
    counter defers the close to the last reader, so a descriptor number is never reused under a running read, and close never
    blocks the caller.
 3. **Copy fallback** (`SharedFileOpener.copyAndHold`, `WatchedCopy`, `BudgetedCopier`, `CopyBudget`, `IncomingCache`): to
@@ -1642,7 +1642,7 @@ on the file executor:
    The copy is deleted when its source is closed (`DeleteOnCloseSource`), and `Yaacc` sweeps `incoming/` at start (the registry is
    memory-only, so any file found is an orphan).
 4. **Register.** After the local HTTP server answers (`HttpServerProbe`, a loopback connect, polled for up to 3 s) and the phone
-   has an address, `ShareRegistrar.register` puts a `LOCAL_FILE` entry with the allowed addresses of exactly the chosen
+   has an address, `ShareRegistry#registerOrEvict` puts a `LOCAL_FILE` entry with the allowed addresses of exactly the chosen
    receivers into the `ShareRegistry`. When the registry is full, `evictOldestReleased()` runs once and `register` is retried;
    still full gives the toast `share_registry_full`. On any failure the source is closed, the copy deleted and the key removed
    before `prepare` returns null.
@@ -1753,7 +1753,7 @@ and is only used for the preference reads and that bounded map. The research cla
   one, and a chosen receiver without a player gets nothing (open owner question, `tasks.md` "Owner's open items").
 - Classic: normal browsing never shows the sheet and `startPlayAction` starts at once; the static footer stays. A pending SHARED FILE
   opens the same picker, with the classic selection as the initial ticks (see "Known limitations").
-- Receiver bar: `ReceiverBarLabel` names the receivers that have a player in `PlayerService.getCurrentPlayers()` (names as in the
+- Receiver bar: `ReceiverBarController#label` names the receivers that have a player in `PlayerService.getCurrentPlayers()` (names as in the
   mini-player: friendly name, else the player's name, cleaned by `MiniPlayerPresenter.cleanText`, duplicates merged, sorted, joined
   with "; "), else `receiver_bar_none_playing`. It refreshes from the player-list listener and the receiver events.
   `receiver_bar_none_selected` and `ContentListFragment#openDeviceSheetIfNoReceiverSelected()` no longer exist. The normal sheet has

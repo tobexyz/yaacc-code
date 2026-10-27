@@ -41,8 +41,7 @@ import java.util.function.Function;
  * <p>
  * Pure JDK types only ({@code java.util.*}, {@code java.time.*}) so this
  * class is unit-testable on the plain JVM without Robolectric - see
- * {@code docs/tech.md}'s "server-side sort" section and
- * {@code 2026-09-24-issue252-sort-by-date/decisions.md} for why that
+ * {@code docs/tech.md}'s "server-side sort" section for why that
  * matters in this project.
  *
  * @author Tobias Schoene (tobexyz)
@@ -71,7 +70,7 @@ public final class SortSupport {
      * turning an {@code O(n)} sort into an {@code O(n * MAX_SORT_CRITERIA)}
      * (or, for {@code SafFolderBrowser}'s whole-folder in-memory sort,
      * {@code O(m*log(m)*MAX_SORT_CRITERIA)}) resource-exhaustion vector -
-     * see the issue252 security review (Group 2, Cycle 1).
+     * see the "server-side sort" section of docs/tech.md.
      */
     static final int MAX_SORT_CRITERIA = 8;
 

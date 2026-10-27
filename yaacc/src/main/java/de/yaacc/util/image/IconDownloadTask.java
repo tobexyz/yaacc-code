@@ -78,8 +78,7 @@ public class IconDownloadTask extends AsyncTask<Uri, Integer, Bitmap> {
      * The plain {@code (ImageView, int, int)} constructor unconditionally
      * sets that reference to {@code null}, which would otherwise leak one
      * {@code asyncTasks} entry per bound row for the adapter's lifetime --
-     * see {@code docs/tech.md}'s "Browse card-grid view" section and
-     * {@code decisions.md} in the `2026-10-17-browse-card-grid-view` spec
+     * see {@code docs/tech.md}'s "Browse card-grid view" section
      * for why this overload exists instead of reusing that one.
      */
     public IconDownloadTask(ImageView imageView, BrowseContentItemAdapter browseContentItemAdapter, int width, int height) {

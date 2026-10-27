@@ -85,7 +85,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
     /**
      * Target width of a single card in CARD mode, in dp -- chosen so a
      * normal phone portrait width yields exactly 2 columns, matching
-     * design.md decision 3 ("Column count scales with screen width").
+     * the "Column count scales with screen width" decision of docs/tech.md ("Browse card-grid view").
      * Converted to px via the context's {@code DisplayMetrics}, not
      * hardcoded, so it scales correctly with device density.
      */
@@ -275,15 +275,15 @@ public class ContentListFragment extends Fragment implements OnClickListener,
     }
 
     /**
-     * Wires up the list/card view-mode toggle (see the
-     * `2026-10-17-browse-card-grid-view` spec): finds the button, applies
+     * Wires up the list/card view-mode toggle (see
+     * "Browse card-grid view" in docs/tech.md): finds the button, applies
      * the persisted view mode from SharedPreferences as the initial
      * state (mirroring {@link #initSortToggle(View)}'s fallback-to-default
      * pattern for the sort toggle), makes the {@code contentList}'s
      * {@code LayoutManager} match that initial mode, installs the click
      * handler, and installs a width-change listener that keeps the grid's
      * span count correct across rotation/multi-window resize while in CARD
-     * mode (design.md decision 3), without ever recreating the
+     * mode (docs/tech.md, "Browse card-grid view"), without ever recreating the
      * {@code GridLayoutManager}.
      */
     private void initViewModeToggle(View contentlistView) {
@@ -308,7 +308,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
             updateViewModeToggleUi();
         }
 
-        // Covers rotation and multi-window resize (design.md decision 3):
+        // Covers rotation and multi-window resize (docs/tech.md, "Browse card-grid view"):
         // only reacts while in CARD mode, and only on an actual width
         // change, applying the new span count via setSpanCount(...) rather
         // than recreating the LayoutManager (confirmed safe in
@@ -350,7 +350,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
      * Switches {@code contentList}'s {@code LayoutManager} to match
      * {@code mode}: a plain {@link LinearLayoutManager} for LIST, or a
      * {@link GridLayoutManager} sized from the RecyclerView's current
-     * width for CARD (design.md decision 3). Subsequent width changes
+     * width for CARD (docs/tech.md, "Browse card-grid view"). Subsequent width changes
      * while already in CARD mode are handled by the listener installed in
      * {@link #initViewModeToggle(View)} via {@code setSpanCount(...)}, not
      * by calling this method again.
@@ -368,7 +368,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
     }
 
     /**
-     * ~160dp target card width (design.md decision 3), converted to px via
+     * ~160dp target card width (docs/tech.md, "Browse card-grid view"), converted to px via
      * the context's {@code DisplayMetrics} rather than a hardcoded pixel
      * value, so it scales correctly with device density.
      */

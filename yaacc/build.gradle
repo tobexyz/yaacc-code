@@ -40,8 +40,8 @@ dependencies {
     // still vulnerable to both CVEs, no 5.3.x backport exists). This
     // affects yaacc's embedded UPnP HTTP server's exposure to a
     // malicious/compromised device on the LAN. Deliberately accepted for
-    // now to keep the app usable; see decisions.md in
-    // .claude/specs/2026-10-17-browse-card-grid-view/ for the full
+    // now to keep the app usable; see "Browse card-grid view" in
+    // docs/tech.md for the full
     // tradeoff and follow-up options (shim ReflectionUtils locally, or
     // move the embedded server off httpcore5's reactor stack).
     implementation 'org.apache.httpcomponents.client5:httpclient5:5.3.1'

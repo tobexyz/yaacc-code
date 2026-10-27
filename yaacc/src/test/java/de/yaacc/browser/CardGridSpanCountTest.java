@@ -23,7 +23,7 @@ import static org.junit.Assert.assertTrue;
 import org.junit.Test;
 
 /**
- * Red-phase (TDD) tests for the `browse-card-grid-view` spec's
+ * Red-phase (TDD) tests for the card grid view's
  * {@link CardGridSpanCount} utility, written before the implementation.
  * <p>
  * {@code CardGridSpanCount} is deliberately pure JDK (no {@code android.*}
@@ -45,7 +45,7 @@ public class CardGridSpanCountTest {
     public void narrowPhonePortraitWidthYieldsExactlyTwo() {
         // A typical phone portrait width at 2x density, e.g. 360dp = 720px.
         // 720 / 320 = 2 (floor), matching the "2 per row on a normal phone
-        // in portrait" goal from requirements.md.
+        // in portrait" goal of the card grid view.
         int availableWidthPx = 720;
 
         int spanCount = CardGridSpanCount.computeSpanCount(availableWidthPx, TARGET_CARD_WIDTH_PX);

@@ -26,7 +26,7 @@ import java.util.function.IntSupplier;
  * (and its fail-closed rule) is tested on the JVM; the glue passes the platform call.
  * <p>
  * Below Android 15 there is no such API and nothing is checked here (the residual risk is
- * documented in design.md). From 35 on, any failure of the check, including a thrown
+ * documented in docs/tech.md, "Known limitations"). From 35 on, any failure of the check, including a thrown
  * {@code IllegalArgumentException} or {@code SecurityException}, means "do not forward".
  */
 public final class SenderGrantCheck {

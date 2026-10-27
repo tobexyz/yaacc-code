@@ -84,8 +84,8 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
     }
 
     /**
-     * Which layout presents the currently-loaded items. See the
-     * `2026-10-17-browse-card-grid-view` spec -- this only changes how
+     * Which layout presents the currently-loaded items. See
+     * "Browse card-grid view" in docs/tech.md -- this only changes how
      * already-loaded items are drawn, never what data is loaded.
      */
     public enum ViewMode {
@@ -318,7 +318,7 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
         this.allItemsFetched = allItemsFetched;
         if (justCompleted) {
             // The whole folder is now loaded: apply the client-side fallback
-            // sort once, per requirements.md item 3 (no mid-load reshuffle).
+            // sort once (no mid-load reshuffle).
             sortObjects();
             notifyDataSetChanged();
         }
@@ -781,8 +781,8 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
     /**
      * Converts a dp value to pixels using the adapter's own
      * {@link Context}'s display metrics, for sizing thumbnail/icon
-     * download requests per {@link #viewMode} (see {@code design.md}'s
-     * "Thumbnail resolution" section).
+     * download requests per {@link #viewMode} (see {@code docs/tech.md}'s
+     * "Browse card-grid view" section).
      */
     private int dpToPx(int dp) {
         return Math.round(dp * context.getResources().getDisplayMetrics().density);
