@@ -17,7 +17,7 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 -->
 <!-- One row of the mini-player list (MiniPlayerAdapter): a running player's album art, title and
-     receiver name, and previous / play-pause / next / stop. Tapping the card opens that player's
+     receiver name, and previous / play-pause / next / stop / exit. Tapping the card opens that player's
      screen. Every text here comes from LAN devices and is set with TextView#setText only: no
      autoLink, no HTML. Neutral card surface from the theme, no accent colors. The card is
      focusable before its buttons, so D-pad reaches the row and then every button of it. Row
@@ -85,42 +85,54 @@
 
         <ImageButton
             android:id="@+id/miniPlayerPrevious"
-            android:layout_width="48dp"
+            android:layout_width="40dp"
             android:layout_height="48dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/mini_player_previous"
-            android:padding="12dp"
+            android:padding="8dp"
             app:srcCompat="@drawable/ic_baseline_skip_previous_24"
             app:tint="?attr/colorControlNormal" />
 
         <ImageButton
             android:id="@+id/miniPlayerPlayPause"
-            android:layout_width="48dp"
+            android:layout_width="40dp"
             android:layout_height="48dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/mini_player_play"
-            android:padding="12dp"
+            android:padding="8dp"
             app:srcCompat="@drawable/ic_baseline_play_arrow_24"
             app:tint="?attr/colorControlNormal" />
 
         <ImageButton
             android:id="@+id/miniPlayerNext"
-            android:layout_width="48dp"
+            android:layout_width="40dp"
             android:layout_height="48dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/mini_player_next"
-            android:padding="12dp"
+            android:padding="8dp"
             app:srcCompat="@drawable/ic_baseline_skip_next_24"
             app:tint="?attr/colorControlNormal" />
 
         <ImageButton
             android:id="@+id/miniPlayerStop"
-            android:layout_width="48dp"
+            android:layout_width="40dp"
             android:layout_height="48dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/mini_player_stop"
-            android:padding="12dp"
+            android:padding="8dp"
             app:srcCompat="@drawable/ic_baseline_stop_24"
+            app:tint="?attr/colorControlNormal" />
+
+        <!-- Removes the player altogether (what the exit button of the player screen does); stop only
+             stops the playback and leaves the row. -->
+        <ImageButton
+            android:id="@+id/miniPlayerExit"
+            android:layout_width="40dp"
+            android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/exit"
+            android:padding="8dp"
+            app:srcCompat="@drawable/ic_baseline_cancel_32"
             app:tint="?attr/colorControlNormal" />
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>

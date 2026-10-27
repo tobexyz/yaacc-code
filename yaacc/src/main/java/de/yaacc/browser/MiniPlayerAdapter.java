@@ -64,7 +64,7 @@ final class MiniPlayerAdapter extends RecyclerView.Adapter<MiniPlayerAdapter.Row
 
     /** What a row's buttons ask for; the controller runs it. */
     enum Command {
-        PREVIOUS, PLAY_PAUSE, NEXT, STOP
+        PREVIOUS, PLAY_PAUSE, NEXT, STOP, EXIT
     }
 
     /** Where taps go. Called on the main thread. */
@@ -188,6 +188,7 @@ final class MiniPlayerAdapter extends RecyclerView.Adapter<MiniPlayerAdapter.Row
         holder.playPause.setOnClickListener(v -> command(holder, Command.PLAY_PAUSE));
         holder.next.setOnClickListener(v -> command(holder, Command.NEXT));
         holder.stop.setOnClickListener(v -> command(holder, Command.STOP));
+        holder.exit.setOnClickListener(v -> command(holder, Command.EXIT));
         view.setOnClickListener(v -> {
             Row row = holder.row;
             if (row != null) {
@@ -291,6 +292,7 @@ final class MiniPlayerAdapter extends RecyclerView.Adapter<MiniPlayerAdapter.Row
         final ImageButton playPause;
         final ImageButton next;
         final ImageButton stop;
+        final ImageButton exit;
         Row row;
         String shownArtKey;
 
@@ -303,6 +305,7 @@ final class MiniPlayerAdapter extends RecyclerView.Adapter<MiniPlayerAdapter.Row
             playPause = itemView.findViewById(R.id.miniPlayerPlayPause);
             next = itemView.findViewById(R.id.miniPlayerNext);
             stop = itemView.findViewById(R.id.miniPlayerStop);
+            exit = itemView.findViewById(R.id.miniPlayerExit);
         }
     }
 }

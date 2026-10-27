@@ -253,6 +253,18 @@ final class MiniPlayerBar implements PlayerListChangeNotifier.Listener, MiniPlay
         if (!bound || executor == null || executor.isShutdown()) {
             return;
         }
+        if (command == Command.EXIT) {
+            // like the exit button of the player screen: on the main thread, removes the player; the
+            // row goes away with the player list notification
+            handler.post(() -> {
+                try {
+                    player.exit();
+                } catch (RuntimeException e) {
+                    YaaccLogger.w(TAG, "Player exit failed (" + e.getClass().getSimpleName() + ")");
+                }
+            });
+            return;
+        }
         // the toggle follows the player's state at the moment of the tap
         boolean pause = command == Command.PLAY_PAUSE
                 && MiniPlayerPresenter.toggleAction(player.isPlaying()) == TransportAction.PAUSE;
