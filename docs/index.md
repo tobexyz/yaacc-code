@@ -84,8 +84,8 @@ remote yet. There are no tabs. The screen shows one level at a time:
   sheet, see [Receiver controls](#receiver-controls).
 * **Mini-player**: directly above the receiver bar. It shows every running player
   as one compact row: the album art when available, the title, the name of the
-  receiver it plays on, and the buttons previous, play/pause, next and stop. Tap a
-  row itself to open that player's screen. The rows are in the same order as the
+  receiver it plays on, and the buttons previous, play/pause, next, stop and exit (stop only stops the
+  playback, exit removes the player). Tap a row itself to open that player's screen. The rows are in the same order as the
   players in the device sheet (the one started first is on top). Up to about three
   rows are visible; with more players the list scrolls inside the mini-player. The
   mini-player is hidden when no player is running.
