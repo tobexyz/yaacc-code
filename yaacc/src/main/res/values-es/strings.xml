@@ -165,4 +165,5 @@
     <string name="settings_browser_layout_title">Diseño</string>
     <string name="settings_browser_layout_classic">Clásico (pestañas)</string>
     <string name="settings_browser_layout_new">Nuevo (una pantalla)</string>
+    <string name="server_list_button">Lista de servidores</string>
 </resources>

@@ -72,7 +72,10 @@ remote yet. There are no tabs. The screen shows one level at a time:
 * **Content**: tap a server to browse it, see [Content browsing](#content-browsing).
   The arrow in front of the path and the system back button go back one step at a
   time: from a folder to the parent folder, from the root of a server to the
-  server list, and from the server list the app exits.
+  server list, and from the server list the app exits. The server button in the
+  header of the content (next to the sort and the view buttons) shows the server
+  list at once from any folder depth, so you can change the server without going
+  back folder by folder.
 * **Toolbar**: the timer symbol is the [shutdown timer](#shutdown-timer) and its
   only entry. While a timer runs, a tap stops it and the remaining time is shown
   next to the symbol. Otherwise a tap opens the duration picker; confirming a

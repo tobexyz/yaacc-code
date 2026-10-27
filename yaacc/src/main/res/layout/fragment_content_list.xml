@@ -47,6 +47,19 @@
             android:layout_marginBottom="5dp"
             android:orientation="horizontal">
 
+
+            <!-- New layout only (ContentListFragment hides it in the classic tabs): shows the list of
+                 servers from any folder depth; the arrow at the left only goes back one step. -->
+            <ImageButton
+                android:id="@+id/contentListServersButton"
+                style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:contentDescription="@string/server_list_button"
+                android:visibility="gone"
+                app:srcCompat="@drawable/ic_baseline_dns_32"
+                app:tint="?attr/colorControlNormal" />
+
             <ImageButton
                 android:id="@+id/contentListSortByNameButton"
                 style="@style/Widget.MaterialComponents.Button.UnelevatedButton"

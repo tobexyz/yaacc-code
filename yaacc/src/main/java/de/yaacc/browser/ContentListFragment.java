@@ -130,6 +130,17 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         if (showsBackAtContentRoot()) {
             backButton.setContentDescription(getString(R.string.browser_back));
         }
+        // New layout: one tap from any folder depth to the list of servers
+        View serversButton = contentlistView.findViewById(R.id.contentListServersButton);
+        if (serversButton != null) {
+            serversButton.setVisibility(showsBackAtContentRoot() ? View.VISIBLE : View.GONE);
+            serversButton.setOnClickListener(v -> {
+                BrowserHost host = browserHost();
+                if (host != null) {
+                    host.showServers();
+                }
+            });
+        }
         currentFolderNameView = contentlistView.findViewById(R.id.contentListCurrentFolderName);
         currentReceivers = contentlistView.findViewById(R.id.contentListCurrentReceivers);
         currentProvider = contentlistView.findViewById(R.id.contentListCurrentProvider);

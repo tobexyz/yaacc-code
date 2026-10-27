@@ -114,6 +114,7 @@
     <string name="sort_by_name">Sort by name</string>
     <string name="sort_by_date">Sort by date</string>
     <string name="toggle_view_mode">Switch between list and card view</string>
+    <string name="server_list_button">Server list</string>
     <string name="not_yet_implemented">not yet implemented</string>
     <string name="avtransportPlayerActivityNextLabel">Next:</string>
     <string name="browse_context_control_device">Control device</string>
