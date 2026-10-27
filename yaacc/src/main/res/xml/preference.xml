@@ -28,12 +28,13 @@
             android:key="@string/settings_browser_layout_key"
             android:summary="%s"
             android:title="@string/settings_browser_layout_title" />
-        <CheckBoxPreference
-            android:defaultValue="true"
-            android:key="@string/settings_dark_mode_key"
-            android:summaryOff="@string/settings_dark_mode_off"
-            android:summaryOn="@string/settings_dark_mode_on"
-            android:title="@string/settings_dark_mode_title" />
+        <ListPreference
+            android:defaultValue="dark"
+            android:entries="@array/theme_entries"
+            android:entryValues="@array/theme_values"
+            android:key="@string/settings_theme_key"
+            android:summary="%s"
+            android:title="@string/settings_theme_title" />
         <ListPreference
             android:defaultValue="E"
             android:entries="@array/log_level_entries"

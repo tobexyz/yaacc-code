@@ -41,9 +41,10 @@
     <string name="settings_browse_chunk_size">分块浏览</string>
     <string name="settings_browse_chunk_size_summ">一次请求从服务器取回多少项目</string>
     <string name="settings_category_appearance">外观</string>
-    <string name="settings_dark_mode_title">深色模式</string>
-    <string name="settings_dark_mode_off">使用系统设置</string>
-    <string name="settings_dark_mode_on">正使用深色模式</string>
+    <string name="settings_theme_title">主题</string>
+    <string name="settings_theme_system">系统</string>
+    <string name="settings_theme_dark">深色</string>
+    <string name="settings_theme_light">浅色</string>
     <string name="settings_log_level">日志级别</string>
     <string name="settings_browse_thumbnails_title">缩略图</string>
     <string name="settings_browse_thumbnails_on">显示图片缩略图</string>

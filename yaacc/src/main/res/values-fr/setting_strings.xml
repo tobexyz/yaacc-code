@@ -35,9 +35,10 @@
     <string name="settings_browse_chunk_size">taille du morceau lors de la navigation</string>
     <string name="settings_browse_chunk_size_summ">quantité d\'éléments récupérés du serveur en une seule requête</string>
     <string name="settings_category_appearance">Apparence</string>
-    <string name="settings_dark_mode_title">Mode sombre</string>
-    <string name="settings_dark_mode_off">Utilisation des paramètres système</string>
-    <string name="settings_dark_mode_on">Mode sombre actif</string>
+    <string name="settings_theme_title">Thème</string>
+    <string name="settings_theme_system">Système</string>
+    <string name="settings_theme_dark">Sombre</string>
+    <string name="settings_theme_light">Clair</string>
     <string name="settings_log_level">Niveau de journalisation</string>
     <string name="settings_browse_audio_on">afficher les fichiers audio</string>
     <string name="settings_browse_audio_off">afficher aucun fichier audio</string>

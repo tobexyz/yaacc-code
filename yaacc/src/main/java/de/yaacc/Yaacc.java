@@ -51,6 +51,7 @@ import de.yaacc.player.PlayerService;
 import java.io.File;
 import java.util.List;
 
+import de.yaacc.settings.ThemeChoice;
 import de.yaacc.share.IncomingCache;
 import de.yaacc.share.LaunchNonces;
 import de.yaacc.share.PendingShare;
@@ -100,12 +101,10 @@ public class Yaacc extends Application {
         PreferenceManager.setDefaultValues(this, R.xml.preference, false);
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
         BrowserLauncher.keepClassicForUpdatedInstall(preferences, getString(R.string.settings_browser_layout_key));
-        boolean darkMode = preferences.getBoolean(getString(R.string.settings_dark_mode_key), true);
-        if (darkMode) {
-            AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES);
-        } else {
-            AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM);
-        }
+        ThemeChoice.migrateLegacyDarkMode(preferences, getString(R.string.settings_dark_mode_key),
+                getString(R.string.settings_theme_key));
+        AppCompatDelegate.setDefaultNightMode(ThemeChoice.nightMode(preferences.getString(
+                getString(R.string.settings_theme_key), ThemeChoice.DEFAULT_STORED_VALUE)));
 
         int numThreads = Integer.parseInt(preferences.getString(getString(R.string.settings_browse_load_threads_key), "10"));
         YaaccLogger.d(getClass().getName(), "Number of Threads used for content loading: " + numThreads);
