@@ -41,4 +41,18 @@ public final class ShutdownTimerToggle {
     public static Action decide(boolean running) {
         return running ? Action.STOP : Action.ASK_DURATION;
     }
+
+    /**
+     * The text under the title of the toolbar while a timer runs. The action item cannot carry the
+     * remaining time: the toolbar drops the text of an action with an icon on narrow screens
+     * (portrait phones), so the time is shown as the subtitle, which is always shown.
+     *
+     * @param name      the name of the timer, e.g. "Shutdown timer"
+     * @param remaining the remaining time, already formatted
+     * @param running   a timer is counting down
+     * @return the subtitle, or null when no timer runs (clears the subtitle)
+     */
+    public static String subtitle(String name, String remaining, boolean running) {
+        return running ? name + ": " + remaining : null;
+    }
 }

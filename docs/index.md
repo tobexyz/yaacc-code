@@ -78,7 +78,7 @@ remote yet. There are no tabs. The screen shows one level at a time:
   back folder by folder.
 * **Toolbar**: the timer symbol is the [shutdown timer](#shutdown-timer) and its
   only entry. While a timer runs, a tap stops it and the remaining time is shown
-  next to the symbol. Otherwise a tap opens the duration picker; confirming a
+  under the title of the toolbar. Otherwise a tap opens the duration picker; confirming a
   duration above 0 starts the timer. The overflow menu has the settings, the log
   and the about page, and the exit button quits the app.
 * **Receiver bar**: at the bottom of every level. It shows the names of the
@@ -433,7 +433,7 @@ through the proxy, see [Settings](settings/).
 The shutdown timer stops all running players and the app after a certain time.
 The timer is settable and can be enabled at the bottom of the server list tab and the remaining time
 is displayed. In the new layout the timer is the symbol in the toolbar instead: tap it
-while a timer runs to stop it (the symbol shows the remaining time); otherwise a tap opens the
+while a timer runs to stop it (the remaining time is shown under the title of the toolbar); otherwise a tap opens the
 duration picker, and confirming a duration above 0 starts the timer.
 
 ![browse_servers](./screenshots/5.1.x/browse_servers.png){:height="30%" width="30%"}

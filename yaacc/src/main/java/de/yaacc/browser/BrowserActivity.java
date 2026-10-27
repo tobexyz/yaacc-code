@@ -368,17 +368,22 @@ public class BrowserActivity extends AppCompatActivity implements BrowserHost {
     }
 
     /**
-     * While a timer runs the item is checked, always shown and carries the remaining time as its
-     * title; otherwise it is the plain timer icon. The menu item is updated in place, not through
+     * While a timer runs the item is checked and always shown, and the remaining time is the subtitle of
+     * the toolbar; otherwise it is the plain timer icon. The menu item is updated in place, not through
      * {@code invalidateOptionsMenu()}, because the timer ticks every second.
      */
     private void applyShutdownTimerState() {
+        String name = getString(R.string.shutdown_timer);
+        String remaining = FormatHelper.parseMillisToTimeStringTo(shutdownTimerMillis);
+        // The remaining time is the subtitle of the toolbar: an action item's text is dropped on narrow
+        // screens (portrait phones), so the item alone could not show it there.
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setSubtitle(ShutdownTimerToggle.subtitle(name, remaining, shutdownTimerRunning));
+        }
         MenuItem item = shutdownTimerItem;
         if (item == null) {
             return;
         }
-        String name = getString(R.string.shutdown_timer);
-        String remaining = FormatHelper.parseMillisToTimeStringTo(shutdownTimerMillis);
         boolean changed = item.isChecked() != shutdownTimerRunning;
         item.setChecked(shutdownTimerRunning);
         item.setTitle(shutdownTimerRunning ? remaining : name);
@@ -386,7 +391,7 @@ public class BrowserActivity extends AppCompatActivity implements BrowserHost {
         item.setTooltipText(shutdownTimerRunning ? name + ": " + remaining : name);
         if (changed) {
             item.setShowAsAction(shutdownTimerRunning
-                    ? MenuItem.SHOW_AS_ACTION_ALWAYS | MenuItem.SHOW_AS_ACTION_WITH_TEXT
+                    ? MenuItem.SHOW_AS_ACTION_ALWAYS
                     : MenuItem.SHOW_AS_ACTION_IF_ROOM);
         }
     }

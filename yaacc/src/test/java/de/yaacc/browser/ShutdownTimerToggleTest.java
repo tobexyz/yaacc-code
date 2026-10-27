@@ -38,4 +38,15 @@ public class ShutdownTimerToggleTest {
     public void tapWhileStoppedAsksForTheDurationInsteadOfStartingUnseen() {
         assertEquals(Action.ASK_DURATION, ShutdownTimerToggle.decide(false));
     }
+
+    @Test
+    public void aRunningTimerShowsItsNameAndTheRemainingTimeAsSubtitle() {
+        assertEquals("Shutdown timer: 00:29:58",
+                ShutdownTimerToggle.subtitle("Shutdown timer", "00:29:58", true));
+    }
+
+    @Test
+    public void noTimerClearsTheSubtitle() {
+        org.junit.Assert.assertNull(ShutdownTimerToggle.subtitle("Shutdown timer", "00:00:00", false));
+    }
 }
