@@ -166,4 +166,5 @@
     <string name="settings_browser_layout_classic">Clásico (pestañas)</string>
     <string name="settings_browser_layout_new">Nuevo (una pantalla)</string>
     <string name="server_list_button">Lista de servidores</string>
+    <string name="clear_log">Borrar el registro</string>
 </resources>

@@ -166,4 +166,5 @@
     <string name="settings_browser_layout_classic">Klassiek (tabbladen)</string>
     <string name="settings_browser_layout_new">Nieuw (één scherm)</string>
     <string name="server_list_button">Serverlijst</string>
+    <string name="clear_log">Log wissen</string>
 </resources>
