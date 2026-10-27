@@ -57,7 +57,7 @@
                 android:layout_height="48dp"
                 android:contentDescription="@string/server_list_button"
                 android:visibility="gone"
-                app:srcCompat="@drawable/ic_baseline_dns_32"
+                app:srcCompat="@drawable/ic_baseline_sensors_32"
                 app:tint="?attr/colorControlNormal" />
 
             <ImageButton
