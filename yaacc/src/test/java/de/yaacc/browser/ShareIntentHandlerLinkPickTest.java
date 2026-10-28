@@ -126,6 +126,8 @@ public class ShareIntentHandlerLinkPickTest {
         when(appContext.getApplicationContext()).thenReturn(appContext);
         when(appContext.getPackageName()).thenReturn("de.yaacc");
         when(appContext.getString(anyInt())).thenReturn(FALLBACK_NAME);
+        when(appContext.getString(eq(de.yaacc.R.string.share_link_host), any())).thenAnswer(
+                invocation -> "Link: " + invocation.getArgument(1));
         upnpClient = mock(UpnpClient.class);
         when(upnpClient.isPlayerServiceInitialized()).thenReturn(true);
         // nothing selected and nothing ready: the old link path would pick this device and wait 3 s
@@ -173,13 +175,33 @@ public class ShareIntentHandlerLinkPickTest {
     }
 
     @Test
-    public void theLinkIsNeverShownAsTheNameOfTheShare() {
+    public void onlyTheHostOfTheLinkIsShownAsTheNameOfTheShare() {
         RecordingHost host = new RecordingHost(true);
 
-        handler.handle(linkIntent(LINK), null, host);
+        handler.handle(linkIntent("https://trusted.example@Evil.Example:8443/secret/path/a.mp3?token=abc"), null, host);
 
-        assertEquals(FALLBACK_NAME, host.names.get(0));
-        assertFalse(host.names.get(0).contains("example.org"));
+        assertEquals("Link: evil.example", host.names.get(0));
+        assertFalse(host.names.get(0).contains("secret"));
+        assertFalse(host.names.get(0).contains("token"));
+        assertFalse(host.names.get(0).contains("trusted"));
+    }
+
+    @Test
+    public void aLinkInsideASentenceIsFoundAndOnlyItIsUsed() {
+        RecordingHost host = new RecordingHost(true);
+
+        handler.handle(linkIntent("Look at this https://example.org/a.mp3, it is great"), null, host);
+
+        assertEquals("Link: example.org", host.names.get(0));
+    }
+
+    @Test
+    public void aTextWithoutALinkShowsTheNoticeAndOffersNothing() {
+        RecordingHost host = new RecordingHost(true);
+
+        handler.handle(linkIntent("just some words"), null, host);
+
+        assertTrue(host.names.isEmpty());
     }
 
     @Test

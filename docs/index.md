@@ -137,7 +137,8 @@ In the new layout the receiver is chosen for each action:
 
 1. Tap play, play all, an item row, or add to playlist. A sheet titled "Play on…"
    opens with every receiver, including this device, and a checkbox per row.
-   Nothing is ticked at first.
+   The receivers of your last confirmed choice are ticked, so the usual receiver
+   is one tap away; on the very first use nothing is ticked.
 2. Tick one or more receivers and tap "OK". With nothing ticked "OK" only shows
    "Choose at least one receiver." and the list stays open.
 3. YAACC starts the playback on exactly those receivers. Afterwards nothing is
@@ -353,9 +354,12 @@ Use the share menu of another app (gallery, files, browser, music player) and
 choose YAACC to play something on the receivers in your network. Two kinds of
 items are accepted:
 
-* **A link.** The shared text must be just one link that starts with `http://`
-  or `https://` and is at most 2048 characters long. Other text, other kinds of
-  links and a shared `file:` link are ignored. With the [media proxy](#media-proxy)
+* **A link.** The shared text is at most 2048 characters long and contains a link
+  that starts with `http://` or `https://` and has a host. If an app shares a sentence
+  with a link in it ("Look at this https://..."), the first link is used and the
+  rest of the text is ignored. Text without such a link, other kinds of links and
+  a shared `file:` link are not played; a short message says that YAACC only
+  accepts audio, video and image files and web links. With the [media proxy](#media-proxy)
   switched on, links that point to this device itself (for example `localhost` or
   an address of this phone) or to a link-local address (`169.254.x.x`, `fe80::`)
   are not played; in the new layout the message "Could not play the shared link."
@@ -368,7 +372,8 @@ What happens next depends on the layout:
 
 * **New layout.** The "Play on…" list opens (see
   [Choosing receivers](#choosing-receivers-new-layout)). Under the title it
-  shows the name of the shared file, or "Shared link" for a link. Nothing
+  shows the name of the shared file, or "Link: <host>" for a link (the host of the
+  link only, not the whole address, so you see which site is about to play). Nothing
   is opened, copied or played until you tick receivers and tap "OK". Cancel,
   back, a tap outside or waiting for two minutes discards the share. Only one
   share can wait at a time: a second one that arrives while the list is open or

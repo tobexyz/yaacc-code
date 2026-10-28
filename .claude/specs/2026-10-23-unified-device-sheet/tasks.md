@@ -215,15 +215,16 @@ Questions and checks only the owner can answer or run. None of the share, layout
    (last step before the merge: one commit that removes the folder from the tree, so a squash merge carries none of it); Phase 4 stage 2
    (27 -> 18 files) is not done; the test-only members stay with their tests; the offline address `"0.0.0.0"` is a separate item; several
    player sessions per renderer stay as they are. Q8 (`StreamIntake` taking a `PackageManager`) stays optional in Group 20.
-3. **Still open**: whether the receivers of the last confirmed pick are pre-ticked in the picker of the new layout too (today the new
-   layout ticks nothing and clears the selection after every action); the older product questions about the local video session row and
-   the sheet on TV long term.
+3. **Decided 2026-10-28 (second round)**: the picker of the new layout ticks the receivers of the last confirmed pick
+   (`LastPickedReceivers`); the picker shows "Link: <host>" for a link; the shared-link text check picks the first http(s) link out of
+   the text and needs a host (`ShareUriPolicy#extractUrl`); no cool-down after a cancelled pick; links keep going through the picker in
+   the new layout and classic keeps auto-playing them. **Still open**: the older product questions about the local video session row and
+   the sheet on TV long term; the Android 15 share from the gallery (see below).
 4. **Backlog worth keeping** (discuss before any work; any new input type keeps the share intake rules: fresh allowlisted forward from the
    exported launcher, capped input, no payload in logs, no intent or path built from shared data, and needs a security review):
-   - Share UX: (the notice when a shared file is dropped is done, `share_not_accepted`); show the cleaned host for a link
-     instead of "Shared link"; the picker re-opening after a rotation (needs the pending share to outlive the activity); a cool-down
+   - Share UX: (the notice when a shared file is dropped is done, `share_not_accepted`); the picker re-opening after a rotation (needs the pending share to outlive the activity); (a cool-down was declined 2026-10-28)
      after a cancelled pick (known-risks 7); a cancel for a running picked action or a "no bytes for N seconds" copy limit (known-risks 9).
-   - Link intake: tighten `ShareUriPolicy` (require `://`, reject whitespace and control characters) and add an overall deadline around the
+   - Link intake: (`ShareUriPolicy` is tightened, done) add an overall deadline around the
      link metadata reads (known-risks 20, 21); classic still auto-plays a shared link (known-risks 19) and waits blindly for 3 s + 3 s.
    - Hardening nits: `intakeBusy` static; one `try` per removal in `consume`/`discard`, nonce first (known-risks 25); the legacy
      media-server answer and server-wide HTTP limits (known-risks 13); `ImageDownloader`/`IconDownloadTask` scheme allowlist, timeouts and

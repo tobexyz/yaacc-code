@@ -168,4 +168,5 @@
     <string name="server_list_button">Serverliste</string>
     <string name="clear_log">Log leeren</string>
     <string name="share_not_accepted">YAACC nimmt nur Audio-, Video- und Bilddateien sowie Weblinks an.</string>
+    <string name="share_link_host">Link: %1$s</string>
 </resources>

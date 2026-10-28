@@ -19,74 +19,114 @@ package de.yaacc.browser;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
 /**
- * Unit tests for {@link ShareUriPolicy}: which shared texts may be turned into a playable URI.
- * Plain JVM.
+ * Unit tests for {@link ShareUriPolicy}: which shared texts may be turned into a playable link, and the host
+ * the picker shows for it. Plain JVM.
  */
 public class ShareUriPolicyTest {
 
     @Test
     public void httpAndHttpsAreAllowed() {
+        assertEquals("http://example.com/a.mp3", ShareUriPolicy.extractUrl("http://example.com/a.mp3"));
+        assertEquals("https://example.com/a.mp4?x=1#t", ShareUriPolicy.extractUrl("https://example.com/a.mp4?x=1#t"));
         assertTrue(ShareUriPolicy.isAllowed("http://example.com/a.mp3"));
-        assertTrue(ShareUriPolicy.isAllowed("https://example.com/a.mp4?x=1#t"));
     }
 
     @Test
     public void schemeIsMatchedIgnoringCase() {
-        assertTrue(ShareUriPolicy.isAllowed("HTTP://example.com/a.mp3"));
-        assertTrue(ShareUriPolicy.isAllowed("HtTpS://example.com/a.mp3"));
+        assertEquals("HTTP://example.com/a.mp3", ShareUriPolicy.extractUrl("HTTP://example.com/a.mp3"));
+        assertEquals("HtTpS://example.com/a.mp3", ShareUriPolicy.extractUrl("HtTpS://example.com/a.mp3"));
     }
 
     @Test
     public void localSchemesAreRejected() {
-        assertFalse(ShareUriPolicy.isAllowed("file:///sdcard/Music/a.mp3"));
-        assertFalse(ShareUriPolicy.isAllowed("FILE:///sdcard/Music/a.mp3"));
-        assertFalse(ShareUriPolicy.isAllowed("content://media/external/audio/media/1"));
+        assertNull(ShareUriPolicy.extractUrl("file:///sdcard/Music/a.mp3"));
+        assertNull(ShareUriPolicy.extractUrl("FILE:///sdcard/Music/a.mp3"));
+        assertNull(ShareUriPolicy.extractUrl("content://media/external/audio/media/1"));
     }
 
     @Test
-    public void scriptAndOtherSchemesAreRejected() {
-        assertFalse(ShareUriPolicy.isAllowed("javascript:alert(1)"));
-        assertFalse(ShareUriPolicy.isAllowed("ftp://example.com/a.mp3"));
-        assertFalse(ShareUriPolicy.isAllowed("intent://x#Intent;end"));
-        assertFalse(ShareUriPolicy.isAllowed("httpx://example.com"));
-        assertFalse(ShareUriPolicy.isAllowed("http.evil://example.com"));
+    public void otherSchemesAreRejected() {
+        assertNull(ShareUriPolicy.extractUrl("javascript:alert(1)"));
+        assertNull(ShareUriPolicy.extractUrl("ftp://example.com/a.mp3"));
+        assertNull(ShareUriPolicy.extractUrl("intent://x#Intent;end"));
+        assertNull(ShareUriPolicy.extractUrl("httpx://example.com"));
+        assertNull(ShareUriPolicy.extractUrl("http.evil://example.com"));
     }
 
     @Test
     public void nullAndEmptyAreRejected() {
+        assertNull(ShareUriPolicy.extractUrl(null));
+        assertNull(ShareUriPolicy.extractUrl(""));
         assertFalse(ShareUriPolicy.isAllowed(null));
-        assertFalse(ShareUriPolicy.isAllowed(""));
     }
 
     @Test
-    public void bareAndRelativePathsAreRejected() {
-        assertFalse(ShareUriPolicy.isAllowed("/sdcard/Music/a.mp3"));
-        assertFalse(ShareUriPolicy.isAllowed("Music/a.mp3"));
-        assertFalse(ShareUriPolicy.isAllowed("example.com/a.mp3"));
-        assertFalse(ShareUriPolicy.isAllowed("//example.com/a.mp3"));
-        // a colon after a path segment must not make "/sdcard/http" look like a scheme
-        assertFalse(ShareUriPolicy.isAllowed("/sdcard/http://x"));
+    public void textWithoutALinkIsRejected() {
+        assertNull(ShareUriPolicy.extractUrl("/sdcard/Music/a.mp3"));
+        assertNull(ShareUriPolicy.extractUrl("example.com/a.mp3"));
+        assertNull(ShareUriPolicy.extractUrl("//example.com/a.mp3"));
+        assertNull(ShareUriPolicy.extractUrl("/sdcard/http://x"));
+        assertNull(ShareUriPolicy.extractUrl("http"));
+        assertNull(ShareUriPolicy.extractUrl("https"));
+        assertNull(ShareUriPolicy.extractUrl(" "));
     }
 
     @Test
-    public void whitespaceAroundTheSchemeIsRejected() {
-        assertFalse(ShareUriPolicy.isAllowed(" "));
-        assertFalse(ShareUriPolicy.isAllowed(" https://example.com/a.mp3"));
-        assertFalse(ShareUriPolicy.isAllowed("\thttps://example.com/a.mp3"));
-        assertFalse(ShareUriPolicy.isAllowed("\nhttps://example.com/a.mp3"));
-        assertFalse(ShareUriPolicy.isAllowed("https ://example.com/a.mp3"));
-        assertFalse(ShareUriPolicy.isAllowed("Listen to https://example.com/a.mp3"));
+    public void aLinkNeedsSlashesAndAHost() {
+        assertNull(ShareUriPolicy.extractUrl("http:"));
+        assertNull(ShareUriPolicy.extractUrl("http:example.com"));
+        assertNull(ShareUriPolicy.extractUrl("http://"));
+        assertNull(ShareUriPolicy.extractUrl("https:///a.mp3"));
+        assertNull(ShareUriPolicy.extractUrl("http://:80/a"));
     }
 
     @Test
-    public void schemeWithoutSeparatorIsRejected() {
-        assertFalse(ShareUriPolicy.isAllowed("http"));
-        assertFalse(ShareUriPolicy.isAllowed("https"));
+    public void theLinkIsPickedOutOfASentence() {
+        assertEquals("https://example.com/a.mp3", ShareUriPolicy.extractUrl("Listen to https://example.com/a.mp3"));
+        assertEquals("https://example.com/a.mp3",
+                ShareUriPolicy.extractUrl("Song of the day\nhttps://example.com/a.mp3\nvia App"));
+        assertEquals("https://example.com/a.mp3", ShareUriPolicy.extractUrl(" https://example.com/a.mp3"));
+        assertEquals("https://example.com/a.mp3", ShareUriPolicy.extractUrl("\thttps://example.com/a.mp3"));
+        assertEquals("https://example.com/a.mp3", ShareUriPolicy.extractUrl("(https://example.com/a.mp3)"));
+    }
+
+    @Test
+    public void onlyTheFirstLinkIsUsedAndNothingAfterIt() {
+        assertEquals("http://example.com/a.mp3",
+                ShareUriPolicy.extractUrl("http://example.com/a.mp3\nfile:///sdcard/x"));
+        assertEquals("http://one.example/a", ShareUriPolicy.extractUrl("http://one.example/a http://two.example/b"));
+    }
+
+    @Test
+    public void aLinkInTheMiddleOfAWordIsNotALink() {
+        assertNull(ShareUriPolicy.extractUrl("xhttp://example.com"));
+        assertNull(ShareUriPolicy.extractUrl("Xhttps://example.com/a"));
+    }
+
+    @Test
+    public void punctuationAfterTheLinkIsNotPartOfIt() {
+        assertEquals("https://example.com/a.mp3", ShareUriPolicy.extractUrl("See https://example.com/a.mp3."));
+        assertEquals("https://example.com/a.mp3", ShareUriPolicy.extractUrl("\"https://example.com/a.mp3\", please"));
+        assertEquals("https://example.com/a.mp3", ShareUriPolicy.extractUrl("<https://example.com/a.mp3>"));
+        assertEquals("https://example.com/wiki/A_(b)", ShareUriPolicy.extractUrl("https://example.com/wiki/A_(b)"));
+    }
+
+    @Test
+    public void whiteSpaceEndsTheLink() {
+        assertEquals("http://exa", ShareUriPolicy.extractUrl("http://exa mple.com"));
+        assertEquals("http://example.com/a", ShareUriPolicy.extractUrl("http://example.com/a b"));
+    }
+
+    @Test
+    public void controlCharactersEndTheLink() {
+        assertEquals("http://example.com/a", ShareUriPolicy.extractUrl("http://example.com/a\u0000b"));
+        assertEquals("http://example.com/a", ShareUriPolicy.extractUrl("http://example.com/a\rb"));
     }
 
     @Test
@@ -97,17 +137,31 @@ public class ShareUriPolicyTest {
             atCap.append('a');
         }
         assertEquals(ShareUriPolicy.MAX_TEXT_LENGTH, atCap.length());
-        assertTrue(ShareUriPolicy.isAllowed(atCap.toString()));
-        assertFalse(ShareUriPolicy.isAllowed(atCap + "a"));
+        assertEquals(atCap.toString(), ShareUriPolicy.extractUrl(atCap.toString()));
+        assertNull(ShareUriPolicy.extractUrl(atCap + "a"));
     }
 
-    /**
-     * The policy checks the scheme and the length only. Rejecting anything else is
-     * left to the downstream parser (Backlog 1 in the spec discusses tightening it).
-     */
     @Test
-    public void onlyTheSchemeAndLengthAreChecked() {
-        assertTrue(ShareUriPolicy.isAllowed("http:"));
-        assertTrue(ShareUriPolicy.isAllowed("http://example.com/a.mp3\nfile:///sdcard/x"));
+    public void theHostIsTheRealOneAndInLowerCase() {
+        assertEquals("example.com", ShareUriPolicy.hostOf("https://Example.COM/a"));
+        assertEquals("example.com", ShareUriPolicy.hostOf("http://example.com:8080/a?x=1"));
+        assertEquals("evil.example", ShareUriPolicy.hostOf("http://trusted.com@evil.example/a"));
+        assertEquals("evil.example", ShareUriPolicy.hostOf("http://trusted.com:pw@evil.example:80"));
+        assertEquals("192.168.1.5", ShareUriPolicy.hostOf("http://192.168.1.5/a"));
+        assertEquals("fe80::1", ShareUriPolicy.hostOf("http://[fe80::1]:8080/a"));
+        assertEquals("my_nas", ShareUriPolicy.hostOf("http://my_nas/a"));
+        assertEquals("bücher.de", ShareUriPolicy.hostOf("https://Bücher.de/a"));
+    }
+
+    @Test
+    public void aHostWithOddCharactersIsRejected() {
+        assertNull(ShareUriPolicy.hostOf("http://exa<mple.com/a"));
+        assertNull(ShareUriPolicy.hostOf("http://example.com\u202e/a"));
+        assertNull(ShareUriPolicy.hostOf("http://[nonsense]/a"));
+        assertNull(ShareUriPolicy.hostOf("http://[::1/a"));
+        assertNull(ShareUriPolicy.hostOf("http://example.com:abc/a"));
+        assertNull(ShareUriPolicy.hostOf("http://.example.com/a"));
+        assertNull(ShareUriPolicy.hostOf("ftp://example.com/a"));
+        assertNull(ShareUriPolicy.hostOf(null));
     }
 }

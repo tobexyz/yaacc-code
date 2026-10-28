@@ -321,7 +321,9 @@ decisions in more detail while the share-code consolidation (Phase 4) is open; t
 - Provider calls are bounded, because a Binder call cannot be interrupted: one call per provider, 3 tracked providers, 4 threads per pool.
 - Receivers are picked per action in the new layout (the sheet in pick mode); the normal sheet has no selection checkboxes; one picked action
   at a time, because the stored selection is global and read back by `PlayerService.createPlayer`. Classic keeps its tab selection; only a
-  shared file opens the picker there, with the selection pre-ticked and restored afterwards.
+  shared file opens the picker there, with the selection pre-ticked and restored afterwards. The picker of the new layout ticks the
+  receivers of the last confirmed pick (`LastPickedReceivers`, key `last_picked_receivers`, remembered by `ReceiverPickController#start`);
+  the selection itself is still cleared after every action.
 - Residual risk accepted by the owner: Android checks only that yaacc itself can read a forwarded URI, and yaacc holds broad media permissions.
   Mitigations are the type check, the human-in-the-loop pick that shows the cleaned name, the address and expiry limits and, on Android 15+, the
   launcher's sender check. See "Threat model", "Security invariants of the share feature" and "Known limitations".
@@ -1076,12 +1078,12 @@ item 0 (used only after the launch-token check). Where the text below differs, t
   `setClipData(null)`) so a recreated activity does not replay it. After
   process death the system re-delivers the original intent and the link plays
   again (as in classic before).
-- **Scheme policy.** `ShareUriPolicy.isAllowed(text)`: non-empty, at most 2048
-  chars, and the part before the first `':'` equals `http` or `https`
-  (ASCII, case-insensitive). Nothing is trimmed. Reason: only web links are relayed by the proxy. The check looks only at the scheme and length, so an `http:` text with
-  trailing junk also passes (pinned by `ShareUriPolicyTest#onlyTheSchemeAndLengthAreChecked`;
-  tightening is in the backlog, `tasks.md` "Owner's open items"). A rejected text is only logged, with no
-  payload. The text is never used to build an intent, PendingIntent or file path.
+- **Link policy.** `ShareUriPolicy.extractUrl(text)`: non-empty text of at most 2048 chars; the first `http://` or `https://`
+  (ASCII, case-insensitive) at the start of the text or after white space or an opening bracket or quote starts the link, which
+  ends at the first white space or control character and loses trailing punctuation; it needs a host (`hostOf`: letters, digits,
+  dot, hyphen, underscore, or an IPv6 literal, optional port, a user name in front is not the host). Nothing after the link is used.
+  Reason: only web links are relayed by the proxy, and apps share a link inside a sentence as often as alone. A rejected text is only
+  logged, with no payload, and shows the notice `share_not_accepted`. The text is never used to build an intent, PendingIntent or file path.
 - **Waits and fallback** (classic and a missing host; in the new layout a link goes through the
   picker instead and does not wait or fall back): 0 s; +3 s when no receiver is ready; +3 s
   and `upnpClient.startService()` when the player service is not initialized.
@@ -1331,7 +1333,7 @@ Re-checked 2026-10-24 with `./gradlew :yaacc:processDebugManifest --offline`
   classic link auto-play and its blind 3 s waits; a notice when a share is dropped
   for its type; what the new layout shows when a share starts; a cool-down after a
   cancelled pick; re-opening the picker after a rotation; tightening
-  `ShareUriPolicy` (require `://`, reject whitespace and control characters).
+  `ShareUriPolicy`: done, see "Link policy".
   Done in Phase 3: files and `content:` URIs, audio/video/image `SEND` filters,
   picking the receiver per action, localized feedback for failed shares (see
   "Sharing local files").
@@ -1710,9 +1712,9 @@ and is only used for the preference reads and that bounded map. The research cla
 
 ### As built: links (http and https)
 
-- Intake: text of at most 2048 characters (`ShareUriPolicy`, scheme `http`/`https` only; the check looks at scheme and length, see
-  "As built: share handler"). In the new layout (`BrowserHost#providesReceiverBar`) a link is not played at once: it becomes the one
-  pending share (kind `LINK`, shown as the fixed "Shared link" text, never as the link), the picker opens, and `confirm` stores the
+- Intake: text of at most 2048 characters (`ShareUriPolicy#extractUrl`, `http`/`https` only, see "Link policy"). In the new layout (`BrowserHost#providesReceiverBar`) a link is not
+  played at once: it becomes the one pending share (kind `LINK`, shown as "Link: <host>" with `ShareUriPolicy#hostOf`, never as the
+  whole link; "Shared link" if no host can be shown), the picker opens, and `confirm` stores the
   chosen receivers, builds the item and plays it; a refused link or a start without a player gives the share back
   (`UpnpClient#discardShareOf`) and shows `share_link_failed`. A link never falls back to this device in the new layout. Classic and a
   missing host keep the old behavior: wait up to 3 s (+3 s) for receivers, else play on `UpnpClient.LOCAL_UID`.

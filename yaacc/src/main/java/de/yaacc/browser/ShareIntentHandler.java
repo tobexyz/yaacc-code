@@ -219,22 +219,25 @@ public final class ShareIntentHandler {
         if (text == null) {
             return;
         }
-        if (!ShareUriPolicy.isAllowed(text)) {
-            YaaccLogger.w(TAG, "Ignoring shared text: not an http(s) link or longer than "
+        // the first http(s) link of the text; the rest of the text is not used
+        final String link = ShareUriPolicy.extractUrl(text);
+        if (link == null) {
+            YaaccLogger.w(TAG, "Ignoring shared text: no http(s) link in it or longer than "
                     + ShareUriPolicy.MAX_TEXT_LENGTH + " characters");
+            toast(R.string.share_not_accepted);
             return;
         }
         if (pickHost != null && pickHost.providesReceiverBar()) {
             // new layout: the receivers are picked per action; a link is never played by itself
             // and never falls back to this device
-            offerLinkForPick(text, pickHost);
+            offerLinkForPick(link, pickHost);
             return;
         }
         if (pendingShares.get() >= MAX_PENDING_SHARES) {
             YaaccLogger.w(TAG, "Ignoring shared link: too many shares are waiting");
             return;
         }
-        final Uri uri = Uri.parse(text);
+        final Uri uri = Uri.parse(link);
         playersStartedCallback = onPlayersStarted;
 
         long delayedExecution = 0;
@@ -304,7 +307,11 @@ public final class ShareIntentHandler {
             toast(R.string.receiver_pick_busy);
             return;
         }
-        announce(token, appContext.getString(R.string.share_unnamed_link));
+        // the host as parsed from the link (a user name in front of it is not the host), so the user sees
+        // which site is about to play; only letters, digits, dots, hyphens and underscores can be in it
+        String linkHost = ShareUriPolicy.hostOf(text);
+        announce(token, linkHost == null ? appContext.getString(R.string.share_unnamed_link)
+                : appContext.getString(R.string.share_link_host, linkHost));
     }
 
     /** Confirmed link, main thread. {@code finished} runs exactly once, whatever happens. */

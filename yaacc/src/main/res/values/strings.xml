@@ -171,4 +171,5 @@
     <string name="settings_browser_layout_new">New (single screen)</string>
     <string name="clear_log">Clear log</string>
     <string name="share_not_accepted">YAACC only accepts audio, video and image files and web links.</string>
+    <string name="share_link_host">Link: %1$s</string>
 </resources>

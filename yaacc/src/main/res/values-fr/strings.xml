@@ -168,4 +168,5 @@
     <string name="server_list_button">Liste des serveurs</string>
     <string name="clear_log">Effacer le journal</string>
     <string name="share_not_accepted">YAACC n\'accepte que les fichiers audio, vidéo et image et les liens web.</string>
+    <string name="share_link_host">Lien : %1$s</string>
 </resources>
