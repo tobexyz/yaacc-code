@@ -63,8 +63,7 @@ Class names are the Phase 3 names; Phase 4 renames some (see `design.md`), Group
 20. **Link metadata reads have no overall deadline.** `UpnpClient#readLinkMetadata` calls `MediaMetadataRetriever#setDataSource(String)`
     (no timeout of its own) and the content-type fallback can follow 3 redirects; a server that drips bytes can pin the single link worker
     thread and its 3 queued-share slots. Fix: a total deadline on an abandonable thread.
-21. **`ShareUriPolicy` checks only the scheme and the length** (2048): `http:` followed by junk passes. No sink builds an intent, path or
-    file from the text and the link policy and fetch checks apply; tightening is in the backlog.
+21. **Shared-link text check** (closed 2026-10-28): `ShareUriPolicy#extractUrl` now needs `http://` or `https://` plus a host and ends the link at white space or control characters.
 22. **Link-local zone ids collide.** `ProxyAccessPolicy` strips an IPv6 zone id before comparing, so the same `fe80::` address on two
     interfaces counts as one. Accepted.
 23. **A share that races a layout switch is dropped** (`ShareIntakeGate` discards the payload in a non-effective activity for about two
