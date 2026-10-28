@@ -53,9 +53,44 @@ public final class LogDelta {
         if (selecting || fresh == null || fresh.equals(shown)) {
             return new LogDelta(Kind.NONE, "");
         }
-        if (shown != null && !shown.isEmpty() && fresh.startsWith(shown)) {
-            return new LogDelta(Kind.APPEND, fresh.substring(shown.length()));
+        if (shown != null && !shown.isEmpty()) {
+            if (fresh.startsWith(shown)) {
+                return new LogDelta(Kind.APPEND, fresh.substring(shown.length()));
+            }
+            // The system keeps only a window of the log: once it is full every new line pushes the oldest
+            // one out, so the new read no longer starts with the old one. The last lines of the old read tell
+            // where the new lines begin.
+            // (three lines are safer against a repeated line, but the window may have slid past them: fewer then)
+            for (int lines = MARKER_LINES; lines >= 1; lines--) {
+                String marker = lastLines(shown, lines);
+                int at = marker.isEmpty() ? -1 : fresh.lastIndexOf(marker);
+                if (at >= 0) {
+                    String tail = fresh.substring(at + marker.length());
+                    return tail.isEmpty() ? new LogDelta(Kind.NONE, "") : new LogDelta(Kind.APPEND, tail);
+                }
+            }
         }
         return new LogDelta(Kind.REPLACE, fresh);
+    }
+
+    /** Lines of the log that identify its end; every line starts with a time stamp, so they are unique in practice. */
+    private static final int MARKER_LINES = 3;
+
+    /** The last {@code count} complete lines of {@code text} (with their line breaks), or "" if it has none. */
+    static String lastLines(String text, int count) {
+        if (text.isEmpty()) {
+            return "";
+        }
+        boolean endsWithBreak = text.endsWith("\n");
+        String body = endsWithBreak ? text.substring(0, text.length() - 1) : text;
+        String[] lines = body.split("\n", -1);
+        StringBuilder result = new StringBuilder();
+        for (int i = Math.max(0, lines.length - count); i < lines.length; i++) {
+            result.append(lines[i]);
+            if (i < lines.length - 1 || endsWithBreak) {
+                result.append('\n');
+            }
+        }
+        return result.toString();
     }
 }

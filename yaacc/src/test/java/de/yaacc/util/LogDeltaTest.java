@@ -44,8 +44,37 @@ public class LogDeltaTest {
     }
 
     @Test
-    public void aLogThatRolledOverOrWasClearedReplacesTheText() {
-        assertEquals(LogDelta.Kind.REPLACE, LogDelta.between("a\nb\n", "b\nc\n", false).kind());
+    public void aWindowThatSlidesOnAppendsOnlyTheNewLines() {
+        String shown = "10:00:01 a\n10:00:02 b\n10:00:03 c\n10:00:04 d\n";
+        LogDelta delta = LogDelta.between(shown, "10:00:03 c\n10:00:04 d\n10:00:05 e\n10:00:06 f\n", false);
+        assertEquals(LogDelta.Kind.APPEND, delta.kind());
+        assertEquals("10:00:05 e\n10:00:06 f\n", delta.text());
+    }
+
+    @Test
+    public void aWindowThatSlidesWithoutNewLinesChangesNothing() {
+        String shown = "10:00:01 a\n10:00:02 b\n10:00:03 c\n";
+        assertEquals(LogDelta.Kind.NONE, LogDelta.between(shown, "10:00:02 b\n10:00:03 c\n", false).kind());
+    }
+
+    @Test
+    public void aSlidingWindowWorksForAShortLogToo() {
+        LogDelta delta = LogDelta.between("a\nb\n", "b\nc\n", false);
+        assertEquals(LogDelta.Kind.APPEND, delta.kind());
+        assertEquals("c\n", delta.text());
+    }
+
+    @Test
+    public void lastLinesAreTheEndOfTheText() {
+        assertEquals("b\nc\n", LogDelta.lastLines("a\nb\nc\n", 2));
+        assertEquals("a\nb\n", LogDelta.lastLines("a\nb\n", 3));
+        assertEquals("b\nc", LogDelta.lastLines("a\nb\nc", 2));
+        assertEquals("", LogDelta.lastLines("", 2));
+    }
+
+    @Test
+    public void aLogThatWasClearedOrReplacedWholesaleReplacesTheText() {
+        assertEquals(LogDelta.Kind.REPLACE, LogDelta.between("a\nb\n", "x\ny\n", false).kind());
         LogDelta cleared = LogDelta.between("a\nb\n", "", false);
         assertEquals(LogDelta.Kind.REPLACE, cleared.kind());
         assertEquals("", cleared.text());

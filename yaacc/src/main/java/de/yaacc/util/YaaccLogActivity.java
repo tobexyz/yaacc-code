@@ -53,6 +53,8 @@ public class YaaccLogActivity extends AppCompatActivity {
     private static final long REFRESH_INTERVAL_MS = 2000L;
     /** Pixels from the bottom within which the view keeps following new lines. */
     private static final int FOLLOW_THRESHOLD_PX = 48;
+    /** The view keeps at most this many characters; older lines are cut off at the front while it follows the end. */
+    private static final int MAX_VIEW_CHARS = 1_000_000;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private ExecutorService reader;
@@ -244,6 +246,11 @@ public class YaaccLogActivity extends AppCompatActivity {
             textView.append(delta.text());
         } else {
             textView.setText(delta.text());
+        }
+        if (follow && textView.length() > MAX_VIEW_CHARS) {
+            String text = textView.getText().toString();
+            int cut = text.indexOf('\n', text.length() / 2);
+            textView.setText(cut < 0 ? text.substring(text.length() / 2) : text.substring(cut + 1));
         }
         // A focused selectable text view scrolls its (empty) cursor at the top into view whenever its text
         // changes: that was the jump to the top. After the text has been laid out, before it is drawn, the
