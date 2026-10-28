@@ -172,7 +172,7 @@ in `tasks.md` ("Owner's open items"); accepted risks in `known-risks.md`; how it
 - Local video share keeps the implicit `ACTION_VIEW`; no in-app video player: not worth the work for a bearer URL that works for one share only.
 - Add to playlist creates a player for every chosen receiver that has none (`PlaylistTargets`, `PlayerService#createPlayerFor`):
   the old rule did nothing for such a receiver as soon as another chosen one was playing.
-- `.claude/specs/` is not merged: removed from the tree in a last commit before the merge.
+- `.claude/specs/` is merged with the branch (develop carries spec folders already); the owner only wants them consolidated, which is done (supersedes the earlier "not merged").
 - Phase 4 stage 2 not done; test-only members kept; `"0.0.0.0"` address is a separate item; several player sessions per renderer stay.
 - A shared file that is not accepted (type, no read grant, own app, sender without access) shows the fixed notice `share_not_accepted`
   from the launcher and from the intake; it names no reason and no payload.

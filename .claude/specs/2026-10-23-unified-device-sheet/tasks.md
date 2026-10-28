@@ -208,8 +208,7 @@ Questions and checks only the owner can answer or run. None of the share, layout
    multi-window); toolbar colors and icons in both themes (dark title bar, light icons, also in the image viewer); gray controls.
 2. **Decided 2026-10-28** (owner): classic keeps pre-ticking the saved receivers for a shared file (known-risks 8 stays as accepted);
    the local video share keeps the implicit `ACTION_VIEW` and no in-app video player is built (known-risks 4 accepted); add to playlist
-   creates a player for each chosen receiver that has none (done, `PlaylistTargets`); `.claude/specs/` is NOT merged into the main branch
-   (last step before the merge: one commit that removes the folder from the tree, so a squash merge carries none of it); Phase 4 stage 2
+   creates a player for each chosen receiver that has none (done, `PlaylistTargets`); `.claude/specs/` IS merged (develop already carries spec folders; owner 2026-10-29: what matters is that they are consolidated, as they are now: no removal commit before the merge); Phase 4 stage 2
    (27 -> 18 files) is not done; the test-only members stay with their tests; the offline address `"0.0.0.0"` is a separate item; several
    player sessions per renderer stay as they are. Q8 (`StreamIntake` taking a `PackageManager`) stays optional in Group 20.
 3. **Decided 2026-10-28 (second round)**: the picker of the new layout ticks the receivers of the last confirmed pick
