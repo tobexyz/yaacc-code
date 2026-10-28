@@ -184,7 +184,12 @@ public class YaaccLogActivity extends AppCompatActivity {
     }
 
     private void show(String log) {
-        if (isFinishing() || isDestroyed() || log.equals(shownLog)) {
+        if (isFinishing() || isDestroyed()) {
+            return;
+        }
+        // while the user has text selected nothing is touched: the next read catches up
+        LogDelta delta = LogDelta.between(shownLog, log, textView.hasSelection());
+        if (delta.kind() == LogDelta.Kind.NONE) {
             return;
         }
         View content = scrollView.getChildAt(0);
@@ -192,8 +197,13 @@ public class YaaccLogActivity extends AppCompatActivity {
                 || content.getBottom() - (scrollView.getScrollY() + scrollView.getHeight()) <= FOLLOW_THRESHOLD_PX;
         boolean first = shownLog == null;
         shownLog = log;
-        textView.setText(log);
-        if (first || atBottom) {
+        if (delta.kind() == LogDelta.Kind.APPEND) {
+            // new lines at the end keep the selection and the scroll position
+            textView.append(delta.text());
+        } else {
+            textView.setText(delta.text());
+        }
+        if (first || (atBottom && delta.kind() == LogDelta.Kind.APPEND)) {
             scrollView.post(() -> scrollView.fullScroll(View.FOCUS_DOWN));
         }
     }

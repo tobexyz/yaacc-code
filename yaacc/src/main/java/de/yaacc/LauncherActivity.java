@@ -147,6 +147,13 @@ public class LauncherActivity extends Activity {
                 clipUri == null ? null : clipUri.toString(),
                 incoming.getFlags(), ownAuthority);
         if (!decision.isForwardStream()) {
+            // fixed code only: no URI, no type; tells which of the checks turned a file share away
+            String reason = LauncherForwardPolicy.rejectionReason(
+                    incoming.getAction(), incoming.getType(),
+                    extraStream == null ? null : extraStream.toString(),
+                    clipUri == null ? null : clipUri.toString(),
+                    incoming.getFlags(), ownAuthority);
+            YaaccLogger.w(TAG, "A shared file was not forwarded: " + reason + " (sdk " + Build.VERSION.SDK_INT + ")");
             return null;
         }
         // any provider of this app, not only the file provider: its URI would make yaacc serve its own data
@@ -157,9 +164,21 @@ public class LauncherActivity extends Activity {
         }
         // Android 15+: does the real sender hold read access? (below, nothing can be asked; the residual is documented)
         final Uri uri = clipUri;
-        if (!SenderGrantCheck.mayForward(Build.VERSION.SDK_INT, () ->
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM
-                        ? senderPermission(uri) : PackageManager.PERMISSION_GRANTED)) {
+        if (!SenderGrantCheck.mayForward(Build.VERSION.SDK_INT, () -> {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+                return PackageManager.PERMISSION_GRANTED;
+            }
+            try {
+                int result = senderPermission(uri);
+                if (result != PackageManager.PERMISSION_GRANTED) {
+                    YaaccLogger.w(TAG, "The sender check of the shared file answered " + result);
+                }
+                return result;
+            } catch (RuntimeException e) {
+                YaaccLogger.w(TAG, "The sender check of the shared file failed (" + e.getClass().getSimpleName() + ")");
+                throw e;
+            }
+        })) {
             YaaccLogger.w(TAG, "A shared file was ignored: the sender does not hold read access");
             return null;
         }

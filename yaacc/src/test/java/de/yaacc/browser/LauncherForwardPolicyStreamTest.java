@@ -328,4 +328,27 @@ public class LauncherForwardPolicyStreamTest {
         assertFalse(LauncherForwardPolicy.decide(SEND, "image/png", URI).isSendText());
         assertNull(LauncherForwardPolicy.decide(SEND, "image/png", URI).getText());
     }
+
+    @Test
+    public void everyRejectionHasAFixedReasonAndAForwardHasNone() {
+        String uri = "content://media/external/images/media/42";
+        String[][] cases = {
+                {"android.intent.action.VIEW", "image/jpeg", uri, uri, "not-send"},
+                {"android.intent.action.SEND", "text/plain", uri, uri, "type-not-audio-video-image"},
+                {"android.intent.action.SEND", "image/jpeg", null, uri, "no-stream-extra"},
+                {"android.intent.action.SEND", "image/jpeg", uri, null, "stream-differs-from-clip"},
+                {"android.intent.action.SEND", "image/jpeg", uri, uri + "x", "stream-differs-from-clip"},
+        };
+        for (String[] c : cases) {
+            assertEquals(c[4], LauncherForwardPolicy.rejectionReason(c[0], c[1], c[2], c[3], 1, OWN));
+            assertNoForward(decide(c[0], c[1], c[2], c[3], 1));
+        }
+        assertEquals("no-read-grant-flag",
+                LauncherForwardPolicy.rejectionReason("android.intent.action.SEND", "image/jpeg", uri, uri, 0, OWN));
+        assertEquals("uri-not-acceptable", LauncherForwardPolicy.rejectionReason("android.intent.action.SEND",
+                "image/jpeg", "file:///sdcard/a.jpg", "file:///sdcard/a.jpg", 1, OWN));
+        assertEquals(null,
+                LauncherForwardPolicy.rejectionReason("android.intent.action.SEND", "image/jpeg", uri, uri, 1, OWN));
+        assertForwards(decide("android.intent.action.SEND", "image/jpeg", uri, uri, 1), uri);
+    }
 }

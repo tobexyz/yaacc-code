@@ -160,6 +160,33 @@ public final class LauncherForwardPolicy {
     }
 
     /**
+     * Why {@link #decideStream} does not forward, as a short fixed code for the log (it names no URI, no type
+     * and no other payload), or null if it forwards. Same checks in the same order.
+     */
+    public static String rejectionReason(String action, String type, String streamUri,
+                                         String clipItemUri, int incomingFlags, String ownAuthority) {
+        if (!ACTION_SEND.equals(action)) {
+            return "not-send";
+        }
+        if (!isMediaType(type)) {
+            return "type-not-audio-video-image";
+        }
+        if (streamUri == null || streamUri.isEmpty()) {
+            return "no-stream-extra";
+        }
+        if (!streamUri.equals(clipItemUri)) {
+            return "stream-differs-from-clip";
+        }
+        if ((incomingFlags & FLAG_GRANT_READ_URI_PERMISSION) == 0) {
+            return "no-read-grant-flag";
+        }
+        if (!SharedContentPolicy.isAcceptableUri(streamUri, ownAuthority)) {
+            return "uri-not-acceptable";
+        }
+        return null;
+    }
+
+    /**
      * Whether the incoming intent is an attempt to share a file (a stream or a clip URI). When such an
      * attempt is not forwarded, the user is told once, with a fixed text, that only audio, video, images
      * and links are accepted; a text share never counts.
