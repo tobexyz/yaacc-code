@@ -99,7 +99,7 @@ in `tasks.md` ("Owner's open items"); accepted risks in `known-risks.md`; how it
 - The launcher forwards ONE `content:` URI as ONE ClipData item (`ClipData.newRawUri`) plus the read flag and nothing else - the system
   checks `data` and ClipData, never `EXTRA_STREAM`, so it first requires `EXTRA_STREAM` == item 0 and the read flag in the incoming
   flags. MIME comes from the provider (`chooseMimeType`), never the manifest filter. Any provider of this app is refused (not only the
-  file provider), `file:` is refused. On API 35+ the launcher asks `getInitialCaller()` and fails closed; a `SecurityException` from the
+  file provider), `file:` is refused. On API 35+ the launcher asks `getInitialCaller()` for the log only (changed 2026-10-29: it denied every share from a gallery, because via the share sheet the initial caller is the sharesheet; the system already checked the sender when it launched with the read flag); a `SecurityException` from the
   forward falls back to a plain launch.
 - Launch nonce instead of a second sender check in the browsers: the browsers are exported or reachable, so a file is accepted only with a
   single-use token minted by the launcher after ALL its checks (128 bits, 30 s, max 8 outstanding, constant-time compare, memory only,

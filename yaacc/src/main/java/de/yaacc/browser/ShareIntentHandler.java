@@ -477,7 +477,7 @@ public final class ShareIntentHandler {
         // whatever happens next, this intent is spent: a recreated activity must not replay it
         consume(intent);
 
-        // Only the launcher, after its checks (including the Android 15 sender check), mints a
+        // Only the launcher, after its checks, mints a
         // token. These activities are exported, so an app that starts one directly has none: its
         // file is dropped here, silently.
         if (!launchNonces.consume(nonce)) {

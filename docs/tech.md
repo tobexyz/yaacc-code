@@ -325,8 +325,8 @@ decisions in more detail while the share-code consolidation (Phase 4) is open; t
   receivers of the last confirmed pick (`LastPickedReceivers`, key `last_picked_receivers`, remembered by `ReceiverPickController#start`);
   the selection itself is still cleared after every action.
 - Residual risk accepted by the owner: Android checks only that yaacc itself can read a forwarded URI, and yaacc holds broad media permissions.
-  Mitigations are the type check, the human-in-the-loop pick that shows the cleaned name, the address and expiry limits and, on Android 15+, the
-  launcher's sender check. See "Threat model", "Security invariants of the share feature" and "Known limitations".
+  Mitigations are the type check, the human-in-the-loop pick that shows the cleaned name, the address and expiry limits and the read flag
+  that the system only lets a sender set for URIs it can read itself. See "Threat model", "Security invariants of the share feature" and "Known limitations".
 
 ### Look and settings (as built: "Look and settings: theme, gray scale, log viewer")
 - Theme is a three-state list setting (System, Dark, Light) that replaces the "Dark mode" check box; an existing choice migrates once.
@@ -1586,8 +1586,7 @@ Group 22 updates the names again. Nothing here was run on a device: "Not verifie
    `image/`); `EXTRA_STREAM` equals ClipData item 0; the incoming flags carry `FLAG_GRANT_READ_URI_PERMISSION`;
    `SharedContentPolicy` accepts the URI (a `content:` URI, not `file:`/`http:`, no own authority, length cap);
    `OwnProviders.isOwnAuthority` finds no provider of this app behind the authority (the app has more than one);
-   on Android 15+ `SenderGrantCheck.mayForward` asks `getInitialCaller().checkContentUriPermission(...)` whether the real
-   sender holds read access. Then it forwards a FRESH intent: action `SEND`, the declared type, ONE ClipData item
+   on Android 15+ it also asks `getInitialCaller().checkContentUriPermission(...)`, for the log only (see below). Then it forwards a FRESH intent: action `SEND`, the declared type, ONE ClipData item
    (`ClipData.newRawUri`), `FLAG_GRANT_READ_URI_PERMISSION` only (the system checks the grant for `data` and
    ClipData, never for `EXTRA_STREAM`, so the URI is not repeated there), and the launch token
    (`LaunchNonces.EXTRA_NAME`). Any failure, or a `SecurityException` from `startActivity`, falls back to a plain launch.
@@ -1788,7 +1787,10 @@ decision of the reviewed design (see "Design decisions and rationale").
 - **Confused deputy.** Android checks only that yaacc can read the URI. Yaacc holds broad media permissions and SAF grants, so a
   hostile sender could name MediaStore or SAF content that it cannot read itself. Mitigations: the audio/video/image type check; a
   human in the loop (every share needs a receiver pick that shows the cleaned file name); the address and expiry limits; on Android 15+
-  the launcher's check that the sender holds the access (`getInitialCaller()`; reasoned, not device-verified). Below Android 15 that sender check does not exist; the residual is accepted by the owner. A browser activity started directly
+  the read flag that the incoming intent must carry together with the URI in its ClipData: the system only lets a sender launch with that flag if the
+  sender itself can read the URI, so a sender cannot name a URI it has no access to (reasoned from the platform behaviour, not device-verified). The Android 15+ caller
+  check (`getInitialCaller()`) is only logged: through the system share sheet the initial caller is the sharesheet, not the sending app, and the check said
+  "denied" for every gallery share (seen on a device on 2026-10-29), so blocking on it made sharing from a gallery impossible. A browser activity started directly
   cannot bypass the launcher's checks for a file (launch token).
 - **Link fetch (SSRF).** With the proxy option on, the phone fetches the shared link for the receivers. `LinkTargetPolicy` narrows
   what it will fetch (see "As built: links"); the answer goes to the chosen receivers only, not back to the sender.
@@ -1824,7 +1826,7 @@ all of them; a review re-derives them from the code.
 - **SI-8 Launcher forward.** A fresh intent: `ACTION_SEND` with the exact lower-case media type, ONE `ClipData.newRawUri` item and
   `FLAG_GRANT_READ_URI_PERMISSION` only, no `data`, no `EXTRA_STREAM`, no other extra. `EXTRA_STREAM` must equal ClipData item 0, the incoming flags
   must carry the read grant, the content policy must accept the URI, any provider of this app is refused (fail closed), the API 35+ caller check
-  fails closed, a `SecurityException` falls back to a plain launch, `finish()` runs in `finally`, and the incoming intent is never modified.
+  is only logged (it denies shares that come through the system share sheet), a `SecurityException` falls back to a plain launch, `finish()` runs in `finally`, and the incoming intent is never modified.
 - **SI-9 Launch nonce.** 128 bits from `SecureRandom`, valid 30 s, single use, at most 8 outstanding, constant-time compare, never logged; a file
   that reaches a browser without a valid nonce is dropped.
 - **SI-10 Browser intake.** The browser repeats every check (action, exactly one ClipData item, no `data`, the read flag in the intent's own flags,

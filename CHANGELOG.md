@@ -28,6 +28,8 @@
 - **Idle exit**: One process-wide timer now quits the app after 5 minutes in the background when nothing is playing and the server, renderer and proxy options are off, instead of one timer per screen; a screen rotation or a layout change no longer leaves a stale timer behind.
 
 ### Fixed
+- **Sharing a file from a gallery on Android 15 and newer**: The share was turned away because the check of the sending app is answered "denied" when the file comes through the system share sheet. The check is only logged now; the system already makes sure that the sender can read the file it passes on.
+- **Log viewer**: A pause button stops the automatic refresh so text can be selected and copied.
 - **Shutdown timer in portrait** (new layout): The remaining time is shown under the title of the toolbar, so it is also visible on narrow screens, where the toolbar drops the text next to the timer symbol.
 - **Receiver with several players**: When one receiver runs more than one yaacc player (e.g. an image show with background music), its row in the Receiver tab now always shows and opens the most recently started one that is playing (or, if none is playing, the most recently started one), instead of an arbitrary one.
 - **Leaks**: The shutdown timer listener, the screen-capture stop callback and the share handler's worker thread are released when their screen goes away, instead of keeping the old screen alive. Browser screens that were destroyed also stop receiving device updates.

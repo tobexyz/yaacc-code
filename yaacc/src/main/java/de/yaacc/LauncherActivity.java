@@ -33,7 +33,6 @@ import de.yaacc.browser.BrowserLauncher;
 import de.yaacc.browser.LauncherForwardPolicy;
 import de.yaacc.browser.ShareUriPolicy;
 import de.yaacc.share.LaunchNonces;
-import de.yaacc.share.SenderGrantCheck;
 import de.yaacc.share.SharedContentPolicy;
 import de.yaacc.share.OwnProviders;
 import de.yaacc.util.YaaccLogger;
@@ -55,7 +54,8 @@ import de.yaacc.util.YaaccLogger;
  * checks passed. It is built only after {@link LauncherForwardPolicy#decideStream}
  * agreed (URI in EXTRA_STREAM equals ClipData item 0, the incoming intent carried the read grant,
  * a {@code content:} URI of another app), after the URI was found not to belong to ANY provider of
- * this app, and, from Android 15 on, after the real sender was asked whether it holds read access.
+ * this app. (From Android 15 on the initial caller is asked whether it holds read access, for the log only: via the
+ * system share sheet it is not the sending app and the answer is "denied".)
  * A forward the system refuses ({@code SecurityException}) falls back to a plain launch. The
  * incoming intent is never modified. Exactly one of the paths is taken per intent.
  * <p>
@@ -162,30 +162,27 @@ public class LauncherActivity extends Activity {
             YaaccLogger.w(TAG, "A shared file was ignored: it belongs to this app");
             return null;
         }
-        // Android 15+: does the real sender hold read access? (below, nothing can be asked; the residual is documented)
-        final Uri uri = clipUri;
-        if (!SenderGrantCheck.mayForward(Build.VERSION.SDK_INT, () -> {
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.VANILLA_ICE_CREAM) {
-                return PackageManager.PERMISSION_GRANTED;
-            }
+        // Android 15+: ask the initial caller whether it held access, for the log only. The system already checked
+        // the sender when it launched this activity with the read grant flag (which decideStream requires, with the
+        // URI in the ClipData): a sender that cannot read the URI gets a SecurityException on its own startActivity.
+        // Through the system share sheet the initial caller is not the sending app and the answer is "denied", so
+        // blocking on it turned every share from a gallery away.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
             try {
-                int result = senderPermission(uri);
+                int result = senderPermission(clipUri);
                 if (result != PackageManager.PERMISSION_GRANTED) {
-                    YaaccLogger.w(TAG, "The sender check of the shared file answered " + result);
+                    YaaccLogger.i(TAG, "The initial caller of the shared file holds no read access (" + result
+                            + "), not blocking: the system checked the sender when it granted the file");
                 }
-                return result;
             } catch (RuntimeException e) {
-                YaaccLogger.w(TAG, "The sender check of the shared file failed (" + e.getClass().getSimpleName() + ")");
-                throw e;
+                YaaccLogger.i(TAG, "The sender check of the shared file is not available ("
+                        + e.getClass().getSimpleName() + ")");
             }
-        })) {
-            YaaccLogger.w(TAG, "A shared file was ignored: the sender does not hold read access");
-            return null;
         }
         Intent forward = new Intent(this, target);
         forward.setAction(Intent.ACTION_SEND);
         forward.setType(incoming.getType());
-        forward.setClipData(ClipData.newRawUri("", uri));
+        forward.setClipData(ClipData.newRawUri("", clipUri));
         // read only: never write, persistable or prefix
         forward.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
         // The browser activities are exported, so an app could send them a file directly and skip the

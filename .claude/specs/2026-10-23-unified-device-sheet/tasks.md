@@ -84,7 +84,7 @@ Behaviour-preserving consolidation, BASE = `ecb26c59`. Per group: build -> `revi
 | L16 | 19 | `CopyBudgetTest` (16) | `BudgetedCopierTest` (12 -> 28) | qualifiers |
 | L17 | 19 | `IncomingFileNamesTest` (8), `DeleteOnCloseSourceTest` (7) | `IncomingCacheTest` (13 -> 28) | qualifiers |
 | L18 | 20 | `SharedContentPolicyTest` (60), `SharedContentPolicyAuthorityTest` (2), `OwnProvidersTest` (6), `StreamIntakeTest` (11), `ShareUriPolicyTest` (10) | `SharedContentPolicy*Test` | `validateStream` / `isOwnAuthority` / `isAllowedText` on `SharedContentPolicy` |
-| L19 | 20 | `SenderGrantCheckTest` (5) | `LauncherForwardPolicyTest` | `LauncherForwardPolicy.mayForward` |
+| L19 | - | `SenderGrantCheckTest` (5) | removed with the class on 2026-10-29 | - |
 | L20 | 20 | `SharedItemFactoryTest` (7) | `ShareServiceTest` | `ShareService.createItem` |
 | L21 | 20 | `ShareIntakeGateTest` (13) | `ShareIntentHandlerGateTest` (new file, topic) | `ShareIntentHandler.admits` / `admitOrDiscard` |
 | L22 | 21 | `ReceiverPickResultTest` (19), `PickSheetResultTest` (12) | `PendingPickTest` (24 -> 55) | `PendingPick.Decision`, `PendingPick.SheetGate` |
@@ -148,10 +148,7 @@ Expected total after Group 21: **1501** (1472 + 28 + 1). Anything else in the di
   - **Accept**: `SharedContentPolicy.isOwnAuthority(PackageManager, String ownPackage, String authority)` and `fileProviderAuthority(String)` (BASE `OwnProviders`, fail closed), `validateStream(...)` (BASE `StreamIntake.validate`, same checks in the same order, `READ_FLAG`), `isAllowedText(String)` / `MAX_TEXT_LENGTH` (BASE `ShareUriPolicy`); string-level parsers stay string-level; ledger L18. Optional (owner Q8) and only if it deletes wiring: `validateStream` takes `PackageManager` + own package instead of the `Predicate`/`ownAuthority` pair (the 11 `StreamIntakeTest` cases change their arrange code only)
   - **Verify**: gate; `grep -rn 'OwnProviders\|StreamIntake\|ShareUriPolicy' yaacc/src` -> nothing
   - **Constraints**: SI-8, SI-10 (any provider of this app refused, a throwing check is refused, the intent is consumed before validation); no `android.net.Uri` parsing in the policy; `SharedContentPolicy` mutants
-- [ ] `LauncherForwardPolicy` absorbs `SenderGrantCheck` | `LauncherForwardPolicy.java`, `LauncherActivity.java`, tests
-  - **Accept**: `LauncherForwardPolicy.mayForward(int sdkInt, IntSupplier permissionCheck)` and `FIRST_SDK_WITH_CALLER_CHECK` are the BASE bodies; ledger L19
-  - **Verify**: gate; `grep -rn SenderGrantCheck yaacc/src` -> nothing
-  - **Constraints**: SI-8 (below 35 allowed; 35+ fails closed on denial, null check or any `RuntimeException`); `LauncherActivity` changes only the call
+- (`SenderGrantCheck` was removed on 2026-10-29: the Android 15+ caller check is only logged in `LauncherActivity`.)
 - [ ] `ShareService` absorbs `ShareAddressResolver`, `SharedItemFactory`, `HttpServerProbe` | `ShareService.java`, `UpnpClient.java`, tests
   - **Accept**: `ShareService.allowedAddresses(UpnpClient, Context, Set<String> receiverIds)` (BASE `ShareAddressResolver.resolve`), `ShareService.createItem(...)` (BASE `SharedItemFactory.create`), `ShareService.isHttpServerRunning()` (BASE `HttpServerProbe.isRunning`, 500 ms loopback connect); `UpnpClient#isHttpServerRunning()` stays public and delegates; `UpnpClient#createHttpLinkShare` stays in `UpnpClient` and calls the new homes plus `registerOrEvict`; ledger L20
   - **Verify**: gate; `grep -rn 'ShareAddressResolver\|SharedItemFactory\|HttpServerProbe' yaacc/src` -> nothing; the Group 17 characterization tests still pass unchanged

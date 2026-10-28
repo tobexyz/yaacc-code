@@ -44,8 +44,8 @@ Class names are the Phase 3 names; Phase 4 renames some (see `design.md`), Group
 14. **A hostile app on the phone, and the confused-deputy residual.** With "this device" chosen, loopback and the phone's own
     addresses pass the address step, so another app on the phone is stopped only by the 128-bit key (not published by the app, except
     item 4; reasoned, not observed). Android only checks that yaacc itself can read a forwarded `content:` URI and yaacc holds broad
-    media permissions and SAF grants. Below Android 15 nothing verifies the sender holds the access; on 15+ only the launcher path asks
-    (`getInitialCaller()`, not device-verified). Accepted by the owner.
+    media permissions and SAF grants. The system itself only lets a sender launch with the read flag for a URI the sender can read, and the launcher requires that flag with
+    the URI in the ClipData; the Android 15+ `getInitialCaller()` check is logged only (via the share sheet it denies every share). Accepted by the owner.
 15. **A receiver's `<URLBase>` host is allowed.** `ShareAddressResolver` adds the host of the descriptor URL AND of `<URLBase>` to the
     allowed set; a receiver the user picked can thereby name another address (e.g. the phone's own LAN address, admitting local apps).
     It already holds the key. Fix: drop the URL base unless its host equals the descriptor host.

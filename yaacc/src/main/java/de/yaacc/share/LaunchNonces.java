@@ -31,7 +31,7 @@ import java.util.function.LongSupplier;
  * after its checks. Plain Java, memory only.
  * <p>
  * The browser activities are exported, so any app can start them with a file share and skip the
- * launcher (and with it the Android 15 check that the real sender holds read access). The launcher
+ * launcher (and with it the checks of the incoming file share). The launcher
  * therefore {@link #mint()}s a token when its checks have passed and puts it into the fresh intent
  * it forwards; the browser accepts a shared <i>file</i> only if the intent presents a token that
  * {@link #consume(String)} accepts. The store lives in this process only (another app can neither
