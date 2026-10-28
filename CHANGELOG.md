@@ -31,6 +31,7 @@
 
 ### Fixed
 - **Images in a SAF folder**: Tapping an image (or audio) in a folder that mixes images and videos, as SAF folders like DCIM/Camera do, queues only items of the same kind, so it opens in the in-app image viewer (or player) instead of the "open with" chooser of other apps.
+- **Stop on an idle renderer**: A control point such as Home Assistant that sends *Stop* to YAACC's renderer while nothing is loaded no longer gets the UPnP error 701; the renderer just stays idle.
 - **Device announcements after a network change**: After switching networks or coming back from sleep, the app's own announcements (alive messages of the local server/receiver) and the renewal of event subscriptions use the new network connection instead of the closed first one, and the local devices are announced again.
 - **Crashes without a network**: Searching for devices, reading or changing a receiver's volume or mute, and controlling a player no longer throw an error when the network service is not up (for example right after a network change); the action is skipped or reported as failed instead.
 - **Details of shared (SAF) folders and files**: Control points that ask for the details of a single shared folder or file now get its name, the right parent folder and the "[X]" mark; before, sub folders and files were answered wrongly or empty. An unknown item is answered with "no such object".
