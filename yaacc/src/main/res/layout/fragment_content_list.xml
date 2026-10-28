@@ -102,7 +102,7 @@
             android:ellipsize="start"
             android:text="@string/all"
             android:textAppearance="@android:style/TextAppearance.Material.Medium"
-            android:textColor="?android:attr/colorForeground" />
+            android:textColor="?attr/colorOnSurface" />
     </RelativeLayout>
 
     <View
@@ -110,7 +110,7 @@
         android:layout_width="match_parent"
         android:layout_height="1dp"
         android:layout_below="@id/contentListHeaderRow"
-        android:background="?android:attr/colorForeground" />
+        android:background="?attr/colorOutlineVariant" />
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/contentList"
@@ -144,7 +144,7 @@
             android:id="@+id/contentListBottomSeperator"
             android:layout_width="match_parent"
             android:layout_height="1dp"
-            android:background="?android:attr/colorForeground" />
+            android:background="?attr/colorOutlineVariant" />
 
         <TextView
             android:id="@+id/contentListCurrentProvider"
@@ -158,7 +158,7 @@
             android:singleLine="false"
             android:text="@string/all"
             android:textAppearance="@android:style/TextAppearance.Material.Medium"
-            android:textColor="?android:attr/colorForeground"
+            android:textColor="?attr/colorOnSurface"
             app:drawableStartCompat="@drawable/ic_baseline_sensors_32" />
 
         <TextView
@@ -173,7 +173,7 @@
             android:singleLine="false"
             android:text="@string/all"
             android:textAppearance="@android:style/TextAppearance.Material.Medium"
-            android:textColor="?android:attr/colorForeground"
+            android:textColor="?attr/colorOnSurface"
             app:drawableStartCompat="@drawable/ic_baseline_devices_32" />
     </LinearLayout>
 

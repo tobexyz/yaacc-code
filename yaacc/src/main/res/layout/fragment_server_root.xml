@@ -42,7 +42,7 @@
             android:maxLines="1"
             android:text="@string/browser_servers_header"
             android:textAppearance="@android:style/TextAppearance.Material.Medium"
-            android:textColor="?android:attr/colorForeground" />
+            android:textColor="?attr/colorOnSurface" />
 
         <ImageButton
             android:id="@+id/serverListRefreshButton"
@@ -79,7 +79,7 @@
             android:maxLines="1"
             android:text="@string/upnp_server"
             android:textAppearance="@android:style/TextAppearance.Material.Medium"
-            android:textColor="?android:attr/colorForeground" />
+            android:textColor="?attr/colorOnSurface" />
 
         <com.google.android.material.switchmaterial.SwitchMaterial
             android:id="@+id/serverListLocalServerEnabled"

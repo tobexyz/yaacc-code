@@ -24,6 +24,7 @@
      height 56dp + 2 x 2dp margin = 60dp; mini_player_list_max_height is three of them. -->
 <com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    style="@style/Widget.App.CardView.List"
     android:id="@+id/miniPlayerRow"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
@@ -35,8 +36,6 @@
     android:descendantFocusability="beforeDescendants"
     android:focusable="true"
     android:focusableInTouchMode="false"
-    app:cardCornerRadius="6dp"
-    app:cardElevation="6dp"
     app:cardUseCompatPadding="false">
 
     <LinearLayout
@@ -71,7 +70,7 @@
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textAppearance="@android:style/TextAppearance.Material.Medium"
-                android:textColor="?android:attr/colorForeground" />
+                android:textColor="?attr/colorOnSurface" />
 
             <TextView
                 android:id="@+id/miniPlayerReceiver"
@@ -80,7 +79,7 @@
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textAppearance="@android:style/TextAppearance.Material.Small"
-                android:textColor="?android:attr/textColorSecondary" />
+                android:textColor="?attr/colorOnSurfaceVariant" />
         </LinearLayout>
 
         <ImageButton

@@ -28,25 +28,12 @@
     android:clickable="true"
     android:foreground="?attr/selectableItemBackground">
 
-    <!--
-         Material "explicit containment" card: a visible surface + subtle
-         shadow distinguishes it from the page background (not a hard
-         border line) - see
-         https://m2.material.io/components/cards#explicit-containment.
-         MaterialCardView (not plain CardView) so app:cardElevation gets a
-         real Material surface color by default instead of this layout's
-         previous transparent/flat styling. 6dp (not 2dp) because
-         MaterialCardView's dark-theme elevation overlay - the lightening
-         that's supposed to make a surface read as "above" the page
-         background - scales with elevation; at 2dp it was barely
-         perceptible against this app's near-black background, which was
-         most of why cards looked flat/indistinct from the page.
-    -->
+    <!-- Material 3 filled card: a container surface a step lighter than the page, rounded, no shadow
+         and no outline (style Widget.App.CardView.Content). -->
     <com.google.android.material.card.MaterialCardView
+        style="@style/Widget.App.CardView.Content"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        app:cardCornerRadius="6dp"
-        app:cardElevation="6dp"
         app:cardUseCompatPadding="false"
         app:contentPadding="2dp">
 
@@ -71,9 +58,7 @@
                  forced CENTER_CROP to crop away a large, inconsistent
                  chunk of square album art (the common case) - 1:1 keeps
                  the crop close to what CENTER_CROP actually needs for a
-                 square source image, full card width, matching Material's
-                 explicit-containment card image
-                 (https://m2.material.io/components/cards#explicit-containment).
+                 square source image, full card width.
                  scaleType/background are set per-bind in
                  BrowseContentItemAdapter.onBindViewHolder: CENTER_CROP
                  (fills edge-to-edge) once a real thumbnail loads, else
@@ -104,7 +89,7 @@
                 android:text="@string/all"
                 android:focusable="false"
                 android:textAppearance="@android:style/TextAppearance.Material.Medium"
-                android:textColor="?android:attr/colorForeground" />
+                android:textColor="?attr/colorOnSurface" />
 
             <LinearLayout
                 android:layout_width="match_parent"

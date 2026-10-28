@@ -1,17 +1,48 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- The whole app is gray scale: every color of the theme is a gray (res/values-night has the dark
-         variants). GrayscaleResourcesTest pins that. The launcher icon is the only colored asset. -->
-    <color name="gray_primary">#616161</color>
-    <color name="gray_primary_variant">#424242</color>
+    <!-- Material 3 color roles of the app, all grays (res/values-night has the dark scheme with the same
+         names). GrayscaleResourcesTest pins that every color is a gray, that both files define the same
+         names, that the theme sets every role and that text/background pairs reach 4.5:1. The launcher
+         icon is the only colored asset. The error roles are not defined here on purpose: the app shows no
+         errors of its own, the library default (red) only appears for an error of a text field. -->
+
+    <!-- Light scheme: the page is light gray, the lowest container is white, bars/cards sit a step darker. -->
+    <color name="gray_primary">#3A3A3A</color>
     <color name="gray_on_primary">#FFFFFF</color>
-    <color name="gray_secondary">#757575</color>
-    <color name="gray_secondary_variant">#616161</color>
+    <color name="gray_primary_container">#DADADA</color>
+    <color name="gray_on_primary_container">#1B1B1B</color>
+    <color name="gray_secondary">#5F5F5F</color>
     <color name="gray_on_secondary">#FFFFFF</color>
-    <!-- title bar and the status bar above it: dark in both themes -->
-    <color name="gray_bar">#424242</color>
-    <color name="gray_bar_dark">#303030</color>
-    <color name="gray_accent">#616161</color>
+    <color name="gray_secondary_container">#E4E4E4</color>
+    <color name="gray_on_secondary_container">#1B1B1B</color>
+    <color name="gray_tertiary">#6B6B6B</color>
+    <color name="gray_on_tertiary">#FFFFFF</color>
+    <color name="gray_tertiary_container">#D0D0D0</color>
+    <color name="gray_on_tertiary_container">#1B1B1B</color>
+
+    <color name="gray_background">#F6F6F6</color>
+    <color name="gray_on_background">#1B1B1B</color>
+    <color name="gray_surface">#F6F6F6</color>
+    <color name="gray_on_surface">#1B1B1B</color>
+    <color name="gray_surface_variant">#E2E2E2</color>
+    <color name="gray_on_surface_variant">#5F5F5F</color>
+    <color name="gray_surface_dim">#DADADA</color>
+    <color name="gray_surface_bright">#FFFFFF</color>
+    <color name="gray_surface_container_lowest">#FFFFFF</color>
+    <color name="gray_surface_container_low">#F1F1F1</color>
+    <color name="gray_surface_container">#EEEEEE</color>
+    <color name="gray_surface_container_high">#EAEAEA</color>
+    <color name="gray_surface_container_highest">#E2E2E2</color>
+
+    <color name="gray_outline">#777777</color>
+    <color name="gray_outline_variant">#D9D9D9</color>
+
+    <color name="gray_inverse_surface">#303030</color>
+    <color name="gray_inverse_on_surface">#F1F1F1</color>
+    <color name="gray_inverse_primary">#BDBDBD</color>
+
     <!-- the row that is picked up for a keyboard move in the playlist -->
     <color name="gray_highlight">#40616161</color>
+    <!-- background of selected text (log viewer, text fields) -->
+    <color name="gray_text_highlight">#66AAAAAA</color>
 </resources>

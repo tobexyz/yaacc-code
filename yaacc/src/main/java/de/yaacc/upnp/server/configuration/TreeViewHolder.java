@@ -19,7 +19,6 @@
 package de.yaacc.upnp.server.configuration;
 
 
-import android.graphics.Color;
 import android.graphics.drawable.Drawable;
 import android.util.TypedValue;
 import android.view.View;
@@ -66,6 +65,12 @@ public class TreeViewHolder extends RecyclerView.ViewHolder {
         this.fileRemoveButton = itemView.findViewById(R.id.file_remove);
     }
 
+
+    private int resolveThemeColor(int attr) {
+        TypedValue typedValue = new TypedValue();
+        itemView.getContext().getTheme().resolveAttribute(attr, typedValue, true);
+        return typedValue.data;
+    }
 
     public void bindTreeNode(TreeNode node) {
         int padding = node.getLevel() * nodePadding;
@@ -134,17 +139,14 @@ public class TreeViewHolder extends RecyclerView.ViewHolder {
             fileTypeIcon.setImageDrawable(icon);
         }
 
+        // Selected rows are a pill-like container with its own content color; the others take the page
+        // background and the primary text color (both from the Material 3 gray scheme of the theme).
         if (node.isSelected()) {
-            itemView.setBackgroundColor(Color.LTGRAY);
-            TypedValue typedValue = new TypedValue();
-            itemView.getContext().getTheme().resolveAttribute(android.R.attr.colorPrimaryDark, typedValue, true);
-            fileName.setTextColor(typedValue.data);
+            itemView.setBackgroundColor(resolveThemeColor(com.google.android.material.R.attr.colorSecondaryContainer));
+            fileName.setTextColor(resolveThemeColor(com.google.android.material.R.attr.colorOnSecondaryContainer));
         } else {
-            TypedValue typedValue = new TypedValue();
-            itemView.getContext().getTheme().resolveAttribute(android.R.attr.colorBackground, typedValue, true);
-            itemView.setBackgroundColor(typedValue.data);
-            itemView.getContext().getTheme().resolveAttribute(android.R.attr.colorForeground, typedValue, true);
-            fileName.setTextColor(typedValue.data);
+            itemView.setBackgroundColor(resolveThemeColor(android.R.attr.colorBackground));
+            fileName.setTextColor(resolveThemeColor(com.google.android.material.R.attr.colorOnSurface));
         }
         fileStateIcon.setVisibility(View.INVISIBLE);
 

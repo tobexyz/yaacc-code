@@ -112,7 +112,7 @@
             android:ellipsize="start"
             android:text="@string/all"
             android:textAppearance="@android:style/TextAppearance.Material.Medium"
-            android:textColor="?android:attr/colorForeground" />
+            android:textColor="?attr/colorOnSurface" />
 
         <!-- The bottom separator and the original static footer (provider, receivers) form
              one chain: separator above provider above receivers, receivers at the parent
@@ -131,7 +131,7 @@
             android:layout_width="match_parent"
             android:layout_height="1dp"
             android:layout_above="@id/contentListCurrentProvider"
-            android:background="?android:attr/colorForeground" />
+            android:background="?attr/colorOutlineVariant" />
 
         <TextView
             android:id="@+id/contentListCurrentProvider"
@@ -149,7 +149,7 @@
             android:singleLine="false"
             android:text="@string/all"
             android:textAppearance="@android:style/TextAppearance.Material.Medium"
-            android:textColor="?android:attr/colorForeground"
+            android:textColor="?attr/colorOnSurface"
             app:drawableStartCompat="@drawable/ic_baseline_sensors_32" />
 
         <TextView
@@ -167,7 +167,7 @@
             android:singleLine="false"
             android:text="@string/all"
             android:textAppearance="@android:style/TextAppearance.Material.Medium"
-            android:textColor="?android:attr/colorForeground"
+            android:textColor="?attr/colorOnSurface"
             app:drawableStartCompat="@drawable/ic_baseline_devices_32" />
 
         <View
@@ -175,7 +175,7 @@
             android:layout_width="1dp"
             android:layout_height="match_parent"
             android:layout_alignEnd="@id/contentListCurrentFolderName"
-            android:background="?android:attr/colorForeground" />
+            android:background="?attr/colorOutlineVariant" />
     </RelativeLayout>
 
     <RelativeLayout xmlns:app="http://schemas.android.com/apk/res-auto"

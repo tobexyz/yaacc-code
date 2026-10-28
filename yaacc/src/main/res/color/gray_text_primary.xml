@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Primary text of the theme (android:textColorPrimary): the on-surface gray, dimmed when disabled. The
+     library's own selector points at its tinted baseline colors, not at the gray scheme. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:alpha="0.38" android:color="@color/gray_on_surface" android:state_enabled="false" />
+    <item android:color="@color/gray_on_surface" />
+</selector>

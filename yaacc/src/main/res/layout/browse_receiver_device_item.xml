@@ -27,11 +27,11 @@
     android:clickable="true"
     android:orientation="vertical">
 
-    <androidx.cardview.widget.CardView
+    <com.google.android.material.card.MaterialCardView
+        style="@style/Widget.App.CardView.List"
         android:id="@+id/item_container"
         android:layout_width="match_parent"
         android:layout_height="180dp"
-        app:cardCornerRadius="12dp"
         app:cardUseCompatPadding="true"
         app:contentPadding="12dp">
 
@@ -73,7 +73,7 @@
                     android:layout_marginStart="8dp"
                     android:text="@string/all"
                     android:textAppearance="@android:style/TextAppearance.Material.Medium"
-                    android:textColor="?android:attr/colorForeground" />
+                    android:textColor="?attr/colorOnSurface" />
 
                 <TextView
                     android:id="@+id/status_badge"
@@ -101,7 +101,7 @@
                 android:layout_marginStart="56dp"
                 android:layout_marginTop="4dp"
                 android:textSize="14sp"
-                android:textColor="?android:attr/textColorSecondary"
+                android:textColor="?attr/colorOnSurfaceVariant"
                 android:maxLines="2"
                 android:ellipsize="end"
                 android:visibility="gone" />
@@ -171,5 +171,5 @@
             </LinearLayout>
             </LinearLayout>
         </FrameLayout>
-    </androidx.cardview.widget.CardView>
+    </com.google.android.material.card.MaterialCardView>
 </LinearLayout>

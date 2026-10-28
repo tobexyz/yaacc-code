@@ -27,5 +27,5 @@
     android:paddingStart="16dp"
     android:paddingEnd="16dp"
     android:textAppearance="@android:style/TextAppearance.Material.Medium"
-    android:textColor="?android:attr/textColorPrimary"
-    app:buttonTint="?android:attr/textColorPrimary" />
+    android:textColor="?attr/colorOnSurface"
+    app:buttonTint="?attr/colorOnSurface" />

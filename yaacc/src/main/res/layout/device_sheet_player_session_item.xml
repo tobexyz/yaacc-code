@@ -55,7 +55,7 @@
             android:ellipsize="end"
             android:maxLines="1"
             android:textAppearance="@android:style/TextAppearance.Material.Medium"
-            android:textColor="?android:attr/colorForeground" />
+            android:textColor="?attr/colorOnSurface" />
 
         <TextView
             android:id="@+id/deviceSheetSessionTitle"

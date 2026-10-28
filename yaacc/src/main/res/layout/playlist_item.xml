@@ -22,10 +22,10 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content">
 
-    <androidx.cardview.widget.CardView
+    <com.google.android.material.card.MaterialCardView
+        style="@style/Widget.App.CardView.List"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        app:cardCornerRadius="6dp"
         app:cardUseCompatPadding="true"
         app:contentPadding="5dp">
 
@@ -58,7 +58,7 @@
                     android:minLines="2"
                     android:text="@string/all"
                     android:textAppearance="@android:style/TextAppearance.Material.Medium"
-                    android:textColor="?android:attr/colorForeground" />
+                    android:textColor="?attr/colorOnSurface" />
 
                 <ImageButton
                     android:id="@+id/playlistItemDeleteIcon"
@@ -67,9 +67,10 @@
                     style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
                     android:layout_gravity="end|center_horizontal|center_vertical"
                     app:srcCompat="@drawable/ic_baseline_delete_outline_32"
+                    app:tint="?attr/colorControlNormal"
                     tools:srcCompat="@drawable/ic_baseline_delete_outline_32" />
             </LinearLayout>
 
         </LinearLayout>
-    </androidx.cardview.widget.CardView>
+    </com.google.android.material.card.MaterialCardView>
 </LinearLayout>

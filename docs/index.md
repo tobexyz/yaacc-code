@@ -442,8 +442,9 @@ through the proxy, see [Settings](settings/).
 ## Appearance and log
 
 *Settings* > *Appearance* > *Theme* offers "System" (follow the system setting), "Dark" and "Light"; a fresh install
-starts with "Dark". The app is gray scale: check boxes, switches, sliders and progress bars are gray in both themes, and
-the title bar is dark gray with light text and icons.
+starts with "Dark". The app is gray scale in Material 3 style: check boxes, switches, sliders and progress bars are gray in both
+themes. The dark theme has a pure black page with slightly lighter bars, cards and sheets; the light theme has a light gray page and
+a light title bar.
 
 The log opens from the overflow menu ("log"). It shows the entries of the level chosen in the settings
 (*Appearance* > *Log level*), refreshes every two seconds while it is open and scrolls down by itself only while you are

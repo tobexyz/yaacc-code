@@ -40,7 +40,7 @@
         android:id="@+id/browserBottomSeparator"
         android:layout_width="match_parent"
         android:layout_height="1dp"
-        android:background="?android:attr/colorForeground" />
+        android:background="?attr/colorOutlineVariant" />
 
     <include layout="@layout/mini_player_bar" />
 
@@ -61,7 +61,7 @@
         android:paddingEnd="8dp"
         android:text="@string/receiver_bar_none_playing"
         android:textAppearance="@android:style/TextAppearance.Material.Medium"
-        android:textColor="?android:attr/colorForeground"
+        android:textColor="?attr/colorOnSurface"
         app:drawableEndCompat="@drawable/ic_baseline_expand_less_24"
         app:drawableStartCompat="@drawable/ic_baseline_devices_32" />
 </LinearLayout>

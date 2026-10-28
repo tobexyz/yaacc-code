@@ -26,11 +26,11 @@
     android:clickable="true"
     android:foreground="?attr/selectableItemBackground">
 
-    <androidx.cardview.widget.CardView
+    <com.google.android.material.card.MaterialCardView
+        style="@style/Widget.App.CardView.List"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:focusable="true"
-        app:cardCornerRadius="12dp"
         app:cardUseCompatPadding="true"
         app:contentPadding="5dp">
 
@@ -61,7 +61,7 @@
                     android:minLines="2"
                     android:text="@string/all"
                     android:textAppearance="@android:style/TextAppearance.Material.Medium"
-                    android:textColor="?android:attr/colorForeground" />
+                    android:textColor="?attr/colorOnSurface" />
             </LinearLayout>
 
 
@@ -94,5 +94,5 @@
                     app:tint="?attr/colorControlNormal" />
             </LinearLayout>
         </LinearLayout>
-    </androidx.cardview.widget.CardView>
+    </com.google.android.material.card.MaterialCardView>
 </LinearLayout>

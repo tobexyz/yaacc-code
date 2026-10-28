@@ -176,3 +176,25 @@ in `tasks.md` ("Owner's open items"); accepted risks in `known-risks.md`; how it
 - Phase 4 stage 2 not done; test-only members kept; `"0.0.0.0"` address is a separate item; several player sessions per renderer stay.
 - A shared file that is not accepted (type, no read grant, own app, sender without access) shows the fixed notice `share_not_accepted`
   from the launcher and from the intake; it names no reason and no payload.
+
+## Material 3 gray scheme (owner decisions of 2026-10-29)
+- **Why.** The owner chose Material 3 with the app's own gray scheme (reference look: K-9 Mail, Feeder): the dark theme has a PURE BLACK page, the
+  light theme a LIGHT title bar (no dark band), tonal surfaces (page darkest in dark, containers a step lighter), big rounded cards without shadow,
+  hairline dividers, soft off-white primary text and dimmer secondary text, still no color besides the launcher icon.
+- **Theme.** `AppTheme` parent `Theme.Material3.DayNight` (support action bar kept, no Toolbars); all Material 3 roles are set in
+  `res/values/colors.xml` and `res/values-night/colors.xml` as `gray_<role>`; the table is in `docs/tech.md` ("Look and settings"). Dark: page and
+  surface `#000000`, containers `#0F0F0F` / `#161616` / `#1E1E1E` / `#262626`, text `#E3E3E3` / `#A8A8A8`, primary `#D6D6D6` on `#1B1B1B`. Light:
+  page, surface and title bar `#F6F6F6`, containers `#FFFFFF` ... `#E2E2E2`, text `#1B1B1B` / `#5F5F5F`, primary `#3A3A3A` on `#FFFFFF`.
+  `GrayscaleResourcesTest` checks 4.5:1 for every text/background pair of both schemes.
+- **Deviations found while building.** (1) The library's `android:textColor*` theme items point at its tinted baseline colors, so the theme replaces
+  them with gray selectors (`res/color/gray_text_*`). (2) The library's filled card uses the highest container, the plan wants the high one:
+  `Widget.App.CardView` sets `cardBackgroundColor`. (3) `colorSurfaceTint` does not exist in material 1.14.0, nothing to set. (4) Error roles
+  are left to the library: a red in `colors.xml` would break the "every color is gray" test, and the app raises no errors of its own. (5) The
+  white menu icons of the image viewer and the log viewer get `app:iconTint` (they would vanish on the light bar). (6) `actionBarSize` stays
+  56dp / 48dp landscape (own dimen `app_bar_height`), Material 3 would make it 64dp. (7) The title bar has no hairline and no elevation: bar and page
+  have the same color; an outlineVariant line under it is a one-file change if the owner wants it. (8) The playlist delete icon gets `app:tint`
+  (it was a white vector without a tint, invisible on a light card). (9) The selected row of the server folder tree uses
+  `colorSecondaryContainer`/`colorOnSecondaryContainer` instead of `Color.LTGRAY` and `colorPrimaryDark`.
+- **What the owner must check on a device.** See the final report of the migration (screens in both themes: server list, content list in list and
+  card mode and landscape, device sheet, picker, mini-player, settings, log viewer, image viewer/players, dialogs/time picker, about), plus the
+  status bar and navigation bar colors and icon shades (targetSdk 33; with 35 the bars become transparent).

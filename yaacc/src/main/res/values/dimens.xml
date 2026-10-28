@@ -18,4 +18,8 @@
 
     <!-- Cap of the mini-player list (MaxHeightRecyclerView): three rows of 60dp (56dp + 2 x 2dp margin). -->
     <dimen name="mini_player_list_max_height">180dp</dimen>
+
+    <!-- Height of the title bar: the AppCompat height (56dp, 48dp in landscape), not the 64dp of Material 3,
+         so the screens keep their vertical space. -->
+    <dimen name="app_bar_height">56dp</dimen>
 </resources>

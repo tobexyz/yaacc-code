@@ -34,7 +34,7 @@
         android:focusable="false"
         android:text="@string/device_sheet_title"
         android:textAppearance="@android:style/TextAppearance.Material.Medium"
-        android:textColor="?android:attr/colorForeground" />
+        android:textColor="?attr/colorOnSurface" />
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/deviceSheetList"

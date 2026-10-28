@@ -433,8 +433,8 @@ public class ImageViewerActivity extends AppCompatActivity implements SwipeRecei
 
     @Override
     public boolean onCreateOptionsMenu(android.view.Menu menu) {
-        // The icons are white vectors on the title bar, which is dark in both themes; tinting them with the
-        // foreground color of the activity theme made them dark on dark in the light theme.
+        // The icons are white vectors; the menu file tints them (app:iconTint) with the title bar's icon
+        // color, which is light on the black bar of the dark theme and dark on the light bar of the light one.
         getMenuInflater().inflate(R.menu.activity_image_viewer, menu);
         return true;
     }

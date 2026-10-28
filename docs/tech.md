@@ -330,8 +330,8 @@ decisions in more detail while the share-code consolidation (Phase 4) is open; t
 
 ### Look and settings (as built: "Look and settings: theme, gray scale, log viewer")
 - Theme is a three-state list setting (System, Dark, Light) that replaces the "Dark mode" check box; an existing choice migrates once.
-- The whole app is gray scale: every theme color is a gray with a dark variant in `values-night`, so controls look the same in both themes;
-  the title bar is dark gray with light content in both themes.
+- The whole app is gray scale in Material 3 style: every theme color is a gray with a dark variant in `values-night`, so controls look the
+  same in both themes; the dark page is pure black, the light title bar has the page color (details below).
 - Card view is the default on a fresh install; the log viewer's "Clear" is a time marker because the system may refuse to empty an app's log
   buffer; mini-player rows have an exit button besides stop (stop keeps the player, exit removes it).
 
@@ -482,6 +482,10 @@ public void onStart() {
 ```
 
 ### 4. Theme (not in the original plan)
+
+> Superseded (Material 3 migration): `AppTheme` now has the parent `Theme.Material3.DayNight`, which sets `bottomSheetDialogTheme` itself;
+> the app overlay `ThemeOverlay.App.DeviceSheet` stays (explicit `getTheme()`) with the parent `ThemeOverlay.Material3.BottomSheetDialog`.
+> The text below describes the Bridge theme it was written for.
 
 `BottomSheetDialogFragment.onCreateDialog` builds
 `new BottomSheetDialog(getContext(), getTheme())`. With theme 0, the private
@@ -1391,14 +1395,51 @@ As built for #287 (these were only in the CHANGELOG before). Rationale: "Design 
   check box was on by default). `Yaacc.onCreate` first runs `ThemeChoice.migrateLegacyDarkMode(preferences, settings_dark_mode_key,
   settings_theme_key)` once: when the new key is absent and the old boolean exists, it stores `dark` for true and `system` for false and removes
   the old key; then it applies the mode. `SettingsFragment` applies a change at once.
-- **Gray scale.** `AppTheme` (`res/values/styles.xml`) maps `colorPrimary`, `colorSecondary`, `colorAccent`, `colorControlActivated` and their
-  variants to `gray_*` colors in `res/values/colors.xml`, with dark variants in `res/values-night/colors.xml`; `GrayscaleResourcesTest` pins that
-  every color is a gray, and the launcher icon is the only colored asset. The title bar is dark gray in both themes: `android:colorPrimaryDark`
-  is `gray_bar_dark` (status bar), `actionBarStyle` is `Widget.App.ActionBar` with the background `gray_bar` (black in the dark theme), and
-  `actionBarTheme` is `ThemeOverlay.AppCompat.Dark.ActionBar`, so title and icons are light in both themes. The settings section headlines use
-  `PreferenceThemeOverlay.App` (bold, text color). Menu icons on the bar are white vectors, so `ImageViewerActivity` no longer tints them with the
-  activity's foreground color (that made them dark on dark in the light theme). The keyboard-move highlight in the playlist uses `gray_highlight`, the device state badge uses `colorSecondary`/`colorOnSecondary`, and the
-  pick sheet's hint uses the primary text color instead of the error color.
+- **Gray scale (Material 3).** `AppTheme` (`res/values/styles.xml`) has the parent `Theme.Material3.DayNight` (Material Components 2 and its
+  `Bridge` theme are gone) and keeps the support action bar. Every color role the Material 3 components read is set to a gray in
+  `res/values/colors.xml` (`gray_<role>`, light) with the dark values in `res/values-night/colors.xml`; `GrayscaleResourcesTest` pins that
+  every color is a gray, that both files define the same names, that the theme sets every role, that text reaches 4.5:1 on its background
+  in both schemes, and that the launcher icon is the only colored asset. The error roles are not set: the library's red only shows for an
+  error of a text field, which the app never raises. `colorSurfaceTint` does not exist in `material:1.14.0` (no tint to switch off);
+  elevation overlays are off in the Material 3 themes. The library points `android:textColorPrimary|Secondary|Tertiary|Hint|Highlight`
+  (and the inverse variants) at its own tinted baseline colors, so `AppTheme` replaces all of them (`res/color/gray_text_primary.xml`,
+  `gray_text_secondary.xml`, `gray_text_highlight`); `textColorSecondary` also feeds `colorControlNormal`, the default icon tint.
+
+  | Role | Light | Dark |
+  |---|---|---|
+  | `background`, `surface`, `surfaceDim` | `#F6F6F6` (`surfaceDim` `#DADADA`) | `#000000` (pure black page) |
+  | `surfaceContainerLowest` / `Low` / `(Container)` / `High` / `Highest` | `#FFFFFF` / `#F1F1F1` / `#EEEEEE` / `#EAEAEA` / `#E2E2E2` | `#000000` / `#0F0F0F` / `#161616` / `#1E1E1E` / `#262626` |
+  | `surfaceBright`, `surfaceVariant` | `#FFFFFF`, `#E2E2E2` | `#2C2C2C`, `#262626` |
+  | `onSurface`, `onBackground` (primary text) | `#1B1B1B` | `#E3E3E3` |
+  | `onSurfaceVariant` (secondary text, default icons) | `#5F5F5F` | `#A8A8A8` |
+  | `outline`, `outlineVariant` (hairline dividers) | `#777777`, `#D9D9D9` | `#6F6F6F`, `#2A2A2A` |
+  | `primary` on `onPrimary` | `#3A3A3A` on `#FFFFFF` | `#D6D6D6` on `#1B1B1B` |
+  | `primaryContainer` on `onPrimaryContainer` | `#DADADA` on `#1B1B1B` | `#D6D6D6` on `#1B1B1B` |
+  | `secondary` on `onSecondary` | `#5F5F5F` on `#FFFFFF` | `#BDBDBD` on `#1B1B1B` |
+  | `secondaryContainer` on `onSecondaryContainer` | `#E4E4E4` on `#1B1B1B` | `#3A3A3A` on `#E3E3E3` |
+  | `tertiary` on `onTertiary`, `tertiaryContainer` on `onTertiaryContainer` | `#6B6B6B` on `#FFFFFF`, `#D0D0D0` on `#1B1B1B` | `#C4C4C4` on `#1B1B1B`, `#4A4A4A` on `#E3E3E3` |
+  | `inverseSurface`, `inverseOnSurface`, `inversePrimary` | `#303030`, `#F1F1F1`, `#BDBDBD` | `#E3E3E3`, `#2F2F2F`, `#3A3A3A` |
+
+  Title bar and system bars: the title bar (`Widget.App.ActionBar`, parent `Widget.Material3.Light.ActionBar.Solid`) is flat (no elevation)
+  and takes `?attr/colorSurface`, which is the page color in both themes (light gray in the light theme, black in the dark one); title,
+  menu icons and the overflow button use `colorOnSurface` through `ThemeOverlay.App.ActionBar` (the former dark `actionBarTheme` overlay is
+  gone). `android:statusBarColor` is the surface color and `android:navigationBarColor` the page color; `android:windowLightStatusBar` and
+  `...LightNavigationBar` read the bool `gray_light_system_bars` (`true` in `values`, `false` in `values-night`). `targetSdk` is 33, so the
+  system does not force edge-to-edge and these colors are honoured; raising it to 35 makes the bars transparent and the title bar would
+  need inset handling. `actionBarSize` is the `app_bar_height` dimen (56dp, 48dp in landscape, the AppCompat height) instead of the 64dp
+  of Material 3. The white vector icons of the menus (`activity_image_viewer`, `activity_yaacc_log`) are tinted with `app:iconTint`.
+  The settings section headlines use `PreferenceThemeOverlay.App` (bold, `colorOnSurface`). The keyboard-move highlight in the playlist uses
+  `gray_highlight`, the device state badge `colorSecondary`/`colorOnSecondary`, the selected row of the server folder tree
+  `colorSecondaryContainer`/`colorOnSecondaryContainer`, and the pick sheet's hint the primary text color instead of the error color.
+  `ThemeHelper.tintDrawable` tints with `colorOnSurface` (falls back to the platform foreground color when a theme lacks it).
+- **Shapes and components.** Cards are `MaterialCardView` with `Widget.App.CardView` (parent `Widget.Material3.CardView.Filled`: filled with
+  `colorSurfaceContainerHigh`, because the library default is the highest container; no elevation, no outline, no state animator):
+  `.Content` (20dp corners) for the card grid, `.List` (16dp) for the mini-player row, receiver, player, server and playlist cards. The list
+  row `browse_content_item.xml` stays a transparent flat row. 1dp separators use `colorOutlineVariant`; texts use `colorOnSurface`
+  (secondary: `colorOnSurfaceVariant`); icon tints stay `colorControlNormal`. Bottom sheets (`ThemeOverlay.App.DeviceSheet`, parent
+  `ThemeOverlay.Material3.BottomSheetDialog`), dialogs and the time picker (`ThemeOverlay.App.TimePicker`, parent
+  `ThemeOverlay.Material3.MaterialTimePicker`) take their Material 3 look from the theme. The image viewer and the players keep their own
+  black backgrounds.
 - **Card view and landscape.** `ViewMode.DEFAULT` is `CARD`; the landscape content layout has the `contentListViewModeToggle` button and
   `ContentListFragment` applies the grid for the stored mode in either orientation (see "Browse card-grid view: decisions and as shipped").
 - **Server list button (new layout).** `contentListServersButton` in the content header (portrait and landscape layouts; 44dp wide in landscape)
@@ -1897,8 +1938,8 @@ emulator. Open checks, by area:
   players, scrolling beyond about three rows, buttons incl. exit, tap to open) and the sheet at every level; the restored classic footer in portrait
   and landscape; sharing a link from another app (task placement, playback starts).
 - **Look.** Card grid spacing and the fit of the four buttons, thumbnail sharpness of the 320dp request across densities, D-pad movement between
-  cards, the column count in landscape, on a tablet and in multi-window; toolbar colors and icons in both themes (dark title bar, light icons, also in the
-  image viewer); gray controls and bold settings headlines; the log viewer's clear and refresh.
+  cards, the column count in landscape, on a tablet and in multi-window; toolbar colors and icons in both themes (page-colored title bar, status and navigation bar colors and icon shades, menu icons also in the
+  image viewer and the log viewer); gray controls and bold settings headlines; the log viewer's clear and refresh.
 - **Other.** `MediaDataSource` metadata on API 27 for the formats users share is not built; the copy fallback's real speed and the cache behaviour
   under low storage.
 
