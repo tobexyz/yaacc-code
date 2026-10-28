@@ -23,9 +23,11 @@ import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.view.ViewTreeObserver;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
@@ -61,6 +63,10 @@ public class YaaccLogActivity extends AppCompatActivity {
     /** The user paused the refresh, e.g. to select and copy text; nothing changes until it is resumed. */
     private boolean paused;
     private MenuItem pauseItem;
+    /** Uptime of the last touch or scroll of the user, negative if none yet; see {@link LogRefreshGate}. */
+    private long lastInteractionMillis = -1L;
+    /** Set while this activity scrolls the view itself, so that its own scrolling is not taken for the user's. */
+    private boolean scrollingByUs;
     private final Runnable refresh = new Runnable() {
         @Override
         public void run() {
@@ -85,6 +91,15 @@ public class YaaccLogActivity extends AppCompatActivity {
         textView = findViewById(R.id.yaaccLog_content);
         textView.setTextIsSelectable(true);
         scrollView = findViewById(R.id.yaaccLog_scrollView);
+        scrollView.setOnTouchListener((v, event) -> {
+            lastInteractionMillis = SystemClock.uptimeMillis();
+            return false;
+        });
+        scrollView.setOnScrollChangeListener((v, x, y, oldX, oldY) -> {
+            if (!scrollingByUs) {
+                lastInteractionMillis = SystemClock.uptimeMillis();
+            }
+        });
         reader = Executors.newSingleThreadExecutor();
     }
 
@@ -208,8 +223,9 @@ public class YaaccLogActivity extends AppCompatActivity {
     }
 
     private void show(String log) {
-        if (isFinishing() || isDestroyed() || paused) {
-            return;
+        if (isFinishing() || isDestroyed() || paused
+                || !LogRefreshGate.mayChangeText(SystemClock.uptimeMillis(), lastInteractionMillis)) {
+            return; // the next read catches up
         }
         // while the user has text selected nothing is touched: the next read catches up
         LogDelta delta = LogDelta.between(shownLog, log, textView.hasSelection());
@@ -220,15 +236,34 @@ public class YaaccLogActivity extends AppCompatActivity {
         boolean atBottom = content == null
                 || content.getBottom() - (scrollView.getScrollY() + scrollView.getHeight()) <= FOLLOW_THRESHOLD_PX;
         boolean first = shownLog == null;
+        final int scrollY = scrollView.getScrollY();
+        final boolean follow = first || (atBottom && delta.kind() == LogDelta.Kind.APPEND);
         shownLog = log;
         if (delta.kind() == LogDelta.Kind.APPEND) {
-            // new lines at the end keep the selection and the scroll position
+            // new lines at the end keep the selection
             textView.append(delta.text());
         } else {
             textView.setText(delta.text());
         }
-        if (first || (atBottom && delta.kind() == LogDelta.Kind.APPEND)) {
-            scrollView.post(() -> scrollView.fullScroll(View.FOCUS_DOWN));
-        }
+        // A focused selectable text view scrolls its (empty) cursor at the top into view whenever its text
+        // changes: that was the jump to the top. After the text has been laid out, before it is drawn, the
+        // position is put back (or the view follows the end).
+        scrollView.getViewTreeObserver().addOnPreDrawListener(new ViewTreeObserver.OnPreDrawListener() {
+            @Override
+            public boolean onPreDraw() {
+                scrollView.getViewTreeObserver().removeOnPreDrawListener(this);
+                scrollingByUs = true;
+                try {
+                    if (follow) {
+                        scrollView.fullScroll(View.FOCUS_DOWN);
+                    } else {
+                        scrollView.scrollTo(0, scrollY);
+                    }
+                } finally {
+                    scrollingByUs = false;
+                }
+                return true;
+            }
+        });
     }
 }
