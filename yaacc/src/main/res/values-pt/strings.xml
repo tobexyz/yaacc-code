@@ -167,4 +167,5 @@
     <string name="settings_browser_layout_new">Novo (tela única)</string>
     <string name="server_list_button">Lista de servidores</string>
     <string name="clear_log">Limpar o registro</string>
+    <string name="share_not_accepted">O YAACC só aceita arquivos de áudio, vídeo e imagem e links da web.</string>
 </resources>

@@ -167,4 +167,5 @@
     <string name="settings_browser_layout_new">Nouveau (un seul écran)</string>
     <string name="server_list_button">Liste des serveurs</string>
     <string name="clear_log">Effacer le journal</string>
+    <string name="share_not_accepted">YAACC n\'accepte que les fichiers audio, vidéo et image et les liens web.</string>
 </resources>

@@ -94,6 +94,7 @@ import de.yaacc.Yaacc;
 import de.yaacc.browser.Position;
 import de.yaacc.player.PlayableItem;
 import de.yaacc.player.Player;
+import de.yaacc.player.PlaylistTargets;
 import de.yaacc.player.PlayerListChangeNotifier;
 import de.yaacc.player.PlayerService;
 import de.yaacc.player.ShareLifetimeListener;
@@ -1624,21 +1625,49 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         }
     }
 
+    /**
+     * Adds the item to the chosen receivers: the playlist of a receiver that already has a player gets
+     * it, a receiver without a player gets a new one (see {@link PlaylistTargets}).
+     */
     public void addToPlaylist(DIDLObject item) {
         List<Item> itemList = toItemList(item, 3);
-
-        if (getCurrentPlayers().stream().noneMatch(p -> getReceiverDevices().stream()
-                .map(d -> d.getIdentity().getUdn().getIdentifierString())
-                .collect(Collectors.toList()).contains(p.getDeviceId()))) {
-            initializePlayers(itemList);
-        } else {
-            getCurrentPlayers().stream().filter(
-                            p -> getReceiverDevices().stream()
-                                    .map(d -> d.getIdentity().getUdn().getIdentifierString())
-                                    .collect(Collectors.toList()).contains(p.getDeviceId()))
+        Collection<Device<?, ?, ?>> chosen = getReceiverDevices();
+        List<String> chosenIds = new ArrayList<>();
+        for (Device<?, ?, ?> device : chosen) {
+            chosenIds.add(device.getIdentity().getUdn().getIdentifierString());
+        }
+        List<String> playerDeviceIds = new ArrayList<>();
+        for (Player player : getCurrentPlayers()) {
+            playerDeviceIds.add(player.getDeviceId());
+        }
+        PlaylistTargets targets = PlaylistTargets.split(chosenIds, playerDeviceIds);
+        if (!targets.withPlayer().isEmpty()) {
+            getCurrentPlayers().stream()
+                    .filter(p -> targets.withPlayer().contains(p.getDeviceId()))
                     .forEach(p -> p.addItems(toPlayableItems(itemList)));
         }
+        if (!targets.withoutPlayer().isEmpty()) {
+            List<Device<?, ?, ?>> withoutPlayer = new ArrayList<>();
+            for (Device<?, ?, ?> device : chosen) {
+                if (targets.withoutPlayer().contains(device.getIdentity().getUdn().getIdentifierString())) {
+                    withoutPlayer.add(device);
+                }
+            }
+            initializePlayersFor(itemList, withoutPlayer);
+        }
+    }
 
+    /** Creates a player with the items for each of the given receivers only. */
+    private List<Player> initializePlayersFor(List<Item> items, Collection<Device<?, ?, ?>> devices) {
+        if (playerService == null && !startService()) {
+            return Collections.emptyList();
+        }
+        if (!waitForPlayerServiceComeUp()) {
+            return Collections.emptyList();
+        }
+        List<Player> players = playerService.createPlayerFor(this, toPlayableItems(items), devices);
+        rememberShares(players);
+        return players;
     }
 
     /** What the metadata reader found about a link; any field may be unknown (0 or null). */

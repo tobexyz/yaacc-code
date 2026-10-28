@@ -24,6 +24,7 @@ import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.widget.Toast;
 
 import androidx.annotation.RequiresApi;
 import androidx.core.content.IntentCompat;
@@ -82,6 +83,10 @@ public class LauncherActivity extends Activity {
                 forward = null;
             }
             if (forward == null) {
+                if (isRejectedFileShare(getIntent())) {
+                    // fixed text, no reason and no payload: the share was not taken
+                    Toast.makeText(this, R.string.share_not_accepted, Toast.LENGTH_LONG).show();
+                }
                 forward = new Intent(this, target);
                 try {
                     applyShareText(getIntent(), forward);
@@ -105,6 +110,18 @@ public class LauncherActivity extends Activity {
             YaaccLogger.w(TAG, "Could not start the browser (" + e.getClass().getSimpleName() + ")");
         } finally {
             finish();
+        }
+    }
+
+    /** Whether the intent tried to share a file; any crafted extra that throws counts as no. */
+    private boolean isRejectedFileShare(Intent incoming) {
+        try {
+            ClipData clip = incoming.getClipData();
+            ClipData.Item first = clip == null || clip.getItemCount() < 1 ? null : clip.getItemAt(0);
+            return LauncherForwardPolicy.isFileShareAttempt(incoming.getAction(),
+                    incoming.hasExtra(Intent.EXTRA_STREAM), first != null && first.getUri() != null);
+        } catch (RuntimeException e) {
+            return false;
         }
     }
 

@@ -209,25 +209,18 @@ Questions and checks only the owner can answer or run. None of the share, layout
    timer, mini-player rows (several players, scrolling, buttons incl. exit, tap to open) and the sheet at every level; the classic
    footer in portrait and landscape. Look: card grid spacing, thumbnail sharpness and column count (portrait, landscape, tablet,
    multi-window); toolbar colors and icons in both themes (dark title bar, light icons, also in the image viewer); gray controls.
-2. **Classic pre-tick (known-risks 8).** Classic ticks the saved selection in the picker for a shared file, so one tap on OK plays
-   the sender's file on the usual receivers; the new layout ticks nothing. Options: no pre-tick for a share, or only when exactly one
-   receiver is selected; show the MIME family next to the name. (`ReceiverPickController.CLASSIC_MODE` / initial ticks.)
-3. **Local video share (known-risks 4).** `MultiContentPlayer#startItem` hands the proxy URL, key included, to whatever app handles
-   the video through an implicit `ACTION_VIEW`. Keep, or play local video in an in-app player?
-4. **Add to playlist.** `UpnpClient#addToPlaylist` starts new players on all chosen receivers only when NONE of
-   them has a player; if one plays, a chosen receiver without a player gets nothing. Keep, or create players for chosen receivers
-   that have none?
-5. **Phase 4 questions.** Q1 stage 2 (27 -> 18 files) after Group 22 [recommended: no]; Q2 delete the three test-only members with
-   their cases [recommended: no]; Q7 the offline address `"0.0.0.0"` is not null, so the "no address" guard rarely fires [leave; separate
-   item]; Q8 `StreamIntake` taking a `PackageManager` (Group 20, optional). Q3-Q6 were taken at their defaults (producers merged,
-   characterization tests first, new names, share changes frozen until Group 22).
-6. **Is `.claude/specs/` merged into the main branch?** The folder is tracked in the public repository. Default recommendation:
-   merge only `yaacc/` and `docs/`; the pushed history stays visible until the remote branch is deleted or squashed.
-7. **Older product questions.** One session per renderer (should new content on a renderer shut down all its players, not just the same
-   type)? Should the local video session row appear and what should a tap do? Is the sheet enough on TV long term?
-8. **Backlog worth keeping** (discuss before any work; any new input type keeps the share intake rules: fresh allowlisted forward from the
+2. **Decided 2026-10-28** (owner): classic keeps pre-ticking the saved receivers for a shared file (known-risks 8 stays as accepted);
+   the local video share keeps the implicit `ACTION_VIEW` and no in-app video player is built (known-risks 4 accepted); add to playlist
+   creates a player for each chosen receiver that has none (done, `PlaylistTargets`); `.claude/specs/` is NOT merged into the main branch
+   (last step before the merge: one commit that removes the folder from the tree, so a squash merge carries none of it); Phase 4 stage 2
+   (27 -> 18 files) is not done; the test-only members stay with their tests; the offline address `"0.0.0.0"` is a separate item; several
+   player sessions per renderer stay as they are. Q8 (`StreamIntake` taking a `PackageManager`) stays optional in Group 20.
+3. **Still open**: whether the receivers of the last confirmed pick are pre-ticked in the picker of the new layout too (today the new
+   layout ticks nothing and clears the selection after every action); the older product questions about the local video session row and
+   the sheet on TV long term.
+4. **Backlog worth keeping** (discuss before any work; any new input type keeps the share intake rules: fresh allowlisted forward from the
    exported launcher, capped input, no payload in logs, no intent or path built from shared data, and needs a security review):
-   - Share UX: a fixed notice when a share is dropped for its type (`*/*`, no read flag, other types); show the cleaned host for a link
+   - Share UX: (the notice when a shared file is dropped is done, `share_not_accepted`); show the cleaned host for a link
      instead of "Shared link"; the picker re-opening after a rotation (needs the pending share to outlive the activity); a cool-down
      after a cancelled pick (known-risks 7); a cancel for a running picked action or a "no bytes for N seconds" copy limit (known-risks 9).
    - Link intake: tighten `ShareUriPolicy` (require `://`, reject whitespace and control characters) and add an overall deadline around the

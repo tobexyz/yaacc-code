@@ -561,6 +561,7 @@ public final class ShareIntentHandler {
             String mimeType = SharedContentPolicy.chooseMimeType(info.getProviderType(), declaredType);
             if (mimeType == null) {
                 YaaccLogger.w(TAG, "Ignoring shared file: it is not audio, video or an image");
+                toast(R.string.share_not_accepted);
                 return;
             }
             String name = DisplayName.forShare(info.getDisplayName(), appContext.getString(R.string.share_unnamed_file));

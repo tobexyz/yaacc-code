@@ -167,4 +167,5 @@
     <string name="settings_browser_layout_new">Nieuw (één scherm)</string>
     <string name="server_list_button">Serverlijst</string>
     <string name="clear_log">Log wissen</string>
+    <string name="share_not_accepted">YAACC accepteert alleen audio-, video- en afbeeldingsbestanden en weblinks.</string>
 </resources>

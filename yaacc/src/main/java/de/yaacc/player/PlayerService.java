@@ -295,11 +295,33 @@ public class PlayerService extends MediaSessionService {
      */
     public List<Player> createPlayer(UpnpClient upnpClient, List<PlayableItem> items) {
         YaaccLogger.d(getClass().getName(), "create player...");
+        if (items.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        // Check if any receiver device is selected
+        if (upnpClient.getReceiverDevices().isEmpty()) {
+            new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> 
+                Toast.makeText(upnpClient.getContext(), 
+                    R.string.error_no_receiver_selected, 
+                    Toast.LENGTH_LONG).show()
+            );
+            return new ArrayList<>();
+        }
+
+        return createPlayerFor(upnpClient, items, upnpClient.getReceiverDevices());
+    }
+
+    /**
+     * Creates one player per given receiver for the items; the other receivers are not touched (add to
+     * playlist uses this for the chosen receivers that have no player yet).
+     */
+    public List<Player> createPlayerFor(UpnpClient upnpClient, List<PlayableItem> items,
+                                        java.util.Collection<Device<?, ?, ?>> devices) {
         List<Player> resultList = new ArrayList<>();
         if (items.isEmpty()) {
             return resultList;
         }
-        Player result;
         boolean video = false;
         boolean image = false;
         boolean music = false;
@@ -309,27 +331,14 @@ public class PlayerService extends MediaSessionService {
                 video = video || playableItem.getMimeType().startsWith("video");
                 music = music || playableItem.getMimeType().startsWith("audio");
             } else {
-                //no mime type no knowlege about it
                 image = true;
                 music = true;
                 video = true;
             }
-
         }
         YaaccLogger.d(getClass().getName(), "video:" + video + " image: " + image + " audio:" + music);
-        
-        // Check if any receiver device is selected
-        if (upnpClient.getReceiverDevices().isEmpty()) {
-            new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> 
-                Toast.makeText(upnpClient.getContext(), 
-                    R.string.error_no_receiver_selected, 
-                    Toast.LENGTH_LONG).show()
-            );
-            return resultList;
-        }
-        
-        for (Device<?, ?, ?> device : upnpClient.getReceiverDevices()) {
-            result = createPlayer(upnpClient, device, video, image, music);
+        for (Device<?, ?, ?> device : devices) {
+            Player result = createPlayer(upnpClient, device, video, image, music);
             if (result != null) {
                 addPlayer(result);
                 result.setItems(items.toArray(new PlayableItem[0]));

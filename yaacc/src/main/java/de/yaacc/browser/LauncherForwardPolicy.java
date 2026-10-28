@@ -160,6 +160,15 @@ public final class LauncherForwardPolicy {
     }
 
     /**
+     * Whether the incoming intent is an attempt to share a file (a stream or a clip URI). When such an
+     * attempt is not forwarded, the user is told once, with a fixed text, that only audio, video, images
+     * and links are accepted; a text share never counts.
+     */
+    public static boolean isFileShareAttempt(String action, boolean hasExtraStream, boolean hasClipUri) {
+        return "android.intent.action.SEND".equals(action) && (hasExtraStream || hasClipUri);
+    }
+
+    /**
      * Whether a declared type selects the shared-file path (instead of the text path): an audio,
      * video or image type, concrete or the sender's wildcard, exact lower case. The browser side
      * uses the same test as the launcher so the two cannot disagree about which path an intent takes.

@@ -167,4 +167,5 @@
     <string name="settings_browser_layout_new">新（单屏）</string>
     <string name="server_list_button">服务器列表</string>
     <string name="clear_log">清除日志</string>
+    <string name="share_not_accepted">YAACC 只接受音频、视频和图片文件以及网页链接。</string>
 </resources>
