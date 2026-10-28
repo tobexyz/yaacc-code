@@ -255,7 +255,10 @@ public class BrowserActivity extends AppCompatActivity implements BrowserHost {
 
     @Override
     public boolean pickReceivers(PickedAction action, String shareName, Collection<String> initialIds) {
-        return pickController != null && pickController.start(action, shareName, initialIds);
+        // the new layout ticks nothing by itself, only the receivers of the last confirmed pick
+        Collection<String> ticks = initialIds != null ? initialIds : LastPickedReceivers.load(
+                androidx.preference.PreferenceManager.getDefaultSharedPreferences(this));
+        return pickController != null && pickController.start(action, shareName, ticks);
     }
 
     @Override
@@ -274,7 +277,8 @@ public class BrowserActivity extends AppCompatActivity implements BrowserHost {
             return;
         }
         // nothing is ticked: the selection is per action; a confirm clears it again afterwards
-        pickController.offerShare(handler, token, displayName, upnpClient, true, null);
+        pickController.offerShare(handler, token, displayName, upnpClient, true, LastPickedReceivers.load(
+                androidx.preference.PreferenceManager.getDefaultSharedPreferences(this)));
     }
 
     @Override

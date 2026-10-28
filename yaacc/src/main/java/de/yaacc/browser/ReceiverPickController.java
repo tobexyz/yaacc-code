@@ -89,7 +89,25 @@ final class ReceiverPickController {
                 || fragmentManager.isStateSaved() || DeviceSheetFragment.isPickerShowing(fragmentManager)) {
             return false;
         }
-        String pickId = pick.open(new GuardedPickedAction(FLIGHT, action));
+        // a confirmed pick is remembered, so the picker of the new layout can tick it next time
+        PickedAction remembering = new PickedAction() {
+            @Override
+            public void onConfirmed(Set<String> receiverIds, Runnable done) {
+                try {
+                    LastPickedReceivers.save(androidx.preference.PreferenceManager
+                            .getDefaultSharedPreferences(activity), receiverIds);
+                } catch (RuntimeException e) {
+                    YaaccLogger.w(TAG, "Could not remember the picked receivers (" + e.getClass().getSimpleName() + ")");
+                }
+                action.onConfirmed(receiverIds, done);
+            }
+
+            @Override
+            public void onCancelled() {
+                action.onCancelled();
+            }
+        };
+        String pickId = pick.open(new GuardedPickedAction(FLIGHT, remembering));
         if (pickId == null) {
             return false;
         }
