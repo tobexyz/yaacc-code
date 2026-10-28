@@ -1,8 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The log viewer: one action that hides everything logged so far. -->
+<!-- The log viewer: pause or resume the refresh, and hide everything logged so far. -->
 <menu xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
+    <!-- Stops the automatic refresh so text can be selected and copied; the item turns into "resume". -->
+    <item
+        android:id="@+id/menu_pause_log"
+        android:icon="@drawable/ic_baseline_pause_24"
+        android:title="@string/log_pause"
+        app:showAsAction="always" />
     <item
         android:id="@+id/menu_clear_log"
         android:icon="@drawable/ic_baseline_delete_outline_24"

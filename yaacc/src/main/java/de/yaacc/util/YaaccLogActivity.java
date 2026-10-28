@@ -58,13 +58,18 @@ public class YaaccLogActivity extends AppCompatActivity {
     private ScrollView scrollView;
     private String shownLog;
     private boolean resumed;
+    /** The user paused the refresh, e.g. to select and copy text; nothing changes until it is resumed. */
+    private boolean paused;
+    private MenuItem pauseItem;
     private final Runnable refresh = new Runnable() {
         @Override
         public void run() {
             if (!resumed) {
                 return;
             }
-            readLog();
+            if (!paused) {
+                readLog();
+            }
             handler.postDelayed(this, REFRESH_INTERVAL_MS);
         }
     };
@@ -110,6 +115,8 @@ public class YaaccLogActivity extends AppCompatActivity {
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         getMenuInflater().inflate(R.menu.activity_yaacc_log, menu);
+        pauseItem = menu.findItem(R.id.menu_pause_log);
+        applyPauseState();
         return true;
     }
 
@@ -119,7 +126,24 @@ public class YaaccLogActivity extends AppCompatActivity {
             clearLog();
             return true;
         }
+        if (item.getItemId() == R.id.menu_pause_log) {
+            paused = !paused;
+            applyPauseState();
+            if (!paused) {
+                readLog(); // catch up at once
+            }
+            return true;
+        }
         return super.onOptionsItemSelected(item);
+    }
+
+    /** Icon and text of the pause item follow the state: pause while updating, resume while paused. */
+    private void applyPauseState() {
+        if (pauseItem == null) {
+            return;
+        }
+        pauseItem.setIcon(paused ? R.drawable.ic_baseline_play_arrow_24 : R.drawable.ic_baseline_pause_24);
+        pauseItem.setTitle(paused ? R.string.log_resume : R.string.log_pause);
     }
 
     private SharedPreferences preferences() {
@@ -184,7 +208,7 @@ public class YaaccLogActivity extends AppCompatActivity {
     }
 
     private void show(String log) {
-        if (isFinishing() || isDestroyed()) {
+        if (isFinishing() || isDestroyed() || paused) {
             return;
         }
         // while the user has text selected nothing is touched: the next read catches up

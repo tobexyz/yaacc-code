@@ -169,4 +169,6 @@
     <string name="clear_log">Limpar o registro</string>
     <string name="share_not_accepted">O YAACC só aceita arquivos de áudio, vídeo e imagem e links da web.</string>
     <string name="share_link_host">Link: %1$s</string>
+    <string name="log_pause">Pausar a atualização</string>
+    <string name="log_resume">Retomar a atualização</string>
 </resources>

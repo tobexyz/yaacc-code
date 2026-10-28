@@ -169,4 +169,6 @@
     <string name="clear_log">清除日志</string>
     <string name="share_not_accepted">YAACC 只接受音频、视频和图片文件以及网页链接。</string>
     <string name="share_link_host">链接：%1$s</string>
+    <string name="log_pause">暂停刷新</string>
+    <string name="log_resume">继续刷新</string>
 </resources>

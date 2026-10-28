@@ -169,4 +169,6 @@
     <string name="clear_log">Log leeren</string>
     <string name="share_not_accepted">YAACC nimmt nur Audio-, Video- und Bilddateien sowie Weblinks an.</string>
     <string name="share_link_host">Link: %1$s</string>
+    <string name="log_pause">Aktualisierung anhalten</string>
+    <string name="log_resume">Aktualisierung fortsetzen</string>
 </resources>
