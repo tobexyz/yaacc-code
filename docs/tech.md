@@ -345,6 +345,15 @@ decisions in more detail while the share-code consolidation (Phase 4) is open; t
   `ContentListFragment` registers while started and, if the load failed and none runs, continues the folder with `populateItemList(false)`
   (debounce 2 s, `NetworkRecoveryReloadGate`). Not verified on a device.
 - `UpnpClient.browseSync` returns a failure result instead of throwing when the server service, its network listener or HTTP sender is missing.
+- Resume (suspend/Doze): the registry expires remote devices by wall clock, so after a long sleep the provider/renderers can be missing, and
+  `UpnpClient.isInitialized()` is false while the `NetworkDeviceListener` is disabled (`getDevice` then returns null for every id). Activity `onResume`
+  calls `UpnpClient.refreshAfterResume()` (worker thread): `NetworkDeviceListener.reenableIfStale()` does `disable()`+`enable()` if the listener is
+  disabled, the active network is not `currentNetwork`, or a receive loop ended (`isReceiving()`); then M-SEARCH if that happened or the last one is
+  >= 30 s old (`ResumeRefreshPolicy`). Log lines start with `Resume:`.
+- `ContentListFragment` keeps the folder when its server leaves the registry or is missing on `onResume`/restore (`loadFailed` is set); `deviceAdded/Updated`
+  of the same UDN (`FolderServerMatch`) or the next resume/network event continues it (`shouldReloadNow`, no debounce). Another server replaces it.
+- Play: `PlayerService.createPlayer`/`UpnpClient.addToPlaylist` call `awaitReceiverDevices()`: a selected receiver missing in the registry is looked for
+  3 times, 2.5 s apart, with a search before each wait (`ReceiverAvailabilityPolicy`, never on the main thread); then `getReceiverDevices()` drops it as before.
 
 ## Unified device sheet
 

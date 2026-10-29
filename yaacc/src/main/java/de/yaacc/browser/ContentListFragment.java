@@ -147,15 +147,74 @@ public class ContentListFragment extends Fragment implements OnClickListener,
                 if (upnpClient.getProviderDevice() != null) {
                     showCurrentProvider();
                     if (navigator != null && navigator.getCurrentPosition() != null && navigator.getCurrentPosition().getDeviceId() != null && upnpClient.getProviderDevice().getIdentity().getUdn().getIdentifierString().equals(navigator.getCurrentPosition().getDeviceId())) {
+                        if (bItemAdapter != null && bItemAdapter.isLoadFailed()) {
+                            YaaccLogger.d(getClass().getName(), "Resume: the last load of the folder failed, loading again");
+                        }
                         populateItemList(false);
                     } else {
                         showMainFolder();
                     }
+                } else if (showsFolderOf(upnpClient.getProviderDeviceId())) {
+                    // The user's server is still the selected one but the registry has lost it (it expired
+                    // while the device slept, or the network listener is down): the shown folder stays.
+                    keepFolderWithoutServer("Resume: provider " + upnpClient.getProviderDeviceId() + " is not in the registry, keeping the folder and waiting for it");
                 } else {
 
                     clearItemList();
                 }
             }
+        });
+    }
+
+    /**
+     * @return true if the shown folder belongs to the server with this id ({@code uuid:} prefix or not)
+     */
+    private boolean showsFolderOf(String serverId) {
+        Navigator current = navigator;
+        return current != null && current.getCurrentPosition() != null
+                && FolderServerMatch.sameServer(serverId, current.getCurrentPosition().getDeviceId());
+    }
+
+    /**
+     * The server of the shown folder is not reachable right now: the items stay (an empty folder would
+     * look like the server's answer), the load counts as failed, so the next sign of life of that server
+     * (it is added again, a network or resume event) loads the folder on. Main thread only.
+     */
+    private void keepFolderWithoutServer(String reason) {
+        YaaccLogger.d(getClass().getName(), reason + " (" + (bItemAdapter == null ? 0 : bItemAdapter.getItemCount()) + " items shown)");
+        if (bItemAdapter != null) {
+            bItemAdapter.setLoadFailed(true);
+        }
+    }
+
+    /** @return the id of the device as the navigator stores it, null if the device has no identity */
+    private static String serverIdOf(Device<?, ?, ?> device) {
+        if (device == null || device.getIdentity() == null || device.getIdentity().getUdn() == null) {
+            return null;
+        }
+        return device.getIdentity().getUdn().getIdentifierString();
+    }
+
+    /**
+     * The server of the shown folder appeared again: continue the folder if its last load failed. Not
+     * the debounced network gate: a device event is no burst and must not be swallowed by it.
+     */
+    private void reloadWhenServerIsBack(Device<?, ?, ?> device, String event) {
+        String serverId = serverIdOf(device);
+        FragmentActivity activity = getActivity();
+        if (serverId == null || activity == null) {
+            return;
+        }
+        activity.runOnUiThread(() -> {
+            if (!isAdded() || bItemAdapter == null || !showsFolderOf(serverId)) {
+                return;
+            }
+            if (!NetworkRecoveryReloadGate.shouldReloadNow(bItemAdapter.isLoadFailed(), bItemAdapter.isLoading())) {
+                return;
+            }
+            YaaccLogger.d(getClass().getName(), "Resume: provider " + serverId + " " + event + " and the last load of the folder failed, loading again");
+            // Keeps the items shown and loads on from their count: no duplicates, the scroll position stays.
+            populateItemList(false);
         });
     }
 
@@ -224,7 +283,18 @@ public class ContentListFragment extends Fragment implements OnClickListener,
                         }
                     }
                 } else {
-                    clearItemList();
+                    Navigator restored = savedInstanceState == null ? null : (Navigator) savedInstanceState.getSerializable(CONTENT_LIST_NAVIGATOR);
+                    if (restored != null && restored.getCurrentPosition() != null
+                            && FolderServerMatch.sameServer(upnpClient.getProviderDeviceId(), restored.getCurrentPosition().getDeviceId())) {
+                        // The screen was recreated while the registry has not (yet) got the server back
+                        // (new process, or it expired during a suspend): keep the place, the load fails
+                        // and continues when the server is discovered.
+                        YaaccLogger.d(getClass().getName(), "Resume: provider " + upnpClient.getProviderDeviceId() + " is not in the registry yet, restoring the folder position and waiting for it");
+                        navigator = restored;
+                        populateItemList(true);
+                    } else {
+                        clearItemList();
+                    }
                 }
             });
         }
@@ -844,22 +914,32 @@ public class ContentListFragment extends Fragment implements OnClickListener,
      */
     @Override
     public void deviceAdded(Device<?, ?, ?> device) {
+        reloadWhenServerIsBack(device, "was added");
     }
 
     /**
-     * Refreshes the shown devices when device is removed.
+     * The shown folder stays when its server leaves the registry (byebye, or expiry after the device
+     * slept): the registry often has it back a moment later. The folder is only cleared when the user
+     * navigates away or selects another server ({@link #onResume()}).
      */
     @Override
     public void deviceRemoved(Device<?, ?, ?> device) {
         YaaccLogger.d(this.getClass().toString(), "device removal called");
-        if (device.equals(upnpClient.getProviderDevice())) {
-            clearItemList();
+        String serverId = serverIdOf(device);
+        FragmentActivity activity = getActivity();
+        if (serverId == null || activity == null) {
+            return;
         }
+        activity.runOnUiThread(() -> {
+            if (isAdded() && showsFolderOf(serverId)) {
+                keepFolderWithoutServer("Resume: provider " + serverId + " left the registry, keeping the folder");
+            }
+        });
     }
 
     @Override
     public void deviceUpdated(Device<?, ?, ?> device) {
-
+        reloadWhenServerIsBack(device, "was updated");
     }
 
     @Override

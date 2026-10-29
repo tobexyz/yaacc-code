@@ -45,4 +45,13 @@ final class NetworkRecoveryReloadGate {
         lastCountedAtMillis = nowMillis;
         return loadFailed && !loading;
     }
+
+    /**
+     * For events that are no bursts (the shown server came back, the screen was resumed): reload
+     * when the last load failed and none is running. Without the debounce window, which a call that
+     * found nothing to reload would otherwise start and so swallow the next, useful, call.
+     */
+    static boolean shouldReloadNow(boolean loadFailed, boolean loading) {
+        return loadFailed && !loading;
+    }
 }

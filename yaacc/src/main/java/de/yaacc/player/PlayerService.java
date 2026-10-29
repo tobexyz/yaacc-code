@@ -302,8 +302,10 @@ public class PlayerService extends MediaSessionService {
             return new ArrayList<>();
         }
 
-        // Check if any receiver device is selected
-        if (upnpClient.getReceiverDevices().isEmpty()) {
+        // Check if any receiver device is selected; a selected one that the registry lost during a
+        // suspend gets a few seconds to come back first (this runs on the caller's worker thread)
+        java.util.Collection<Device<?, ?, ?>> receivers = upnpClient.awaitReceiverDevices();
+        if (receivers.isEmpty()) {
             new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> 
                 Toast.makeText(upnpClient.getContext(), 
                     R.string.error_no_receiver_selected, 
@@ -312,7 +314,7 @@ public class PlayerService extends MediaSessionService {
             return new ArrayList<>();
         }
 
-        return createPlayerFor(upnpClient, items, upnpClient.getReceiverDevices());
+        return createPlayerFor(upnpClient, items, receivers);
     }
 
     /**

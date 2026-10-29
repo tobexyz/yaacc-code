@@ -332,6 +332,49 @@ public class NetworkDeviceListener {
         return udpTransiver != null && multicastReceiver != null && upnpProtocolHandler != null;
     }
 
+    /**
+     * Resume check (see {@link ResumeRefreshPolicy}): after a suspend neither {@code onLost} nor
+     * {@code onAvailable} may have been delivered, and a receive loop may have ended unnoticed. If a
+     * network is there but the listener is disabled, was enabled for another network, or one of its
+     * receive loops is gone, it is disabled and enabled again (the same path as a new network).
+     * Opens sockets: not for the main thread.
+     *
+     * @return what was found; {@link ResumeRefreshPolicy.ListenerCheck#needsReenable()} tells if the
+     * listener was re-created
+     */
+    public ResumeRefreshPolicy.ListenerCheck reenableIfStale() {
+        ResumeRefreshPolicy.ListenerCheck check;
+        synchronized (lock) {
+            ConnectivityManager connectivityManager = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
+            Network active = connectivityManager.getActiveNetwork();
+            boolean cellular = isCellular();
+            boolean usable = isWifiOrHotspot() || (active != null && !cellular);
+            boolean changed = active != null && !cellular && !active.equals(currentNetwork);
+            MulticastReceiver multicast = multicastReceiver;
+            UdpTransiver unicast = udpTransiver;
+            check = ResumeRefreshPolicy.checkListener(usable, isInitalized(), changed,
+                    multicast != null && multicast.isReceiving(), unicast != null && unicast.isReceiving());
+            if (!check.needsReenable()) {
+                return check;
+            }
+            YaaccLogger.d(getClass().getName(), "Resume: network listener is stale (" + check + "), enabling it again");
+            try {
+                disable();
+                if (active != null && !cellular) {
+                    currentNetwork = active;
+                }
+                enable();
+            } catch (RuntimeException e) {
+                // no usable interface right now: the network callbacks enable it when one comes up
+                YaaccLogger.w(getClass().getName(), "Resume: could not enable the network listener again (" + e.getClass().getSimpleName() + ")", e);
+                return check;
+            }
+        }
+        // outside the lock: listeners must not be able to block the network callbacks
+        networkRecoveryNotifier.onNetworkRestored();
+        return check;
+    }
+
     private void onNetworkStateChange() {
         YaaccLogger.d(getClass().getName(), "Network state change detected");
         boolean reEnabled = false;

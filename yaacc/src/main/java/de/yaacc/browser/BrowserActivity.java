@@ -180,6 +180,10 @@ public class BrowserActivity extends AppCompatActivity implements BrowserHost {
             return;
         }
         LocalServerLifecycle.apply(this, SettingsActivity.consumeLeftSettings());
+        // after a suspend the network listener and the device registry may be stale
+        if (upnpClient != null) {
+            upnpClient.refreshAfterResume();
+        }
     }
 
     @Override

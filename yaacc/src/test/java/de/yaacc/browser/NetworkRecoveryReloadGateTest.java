@@ -70,4 +70,20 @@ public class NetworkRecoveryReloadGateTest {
         assertFalse(gate.shouldReload(false, false, 10_000L));
         assertFalse(gate.shouldReload(true, false, 10_500L));
     }
+
+    @Test
+    public void reloadNowNeedsAFailedLoadAndNothingRunning() {
+        assertTrue(NetworkRecoveryReloadGate.shouldReloadNow(true, false));
+        assertFalse(NetworkRecoveryReloadGate.shouldReloadNow(false, false));
+        assertFalse(NetworkRecoveryReloadGate.shouldReloadNow(true, true));
+    }
+
+    @Test
+    public void reloadNowIsNotHeldBackByTheNetworkWindow() {
+        // a network callback that found nothing to reload started the window ...
+        assertFalse(gate.shouldReload(false, false, 10_000L));
+        assertFalse(gate.shouldReload(true, false, 10_500L));
+        // ... the server coming back right after it must still be able to continue the folder
+        assertTrue(NetworkRecoveryReloadGate.shouldReloadNow(true, false));
+    }
 }

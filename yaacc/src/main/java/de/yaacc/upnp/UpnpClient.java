@@ -30,6 +30,7 @@ import android.net.Uri;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.webkit.MimeTypeMap;
 import android.widget.Toast;
 
@@ -122,9 +123,11 @@ import de.yaacc.upnp.registry.RegistryListener;
 import de.yaacc.upnp.server.NetworkDeviceListener;
 import de.yaacc.upnp.server.NetworkRecoveryListener;
 import de.yaacc.upnp.server.NetworkRecoveryNotifier;
+import de.yaacc.upnp.server.ResumeRefreshPolicy;
 import de.yaacc.upnp.server.YaaccUpnpServerService;
 import de.yaacc.upnp.server.avtransport.AvTransport;
 import de.yaacc.upnp.server.http.HttpRequestSender;
+import de.yaacc.upnp.server.udp.UdpTransiver;
 import de.yaacc.share.HttpServerProbe;
 import de.yaacc.share.ShareAddressResolver;
 import de.yaacc.share.SharedItemFactory;
@@ -151,6 +154,10 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     // this notifier behind its NetworkDeviceListener.
     private final NetworkRecoveryNotifier networkRecoveryNotifier = new NetworkRecoveryNotifier();
     SharedPreferences preferences;
+    // Time (SystemClock.elapsedRealtime) of the last M-SEARCH; the resume check does not repeat a recent one.
+    volatile long lastSearchAtMillis = ResumeRefreshPolicy.NEVER;
+    // How long a play action waits for a selected receiver that is not in the registry right now.
+    ReceiverAvailabilityPolicy receiverAvailabilityPolicy = new ReceiverAvailabilityPolicy();
 
     private Context context;
 
@@ -785,8 +792,68 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      */
     public void searchDevices() {
         if (isInitialized()) {
-            executorService.execute(new SendingSearch(yaaccUpnpServerService.getNetworkDeviceListener().getUdpTransiver(), new STAllHeader(), MXHeader.DEFAULT_VALUE));
+            // the listener may be disabled between the check and here: its transceiver is gone then
+            UdpTransiver transiver = yaaccUpnpServerService.getNetworkDeviceListener().getUdpTransiver();
+            if (transiver == null) {
+                YaaccLogger.d(getClass().getName(), "Search skipped: no UDP transceiver (network listener is disabled)");
+                return;
+            }
+            lastSearchAtMillis = nowMillis();
+            executorService.execute(new SendingSearch(transiver, new STAllHeader(), MXHeader.DEFAULT_VALUE));
         }
+    }
+
+    /** Monotonic clock that also counts the time the device slept; overridable for tests. */
+    long nowMillis() {
+        return SystemClock.elapsedRealtime();
+    }
+
+    /** False in plain JVM tests (no main looper there). */
+    boolean isOnMainThread() {
+        Looper main = Looper.getMainLooper();
+        return main != null && main == Looper.myLooper();
+    }
+
+    /**
+     * A browser screen came back to the foreground, maybe after the device or the app was suspended
+     * (screen off, Doze, a long time in the background): checks the network listener and searches
+     * the devices again if the last search is not recent. Does its work on the client's executor and
+     * returns at once.
+     */
+    public void refreshAfterResume() {
+        executorService.execute(this::refreshAfterResumeNow);
+    }
+
+    /** The work of {@link #refreshAfterResume()}; worker thread only. */
+    void refreshAfterResumeNow() {
+        try {
+            ResumeRefreshPolicy.ListenerCheck check = reenableNetworkListenerIfStale();
+            if (check == null) {
+                // the service starts its own discovery once the listener is up
+                YaaccLogger.d(getClass().getName(), "Resume: no network listener yet, nothing to refresh");
+                return;
+            }
+            boolean search = ResumeRefreshPolicy.shouldSearch(check.needsReenable(), lastSearchAtMillis, nowMillis());
+            long ageSeconds = lastSearchAtMillis < 0 ? -1 : (nowMillis() - lastSearchAtMillis) / 1000;
+            YaaccLogger.d(getClass().getName(), "Resume: network listener " + check + (check.needsReenable() ? " (enabled again)" : "") + ", "
+                    + (search ? "searching devices" : "not searching, the last search was " + ageSeconds + " s ago"));
+            if (search) {
+                searchDevices();
+            }
+        } catch (RuntimeException e) {
+            // a failed refresh must never take the screen down; the network callbacks remain
+            YaaccLogger.w(getClass().getName(), "Resume: refresh failed (" + e.getClass().getSimpleName() + ")", e);
+        }
+    }
+
+    /**
+     * @return what the server service's network listener found about itself (and fixed if needed),
+     * null if there is no listener yet
+     */
+    private ResumeRefreshPolicy.ListenerCheck reenableNetworkListenerIfStale() {
+        YaaccUpnpServerService serverService = yaaccUpnpServerService;
+        NetworkDeviceListener listener = serverService == null ? null : serverService.getNetworkDeviceListener();
+        return listener == null ? null : listener.reenableIfStale();
     }
 
     /**
@@ -1142,6 +1209,44 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
             setReceiverDeviceIds(receiverDeviceIds);
         }
         return result;
+    }
+
+    /**
+     * Like {@link #getReceiverDevices()}, but first gives a selected receiver that is not in the
+     * registry right now a few seconds to come back ({@link ReceiverAvailabilityPolicy}: three looks,
+     * 2.5 s apart, a search before each wait). After a suspend the registry may have dropped the
+     * renderer; {@link #getReceiverDevices()} would remove it from the stored selection for good.
+     * What is still missing after the last look is dropped as before.
+     * <p>
+     * Waits, so worker threads only; on the main thread it does not wait.
+     */
+    public Collection<Device<?, ?, ?>> awaitReceiverDevices() {
+        if (isOnMainThread()) {
+            return getReceiverDevices();
+        }
+        int missingAtFirstLook = countMissingReceivers();
+        int missing = receiverAvailabilityPolicy.await(this::countMissingReceivers, attempt -> {
+            YaaccLogger.d(getClass().getName(), "Resume: " + countMissingReceivers() + " selected receiver(s) not in the registry, searching (look "
+                    + attempt + " of " + ReceiverAvailabilityPolicy.MAX_ATTEMPTS + ")");
+            reenableNetworkListenerIfStale();
+            searchDevices();
+        });
+        if (missingAtFirstLook > 0) {
+            YaaccLogger.d(getClass().getName(), missing == 0
+                    ? "Resume: the selected receiver(s) are back, playing"
+                    : "Resume: " + missing + " selected receiver(s) still not in the registry, giving up");
+        }
+        return getReceiverDevices();
+    }
+
+    private int countMissingReceivers() {
+        int missing = 0;
+        for (String id : getReceiverDeviceIds()) {
+            if (!LOCAL_UID.equals(id) && getDevice(id) == null) {
+                missing++;
+            }
+        }
+        return missing;
     }
 
     /**
@@ -1693,7 +1798,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      */
     public void addToPlaylist(DIDLObject item) {
         List<Item> itemList = toItemList(item, 3);
-        Collection<Device<?, ?, ?>> chosen = getReceiverDevices();
+        Collection<Device<?, ?, ?>> chosen = awaitReceiverDevices();
         List<String> chosenIds = new ArrayList<>();
         for (Device<?, ?, ?> device : chosen) {
             chosenIds.add(device.getIdentity().getUdn().getIdentifierString());

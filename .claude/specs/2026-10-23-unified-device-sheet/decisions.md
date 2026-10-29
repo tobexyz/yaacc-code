@@ -219,3 +219,25 @@ in `tasks.md` ("Owner's open items"); accepted risks in `known-risks.md`; how it
   thread becomes a failure instead of an endless wait; a cancel (interrupt) ends the wait.
 - **Not done.** Error UI (a later item). The sender is not recreated on a network change (stale pooled connections are validated before reuse).
 
+
+## Browse resilience: suspend and resume (owner decisions of 2026-10-29)
+- **Why.** Owner report: after a while "the connection seems lost": play refuses and the folder is empty. Code reading: the registry expires remote devices
+  by wall clock after a sleep (maintainer thread, no ssdp:alive could be handled); `UpnpClient.isInitialized()` is false while the network listener is
+  disabled, so `getDevice` returns null for provider and receivers; `ContentListFragment.onResume`/`init` cleared the folder when the provider was null
+  and `deviceRemoved` could (it compared with `getProviderDevice()`, which is already null once the registry dropped the device); `getReceiverDevices()`
+  removes a missing id from the stored selection for good and `PlayerService.createPlayer` then shows "no receiver selected". Not reproduced on a device.
+- **Resume hook.** On activity `onResume`: `UpnpClient.refreshAfterResume()` on the client executor. `NetworkDeviceListener.reenableIfStale()` reuses the
+  existing `disable()`/`enable()` path (and tells the recovery listeners, so a failed folder continues). Health = a network is there AND initialized AND
+  same network as `currentNetwork` AND both receive loops running (new `isReceiving()` flags, cleared when the loop ends for any reason). Search again if
+  the last M-SEARCH is >= 30 s old (elapsedRealtime, includes sleep) or the listener was re-created. `ServerListFragment.onResume` keeps its own search.
+- **Folder stays.** No clear on `deviceRemoved`, on resume with the provider missing, or when a recreated screen restores its navigator and the provider is
+  not discovered yet; `loadFailed` is set instead. Same UDN added/updated, or resume/network, continues the folder. Cleared only by choosing another
+  server (`onResume` compares the selected provider with the folder) or navigating. A device event is no burst, so it uses `shouldReloadNow` (no debounce,
+  a network callback that found nothing to do must not swallow the next real event).
+- **Play waits.** 3 looks, 2.5 s apart (about 5 s), search (and listener check) before each wait, worker thread only (the main thread never waits). After
+  giving up the old behavior is unchanged (missing ids dropped from the stored selection, "no receiver selected").
+- **Left alone.** `getReceiverDevices()` still removes ids as soon as it runs with the registry missing them (also on the main thread, e.g. the classic
+  footer); changing that breaks `UpnpClientReceiverSelectionTest` by design and needs a decision (purge only while `isInitialized()`). The registry's
+  `UpnpProtocolHandler` is set once at service start; `NetworkDeviceListener.enable()` builds a new one on every re-enable, so renewals and local device
+  advertisements of the registry still use the first handler (closed sockets after the first network change). `BackgroundIdleTimer` exits the app five
+  minutes after the last browser stop when nothing runs; that is a cold start, not a resume.

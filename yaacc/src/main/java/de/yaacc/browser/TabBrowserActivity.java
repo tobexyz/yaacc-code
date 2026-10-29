@@ -257,6 +257,10 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
         }
         viewPager.setUserInputEnabled(getPreferences().getBoolean(getString(R.string.settings_swipe_chkbx), true));
         LocalServerLifecycle.apply(this, SettingsActivity.consumeLeftSettings());
+        // after a suspend the network listener and the device registry may be stale
+        if (upnpClient != null) {
+            upnpClient.refreshAfterResume();
+        }
         YaaccLogger.d(this.getClass().getName(), "on on resume took: " + (System.currentTimeMillis() - start));
     }
 
