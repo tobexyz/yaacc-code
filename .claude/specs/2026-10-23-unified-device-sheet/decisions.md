@@ -259,3 +259,18 @@ in `tasks.md` ("Owner's open items"); accepted risks in `known-risks.md`; how it
   `RegistryImpl.getDevice` (see docs/tech.md, "Large SAF folders"); the client-side sort at the end of a folder load still runs on the main thread;
   `SafFolderBrowser.browseMeta` of a SAF subfolder base64-decodes a short id (pre-existing, never worked for short ids); `SAFCacheManager.lruCache`
   (`LinkedHashMap`) is touched by the preload thread without the lock `getMetadata` uses.
+
+
+## Shared folders tree: worker thread, plain node data, range inserts (owner report, 2026-10-29)
+- **Why.** The server configuration screen froze on a SAF folder with thousands of files: `clickedOnDocument` ran `listFiles()` and `exists()` per child on the
+  UI thread, `TreeViewHolder.bind` asked the provider `getName()`, `isDirectory()` (twice) and a full `listFiles()` per folder row for the expand symbol,
+  the tree manager was a `LinkedList` read by position per bind, and every expand/collapse was `notifyDataSetChanged`.
+- **Decision.** One single-thread executor per activity (`shutdownNow` in `onDestroy`, no AsyncTask) reads folders with `SafDirectoryLister` (one query, shared
+  cache) or `File.listFiles()`; `TreeNode` holds plain `TreeNodeData`; a per-node load generation plus a tree generation drop stale results (tap again while loading
+  = collapse). Expand symbol for every folder until it was read and is empty (no emptiness query per row). `ArrayList` + range based expand/collapse/remove
+  (`TreeNodeManager.Change`), the click handler asks `getBindingAdapterPosition()` (rows move without rebinding). The check box listener is detached while a
+  row is bound (it used to write the preferences for every recycled row). A listing that failed stays unknown, so the next tap retries. Order unchanged
+  (provider order, no sorting existed).
+- **Left alone.** Layouts (the RecyclerView is `wrap_content` between two relative anchors; not verified on a device that it never measures all rows), the
+  rebuild still uses `notifyDataSetChanged` (whole tree replaced), `onActivityResult` keeps its preference work and `takePersistableUriPermission` on the
+  main thread (no provider query), `InterfaceResolutionHelper` in `onCreate`, the unused branch/level helpers of `TreeNodeManager`.

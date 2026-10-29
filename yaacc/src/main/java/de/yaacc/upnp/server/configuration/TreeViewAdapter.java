@@ -72,14 +72,10 @@ public class TreeViewAdapter extends RecyclerView.Adapter<TreeViewHolder> {
     private final TreeViewHolderFactory treeViewHolderFactory;
 
     /**
-     * The current selected Tree Node
+     * The current selected Tree Node. Its row is looked up when needed: rows are inserted and removed
+     * above it without being rebound, so a remembered position would go stale.
      */
     private TreeNode currentSelectedNode;
-
-    /**
-     * The current selected Tree Node position to be used in notify changes
-     */
-    private int currentSelectedNodePosition = -1;
 
     /**
      * Custom OnClickListener to be invoked when a TreeNode has been clicked.
@@ -120,64 +116,62 @@ public class TreeViewAdapter extends RecyclerView.Adapter<TreeViewHolder> {
     }
 
     @Override
-    public void onBindViewHolder(@NonNull TreeViewHolder holder, @SuppressLint("RecyclerView") int position) {
-        TreeNode newSelectedNode = treeNodeManager.get(position);
+    public void onBindViewHolder(@NonNull TreeViewHolder holder, int position) {
+        TreeNode node = treeNodeManager.get(position);
         holder.adapter = this;
-        holder.bindTreeNode(newSelectedNode);
-        holder.itemView.setOnClickListener(v -> {
-            // Handle TreeNode click listener event
-            if (treeNodeClickListener != null) {
-                treeNodeClickListener.onTreeNodeClick(newSelectedNode, v);
-            }
-            // Handle node selection
-            if (newSelectedNode == currentSelectedNode) {
-                boolean isNodeSelected = !currentSelectedNode.isSelected();
-                currentSelectedNode.setSelected(isNodeSelected);
-                notifyItemChanged(currentSelectedNodePosition);
-
-                // Un track this node as selected one
-                if (!isNodeSelected) {
-                    currentSelectedNode = null;
-                    currentSelectedNodePosition = -1;
-                }
-            } else {
-                // Un selected the previous selected tree node
-                if (currentSelectedNode != null) {
-                    currentSelectedNode.setSelected(false);
-                    notifyItemChanged(currentSelectedNodePosition);
-                }
-
-                // Mark the current node as selected
-                newSelectedNode.setSelected(true);
-                notifyItemChanged(position);
-
-                // Update tracking current node value and position
-                currentSelectedNode = newSelectedNode;
-                currentSelectedNodePosition = position;
-            }
-
-
-            // Handle node expand and collapse event
-            if (!newSelectedNode.getChildren().isEmpty()) {
-                boolean isNodeExpanded = newSelectedNode.isExpanded();
-                if (isNodeExpanded) collapseNode(newSelectedNode);
-                else expandNode(newSelectedNode);
-                newSelectedNode.setExpanded(!isNodeExpanded);
-
-                // Only children after this position will be inserted (Expanding) or deleted (Collapsing)
-                notifyItemRangeChanged(position, getItemCount() - position);
-            }
-
-
-        });
+        holder.bindTreeNode(node);
+        holder.itemView.setOnClickListener(v -> onNodeClicked(holder, node, v));
 
         // Handle TreeNode long click listener event
         holder.itemView.setOnLongClickListener(v -> {
             if (treeNodeLongClickListener != null) {
-                return treeNodeLongClickListener.onTreeNodeLongClick(newSelectedNode, v);
+                return treeNodeLongClickListener.onTreeNodeLongClick(node, v);
             }
             return true;
         });
+    }
+
+    private void onNodeClicked(TreeViewHolder holder, TreeNode node, View view) {
+        // Rows move without being rebound (range inserts), so the position is asked at click time.
+        int position = holder.getBindingAdapterPosition();
+        if (position == RecyclerView.NO_POSITION) {
+            return;
+        }
+        // Handle TreeNode click listener event
+        if (treeNodeClickListener != null) {
+            treeNodeClickListener.onTreeNodeClick(node, view);
+        }
+        // Handle node selection
+        if (node == currentSelectedNode) {
+            boolean isNodeSelected = !node.isSelected();
+            node.setSelected(isNodeSelected);
+            notifyItemChanged(position);
+
+            // Un track this node as selected one
+            if (!isNodeSelected) {
+                currentSelectedNode = null;
+            }
+        } else {
+            // Un selected the previous selected tree node
+            if (currentSelectedNode != null) {
+                currentSelectedNode.setSelected(false);
+                notifyNodeChanged(currentSelectedNode);
+            }
+
+            // Mark the current node as selected
+            node.setSelected(true);
+            notifyItemChanged(position);
+
+            // Update tracking current node value
+            currentSelectedNode = node;
+        }
+
+        // Handle node expand and collapse event: a folder that is still being read has no children yet
+        // and is expanded by expandNode when its children arrive.
+        if (!node.getChildren().isEmpty()) {
+            if (node.isExpanded()) collapseNode(node);
+            else expandNode(node);
+        }
     }
 
     @Override
@@ -195,29 +189,44 @@ public class TreeViewAdapter extends RecyclerView.Adapter<TreeViewHolder> {
      *
      * @param node The node to collapse it
      */
-    // Collapsing changes the visible range, which the tree node manager does not report.
-    @SuppressLint("NotifyDataSetChanged")
     public void collapseNode(TreeNode node) {
-        int position = treeNodeManager.collapseNode(node);
-        if (position != -1) {
-            notifyDataSetChanged();
+        TreeNodeManager.Change change = treeNodeManager.collapse(node);
+        if (change.position == RecyclerView.NO_POSITION) {
+            return;
+        }
+        notifyItemChanged(change.position);
+        if (change.count > 0) {
+            notifyItemRangeRemoved(change.start, change.count);
         }
     }
 
     /**
-     * Expanding node and all of his children
+     * Expanding node and all of his children: the rows behind the node are reported as ONE inserted range.
      *
      * @param node The node to expand it
      */
-    // Expanding changes the visible range, which the tree node manager does not report.
-    @SuppressLint("NotifyDataSetChanged")
     public void expandNode(TreeNode node) {
-        int position = treeNodeManager.expandNode(node);
-        if (position != -1) {
-            notifyDataSetChanged();
+        TreeNodeManager.Change change = treeNodeManager.expand(node);
+        if (change.position == RecyclerView.NO_POSITION) {
+            return;
+        }
+        notifyItemChanged(change.position);
+        if (change.count > 0) {
+            notifyItemRangeInserted(change.start, change.count);
         }
     }
 
+    /**
+     * Redraws the row of a node (its selection, loading or expand symbol changed); nothing if it is not shown.
+     *
+     * @param node The node that changed
+     */
+    public void notifyNodeChanged(TreeNode node) {
+        int position = treeNodeManager.indexOf(node);
+        if (position != RecyclerView.NO_POSITION) {
+            notifyItemChanged(position);
+        }
+    }
 
     /**
      * Update the list of tree nodes
@@ -227,6 +236,7 @@ public class TreeViewAdapter extends RecyclerView.Adapter<TreeViewHolder> {
     // The whole tree is replaced.
     @SuppressLint("NotifyDataSetChanged")
     public void updateTreeNodes(List<TreeNode> treeNodes) {
+        currentSelectedNode = null;
         treeNodeManager.updateNodes(treeNodes);
         notifyDataSetChanged();
     }
@@ -246,12 +256,17 @@ public class TreeViewAdapter extends RecyclerView.Adapter<TreeViewHolder> {
      *
      * @param node The node to remove
      */
-    // Removing a node and its children changes the visible range, which the tree node manager does not report.
-    @SuppressLint("NotifyDataSetChanged")
     public void removeNode(TreeNode node) {
-        treeNodeManager.collapseNode(node);
-        if (treeNodeManager.removeNode(node)) {
-            notifyDataSetChanged();
+        TreeNodeManager.Change change = treeNodeManager.removeWithDescendants(node);
+        if (change.count == 0) {
+            return;
         }
+        for (TreeNode selected = currentSelectedNode; selected != null; selected = selected.getParent()) {
+            if (selected == node) {
+                currentSelectedNode = null;
+                break;
+            }
+        }
+        notifyItemRangeRemoved(change.start, change.count);
     }
 }

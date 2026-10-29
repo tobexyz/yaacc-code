@@ -121,6 +121,13 @@ As built:
 Not verified without a device: the provider's time for the one query of a 5000+ file folder (it depends on the provider; for the
 external storage provider it stats each file), and the permission check behaviour of providers other than the external storage one.
 
+Server configuration screen (shared folders tree): it used the same per-property `DocumentFile` queries on the main thread (`exists()` per child
+on open; per bound row `getName()`, `isDirectory()` twice and, for folders, a full `listFiles()` for the expand symbol). Now one worker thread of the
+activity reads a folder with `SafDirectoryLister` (shared cache) or `File.listFiles()` into plain `TreeNodeData`; binding asks nothing, every folder shows
+the expand symbol until it was read and is empty, stale results are dropped by a per-node and a tree generation, children are inserted as ONE
+`notifyItemRangeInserted` (`TreeNodeManager.Change`, `ArrayList`). Queries for N files: before about N + 3 + 7V on the main thread when opening (V visible rows)
+and about 3N when scrolling; now 3 on the worker (0 within 30 s) and 0 on the main thread. D log: `SAF tree <uri> children=<n> loaded in <ms> ms`.
+
 ## Browse card-grid view
 
 The content tab can show a list or a grid of cards (`ContentListFragment` + `BrowseContentItemAdapter`,

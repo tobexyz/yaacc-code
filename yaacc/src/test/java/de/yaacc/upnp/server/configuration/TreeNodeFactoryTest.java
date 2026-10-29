@@ -1,0 +1,123 @@
+/*
+ * Copyright (C) 2026 Tobias Schoene www.yaacc.de
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 3
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ */
+package de.yaacc.upnp.server.configuration;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
+
+import java.io.File;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
+import de.yaacc.upnp.server.contentdirectory.SafDirectoryEntry;
+
+/** Node data built from a SAF listing or from files: names, folder flags, uris and the order. Plain JVM. */
+public class TreeNodeFactoryTest {
+
+    @Rule
+    public TemporaryFolder temp = new TemporaryFolder();
+
+    private static SafDirectoryEntry entry(String name, String id, String mime) {
+        return SafDirectoryEntry.fromProviderRow(name, id, mime, 0, 0);
+    }
+
+    @Test
+    public void safChildrenKeepTheProvidersOrderAndTakeTheFolderFlagFromTheMimeType() {
+        List<SafDirectoryEntry> entries = Arrays.asList(
+                entry("zeta.jpg", "primary:z", "image/jpeg"),
+                entry("Alpha", "primary:a", SafDirectoryEntry.MIME_TYPE_DIR),
+                entry("beta.mp3", "primary:b", "audio/mpeg"));
+
+        List<TreeNode> nodes = TreeNodeFactory.safChildren(entries, e -> "content://x/document/" + e.documentId, 7);
+
+        assertEquals(3, nodes.size());
+        assertEquals("zeta.jpg", nodes.get(0).getValue().getName());
+        assertEquals("Alpha", nodes.get(1).getValue().getName());
+        assertEquals("beta.mp3", nodes.get(2).getValue().getName());
+        assertFalse(nodes.get(0).getValue().isDirectory());
+        assertTrue(nodes.get(1).getValue().isDirectory());
+        assertFalse(nodes.get(2).getValue().isDirectory());
+        for (TreeNode node : nodes) {
+            assertTrue(node.getValue().isSaf());
+            assertEquals(7, node.getLayoutId());
+        }
+        assertEquals("content://x/document/primary:a", nodes.get(1).getValue().getPath());
+    }
+
+    @Test
+    public void aSafChildWithoutNameShowsItsUri() {
+        List<TreeNode> nodes = TreeNodeFactory.safChildren(
+                List.of(entry(null, "id", "text/plain")), e -> "content://x/document/id", 1);
+        assertEquals("content://x/document/id", nodes.get(0).getValue().getName());
+        assertEquals("", TreeNodeFactory.safChildren(
+                List.of(entry("", "id", "text/plain")), e -> "content://x/document/id", 1).get(0).getValue().getName());
+    }
+
+    @Test
+    public void aThousandsOfEntriesBecomeThatManyNodes() {
+        List<SafDirectoryEntry> entries = new ArrayList<>();
+        for (int i = 0; i < 6000; i++) {
+            entries.add(entry("f" + i, "id" + i, "image/jpeg"));
+        }
+        List<TreeNode> nodes = TreeNodeFactory.safChildren(entries, e -> "u/" + e.documentId, 1);
+        assertEquals(6000, nodes.size());
+        assertEquals("f5999", nodes.get(5999).getValue().getName());
+    }
+
+    @Test
+    public void safRootShowsTheNameOrTheUri() {
+        TreeNode named = TreeNodeFactory.safRoot("content://x/document/r", "DCIM", true, 1);
+        assertEquals("DCIM", named.getValue().getName());
+        assertEquals("content://x/document/r", named.getValue().getPath());
+        assertTrue(named.getValue().isSaf());
+        assertTrue(named.getValue().isDirectory());
+        assertEquals("content://x/document/r", TreeNodeFactory.safRoot("content://x/document/r", null, true, 1).getValue().getName());
+    }
+
+    @Test
+    public void fileChildrenKeepTheOrderOfTheArrayAndFlagFolders() throws Exception {
+        File folder = temp.newFolder("sub");
+        File file = temp.newFile("a.txt");
+        File missing = new File(temp.getRoot(), "gone");
+
+        List<TreeNode> nodes = TreeNodeFactory.fileChildren(new File[]{file, missing, folder}, 3);
+
+        assertEquals(2, nodes.size());
+        TreeNodeData first = nodes.get(0).getValue();
+        assertEquals("a.txt", first.getName());
+        assertEquals(file.getAbsolutePath(), first.getPath());
+        assertFalse(first.isSaf());
+        assertFalse(first.isDirectory());
+        TreeNodeData second = nodes.get(1).getValue();
+        assertEquals("sub", second.getName());
+        assertTrue(second.isDirectory());
+    }
+
+    @Test
+    public void aMissingFileHasNoNode() {
+        assertNull(TreeNodeFactory.fileNode(new File(temp.getRoot(), "gone"), 1));
+        assertNull(TreeNodeFactory.fileNode(null, 1));
+    }
+}
