@@ -30,6 +30,11 @@
 - **Idle exit**: One process-wide timer now quits the app after 5 minutes in the background when nothing is playing and the server, renderer and proxy options are off, instead of one timer per screen; a screen rotation or a layout change no longer leaves a stale timer behind.
 
 ### Fixed
+- **Device announcements after a network change**: After switching networks or coming back from sleep, the app's own announcements (alive messages of the local server/receiver) and the renewal of event subscriptions use the new network connection instead of the closed first one, and the local devices are announced again.
+- **Crashes without a network**: Searching for devices, reading or changing a receiver's volume or mute, and controlling a player no longer throw an error when the network service is not up (for example right after a network change); the action is skipped or reported as failed instead.
+- **Details of shared (SAF) folders and files**: Control points that ask for the details of a single shared folder or file now get its name, the right parent folder and the "[X]" mark; before, sub folders and files were answered wrongly or empty. An unknown item is answered with "no such object".
+- **SAF metadata cache**: The durations and short ids of shared (SAF) files are kept in their own file and written in batches in the background, so indexing no longer rewrites the app settings for every file and the cache no longer slows the screen down when the app stops. Existing entries are moved over once; short ids stay valid.
+- **Smoother content list**: Sorting a finished folder no longer blocks the screen, thumbnails are not loaded again when you scroll back, and the type icons are no longer rebuilt for every row.
 - **Android TV remote control**: The action buttons of the content items (add to playlist, download, play, play all, share) can be reached with the D-pad: right from the item moves through the shown buttons, left moves back, and the focused icon button shows a ring.
 - **Sub folders marked "[X]"**: Sub folders of a shared SAF folder are now checked and browsed through the permission of the folder you picked, so they are no longer marked "[X]" (no permission) although they are readable.
 - **Server configuration**: The folder tree shows only folders (files could not be selected anyway), which also makes large folders load faster.

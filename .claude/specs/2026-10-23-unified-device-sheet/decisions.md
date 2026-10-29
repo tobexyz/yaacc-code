@@ -274,3 +274,53 @@ in `tasks.md` ("Owner's open items"); accepted risks in `known-risks.md`; how it
 - **Left alone.** Layouts (the RecyclerView is `wrap_content` between two relative anchors; not verified on a device that it never measures all rows), the
   rebuild still uses `notifyDataSetChanged` (whole tree replaced), `onActivityResult` keeps its preference work and `takePersistableUriPermission` on the
   main thread (no provider query), `InterfaceResolutionHelper` in `onCreate`, the unused branch/level helpers of `TreeNodeManager`.
+
+
+## Content list: sort and thumbnails off the main thread (owner request, 2026-10-29)
+- **Why.** The sort of a finished folder (`sortObjects` + `notifyDataSetChanged`) ran on the main thread; every bind made a new `IconDownloadTask` (also for rows that
+  never load anything, and cancelled tasks never left `asyncTasks`), re-inflated and re-tinted the type icon, and reloaded a thumbnail that was just scrolled away.
+- **Decision.** `BrowseSorter` (pure, same comparators, the old code is the reference in the test) sorts a copy on a single idle-timeout daemon thread owned by the
+  adapter; a generation counter drops stale results; the swap notifies only the changed range (with a payload, no change animation). Thumbnails: a task only for rows
+  that have one, cancelled on re-bind/recycle, `ThumbnailSlot` skips the request a row already shows, byte-bounded LRU for decoded bitmaps (the old one counted entries),
+  type icons from a night-mode keyed cache of constant states. A scroll target arriving during the sort waits for the swap.
+- **Left alone.** `DiffUtil` (a range is enough, the sort is mostly a no-op for server-sorted folders), `AsyncTask` (deprecated, used everywhere), the other users
+  of `IconDownloadTask` (device icons, album art) except that they now share the byte-bounded cache. `getObjects()` may return the unsorted list for the few ms of the sort.
+
+
+## SAF metadata cache: own preferences file, batched commits, lazy load (owner request, 2026-10-29)
+- **Why.** Default preferences + one `apply()` per file/short id = a rewrite of the whole XML per entry, a possible wait in `QueuedWork` at activity stop, and a full deserialization
+  in the constructor, which can run on the main thread. `lruCache` was touched by the preload thread without the lock.
+- **Decision.** File `saf_cache` (same keys, so the migration is a copy). One-time migration as a pure plan (copy what the new file lacks, counter = max, remove old keys only after the
+  new file was committed; rerun until no old key is left). Writes: buffer + flush policy (250 changes / 3 s / preload end / exit), `commit()` on the dedicated `SAFCacheIO` thread. Load on that
+  thread; main thread never waits (transient `t<n>` ids, nothing persisted), other threads wait up to 30 s. One lock for LRU, buffer and policy; I/O never under it.
+- **Kept on purpose.** Key names and the serialization; short ids are still only persisted inside metadata entries (a folder's id does not survive a restart); the store is NOT trimmed to the
+  LRU size (the old trim never removed anything because `getEvictedKeys()` drained the list in the `isEmpty()` check; trimming for real would drop the short ids of files beyond the 1000th at the
+  next restart); ids are not removed on `removeCachedUnder`; the bare duration the preload stores is not made readable (found, not fixed).
+- **Risk accepted.** Changes of the last 3 s are lost if the process is killed (not on app exit: `Yaacc.clearCache` waits at most 1 s for the write); the metadata entries and the id counter are
+  committed together (the stored state is consistent), but numbers handed out in a lost window can go to other uris after the restart.
+
+
+## BrowseMetadata of SAF objects (owner request, 2026-10-29)
+- **Why.** `browseMeta` base64-decoded the short id (never worked for short ids) and passed the object's own id as the parent of an item.
+- **Decision.** Short id -> uri through the SAF cache, one document query, parent from the document id (path-like ids, no query) or `findDocumentPath` (opaque ids), fallback SAF folder with a W log.
+  Sub folders are built by the same `newFolder`/`folderTitle` as the listing of their parent, so `[X]`/restricted are identical. Pure id and uri handling in `SafDocumentUris` (tests).
+  A null result of any `browseMeta` is now error 701 instead of an empty DIDL.
+- **Left alone.** `TotalMatches` of BrowseMetadata (child count, all browsers), `restricted = canRead` (the listing's existing semantics, copied), folder ids are still not persisted across a restart.
+
+
+## Missing HTTP sender: every client call is null-safe (owner request, 2026-10-29)
+- **Why.** `browseSync` was guarded; the same `getNetworkDeviceListener().getHttpRequestSender()` chain was still in `searchDevices`, `getMute`/`setMute`/`getVolume`/`setVolume` and
+  `AVTransportPlayer.getHttpRequestSender()`; a NPE there reached a pool or async thread.
+- **Decision.** One public helper `UpnpClient.getHttpRequestSender()`. Mute/volume/search: one log line, default result. Player callbacks: the null goes into the callback and
+  `ActionCallback.run()` answers it with the callback's own `failure(...)` (the callers' existing failure paths release their waits); a `RuntimeException` of the send is a failure too.
+- **Left alone.** `setMute`/`setVolume` for a local device do not `return` after the local call (they go on to look for a RenderingControl service of the local device); the busy wait
+  `waitForActionComplete` itself (30 s watchdog); `RendererStatusMonitor`/`ReceiverRowBinder` use their own `new HttpRequestSender()`.
+
+
+## Registry protocol handler follows the network listener (owner request, 2026-10-29)
+- **Why.** The "Left alone" item of the resume entry: the registry's handler was set once; every re-enable builds a new one with new sockets and closes the old ones.
+- **Decision.** `enable()` sets the new handler in the registry (in the lock, before the receivers start), `disable()` sets null; `RegistryImpl` field `volatile`; registry code is null-tolerant
+  (`RemoteItems` renew/unsubscribe, `LocalItems` already was). ALIVE again after "enabled for a new network" (network callback, resume check) via `Registry.advertiseLocalDevices()` on a short-lived
+  thread (the registry method is synchronized and can wait for its lock). Test seams: a package-private constructor and receiver factories in `NetworkDeviceListener`.
+- **Left alone.** The HTTP server's request handler keeps the handler it was created with; the duplicate `getProtocolHandler`/`setProtocolHandler` pair of `RegistryImpl`; the wifi-state path
+  (re-creates the device itself).

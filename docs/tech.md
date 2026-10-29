@@ -269,7 +269,8 @@ album art, and it always sets `browseContentItemAdapter = null`.
 Calling the `(ImageView, int, int)` overload from the adapter would therefore never remove finished tasks and
 `asyncTasks` would grow by one entry (with its `ImageView`) per bound row for the life of the adapter. Resolution as built:
 a fourth overload `IconDownloadTask(ImageView, BrowseContentItemAdapter, int width, int height)` sets both the adapter
-(cleanup preserved) and the size; no existing constructor changed.
+(cleanup preserved) and the size; no existing constructor changed. (Later replaced: the adapter overloads are gone, `IconDownloadTask(ImageView, String requestKey, int, int, Listener)`
+tells the adapter when a task ends, also when it was cancelled; see "Content list: sort and thumbnails off the main thread" in "Large SAF folders".)
 
 ### Sources
 
@@ -396,6 +397,47 @@ decisions in more detail while the share-code consolidation (Phase 4) is open; t
 - Card view is the default on a fresh install; the log viewer's "Clear" is a time marker because the system may refuse to empty an app's log
   buffer; mini-player rows have an exit button besides stop (stop keeps the player, exit removes it).
 
+- **Content list: sort and thumbnails off the main thread.** The client-side sort of a finished folder (`setAllItemsFetched`) no longer runs in the main thread:
+  `BrowseSorter` (plain JVM, the former comparators, test compares with the old code on random data) sorts a COPY on one small daemon thread owned by the adapter
+  (idle after 5 s, `release()` in `ContentListFragment.onDestroyView` shuts it down, re-created on demand); the main thread swaps the list and calls
+  `notifyItemRangeChanged(first, count, payload)` for the changed range only (nothing if the order did not change; the payload keeps the rows from animating).
+  A generation counter drops the result after `clear()`, `cancelRunningTasks()` (sort mode/direction change, back), `release()` or an `addAll` meanwhile (that one sorts again);
+  a scroll target (`scrollToPositionId`) that arrives while the sort runs waits for the swap, because it is a position in the sorted list. D log:
+  `Browse sort n=<N> mode=<mode> in <ms> ms off the main thread`. `objects` is an `ArrayList` now (it was a `LinkedList` read by position per bind).
+  Binding: one `IconDownloadTask` per recycled row (`ViewHolder.thumbnailTask`) only when the item has a thumbnail, the previous one is cancelled on re-bind and in
+  `onViewRecycled`, the same request key (uri + size, `ThumbnailSlot`) is not loaded or reset again, a decoded thumbnail in the memory cache is shown at once, and
+  finished/cancelled tasks leave `asyncTasks` (`IconDownloadTask.Listener`; `cancelRunningTasks` empties the list). `IconDownloadCacheHandler` is a `ByteLruCache`
+  (`Bitmap.getByteCount`, 1/16 of the heap, 8 to 32 MB; it used to count one unit per bitmap against a byte limit). The tinted type icons are resolved once per icon and
+  night mode (`ConfigKeyedCache` of drawable constant states, a new drawable per row). `SquareImageView.onMeasure` returns at once for an exact width.
+  `getObjects()` (play all) can return the unsorted list during the few milliseconds of the sort.
+
+- **SAF metadata cache: own file, batched writes, no I/O on the main thread.** `SAFCacheManager` kept everything (`saf_cache_<document uri>` = serialized `SAFMetadata`
+  with duration and short id, `saf_id_counter`) in the DEFAULT preferences with one `apply()` per extracted file and per new short id; each `apply()` rewrites the whole
+  XML file, `QueuedWork.waitToFinish` can block the main thread at activity stop, and the constructor (first use, possibly on the main thread) deserialized the whole map.
+  The short id maps are NOT stored separately: they are rebuilt from the metadata entries (a folder's id, created by `getOrCreateShortId` alone, only moves the counter and does not
+  survive a restart; unchanged). Now: the cache lives in the preferences file `saf_cache` (same keys). The constructor does no I/O; the cache's own thread `SAFCacheIO`
+  loads it: first the one-time, idempotent migration of `saf_cache_*` and `saf_id_counter` out of the default preferences (`SafCacheMigration.plan`: the new file is committed first,
+  then the old keys are removed; an interrupted run is finished by the next one, a value already in the new file is never overwritten, the counter takes the larger value), then
+  the maps (`SafShortIds`; the counter never falls behind a restored numeric id). Changes are collected in `SafCacheWriteBuffer` and committed with `commit()` on `SAFCacheIO` in one
+  go when `SafCacheFlushPolicy` says so: after 250 changes or 3 s after the first unwritten change, and at the end of a preload; the app exit (`Yaacc.clearCache`) waits at most 1 s for
+  the last write (`flushIfCreated`). Reads come from memory (LRU of 1000, the buffer, the preferences' own map). A caller on the main thread before the load ended does not wait
+  (`SafCacheLoadGate`): `getMetadata` returns metadata with a transient id (`t1`, valid in this process only) and persists nothing, `getUriForShortId` returns null; other threads wait up to 30 s.
+  `lruCache` is only touched under the manager's lock now (the preload thread used it without the lock). `clearCache()` / `removeCachedUnder()` clear memory at once and the file on the
+  I/O thread behind the load. A short id created less than 3 s before the process is killed is lost together with the counter that went with it, so after the restart the same numbers can be given to other uris
+  (the metadata entries and the counter are in one commit, so the stored state itself is always consistent). The in-memory LRU does not trim the file any more: its trim (`getEvictedKeys()` was drained by the `isEmpty()` check before `trimCache()`
+  ran) never removed anything in practice, and removing entries beyond the 1000th would make their short ids unknown after a restart. D logs: `SAF cache written: <n> puts, <m> removes ... in <ms> ms`, `CACHE_MIGRATION: ...`.
+  Not changed, found on the way: the preload (`extractAndCache`) stores a bare duration string under the metadata key, which `getMetadata` cannot parse (it extracts the duration again).
+
+- **BrowseMetadata of SAF objects.** `SafFolderBrowser.browseMeta` used to Base64-decode the short id of `SAF_PREFIX + shortId` (it is a number mapped by `SAFCacheManager.getUriForShortId`, not an encoding), so a
+  sub folder or file got a wrong or no answer, and an item got its own id as parent. Now: id -> uri via the short id (`SafDocumentUris.shortIdOf`), ONE provider query for the document
+  (`SafDirectoryLister.queryDocument`: name, mime, date, size), folder or file from the mime type. Parent: the SAF folder for a granted tree (document id = tree id) and for a uri that is not a tree
+  document; else the parent document id from the path-like id (`primary:DCIM/Camera` below the tree `primary:DCIM`, no query) or, for opaque ids, from `DocumentsContract.findDocumentPath`
+  (API 26, document ids from the top of the tree to the document), written like `buildDocumentUriUsingTree` and mapped to its short id (`getOrCreateShortId`), so it equals the id the listing gave that folder.
+  A sub folder is built like in the listing of its parent (`[X] ` prefix and restricted flag from `canRead`), with its child count from the cached listing; a granted tree like in the SAF folder's
+  listing; a file by `createItem`. An unknown id or a document that is gone gives error 701 (`YaaccContentDirectory.browse`: a null result of any `browseMeta` is "no such object" now, it was
+  an empty DIDL with count 1). D log: `SAF meta <id> folder|item parent=<id>`. Not changed: `TotalMatches` of a BrowseMetadata is still the child count (`browse` calls `getSize` first for every browser).
+  Not verified on a device: `findDocumentPath` for providers with opaque ids.
+
 ### Browse resilience (network drops)
 - `BrowseItemLoadTask` repeats a failed Browse on its worker thread via `BrowseRetryPolicy`: 3 tries in total, waits of 500 ms and 1500 ms, only
   for "no answer" (no result, or an `UpnpFailure` with `isTransportFailure()`: no connection/timeout/no response, device or HTTP sender missing).
@@ -406,6 +448,11 @@ decisions in more detail while the share-code consolidation (Phase 4) is open; t
   `ContentListFragment` registers while started and, if the load failed and none runs, continues the folder with `populateItemList(false)`
   (debounce 2 s, `NetworkRecoveryReloadGate`). Not verified on a device.
 - `UpnpClient.browseSync` returns a failure result instead of throwing when the server service, its network listener or HTTP sender is missing.
+  The same chain (`yaaccUpnpServerService.getNetworkDeviceListener().getHttpRequestSender()`) was in `searchDevices` (`getUdpTransiver`), `getMute`, `setMute`, `getVolume`, `setVolume` and
+  `AVTransportPlayer.getHttpRequestSender()` (used by about 15 AVTransport callbacks): all use `UpnpClient.getHttpRequestSender()` (public, null-safe) now; mute/volume/search log one line
+  (W/D) and return the default (false, 0, nothing), the player passes the null on. `ActionCallback.run()` (base of every action callback) turns a missing sender into the callback's own
+  `failure(...)` and a `RuntimeException` out of `SendingAction` into a failure as well, so waits like `AVTransportPlayer.waitForActionComplete` (spins until `actionFinished`, 30 s watchdog) are
+  released by the failure path instead of an NPE that kills the pool thread. `SubscriptionCallback` (not used by any caller at present) fails/skips on a missing sender.
 - Resume (suspend/Doze): the registry expires remote devices by wall clock, so after a long sleep the provider/renderers can be missing, and
   `UpnpClient.isInitialized()` is false while the `NetworkDeviceListener` is disabled (`getDevice` then returns null for every id). Activity `onResume`
   calls `UpnpClient.refreshAfterResume()` (worker thread): `NetworkDeviceListener.reenableIfStale()` does `disable()`+`enable()` if the listener is
@@ -413,6 +460,15 @@ decisions in more detail while the share-code consolidation (Phase 4) is open; t
   >= 30 s old (`ResumeRefreshPolicy`). Log lines start with `Resume:`.
 - `ContentListFragment` keeps the folder when its server leaves the registry or is missing on `onResume`/restore (`loadFailed` is set); `deviceAdded/Updated`
   of the same UDN (`FolderServerMatch`) or the next resume/network event continues it (`shouldReloadNow`, no debounce). Another server replaces it.
+- Registry protocol handler: `NetworkDeviceListener.enable()` builds a new `UpnpProtocolHandler` (new `MulticastReceiver`/`UdpTransiver`; the `HttpRequestSender` is kept) on every
+  (re-)enable and `disable()` closes the old sockets, but `RegistryImpl.upnpProtocolHandler` was set once in `YaaccUpnpServerService.onStartCommand`, so after the first network
+  change the registry's renewals, ALIVE and BYEBYE went through the first handler (closed sockets; null if the service had started without a network). Now `enable()` sets the new handler in the
+  registry (inside the listener's lock, before the receivers start) and `disable()` sets null; the field is `volatile`. The registry copes with null: `LocalItems.advertiseAlive/advertiseByebye`
+  skip, `RemoteItems.renewOutgoingSubscription` postpones (the subscription stays due, the next maintenance run renews it with the new handler) and the shutdown unsubscribe skips (they used to
+  dereference it). Local devices are announced again (`Registry.advertiseLocalDevices()`, on its own thread) after the listener was enabled for a new network by the network callback or the
+  resume check; the wifi-state path already re-created the device, which announces on add. Verified by reading and with mocks (`NetworkDeviceListenerHandlerTest`, `RemoteItemsHandlerTest`).
+  Not verified without a device: that other devices see the ALIVE after a real network change, and the HTTP server's `YaaccUpnpServerProtocolRequestHandler`, which still gets the handler
+  of the moment it was created (`createHttpServer`; null if the service started without a network, the sync protocols it creates only need the registry and the sender) - not changed.
 - Play: `PlayerService.createPlayer`/`UpnpClient.addToPlaylist` call `awaitReceiverDevices()`: a selected receiver missing in the registry is looked for
   3 times, 2.5 s apart, with a search before each wait (`ReceiverAvailabilityPolicy`, never on the main thread); then `getReceiverDevices()` drops it as before.
 
