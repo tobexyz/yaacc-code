@@ -89,12 +89,12 @@ public class SafFolderBrowser extends ContentBrowser {
     /** A sub folder of a listing with the values its container needs. */
     private static final class FolderCandidate {
         final String title;
-        final Uri childTreeUri;
+        final Uri childUri;
         final boolean canRead;
 
-        FolderCandidate(String title, Uri childTreeUri, boolean canRead) {
+        FolderCandidate(String title, Uri childUri, boolean canRead) {
             this.title = title;
-            this.childTreeUri = childTreeUri;
+            this.childUri = childUri;
             this.canRead = canRead;
         }
     }
@@ -309,7 +309,7 @@ public class SafFolderBrowser extends ContentBrowser {
         }
         List<Container> containers = new ArrayList<>();
         for (FolderCandidate candidate : pageCandidates) {
-            String childShortId = SAFCacheManager.getInstance(getContext()).getOrCreateShortId(candidate.childTreeUri.toString());
+            String childShortId = SAFCacheManager.getInstance(getContext()).getOrCreateShortId(candidate.childUri.toString());
             String childId = ContentDirectoryIDs.SAF_PREFIX.getId() + childShortId;
             StorageFolder folder = new StorageFolder(childId, parentId, candidate.title, "yaacc", 0, null);
             folder.setRestricted(candidate.canRead);
@@ -324,11 +324,13 @@ public class SafFolderBrowser extends ContentBrowser {
             if (title == null) {
                 title = SafDirectoryLister.childDocumentUri(folderUri, entry.documentId).toString();
             }
-            Uri childTreeUri = DocumentsContract.buildTreeDocumentUri(folderUri.getAuthority(), entry.documentId);
-            // the document uri DocumentFile.fromTreeUri(childTreeUri) works with
-            Uri accessUri = DocumentsContract.buildDocumentUriUsingTree(childTreeUri, entry.documentId);
-            boolean canRead = SafDirectoryLister.canRead(getContext(), accessUri, entry.mimeType);
-            return new FolderCandidate(canRead ? title : "[X] " + title, childTreeUri, canRead);
+            // The child is addressed through the tree the user granted (.../tree/<granted>/document/<child>), not
+            // as a tree of its own (.../tree/<child>): the grant of a picked folder covers everything below it, but
+            // only for uris of that tree. A uri rooted at the child would never match the grant, and every sub
+            // folder of a picked folder would show "[X]". DocumentFile.fromTreeUri accepts such a document uri.
+            Uri childUri = SafDirectoryLister.childDocumentUri(folderUri, entry.documentId);
+            boolean canRead = SafDirectoryLister.canRead(getContext(), childUri, entry.mimeType);
+            return new FolderCandidate(canRead ? title : "[X] " + title, childUri, canRead);
         } catch (Exception e) {
             YaaccLogger.e(getClass().getName(), "Error processing child: " + title, e);
             return null;

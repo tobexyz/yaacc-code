@@ -30,6 +30,7 @@
 - **Idle exit**: One process-wide timer now quits the app after 5 minutes in the background when nothing is playing and the server, renderer and proxy options are off, instead of one timer per screen; a screen rotation or a layout change no longer leaves a stale timer behind.
 
 ### Fixed
+- **Sub folders marked "[X]"**: Sub folders of a shared SAF folder are now checked and browsed through the permission of the folder you picked, so they are no longer marked "[X]" (no permission) although they are readable.
 - **Server configuration**: The folder tree shows only folders (files could not be selected anyway), which also makes large folders load faster.
 - **Shared folders screen with large folders**: The server configuration screen no longer freezes when you open a shared (SAF) folder with thousands of files or scroll through it: folders are read in the background in one query, rows no longer ask the storage provider while they scroll in, and all children are inserted at once. Every folder shows the expand arrow until it has been opened and found empty.
 - **Large shared folders**: Browsing a shared (SAF) folder with thousands of files no longer takes longer than the connection timeout: the folder is read from the storage provider once and reused for the next pages, only the page that is shown is processed, and the app waits up to 30 s for the answer of a content directory request.

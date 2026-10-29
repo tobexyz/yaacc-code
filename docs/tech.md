@@ -130,6 +130,8 @@ and about 3N when scrolling; now 3 on the worker (0 within 30 s) and 0 on the ma
 
 - The shared-folder tree of the server configuration shows folders only (`TreeNodeFactory`): only folders can be selected as a shared path, files were shown without a check box. A folder that holds nothing but files shows the expand arrow until it was opened once and then reads as empty.
 
+- **Permission of sub folders and "[X]".** The grant of a folder picked with the system picker covers everything below it, but only for uris of that tree (`.../tree/<picked>/document/<child>`). Sub folders are therefore addressed as `SafDirectoryLister.childDocumentUri(parent, documentId)` and their permission is checked on that uri; `DocumentFile.fromTreeUri` accepts it. Before, a sub folder was addressed as a tree of its own (`buildTreeDocumentUri(authority, childId)`), which no grant matches, so the sub folders of a picked folder could show `[X]` although they are readable. `[X]` now means the app really holds no permission for the folder (e.g. a grant that was revoked).
+
 ## Browse card-grid view
 
 The content tab can show a list or a grid of cards (`ContentListFragment` + `BrowseContentItemAdapter`,
