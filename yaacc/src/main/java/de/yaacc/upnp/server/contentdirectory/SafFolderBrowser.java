@@ -21,7 +21,6 @@ package de.yaacc.upnp.server.contentdirectory;
 import android.content.Context;
 import android.net.Uri;
 import android.provider.DocumentsContract;
-import android.util.Base64;
 
 import androidx.documentfile.provider.DocumentFile;
 
@@ -168,34 +167,86 @@ public class SafFolderBrowser extends ContentBrowser {
         }
     }
 
+    /**
+     * BrowseMetadata of the SAF folder itself, of a granted tree, of a sub folder or of a file.
+     * <p>
+     * The short id of the object id is mapped to its document uri with the SAF cache (it is not an encoding of the
+     * uri). One provider query gives the document's name, mime type, size and date; the parent is the SAF folder for a
+     * granted tree, else the folder the document id (or the provider's document path) names, with its short id; a
+     * folder gets the container of {@link #newFolder} (the "[X] " prefix and the restricted flag as in the listing of
+     * its parent) and its child count from the cached listing, a file the item of {@code createItem}.
+     *
+     * @return null if the id is unknown or the document is gone (the caller answers "no such object")
+     */
     @Override
     public DIDLObject browseMeta(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
         if (myId.equals(ContentDirectoryIDs.SAF_FOLDER.getId())) {
             return new StorageFolder(ContentDirectoryIDs.SAF_FOLDER.getId(), ContentDirectoryIDs.ROOT.getId(), getContext().getString(R.string.saf_content), "yaacc", getSize(contentDirectory, myId),
                     null);
-        } else {
-            // Meta for a subfolder
-            String pathEnc = myId.substring(ContentDirectoryIDs.SAF_PREFIX.getId().length());
-            String path = new String(Base64.decode(pathEnc.getBytes(), Base64.NO_WRAP));
-            DocumentFile file = DocumentFile.fromTreeUri(getContext(), Uri.parse(path));
-            String title = (file != null && file.getName() != null) ? file.getName() : path;
-
-            // Determine parent ID - if this is a direct child of SAF root, parent is SAF_FOLDER
-            // Otherwise, find the parent folder
-            String parentId = ContentDirectoryIDs.SAF_FOLDER.getId();
-            DocumentFile parent = file != null ? file.getParentFile() : null;
-            if (parent != null && !getSelectedSafPathes().contains(parent.getUri().toString())) {
-                String parentBase64 = Base64.encodeToString(parent.getUri().toString().getBytes(), Base64.NO_WRAP);
-                parentId = ContentDirectoryIDs.SAF_PREFIX.getId() + parentBase64;
-            }
-            DIDLObject result = null;
-            if (file.isDirectory()) {
+        }
+        String shortId = SafDocumentUris.shortIdOf(myId);
+        String path = shortId == null ? null : SAFCacheManager.getInstance(getContext()).getUriForShortId(shortId);
+        if (path == null) {
+            YaaccLogger.w(getClass().getName(), "Meta: short ID not found: " + shortId + " for id: " + myId);
+            return null;
+        }
+        Uri documentUri = Uri.parse(path);
+        SafDirectoryEntry entry = SafDirectoryLister.queryDocument(getContext(), documentUri);
+        if (entry == null) {
+            YaaccLogger.w(getClass().getName(), "Meta: no document for " + path + " (id " + myId + ")");
+            return null;
+        }
+        SafDocumentUris.Parsed parsed = SafDocumentUris.parse(path);
+        String parentId = parentIdOf(parsed, documentUri);
+        DIDLObject result;
+        if (entry.isDirectory()) {
+            String title = entry.name != null ? entry.name : path;
+            if (parsed != null && parsed.isTreeRoot()) {
+                // a granted tree, as in the listing of the SAF folder
                 result = new StorageFolder(myId, parentId, title, "yaacc", getSize(contentDirectory, myId), null);
             } else {
-                result = createItem(contentDirectory, file.getUri().toString(), entryOf(file), myId, !file.canRead());
+                boolean canRead = SafDirectoryLister.canRead(getContext(), documentUri, entry.mimeType);
+                result = newFolder(myId, parentId, folderTitle(title, canRead), canRead, getSize(contentDirectory, myId));
             }
-            return result;
+        } else {
+            boolean restricted = !SafDirectoryLister.canRead(getContext(), documentUri, entry.mimeType);
+            result = createItem(contentDirectory, path, entry, parentId, restricted);
         }
+        YaaccLogger.d(getClass().getName(), "SAF meta " + myId + " " + (entry.isDirectory() ? "folder" : "item") + " parent=" + parentId);
+        return result;
+    }
+
+    /**
+     * The object id of the folder a document is in: the SAF folder for a granted tree (and for a uri that is
+     * not a tree document), else the short id of the parent document.
+     */
+    private String parentIdOf(SafDocumentUris.Parsed parsed, Uri documentUri) {
+        if (parsed == null || parsed.isTreeRoot()) {
+            return ContentDirectoryIDs.SAF_FOLDER.getId();
+        }
+        String parentDocumentId = SafDocumentUris.parentDocumentIdFromId(parsed);
+        if (parentDocumentId == null) {
+            // ids that are not paths: ask the provider
+            parentDocumentId = SafDocumentUris.parentFromPath(SafDirectoryLister.findPath(getContext(), documentUri), parsed.documentId);
+        }
+        if (parentDocumentId == null) {
+            YaaccLogger.w(getClass().getName(), "Meta: parent of " + documentUri + " unknown, using the SAF folder");
+            return ContentDirectoryIDs.SAF_FOLDER.getId();
+        }
+        String parentUri = parsed.documentUri(parentDocumentId);
+        return SafDocumentUris.objectIdOf(SAFCacheManager.getInstance(getContext()).getOrCreateShortId(parentUri));
+    }
+
+    /** The title of a sub folder as its parent's listing shows it: the "[X] " prefix when the app may not read it. */
+    private static String folderTitle(String title, boolean canRead) {
+        return canRead ? title : "[X] " + title;
+    }
+
+    /** A sub folder as its parent's listing shows it ({@code shownTitle} from {@link #folderTitle}); the restricted flag follows the read permission. */
+    private static StorageFolder newFolder(String id, String parentId, String shownTitle, boolean canRead, int childCount) {
+        StorageFolder folder = new StorageFolder(id, parentId, shownTitle, "yaacc", childCount, null);
+        folder.setRestricted(canRead);
+        return folder;
     }
 
     @Override
@@ -311,9 +362,7 @@ public class SafFolderBrowser extends ContentBrowser {
         for (FolderCandidate candidate : pageCandidates) {
             String childShortId = SAFCacheManager.getInstance(getContext()).getOrCreateShortId(candidate.childUri.toString());
             String childId = ContentDirectoryIDs.SAF_PREFIX.getId() + childShortId;
-            StorageFolder folder = new StorageFolder(childId, parentId, candidate.title, "yaacc", 0, null);
-            folder.setRestricted(candidate.canRead);
-            containers.add(folder);
+            containers.add(newFolder(childId, parentId, candidate.title, candidate.canRead, 0));
         }
         return containers;
     }
@@ -330,7 +379,7 @@ public class SafFolderBrowser extends ContentBrowser {
             // folder of a picked folder would show "[X]". DocumentFile.fromTreeUri accepts such a document uri.
             Uri childUri = SafDirectoryLister.childDocumentUri(folderUri, entry.documentId);
             boolean canRead = SafDirectoryLister.canRead(getContext(), childUri, entry.mimeType);
-            return new FolderCandidate(canRead ? title : "[X] " + title, childUri, canRead);
+            return new FolderCandidate(folderTitle(title, canRead), childUri, canRead);
         } catch (Exception e) {
             YaaccLogger.e(getClass().getName(), "Error processing child: " + title, e);
             return null;

@@ -388,6 +388,10 @@ public class YaaccContentDirectory {
                 totalMatches = browser.getSize(this, objectID);
                 if (browseFlag == BrowseFlag.METADATA) {
                     didlObject = browser.browseMeta(this, objectID, firstResult, maxResults, orderby);
+                    if (didlObject == null) {
+                        // an id that is not known (any more): answering with an empty result would look like an object without data
+                        throw new ContentDirectoryException(ContentDirectoryErrorCode.NO_SUCH_OBJECT, "No such object: " + objectID);
+                    }
                     didl.addObject(didlObject);
                     childCount = 1;
                 } else {

@@ -110,6 +110,44 @@ public final class SafDirectoryLister {
                 && !TextUtils.isEmpty(mimeType);
     }
 
+    /**
+     * The five listing values of ONE document (one provider query), for a BrowseMetadata request.
+     *
+     * @param documentUri a tree based document uri
+     * @return null if the provider has no such document or the query failed
+     */
+    public static SafDirectoryEntry queryDocument(Context context, Uri documentUri) {
+        try (Cursor cursor = context.getContentResolver().query(documentUri, PROJECTION, null, null, null)) {
+            if (cursor == null || !cursor.moveToFirst()) {
+                return null;
+            }
+            String documentId = cursor.getString(COLUMN_ID);
+            return SafDirectoryEntry.fromProviderRow(
+                    cursor.getString(COLUMN_NAME),
+                    documentId != null ? documentId : DocumentsContract.getDocumentId(documentUri),
+                    cursor.getString(COLUMN_MIME),
+                    cursor.isNull(COLUMN_MODIFIED) ? 0L : cursor.getLong(COLUMN_MODIFIED),
+                    cursor.isNull(COLUMN_SIZE) ? 0L : cursor.getLong(COLUMN_SIZE));
+        } catch (Exception e) {
+            YaaccLogger.w(SafDirectoryLister.class.getName(), "Query of " + documentUri + " failed: " + e);
+            return null;
+        }
+    }
+
+    /**
+     * The document ids from the top of the tree down to the document (provider query), null if the provider cannot
+     * tell ({@code DocumentsContract.findDocumentPath}, API 26).
+     */
+    public static List<String> findPath(Context context, Uri documentUri) {
+        try {
+            DocumentsContract.Path path = DocumentsContract.findDocumentPath(context.getContentResolver(), documentUri);
+            return path == null ? null : path.getPath();
+        } catch (Exception e) {
+            YaaccLogger.d(SafDirectoryLister.class.getName(), "No document path for " + documentUri + ": " + e);
+            return null;
+        }
+    }
+
     private static SafDirectory load(Context context, String folderUri) {
         DocumentFile folder;
         try {
