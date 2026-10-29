@@ -709,7 +709,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      * @return the sender of the server service's network listener, or null when there is none (yet):
      * no service bound, the listener not created or no network came up since the start
      */
-    private HttpRequestSender getHttpRequestSender() {
+    public HttpRequestSender getHttpRequestSender() {
         YaaccUpnpServerService serverService = yaaccUpnpServerService;
         if (serverService == null) {
             return null;
@@ -792,10 +792,11 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      */
     public void searchDevices() {
         if (isInitialized()) {
-            // the listener may be disabled between the check and here: its transceiver is gone then
-            UdpTransiver transiver = yaaccUpnpServerService.getNetworkDeviceListener().getUdpTransiver();
+            // the listener may be missing or disabled between the check and here: its transceiver is gone then
+            NetworkDeviceListener listener = yaaccUpnpServerService == null ? null : yaaccUpnpServerService.getNetworkDeviceListener();
+            UdpTransiver transiver = listener == null ? null : listener.getUdpTransiver();
             if (transiver == null) {
-                YaaccLogger.d(getClass().getName(), "Search skipped: no UDP transceiver (network listener is disabled)");
+                YaaccLogger.d(getClass().getName(), "Search skipped: no UDP transceiver (no network listener, or it is disabled)");
                 return;
             }
             lastSearchAtMillis = nowMillis();
@@ -1487,10 +1488,15 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
                             + device.getDisplayString());
             return false;
         }
+        HttpRequestSender httpRequestSender = getHttpRequestSender();
+        if (httpRequestSender == null) {
+            YaaccLogger.w(getClass().getName(), "No HTTP request sender available, get mute skipped");
+            return false;
+        }
         YaaccLogger.d(getClass().getName(), "Action get Mute ");
         final ActionState actionState = new ActionState();
         actionState.actionFinished = false;
-        GetMute actionCallback = new GetMute(service, yaaccUpnpServerService.getNetworkDeviceListener().getHttpRequestSender()) {
+        GetMute actionCallback = new GetMute(service, httpRequestSender) {
             @Override
             public void failure(ActionInvocation actioninvocation,
                                 UpnpResponse upnpresponse, String s) {
@@ -1562,8 +1568,13 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
                             + device.getDisplayString());
             return;
         }
+        HttpRequestSender httpRequestSender = getHttpRequestSender();
+        if (httpRequestSender == null) {
+            YaaccLogger.w(getClass().getName(), "No HTTP request sender available, set mute skipped");
+            return;
+        }
         YaaccLogger.d(getClass().getName(), "Action set Mute ");
-        SetMute actionCallback = new SetMute(service, mute, yaaccUpnpServerService.getNetworkDeviceListener().getHttpRequestSender()) {
+        SetMute actionCallback = new SetMute(service, mute, httpRequestSender) {
             @Override
             public void failure(ActionInvocation actioninvocation,
                                 UpnpResponse upnpresponse, String s) {
@@ -1609,10 +1620,15 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
                             + device.getDisplayString());
             return 0;
         }
+        HttpRequestSender httpRequestSender = getHttpRequestSender();
+        if (httpRequestSender == null) {
+            YaaccLogger.w(getClass().getName(), "No HTTP request sender available, get volume skipped");
+            return 0;
+        }
         YaaccLogger.d(getClass().getName(), "Action get Volume ");
         final ActionState actionState = new ActionState();
         actionState.actionFinished = false;
-        GetVolume actionCallback = new GetVolume(service, yaaccUpnpServerService.getNetworkDeviceListener().getHttpRequestSender()) {
+        GetVolume actionCallback = new GetVolume(service, httpRequestSender) {
             @Override
             public void failure(ActionInvocation actioninvocation,
                                 UpnpResponse upnpresponse, String s) {
@@ -1685,8 +1701,13 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
                             + device.getDisplayString());
             return;
         }
+        HttpRequestSender httpRequestSender = getHttpRequestSender();
+        if (httpRequestSender == null) {
+            YaaccLogger.w(getClass().getName(), "No HTTP request sender available, set volume skipped");
+            return;
+        }
         YaaccLogger.d(getClass().getName(), "Action set Volume ");
-        SetVolume actionCallback = new SetVolume(service, volume, yaaccUpnpServerService.getNetworkDeviceListener().getHttpRequestSender()) {
+        SetVolume actionCallback = new SetVolume(service, volume, httpRequestSender) {
             @Override
             public void failure(ActionInvocation actioninvocation,
                                 UpnpResponse upnpresponse, String s) {

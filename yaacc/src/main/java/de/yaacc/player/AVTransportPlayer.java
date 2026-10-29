@@ -414,8 +414,13 @@ public class AVTransportPlayer extends AbstractPlayer {
         commandRetries.remove(commandKey);
     }
 
+    /**
+     * @return the client's HTTP sender, null if there is none right now (no server service or network listener yet).
+     * The action callbacks answer a missing sender with their failure path.
+     */
     protected de.yaacc.upnp.server.http.HttpRequestSender getHttpRequestSender() {
-        return getUpnpClient().getYaaccUpnpServerService().getNetworkDeviceListener().getHttpRequestSender();
+        de.yaacc.upnp.UpnpClient client = getUpnpClient();
+        return client == null ? null : client.getHttpRequestSender();
     }
 
     /* (non-Javadoc)
