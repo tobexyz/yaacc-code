@@ -324,3 +324,32 @@ in `tasks.md` ("Owner's open items"); accepted risks in `known-risks.md`; how it
   thread (the registry method is synchronized and can wait for its lock). Test seams: a package-private constructor and receiver factories in `NetworkDeviceListener`.
 - **Left alone.** The HTTP server's request handler keeps the handler it was created with; the duplicate `getProtocolHandler`/`setProtocolHandler` pair of `RegistryImpl`; the wifi-state path
   (re-creates the device itself).
+
+
+## HTTP server resolves the protocol handler per request (owner request, 2026-10-29)
+- **Why.** `createHttpServer` passed `getNetworkDeviceListener().getUpnpProtocolHandler()` once to `YaaccUpnpServerProtocolRequestHandler`; a service started without a network kept null (every sync request threw an NPE, answered 500)
+  and after a network change it kept the replaced handler. The "Left alone" item of the registry-handler entry.
+- **Decision.** The request handler takes a `Supplier<UpnpProtocolHandler>`; the service supplies `registry.getUpnpProtocolHandler()` (the live volatile field, set by `NetworkDeviceListener.enable()`, null on `disable()`). It is read once per
+  `process()`. No handler or a throwing supplier: 503 and one W log line; `createReceivingSync` returning null: 501 (the same status as a `ProtocolCreationException`). Tests with Mockito in `YaaccUpnpServerProtocolRequestHandlerTest`.
+- **Left alone.** `syncProtocol` as a shared instance field of the handler (`responseSent`/`responseException` under concurrent requests); the registry is read from the service field without a lock (it is set once before the server is created).
+
+
+## SAF preload writes readable metadata (owner request, 2026-10-29)
+- **Why.** The "found, not fixed" item of the SAF cache entry: the preload stored a bare duration under `saf_cache_<uri>`, `getMetadata` could not parse it and extracted the duration again; `getDuration` returned whatever was stored.
+- **Decision.** All writers of the key store the serialized `SAFMetadata` (`storeDurationLocked`: existing entry keeps mime type, size and short id; a new entry from the preload gets name/type/size of the document and the id the uri has, a new one only if it has none).
+  Readers tolerate an older bare value (pure `SafCacheEntries`) and upgrade it in place without extraction (D log `CACHE_UPGRADED`). The preload extracts only for a file without entry or with an empty duration, and the queued background task
+  skips a file that already has a duration. `getDuration` (deprecated, no callers) parses the entry and does not create one (it does not know the size). Test seam `SAFCacheManager.DurationExtractor` (package-private) counts extractions.
+- **Left alone.** Key names and the serialization; the unreadable-file set (per process only, so such a file is tried again at the next start); short ids still persisted only inside metadata; the preload now creates short ids for audio/video files it indexes
+  (the browse would create them anyway). One more provider query per extracted file (`length()`).
+
+
+## One accessor pair for the registry's protocol handler (owner request, 2026-10-29)
+- **Decision.** `RegistryImpl` keeps `getUpnpProtocolHandler`/`setUpnpProtocolHandler` (declared in `Registry`, used by `NetworkDeviceListener`, `LocalItems`, the HTTP server); `getProtocolHandler`/`setProtocolHandler` removed, `RemoteItems` and its test
+  switched. The field stays `volatile` (a test checks the modifier and that the old names are gone).
+
+
+## BrowseMetadata answers 1 and 1 (owner request, 2026-10-29)
+- **Why.** The "Left alone" item of the BrowseMetadata entry: `browse` called `getSize` first for every browser, so `TotalMatches` of a BrowseMetadata was the child count and the folder was listed for it.
+- **Decision.** `getSize` only for BrowseDirectChildren; BrowseMetadata sets NumberReturned = TotalMatches = 1 after `browseMeta` found the object (null is still 701, without a `getSize`). DirectChildren, UpdateID and the test-content branch are unchanged.
+  `findBrowserFor` is package-private so a test can plug in a fake browser; no `Search` action exists, so there is no other count path.
+- **Left alone.** The test-content branch (`TotalMatches` stays 1 for its folders); an unknown BrowseFlag is handled like DirectChildren.

@@ -38,7 +38,7 @@ public class RemoteItemsHandlerTest {
     @Test
     public void renewalWithoutHandlerIsPostponedNotAnException() {
         RegistryImpl registry = mock(RegistryImpl.class);
-        when(registry.getProtocolHandler()).thenReturn(null);
+        when(registry.getUpnpProtocolHandler()).thenReturn(null);
         RemoteItems items = new RemoteItems(registry);
 
         items.renewOutgoingSubscription(mock(RemoteGENASubscription.class));
@@ -52,7 +52,7 @@ public class RemoteItemsHandlerTest {
         UpnpProtocolHandler handler = mock(UpnpProtocolHandler.class);
         SendingRenewal renewal = mock(SendingRenewal.class);
         RemoteGENASubscription subscription = mock(RemoteGENASubscription.class);
-        when(registry.getProtocolHandler()).thenReturn(handler);
+        when(registry.getUpnpProtocolHandler()).thenReturn(handler);
         when(handler.createSendingRenewal(subscription)).thenReturn(renewal);
         RemoteItems items = new RemoteItems(registry);
 

@@ -797,7 +797,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
                         })
                         .setCanonicalHostName(InterfaceResolutionHelper.getIpAddress(getApplicationContext()))
                         .register("*", new YaaccUpnpServerContentHttpHandler(getApplicationContext()))
-                        .register(UpnpProtocolHandler.NAMESPACE.getBasePath().getPath() + "/*", new YaaccUpnpServerProtocolRequestHandler(getNetworkDeviceListener().getUpnpProtocolHandler()))
+                        .register(UpnpProtocolHandler.NAMESPACE.getBasePath().getPath() + "/*", new YaaccUpnpServerProtocolRequestHandler(this::currentProtocolHandler))
                         .create();
                 YaaccLogger.d(getClass().getName(), "Starting HTTP server");
                 httpServer.start();
@@ -1241,6 +1241,15 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
 
     public Registry getRegistry() {
         return registry;
+    }
+
+    /**
+     * The protocol handler of the enabled network listener, resolved per incoming request by the HTTP server (null
+     * while there is no network). The registry holds the live handler, NetworkDeviceListener#enable() replaces it.
+     */
+    private UpnpProtocolHandler currentProtocolHandler() {
+        Registry currentRegistry = registry;
+        return currentRegistry == null ? null : currentRegistry.getUpnpProtocolHandler();
     }
 
 

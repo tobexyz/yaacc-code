@@ -426,7 +426,11 @@ decisions in more detail while the share-code consolidation (Phase 4) is open; t
   I/O thread behind the load. A short id created less than 3 s before the process is killed is lost together with the counter that went with it, so after the restart the same numbers can be given to other uris
   (the metadata entries and the counter are in one commit, so the stored state itself is always consistent). The in-memory LRU does not trim the file any more: its trim (`getEvictedKeys()` was drained by the `isEmpty()` check before `trimCache()`
   ran) never removed anything in practice, and removing entries beyond the 1000th would make their short ids unknown after a restart. D logs: `SAF cache written: <n> puts, <m> removes ... in <ms> ms`, `CACHE_MIGRATION: ...`.
-  Not changed, found on the way: the preload (`extractAndCache`) stores a bare duration string under the metadata key, which `getMetadata` cannot parse (it extracts the duration again).
+  The preload (`extractAndCache`) used to store a bare duration string ("00:03:12") under `saf_cache_<uri>`; `getMetadata` expects the serialized `SAFMetadata` there, could not parse it, and built and extracted again.
+  Now every writer of the key writes the serialized `SAFMetadata`: the preload updates the entry of the file (duration set; mime type, size and short id of an existing entry stay, a new entry gets the id the uri has or a new one) and the background task of
+  `getMetadata` uses the same `storeDurationLocked`. A file needs a preload extraction only when it has no entry or an entry with an empty duration; the queued background task skips a file that got its duration in the meantime. Readers
+  (`getMetadata`, deprecated `getDuration`) accept a bare value stored by an older version (`SafCacheEntries`, plain JVM) and upgrade it in place without an extraction (D log `CACHE_UPGRADED`); `getDuration` returned the serialized
+  metadata as the duration before. Key names and short ids are unchanged. Test seam: `SAFCacheManager.DurationExtractor`. A file the retriever cannot read stays without a duration and is tried again at the next app start (not in the same process).
 
 - **BrowseMetadata of SAF objects.** `SafFolderBrowser.browseMeta` used to Base64-decode the short id of `SAF_PREFIX + shortId` (it is a number mapped by `SAFCacheManager.getUriForShortId`, not an encoding), so a
   sub folder or file got a wrong or no answer, and an item got its own id as parent. Now: id -> uri via the short id (`SafDocumentUris.shortIdOf`), ONE provider query for the document
@@ -435,8 +439,13 @@ decisions in more detail while the share-code consolidation (Phase 4) is open; t
   (API 26, document ids from the top of the tree to the document), written like `buildDocumentUriUsingTree` and mapped to its short id (`getOrCreateShortId`), so it equals the id the listing gave that folder.
   A sub folder is built like in the listing of its parent (`[X] ` prefix and restricted flag from `canRead`), with its child count from the cached listing; a granted tree like in the SAF folder's
   listing; a file by `createItem`. An unknown id or a document that is gone gives error 701 (`YaaccContentDirectory.browse`: a null result of any `browseMeta` is "no such object" now, it was
-  an empty DIDL with count 1). D log: `SAF meta <id> folder|item parent=<id>`. Not changed: `TotalMatches` of a BrowseMetadata is still the child count (`browse` calls `getSize` first for every browser).
+  an empty DIDL with count 1). D log: `SAF meta <id> folder|item parent=<id>`. `TotalMatches` of a BrowseMetadata: see "BrowseMetadata counts" below.
   Not verified on a device: `findDocumentPath` for providers with opaque ids.
+
+- **BrowseMetadata counts.** `YaaccContentDirectory.browse` called `browser.getSize` first for every browser, so a BrowseMetadata answered `TotalMatches` = the child count of the folder (and listed the folder for it). UPnP ContentDirectory: BrowseMetadata returns the one
+  object, `NumberReturned` = `TotalMatches` = 1. Now `getSize` is called for BrowseDirectChildren only (before `browseChildren`, as before); BrowseMetadata answers 1/1, and an object that does not exist still gives 701 (`browseMeta` is asked first, `getSize` is not
+  called for it). Unchanged: DirectChildren counts, the test-content branch (it answers `TotalMatches` 1 for its folders, found on the way), an unknown BrowseFlag (handled like DirectChildren). There is no Search action, so `browse` is the only place with these counts.
+  Test: `YaaccContentDirectoryBrowseCountTest` (a fake `ContentBrowser` through the package-private `findBrowserFor`).
 
 ### Browse resilience (network drops)
 - `BrowseItemLoadTask` repeats a failed Browse on its worker thread via `BrowseRetryPolicy`: 3 tries in total, waits of 500 ms and 1500 ms, only
@@ -467,8 +476,13 @@ decisions in more detail while the share-code consolidation (Phase 4) is open; t
   skip, `RemoteItems.renewOutgoingSubscription` postpones (the subscription stays due, the next maintenance run renews it with the new handler) and the shutdown unsubscribe skips (they used to
   dereference it). Local devices are announced again (`Registry.advertiseLocalDevices()`, on its own thread) after the listener was enabled for a new network by the network callback or the
   resume check; the wifi-state path already re-created the device, which announces on add. Verified by reading and with mocks (`NetworkDeviceListenerHandlerTest`, `RemoteItemsHandlerTest`).
-  Not verified without a device: that other devices see the ALIVE after a real network change, and the HTTP server's `YaaccUpnpServerProtocolRequestHandler`, which still gets the handler
-  of the moment it was created (`createHttpServer`; null if the service started without a network, the sync protocols it creates only need the registry and the sender) - not changed.
+  Not verified without a device: that other devices see the ALIVE after a real network change.
+- HTTP server protocol handler: `YaaccUpnpServerProtocolRequestHandler` got the `UpnpProtocolHandler` of the moment `createHttpServer` ran, once; a service that started without a network kept null and every sync request (control, subscribe, event, retrieval) threw
+  a `NullPointerException` (answered 500), and after a network change the captured handler was the old one. It takes a `Supplier<UpnpProtocolHandler>` now (`YaaccUpnpServerService.currentProtocolHandler()` = `registry.getUpnpProtocolHandler()`, the live volatile field)
+  and resolves it once per `process()`. No handler (or a supplier that throws): `503 Service Unavailable` and one W log line (`No protocol handler available, answering 503 ...`); a handler that has no protocol for the request (`createReceivingSync` returns null): 501
+  instead of an NPE. Test: `YaaccUpnpServerProtocolRequestHandlerTest`. Not changed (found on the way): `syncProtocol` is an instance field of the one handler shared by all requests, so `responseSent`/`responseException` can refer to another request's protocol under
+  concurrency. Not verified without a device: the 503 on a real client while the network is down, and a request in the moment of a network change.
+- `RegistryImpl` had two accessor pairs for the one `volatile upnpProtocolHandler` field (`get/setProtocolHandler` and `get/setUpnpProtocolHandler`, the latter declared in `Registry`). The first pair is removed, `RemoteItems` uses the interface's `getUpnpProtocolHandler()`.
 - Play: `PlayerService.createPlayer`/`UpnpClient.addToPlaylist` call `awaitReceiverDevices()`: a selected receiver missing in the registry is looked for
   3 times, 2.5 s apart, with a search before each wait (`ReceiverAvailabilityPolicy`, never on the main thread); then `getReceiverDevices()` drops it as before.
 

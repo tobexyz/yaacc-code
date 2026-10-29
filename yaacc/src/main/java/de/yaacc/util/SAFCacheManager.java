@@ -196,6 +196,16 @@ public class SAFCacheManager {
         }
     }
 
+    /** For tests: the preload and background duration tasks given so far have run. */
+    boolean awaitBackgroundIdle(long timeoutMillis) {
+        try {
+            preloadExecutor.submit(() -> { }).get(timeoutMillis, TimeUnit.MILLISECONDS);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     /** Waits for the load unless on the main thread; false = work without the stored state. */
     private boolean awaitLoaded() {
         return loadGate.await(onMainThread.getAsBoolean(), LOAD_WAIT_MILLIS);
@@ -234,7 +244,10 @@ public class SAFCacheManager {
         // Check memory cache
         String cached = lruCache.get(key);
         if (cached != null) {
-            SAFMetadata metadata = SAFMetadata.deserialize(cached);
+            SAFMetadata metadata = SafCacheEntries.parseMetadata(cached);
+            if (metadata == null && SafCacheEntries.isBareDuration(cached)) {
+                return upgradeBareDurationLocked(key, uriString, cached, name, providerMimeType, fileSize);
+            }
             if (metadata != null) {
                 // Migrate old entries without shortId
                 if (metadata.shortId == null) {
@@ -251,7 +264,10 @@ public class SAFCacheManager {
         // Check the stored state (served from the memory of the preferences, plus what waits to be written)
         cached = readStoredLocked(key);
         if (cached != null) {
-            SAFMetadata metadata = SAFMetadata.deserialize(cached);
+            SAFMetadata metadata = SafCacheEntries.parseMetadata(cached);
+            if (metadata == null && SafCacheEntries.isBareDuration(cached)) {
+                return upgradeBareDurationLocked(key, uriString, cached, name, providerMimeType, fileSize);
+            }
             if (metadata != null) {
                 // Migrate old entries without shortId
                 if (metadata.shortId == null) {
@@ -276,6 +292,58 @@ public class SAFCacheManager {
         long elapsed = System.currentTimeMillis() - startTime;
         YaaccLogger.v(getClass().getName(), "EXTRACTION_COMPLETE: " + name + " (" + elapsed + "ms)");
         return metadata;
+    }
+
+    /**
+     * An entry that holds a bare duration (written by the former preload) becomes a serialized {@link SAFMetadata}
+     * with that duration: no extraction, and the short id is the one the uri has (a new one only if it has none).
+     * Called with {@link #lock} held.
+     */
+    private SAFMetadata upgradeBareDurationLocked(String key, String uriString, String duration, String name,
+                                                  String providerMimeType, long fileSize) {
+        SAFMetadata upgraded = new SAFMetadata(duration, extractMimeType(name, providerMimeType),
+                createShortIdLocked(uriString), fileSize);
+        putEntryLocked(key, upgraded.serialize());
+        YaaccLogger.d(getClass().getName(), "CACHE_UPGRADED: " + name + " - bare duration " + duration + " -> metadata, shortId=" + upgraded.shortId);
+        return upgraded;
+    }
+
+    /**
+     * Stores the duration in the metadata entry of a file: the entry's mime type, size and short id stay. Without a
+     * readable entry (none yet, a bare duration of the former preload, corrupt) the entry is built from the given
+     * values when {@code createIfMissing}, with the short id the uri has or a new one. Called with {@link #lock} held.
+     *
+     * @return true if an entry was written
+     */
+    private boolean storeDurationLocked(Uri uri, String duration, boolean createIfMissing, String name,
+                                        String providerMimeType, long fileSize) {
+        String uriString = uri.toString();
+        String key = CACHE_PREFIX + uriString;
+        String stored = lruCache.get(key);
+        if (stored == null) {
+            stored = readStoredLocked(key);
+        }
+        SAFMetadata existing = SafCacheEntries.parseMetadata(stored);
+        SAFMetadata updated;
+        if (existing != null) {
+            String shortId = existing.shortId != null ? existing.shortId : createShortIdLocked(uriString);
+            updated = new SAFMetadata(duration, existing.mimeType, shortId, existing.fileSize);
+        } else if (createIfMissing) {
+            updated = new SAFMetadata(duration, extractMimeType(name, providerMimeType), createShortIdLocked(uriString), fileSize);
+        } else {
+            return false;
+        }
+        putEntryLocked(key, updated.serialize());
+        return true;
+    }
+
+    /** True if the file has no duration stored yet. Called with {@link #lock} held. */
+    private boolean needsDurationLocked(String key) {
+        String stored = lruCache.get(key);
+        if (stored == null) {
+            stored = readStoredLocked(key);
+        }
+        return stored == null || SafCacheEntries.durationOf(stored).isEmpty();
     }
 
     /** The value of a key as the stored state will have it: waiting writes first. Called with {@link #lock} held. */
@@ -327,36 +395,20 @@ public class SAFCacheManager {
     private void queueForDurationExtraction(Uri uri, String mimeType) {
         preloadExecutor.execute(() -> {
             try {
-                String duration;
-                if (mimeType.startsWith("video/")) {
-                    // Try quick extraction first
-                    duration = extractVideoDurationQuick(uri);
-                    if (duration == null || duration.isEmpty()) {
-                        // Full extraction as fallback
-                        duration = extractAudioDuration(uri);
+                String key = CACHE_PREFIX + uri.toString();
+                synchronized (lock) {
+                    if (!needsDurationLocked(key)) {
+                        // a preload (or an earlier task) got it in the meantime: do not extract it a second time
+                        return;
                     }
-                } else {
-                    // Audio: full extraction
-                    duration = extractAudioDuration(uri);
                 }
-                
-                if (duration != null && !duration.isEmpty()) {
-                    String key = CACHE_PREFIX + uri.toString();
+                String duration = durationExtractor.extractInBackground(uri, mimeType);
 
-                    // Get the cached metadata (without duration) and update it
+                if (duration != null && !duration.isEmpty()) {
+                    // Update the cached metadata (without duration), if there is one
                     synchronized (lock) {
-                        String serialized = lruCache.get(key);
-                        if (serialized == null) {
-                            serialized = readStoredLocked(key);
-                        }
-                        if (serialized != null) {
-                            SAFMetadata metadata = SAFMetadata.deserialize(serialized);
-                            if (metadata != null) {
-                                // Create new metadata with the extracted duration
-                                SAFMetadata updated = new SAFMetadata(duration, metadata.mimeType, metadata.shortId, metadata.fileSize);
-                                putEntryLocked(key, updated.serialize());
-                                YaaccLogger.d(getClass().getName(), "DURATION_EXTRACTED: " + uri.getLastPathSegment() + " -> " + duration);
-                            }
+                        if (storeDurationLocked(uri, duration, false, null, mimeType, 0)) {
+                            YaaccLogger.d(getClass().getName(), "DURATION_EXTRACTED: " + uri.getLastPathSegment() + " -> " + duration);
                         }
                     }
                 }
@@ -365,7 +417,23 @@ public class SAFCacheManager {
             }
         });
     }
-    
+
+    private String extractInBackground(Uri uri, String mimeType) {
+        String duration;
+        if (mimeType.startsWith("video/")) {
+            // Try quick extraction first
+            duration = extractVideoDurationQuick(uri);
+            if (duration == null || duration.isEmpty()) {
+                // Full extraction as fallback
+                duration = extractAudioDuration(uri);
+            }
+        } else {
+            // Audio: full extraction
+            duration = extractAudioDuration(uri);
+        }
+        return duration;
+    }
+
     /**
      * Get or create a short ID for a URI. On the main thread before the stored state is loaded the id is a
      * transient one that only this process knows ("t1", ...), see {@link SafShortIds}.
@@ -561,18 +629,20 @@ public class SAFCacheManager {
         String fileName = uri.getLastPathSegment();
         
         if (awaitLoaded()) {
-            // Check memory cache first, then the stored state
-            String duration;
+            // Check memory cache first, then the stored state; the value is the serialized metadata (or, written by
+            // the former preload, a bare duration), not the duration itself
+            String stored;
             synchronized (lock) {
-                duration = lruCache.get(key);
-                if (duration == null) {
-                    duration = readStoredLocked(key);
-                    if (duration != null) {
-                        lruCache.put(key, duration);
+                stored = lruCache.get(key);
+                if (stored == null) {
+                    stored = readStoredLocked(key);
+                    if (stored != null) {
+                        lruCache.put(key, stored);
                     }
                 }
             }
-            if (duration != null) {
+            String duration = stored == null ? "" : SafCacheEntries.durationOf(stored);
+            if (!duration.isEmpty()) {
                 long elapsed = System.currentTimeMillis() - startTime;
                 YaaccLogger.d(getClass().getName(), "CACHE_HIT: " + fileName + " -> " + duration + " (" + elapsed + "ms, cache_size=" + getCacheSize() + ")");
                 return duration;
@@ -581,7 +651,7 @@ public class SAFCacheManager {
         
         // Extract and cache
         YaaccLogger.w(getClass().getName(), "CACHE_MISS: " + fileName + " - extracting...");
-        String duration = extractAndCache(uri);
+        String duration = extractAndCache(uri, false, fileName, null, 0);
         long elapsed = System.currentTimeMillis() - startTime;
         YaaccLogger.w(getClass().getName(), "EXTRACTION_COMPLETE: " + fileName + " -> " + duration + " (" + elapsed + "ms, cache_size=" + getCacheSize() + ")");
         return duration;
@@ -680,7 +750,7 @@ public class SAFCacheManager {
         context.sendBroadcast(intent);
     }
     
-    private void traverseAndCache(DocumentFile dir, long startTime) {
+    void traverseAndCache(DocumentFile dir, long startTime) {
         traverseAndCache(dir, startTime, 0);
     }
     
@@ -761,15 +831,15 @@ public class SAFCacheManager {
                     traverseAndCache(file, startTime, depth + 1);
                 } else if (hasDuration(file)) {
                     String key = CACHE_PREFIX + file.getUri().toString();
-                    
+
                     boolean needsExtraction;
                     synchronized (lock) {
-                        needsExtraction = !lruCache.containsKey(key) && readStoredLocked(key) == null;
+                        needsExtraction = needsDurationLocked(key);
                     }
-                    
+
                     if (needsExtraction) {
                         long extractStart = System.currentTimeMillis();
-                        extractAndCache(file.getUri());
+                        extractAndCache(file.getUri(), true, file.getName(), file.getType(), file.length());
                         long elapsed = System.currentTimeMillis() - extractStart;
                         YaaccLogger.v(getClass().getName(), "PRELOAD_EXTRACTED: " + file.getName() + " (" + elapsed + "ms)");
                     } else {
@@ -808,36 +878,53 @@ public class SAFCacheManager {
     /** Files the retriever could not read in this process: they are not tried again on every preload. */
     private final java.util.Set<String> unreadable = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
-    private String extractAndCache(Uri uri) {
+    /**
+     * The two ways a duration is read from a file. A seam so that tests can count the extractions; the real one
+     * uses the platform retriever and the MOOV shortcut for video.
+     */
+    interface DurationExtractor {
+        /** Preload and {@link #getDuration}: null if the file has no duration, throws if it cannot be read. */
+        String extractForPreload(Uri uri) throws Exception;
+
+        /** The background task queued by {@link #getMetadata}: null or empty if there is no duration. */
+        String extractInBackground(Uri uri, String mimeType);
+    }
+
+    private volatile DurationExtractor durationExtractor = new DurationExtractor() {
+        @Override
+        public String extractForPreload(Uri uri) throws Exception {
+            return retrieveDuration(uri);
+        }
+
+        @Override
+        public String extractInBackground(Uri uri, String mimeType) {
+            return SAFCacheManager.this.extractInBackground(uri, mimeType);
+        }
+    };
+
+    /** For tests. */
+    void setDurationExtractor(DurationExtractor durationExtractor) {
+        this.durationExtractor = durationExtractor;
+    }
+
+    /**
+     * Reads the duration of a file and stores it in the file's metadata entry (the short id and the other values of
+     * an existing entry stay; without one the entry is built from the given values if {@code createIfMissing}, else the
+     * duration is not stored: the caller does not know the size, and a size of 0 must not get into the cache).
+     *
+     * @return the duration, null if the file has none or cannot be read
+     */
+    private String extractAndCache(Uri uri, boolean createIfMissing, String name, String providerMimeType, long fileSize) {
         if (unreadable.contains(uri.toString())) {
             return null;
         }
         long extractStart = System.currentTimeMillis();
-        MediaMetadataRetriever retriever = null;
         try {
-            long createStart = System.currentTimeMillis();
-            retriever = new MediaMetadataRetriever();
-            long createTime = System.currentTimeMillis() - createStart;
-            
-            long setDataStart = System.currentTimeMillis();
-            retriever.setDataSource(context, uri);
-            long setDataTime = System.currentTimeMillis() - setDataStart;
-            
-            long metadataStart = System.currentTimeMillis();
-            String durationStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION);
-            long metadataTime = System.currentTimeMillis() - metadataStart;
-            
-            YaaccLogger.v(getClass().getName(), "EXTRACT_BREAKDOWN: " + uri.getLastPathSegment() + " - create=" + createTime + "ms, setDataSource=" + setDataTime + "ms, extractMetadata=" + metadataTime + "ms");
-            
-            if (durationStr != null) {
-                long durationMs = Long.parseLong(durationStr);
-                String formatted = FormatHelper.parseMillisToTimeStringTo(durationMs);
-                
-                String key = CACHE_PREFIX + uri.toString();
+            String formatted = durationExtractor.extractForPreload(uri);
+            if (formatted != null && !formatted.isEmpty()) {
                 synchronized (lock) {
-                    putEntryLocked(key, formatted);
+                    storeDurationLocked(uri, formatted, createIfMissing, name, providerMimeType, fileSize);
                 }
-                
                 long elapsed = System.currentTimeMillis() - extractStart;
                 YaaccLogger.v(getClass().getName(), "EXTRACT_SUCCESS: " + uri.getLastPathSegment() + " -> " + formatted + " (" + elapsed + "ms)");
                 return formatted;
@@ -848,6 +935,32 @@ public class SAFCacheManager {
             // one line, no stack trace: a file the retriever cannot read is not an error of the app
             YaaccLogger.w(getClass().getName(), "EXTRACT_FAILED: " + uri.getLastPathSegment() + " (" + elapsed + "ms) - "
                     + e.getClass().getSimpleName() + ": " + e.getMessage());
+        }
+        return null;
+    }
+
+    /** The platform retriever; null if the file has no duration, throws if it cannot be read. */
+    private String retrieveDuration(Uri uri) throws Exception {
+        MediaMetadataRetriever retriever = null;
+        try {
+            long createStart = System.currentTimeMillis();
+            retriever = new MediaMetadataRetriever();
+            long createTime = System.currentTimeMillis() - createStart;
+
+            long setDataStart = System.currentTimeMillis();
+            retriever.setDataSource(context, uri);
+            long setDataTime = System.currentTimeMillis() - setDataStart;
+
+            long metadataStart = System.currentTimeMillis();
+            String durationStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION);
+            long metadataTime = System.currentTimeMillis() - metadataStart;
+
+            YaaccLogger.v(getClass().getName(), "EXTRACT_BREAKDOWN: " + uri.getLastPathSegment() + " - create=" + createTime + "ms, setDataSource=" + setDataTime + "ms, extractMetadata=" + metadataTime + "ms");
+
+            if (durationStr != null) {
+                return FormatHelper.parseMillisToTimeStringTo(Long.parseLong(durationStr));
+            }
+            return null;
         } finally {
             if (retriever != null) {
                 try {
@@ -855,9 +968,8 @@ public class SAFCacheManager {
                 } catch (Exception ignored) {}
             }
         }
-        return null;
     }
-    
+
     /**
      * Runs on the I/O thread, first: moves the old entries out of the default preferences, then loads the stored
      * state into the memory structures and opens the gate. Whatever happens, the gate opens (an empty cache is

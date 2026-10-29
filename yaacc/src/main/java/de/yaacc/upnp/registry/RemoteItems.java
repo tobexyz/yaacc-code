@@ -322,7 +322,7 @@ class RemoteItems extends RegistryItems<RemoteDevice, RemoteGENASubscription> {
         for (RegistryItem<String, RemoteGENASubscription> item : new HashSet<>(getSubscriptionItems())) {
             remoteSubscriptions.add(item.getItem());
         }
-        UpnpProtocolHandler handler = registry.getProtocolHandler();
+        UpnpProtocolHandler handler = registry.getUpnpProtocolHandler();
         for (RemoteGENASubscription remoteSubscription : remoteSubscriptions) {
             if (handler == null) {
                 // the network listener is disabled: nothing can be sent
@@ -341,7 +341,7 @@ class RemoteItems extends RegistryItems<RemoteDevice, RemoteGENASubscription> {
     /* ############################################################################################################ */
 
     protected void renewOutgoingSubscription(final RemoteGENASubscription subscription) {
-        UpnpProtocolHandler handler = registry.getProtocolHandler();
+        UpnpProtocolHandler handler = registry.getUpnpProtocolHandler();
         if (handler == null) {
             // the network listener is disabled (no network): the subscription stays due and is renewed by a later
             // maintenance run once the listener is enabled again and has set its new handler

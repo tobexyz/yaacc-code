@@ -385,7 +385,6 @@ public class YaaccContentDirectory {
             // one browser for all steps: a browser may carry what it learned in one step (e.g. a folder listing) over to the next
             ContentBrowser browser = findBrowserFor(objectID);
             if (browser != null) {
-                totalMatches = browser.getSize(this, objectID);
                 if (browseFlag == BrowseFlag.METADATA) {
                     didlObject = browser.browseMeta(this, objectID, firstResult, maxResults, orderby);
                     if (didlObject == null) {
@@ -393,8 +392,13 @@ public class YaaccContentDirectory {
                         throw new ContentDirectoryException(ContentDirectoryErrorCode.NO_SUCH_OBJECT, "No such object: " + objectID);
                     }
                     didl.addObject(didlObject);
+                    // UPnP ContentDirectory: BrowseMetadata returns exactly the one object, NumberReturned and
+                    // TotalMatches are 1. The child count of a folder is not a match count (and counting it lists the folder).
                     childCount = 1;
+                    totalMatches = 1;
                 } else {
+                    // only BrowseDirectChildren: the number of children, so that a client can page
+                    totalMatches = browser.getSize(this, objectID);
                     List<DIDLObject> children = browser.browseChildren(this, objectID, firstResult, maxResults, orderby);
                     for (DIDLObject child : children) {
                         didl.addObject(child);
@@ -423,7 +427,8 @@ public class YaaccContentDirectory {
 
     }
 
-    private ContentBrowser findBrowserFor(String objectID) {
+    /** Package-private: a test replaces the browsers (they need a device). */
+    ContentBrowser findBrowserFor(String objectID) {
         ContentBrowser result;
         if (objectID == null || objectID.equals("") || ContentDirectoryIDs.ROOT.getId().equals(objectID)) {
             result = new RootFolderBrowser(getContext());

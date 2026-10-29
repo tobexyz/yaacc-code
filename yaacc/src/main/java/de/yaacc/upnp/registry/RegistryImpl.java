@@ -385,16 +385,6 @@ public class RegistryImpl implements Registry {
 
     /* ############################################################################################################ */
 
-    public UpnpProtocolHandler getProtocolHandler() {
-        return upnpProtocolHandler;
-    }
-
-    public void setProtocolHandler(UpnpProtocolHandler upnpProtocolHandler) {
-        this.upnpProtocolHandler = upnpProtocolHandler;
-    }
-
-    /* ############################################################################################################ */
-
     // When you call this, make sure you have the Router lock before this lock is obtained!
     synchronized public void shutdown() {
         YaaccLogger.v(getClass().getName(), "Shutting down registry...");

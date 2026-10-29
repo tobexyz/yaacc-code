@@ -179,13 +179,19 @@ public class NetworkDeviceListenerHandlerTest {
     // ---- the registry side: sending with a null handler ----
 
     @Test
-    public void registryImplTakesAndGivesTheHandlerBothWays() {
-        // the volatile field behind getUpnpProtocolHandler/getProtocolHandler
+    public void registryImplHasOneAccessorPairOverOneVolatileField() throws Exception {
         RegistryImpl impl = org.mockito.Mockito.mock(RegistryImpl.class, org.mockito.Mockito.CALLS_REAL_METHODS);
         UpnpProtocolHandler handler = mock(UpnpProtocolHandler.class);
         impl.setUpnpProtocolHandler(handler);
-        assertSame(handler, impl.getProtocolHandler());
-        impl.setProtocolHandler(null);
+        assertSame(handler, impl.getUpnpProtocolHandler());
+        impl.setUpnpProtocolHandler(null);
         assertNull(impl.getUpnpProtocolHandler());
+
+        // the second pair (get/setProtocolHandler) is gone, and the one field is volatile: the maintainer thread, the
+        // HTTP server threads and the network thread read and write it without a common lock
+        for (java.lang.reflect.Method method : RegistryImpl.class.getDeclaredMethods()) {
+            assertTrue(method.getName(), !method.getName().equals("getProtocolHandler") && !method.getName().equals("setProtocolHandler"));
+        }
+        assertTrue(java.lang.reflect.Modifier.isVolatile(RegistryImpl.class.getDeclaredField("upnpProtocolHandler").getModifiers()));
     }
 }
