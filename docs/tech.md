@@ -2375,3 +2375,7 @@ carries a scope after `%`; `ProxyAccessPolicy.normalize` strips it. The glue sta
 ### D-pad navigation of the content items
 
 - `DpadActionNavigation` decides which action button of a content item gets the focus on right/left, skipping hidden or disabled ones (`BrowseContentItemAdapter`: the item's key listener moves right to the first shown button, the buttons' listener moves between them and back to the item on the first one). The default focus search never reaches buttons inside the focused item, because they do not lie beside it. The icon buttons draw `drawable/focus_ring` as foreground while focused, so the focus is visible on a TV; left on an item is left to the focus search (previous card of the grid).
+
+### Play queue of one media kind
+
+- Tapping a non-video item (or "play all") queues the loaded siblings of the item's folder. SAF folders mix images, videos and audio, the media store folders do not. A mixed queue chooses the multi content player, which starts every item with `ACTION_VIEW` and shows the app chooser. `SameMediaKind.of` therefore narrows the queue to the kind (`image`, `audio`, `video` of the first resource's content format) of the tapped item before it is rotated to start there (`ContentListFragment.playAllChildsOfParentFrom` and the server re-browse fallback). A target without a known kind keeps the whole queue.

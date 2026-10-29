@@ -1034,7 +1034,8 @@ public class ContentListFragment extends Fragment implements OnClickListener,
                         .collect(Collectors.toList());
                 if (!sortedItems.isEmpty()) {
                     Item target = item instanceof Item ? (Item) item : null;
-                    play(upnpClient.initializePlayers(rotateToStart(sortedItems, target)));
+                    // a folder of the storage access framework mixes images and videos: queue one kind
+                    play(upnpClient.initializePlayers(rotateToStart(SameMediaKind.of(sortedItems, target), target)));
                     return;
                 }
                 // Falls through: current folder has no playable items at
@@ -1066,7 +1067,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         } else {
             List<Item> items = result.getResult() == null ? new ArrayList<>() : result.getResult().getItems();
             Item target = item instanceof Item ? (Item) item : null;
-            play(upnpClient.initializePlayers(rotateToStart(items, target)));
+            play(upnpClient.initializePlayers(rotateToStart(SameMediaKind.of(items, target), target)));
         }
     }
 

@@ -30,6 +30,7 @@
 - **Idle exit**: One process-wide timer now quits the app after 5 minutes in the background when nothing is playing and the server, renderer and proxy options are off, instead of one timer per screen; a screen rotation or a layout change no longer leaves a stale timer behind.
 
 ### Fixed
+- **Images in a SAF folder**: Tapping an image (or audio) in a folder that mixes images and videos, as SAF folders like DCIM/Camera do, queues only items of the same kind, so it opens in the in-app image viewer (or player) instead of the "open with" chooser of other apps.
 - **Device announcements after a network change**: After switching networks or coming back from sleep, the app's own announcements (alive messages of the local server/receiver) and the renewal of event subscriptions use the new network connection instead of the closed first one, and the local devices are announced again.
 - **Crashes without a network**: Searching for devices, reading or changing a receiver's volume or mute, and controlling a player no longer throw an error when the network service is not up (for example right after a network change); the action is skipped or reported as failed instead.
 - **Details of shared (SAF) folders and files**: Control points that ask for the details of a single shared folder or file now get its name, the right parent folder and the "[X]" mark; before, sub folders and files were answered wrongly or empty. An unknown item is answered with "no such object".
