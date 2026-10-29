@@ -163,7 +163,7 @@ public class CombinedCaptureService {
         audioEncoder.start();
     }
 
-    // Playback capture needs RECORD_AUDIO; declaring/requesting it is a manifest/product decision, a check here would change behavior.
+    // Playback capture needs RECORD_AUDIO: declared in the manifest and requested by StreamingPermissionHelper before the stream starts; lint cannot see that.
     @SuppressLint("MissingPermission")
     private void setupAudioCapture() {
         AudioPlaybackCaptureConfiguration config = new AudioPlaybackCaptureConfiguration.Builder(mediaProjection)

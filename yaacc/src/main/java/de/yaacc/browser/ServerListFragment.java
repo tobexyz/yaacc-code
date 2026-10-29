@@ -145,10 +145,13 @@ public class ServerListFragment extends Fragment implements
                     // Set permission callback for streaming buttons
                     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
                         bDeviceAdapter.setPermissionCallback(() -> {
-                            android.content.Intent intent = streamingPermissionHelper.createRequestIntent();
-                            if (intent != null) {
-                                startActivityForResult(intent, de.yaacc.upnp.server.media.MediaProjectionHelper.REQUEST_CODE_MEDIA_PROJECTION);
+                            // the audio capture needs RECORD_AUDIO on top of the screen capture permission
+                            if (!streamingPermissionHelper.hasRecordAudioPermission()) {
+                                requestPermissions(new String[]{android.Manifest.permission.RECORD_AUDIO},
+                                        StreamingPermissionHelper.REQUEST_CODE_RECORD_AUDIO);
+                                return;
                             }
+                            requestScreenCapturePermission();
                         });
                     }
                     deviceList.setAdapter(bDeviceAdapter);
@@ -157,6 +160,29 @@ public class ServerListFragment extends Fragment implements
                 }
             });
 
+        }
+    }
+
+    @androidx.annotation.RequiresApi(android.os.Build.VERSION_CODES.Q)
+    private void requestScreenCapturePermission() {
+        android.content.Intent intent = streamingPermissionHelper.createRequestIntent();
+        if (intent != null) {
+            startActivityForResult(intent, de.yaacc.upnp.server.media.MediaProjectionHelper.REQUEST_CODE_MEDIA_PROJECTION);
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @androidx.annotation.NonNull String[] permissions,
+                                           @androidx.annotation.NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode != StreamingPermissionHelper.REQUEST_CODE_RECORD_AUDIO) {
+            return;
+        }
+        boolean granted = grantResults.length > 0
+                && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED;
+        streamingPermissionHelper.onRecordAudioResult(granted);
+        if (granted && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            requestScreenCapturePermission();
         }
     }
 

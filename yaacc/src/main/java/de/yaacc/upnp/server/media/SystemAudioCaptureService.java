@@ -57,7 +57,7 @@ public class SystemAudioCaptureService {
     /**
      * Start capturing system audio.
      */
-    // Playback capture needs RECORD_AUDIO; declaring/requesting it is a manifest/product decision, a check here would change behavior.
+    // Playback capture needs RECORD_AUDIO: declared in the manifest and requested by StreamingPermissionHelper before the stream starts; lint cannot see that.
     @SuppressLint("MissingPermission")
     public boolean startCapture(MediaProjection mediaProjection) {
         if (isCapturing) {
@@ -120,7 +120,7 @@ public class SystemAudioCaptureService {
     /**
      * Fallback: try with smaller buffer if initial attempt fails.
      */
-    // Playback capture needs RECORD_AUDIO; declaring/requesting it is a manifest/product decision, a check here would change behavior.
+    // Playback capture needs RECORD_AUDIO: declared in the manifest and requested by StreamingPermissionHelper before the stream starts; lint cannot see that.
     @SuppressLint("MissingPermission")
     private boolean tryStartWithSmallerBuffer(AudioPlaybackCaptureConfiguration config, MediaProjection mediaProjection) {
         try {

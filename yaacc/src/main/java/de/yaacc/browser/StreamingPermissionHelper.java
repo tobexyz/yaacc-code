@@ -20,8 +20,10 @@ package de.yaacc.browser;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.os.Build;
 
+import androidx.core.content.ContextCompat;
 import androidx.preference.PreferenceManager;
 
 import de.yaacc.R;
@@ -50,6 +52,9 @@ public final class StreamingPermissionHelper {
 
     private static final String TAG = StreamingPermissionHelper.class.getName();
 
+    /** Request code of the runtime permission question for the audio capture (RECORD_AUDIO). */
+    public static final int REQUEST_CODE_RECORD_AUDIO = 2002;
+
     /** True from {@link #createRequestIntent()} until its answer arrives. Shared by all instances
      * because a rotation can deliver the answer to a new fragment (and a new helper). */
     private static boolean requestPending = false;
@@ -75,6 +80,31 @@ public final class StreamingPermissionHelper {
         this.refreshAdapter = refreshAdapter;
         this.uiCallback = this::refresh;
         installStateReset(appContext);
+    }
+
+    /**
+     * @return true if the runtime permission the audio capture needs is granted (or not needed
+     * before Android 10, where the capture does not exist)
+     */
+    public boolean hasRecordAudioPermission() {
+        return Build.VERSION.SDK_INT < Build.VERSION_CODES.Q
+                || ContextCompat.checkSelfPermission(appContext, android.Manifest.permission.RECORD_AUDIO)
+                == PackageManager.PERMISSION_GRANTED;
+    }
+
+    /**
+     * Applies the answer to the RECORD_AUDIO question: a denial switches the streaming buttons
+     * off, exactly like a denied screen capture permission. A grant needs no action here; the
+     * caller goes on with the screen capture request.
+     */
+    public void onRecordAudioResult(boolean granted) {
+        if (granted) {
+            return;
+        }
+        YaaccLogger.w(TAG, "RECORD_AUDIO permission denied");
+        BrowseDeviceAdapter.clearPendingRequests();
+        resetStreamingState(appContext);
+        refresh();
     }
 
     /**
