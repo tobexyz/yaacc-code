@@ -173,4 +173,5 @@
     <string name="share_link_host">Link: %1$s</string>
     <string name="log_pause">Aktualisierung anhalten</string>
     <string name="log_resume">Aktualisierung fortsetzen</string>
+    <string name="toggle_view_mode">Zwischen Listen- und Kartenansicht wechseln</string>
 </resources>

@@ -126,6 +126,8 @@ final class BrowserActivitySupport {
      * Opens the "ignore battery optimizations" request on every call; if the app is already
      * exempt, an empty intent is started and the resulting exception is swallowed (as before).
      */
+    // The server and the players must keep running with the screen off: the exemption is the app's core need.
+    @android.annotation.SuppressLint("BatteryLife")
     static void checkBatteryOptimizationEnabled(Activity activity) {
         Intent intent = new Intent();
         String packageName = activity.getPackageName();

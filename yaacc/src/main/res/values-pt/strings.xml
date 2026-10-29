@@ -173,4 +173,5 @@
     <string name="share_link_host">Link: %1$s</string>
     <string name="log_pause">Pausar a atualização</string>
     <string name="log_resume">Retomar a atualização</string>
+    <string name="toggle_view_mode">Alternar entre a vista de lista e de cartões</string>
 </resources>

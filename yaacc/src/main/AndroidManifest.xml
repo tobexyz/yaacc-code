@@ -28,7 +28,11 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
 
-    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- The server and the players have to keep running with the screen off; the app asks the user to
+         exempt it from battery optimization (see BrowserActivitySupport). Play policy: this is a media server/player. -->
+    <uses-permission
+        android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"
+        tools:ignore="BatteryLife" />
 
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission
@@ -52,6 +56,7 @@
 
     <application
         android:name=".Yaacc"
+        tools:targetApi="33"
         android:allowBackup="false"
         android:banner="@drawable/tv_banner"
         android:dataExtractionRules="@xml/data_extraction_rules"

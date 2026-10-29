@@ -173,4 +173,5 @@
     <string name="share_link_host">Link: %1$s</string>
     <string name="log_pause">Verversen pauzeren</string>
     <string name="log_resume">Verversen hervatten</string>
+    <string name="toggle_view_mode">Wisselen tussen lijst- en kaartweergave</string>
 </resources>

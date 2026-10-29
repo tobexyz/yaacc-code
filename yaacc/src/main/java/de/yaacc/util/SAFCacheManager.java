@@ -778,6 +778,28 @@ public class SAFCacheManager {
     }
     
     /**
+     * @return true if the preference key is a cache entry of a file below the given SAF tree
+     */
+    static boolean isCacheKeyUnderTree(String key, String treeUri) {
+        return key != null && treeUri != null && key.startsWith(CACHE_PREFIX + treeUri + "/");
+    }
+
+    /**
+     * Forgets the cached metadata (durations) of every file below a SAF tree whose permission was
+     * given up, in memory and in the preferences.
+     */
+    public synchronized void removeCachedUnder(String treeUri) {
+        SharedPreferences.Editor editor = preferences.edit();
+        for (String key : new java.util.ArrayList<>(preferences.getAll().keySet())) {
+            if (isCacheKeyUnderTree(key, treeUri)) {
+                lruCache.remove(key);
+                editor.remove(key);
+            }
+        }
+        editor.apply();
+    }
+
+    /**
      * Clear all cached metadata and ID mappings.
      */
     public void clearCache() {
