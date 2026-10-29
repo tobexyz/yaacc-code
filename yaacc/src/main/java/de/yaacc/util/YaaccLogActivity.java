@@ -55,6 +55,9 @@ public class YaaccLogActivity extends AppCompatActivity {
     private static final int FOLLOW_THRESHOLD_PX = 48;
     /** The view keeps at most this many characters; older lines are cut off at the front while it follows the end. */
     private static final int MAX_VIEW_CHARS = 1_000_000;
+    /** Only the last lines of the log are read and shown, so a large logcat buffer cannot freeze the view. */
+    private static final int MAX_LINES = 4000;
+    private static final int MAX_LINE_CHARS = 1000;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private ExecutorService reader;
@@ -213,12 +216,7 @@ public class YaaccLogActivity extends AppCompatActivity {
     private static String readLogcat(String[] command) throws IOException {
         Process process = Runtime.getRuntime().exec(command);
         try (BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-            StringBuilder log = new StringBuilder();
-            String line;
-            while ((line = bufferedReader.readLine()) != null) {
-                log.append(line).append('\n');
-            }
-            return log.toString();
+            return LogTail.read(bufferedReader, MAX_LINES, MAX_LINE_CHARS);
         } finally {
             process.destroy();
         }

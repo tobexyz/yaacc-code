@@ -249,7 +249,7 @@ public class SAFCacheManager {
                     }
                 }
             } catch (Exception e) {
-                YaaccLogger.w(getClass().getName(), "DURATION_EXTRACT_FAILED: " + uri.getLastPathSegment(), e);
+                YaaccLogger.w(getClass().getName(), "DURATION_EXTRACT_FAILED: " + uri.getLastPathSegment() + " - " + e.getClass().getSimpleName() + ": " + e.getMessage());
             }
         });
     }
@@ -621,12 +621,12 @@ public class SAFCacheManager {
         }
         
         String folderName = dir.getName() != null ? dir.getName() : "Unknown";
-        YaaccLogger.d(getClass().getName(), "PRELOAD_TRAVERSE: " + folderName + " (" + files.length + " items, depth=" + depth + ")");
+        YaaccLogger.v(getClass().getName(), "PRELOAD_TRAVERSE: " + folderName + " (" + files.length + " items, depth=" + depth + ")");
         
         for (int i = 0; i < files.length; i++) {
             DocumentFile file = files[i];
             long fileStart = System.currentTimeMillis();
-            YaaccLogger.d(getClass().getName(), "PRELOAD_FILE_START: [" + i + "/" + files.length + "] " + file.getName());
+            YaaccLogger.v(getClass().getName(), "PRELOAD_FILE_START: [" + i + "/" + files.length + "] " + file.getName());
             
             try {
                 // Check file operation timeout (5 seconds per file)
@@ -637,7 +637,7 @@ public class SAFCacheManager {
                 
                 if (file.isDirectory()) {
                     traverseAndCache(file, startTime, depth + 1);
-                } else if (isMediaFile(file)) {
+                } else if (hasDuration(file)) {
                     String key = CACHE_PREFIX + file.getUri().toString();
                     
                     boolean needsExtraction = !preferences.contains(key);
@@ -646,9 +646,9 @@ public class SAFCacheManager {
                         long extractStart = System.currentTimeMillis();
                         extractAndCache(file.getUri());
                         long elapsed = System.currentTimeMillis() - extractStart;
-                        YaaccLogger.d(getClass().getName(), "PRELOAD_EXTRACTED: " + file.getName() + " (" + elapsed + "ms)");
+                        YaaccLogger.v(getClass().getName(), "PRELOAD_EXTRACTED: " + file.getName() + " (" + elapsed + "ms)");
                     } else {
-                        YaaccLogger.d(getClass().getName(), "PRELOAD_CACHED: " + file.getName());
+                        YaaccLogger.v(getClass().getName(), "PRELOAD_CACHED: " + file.getName());
                     }
                     
                     totalFilesIndexed++;
@@ -674,12 +674,19 @@ public class SAFCacheManager {
         }
     }
     
-    private boolean isMediaFile(DocumentFile file) {
+    /** Only audio and video have a duration; the retriever fails on images (and logged a stack trace for each). */
+    private boolean hasDuration(DocumentFile file) {
         String type = file.getType();
-        return type != null && (type.startsWith("audio/") || type.startsWith("video/") || type.startsWith("image/"));
+        return type != null && (type.startsWith("audio/") || type.startsWith("video/"));
     }
     
+    /** Files the retriever could not read in this process: they are not tried again on every preload. */
+    private final java.util.Set<String> unreadable = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
     private String extractAndCache(Uri uri) {
+        if (unreadable.contains(uri.toString())) {
+            return null;
+        }
         long extractStart = System.currentTimeMillis();
         MediaMetadataRetriever retriever = null;
         try {
@@ -695,7 +702,7 @@ public class SAFCacheManager {
             String durationStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION);
             long metadataTime = System.currentTimeMillis() - metadataStart;
             
-            YaaccLogger.d(getClass().getName(), "EXTRACT_BREAKDOWN: " + uri.getLastPathSegment() + " - create=" + createTime + "ms, setDataSource=" + setDataTime + "ms, extractMetadata=" + metadataTime + "ms");
+            YaaccLogger.v(getClass().getName(), "EXTRACT_BREAKDOWN: " + uri.getLastPathSegment() + " - create=" + createTime + "ms, setDataSource=" + setDataTime + "ms, extractMetadata=" + metadataTime + "ms");
             
             if (durationStr != null) {
                 long durationMs = Long.parseLong(durationStr);
@@ -706,12 +713,15 @@ public class SAFCacheManager {
                 preferences.edit().putString(key, formatted).apply();
                 
                 long elapsed = System.currentTimeMillis() - extractStart;
-                YaaccLogger.d(getClass().getName(), "EXTRACT_SUCCESS: " + uri.getLastPathSegment() + " -> " + formatted + " (" + elapsed + "ms)");
+                YaaccLogger.v(getClass().getName(), "EXTRACT_SUCCESS: " + uri.getLastPathSegment() + " -> " + formatted + " (" + elapsed + "ms)");
                 return formatted;
             }
         } catch (Exception e) {
             long elapsed = System.currentTimeMillis() - extractStart;
-            YaaccLogger.w(getClass().getName(), "EXTRACT_FAILED: " + uri.getLastPathSegment() + " (" + elapsed + "ms)", e);
+            unreadable.add(uri.toString());
+            // one line, no stack trace: a file the retriever cannot read is not an error of the app
+            YaaccLogger.w(getClass().getName(), "EXTRACT_FAILED: " + uri.getLastPathSegment() + " (" + elapsed + "ms) - "
+                    + e.getClass().getSimpleName() + ": " + e.getMessage());
         } finally {
             if (retriever != null) {
                 try {
