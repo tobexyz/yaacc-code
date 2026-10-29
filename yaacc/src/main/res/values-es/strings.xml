@@ -107,6 +107,8 @@
     <string name="open">abierto</string>
     <string name="exitActivity">detener</string>
     <string name="icon">icono</string>
+    <string name="album_art">Carátula del álbum</string>
+    <string name="remove_item">Quitar</string>
     <string name="sort_by_name">Ordenar por nombre</string>
     <string name="sort_by_date">Ordenar por fecha</string>
     <string name="not_yet_implemented">aún no implementado</string>

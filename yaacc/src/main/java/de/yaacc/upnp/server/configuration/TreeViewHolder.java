@@ -29,6 +29,7 @@ import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.core.content.ContextCompat;
 import androidx.documentfile.provider.DocumentFile;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -104,7 +105,7 @@ public class TreeViewHolder extends RecyclerView.ViewHolder {
 
         if (isSafNode(node)) {
             String absolutePath = getAbsolutePath(node);
-            Drawable icon = fileRemoveButton.getContext().getDrawable(R.drawable.ic_baseline_delete_outline_32);
+            Drawable icon = ContextCompat.getDrawable(fileRemoveButton.getContext(), R.drawable.ic_baseline_delete_outline_32);
             icon = ThemeHelper.tintDrawable(icon, fileRemoveButton.getContext().getTheme());
             if (MediaPathFilter.getSafPathes(fileRemoveButton.getContext()).contains(absolutePath)) {
                 fileRemoveButton.setVisibility(View.VISIBLE);
@@ -127,7 +128,7 @@ public class TreeViewHolder extends RecyclerView.ViewHolder {
             fileRemoveButton.setVisibility(View.INVISIBLE);
         }
         if (isDirectory(node)) {
-            Drawable icon = isSafNode(node) ? fileTypeIcon.getContext().getDrawable(R.drawable.ic_baseline_bookmark_48) : fileTypeIcon.getContext().getDrawable(R.drawable.ic_baseline_folder_open_48);
+            Drawable icon = isSafNode(node) ? ContextCompat.getDrawable(fileTypeIcon.getContext(), R.drawable.ic_baseline_bookmark_48) : ContextCompat.getDrawable(fileTypeIcon.getContext(), R.drawable.ic_baseline_folder_open_48);
             icon = ThemeHelper.tintDrawable(icon, fileTypeIcon.getContext().getTheme());
             fileTypeIcon.setImageDrawable(icon);
             String absolutePath = getAbsolutePath(node);
@@ -135,7 +136,7 @@ public class TreeViewHolder extends RecyclerView.ViewHolder {
             fileCheckbox.setVisibility(View.VISIBLE);
         } else {
             fileCheckbox.setVisibility(View.INVISIBLE);
-            Drawable icon = ThemeHelper.tintDrawable(fileTypeIcon.getContext().getDrawable(R.drawable.ic_baseline_file_48), fileTypeIcon.getContext().getTheme());
+            Drawable icon = ThemeHelper.tintDrawable(ContextCompat.getDrawable(fileTypeIcon.getContext(), R.drawable.ic_baseline_file_48), fileTypeIcon.getContext().getTheme());
             fileTypeIcon.setImageDrawable(icon);
         }
 
@@ -154,7 +155,7 @@ public class TreeViewHolder extends RecyclerView.ViewHolder {
             if (isDirectoryNotEmpty(node)) {
                 fileStateIcon.setVisibility(View.VISIBLE);
                 int stateIcon = node.isExpanded() ? R.drawable.sharp_keyboard_arrow_down_24 : R.drawable.sharp_chevron_right_24;
-                Drawable icon = ThemeHelper.tintDrawable(fileStateIcon.getContext().getDrawable(stateIcon), fileStateIcon.getContext().getTheme());
+                Drawable icon = ThemeHelper.tintDrawable(ContextCompat.getDrawable(fileStateIcon.getContext(), stateIcon), fileStateIcon.getContext().getTheme());
                 fileStateIcon.setImageDrawable(icon);
             }
         }

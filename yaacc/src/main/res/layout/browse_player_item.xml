@@ -45,13 +45,15 @@
                 android:layout_height="120dp"
                 android:scaleType="centerCrop"
                 android:alpha="0.3"
-                android:contentDescription="Album Art" />
+                android:contentDescription="@string/album_art" />
 
+            <!-- Icon and name stay separate views: the adapter binds the icon by id. -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="120dp"
                 android:orientation="horizontal"
-                android:padding="5dp">
+                android:padding="5dp"
+                tools:ignore="UseCompoundDrawables">
 
                 <ImageView
                     android:id="@+id/browsePlayerItemIcon"

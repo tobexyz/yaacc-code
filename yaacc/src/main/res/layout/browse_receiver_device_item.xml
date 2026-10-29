@@ -45,7 +45,7 @@
                 android:layout_height="match_parent"
                 android:scaleType="centerCrop"
                 android:alpha="0.3"
-                android:contentDescription="Album Art" />
+                android:contentDescription="@string/album_art" />
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -79,7 +79,7 @@
                     android:id="@+id/status_badge"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="PLAYING"
+                    android:text="@string/playing"
                     android:textSize="12sp"
                     android:textColor="?attr/colorOnSecondary"
                     android:background="?attr/colorSecondary"
@@ -119,32 +119,32 @@
                 android:orientation="horizontal"
                 android:gravity="center_vertical">
 
-                <ImageButton
+                <androidx.appcompat.widget.AppCompatImageButton
                     android:id="@+id/btn_play"
                     android:layout_width="40dp"
                     android:layout_height="40dp"
                     android:src="@drawable/ic_baseline_play_arrow_32"
-                    android:tint="?attr/colorControlNormal"
+                    app:tint="?attr/colorControlNormal"
                     android:background="?attr/selectableItemBackgroundBorderless"
-                    android:contentDescription="Play" />
+                    android:contentDescription="@string/play" />
 
-                <ImageButton
+                <androidx.appcompat.widget.AppCompatImageButton
                     android:id="@+id/btn_pause"
                     android:layout_width="40dp"
                     android:layout_height="40dp"
                     android:src="@drawable/ic_baseline_pause_32"
-                    android:tint="?attr/colorControlNormal"
+                    app:tint="?attr/colorControlNormal"
                     android:background="?attr/selectableItemBackgroundBorderless"
-                    android:contentDescription="Pause" />
+                    android:contentDescription="@string/pause" />
 
-                <ImageButton
+                <androidx.appcompat.widget.AppCompatImageButton
                     android:id="@+id/btn_stop"
                     android:layout_width="40dp"
                     android:layout_height="40dp"
                     android:src="@drawable/ic_baseline_stop_32"
-                    android:tint="?attr/colorControlNormal"
+                    app:tint="?attr/colorControlNormal"
                     android:background="?attr/selectableItemBackgroundBorderless"
-                    android:contentDescription="Stop" />
+                    android:contentDescription="@string/stop" />
 
                 <CheckBox
                     android:id="@+id/browseReceiverDeviceItemMute"
@@ -166,7 +166,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="4dp"
-                    android:text="75%"
+                    android:text="@string/volume_placeholder"
                     android:textSize="12sp" />
             </LinearLayout>
             </LinearLayout>

@@ -36,6 +36,8 @@ import android.widget.SeekBar;
 import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.annotation.OptIn;
+import androidx.media3.common.util.UnstableApi;
 
 import com.google.android.material.switchmaterial.SwitchMaterial;
 
@@ -422,6 +424,7 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
     }
 
 
+    @OptIn(markerClass = UnstableApi.class)
     private void doSetTrackInfo() {
         if (getPlayer() == null)
             return;

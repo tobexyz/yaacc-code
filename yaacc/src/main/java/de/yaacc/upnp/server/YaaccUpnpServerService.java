@@ -36,6 +36,7 @@ import android.os.IBinder;
 
 import androidx.annotation.RequiresApi;
 import androidx.core.app.NotificationCompat;
+import androidx.core.content.ContextCompat;
 import androidx.core.content.res.ResourcesCompat;
 import androidx.preference.PreferenceManager;
 
@@ -172,9 +173,9 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         preferences.registerOnSharedPreferenceChangeListener(this);
 
         // Register broadcast receiver for cache updates
-        registerReceiver(cacheUpdateReceiver, new IntentFilter("de.yaacc.CACHE_PRELOAD_COMPLETE"));
-        registerReceiver(cacheProgressReceiver, new IntentFilter("de.yaacc.CACHE_PRELOAD_PROGRESS"));
-        registerReceiver(safPathsChangedReceiver, new IntentFilter("de.yaacc.SAF_PATHS_CHANGED"));
+        ContextCompat.registerReceiver(this, cacheUpdateReceiver, new IntentFilter("de.yaacc.CACHE_PRELOAD_COMPLETE"), ContextCompat.RECEIVER_NOT_EXPORTED);
+        ContextCompat.registerReceiver(this, cacheProgressReceiver, new IntentFilter("de.yaacc.CACHE_PRELOAD_PROGRESS"), ContextCompat.RECEIVER_NOT_EXPORTED);
+        ContextCompat.registerReceiver(this, safPathsChangedReceiver, new IntentFilter("de.yaacc.SAF_PATHS_CHANGED"), ContextCompat.RECEIVER_NOT_EXPORTED);
 
         // Start background preloading of SAF durations
         SAFCacheManager.getInstance(getApplicationContext()).preloadSafDurations();
@@ -257,7 +258,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         locaDeviceUuid = preferences.getString(getApplicationContext().getString(R.string.settings_local_device_uuid_key), null);
         if (locaDeviceUuid == null) {
             locaDeviceUuid = UUID.randomUUID().toString();
-            preferences.edit().putString(getApplicationContext().getString(R.string.settings_local_device_uuid_key), locaDeviceUuid).commit();
+            preferences.edit().putString(getApplicationContext().getString(R.string.settings_local_device_uuid_key), locaDeviceUuid).apply();
         }
         // the footprint of the onStart() method must be small
         // otherwise android will kill the service
@@ -858,7 +859,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         icons.add(new Icon("image/jpeg", 32, 32, 24, "yaacc32.jpg", getIconAsByteArray(R.drawable.yaacc32jpg, Bitmap.CompressFormat.JPEG)));
 
 
-        icons.add(new Icon("image/png", 192, 192, 24, "yaacc192.png", getIconAsByteArray(R.drawable.yaacc192png, Bitmap.CompressFormat.PNG)));
+        icons.add(new Icon("image/png", 192, 192, 24, "yaacc192.png", getIconAsByteArray(R.drawable.yaacc192_32, Bitmap.CompressFormat.PNG)));
         icons.add(new Icon("image/png", 120, 120, 24, "yaacc120.png", getIconAsByteArray(R.drawable.yaacc120png, Bitmap.CompressFormat.PNG)));
         icons.add(new Icon("image/png", 64, 48, 24, "yaacc64.png", getIconAsByteArray(R.drawable.yaacc64png, Bitmap.CompressFormat.PNG)));
         icons.add(new Icon("image/png", 48, 48, 24, "yaacc48.png", getIconAsByteArray(R.drawable.yaacc48png, Bitmap.CompressFormat.PNG)));

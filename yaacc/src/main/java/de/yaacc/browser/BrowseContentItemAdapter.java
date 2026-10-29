@@ -17,6 +17,7 @@
  */
 package de.yaacc.browser;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -33,6 +34,7 @@ import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.core.content.res.ResourcesCompat;
 import androidx.preference.PreferenceManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -205,6 +207,8 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
      * {@link #notifyDataSetChanged()} is enough. No-op if {@code mode}
      * already matches the current mode.
      */
+    // Layout mode changes the view type of every row.
+    @SuppressLint("NotifyDataSetChanged")
     public void setViewMode(ViewMode mode) {
         if (mode == null || mode == this.viewMode) {
             return;
@@ -313,6 +317,8 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
     }
 
 
+    // The one-shot client-side sort reorders the whole list.
+    @SuppressLint("NotifyDataSetChanged")
     public void setAllItemsFetched(boolean allItemsFetched) {
         boolean justCompleted = allItemsFetched && !this.allItemsFetched;
         this.allItemsFetched = allItemsFetched;
@@ -362,6 +368,8 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
         notifyItemRangeInserted(start, filteredObjects.size());
     }
 
+    // The whole list is cleared; the previous item count is not tracked here.
+    @SuppressLint("NotifyDataSetChanged")
     public void clear() {
         if (objects != null) {
             objects.clear();
@@ -645,7 +653,7 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
             popupMenu.show();
         });
         if (currentObject instanceof Container) {
-            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_folder_open_48, context.getTheme()), getContext().getTheme()));
+            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(ResourcesCompat.getDrawable(getContext().getResources(), R.drawable.ic_baseline_folder_open_48, context.getTheme()), getContext().getTheme()));
             holder.playAll.setVisibility(View.VISIBLE);
             holder.play.setVisibility(View.VISIBLE);
             holder.download.setVisibility(View.GONE);
@@ -653,7 +661,7 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
             holder.playlistAdd.setVisibility(View.GONE);
 
         } else if (currentObject instanceof AudioItem) {
-            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_audiotrack_48, context.getTheme()), getContext().getTheme()));
+            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(ResourcesCompat.getDrawable(getContext().getResources(), R.drawable.ic_baseline_audiotrack_48, context.getTheme()), getContext().getTheme()));
             holder.playAll.setVisibility(View.VISIBLE);
             holder.play.setVisibility(View.VISIBLE);
             holder.download.setVisibility(View.VISIBLE);
@@ -672,7 +680,7 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
                 }
             }
         } else if (currentObject instanceof ImageItem) {
-            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_image_48, getContext().getTheme()), getContext().getTheme()));
+            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(ResourcesCompat.getDrawable(getContext().getResources(), R.drawable.ic_baseline_image_48, getContext().getTheme()), getContext().getTheme()));
             holder.playAll.setVisibility(View.VISIBLE);
             holder.play.setVisibility(View.VISIBLE);
             holder.download.setVisibility(View.VISIBLE);
@@ -687,7 +695,7 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
                                 .getFirstResource().getValue()));
             }
         } else if (currentObject instanceof VideoItem) {
-            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_movie_48, getContext().getTheme()), getContext().getTheme()));
+            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(ResourcesCompat.getDrawable(getContext().getResources(), R.drawable.ic_baseline_movie_48, getContext().getTheme()), getContext().getTheme()));
             holder.playAll.setVisibility(View.VISIBLE);
             holder.play.setVisibility(View.VISIBLE);
             holder.download.setVisibility(View.VISIBLE);
@@ -706,14 +714,14 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
                 }
             }
         } else if (currentObject instanceof PlaylistItem) {
-            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_library_music_48, getContext().getTheme()), getContext().getTheme()));
+            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(ResourcesCompat.getDrawable(getContext().getResources(), R.drawable.ic_baseline_library_music_48, getContext().getTheme()), getContext().getTheme()));
             holder.playAll.setVisibility(View.GONE);
             holder.play.setVisibility(View.GONE);
             holder.download.setVisibility(View.GONE);
             holder.share.setVisibility(View.GONE);
             holder.playlistAdd.setVisibility(View.GONE);
         } else if (currentObject instanceof TextItem) {
-            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_text_snippet_48, getContext().getTheme()), getContext().getTheme()));
+            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(ResourcesCompat.getDrawable(getContext().getResources(), R.drawable.ic_baseline_text_snippet_48, getContext().getTheme()), getContext().getTheme()));
             holder.playAll.setVisibility(View.GONE);
             holder.play.setVisibility(View.GONE);
             holder.download.setVisibility(View.GONE);
@@ -721,7 +729,7 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
             holder.playlistAdd.setVisibility(View.GONE);
         } else {
             holder.icon.clearAnimation(); // Clear any previous animation
-            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(getContext().getResources().getDrawable(R.drawable.ic_baseline_question_mark_48, getContext().getTheme()), getContext().getTheme()));
+            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(ResourcesCompat.getDrawable(getContext().getResources(), R.drawable.ic_baseline_question_mark_48, getContext().getTheme()), getContext().getTheme()));
             holder.playAll.setVisibility(View.GONE);
             holder.play.setVisibility(View.GONE);
             holder.download.setVisibility(View.GONE);

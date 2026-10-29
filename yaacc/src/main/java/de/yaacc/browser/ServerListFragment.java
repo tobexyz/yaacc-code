@@ -17,6 +17,7 @@
  */
 package de.yaacc.browser;
 
+import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.drawable.Drawable;
@@ -29,6 +30,7 @@ import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.core.content.res.ResourcesCompat;
 import androidx.core.view.ViewCompat;
 import androidx.fragment.app.Fragment;
 import androidx.preference.PreferenceManager;
@@ -80,6 +82,8 @@ public class ServerListFragment extends Fragment implements
     }
 
     @Override
+    // Permission change affects the status of every row, so all rows must rebind.
+    @SuppressLint("NotifyDataSetChanged")
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         streamingPermissionHelper = new StreamingPermissionHelper(requireContext(), () -> {
@@ -214,7 +218,7 @@ public class ServerListFragment extends Fragment implements
         contentList.setFocusableInTouchMode(false); // Good for D-Pad primary interaction
         contentList.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
         ImageButton refresh = view.findViewById(R.id.serverListRefreshButton);
-        Drawable icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_refresh_32, getContext().getTheme()), getContext().getTheme());
+        Drawable icon = ThemeHelper.tintDrawable(ResourcesCompat.getDrawable(getResources(), R.drawable.ic_baseline_refresh_32, getContext().getTheme()), getContext().getTheme());
         refresh.setImageDrawable(icon);
         refresh.setOnClickListener((v) -> {
             if (getActivity() != null) {
@@ -238,7 +242,7 @@ public class ServerListFragment extends Fragment implements
             }
         }));
         ImageButton localServerSettings = view.findViewById(R.id.serverListLocalServerSettings);
-        icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_settings_32, getContext().getTheme()), getContext().getTheme());
+        icon = ThemeHelper.tintDrawable(ResourcesCompat.getDrawable(getResources(), R.drawable.ic_baseline_settings_32, getContext().getTheme()), getContext().getTheme());
         localServerSettings.setImageDrawable(icon);
         localServerSettings.setOnClickListener(v -> {
             Intent intent = new Intent(getContext(), YaaccUpnpServerControlActivity.class);
@@ -263,7 +267,7 @@ public class ServerListFragment extends Fragment implements
                 }
             });
             ImageButton shutdowwnSettingsImageView = view.findViewById(R.id.serverListSetShutdownTimer);
-            icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_settings_32, getContext().getTheme()), getContext().getTheme());
+            icon = ThemeHelper.tintDrawable(ResourcesCompat.getDrawable(getResources(), R.drawable.ic_baseline_settings_32, getContext().getTheme()), getContext().getTheme());
             shutdowwnSettingsImageView.setImageDrawable(icon);
             shutdowwnSettingsImageView.setOnClickListener(v ->
                     shutdownTimerController.showPicker(requireActivity().getSupportFragmentManager(), getString(R.string.shutdown_timer)));
@@ -280,31 +284,31 @@ public class ServerListFragment extends Fragment implements
         localServerEnabledSwitch.setChecked(PreferenceManager.getDefaultSharedPreferences(getContext()).getBoolean(getContext().getString(R.string.settings_local_server_chkbx), false));
         ImageView providerImageView = view.findViewById(R.id.serverListProviderEnabled);
         if (getPreferences().getBoolean(getContext().getString(R.string.settings_local_server_provider_chkbx), false)) {
-            Drawable icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_sensors_32, getContext().getTheme()), getContext().getTheme());
+            Drawable icon = ThemeHelper.tintDrawable(ResourcesCompat.getDrawable(getResources(), R.drawable.ic_baseline_sensors_32, getContext().getTheme()), getContext().getTheme());
             providerImageView.setImageDrawable(icon);
             describeStatusIcon(providerImageView, R.string.settings_local_server_provider_on);
         } else {
-            Drawable icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_sensors_off_32, getContext().getTheme()), getContext().getTheme());
+            Drawable icon = ThemeHelper.tintDrawable(ResourcesCompat.getDrawable(getResources(), R.drawable.ic_baseline_sensors_off_32, getContext().getTheme()), getContext().getTheme());
             providerImageView.setImageDrawable(icon);
             describeStatusIcon(providerImageView, R.string.settings_local_server_provider_off);
         }
         ImageView receiverImageView = view.findViewById(R.id.serverListReceiverEnabled);
         if (getPreferences().getBoolean(getContext().getString(R.string.settings_local_server_receiver_chkbx), false)) {
-            Drawable icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_devices_24, getContext().getTheme()), getContext().getTheme());
+            Drawable icon = ThemeHelper.tintDrawable(ResourcesCompat.getDrawable(getResources(), R.drawable.ic_baseline_devices_24, getContext().getTheme()), getContext().getTheme());
             receiverImageView.setImageDrawable(icon);
             describeStatusIcon(receiverImageView, R.string.settings_local_server_receiver_on);
         } else {
-            Drawable icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_desktop_access_disabled_32, getContext().getTheme()), getContext().getTheme());
+            Drawable icon = ThemeHelper.tintDrawable(ResourcesCompat.getDrawable(getResources(), R.drawable.ic_baseline_desktop_access_disabled_32, getContext().getTheme()), getContext().getTheme());
             receiverImageView.setImageDrawable(icon);
             describeStatusIcon(receiverImageView, R.string.settings_local_server_receiver_off);
         }
         ImageView proxyImageView = view.findViewById(R.id.serverListProxyEnabled);
         if (getPreferences().getBoolean(getContext().getString(R.string.settings_local_server_proxy_chkbx), false)) {
-            Drawable icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_import_export_24, getContext().getTheme()), getContext().getTheme());
+            Drawable icon = ThemeHelper.tintDrawable(ResourcesCompat.getDrawable(getResources(), R.drawable.ic_baseline_import_export_24, getContext().getTheme()), getContext().getTheme());
             proxyImageView.setImageDrawable(icon);
             describeStatusIcon(proxyImageView, R.string.settings_local_server_proxy_on);
         } else {
-            Drawable icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_mobiledata_off_24, getContext().getTheme()), getContext().getTheme());
+            Drawable icon = ThemeHelper.tintDrawable(ResourcesCompat.getDrawable(getResources(), R.drawable.ic_baseline_mobiledata_off_24, getContext().getTheme()), getContext().getTheme());
             proxyImageView.setImageDrawable(icon);
             describeStatusIcon(proxyImageView, R.string.settings_local_server_proxy_off);
         }

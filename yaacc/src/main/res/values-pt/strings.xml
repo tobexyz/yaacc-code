@@ -108,6 +108,8 @@
     <string name="open">abrir</string>
     <string name="exitActivity">parar</string>
     <string name="icon">ícone</string>
+    <string name="album_art">Capa do álbum</string>
+    <string name="remove_item">Remover</string>
     <string name="sort_by_name">Ordenar por nome</string>
     <string name="sort_by_date">Ordenar por data</string>
     <string name="not_yet_implemented">ainda não implementado</string>

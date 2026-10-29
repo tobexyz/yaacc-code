@@ -34,6 +34,7 @@ import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.OptIn;
+import androidx.core.content.res.ResourcesCompat;
 import androidx.media3.common.util.UnstableApi;
 
 import org.fourthline.cling.model.meta.Device;
@@ -190,7 +191,7 @@ final class ReceiverRowBinder {
         } else if (isLocalDevice(device)) {
             holder.icon.setImageResource(R.drawable.yaacc48_24_png);
         } else {
-            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(context.getResources().getDrawable(R.drawable.ic_baseline_devices_48, context.getTheme()), context.getTheme()));
+            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(ResourcesCompat.getDrawable(context.getResources(), R.drawable.ic_baseline_devices_48, context.getTheme()), context.getTheme()));
         }
         holder.name.setText(device.getDetails().getFriendlyName());
         if (selectionListener == null) {

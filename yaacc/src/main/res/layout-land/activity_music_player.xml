@@ -32,7 +32,6 @@
             android:id="@+id/musicActivityImageView"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:layout_weight="2"
             android:adjustViewBounds="false"
             android:contentDescription="@string/musicActivityImageView"
             android:scaleType="fitCenter"
@@ -58,7 +57,6 @@
 
 
             <RelativeLayout
-                android:layout_alignParentStart="true"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content">
 

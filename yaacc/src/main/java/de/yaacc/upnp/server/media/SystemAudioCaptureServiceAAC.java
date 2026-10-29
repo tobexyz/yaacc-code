@@ -8,6 +8,7 @@
  */
 package de.yaacc.upnp.server.media;
 
+import android.annotation.SuppressLint;
 import android.media.AudioFormat;
 import android.media.AudioPlaybackCaptureConfiguration;
 import android.media.AudioRecord;
@@ -64,6 +65,8 @@ public class SystemAudioCaptureServiceAAC {
         }
     }
 
+    // Playback capture needs RECORD_AUDIO; declaring/requesting it is a manifest/product decision, a check here would change behavior.
+    @SuppressLint("MissingPermission")
     private void setupAudioCapture(MediaProjection mediaProjection) {
         AudioPlaybackCaptureConfiguration config = new AudioPlaybackCaptureConfiguration.Builder(mediaProjection)
                 .addMatchingUsage(android.media.AudioAttributes.USAGE_MEDIA)

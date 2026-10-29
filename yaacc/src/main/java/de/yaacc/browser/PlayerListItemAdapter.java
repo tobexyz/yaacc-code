@@ -17,6 +17,7 @@
  */
 package de.yaacc.browser;
 
+import android.annotation.SuppressLint;
 import android.content.res.Configuration;
 import android.graphics.Bitmap;
 import de.yaacc.util.YaaccLogger;
@@ -28,6 +29,7 @@ import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
+import androidx.core.content.res.ResourcesCompat;
 import androidx.recyclerview.widget.RecyclerView;
 
 import java.util.ArrayList;
@@ -51,7 +53,6 @@ public class PlayerListItemAdapter extends RecyclerView.Adapter<PlayerListItemAd
     public PlayerListItemAdapter(RecyclerView playerList, Collection<Player> players) {
         this.playerListView = playerList;
         this.players = new ArrayList<>(players);
-        notifyDataSetChanged();
     }
 
 
@@ -73,6 +74,8 @@ public class PlayerListItemAdapter extends RecyclerView.Adapter<PlayerListItemAd
         return players.get(position);
     }
 
+    // The whole player list is replaced, so there is no precise range to notify.
+    @SuppressLint("NotifyDataSetChanged")
     public void setItems(Collection<Player> newObjects) {
         YaaccLogger.d(getClass().getName(), "set objects; " + newObjects);
         players.clear();
@@ -108,9 +111,9 @@ public class PlayerListItemAdapter extends RecyclerView.Adapter<PlayerListItemAd
                 holder.icon.setImageBitmap(Bitmap.createScaledBitmap(player.getIcon(), 48, 48, false));
             } else {
                 if (R.drawable.yaacc48_24_png != player.getIconResourceId()) {
-                    holder.icon.setImageDrawable(ThemeHelper.tintDrawable(playerListView.getContext().getResources().getDrawable(player.getIconResourceId(), playerListView.getContext().getTheme()), playerListView.getContext().getTheme()));
+                    holder.icon.setImageDrawable(ThemeHelper.tintDrawable(ResourcesCompat.getDrawable(playerListView.getContext().getResources(), player.getIconResourceId(), playerListView.getContext().getTheme()), playerListView.getContext().getTheme()));
                 } else {
-                    holder.icon.setImageDrawable(playerListView.getContext().getResources().getDrawable(R.drawable.yaacc48_24_png, playerListView.getContext().getTheme()));
+                    holder.icon.setImageDrawable(ResourcesCompat.getDrawable(playerListView.getContext().getResources(), R.drawable.yaacc48_24_png, playerListView.getContext().getTheme()));
                 }
 
             }

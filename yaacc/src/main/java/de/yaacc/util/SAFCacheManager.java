@@ -27,6 +27,7 @@ import androidx.documentfile.provider.DocumentFile;
 import androidx.preference.PreferenceManager;
 
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -285,7 +286,7 @@ public class SAFCacheManager {
         if (file.getName() != null) {
             int dotIndex = file.getName().lastIndexOf('.');
             if (dotIndex > 0) {
-                String ext = file.getName().substring(dotIndex + 1).toLowerCase();
+                String ext = file.getName().substring(dotIndex + 1).toLowerCase(Locale.ROOT);
                 String mimeType = MIME_TYPE_BY_EXT.get(ext);
                 if (mimeType != null) return mimeType;
             }
@@ -306,7 +307,7 @@ public class SAFCacheManager {
         int dotIndex = filename.lastIndexOf('.');
         if (dotIndex <= 0) return null;
         
-        String ext = filename.substring(dotIndex + 1).toLowerCase();
+        String ext = filename.substring(dotIndex + 1).toLowerCase(Locale.ROOT);
         switch (ext) {
             case "mp4": case "m4v": case "mov": return "video/mp4";
             case "avi": case "divx": return "video/x-msvideo";
@@ -544,12 +545,16 @@ public class SAFCacheManager {
         Intent intent = new Intent("de.yaacc.CACHE_PRELOAD_PROGRESS");
         intent.putExtra("files_indexed", filesIndexed);
         intent.putExtra("current_folder", currentFolder);
+        // The receiver is registered non-exported in this app, so address the broadcast to this package.
+        intent.setPackage(context.getPackageName());
         context.sendBroadcast(intent);
     }
     
     private void notifyPreloadComplete() {
         Intent intent = new Intent("de.yaacc.CACHE_PRELOAD_COMPLETE");
         intent.putExtra("files_indexed", totalFilesIndexed);
+        // The receiver is registered non-exported in this app, so address the broadcast to this package.
+        intent.setPackage(context.getPackageName());
         context.sendBroadcast(intent);
     }
     

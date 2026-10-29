@@ -18,6 +18,7 @@
  */
 package de.yaacc.upnp.server.media;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.hardware.display.DisplayManager;
 import android.hardware.display.VirtualDisplay;
@@ -162,6 +163,8 @@ public class CombinedCaptureService {
         audioEncoder.start();
     }
 
+    // Playback capture needs RECORD_AUDIO; declaring/requesting it is a manifest/product decision, a check here would change behavior.
+    @SuppressLint("MissingPermission")
     private void setupAudioCapture() {
         AudioPlaybackCaptureConfiguration config = new AudioPlaybackCaptureConfiguration.Builder(mediaProjection)
                 .addMatchingUsage(AudioAttributes.USAGE_MEDIA)

@@ -18,6 +18,7 @@
  */
 package de.yaacc.upnp.server.media;
 
+import android.annotation.SuppressLint;
 import android.media.AudioFormat;
 import android.media.AudioPlaybackCaptureConfiguration;
 import android.media.AudioRecord;
@@ -56,6 +57,8 @@ public class SystemAudioCaptureService {
     /**
      * Start capturing system audio.
      */
+    // Playback capture needs RECORD_AUDIO; declaring/requesting it is a manifest/product decision, a check here would change behavior.
+    @SuppressLint("MissingPermission")
     public boolean startCapture(MediaProjection mediaProjection) {
         if (isCapturing) {
             YaaccLogger.w(getClass().getName(), "Already capturing");
@@ -117,6 +120,8 @@ public class SystemAudioCaptureService {
     /**
      * Fallback: try with smaller buffer if initial attempt fails.
      */
+    // Playback capture needs RECORD_AUDIO; declaring/requesting it is a manifest/product decision, a check here would change behavior.
+    @SuppressLint("MissingPermission")
     private boolean tryStartWithSmallerBuffer(AudioPlaybackCaptureConfiguration config, MediaProjection mediaProjection) {
         try {
             YaaccLogger.w(getClass().getName(), "Trying with minimum buffer size...");

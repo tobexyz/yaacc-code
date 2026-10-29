@@ -111,6 +111,9 @@
     <string name="open">open</string>
     <string name="exitActivity">stop</string>
     <string name="icon">icon</string>
+    <string name="volume_placeholder" translatable="false">75%</string>
+    <string name="album_art">Album Art</string>
+    <string name="remove_item">Remove</string>
     <string name="sort_by_name">Sort by name</string>
     <string name="sort_by_date">Sort by date</string>
     <string name="toggle_view_mode">Switch between list and card view</string>

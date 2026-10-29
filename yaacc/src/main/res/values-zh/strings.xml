@@ -108,6 +108,8 @@
     <string name="open">打开</string>
     <string name="exitActivity">停止</string>
     <string name="icon">图标</string>
+    <string name="album_art">专辑封面</string>
+    <string name="remove_item">移除</string>
     <string name="sort_by_name">按名称排序</string>
     <string name="sort_by_date">按日期排序</string>
     <string name="not_yet_implemented">还未实现</string>

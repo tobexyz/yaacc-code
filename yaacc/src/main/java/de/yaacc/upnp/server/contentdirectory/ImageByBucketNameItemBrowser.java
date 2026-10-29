@@ -73,7 +73,7 @@ public class ImageByBucketNameItemBrowser extends ContentBrowser {
                                 .getColumnIndex(MediaStore.Images.Media.DISPLAY_NAME));
                 @SuppressLint("Range") Long size = Long.valueOf(mImageCursor.getString(mImageCursor
                         .getColumnIndex(MediaStore.Images.Media.SIZE)));
-                String dateTakenStr = mImageCursor.getString(mImageCursor.getColumnIndex(MediaStore.Images.Media.DATE_TAKEN));
+                @SuppressLint("Range") String dateTakenStr = mImageCursor.getString(mImageCursor.getColumnIndex(MediaStore.Images.Media.DATE_TAKEN));
                 @SuppressLint("Range") Long dateTaken = dateTakenStr != null ? Long.valueOf(dateTakenStr) : null;
                 @SuppressLint("Range") String mimeTypeString = mImageCursor.getString(mImageCursor
                         .getColumnIndex(MediaStore.Images.Media.MIME_TYPE));

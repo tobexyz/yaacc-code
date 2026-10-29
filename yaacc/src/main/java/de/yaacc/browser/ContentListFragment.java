@@ -30,6 +30,7 @@ import android.widget.Toast;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
+import androidx.core.content.res.ResourcesCompat;
 import androidx.fragment.app.Fragment;
 import androidx.preference.PreferenceManager;
 import androidx.recyclerview.widget.GridLayoutManager;
@@ -116,7 +117,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
     private void init(Bundle savedInstanceState, View contentlistView) {
         upnpClient = ((Yaacc) requireActivity().getApplicationContext()).getUpnpClient();
         backButton = contentlistView.findViewById(R.id.contentListBackButton);
-        Drawable icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_arrow_back_24, getContext().getTheme()), getContext().getTheme());
+        Drawable icon = ThemeHelper.tintDrawable(ResourcesCompat.getDrawable(getResources(), R.drawable.ic_baseline_arrow_back_24, getContext().getTheme()), getContext().getTheme());
         backButton.setImageDrawable(icon);
         backButton.setOnClickListener((v) -> {
             BrowserHost host = browserHost();
@@ -262,8 +263,8 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         boolean dateAscending = bItemAdapter != null && bItemAdapter.isDateAscending();
         int sortByNameIconRes = nameAscending ? R.drawable.ic_baseline_sort_by_alpha_32 : R.drawable.ic_baseline_sort_by_alpha_desc_32;
         int sortByDateIconRes = dateAscending ? R.drawable.ic_baseline_date_range_asc_32 : R.drawable.ic_baseline_date_range_32;
-        sortByNameButton.setImageDrawable(ThemeHelper.tintDrawable(getResources().getDrawable(sortByNameIconRes, getContext().getTheme()), getContext().getTheme()));
-        sortByDateButton.setImageDrawable(ThemeHelper.tintDrawable(getResources().getDrawable(sortByDateIconRes, getContext().getTheme()), getContext().getTheme()));
+        sortByNameButton.setImageDrawable(ThemeHelper.tintDrawable(ResourcesCompat.getDrawable(getResources(), sortByNameIconRes, getContext().getTheme()), getContext().getTheme()));
+        sortByDateButton.setImageDrawable(ThemeHelper.tintDrawable(ResourcesCompat.getDrawable(getResources(), sortByDateIconRes, getContext().getTheme()), getContext().getTheme()));
 
         boolean dateAvailable = bItemAdapter != null && bItemAdapter.isDateSortAvailable();
         boolean dateSelected = currentSortMode == BrowseContentItemAdapter.SortMode.DATE;

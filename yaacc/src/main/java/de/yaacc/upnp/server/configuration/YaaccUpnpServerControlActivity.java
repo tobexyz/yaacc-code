@@ -17,6 +17,7 @@
  */
 package de.yaacc.upnp.server.configuration;
 
+import android.annotation.SuppressLint;
 import android.app.NotificationManager;
 import android.content.Context;
 import android.content.Intent;
@@ -34,6 +35,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.res.ResourcesCompat;
 import androidx.documentfile.provider.DocumentFile;
 import androidx.preference.PreferenceManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -128,7 +130,7 @@ public class YaaccUpnpServerControlActivity extends AppCompatActivity {
             }
         }));
         ImageButton resetButton = findViewById(R.id.sharedFoldersReset);
-        Drawable icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.outline_database_off_32, getTheme()), getTheme());
+        Drawable icon = ThemeHelper.tintDrawable(ResourcesCompat.getDrawable(getResources(), R.drawable.outline_database_off_32, getTheme()), getTheme());
         resetButton.setImageDrawable(icon);
         resetButton.setOnClickListener(v -> {
                     MediaPathFilter.resetMediaPaths(getApplicationContext());
@@ -138,12 +140,12 @@ public class YaaccUpnpServerControlActivity extends AppCompatActivity {
         );
 
         ImageButton safButton = findViewById(R.id.sharedFoldersAddSaf);
-        icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_search_bookmark, getTheme()), getTheme());
+        icon = ThemeHelper.tintDrawable(ResourcesCompat.getDrawable(getResources(), R.drawable.ic_search_bookmark, getTheme()), getTheme());
         safButton.setImageDrawable(icon);
         safButton.setOnClickListener(v -> selectSafContent());
 
         ImageButton clearCacheButton = findViewById(R.id.clearSafCache);
-        icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_refresh_32, getTheme()), getTheme());
+        icon = ThemeHelper.tintDrawable(ResourcesCompat.getDrawable(getResources(), R.drawable.ic_baseline_refresh_32, getTheme()), getTheme());
         clearCacheButton.setImageDrawable(icon);
         clearCacheButton.setOnClickListener(v -> {
             SAFCacheManager.getInstance(getApplicationContext()).clearCache();
@@ -152,7 +154,7 @@ public class YaaccUpnpServerControlActivity extends AppCompatActivity {
         });
 
         ImageButton mediaStoreRescanButton = findViewById(R.id.mediaStoreRescan);
-        icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_refresh_32, getTheme()), getTheme());
+        icon = ThemeHelper.tintDrawable(ResourcesCompat.getDrawable(getResources(), R.drawable.ic_baseline_refresh_32, getTheme()), getTheme());
         mediaStoreRescanButton.setImageDrawable(icon);
         mediaStoreRescanButton.setOnClickListener(v -> {
             new Timer().schedule(new TimerTask() {
@@ -346,6 +348,8 @@ public class YaaccUpnpServerControlActivity extends AppCompatActivity {
     }
 
     @Override
+    // Lint cannot infer that the masked takeFlags is a valid READ-only grant flag.
+    @SuppressLint("WrongConstant")
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
 

@@ -83,7 +83,7 @@
     <string name="settings_local_server_serve_images_title">servir imágenes</string>
     <string name="settings_local_server_serve_images_off">servir imágenes está deshabilitado</string>
     <string name="settings_local_server_serve_images_on">servir imágenes está habilitado</string>
-    <string name="settings_local_server_serve_music_title">servir musica</string>
+    <string name="settings_local_server_serve_music_title">servir música</string>
     <string name="settings_local_server_serve_music_off">servir música está deshabilitado</string>
     <string name="settings_local_server_serve_music_on">servir música está habilitado</string>
     <string name="settings_local_server_serve_video_title">servir vídeos</string>

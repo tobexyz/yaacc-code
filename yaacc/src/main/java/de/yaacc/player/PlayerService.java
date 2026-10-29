@@ -17,6 +17,7 @@
  */
 package de.yaacc.player;
 
+import android.annotation.SuppressLint;
 import android.app.Notification;
 import android.app.PendingIntent;
 import android.content.Intent;
@@ -235,6 +236,8 @@ public class PlayerService extends MediaSessionService {
     }
 
     @Override
+    // Deliberately hands out the app binder for every bind; calling super would change which binder clients receive.
+    @SuppressLint("MissingSuperCall")
     public IBinder onBind(Intent intent) {
         YaaccLogger.d(this.getClass().getName(), "On Bind");
         // Always return our binder for service binding
@@ -475,6 +478,7 @@ public class PlayerService extends MediaSessionService {
                 .getString(R.string.playerNameImageShort));
     }
 
+    @OptIn(markerClass = UnstableApi.class)
     private Player createMusicPlayer(UpnpClient upnpClient) {
         Player result = getFirstCurrentPlayerOfType(LocalMediaSessionPlayer.class);
         if (result != null) {
@@ -541,6 +545,7 @@ public class PlayerService extends MediaSessionService {
      * @param mimeType the mime type
      * @return the player class
      */
+    @OptIn(markerClass = UnstableApi.class)
     public Class getPlayerClassForMimeType(String mimeType) {
 // FIXME don't implement business logic twice
         Class result = MultiContentPlayer.class;

@@ -28,6 +28,9 @@ import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.OptIn;
+import androidx.core.content.res.ResourcesCompat;
+import androidx.media3.common.util.UnstableApi;
 import androidx.recyclerview.widget.RecyclerView;
 
 import java.util.ArrayList;
@@ -83,11 +86,11 @@ public class PlaylistItemAdapter extends RecyclerView.Adapter<PlaylistItemAdapte
         PlayableItem item = getItem(listPosition);
         holder.name.setText(item.getTitle());
         if (player.isPlaying() && listPosition <= player.getCurrentItemIndex()) {
-            holder.dragIcon.setImageDrawable(ThemeHelper.tintDrawable(context.getResources().getDrawable(R.drawable.ic_baseline_lock_32, context.getTheme()), context.getTheme()));
+            holder.dragIcon.setImageDrawable(ThemeHelper.tintDrawable(ResourcesCompat.getDrawable(context.getResources(), R.drawable.ic_baseline_lock_32, context.getTheme()), context.getTheme()));
             holder.deleteIcon.setVisibility(View.GONE);
             holder.dragIcon.setFocusable(false); // Cannot move locked items
         } else {
-            holder.dragIcon.setImageDrawable(ThemeHelper.tintDrawable(context.getResources().getDrawable(R.drawable.ic_baseline_drag_indicator_32, context.getTheme()), context.getTheme()));
+            holder.dragIcon.setImageDrawable(ThemeHelper.tintDrawable(ResourcesCompat.getDrawable(context.getResources(), R.drawable.ic_baseline_drag_indicator_32, context.getTheme()), context.getTheme()));
             holder.deleteIcon.setVisibility(View.VISIBLE);
             holder.dragIcon.setFocusable(true);
         }
@@ -136,6 +139,7 @@ public class PlaylistItemAdapter extends RecyclerView.Adapter<PlaylistItemAdapte
         });
     }
 
+    @OptIn(markerClass = UnstableApi.class)
     public boolean moveItem(int fromPosition, int toPosition) {
         if (player.isPlaying() && (fromPosition <= player.getCurrentItemIndex() || toPosition <= player.getCurrentItemIndex())) {
             return false;
@@ -167,6 +171,7 @@ public class PlaylistItemAdapter extends RecyclerView.Adapter<PlaylistItemAdapte
     }
 
 
+    @OptIn(markerClass = UnstableApi.class)
     private void removeItem(int listPosition) {
         if (player.getItems().size() > listPosition && listPosition >= 0 && !(player.isPlaying() && listPosition <= player.getCurrentItemIndex())) {
             player.getItems().remove(listPosition);

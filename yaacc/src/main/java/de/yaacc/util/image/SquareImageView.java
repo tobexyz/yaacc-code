@@ -20,10 +20,11 @@ package de.yaacc.util.image;
 
 import android.content.Context;
 import android.util.AttributeSet;
-import android.widget.ImageView;
+
+import androidx.appcompat.widget.AppCompatImageView;
 
 /**
- * An {@link ImageView} whose measured height always equals its measured
+ * An {@link AppCompatImageView} whose measured height always equals its measured
  * width, regardless of {@code layout_height}. Used for the browse
  * card-grid's thumbnail, where a fixed height unrelated to the card's
  * (density/span-count-dependent) actual width forced CENTER_CROP to crop
@@ -32,7 +33,7 @@ import android.widget.ImageView;
  * source images, across every span count and screen size, without
  * hardcoding a height that only happens to match one specific card width.
  */
-public class SquareImageView extends ImageView {
+public class SquareImageView extends AppCompatImageView {
 
     public SquareImageView(Context context) {
         super(context);

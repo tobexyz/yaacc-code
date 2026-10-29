@@ -34,6 +34,8 @@ import android.widget.SeekBar;
 import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.annotation.OptIn;
+import androidx.media3.common.util.UnstableApi;
 
 import java.net.URI;
 import java.text.ParseException;
@@ -254,6 +256,7 @@ public class MusicPlayerActivity extends AppCompatActivity implements ServiceCon
 
     }
 
+    @OptIn(markerClass = UnstableApi.class)
     private Player getPlayer() {
         return playerService == null ? null : playerService.getFirstCurrentPlayerOfType(LocalMediaSessionPlayer.class);
     }

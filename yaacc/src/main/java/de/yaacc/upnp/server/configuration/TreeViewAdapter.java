@@ -195,6 +195,8 @@ public class TreeViewAdapter extends RecyclerView.Adapter<TreeViewHolder> {
      *
      * @param node The node to collapse it
      */
+    // Collapsing changes the visible range, which the tree node manager does not report.
+    @SuppressLint("NotifyDataSetChanged")
     public void collapseNode(TreeNode node) {
         int position = treeNodeManager.collapseNode(node);
         if (position != -1) {
@@ -207,6 +209,8 @@ public class TreeViewAdapter extends RecyclerView.Adapter<TreeViewHolder> {
      *
      * @param node The node to expand it
      */
+    // Expanding changes the visible range, which the tree node manager does not report.
+    @SuppressLint("NotifyDataSetChanged")
     public void expandNode(TreeNode node) {
         int position = treeNodeManager.expandNode(node);
         if (position != -1) {
@@ -220,6 +224,8 @@ public class TreeViewAdapter extends RecyclerView.Adapter<TreeViewHolder> {
      *
      * @param treeNodes The new tree nodes
      */
+    // The whole tree is replaced.
+    @SuppressLint("NotifyDataSetChanged")
     public void updateTreeNodes(List<TreeNode> treeNodes) {
         treeNodeManager.updateNodes(treeNodes);
         notifyDataSetChanged();
@@ -240,6 +246,8 @@ public class TreeViewAdapter extends RecyclerView.Adapter<TreeViewHolder> {
      *
      * @param node The node to remove
      */
+    // Removing a node and its children changes the visible range, which the tree node manager does not report.
+    @SuppressLint("NotifyDataSetChanged")
     public void removeNode(TreeNode node) {
         treeNodeManager.collapseNode(node);
         if (treeNodeManager.removeNode(node)) {

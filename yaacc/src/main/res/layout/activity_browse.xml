@@ -39,7 +39,6 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_toStartOf="@+id/controlPrev"
-            android:layout_toLeftOf="@+id/controlPrev"
             android:contentDescription="@string/browse_button_devices"
             app:srcCompat="@drawable/ic_baseline_devices_48"
                     app:tint="?attr/colorControlNormal" />
@@ -49,7 +48,6 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_toStartOf="@+id/controlStop"
-            android:layout_toLeftOf="@+id/controlStop"
             android:contentDescription="@string/browse_button_prev"
             app:srcCompat="@drawable/ic_baseline_skip_previous_32"
                     app:tint="?attr/colorControlNormal" />
@@ -68,7 +66,6 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_toEndOf="@+id/controlStop"
-            android:layout_toRightOf="@+id/controlStop"
             android:contentDescription="@string/browse_button_next"
             app:srcCompat="@drawable/ic_baseline_skip_next_32"
                     app:tint="?attr/colorControlNormal" />
@@ -79,7 +76,6 @@
             android:layout_height="wrap_content"
             android:layout_alignParentTop="true"
             android:layout_toEndOf="@+id/controlNext"
-            android:layout_toRightOf="@+id/controlNext"
             android:contentDescription="@string/browse_button_devices"
             app:srcCompat="@drawable/ic_baseline_devices_32"
                     app:tint="?attr/colorControlNormal" />

@@ -79,6 +79,8 @@ public class MediaPathFilter {
         
         // Notify service to restart SAF preloading
         Intent intent = new Intent("de.yaacc.SAF_PATHS_CHANGED");
+        // The receiver is registered non-exported in this app, so address the broadcast to this package.
+        intent.setPackage(context.getPackageName());
         context.sendBroadcast(intent);
     }
 

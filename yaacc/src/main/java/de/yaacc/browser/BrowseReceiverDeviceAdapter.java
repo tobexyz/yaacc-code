@@ -18,6 +18,7 @@
 package de.yaacc.browser;
 
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -48,6 +49,8 @@ public class BrowseReceiverDeviceAdapter extends RecyclerView.Adapter<BrowseRece
     private List<Device<?, ?, ?>> devices;
     private RecyclerView devicesListView;
     private final ReceiverRowBinder rowBinder;
+    // Selection re-sorts the device list, so row positions change wholesale.
+    @SuppressLint("NotifyDataSetChanged")
     private final ReceiverRowBinder.SelectionListener selectionListener = (device, selected) -> {
         if (selected) {
             addSelectedDevice(device);
@@ -190,11 +193,15 @@ public class BrowseReceiverDeviceAdapter extends RecyclerView.Adapter<BrowseRece
         }
     }
 
+    // Re-sorting moves rows arbitrarily, so there is no precise range to notify.
+    @SuppressLint("NotifyDataSetChanged")
     public void sortAndNotify() {
         sortDevices();
         notifyDataSetChanged();
     }
     
+    // Local device row position is not tracked here; rebinding all rows is intended.
+    @SuppressLint("NotifyDataSetChanged")
     public void updateLocalDeviceStatus() {
         // Find local device and update its status
         for (Device<?, ?, ?> device : devices) {

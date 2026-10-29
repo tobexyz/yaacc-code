@@ -108,6 +108,8 @@
     <string name="open">open</string>
     <string name="exitActivity">stop</string>
     <string name="icon">icon</string>
+    <string name="album_art">Albumhoes</string>
+    <string name="remove_item">Verwijderen</string>
     <string name="sort_by_name">Sorteren op naam</string>
     <string name="sort_by_date">Sorteren op datum</string>
     <string name="not_yet_implemented">nog niet geïmplementeerd</string>
