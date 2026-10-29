@@ -51,9 +51,9 @@ in `tasks.md` ("Owner's open items"); accepted risks in `known-risks.md`; how it
   portrait too, because narrow screens drop the text next to the symbol.
 - Classic keeps the original static two-line footer and no sheet (owner feedback); the sheet and the tappable receiver bar are
   new-layout only. Answers the old "does classic keep the sheet" question with no.
-- Default layout (owner): a fresh install starts in the new layout (preference default `new`), an updated install keeps classic.
-  `Yaacc` calls `BrowserLauncher.keepClassicForUpdatedInstall` after `setDefaultValues` - an update has no stored value and
-  would otherwise get the new default merely by opening the setting. `NEW_LAYOUT_AVAILABLE` stays as a kill switch.
+- Default layout (owner): a fresh install starts in the new layout (preference default `new`), an update without a stored value gets the new
+  layout too (owner, 2026-10-29; `keepClassicForUpdatedInstall` removed, only an explicit `classic` selects classic).
+  `NEW_LAYOUT_AVAILABLE` stays as a kill switch.
 - Android backup is off (owner, `allowBackup="false"`) - it copied preferences incl. stored share links, the receiver selection and
   SAF cache entries to the user's account; no exclusion rules, settings are re-entered on a new device.
 - Card view is the default on a fresh install (`ViewMode.DEFAULT = CARD`; an earlier explicit choice stays); the landscape browser has

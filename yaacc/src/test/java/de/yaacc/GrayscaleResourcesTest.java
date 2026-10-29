@@ -358,6 +358,7 @@ public class GrayscaleResourcesTest {
         assertTrue(styles.contains("<item name=\"preferenceCategoryTitleTextColor\">?attr/colorOnSurface</item>"));
         assertTrue(Pattern.compile("<style name=\"TextAppearance.App.PreferenceCategory\"[^>]*>\\s*<item name=\"android:textStyle\">bold</item>")
                 .matcher(styles).find());
+        assertTrue(styles.contains("<item name=\"android:textAllCaps\">true</item>"));
     }
 
     @Test

@@ -100,7 +100,6 @@ public class Yaacc extends Application {
         createNotificationChannel();
         PreferenceManager.setDefaultValues(this, R.xml.preference, false);
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
-        BrowserLauncher.keepClassicForUpdatedInstall(preferences, getString(R.string.settings_browser_layout_key));
         ThemeChoice.migrateLegacyDarkMode(preferences, getString(R.string.settings_dark_mode_key),
                 getString(R.string.settings_theme_key));
         AppCompatDelegate.setDefaultNightMode(ThemeChoice.nightMode(preferences.getString(

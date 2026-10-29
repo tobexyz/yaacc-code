@@ -111,8 +111,12 @@
         <item name="preferenceCategoryTitleTextAppearance">@style/TextAppearance.App.PreferenceCategory</item>
     </style>
 
+    <!-- Section headlines: small bold capitals with letter spacing, so they read as headlines and not as an entry -->
     <style name="TextAppearance.App.PreferenceCategory" parent="TextAppearance.AppCompat.Body2">
         <item name="android:textStyle">bold</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:textAllCaps">true</item>
+        <item name="android:letterSpacing">0.1</item>
     </style>
 
     <!-- Cards: filled with a container surface, no shadow, no outline. The library's filled card uses the

@@ -25,9 +25,9 @@ import de.yaacc.browser.BrowserLayoutChoice.Layout;
 
 /**
  * Unit tests for {@link BrowserLayoutChoice}, which turns the stored "Layout"
- * preference into the activity to launch. Everything except an exact "new"
- * must give classic, so an install without a stored value never changes
- * layout by accident; only a fresh install is given "new" by the preference default. Plain JVM, no Android runtime.
+ * preference into the activity to launch. Only an exact "classic" gives classic; a missing value
+ * (a fresh install, or an install updated from a version without the setting) gives the new layout.
+ * Plain JVM, no Android runtime.
  */
 public class BrowserLayoutChoiceTest {
 
@@ -42,38 +42,38 @@ public class BrowserLayoutChoiceTest {
     }
 
     @Test
-    public void nullFallsBackToClassic() {
-        assertEquals(Layout.CLASSIC, BrowserLayoutChoice.resolve(null));
+    public void nullFallsBackToNew() {
+        assertEquals(Layout.NEW, BrowserLayoutChoice.resolve(null));
     }
 
     @Test
-    public void emptyFallsBackToClassic() {
-        assertEquals(Layout.CLASSIC, BrowserLayoutChoice.resolve(""));
+    public void emptyFallsBackToNew() {
+        assertEquals(Layout.NEW, BrowserLayoutChoice.resolve(""));
     }
 
     @Test
-    public void blankFallsBackToClassic() {
-        assertEquals(Layout.CLASSIC, BrowserLayoutChoice.resolve("  "));
+    public void blankFallsBackToNew() {
+        assertEquals(Layout.NEW, BrowserLayoutChoice.resolve("  "));
     }
 
     @Test
-    public void unknownValueFallsBackToClassic() {
-        assertEquals(Layout.CLASSIC, BrowserLayoutChoice.resolve("bogus"));
+    public void unknownValueFallsBackToNew() {
+        assertEquals(Layout.NEW, BrowserLayoutChoice.resolve("bogus"));
     }
 
     @Test
-    public void upperCaseNewFallsBackToClassic() {
-        assertEquals(Layout.CLASSIC, BrowserLayoutChoice.resolve("NEW"));
+    public void upperCaseNewFallsBackToNew() {
+        assertEquals(Layout.NEW, BrowserLayoutChoice.resolve("NEW"));
     }
 
     @Test
-    public void capitalizedClassicResolvesToClassic() {
-        assertEquals(Layout.CLASSIC, BrowserLayoutChoice.resolve("Classic"));
+    public void capitalizedClassicFallsBackToNew() {
+        assertEquals(Layout.NEW, BrowserLayoutChoice.resolve("Classic"));
     }
 
     @Test
-    public void newWithSurroundingWhitespaceFallsBackToClassic() {
-        assertEquals(Layout.CLASSIC, BrowserLayoutChoice.resolve(" new "));
+    public void newWithSurroundingWhitespaceResolvesToNew() {
+        assertEquals(Layout.NEW, BrowserLayoutChoice.resolve(" new "));
     }
 
     @Test

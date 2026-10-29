@@ -84,7 +84,7 @@ Decisions and reasons:
   receiver bar are new-layout only (owner feedback; answers the old "does classic keep the sheet" question with no).
 - **Toolbar timer** is a single symbol: stop while running, otherwise pick a duration and start. No pull-to-refresh (it would
   need `swiperefreshlayout`, a new dependency); the refresh button stays.
-- **Default.** Fresh installs start in the new layout, an updated install keeps classic (`BrowserLauncher.keepClassicForUpdatedInstall`).
+- **Default.** Fresh installs and updates without a stored layout start in the new layout; only an explicit `classic` selects classic.
 - `allowBackup` is off (owner): auto backup would have copied settings, the receiver selection and SAF cache entries off the device.
 
 ## Phase 3: sharing files and links, picking receivers per action

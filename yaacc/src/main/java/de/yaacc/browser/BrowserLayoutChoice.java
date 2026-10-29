@@ -19,12 +19,11 @@ package de.yaacc.browser;
 
 /**
  * Maps the stored "Layout" preference value to the browser layout to launch:
- * the classic tab activity or the new tab-less one. Anything that is not
- * exactly {@link #STORED_NEW} (null, empty, unknown, differently cased)
- * resolves to classic, so an install without a stored value (an update from a version that
- * had no "Layout" setting) keeps the classic layout and an explicit "new" is honored on any
- * device. A fresh install gets {@link #DEFAULT_STORED_VALUE} from the preference defaults
- * (res/xml/preference.xml), so it starts in the new layout.
+ * the classic tab activity or the new tab-less one. Only an explicit
+ * {@link #STORED_CLASSIC} resolves to classic; anything else (null, empty, unknown, differently
+ * cased) resolves to the new layout, so an install without a stored value (a fresh install or an
+ * update from a version that had no "Layout" setting) starts in the new layout. The preference
+ * default (res/xml/preference.xml) is {@link #DEFAULT_STORED_VALUE} as well.
  * <p>
  * Deliberately has no {@code android.*} imports so it can be unit-tested on
  * the plain JVM, like {@link DeviceSessionGrouper}.
@@ -45,9 +44,9 @@ public final class BrowserLayoutChoice {
 
     /**
      * @param storedValue the stored preference value, may be null
-     * @return {@link Layout#NEW} for exactly {@link #STORED_NEW}, otherwise {@link Layout#CLASSIC}
+     * @return {@link Layout#CLASSIC} for exactly {@link #STORED_CLASSIC}, otherwise {@link Layout#NEW}
      */
     public static Layout resolve(String storedValue) {
-        return STORED_NEW.equals(storedValue) ? Layout.NEW : Layout.CLASSIC;
+        return STORED_CLASSIC.equals(storedValue) ? Layout.CLASSIC : Layout.NEW;
     }
 }

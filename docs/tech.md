@@ -301,7 +301,7 @@ decisions in more detail while the share-code consolidation (Phase 4) is open; t
   back behaviour), apart from leak fixes.
 - An invisible `LauncherActivity` holds the filters and forwards a fresh allowlisted intent. The layout is compared on `onResume`
   (effective layout, 2 s relaunch guard), never on a preference listener or a result code. One process-wide idle timer counts started browsers.
-- A fresh install starts in the new layout, an updated install keeps classic (`keepClassicForUpdatedInstall`); the new layout owns the receiver
+- A fresh install and an install updated from a version without the setting start in the new layout; the new layout owns the receiver
   bar (receivers that play now) and a mini-player with one row per running player; the device sheet is new-layout only.
 - The toolbar has one timer symbol; the remaining time is the toolbar subtitle because narrow screens drop an action item's text. A stored
   duration of 0 never starts the timer.
@@ -1262,7 +1262,7 @@ are gone.
   only writer is the `ListPreference`. The stored string is only compared, never a
   class name, action, extra, path or reflection target. Do not add a second
   reader.
-- **Default** is `new` for a fresh install and classic for an installation updated from a version without the setting (`keepClassicForUpdatedInstall`, see
+- **Default** is `new` for a fresh install and for an installation updated from a version without the setting (see
   "Look and settings: theme, gray scale, log viewer"), Android TV included.
 - **Switch.** There is no relaunch in Settings. The change applies when the user
   returns to a browser screen: the resume check ("Launcher, effective layout,
@@ -1385,10 +1385,9 @@ They supersede earlier text of this section wherever the two differ.
 As built for #287 (these were only in the CHANGELOG before). Rationale: "Design decisions and rationale".
 
 - **Layout default.** `res/xml/preference.xml` defaults the Layout list to `new` and `BrowserLayoutChoice.DEFAULT_STORED_VALUE` is `STORED_NEW`,
-  so a fresh install starts in the new layout. `BrowserLayoutChoice.resolve(null)` is still `CLASSIC`, and `Yaacc.onCreate` calls
-  `BrowserLauncher.keepClassicForUpdatedInstall(preferences, settings_browser_layout_key)` right after `setDefaultValues`: an install updated
-  from a version without the setting has no stored value (see Research notes (Group 5), (c)), so `classic` is stored for it and merely opening
-  the setting cannot switch it. A fresh install already has the default stored, so the call does nothing. Android TV follows the same rule.
+  so a fresh install starts in the new layout. `BrowserLayoutChoice.resolve` returns `CLASSIC` only for the exact stored value `classic`; `null`, empty and unknown values give `NEW`, and
+  `Yaacc.onCreate` runs `setDefaultValues`, which stores `new` for an install updated from a version without the setting (owner decision
+  2026-10-29, formerly such installs were pinned to classic). Android TV follows the same rule.
 - **Theme setting.** `ListPreference` `settings_theme_key` (stored key `settings_theme_key`) in Appearance, values `system` / `dark` / `light`
   (`theme_values` in `res/values/theme_choice.xml`, labels `settings_theme_system|dark|light`). `ThemeChoice.nightMode` maps them to
   `AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM|YES|NO`; null and unknown values give the mode of `DEFAULT_STORED_VALUE`, which is `dark` (the
@@ -1517,7 +1516,7 @@ not line numbers, which have moved); **[javap]** `javap -public` on `activity-1.
 - `PreferenceManager.setDefaultValues(this, R.xml.preference, false)` with `readAgain=false` "sets the default values only if this method
   has never been called in the past" [docs: `https://developer.android.com/reference/androidx/preference/PreferenceManager#setDefaultValues(android.content.Context,int,boolean)`].
   An update therefore does not get the default of a preference added later: `getString(key, null)` returns `null` for it. Always read
-  the Layout preference with default `null`; `keepClassicForUpdatedInstall` stores `classic` for such installs at app start.
+  the Layout preference with default `null`; `resolve(null)` is the new layout.
 - Without the effective-layout comparison and the guard, a stored `"new"` while the new layout is unavailable (backup restore, adb,
   downgrade) would bounce between the activities forever.
 

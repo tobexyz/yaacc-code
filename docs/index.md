@@ -26,7 +26,7 @@ layout: default
 
 # Usage
 
-YAACC has two layouts. A fresh install starts in the new layout; an updated installation keeps the classic layout with tabs until you change it. You switch
+YAACC has two layouts. A fresh install and an installation updated from a version without this setting start in the new layout; a layout you chose before stays. You switch
 in the settings under *Appearance* >
 *Layout*: choose "Classic (tabs)" or "New (single screen)". The change takes
 effect when you return from the settings to the app screen; running players keep
@@ -59,7 +59,7 @@ the sender and receiver tab to trigger a new search for devices
 Switch to it with *Settings* > *Appearance* > *Layout* > "New (single screen)".
 Switching back to "Classic (tabs)" works the same way. A fresh install starts in
 the new layout (also on Android TV, where it has not been checked with a TV
-remote yet); an updated installation keeps the classic layout until you switch.
+remote yet); an updated installation without a stored layout starts in the new layout.
 There are no tabs. The screen shows one level at a time:
 
 * **Servers** is the top level. The "Servers" header has the refresh button to
