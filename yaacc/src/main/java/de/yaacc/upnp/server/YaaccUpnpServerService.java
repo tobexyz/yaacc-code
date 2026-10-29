@@ -90,6 +90,7 @@ import de.yaacc.upnp.server.avtransport.AvTransport;
 import de.yaacc.upnp.server.avtransport.YaaccAVTransportService;
 import de.yaacc.upnp.server.configuration.YaaccUpnpServerControlActivity;
 import de.yaacc.upnp.server.connectionmanager.ConnectionManagerService;
+import de.yaacc.upnp.server.contentdirectory.SafDirectoryLister;
 import de.yaacc.upnp.server.contentdirectory.YaaccContentDirectory;
 import de.yaacc.upnp.server.http.YaaccUpnpServerContentHttpHandler;
 import de.yaacc.upnp.server.http.YaaccUpnpServerProtocolRequestHandler;
@@ -211,6 +212,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
             // Restart SAF preloading with new paths
             cacheFilesIndexed = 0;
             cacheCurrentFolder = "";
+            SafDirectoryLister.clearCache();
             SAFCacheManager.getInstance(getApplicationContext()).preloadSafDurations();
             showNotification();
         }
@@ -703,6 +705,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         if (getApplicationContext().getString(R.string.settings_saf_tree_uris_pref_key).equals(key) ||
                 getApplicationContext().getString(R.string.settings_saf_tree_uris_selected_pref_key).equals(key)) {
             YaaccLogger.d(this.getClass().getName(), "SAF paths changed, reloading cache");
+            SafDirectoryLister.clearCache();
             SAFCacheManager.getInstance(getApplicationContext()).preloadSafDurations();
         }
 

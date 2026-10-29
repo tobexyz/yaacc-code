@@ -382,14 +382,16 @@ public class YaaccContentDirectory {
 
         } else {
             childCount = 0;
-            if (findBrowserFor(objectID) != null) {
-                totalMatches = findBrowserFor(objectID).getSize(this, objectID);
+            // one browser for all steps: a browser may carry what it learned in one step (e.g. a folder listing) over to the next
+            ContentBrowser browser = findBrowserFor(objectID);
+            if (browser != null) {
+                totalMatches = browser.getSize(this, objectID);
                 if (browseFlag == BrowseFlag.METADATA) {
-                    didlObject = findBrowserFor(objectID).browseMeta(this, objectID, firstResult, maxResults, orderby);
+                    didlObject = browser.browseMeta(this, objectID, firstResult, maxResults, orderby);
                     didl.addObject(didlObject);
                     childCount = 1;
                 } else {
-                    List<DIDLObject> children = findBrowserFor(objectID).browseChildren(this, objectID, firstResult, maxResults, orderby);
+                    List<DIDLObject> children = browser.browseChildren(this, objectID, firstResult, maxResults, orderby);
                     for (DIDLObject child : children) {
                         didl.addObject(child);
                         childCount++;
@@ -404,7 +406,9 @@ public class YaaccContentDirectory {
         try {
             // Generate output with nested items
             String didlXml = new DIDLParser().generate(didl, false);
-            YaaccLogger.d(getClass().getName(), "CDResponse: " + didlXml);
+            // the full XML of a page of a big folder is long: only at verbose level
+            YaaccLogger.d(getClass().getName(), "CDResponse: " + didlXml.length() + " characters");
+            YaaccLogger.v(getClass().getName(), "CDResponse: " + didlXml);
             result = new BrowseResult(didlXml, childCount, totalMatches);
         } catch (Exception e) {
             throw new ContentDirectoryException(

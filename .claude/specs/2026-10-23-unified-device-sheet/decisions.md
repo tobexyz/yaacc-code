@@ -241,3 +241,21 @@ in `tasks.md` ("Owner's open items"); accepted risks in `known-risks.md`; how it
   `UpnpProtocolHandler` is set once at service start; `NetworkDeviceListener.enable()` builds a new one on every re-enable, so renewals and local device
   advertisements of the registry still use the first handler (closed sockets after the first network change). `BackgroundIdleTimer` exits the app five
   minutes after the last browser stop when nothing runs; that is a cold start, not a resume.
+
+
+## Large SAF folders: one listing, cached (owner report, 2026-10-29)
+- **Why.** Browsing a DCIM/Camera tree with thousands of files froze the UI for 4.3 s, starved GENA subscribes ("Failed to acquire lock in milliseconds:
+  5000") and ended with an empty Browse failure after the retries (the answer took longer than the 10 s socket timeout). Cause (read in `SafFolderBrowser`
+  and in androidx `documentfile` 1.1.0): `listFiles()` is one query, but every property of every child is another provider query, and each chunk request
+  listed the folder three times (count, containers, items) and sorted with property queries inside the comparator.
+- **Decision.** One query per listing (`SafDirectoryLister`, `buildChildDocumentsUriUsingTree`, five columns, no FLAGS), kept in `SafListingCache`
+  (8 folders, 100000 entries, 30 s, single flight, cleared on SAF cache clear / permission removal / SAF path preference change). Results are the same
+  (ids from the same document uris, order, sort keys, paging, `[X]`/restricted from `checkCallingOrSelfUriPermission` + the listed mime type); the page slice
+  alone gets the item work. `YaaccContentDirectory.browse` uses one browser instance. TTL 30 s: new files appear within that.
+- **Client.** ContentDirectory actions get a 30 s response timeout in `HttpRequestSender` (per request `RequestConfig`), all other requests keep 10 s.
+  `BrowseContentItemAdapter`: duplicate check with a hash set (was `List.contains` per object), dates parsed once for the date sort (was twice per
+  comparison), no `toString` of the whole chunk for the log - all on the main thread.
+- **Left alone.** Cling's service lock is held for the whole action and `RegistryImpl.maintain()` (synchronized) can wait for it while the main thread calls
+  `RegistryImpl.getDevice` (see docs/tech.md, "Large SAF folders"); the client-side sort at the end of a folder load still runs on the main thread;
+  `SafFolderBrowser.browseMeta` of a SAF subfolder base64-decodes a short id (pre-existing, never worked for short ids); `SAFCacheManager.lruCache`
+  (`LinkedHashMap`) is touched by the preload thread without the lock `getMetadata` uses.

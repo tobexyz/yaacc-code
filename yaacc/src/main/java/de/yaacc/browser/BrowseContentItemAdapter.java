@@ -57,8 +57,12 @@ import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import de.yaacc.R;
@@ -379,9 +383,11 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
     }
 
     public void addAll(Collection<? extends DIDLObject> newObjects) {
-        YaaccLogger.d(getClass().getName(), "added objects; " + newObjects);
+        YaaccLogger.d(getClass().getName(), "adding objects: " + newObjects.size());
         int start = objects.size();
-        List<DIDLObject> filteredObjects = newObjects.stream().filter(it -> !objects.contains(it)).collect(Collectors.toList());
+        // a hash lookup per new object: List.contains per new object is quadratic over a folder of thousands, on the main thread
+        Set<DIDLObject> knownObjects = new HashSet<>(objects);
+        List<DIDLObject> filteredObjects = newObjects.stream().filter(it -> !knownObjects.contains(it)).collect(Collectors.toList());
         YaaccLogger.d(getClass().getName(), "Adding " + filteredObjects.size() + " new objects (filtered from " + newObjects.size() + " total)");
         objects.addAll(filteredObjects);
         if (!dateSortAvailable) {
@@ -417,7 +423,13 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
             return;
         }
         if (sortMode == SortMode.DATE) {
-            objects.sort((a, b) -> compareByDate(a, b, dateAscending));
+            // parse every date once instead of twice per comparison: this runs on the main thread
+            // and a folder of thousands of items means ten thousands of comparisons
+            Map<DIDLObject, Long> dates = new IdentityHashMap<>(objects.size());
+            for (DIDLObject object : objects) {
+                dates.put(object, parseDateMillis(object));
+            }
+            objects.sort((a, b) -> compareDates(dates.get(a), dates.get(b), dateAscending));
         } else {
             objects.sort((a, b) -> compareByNameGrouped(a, b, nameAscending));
         }
@@ -447,9 +459,7 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
      * or unparseable date sort last regardless of direction, never
      * crashing.
      */
-    private static int compareByDate(DIDLObject a, DIDLObject b, boolean ascending) {
-        Long dateA = parseDateMillis(a);
-        Long dateB = parseDateMillis(b);
+    private static int compareDates(Long dateA, Long dateB, boolean ascending) {
         if (dateA == null && dateB == null) {
             return 0;
         }

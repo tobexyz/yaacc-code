@@ -35,6 +35,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import de.yaacc.R;
+import de.yaacc.upnp.server.contentdirectory.SafDirectoryLister;
 
 /**
  * LRU cache for SAF (Storage Access Framework) file metadata with background preloading.
@@ -115,25 +116,31 @@ public class SAFCacheManager {
         loadCacheIndex();
     }
     
+    private final Object preferencesLock = new Object();
+
     /**
      * Get complete metadata for a SAF file (duration, MIME type, encoded ID).
-     * Returns cached data if available, otherwise extracts synchronously.
+     * Returns cached data if available, otherwise builds it from the given values - without a
+     * further query to the document provider. The values come from the directory listing.
+     *
+     * @param uri              the file's document uri (the cache key)
+     * @param name             its display name, may be null
+     * @param providerMimeType the mime type the provider reports for it, may be null
+     * @param fileSize         its size in bytes as the provider reports it
      */
-    private final Object preferencesLock = new Object();
-    
-    public SAFMetadata getMetadata(DocumentFile file) {
+    public SAFMetadata getMetadata(Uri uri, String name, String providerMimeType, long fileSize) {
         synchronized (preferencesLock) {
-            return getMetadataInternal(file);
+            return getMetadataInternal(uri, name, providerMimeType, fileSize);
         }
     }
-    
-    private SAFMetadata getMetadataInternal(DocumentFile file) {
-        if (file == null) return null;
-        
+
+    private SAFMetadata getMetadataInternal(Uri uri, String name, String providerMimeType, long fileSize) {
+        if (uri == null) return null;
+
         long startTime = System.currentTimeMillis();
-        String uri = file.getUri().toString();
-        String key = CACHE_PREFIX + uri;
-        
+        String uriString = uri.toString();
+        String key = CACHE_PREFIX + uriString;
+
         // Check memory cache
         String cached = lruCache.get(key);
         if (cached != null) {
@@ -141,18 +148,18 @@ public class SAFCacheManager {
             if (metadata != null) {
                 // Migrate old entries without shortId
                 if (metadata.shortId == null) {
-                    String shortId = getOrCreateShortId(uri);
+                    String shortId = getOrCreateShortId(uriString);
                     metadata = new SAFMetadata(metadata.duration, metadata.mimeType, shortId, metadata.fileSize);
                     String serialized = metadata.serialize();
                     lruCache.put(key, serialized);
                     preferences.edit().putString(key, serialized).apply();
                 }
                 long elapsed = System.currentTimeMillis() - startTime;
-                YaaccLogger.d(getClass().getName(), "CACHE_HIT_MEMORY: " + file.getName() + " (" + elapsed + "ms)");
+                YaaccLogger.v(getClass().getName(), "CACHE_HIT_MEMORY: " + name + " (" + elapsed + "ms)");
                 return metadata;
             }
         }
-        
+
         // Check disk cache
         cached = preferences.getString(key, null);
         if (cached != null) {
@@ -160,7 +167,7 @@ public class SAFCacheManager {
             if (metadata != null) {
                 // Migrate old entries without shortId
                 if (metadata.shortId == null) {
-                    String shortId = getOrCreateShortId(uri);
+                    String shortId = getOrCreateShortId(uriString);
                     metadata = new SAFMetadata(metadata.duration, metadata.mimeType, shortId, metadata.fileSize);
                     String serialized = metadata.serialize();
                     lruCache.put(key, serialized);
@@ -169,44 +176,42 @@ public class SAFCacheManager {
                     lruCache.put(key, cached);
                 }
                 long elapsed = System.currentTimeMillis() - startTime;
-                YaaccLogger.d(getClass().getName(), "CACHE_HIT_DISK: " + file.getName() + " (" + elapsed + "ms)");
+                YaaccLogger.v(getClass().getName(), "CACHE_HIT_DISK: " + name + " (" + elapsed + "ms)");
                 return metadata;
             }
         }
-        
+
         // Extract and cache
-        YaaccLogger.w(getClass().getName(), "CACHE_MISS: " + file.getName() + " - extracting...");
-        SAFMetadata metadata = extractMetadata(file);
+        YaaccLogger.v(getClass().getName(), "CACHE_MISS: " + name + " - extracting...");
+        SAFMetadata metadata = extractMetadata(uri, name, providerMimeType, fileSize);
         if (metadata != null) {
             String serialized = metadata.serialize();
             lruCache.put(key, serialized);
             preferences.edit().putString(key, serialized).apply();
-            
+
             // Trim disk cache if memory cache evicted entries
             if (!lruCache.getEvictedKeys().isEmpty()) {
                 trimCache();
             }
         }
         long elapsed = System.currentTimeMillis() - startTime;
-        YaaccLogger.w(getClass().getName(), "EXTRACTION_COMPLETE: " + file.getName() + " (" + elapsed + "ms)");
+        YaaccLogger.v(getClass().getName(), "EXTRACTION_COMPLETE: " + name + " (" + elapsed + "ms)");
         return metadata;
     }
-    
+
     /**
      * Extract all metadata for a file (duration, MIME type, short ID).
      * NEVER extracts duration on current thread - always queues for background.
      */
-    private SAFMetadata extractMetadata(DocumentFile file) {
-        String uri = file.getUri().toString();
-        String mimeType = extractMimeType(file);
-        String shortId = getOrCreateShortId(uri);
-        long fileSize = file.length();
-        
+    private SAFMetadata extractMetadata(Uri uri, String name, String providerMimeType, long fileSize) {
+        String mimeType = extractMimeType(name, providerMimeType);
+        String shortId = getOrCreateShortId(uri.toString());
+
         // Queue duration extraction for background (don't block HTTP thread!)
         if (mimeType != null && (mimeType.startsWith("audio/") || mimeType.startsWith("video/"))) {
-            queueForDurationExtraction(file.getUri(), mimeType);
+            queueForDurationExtraction(uri, mimeType);
         }
-        
+
         // Return immediately with empty duration
         return new SAFMetadata("", mimeType, shortId, fileSize);
     }
@@ -270,7 +275,7 @@ public class SAFCacheManager {
         // Persist counter
         preferences.edit().putLong(ID_COUNTER_KEY, idCounter).apply();
         
-        YaaccLogger.d(getClass().getName(), "Created shortId mapping: " + id + " -> " + uri);
+        YaaccLogger.v(getClass().getName(), "Created shortId mapping: " + id + " -> " + uri);
         return id;
     }
     
@@ -281,25 +286,24 @@ public class SAFCacheManager {
         return shortIdToUri.get(shortId);
     }
     
-    private String extractMimeType(DocumentFile file) {
+    private String extractMimeType(String name, String providerMimeType) {
         // Try extension-based lookup first
-        if (file.getName() != null) {
-            int dotIndex = file.getName().lastIndexOf('.');
+        if (name != null) {
+            int dotIndex = name.lastIndexOf('.');
             if (dotIndex > 0) {
-                String ext = file.getName().substring(dotIndex + 1).toLowerCase(Locale.ROOT);
+                String ext = name.substring(dotIndex + 1).toLowerCase(Locale.ROOT);
                 String mimeType = MIME_TYPE_BY_EXT.get(ext);
                 if (mimeType != null) return mimeType;
             }
         }
-        
-        // Fall back to system lookup
-        String mimeType = file.getType();
-        if (mimeType != null && !mimeType.equals("null") && mimeType.contains("/")) {
-            return mimeType;
+
+        // Fall back to the provider's mime type
+        if (providerMimeType != null && !providerMimeType.equals("null") && providerMimeType.contains("/")) {
+            return providerMimeType;
         }
-        
+
         // Heuristic: guess from extension (returns null if unknown)
-        return file.getName() != null ? guessMimeTypeFromExtension(file.getName()) : null;
+        return name != null ? guessMimeTypeFromExtension(name) : null;
     }
 
     public String guessMimeTypeFromExtension(String filename) {
@@ -797,12 +801,15 @@ public class SAFCacheManager {
             }
         }
         editor.apply();
+        // a folder listing below the tree must not outlive the permission
+        SafDirectoryLister.clearCache();
     }
 
     /**
      * Clear all cached metadata and ID mappings.
      */
     public void clearCache() {
+        SafDirectoryLister.clearCache();
         lruCache.clear();
         shortIdToUri.clear();
         uriToShortId.clear();

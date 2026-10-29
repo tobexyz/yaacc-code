@@ -71,6 +71,56 @@ Files: `YaaccContentDirectory`, `SortSupport`, and the 20
   including the server-rejects-sort-criteria fallback path and the
   Date-button-disabled-when-no-dates behavior.
 
+### Large SAF folders
+
+A Browse of a folder with thousands of files in the app's own SAF server (`SafFolderBrowser`) used to take longer than the
+client's socket timeout. Verified in the code (androidx `documentfile` 1.1.0, `javap`): `TreeDocumentFile.listFiles()` queries only
+`document_id`; then every `isDirectory()`, `getName()`, `lastModified()`, `getType()`, `length()` and `canRead()` (its mime check)
+of every child is one more `ContentResolver.query` (`DocumentsContractApi19.queryForString/queryForLong`). `YaaccContentDirectory.browse`
+ran `getSize` (listing), `browseContainer` (listing + `isDirectory()` per child) and `browseItem` (listing + `isDirectory()` +
+two `getName()` per file, and with a sort 2 to 4 provider queries per comparison, so tens of thousands) for every chunk request.
+
+As built:
+- `SafDirectoryLister` lists a folder with ONE query on `DocumentsContract.buildChildDocumentsUriUsingTree(folderDocumentUri, id)`
+  (columns: document id, display name, mime type, last modified, size) and returns immutable `SafDirectoryEntry` values in the
+  provider's order. The uris of the children are built like `DocumentFile.listFiles()` does (`buildDocumentUriUsingTree`), so
+  short ids and the metadata cache keys are unchanged. `FLAGS` is not queried: nothing uses it, and `canRead()` cannot be derived
+  from it.
+- `SafListingCache` (plain JVM): keyed by the folder's tree uri, at most 8 folders and 100000 entries in total, entries older
+  than 30 s are listed again, least recently used first out, single flight (a request for a folder that is being listed waits, for
+  at most 120 s, for that listing). Failed listings (query error, not a directory, not readable) are never kept. It is cleared on
+  `SAFCacheManager.clearCache()`, `removeCachedUnder()` (permission given up) and when the SAF path preferences change.
+  New files in a folder show up after at most 30 s.
+- `SafListingSupport` (plain JVM): item candidates (no directories, no `*m3u`), directories, the stable sort by `dc:title` / `dc:date`
+  (keys computed once per entry, same results as before - the unit test compares it with the former comparator on random data)
+  and the paging. Only the page slice gets `createItem` / the container objects and short ids.
+- `canRead()` of a child is read permission on its uri (`checkCallingOrSelfUriPermission`, a call to the system, not to the
+  provider) and a non-empty mime type (known from the listing), so the "[X]" prefix and the restricted flag are the same as
+  before without a provider query. Containers need it for every folder only when sorting by title (the prefix is part of the
+  sort key); items only for the page.
+- Provider queries per Browse request of a folder with N files and page size P (counted from the former code): about 4N + 13P
+  with the default order (N for `isDirectory()` in the container pass, 3N for `isDirectory()` and two `getName()` per file in the
+  item pass, about 13 per page item in `createItem` and its logging); a title sort adds about 2 N log2 N, a date sort about
+  4 N log2 N (property queries inside the comparator). For N = 5000, P = 100: about 21000, 130000 (title) and 250000 (date).
+  Now: 3 provider queries for the first request (root `isDirectory()`, `canRead()`, and ONE listing query with N rows),
+  0 for the following requests of that folder within 30 s, plus P permission checks (system calls). A cache miss of the SAF metadata
+  cache no longer queries the provider either (name, mime type, size come from the listing).
+  `YaaccContentDirectory.browse` uses one browser instance for count, containers and items.
+- One log line at D level per Browse: `SAF browse <id> list=<n> entries from cache|provider in <ms> ms, page <start>-<end> in <ms> ms`.
+  The per-file lines are verbose, and the full DIDL response of `CDResponse` is verbose (D logs its length).
+- Client: `HttpRequestSender` gives ContentDirectory actions (SOAPACTION contains `:service:ContentDirectory:`) a response timeout
+  of 30 s (`CONTENT_DIRECTORY_RESPONSE_TIMEOUT`, `RequestConfig.setResponseTimeout`, verified in httpclient5 5.3.1
+  `InternalExecRuntime.execute`); other requests keep the 10 s socket timeout.
+- Cling lock: `AbstractActionExecutor.execute` runs the whole action in `DefaultServiceManager.execute`, which holds the fair
+  `ReentrantLock` of the service (timeout `YaaccUpnpServerService.LOCK_TIMEOUT` = 5 s) for the entire Browse. A second Browse, a GENA subscribe
+  (`LocalGENASubscription` constructor -> `getCurrentState()`) and `LocalGENASubscription.end()` (-> `getPropertyChangeSupport()`) wait for it. `end()` is
+  called from `LocalItems.maintain()` inside `RegistryImpl.maintain()`, which is `synchronized` like `RegistryImpl.getDevice`: a slow Browse can
+  therefore block `UpnpClient.getDevice()` / `getProviderDevice()` calls on the main thread for up to 5 s. Not changed (Cling); a Browse that
+  takes a fraction of a second is the fix.
+
+Not verified without a device: the provider's time for the one query of a 5000+ file folder (it depends on the provider; for the
+external storage provider it stats each file), and the permission check behaviour of providers other than the external storage one.
+
 ## Browse card-grid view
 
 The content tab can show a list or a grid of cards (`ContentListFragment` + `BrowseContentItemAdapter`,
