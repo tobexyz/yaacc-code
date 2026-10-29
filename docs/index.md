@@ -251,7 +251,7 @@ Stream your device's screen to TVs or displays:
 1. Go to the Server tab (in the new layout: the Servers screen)
 2. Find your local device in the list
 3. Tap the audio or video button
-4. Grant MediaProjection permission when prompted
+4. Grant the microphone permission (needed to capture the device audio; the app records no microphone sound) and then the screen capture permission when prompted. If you deny either, the stream buttons stay off
 5. The stream appears in the "Live Streams" folder
 
 Access streams via UPnP or directly:

@@ -2224,3 +2224,10 @@ carries a scope after `%`; `ProxyAccessPolicy.normalize` strips it. The glue sta
   `.../os/ParcelFileDescriptor.java`, `.../app/{Instrumentation,SharedPreferencesImpl}.java`; libcore (`lineage-21.0`): `FileInputStream`, `FileChannel`,
   `FileChannelImpl`, `IOUtil`, `FileDispatcherImpl`, `Os`; HttpCore 5.3.6 sources: `HttpCoreContext`, `EndpointDetails`, `ServerHttp1StreamDuplexer`,
   `ServerHttp1StreamHandler`, `ServerH2StreamMultiplexer`, `AbstractBinAsyncEntityProducer`.
+
+## Android TV, themed icon and the audio permission
+
+- The manifest sets `android:banner` (`drawable-xhdpi/tv_banner.png`, 320x180 px, the icon background with the play button and the app name) and declares touchscreen, leanback, wifi and microphone as `required="false"`. `dataExtractionRules` (everything excluded) and `fullBackupContent="false"` repeat the existing `allowBackup="false"` for Android 12 and later.
+- `mipmap-anydpi-v26/ic_launcher*.xml` have a `<monochrome>` layer (`drawable/ic_launcher_monochrome.xml`, a play button in a ring); it is used for themed icons on Android 13 and later. Keep the `-v26` folder name: an unqualified `mipmap-anydpi` made one launcher show the legacy icon.
+- `RECORD_AUDIO` is declared because `AudioPlaybackCaptureConfiguration` needs it. `ServerListFragment` asks for it before the screen capture permission when a stream button is tapped (`StreamingPermissionHelper.hasRecordAudioPermission`, `onRecordAudioResult`); a denial switches the stream buttons off like a denied screen capture.
+- Check the TV banner without a TV: `aapt2 dump badging app-debug.apk` shows `banner=` and `leanback-launchable-activity`; the real look needs an Android TV emulator image.
