@@ -295,8 +295,8 @@ public class Yaacc extends Application {
     }
 
     private void clearCache() {
-        // Trim cache to recommended size using LRU
-        SAFCacheManager.getInstance(this).trimCache();
+        // The SAF cache collects its writes in memory: write what is still waiting before the process ends
+        SAFCacheManager.flushIfCreated(1000);
     }
 
     public void createNotificationChannel() {
