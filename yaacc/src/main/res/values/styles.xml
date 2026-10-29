@@ -114,7 +114,7 @@
     <!-- Section headlines: small bold capitals with letter spacing, so they read as headlines and not as an entry -->
     <style name="TextAppearance.App.PreferenceCategory" parent="TextAppearance.AppCompat.Body2">
         <item name="android:textStyle">bold</item>
-        <item name="android:textSize">13sp</item>
+        <item name="android:textSize">15sp</item>
         <item name="android:textAllCaps">true</item>
         <item name="android:letterSpacing">0.1</item>
     </style>
