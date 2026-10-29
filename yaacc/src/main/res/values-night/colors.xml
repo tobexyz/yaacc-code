@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark scheme of res/values/colors.xml: the page is pure black, bars, cards and sheets are a small
+         step lighter, controls are light grays with dark content. -->
+    <color name="gray_primary">#D6D6D6</color>
+    <color name="gray_on_primary">#1B1B1B</color>
+    <color name="gray_primary_container">#D6D6D6</color>
+    <color name="gray_on_primary_container">#1B1B1B</color>
+    <color name="gray_secondary">#BDBDBD</color>
+    <color name="gray_on_secondary">#1B1B1B</color>
+    <color name="gray_secondary_container">#3A3A3A</color>
+    <color name="gray_on_secondary_container">#E3E3E3</color>
+    <color name="gray_tertiary">#C4C4C4</color>
+    <color name="gray_on_tertiary">#1B1B1B</color>
+    <color name="gray_tertiary_container">#4A4A4A</color>
+    <color name="gray_on_tertiary_container">#E3E3E3</color>
+
+    <color name="gray_background">#000000</color>
+    <color name="gray_on_background">#E3E3E3</color>
+    <color name="gray_surface">#000000</color>
+    <color name="gray_on_surface">#E3E3E3</color>
+    <color name="gray_surface_variant">#262626</color>
+    <color name="gray_on_surface_variant">#A8A8A8</color>
+    <color name="gray_surface_dim">#000000</color>
+    <color name="gray_surface_bright">#2C2C2C</color>
+    <color name="gray_surface_container_lowest">#000000</color>
+    <color name="gray_surface_container_low">#0F0F0F</color>
+    <color name="gray_surface_container">#161616</color>
+    <color name="gray_surface_container_high">#1E1E1E</color>
+    <color name="gray_surface_container_highest">#262626</color>
+
+    <color name="gray_outline">#6F6F6F</color>
+    <color name="gray_outline_variant">#2A2A2A</color>
+
+    <color name="gray_inverse_surface">#E3E3E3</color>
+    <color name="gray_inverse_on_surface">#2F2F2F</color>
+    <color name="gray_inverse_primary">#3A3A3A</color>
+
+    <color name="gray_highlight">#40BDBDBD</color>
+    <color name="gray_text_highlight">#66777777</color>
+</resources>

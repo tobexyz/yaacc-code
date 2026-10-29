@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?><!--
+ *
+ * Copyright (C) 2026 www.yaacc.de
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 3
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+-->
+<!-- The new layout: no tabs. From top to bottom: one container (the server list and, on top of it,
+     a server's content), then the bottom stack that is owned by the activity and so shows at every
+     level: a separator, the mini-player list (MiniPlayerBar: one row per running player, capped
+     at about three rows and scrolling inside, hidden while no player exists) directly above the
+     receiver bar (ReceiverBarController; same look as the content list's classic bar).
+     A vertical LinearLayout, so a hidden mini-player (GONE) cannot move an anchor. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    tools:context=".browser.BrowserActivity">
+
+    <androidx.fragment.app.FragmentContainerView
+        android:id="@+id/browserContainer"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+
+    <View
+        android:id="@+id/browserBottomSeparator"
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="?attr/colorOutlineVariant" />
+
+    <include layout="@layout/mini_player_bar" />
+
+    <!-- Receiver bar: names of the receivers with a running player; tap or D-pad select opens the device sheet. -->
+    <TextView
+        android:id="@+id/browserReceiverBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="?attr/selectableItemBackground"
+        android:clickable="true"
+        android:drawablePadding="5dp"
+        android:ellipsize="end"
+        android:focusable="true"
+        android:gravity="center_vertical"
+        android:maxLines="2"
+        android:minHeight="48dp"
+        android:paddingStart="5dp"
+        android:paddingEnd="8dp"
+        android:text="@string/receiver_bar_none_playing"
+        android:textAppearance="@android:style/TextAppearance.Material.Medium"
+        android:textColor="?attr/colorOnSurface"
+        app:drawableEndCompat="@drawable/ic_baseline_expand_less_24"
+        app:drawableStartCompat="@drawable/ic_baseline_devices_32" />
+</LinearLayout>

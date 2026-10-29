@@ -73,7 +73,7 @@ public class ImageAllItemBrowser extends ContentBrowser {
                                 .getColumnIndex(MediaStore.Images.ImageColumns.DISPLAY_NAME));
                 @SuppressLint("Range") Long size = Long.valueOf(mImageCursor.getString(mImageCursor
                         .getColumnIndex(MediaStore.Images.ImageColumns.SIZE)));
-                String dateTakenStr = mImageCursor.getString(mImageCursor.getColumnIndex(MediaStore.Images.Media.DATE_TAKEN));
+                @SuppressLint("Range") String dateTakenStr = mImageCursor.getString(mImageCursor.getColumnIndex(MediaStore.Images.Media.DATE_TAKEN));
                 @SuppressLint("Range") Long dateTaken = dateTakenStr != null ? Long.valueOf(dateTakenStr) : null;
                 @SuppressLint("Range") String mimeTypeSTring = mImageCursor.getString(mImageCursor
                         .getColumnIndex(MediaStore.Images.ImageColumns.MIME_TYPE));

@@ -55,6 +55,9 @@
     <string name="settings_local_server_proxy_title">Medienproxyservice</string>
     <string name="settings_local_server_proxy_off">Medienproxy deaktiviert</string>
     <string name="settings_local_server_proxy_on">Medienproxy aktiviert</string>
+    <string name="settings_proxy_restrict_receivers_title">Medienproxy auf die gewählten Empfänger beschränken</string>
+    <string name="settings_proxy_restrict_receivers_on">Nur die gewählten Empfänger können eine geteilte Datei oder einen geteilten Link abrufen</string>
+    <string name="settings_proxy_restrict_receivers_off">Jedes Gerät, das die Adresse kennt, kann eine geteilte Datei oder einen geteilten Link abrufen, solange sie geteilt wird</string>
     <string name="settings_local_server_media_filter_title">Filtern der Inhalte des MediaStores</string>
     <string name="settings_local_server_media_filter_off">Filtern der Inhalte des MediaStores deaktiviert</string>
     <string name="settings_local_server_media_filter_on">Filtern der Inhalte des MediaStores aktiviert</string>
@@ -85,9 +88,10 @@
     <string name="settings_browse_chunk_size">Abfragegröße</string>
     <string name="settings_browse_chunk_size_summ">Anzahl der abzufragenden Einträge je Anfrage</string>
     <string name="settings_category_appearance">Erscheinungsbild</string>
-    <string name="settings_dark_mode_title">Dunkles Design</string>
-    <string name="settings_dark_mode_off">Verwende Systemeinstellungen</string>
-    <string name="settings_dark_mode_on">Dunkles Design aktiv</string>
+    <string name="settings_theme_title">Design</string>
+    <string name="settings_theme_system">System</string>
+    <string name="settings_theme_dark">Dunkel</string>
+    <string name="settings_theme_light">Hell</string>
     <string name="settings_log_level">Log level</string>
     <string name="settings_browse_max_results_summ">Maximale Größe des Suchergebnisses</string>
     <string name="settings_browse_max_results_title">Ergebnismengengröße</string>

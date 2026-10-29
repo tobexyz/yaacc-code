@@ -31,27 +31,44 @@
         <ImageButton
             android:id="@+id/contentListBackButton"
             style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+            android:foreground="@drawable/focus_ring"
             android:layout_width="48dp"
             android:layout_height="48dp"
             android:layout_alignParentStart="true"
             android:layout_marginBottom="5dp"
             android:contentDescription="@string/icon"
-            app:srcCompat="@drawable/ic_baseline_arrow_back_32" />
+            app:srcCompat="@drawable/ic_baseline_arrow_back_32"
+            app:tint="?attr/colorControlNormal" />
 
         <LinearLayout
             android:id="@+id/contentListSortToggle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_alignTop="@id/contentListBackButton"
+            android:layout_alignParentTop="true"
             android:layout_alignParentEnd="true"
             android:layout_marginEnd="8dp"
             android:layout_marginBottom="5dp"
             android:orientation="horizontal">
 
+
+            <!-- New layout only (ContentListFragment hides it in the classic tabs): shows the list of
+                 servers from any folder depth; the arrow at the left only goes back one step. -->
+            <ImageButton
+                android:id="@+id/contentListServersButton"
+                style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+                android:foreground="@drawable/focus_ring"
+                android:layout_width="44dp"
+                android:layout_height="48dp"
+                android:contentDescription="@string/server_list_button"
+                android:visibility="gone"
+                app:srcCompat="@drawable/ic_baseline_sensors_32"
+                app:tint="?attr/colorControlNormal" />
+
             <ImageButton
                 android:id="@+id/contentListSortByNameButton"
                 style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
-                android:layout_width="48dp"
+                android:foreground="@drawable/focus_ring"
+                android:layout_width="44dp"
                 android:layout_height="48dp"
                 android:contentDescription="@string/sort_by_name"
                 app:srcCompat="@drawable/ic_baseline_sort_by_alpha_32"
@@ -60,23 +77,35 @@
             <ImageButton
                 android:id="@+id/contentListSortByDateButton"
                 style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
-                android:layout_width="48dp"
+                android:foreground="@drawable/focus_ring"
+                android:layout_width="44dp"
                 android:layout_height="48dp"
                 android:contentDescription="@string/sort_by_date"
                 app:srcCompat="@drawable/ic_baseline_date_range_32"
+                app:tint="?attr/colorControlNormal" />
+
+            <ImageButton
+                android:id="@+id/contentListViewModeToggle"
+                style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+                android:foreground="@drawable/focus_ring"
+                android:layout_width="44dp"
+                android:layout_height="48dp"
+                android:contentDescription="@string/toggle_view_mode"
+                app:srcCompat="@drawable/ic_baseline_grid_view_32"
                 app:tint="?attr/colorControlNormal" />
         </LinearLayout>
 
         <!-- layout_below anchors to contentListSortToggle, not
              contentListBackButton: the back button is set to GONE at the
-             root folder (ContentListFragment#updateFolderNavigationUi),
+             root folder in the classic layout
+             (ContentListFragment#updateFolderNavigationUi),
              and a GONE view's position collapses to a zero-size point at
              its original top edge, so layout_below="@id/contentListBackButton"
-             would snap this label (and everything below it - the
-             separator, provider and receiver rows) up to overlap the icon
+             would snap this label (and everything below it) up to overlap the icon
              row instead of sitting below it. contentListSortToggle is
              never hidden, so it's a stable anchor regardless of
-             navigation depth. -->
+             navigation depth. For the same reason the sort toggle itself uses
+             layout_alignParentTop and not layout_alignTop of the back button. -->
         <TextView
             android:id="@+id/contentListCurrentFolderName"
             android:layout_width="match_parent"
@@ -89,14 +118,26 @@
             android:ellipsize="start"
             android:text="@string/all"
             android:textAppearance="@android:style/TextAppearance.Material.Medium"
-            android:textColor="?android:attr/colorForeground" />
+            android:textColor="?attr/colorOnSurface" />
 
+        <!-- The bottom separator and the original static footer (provider, receivers) form
+             one chain: separator above provider above receivers, receivers at the parent
+             bottom. Nothing outside the chain anchors to any of them, so ContentListFragment
+             can set all three GONE together when the host owns the receiver bar (new layout)
+             without moving any visible view. In the classic layout all three are visible, so no
+             visible view is anchored to a GONE one.
+             The two lines end 1dp before the parent end instead of using
+             layout_toStartOf="@id/contentListTopSeperator" as the original did: that vertical
+             divider is set GONE during a device switch
+             (ContentListFragment#hideFolderNavigationControls), which would drop the
+             anchor. The divider's own alignEnd is the label's end (= the parent end), so
+             the geometry is identical. -->
         <View
             android:id="@+id/contentListBottomSeperator"
             android:layout_width="match_parent"
             android:layout_height="1dp"
             android:layout_above="@id/contentListCurrentProvider"
-            android:background="?android:attr/colorForeground" />
+            android:background="?attr/colorOutlineVariant" />
 
         <TextView
             android:id="@+id/contentListCurrentProvider"
@@ -105,15 +146,16 @@
             android:layout_above="@id/contentListCurrentReceivers"
             android:layout_below="@id/contentListCurrentFolderName"
             android:layout_alignParentStart="true"
+            android:layout_alignParentEnd="true"
             android:layout_marginStart="5dp"
-            android:layout_toStartOf="@id/contentListTopSeperator"
+            android:layout_marginEnd="1dp"
             android:drawablePadding="5dp"
             android:gravity="center_vertical"
             android:minLines="2"
             android:singleLine="false"
             android:text="@string/all"
             android:textAppearance="@android:style/TextAppearance.Material.Medium"
-            android:textColor="?android:attr/colorForeground"
+            android:textColor="?attr/colorOnSurface"
             app:drawableStartCompat="@drawable/ic_baseline_sensors_32" />
 
         <TextView
@@ -121,16 +163,17 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_alignParentStart="true"
+            android:layout_alignParentEnd="true"
             android:layout_alignParentBottom="true"
             android:layout_marginStart="5dp"
-            android:layout_toStartOf="@id/contentListTopSeperator"
+            android:layout_marginEnd="1dp"
             android:drawablePadding="5dp"
             android:gravity="center_vertical"
             android:minLines="2"
             android:singleLine="false"
             android:text="@string/all"
             android:textAppearance="@android:style/TextAppearance.Material.Medium"
-            android:textColor="?android:attr/colorForeground"
+            android:textColor="?attr/colorOnSurface"
             app:drawableStartCompat="@drawable/ic_baseline_devices_32" />
 
         <View
@@ -138,7 +181,7 @@
             android:layout_width="1dp"
             android:layout_height="match_parent"
             android:layout_alignEnd="@id/contentListCurrentFolderName"
-            android:background="?android:attr/colorForeground" />
+            android:background="?attr/colorOutlineVariant" />
     </RelativeLayout>
 
     <RelativeLayout xmlns:app="http://schemas.android.com/apk/res-auto"

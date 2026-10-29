@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark status and navigation bar icons: true in the light theme, false in the dark one
+         (res/values-night/bools.xml). Read by AppTheme as android:windowLightStatusBar / ...NavigationBar. -->
+    <bool name="gray_light_system_bars">true</bool>
+</resources>

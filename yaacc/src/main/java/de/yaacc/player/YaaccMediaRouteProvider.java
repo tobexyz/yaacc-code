@@ -25,6 +25,8 @@ import android.os.Looper;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.annotation.OptIn;
+import androidx.media3.common.util.UnstableApi;
 import androidx.mediarouter.media.MediaRouteDescriptor;
 import androidx.mediarouter.media.MediaRouteProvider;
 import androidx.mediarouter.media.MediaRouteProviderDescriptor;
@@ -121,6 +123,7 @@ public class YaaccMediaRouteProvider extends MediaRouteProvider {
     /**
      * Route controller for UPnP device.
      */
+    @OptIn(markerClass = UnstableApi.class)
     private class UpnpRouteController extends RouteController {
         private final Device device;
         private AVTransportPlayer player;

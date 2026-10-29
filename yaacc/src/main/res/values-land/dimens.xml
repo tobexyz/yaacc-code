@@ -5,4 +5,6 @@
          BELOW the back button (stacked), not beside it, so it never needs to
          clear the button's width horizontally - same small margin as root. -->
     <dimen name="folder_name_margin_start_with_back">5dp</dimen>
+
+    <dimen name="app_bar_height">48dp</dimen>
 </resources>

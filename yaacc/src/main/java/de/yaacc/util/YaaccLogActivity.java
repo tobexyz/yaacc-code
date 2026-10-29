@@ -21,7 +21,13 @@ package de.yaacc.util;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.SystemClock;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.View;
+import android.view.ViewTreeObserver;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
@@ -31,10 +37,54 @@ import androidx.preference.PreferenceManager;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.util.TimeZone;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 
 import de.yaacc.R;
 
+/**
+ * Shows the system log of the app. The log is read off the main thread, refreshed every couple of
+ * seconds while the screen is in front, and "Clear log" hides everything up to now.
+ */
 public class YaaccLogActivity extends AppCompatActivity {
+    private static final String CLEARED_AT_KEY = "yaacc_log_cleared_at";
+    private static final long REFRESH_INTERVAL_MS = 2000L;
+    /** Pixels from the bottom within which the view keeps following new lines. */
+    private static final int FOLLOW_THRESHOLD_PX = 48;
+    /** The view keeps at most this many characters; older lines are cut off at the front while it follows the end. */
+    private static final int MAX_VIEW_CHARS = 1_000_000;
+    /** Only the last lines of the log are read and shown, so a large logcat buffer cannot freeze the view. */
+    private static final int MAX_LINES = 4000;
+    private static final int MAX_LINE_CHARS = 1000;
+
+    private final Handler handler = new Handler(Looper.getMainLooper());
+    private ExecutorService reader;
+    private TextView textView;
+    private ScrollView scrollView;
+    private String shownLog;
+    private boolean resumed;
+    /** The user paused the refresh, e.g. to select and copy text; nothing changes until it is resumed. */
+    private boolean paused;
+    private MenuItem pauseItem;
+    /** Uptime of the last touch or scroll of the user, negative if none yet; see {@link LogRefreshGate}. */
+    private long lastInteractionMillis = -1L;
+    /** Set while this activity scrolls the view itself, so that its own scrolling is not taken for the user's. */
+    private boolean scrollingByUs;
+    private final Runnable refresh = new Runnable() {
+        @Override
+        public void run() {
+            if (!resumed) {
+                return;
+            }
+            if (!paused) {
+                readLog();
+            }
+            handler.postDelayed(this, REFRESH_INTERVAL_MS);
+        }
+    };
+
     public static void showLog(AppCompatActivity activity) {
         activity.startActivity(new Intent(activity, YaaccLogActivity.class));
     }
@@ -43,52 +93,182 @@ public class YaaccLogActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_yaacc_log);
-
-
-        displayLog();
+        textView = findViewById(R.id.yaaccLog_content);
+        textView.setTextIsSelectable(true);
+        scrollView = findViewById(R.id.yaaccLog_scrollView);
+        scrollView.setOnTouchListener((v, event) -> {
+            lastInteractionMillis = SystemClock.uptimeMillis();
+            return false;
+        });
+        scrollView.setOnScrollChangeListener((v, x, y, oldX, oldY) -> {
+            if (!scrollingByUs) {
+                lastInteractionMillis = SystemClock.uptimeMillis();
+            }
+        });
+        reader = Executors.newSingleThreadExecutor();
     }
 
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see android.app.Activity#onResume()
-     */
     @Override
     protected void onResume() {
         super.onResume();
-        displayLog();
+        resumed = true;
+        handler.removeCallbacks(refresh);
+        handler.post(refresh);
     }
 
-    private void displayLog() {
-        TextView textView = findViewById(R.id.yaaccLog_content);
+    @Override
+    protected void onPause() {
+        resumed = false;
+        handler.removeCallbacks(refresh);
+        super.onPause();
+    }
 
-        try {
-            SharedPreferences preferences = PreferenceManager
-                    .getDefaultSharedPreferences(this);
-            String logLevel = preferences.getString(
-                    getString(R.string.settings_log_level_key),
-                    "E");
-            Process process = Runtime.getRuntime().exec("logcat -d *:" + logLevel);
-            BufferedReader bufferedReader = new BufferedReader(
-                    new InputStreamReader(process.getInputStream()));
+    @Override
+    protected void onDestroy() {
+        handler.removeCallbacks(refresh);
+        if (reader != null) {
+            reader.shutdownNow();
+        }
+        super.onDestroy();
+    }
 
-            StringBuilder log = new StringBuilder();
-            String line;
-            while ((line = bufferedReader.readLine()) != null) {
-                log.append(line);
-                log.append("\n");
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(R.menu.activity_yaacc_log, menu);
+        pauseItem = menu.findItem(R.id.menu_pause_log);
+        applyPauseState();
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        if (item.getItemId() == R.id.menu_clear_log) {
+            clearLog();
+            return true;
+        }
+        if (item.getItemId() == R.id.menu_pause_log) {
+            paused = !paused;
+            applyPauseState();
+            if (!paused) {
+                readLog(); // catch up at once
             }
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
+    }
 
-            textView.setText(log.toString());
-            textView.setTextIsSelectable(true);
-            ScrollView scrollView = findViewById(R.id.yaaccLog_scrollView);
-            scrollView.post(() -> scrollView.fullScroll(View.FOCUS_DOWN));
+    /** Icon and text of the pause item follow the state: pause while updating, resume while paused. */
+    private void applyPauseState() {
+        if (pauseItem == null) {
+            return;
+        }
+        pauseItem.setIcon(paused ? R.drawable.ic_baseline_play_arrow_24 : R.drawable.ic_baseline_pause_24);
+        pauseItem.setTitle(paused ? R.string.log_resume : R.string.log_pause);
+    }
 
-        } catch (IOException e) {
-            textView.setText("Error while reading log: " + e.getMessage());
+    private SharedPreferences preferences() {
+        return PreferenceManager.getDefaultSharedPreferences(this);
+    }
+
+    /** Hides everything up to now and asks the system to empty its buffer as well (it may refuse). */
+    private void clearLog() {
+        long now = System.currentTimeMillis();
+        preferences().edit().putLong(CLEARED_AT_KEY, now).apply();
+        shownLog = null;
+        textView.setText("");
+        try {
+            reader.execute(() -> {
+                try {
+                    Process process = Runtime.getRuntime().exec(LogCommand.clearBuffer());
+                    process.waitFor();
+                    process.destroy();
+                } catch (IOException e) {
+                    // the marker alone hides the old lines
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+        } catch (RejectedExecutionException e) {
+            // closing; nothing to do
         }
     }
 
+    /** Reads the log on the reader thread and shows it on the main thread if it changed. */
+    private void readLog() {
+        String level = preferences().getString(getString(R.string.settings_log_level_key), "E");
+        long clearedAt = preferences().getLong(CLEARED_AT_KEY, 0L);
+        try {
+            reader.execute(() -> {
+                String log;
+                try {
+                    log = readLogcat(LogCommand.build(level, clearedAt, TimeZone.getDefault()));
+                } catch (IOException e) {
+                    log = "Error while reading log: " + e.getMessage();
+                }
+                String result = log;
+                handler.post(() -> show(result));
+            });
+        } catch (RejectedExecutionException e) {
+            // closing; nothing to do
+        }
+    }
 
+    private static String readLogcat(String[] command) throws IOException {
+        Process process = Runtime.getRuntime().exec(command);
+        try (BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+            return LogTail.read(bufferedReader, MAX_LINES, MAX_LINE_CHARS);
+        } finally {
+            process.destroy();
+        }
+    }
+
+    private void show(String log) {
+        if (isFinishing() || isDestroyed() || paused
+                || !LogRefreshGate.mayChangeText(SystemClock.uptimeMillis(), lastInteractionMillis)) {
+            return; // the next read catches up
+        }
+        // while the user has text selected nothing is touched: the next read catches up
+        LogDelta delta = LogDelta.between(shownLog, log, textView.hasSelection());
+        if (delta.kind() == LogDelta.Kind.NONE) {
+            return;
+        }
+        View content = scrollView.getChildAt(0);
+        boolean atBottom = content == null
+                || content.getBottom() - (scrollView.getScrollY() + scrollView.getHeight()) <= FOLLOW_THRESHOLD_PX;
+        boolean first = shownLog == null;
+        final int scrollY = scrollView.getScrollY();
+        final boolean follow = first || (atBottom && delta.kind() == LogDelta.Kind.APPEND);
+        shownLog = log;
+        if (delta.kind() == LogDelta.Kind.APPEND) {
+            // new lines at the end keep the selection
+            textView.append(delta.text());
+        } else {
+            textView.setText(delta.text());
+        }
+        if (follow && textView.length() > MAX_VIEW_CHARS) {
+            String text = textView.getText().toString();
+            int cut = text.indexOf('\n', text.length() / 2);
+            textView.setText(cut < 0 ? text.substring(text.length() / 2) : text.substring(cut + 1));
+        }
+        // A focused selectable text view scrolls its (empty) cursor at the top into view whenever its text
+        // changes: that was the jump to the top. After the text has been laid out, before it is drawn, the
+        // position is put back (or the view follows the end).
+        scrollView.getViewTreeObserver().addOnPreDrawListener(new ViewTreeObserver.OnPreDrawListener() {
+            @Override
+            public boolean onPreDraw() {
+                scrollView.getViewTreeObserver().removeOnPreDrawListener(this);
+                scrollingByUs = true;
+                try {
+                    if (follow) {
+                        scrollView.fullScroll(View.FOCUS_DOWN);
+                    } else {
+                        scrollView.scrollTo(0, scrollY);
+                    }
+                } finally {
+                    scrollingByUs = false;
+                }
+                return true;
+            }
+        });
+    }
 }

@@ -50,6 +50,90 @@
                 android:layout_alignParentStart="true"
                 android:contentDescription="@string/icon" />
 
+            <!--
+                 Buttons wrapped in a LinearLayout, not chained to each
+                 other via RelativeLayout's layout_toStartOf: for a
+                 Container row, playlistAdd and download are both GONE
+                 (see BrowseContentItemAdapter#onBindViewHolder), and a
+                 GONE view used as a layout_toStartOf/toEndOf anchor
+                 collapses to a zero-size point at its own position rather
+                 than being skipped - chaining visible buttons through two
+                 GONE ones this way (as this row previously did) resolved
+                 unreliably and could collapse the chain, squeezing the
+                 title's available width to nothing. A LinearLayout's GONE
+                 handling is simple and robust by contrast: a GONE child
+                 just takes zero space and the rest flow normally - the
+                 card layout (browse_content_item_card.xml) already uses
+                 this same pattern for its button row.
+            -->
+            <LinearLayout
+                android:id="@+id/browseContentItemActions"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_alignParentEnd="true"
+                android:orientation="horizontal">
+
+                <ImageButton
+                    android:id="@+id/browseContentItemPlaylistAdd"
+                    style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+                    android:foreground="@drawable/focus_ring"
+                    android:layout_width="32dp"
+                    android:layout_height="48dp"
+                    android:nextFocusLeft="@id/browseContentItem"
+                    android:contentDescription="@string/browse_context_playlist_add"
+                    app:srcCompat="@drawable/ic_baseline_playlist_add_32"
+                    app:tint="?attr/colorControlNormal" />
+
+                <ImageButton
+                    android:id="@+id/browseContentItemDownload"
+                    style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+                    android:foreground="@drawable/focus_ring"
+                    android:layout_width="32dp"
+                    android:layout_height="48dp"
+                    android:layout_marginStart="2dp"
+                    android:contentDescription="@string/browse_context_download"
+                    android:nextFocusLeft="@id/browseContentItemPlaylistAdd"
+                    app:srcCompat="@drawable/ic_baseline_download_32"
+                    app:tint="?attr/colorControlNormal" />
+
+                <ImageButton
+                    android:id="@+id/browseContentItemPlay"
+                    style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+                    android:foreground="@drawable/focus_ring"
+                    android:layout_width="32dp"
+                    android:layout_height="48dp"
+                    android:layout_marginStart="2dp"
+                    android:nextFocusLeft="@id/browseContentItemDownload"
+                    android:contentDescription="@string/browse_context_play"
+                    app:srcCompat="@drawable/ic_baseline_play_arrow_32"
+                    app:tint="?attr/colorControlNormal" />
+
+                <ImageButton
+                    android:id="@+id/browseContentItemPlayAll"
+                    style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+                    android:foreground="@drawable/focus_ring"
+                    android:layout_width="32dp"
+                    android:layout_height="48dp"
+                    android:layout_marginStart="2dp"
+                    android:nextFocusLeft="@id/browseContentItemPlay"
+                    android:contentDescription="@string/browse_context_play_all"
+                    app:srcCompat="@drawable/ic_baseline_double_arrow_32"
+                    app:tint="?attr/colorControlNormal" />
+
+                <ImageButton
+                    android:id="@+id/browseContentItemShare"
+                    style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+                    android:foreground="@drawable/focus_ring"
+                    android:layout_width="32dp"
+                    android:layout_height="48dp"
+                    android:layout_marginStart="2dp"
+                    android:nextFocusLeft="@id/browseContentItemPlayAll"
+                    android:contentDescription="@string/browse_context_share"
+                    app:srcCompat="@drawable/ic_baseline_share_32"
+                    app:tint="?attr/colorControlNormal" />
+
+            </LinearLayout>
+
             <TextView
                 android:id="@+id/browseContentItemName"
                 android:layout_width="wrap_content"
@@ -57,63 +141,14 @@
                 android:layout_marginStart="5dp"
                 android:layout_marginTop="10dp"
                 android:layout_marginBottom="10dp"
-                android:layout_toStartOf="@id/browseContentItemPlaylistAdd"
+                android:layout_toStartOf="@id/browseContentItemActions"
                 android:layout_toEndOf="@id/browseContentItemIcon"
                 android:ellipsize="end"
                 android:maxLines="2"
                 android:text="@string/all"
                 android:focusable="false"
                 android:textAppearance="@android:style/TextAppearance.Material.Medium"
-                android:textColor="?android:attr/colorForeground" />
-
-            <ImageButton
-                android:id="@+id/browseContentItemPlaylistAdd"
-                style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
-                android:layout_width="32dp"
-                android:layout_height="48dp"
-                android:layout_marginStart="2dp"
-                android:nextFocusLeft="@id/browseContentItem"
-                android:layout_toStartOf="@id/browseContentItemDownload"
-                android:contentDescription="@string/browse_context_playlist_add"
-                app:srcCompat="@drawable/ic_baseline_playlist_add_32"
-                    app:tint="?attr/colorControlNormal" />
-
-            <ImageButton
-                android:id="@+id/browseContentItemDownload"
-                style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
-                android:layout_width="32dp"
-                android:layout_height="48dp"
-                android:layout_marginStart="2dp"
-                android:layout_toStartOf="@id/browseContentItemPlay"
-                android:contentDescription="@string/browse_context_download"
-                android:nextFocusLeft="@id/browseContentItemPlaylistAdd"
-                app:srcCompat="@drawable/ic_baseline_download_32"
-                    app:tint="?attr/colorControlNormal" />
-
-
-            <ImageButton
-                android:id="@+id/browseContentItemPlay"
-                style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
-                android:layout_width="32dp"
-                android:layout_height="48dp"
-                android:layout_marginStart="2dp"
-                android:layout_toStartOf="@id/browseContentItemPlayAll"
-                android:nextFocusLeft="@id/browseContentItemDownload"
-                android:contentDescription="@string/browse_context_play"
-                app:srcCompat="@drawable/ic_baseline_play_arrow_32"
-                    app:tint="?attr/colorControlNormal" />
-
-            <ImageButton
-                android:id="@+id/browseContentItemPlayAll"
-                style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
-                android:layout_width="32dp"
-                android:layout_height="48dp"
-                android:layout_alignParentEnd="true"
-                android:nextFocusLeft="@id/browseContentItemPlay"
-                android:layout_marginStart="2dp"
-                android:contentDescription="@string/browse_context_play_all"
-                app:srcCompat="@drawable/ic_baseline_double_arrow_32"
-                    app:tint="?attr/colorControlNormal" />
+                android:textColor="?attr/colorOnSurface" />
 
         </RelativeLayout>
     </androidx.cardview.widget.CardView>

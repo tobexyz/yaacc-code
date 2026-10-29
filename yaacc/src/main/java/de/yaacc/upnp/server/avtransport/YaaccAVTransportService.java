@@ -18,6 +18,7 @@
  */
 package de.yaacc.upnp.server.avtransport;
 
+import de.yaacc.share.ShareLogRedactor;
 import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.binding.annotations.UpnpAction;
@@ -349,12 +350,12 @@ public class YaaccAVTransportService implements LastChangeDelegator {
                                   @UpnpInputArgument(name = "CurrentURI", stateVariable = "AVTransportURI") String currentURI,
                                   @UpnpInputArgument(name = "CurrentURIMetaData", stateVariable = "AVTransportURIMetaData") String currentURIMetaData) throws AVTransportException {
 
-        YaaccLogger.d(getClass().getName(), "setAVTransportURI called: " + currentURI);
+        YaaccLogger.d(getClass().getName(), "setAVTransportURI called: " + ShareLogRedactor.redact(String.valueOf(currentURI)));
 
         URI uri;
         try {
             uri = new URI(currentURI);
-            YaaccLogger.d(getClass().getName(), "URI parsed successfully: " + uri);
+            YaaccLogger.d(getClass().getName(), "URI parsed successfully: " + ShareLogRedactor.redact(String.valueOf(uri)));
         } catch (Exception ex) {
             YaaccLogger.e(getClass().getName(), "URI parsing failed", ex);
             throw new AVTransportException(
@@ -376,7 +377,7 @@ public class YaaccAVTransportService implements LastChangeDelegator {
             YaaccLogger.e(getClass().getName(), "Unexpected exception in setAVTransportURI", ex);
             throw new AVTransportException(AVTransportErrorCode.TRANSITION_NOT_AVAILABLE, ex.getMessage());
         }
-        YaaccLogger.d(getClass().getName(), "setAVTransportURI complete: " + uri);
+        YaaccLogger.d(getClass().getName(), "setAVTransportURI complete: " + ShareLogRedactor.redact(String.valueOf(uri)));
     }
 
     @UpnpAction

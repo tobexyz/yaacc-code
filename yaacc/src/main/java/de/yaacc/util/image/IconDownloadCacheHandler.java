@@ -20,7 +20,6 @@ package de.yaacc.util.image;
 
 import android.graphics.Bitmap;
 import android.net.Uri;
-import android.util.LruCache;
 
 /**
  * Provides cache functionality for Bitmap images in lists. Implemented as singleton to assure the
@@ -31,7 +30,7 @@ import android.util.LruCache;
  */
 public class IconDownloadCacheHandler {
     private static IconDownloadCacheHandler instance;
-    private LruCache<String, Bitmap> cache;
+    private volatile ByteLruCache<String, Bitmap> cache;
 
     private IconDownloadCacheHandler() {
         initializeCache();
@@ -42,7 +41,7 @@ public class IconDownloadCacheHandler {
      *
      * @return instance with empty cache
      */
-    public static IconDownloadCacheHandler getInstance() {
+    public static synchronized IconDownloadCacheHandler getInstance() {
         if (instance == null) {
             instance = new IconDownloadCacheHandler();
         }
@@ -78,12 +77,10 @@ public class IconDownloadCacheHandler {
     }
 
     /**
-     * Initializes a new cache with one eight of the currently available memory. This cache replaces
-     * older caches if existing.
+     * Initializes a new cache bounded in bytes (one sixteenth of the heap, 8 to 32 MB, see
+     * {@link ByteLruCache#defaultMaxBytes(long)}). This cache replaces older caches if existing.
      */
     private void initializeCache() {
-        Long maxCacheSize = Runtime.getRuntime().maxMemory();
-        int cacheSize = maxCacheSize.intValue() / 1024 / 8;
-        cache = new LruCache<>(cacheSize);
+        cache = new ByteLruCache<>(ByteLruCache.defaultMaxBytes(Runtime.getRuntime().maxMemory()), Bitmap::getByteCount);
     }
-} 
+}

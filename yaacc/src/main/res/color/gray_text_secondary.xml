@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Secondary text, hints and default icon color (android:textColorSecondary feeds colorControlNormal):
+     the on-surface-variant gray, dimmed when disabled. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:alpha="0.38" android:color="@color/gray_on_surface" android:state_enabled="false" />
+    <item android:color="@color/gray_on_surface_variant" />
+</selector>

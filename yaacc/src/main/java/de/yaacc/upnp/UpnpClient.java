@@ -27,8 +27,12 @@ import android.content.SharedPreferences.Editor;
 import android.media.AudioManager;
 import android.media.MediaMetadataRetriever;
 import android.net.Uri;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
+import android.os.SystemClock;
 import android.webkit.MimeTypeMap;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.preference.PreferenceManager;
@@ -67,15 +71,9 @@ import org.fourthline.cling.support.model.container.Container;
 import org.fourthline.cling.support.model.item.AudioItem;
 import org.fourthline.cling.support.model.item.ImageItem;
 import org.fourthline.cling.support.model.item.Item;
-import org.fourthline.cling.support.model.item.MusicTrack;
-import org.fourthline.cling.support.model.item.VideoItem;
-import org.seamless.util.MimeType;
 
 import java.io.IOException;
 import java.net.URI;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -85,19 +83,33 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import de.yaacc.share.ShareLogRedactor;
 import de.yaacc.R;
 import de.yaacc.Yaacc;
 import de.yaacc.browser.Position;
-import de.yaacc.browser.TabBrowserActivity;
 import de.yaacc.player.PlayableItem;
 import de.yaacc.player.Player;
+import de.yaacc.player.PlaylistTargets;
+import de.yaacc.player.PlayerListChangeNotifier;
 import de.yaacc.player.PlayerService;
+import de.yaacc.player.ShareLifetimeListener;
 import de.yaacc.player.YaaccMediaRouteProvider;
+import de.yaacc.share.HttpLinkTarget;
+import de.yaacc.share.LinkContentType;
+import de.yaacc.share.LinkTargetPolicy;
+import de.yaacc.share.ReadinessWait;
+import de.yaacc.share.SharedContentPolicy;
+import de.yaacc.share.ShareLimits;
+import de.yaacc.share.ShareKeyTracker;
+import de.yaacc.share.ShareService;
+import de.yaacc.share.ShareRegistry;
+import de.yaacc.share.UnclaimedShares;
 import de.yaacc.upnp.callback.contentdirectory.Browse.Status;
 import de.yaacc.upnp.callback.contentdirectory.ContentDirectoryBrowseActionCallback;
 import de.yaacc.upnp.callback.contentdirectory.ContentDirectoryBrowseResult;
@@ -108,10 +120,18 @@ import de.yaacc.upnp.callback.renderingcontrol.SetVolume;
 import de.yaacc.upnp.protocol.async.SendingSearch;
 import de.yaacc.upnp.registry.Registry;
 import de.yaacc.upnp.registry.RegistryListener;
+import de.yaacc.upnp.server.NetworkDeviceListener;
+import de.yaacc.upnp.server.NetworkRecoveryListener;
+import de.yaacc.upnp.server.NetworkRecoveryNotifier;
+import de.yaacc.upnp.server.ResumeRefreshPolicy;
 import de.yaacc.upnp.server.YaaccUpnpServerService;
 import de.yaacc.upnp.server.avtransport.AvTransport;
+import de.yaacc.upnp.server.http.HttpRequestSender;
+import de.yaacc.upnp.server.udp.UdpTransiver;
+import de.yaacc.share.HttpServerProbe;
+import de.yaacc.share.ShareAddressResolver;
+import de.yaacc.share.SharedItemFactory;
 import de.yaacc.util.FileDownloader;
-import de.yaacc.util.FormatHelper;
 import de.yaacc.util.InterfaceResolutionHelper;
 import de.yaacc.util.Watchdog;
 import de.yaacc.util.YaaccLogger;
@@ -124,9 +144,20 @@ import de.yaacc.util.YaaccLogger;
  */
 public class UpnpClient implements RegistryListener, ServiceConnection {
     public static String LOCAL_UID = "LOCAL_UID";
-    private final List<UpnpClientListener> listeners = new ArrayList<>();
+    private final List<UpnpClientListener> listeners = new CopyOnWriteArrayList<>();
+    // Kept here as well as in PlayerService, so a listener registered before the
+    // player service is bound (or after it was rebound) still gets attached.
+    private final List<PlayerListChangeNotifier.Listener> playerListChangeListeners = new CopyOnWriteArrayList<>();
     private final ExecutorService executorService;
+    // Lives as long as the client, so a screen can register before the server service is bound
+    // (which is when the service's NetworkDeviceListener does not exist yet). The service chains
+    // this notifier behind its NetworkDeviceListener.
+    private final NetworkRecoveryNotifier networkRecoveryNotifier = new NetworkRecoveryNotifier();
     SharedPreferences preferences;
+    // Time (SystemClock.elapsedRealtime) of the last M-SEARCH; the resume check does not repeat a recent one.
+    volatile long lastSearchAtMillis = ResumeRefreshPolicy.NEVER;
+    // How long a play action waits for a selected receiver that is not in the registry right now.
+    ReceiverAvailabilityPolicy receiverAvailabilityPolicy = new ReceiverAvailabilityPolicy();
 
     private Context context;
 
@@ -157,6 +188,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         if (context != null) {
             this.context = context;
             this.preferences = PreferenceManager.getDefaultSharedPreferences(context);
+            addPlayerListChangeListener(shareLifetimeListener);
 
             // Initialize MediaRouteProvider for UPnP devices
             mediaRouteProvider = new YaaccMediaRouteProvider(context, this);
@@ -187,7 +219,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     }
 
     private void fireReceiverDeviceRemoved(Device<?, ?, ?> device) {
-        for (UpnpClientListener listener : listeners) {
+        for (UpnpClientListener listener : new ArrayList<>(listeners)) {
             listener.receiverDeviceRemoved(device);
         }
     }
@@ -251,6 +283,9 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         if (service instanceof PlayerService.PlayerServiceBinder) {
             playerService = ((PlayerService.PlayerServiceBinder) service).getService();
             YaaccLogger.e(getClass().getName(), "player service bounded");
+            for (PlayerListChangeNotifier.Listener listener : playerListChangeListeners) {
+                playerService.addPlayerListChangeListener(listener);
+            }
 
         }
 
@@ -444,6 +479,17 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         listeners.add(listener);
     }
 
+    /**
+     * Removes a listener added with {@link #addUpnpClientListener(UpnpClientListener)}, so a
+     * destroyed screen is no longer called. Removes one registration; does nothing if the
+     * listener is not registered.
+     *
+     * @param listener the listener to be removed
+     */
+    public void removeUpnpClientListener(UpnpClientListener listener) {
+        listeners.remove(listener);
+    }
+
 
     /**
      * Returns all registered UpnpDevices.
@@ -611,31 +657,85 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
                                                    Long maxResults, SortCriterion... orderBy) {
         ContentDirectoryBrowseResult result = new ContentDirectoryBrowseResult();
         if (device == null) {
+            // e.g. the device dropped out of the registry while the network was away; not an empty folder
+            result.setUpnpFailure(new UpnpFailure(null, null, "Device not available", true));
             return result;
         }
         Service<?, ?> service = device.findService(new UDAServiceId("ContentDirectory"));
-        ContentDirectoryBrowseActionCallback actionCallback;
-        if (service != null) {
-            YaaccLogger.d(getClass().getName(), "#####Service found: " + service.getServiceId() + " Type: " + service.getServiceType());
-            actionCallback = new ContentDirectoryBrowseActionCallback(service, objectID, flag, filter, firstResult, maxResults, result, yaaccUpnpServerService.getNetworkDeviceListener().getHttpRequestSender(), orderBy);
-            executorService.execute(actionCallback);
-            while (actionCallback.getStatus() == Status.LOADING && actionCallback.getUpnpFailure() == null) {
-                //FIXME implement maybe async model?
-                try {
-                    TimeUnit.MILLISECONDS.sleep(100);
-                } catch (InterruptedException e) {
-                    YaaccLogger.e(getClass().getName(), "InterruptedException", e);
-                }
+        if (service == null) {
+            result.setUpnpFailure(new UpnpFailure(null, null, "Device has no ContentDirectory service", false));
+            return result;
+        }
+        HttpRequestSender httpRequestSender = getHttpRequestSender();
+        if (httpRequestSender == null) {
+            // no server service bound, no listener yet or no network came up so far
+            YaaccLogger.w(getClass().getName(), "No HTTP request sender available, browse not possible right now");
+            result.setUpnpFailure(new UpnpFailure(null, null, "No HTTP request sender available", true));
+            return result;
+        }
+        YaaccLogger.d(getClass().getName(), "#####Service found: " + service.getServiceId() + " Type: " + service.getServiceType());
+        final ContentDirectoryBrowseActionCallback actionCallback = new ContentDirectoryBrowseActionCallback(service, objectID, flag, filter, firstResult, maxResults, result, httpRequestSender, orderBy);
+        executorService.execute(() -> {
+            try {
+                actionCallback.run();
+            } catch (RuntimeException e) {
+                // without this the pool thread dies and the waiting loop below never ends
+                YaaccLogger.e(getClass().getName(), "Browse action failed unexpectedly", e);
+                result.setUpnpFailure(new UpnpFailure(actionCallback.getActionInvocation(), null, String.valueOf(e), false));
             }
-            if (actionCallback.getUpnpFailure() != null) {
-                YaaccLogger.e(getClass().getName(), "UPnP failure: " + actionCallback.getUpnpFailure());
+        });
+        while (actionCallback.getStatus() == Status.LOADING && actionCallback.getUpnpFailure() == null) {
+            //FIXME implement maybe async model?
+            try {
+                TimeUnit.MILLISECONDS.sleep(100);
+            } catch (InterruptedException e) {
+                // the load was cancelled: stop waiting and keep the interrupt for the caller
+                Thread.currentThread().interrupt();
+                result.setUpnpFailure(new UpnpFailure(actionCallback.getActionInvocation(), null, "Interrupted", false));
+                break;
             }
+        }
+        if (actionCallback.getUpnpFailure() != null) {
+            YaaccLogger.e(getClass().getName(), "UPnP failure: " + actionCallback.getUpnpFailure());
         }
 
         if (preferences.getBoolean(getContext().getString(R.string.settings_browse_thumbnails_coverlookup_chkbx), false)) {
             enrichWithCover(result);
         }
         return result;
+    }
+
+    /**
+     * @return the sender of the server service's network listener, or null when there is none (yet):
+     * no service bound, the listener not created or no network came up since the start
+     */
+    public HttpRequestSender getHttpRequestSender() {
+        YaaccUpnpServerService serverService = yaaccUpnpServerService;
+        if (serverService == null) {
+            return null;
+        }
+        NetworkDeviceListener networkDeviceListener = serverService.getNetworkDeviceListener();
+        return networkDeviceListener == null ? null : networkDeviceListener.getHttpRequestSender();
+    }
+
+    /**
+     * Registers for "the network is back" (see {@link NetworkRecoveryListener}). Held weakly: the
+     * caller keeps the listener and calls {@link #removeNetworkRecoveryListener} when it stops.
+     */
+    public void addNetworkRecoveryListener(NetworkRecoveryListener listener) {
+        networkRecoveryNotifier.add(listener);
+    }
+
+    public void removeNetworkRecoveryListener(NetworkRecoveryListener listener) {
+        networkRecoveryNotifier.remove(listener);
+    }
+
+    /**
+     * @return the listener the server service registers at its network listener, it passes the
+     * "network is back" on to the listeners added with {@link #addNetworkRecoveryListener}
+     */
+    public NetworkRecoveryListener getNetworkRecoveryRelay() {
+        return networkRecoveryNotifier;
     }
 
     /**
@@ -692,8 +792,69 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      */
     public void searchDevices() {
         if (isInitialized()) {
-            executorService.execute(new SendingSearch(yaaccUpnpServerService.getNetworkDeviceListener().getUdpTransiver(), new STAllHeader(), MXHeader.DEFAULT_VALUE));
+            // the listener may be missing or disabled between the check and here: its transceiver is gone then
+            NetworkDeviceListener listener = yaaccUpnpServerService == null ? null : yaaccUpnpServerService.getNetworkDeviceListener();
+            UdpTransiver transiver = listener == null ? null : listener.getUdpTransiver();
+            if (transiver == null) {
+                YaaccLogger.d(getClass().getName(), "Search skipped: no UDP transceiver (no network listener, or it is disabled)");
+                return;
+            }
+            lastSearchAtMillis = nowMillis();
+            executorService.execute(new SendingSearch(transiver, new STAllHeader(), MXHeader.DEFAULT_VALUE));
         }
+    }
+
+    /** Monotonic clock that also counts the time the device slept; overridable for tests. */
+    long nowMillis() {
+        return SystemClock.elapsedRealtime();
+    }
+
+    /** False in plain JVM tests (no main looper there). */
+    boolean isOnMainThread() {
+        Looper main = Looper.getMainLooper();
+        return main != null && main == Looper.myLooper();
+    }
+
+    /**
+     * A browser screen came back to the foreground, maybe after the device or the app was suspended
+     * (screen off, Doze, a long time in the background): checks the network listener and searches
+     * the devices again if the last search is not recent. Does its work on the client's executor and
+     * returns at once.
+     */
+    public void refreshAfterResume() {
+        executorService.execute(this::refreshAfterResumeNow);
+    }
+
+    /** The work of {@link #refreshAfterResume()}; worker thread only. */
+    void refreshAfterResumeNow() {
+        try {
+            ResumeRefreshPolicy.ListenerCheck check = reenableNetworkListenerIfStale();
+            if (check == null) {
+                // the service starts its own discovery once the listener is up
+                YaaccLogger.d(getClass().getName(), "Resume: no network listener yet, nothing to refresh");
+                return;
+            }
+            boolean search = ResumeRefreshPolicy.shouldSearch(check.needsReenable(), lastSearchAtMillis, nowMillis());
+            long ageSeconds = lastSearchAtMillis < 0 ? -1 : (nowMillis() - lastSearchAtMillis) / 1000;
+            YaaccLogger.d(getClass().getName(), "Resume: network listener " + check + (check.needsReenable() ? " (enabled again)" : "") + ", "
+                    + (search ? "searching devices" : "not searching, the last search was " + ageSeconds + " s ago"));
+            if (search) {
+                searchDevices();
+            }
+        } catch (RuntimeException e) {
+            // a failed refresh must never take the screen down; the network callbacks remain
+            YaaccLogger.w(getClass().getName(), "Resume: refresh failed (" + e.getClass().getSimpleName() + ")", e);
+        }
+    }
+
+    /**
+     * @return what the server service's network listener found about itself (and fixed if needed),
+     * null if there is no listener yet
+     */
+    private ResumeRefreshPolicy.ListenerCheck reenableNetworkListenerIfStale() {
+        YaaccUpnpServerService serverService = yaaccUpnpServerService;
+        NetworkDeviceListener listener = serverService == null ? null : serverService.getNetworkDeviceListener();
+        return listener == null ? null : listener.reenableIfStale();
     }
 
     /**
@@ -719,7 +880,9 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         if (!waitForPlayerServiceComeUp()) {
             return Collections.emptyList();
         }
-        return playerService.createPlayer(this, toPlayableItems(items));
+        List<Player> players = playerService.createPlayer(this, toPlayableItems(items));
+        rememberShares(players);
+        return players;
     }
 
     @NonNull
@@ -773,7 +936,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         }
         YaaccLogger.d(getClass().getName(), "TransportId: " + transport.getInstanceId());
         PositionInfo positionInfo = transport.getPositionInfo();
-        YaaccLogger.d(getClass().getName(), "positionInfo: " + positionInfo);
+        YaaccLogger.d(getClass().getName(), "positionInfo: " + ShareLogRedactor.redact(String.valueOf(positionInfo)));
         if (positionInfo == null) {
             return playerService.createPlayerForLocalDevice(this, items);
         }
@@ -782,7 +945,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
             if (positionInfo.getTrackMetaData() != null && !positionInfo.getTrackMetaData().contains("NOT_IMPLEMENTED")) {
                 metadata = new DIDLParser().parse(positionInfo.getTrackMetaData());
             } else {
-                YaaccLogger.d(getClass().getName(), "Warning unparsable TackMetaData: " + positionInfo.getTrackMetaData());
+                YaaccLogger.d(getClass().getName(), "Warning unparsable TackMetaData: " + ShareLogRedactor.redact(String.valueOf(positionInfo.getTrackMetaData())));
             }
         } catch (Exception e) {
             YaaccLogger.d(getClass().getName(), "Exception while parsing metadata: ", e);
@@ -806,17 +969,14 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
             playableItem.setTitle(positionInfo.getTrackURI());
             String fileExtension = MimeTypeMap.getFileExtensionFromUrl(positionInfo.getTrackURI());
             mimeType = MimeTypeMap.getSingleton().getMimeTypeFromExtension(fileExtension);
-            YaaccLogger.d(getClass().getName(), "fileextension from trackURI: " + fileExtension);
+            YaaccLogger.d(getClass().getName(), "fileextension from trackURI: " + ShareLogRedactor.redact(String.valueOf(fileExtension)));
         }
         playableItem.setMimeType(mimeType);
         playableItem.setUri(Uri.parse(positionInfo.getTrackURI()));
-        YaaccLogger.d(getClass().getName(), "positionInfo.getTrackURI(): " + positionInfo.getTrackURI());
         // FIXME Duration not supported in receiver yet
         // playableItem.setDuration(duration)
         items.add(playableItem);
-        YaaccLogger.d(getClass().getName(), "TransportUri: " + positionInfo.getTrackURI());
         YaaccLogger.d(getClass().getName(), "Current duration: " + positionInfo.getTrackDuration());
-        YaaccLogger.d(getClass().getName(), "TrackMetaData: " + positionInfo.getTrackMetaData());
         YaaccLogger.d(getClass().getName(), "MimeType: " + playableItem.getMimeType());
         return playerService.createPlayerForLocalDevice(this, items);
     }
@@ -831,6 +991,42 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
             return Collections.emptyList();
         }
         return playerService.getCurrentPlayers();
+    }
+
+    /**
+     * Registers a listener for players being added to or removed from the
+     * player service; see {@link PlayerService#addPlayerListChangeListener}.
+     * Works before the service is bound: the listener is attached once it is.
+     * Callers must call {@link #removePlayerListChangeListener} when done.
+     */
+    public void addPlayerListChangeListener(PlayerListChangeNotifier.Listener listener) {
+        if (listener == null || playerListChangeListeners.contains(listener)) {
+            return;
+        }
+        playerListChangeListeners.add(listener);
+        PlayerService service = playerService;
+        if (service != null) {
+            service.addPlayerListChangeListener(listener);
+        }
+    }
+
+    public void removePlayerListChangeListener(PlayerListChangeNotifier.Listener listener) {
+        playerListChangeListeners.remove(listener);
+        PlayerService service = playerService;
+        if (service != null) {
+            service.removePlayerListChangeListener(listener);
+        }
+    }
+
+    /**
+     * Creation sequence of an active player (higher = added later), or 0 if the
+     * player isn't active or the player service isn't bound.
+     */
+    public long getPlayerCreationSequence(Player player) {
+        if (playerService == null) {
+            return 0;
+        }
+        return playerService.getPlayerCreationSequence(player);
     }
 
     /**
@@ -965,12 +1161,17 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      * Gets the receiver IDs, if none is defined the local device will be
      * returned
      *
-     * @return the receiverDeviceIds
+     * @return the receiverDeviceIds, a copy the caller may modify (the set that
+     * {@code SharedPreferences.getStringSet} returns must never be changed); an empty stored
+     * set stays empty
      */
     public Set<String> getReceiverDeviceIds() {
         HashSet<String> defaultReceiverSet = new HashSet<>();
         defaultReceiverSet.add(UpnpClient.LOCAL_UID);
-        return preferences.getStringSet(getContext().getString(R.string.settings_selected_receivers_title), defaultReceiverSet);
+        Set<String> stored = preferences.getStringSet(getContext().getString(R.string.settings_selected_receivers_title), defaultReceiverSet);
+        // a copy: the set returned by getStringSet must never be modified (it may be the very object
+        // the preferences keep); an empty stored set stays empty, it is not replaced by a default
+        return stored == null ? new HashSet<>() : new HashSet<>(stored);
     }
 
     /**
@@ -1003,10 +1204,65 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
                 unknowsIds.add(id);
             }
         }
-        // remove all unknown ids
-        unknowsIds.forEach(receiverDeviceIds::remove);
-        setReceiverDeviceIds(receiverDeviceIds);
+        // remove all unknown ids (from the copy above: the stored set is never changed in place)
+        if (!unknowsIds.isEmpty()) {
+            receiverDeviceIds.removeAll(unknowsIds);
+            setReceiverDeviceIds(receiverDeviceIds);
+        }
         return result;
+    }
+
+    /**
+     * Like {@link #getReceiverDevices()}, but first gives a selected receiver that is not in the
+     * registry right now a few seconds to come back ({@link ReceiverAvailabilityPolicy}: three looks,
+     * 2.5 s apart, a search before each wait). After a suspend the registry may have dropped the
+     * renderer; {@link #getReceiverDevices()} would remove it from the stored selection for good.
+     * What is still missing after the last look is dropped as before.
+     * <p>
+     * Waits, so worker threads only; on the main thread it does not wait.
+     */
+    public Collection<Device<?, ?, ?>> awaitReceiverDevices() {
+        if (isOnMainThread()) {
+            return getReceiverDevices();
+        }
+        int missingAtFirstLook = countMissingReceivers();
+        int missing = receiverAvailabilityPolicy.await(this::countMissingReceivers, attempt -> {
+            YaaccLogger.d(getClass().getName(), "Resume: " + countMissingReceivers() + " selected receiver(s) not in the registry, searching (look "
+                    + attempt + " of " + ReceiverAvailabilityPolicy.MAX_ATTEMPTS + ")");
+            reenableNetworkListenerIfStale();
+            searchDevices();
+        });
+        if (missingAtFirstLook > 0) {
+            YaaccLogger.d(getClass().getName(), missing == 0
+                    ? "Resume: the selected receiver(s) are back, playing"
+                    : "Resume: " + missing + " selected receiver(s) still not in the registry, giving up");
+        }
+        return getReceiverDevices();
+    }
+
+    private int countMissingReceivers() {
+        int missing = 0;
+        for (String id : getReceiverDeviceIds()) {
+            if (!LOCAL_UID.equals(id) && getDevice(id) == null) {
+                missing++;
+            }
+        }
+        return missing;
+    }
+
+    /**
+     * Clears the receiver selection: the stored set becomes empty (and stays empty, it is not
+     * replaced by the local device) and a "receiver removed" event is fired for every receiver
+     * that was selected, so views that follow the selection refresh. Does nothing to running
+     * players or to the allowed set of an existing share (that was fixed when the share was
+     * registered).
+     */
+    public void clearReceiverDevices() {
+        Collection<Device<?, ?, ?>> previous = getReceiverDevices();
+        setReceiverDeviceIds(new HashSet<>());
+        for (Device<?, ?, ?> device : previous) {
+            fireReceiverDeviceRemoved(device);
+        }
     }
 
     public int getReceiverDevicesReadyCount() {
@@ -1207,7 +1463,9 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         if (!waitForPlayerServiceComeUp()) {
             return Collections.emptyList();
         }
-        return playerService.createPlayer(this, items);
+        List<Player> players = playerService.createPlayer(this, items);
+        rememberShares(players);
+        return players;
     }
 
     public boolean getMute(Device<?, ?, ?> device) {
@@ -1230,10 +1488,15 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
                             + device.getDisplayString());
             return false;
         }
+        HttpRequestSender httpRequestSender = getHttpRequestSender();
+        if (httpRequestSender == null) {
+            YaaccLogger.w(getClass().getName(), "No HTTP request sender available, get mute skipped");
+            return false;
+        }
         YaaccLogger.d(getClass().getName(), "Action get Mute ");
         final ActionState actionState = new ActionState();
         actionState.actionFinished = false;
-        GetMute actionCallback = new GetMute(service, yaaccUpnpServerService.getNetworkDeviceListener().getHttpRequestSender()) {
+        GetMute actionCallback = new GetMute(service, httpRequestSender) {
             @Override
             public void failure(ActionInvocation actioninvocation,
                                 UpnpResponse upnpresponse, String s) {
@@ -1305,8 +1568,13 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
                             + device.getDisplayString());
             return;
         }
+        HttpRequestSender httpRequestSender = getHttpRequestSender();
+        if (httpRequestSender == null) {
+            YaaccLogger.w(getClass().getName(), "No HTTP request sender available, set mute skipped");
+            return;
+        }
         YaaccLogger.d(getClass().getName(), "Action set Mute ");
-        SetMute actionCallback = new SetMute(service, mute, yaaccUpnpServerService.getNetworkDeviceListener().getHttpRequestSender()) {
+        SetMute actionCallback = new SetMute(service, mute, httpRequestSender) {
             @Override
             public void failure(ActionInvocation actioninvocation,
                                 UpnpResponse upnpresponse, String s) {
@@ -1352,10 +1620,15 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
                             + device.getDisplayString());
             return 0;
         }
+        HttpRequestSender httpRequestSender = getHttpRequestSender();
+        if (httpRequestSender == null) {
+            YaaccLogger.w(getClass().getName(), "No HTTP request sender available, get volume skipped");
+            return 0;
+        }
         YaaccLogger.d(getClass().getName(), "Action get Volume ");
         final ActionState actionState = new ActionState();
         actionState.actionFinished = false;
-        GetVolume actionCallback = new GetVolume(service, yaaccUpnpServerService.getNetworkDeviceListener().getHttpRequestSender()) {
+        GetVolume actionCallback = new GetVolume(service, httpRequestSender) {
             @Override
             public void failure(ActionInvocation actioninvocation,
                                 UpnpResponse upnpresponse, String s) {
@@ -1428,8 +1701,13 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
                             + device.getDisplayString());
             return;
         }
+        HttpRequestSender httpRequestSender = getHttpRequestSender();
+        if (httpRequestSender == null) {
+            YaaccLogger.w(getClass().getName(), "No HTTP request sender available, set volume skipped");
+            return;
+        }
         YaaccLogger.d(getClass().getName(), "Action set Volume ");
-        SetVolume actionCallback = new SetVolume(service, volume, yaaccUpnpServerService.getNetworkDeviceListener().getHttpRequestSender()) {
+        SetVolume actionCallback = new SetVolume(service, volume, httpRequestSender) {
             @Override
             public void failure(ActionInvocation actioninvocation,
                                 UpnpResponse upnpresponse, String s) {
@@ -1535,87 +1813,328 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         }
     }
 
+    /**
+     * Adds the item to the chosen receivers: the playlist of a receiver that already has a player gets
+     * it, a receiver without a player gets a new one (see {@link PlaylistTargets}).
+     */
     public void addToPlaylist(DIDLObject item) {
         List<Item> itemList = toItemList(item, 3);
-
-        if (getCurrentPlayers().stream().noneMatch(p -> getReceiverDevices().stream()
-                .map(d -> d.getIdentity().getUdn().getIdentifierString())
-                .collect(Collectors.toList()).contains(p.getDeviceId()))) {
-            initializePlayers(itemList);
-        } else {
-            getCurrentPlayers().stream().filter(
-                            p -> getReceiverDevices().stream()
-                                    .map(d -> d.getIdentity().getUdn().getIdentifierString())
-                                    .collect(Collectors.toList()).contains(p.getDeviceId()))
+        Collection<Device<?, ?, ?>> chosen = awaitReceiverDevices();
+        List<String> chosenIds = new ArrayList<>();
+        for (Device<?, ?, ?> device : chosen) {
+            chosenIds.add(device.getIdentity().getUdn().getIdentifierString());
+        }
+        List<String> playerDeviceIds = new ArrayList<>();
+        for (Player player : getCurrentPlayers()) {
+            playerDeviceIds.add(player.getDeviceId());
+        }
+        PlaylistTargets targets = PlaylistTargets.split(chosenIds, playerDeviceIds);
+        if (!targets.withPlayer().isEmpty()) {
+            getCurrentPlayers().stream()
+                    .filter(p -> targets.withPlayer().contains(p.getDeviceId()))
                     .forEach(p -> p.addItems(toPlayableItems(itemList)));
         }
-
+        if (!targets.withoutPlayer().isEmpty()) {
+            List<Device<?, ?, ?>> withoutPlayer = new ArrayList<>();
+            for (Device<?, ?, ?> device : chosen) {
+                if (targets.withoutPlayer().contains(device.getIdentity().getUdn().getIdentifierString())) {
+                    withoutPlayer.add(device);
+                }
+            }
+            initializePlayersFor(itemList, withoutPlayer);
+        }
     }
 
-    public PlayableItem createPlayableItem(Uri uri) throws IOException {
-        PlayableItem item = new PlayableItem();
-        if (uri == null) {
-            return item;
+    /** Creates a player with the items for each of the given receivers only. */
+    private List<Player> initializePlayersFor(List<Item> items, Collection<Device<?, ?, ?>> devices) {
+        if (playerService == null && !startService()) {
+            return Collections.emptyList();
         }
-        String uriString = uri.toString();
+        if (!waitForPlayerServiceComeUp()) {
+            return Collections.emptyList();
+        }
+        List<Player> players = playerService.createPlayerFor(this, toPlayableItems(items), devices);
+        rememberShares(players);
+        return players;
+    }
+
+    /** What the metadata reader found about a link; any field may be unknown (0 or null). */
+    private static final class LinkMetadata {
+        String mimeType;
+        long durationMillis;
+        long bitrate;
+    }
+
+    /** HEAD timeouts for the content type of a link the metadata reader could not read. */
+    private static final int LINK_HEAD_TIMEOUT_MILLIS = 5_000;
+
+    /**
+     * Makes the item for a shared http(s) link (shared text). Worker thread only: it reads the
+     * link's metadata over the network and, with the media proxy option on, registers the link
+     * with the share registry.
+     * <p>
+     * The media type comes from the metadata reader; if that fails it comes from a bounded HTTP
+     * {@code HEAD} (concrete audio, video or image type); only if that fails too the link is
+     * assumed to be an image, as before, and a payload-free line says so. With the proxy option on
+     * a target the phone must not fetch (loopback, link-local, this phone's own address, see
+     * {@link LinkTargetPolicy}) is refused. Nothing here logs the link or the exceptions' text.
+     *
+     * @return the item, or null if the link is refused (the caller plays nothing)
+     */
+    public PlayableItem createPlayableItem(Uri uri) throws IOException {
+        return createPlayableItem(uri, getReceiverDeviceIds());
+    }
+
+    /**
+     * Same as {@link #createPlayableItem(Uri)}, with the receivers the share is made for given
+     * explicitly: the addresses a proxied link is served to are built from exactly these ids, never
+     * from the stored selection, which another action may have replaced or cleared during the
+     * network work.
+     *
+     * @param receiverIds the receivers chosen for this share, captured at confirm time
+     */
+    public PlayableItem createPlayableItem(Uri uri, Set<String> receiverIds) throws IOException {
+        if (uri == null) {
+            return null;
+        }
+        final String link = uri.toString();
+        if (!HttpLinkTarget.isFetchable(link)) {
+            YaaccLogger.w(getClass().getName(), "A shared link was refused: not an http(s) link");
+            return null;
+        }
         final String title = "shared with ♥ by yaacc";
-        //auto closeable requires Android code level 29 current min level is 27
-        try (MediaMetadataRetriever metaRetriever = new MediaMetadataRetriever()) {
-            Res res;
-            try {
-                metaRetriever.setDataSource(uriString);
-                long duration = Long.parseLong(metaRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION));
-                item.setDuration(duration);
-                item.setMimeType(metaRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_MIMETYPE));
-                long bitrate = Long.parseLong(metaRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE));
-                long size = (bitrate / 8 * duration / 1000 / 1000);
-                res = new Res(MimeType.valueOf(item.getMimeType()), size, FormatHelper.parseMillisToTimeStringTo(duration), bitrate, uriString);
-                if (item.getMimeType().startsWith("audio/")) {
-                    item.setItem(new MusicTrack("1", "2", title, "", "", "", res));
-                } else if (item.getMimeType().startsWith("video/")) {
-                    item.setItem(new VideoItem("1", "2", title, "", res));
-                } else if (item.getMimeType().startsWith("image/")) {
-                    item.setItem(new ImageItem("1", "2", title, "", res));
-                }
-            } catch (RuntimeException e) {
-                //no media file with duration
-                YaaccLogger.d(getClass().getName(), "Can't retrieve duration of media url assume shared image", e);
-                res = new Res(MimeType.valueOf("image/*"), 1L, "");
-                res.setValue(uriString);
-                item.setMimeType("image/*");
-                item.setItem(new ImageItem("1", "2", title, "", res));
+        // only http(s) links are proxied; the link is kept in the in-memory share registry
+        // (random key, receiver addresses, expiry), never in the preferences
+        final boolean proxy = this.getPreferences().getBoolean(
+                getContext().getString(R.string.settings_local_server_proxy_chkbx), false);
+        final Set<String> ownAddresses = ShareAddressResolver.ownAddresses(getContext());
+        if (proxy && !LinkTargetPolicy.isAllowedTarget(link, ownAddresses)) {
+            // the phone would fetch its own or a link-local service for the receivers: play nothing
+            YaaccLogger.w(getClass().getName(), "A shared link was refused: the media proxy does not serve it");
+            return null;
+        }
+        // the reader is released inside this call, before any slow work below
+        LinkMetadata meta = readLinkMetadata(link);
+        String mimeType;
+        long durationMillis = 0L;
+        long sizeBytes = 1L;
+        if (meta != null) {
+            mimeType = meta.mimeType;
+            durationMillis = meta.durationMillis;
+            if (meta.bitrate > 0L && durationMillis > 0L) {
+                sizeBytes = (meta.bitrate / 8 * durationMillis / 1000 / 1000);
             }
-            item.setUri(uri);
-            if (this.getPreferences().getBoolean(getContext().getString(R.string.settings_local_server_proxy_chkbx), false)) {
-                String contentKey = sha256(uriString);
-                String proxyUrl = "http://" + InterfaceResolutionHelper.getIpAddress(getContext()) + ":" + YaaccUpnpServerService.PORT + "/" + YaaccUpnpServerService.PROXY_PATH + "/" + contentKey;
-                this.getPreferences().edit().putString(YaaccUpnpServerService.PROXY_LINK_KEY_PREFIX + contentKey, uriString).apply();
-                this.getPreferences().edit().putString(YaaccUpnpServerService.PROXY_LINK_MIME_TYPE_KEY_PREFIX + contentKey, item.getMimeType()).apply();
-                item.setUri(Uri.parse(proxyUrl));
-                res.setValue(proxyUrl);
+        } else {
+            // a failed read must not silently label the link an image: ask the server
+            mimeType = LinkContentType.find(link,
+                    hop -> !proxy || LinkTargetPolicy.isAllowedTarget(hop, ownAddresses),
+                    LINK_HEAD_TIMEOUT_MILLIS);
+            if (mimeType == null) {
+                YaaccLogger.d(getClass().getName(), "Media type of a shared link unknown, assuming an image");
+                mimeType = "image/*";
             }
-            item.setTitle(title);
+        }
+        String playUrl = link;
+        String shareKey = null;
+        if (proxy) {
+            String proxyUrl = createHttpLinkShare(link, mimeType, receiverIds);
+            if (proxyUrl != null) {
+                playUrl = proxyUrl;
+                shareKey = ShareKeyTracker.keyOfProxyPath(Uri.parse(proxyUrl).getPath(), YaaccUpnpServerService.PROXY_PATH);
+            }
+        }
+        PlayableItem item = SharedItemFactory.create(mimeType, title, Uri.parse(playUrl), sizeBytes, durationMillis,
+                meta == null ? 0L : meta.bitrate);
+        if (item == null && shareKey != null) {
+            // do not leave a share behind that nobody can play
+            getShareRegistry().remove(shareKey);
         }
         return item;
     }
 
-    private static String sha256(String input) {
+    /**
+     * Reads duration, media type and bitrate of a link with {@link MediaMetadataRetriever} (a
+     * network call without a timeout of its own: worker thread only).
+     *
+     * @return null if the reader failed or did not find a concrete audio, video or image type
+     */
+    private LinkMetadata readLinkMetadata(String link) {
+        LinkMetadata meta = new LinkMetadata();
+        //auto closeable requires Android code level 29 current min level is 27
+        try (MediaMetadataRetriever metaRetriever = new MediaMetadataRetriever()) {
+            metaRetriever.setDataSource(link);
+            meta.mimeType = metaRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_MIMETYPE);
+            meta.durationMillis = parseLongOrZero(metaRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION));
+            meta.bitrate = parseLongOrZero(metaRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE));
+        } catch (RuntimeException | IOException e) {
+            // no media file with duration; the exception text may hold the link
+            YaaccLogger.d(getClass().getName(), "Can't read the metadata of a shared link ("
+                    + e.getClass().getSimpleName() + ")");
+            return null;
+        }
+        if (!SharedContentPolicy.isAcceptableMimeType(meta.mimeType) || meta.durationMillis <= 0L) {
+            return null;
+        }
+        return meta;
+    }
+
+    private static long parseLongOrZero(String value) {
         try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(
-                    input.getBytes(StandardCharsets.UTF_8));
-            StringBuilder hexString = new StringBuilder(2 * hash.length);
-            for (byte b : hash) {
-                String hex = Integer.toHexString(0xff & b);
-                if (hex.length() == 1) {
-                    hexString.append('0');
-                }
-                hexString.append(hex);
+            return value == null ? 0L : Long.parseLong(value);
+        } catch (NumberFormatException e) {
+            return 0L;
+        }
+    }
+
+    /** How long a share waits for the local HTTP server before it hands out the direct link. */
+    private static final long SERVER_READY_MAX_MILLIS = 3_000L;
+    private static final long SERVER_READY_POLL_MILLIS = 200L;
+
+    /**
+     * Registers an http(s) link with the share registry and returns the proxy URL a receiver
+     * fetches it from, or null if no share could be made (the caller then uses the link
+     * directly). Allowed fetchers are the chosen receivers, see {@link ShareAddressResolver}.
+     * <p>
+     * Worker thread only: it waits (up to 3 s) until the local HTTP server accepts connections
+     * (a cold start from a share intent) and reads the own addresses from the network
+     * interfaces. Its only caller is {@link #createPlayableItem}, which
+     * {@code ShareIntentHandler.prepareAndPlay} runs on its executor; on the main thread the
+     * wait is skipped, so the UI never blocks. Nothing here logs the link or the key.
+     */
+    private String createHttpLinkShare(String link, String mimeType, Set<String> receiverIds) {
+        HttpLinkTarget target = HttpLinkTarget.of(link);
+        if (target == null) {
+            return null;
+        }
+        // no address (offline) means no URL: never "http://null:..."; checked before anything is registered
+        String ip = InterfaceResolutionHelper.getIpAddress(getContext());
+        if (!ShareService.hasAddress(ip)) {
+            YaaccLogger.w(getClass().getName(), "No network address, using the link directly");
+            return null;
+        }
+        if (!awaitHttpServer()) {
+            YaaccLogger.w(getClass().getName(), "Media proxy server is not ready, using the link directly");
+            return null;
+        }
+        ShareRegistry registry = getShareRegistry();
+        ShareRegistry.Entry entry = new ShareRegistry.Entry(ShareRegistry.Kind.HTTP_LINK, target, mimeType,
+                ShareAddressResolver.resolve(this, getContext(), receiverIds),
+                ShareLimits.IDLE_GRACE_MILLIS, ShareLimits.ABSOLUTE_MAX_MILLIS);
+        String key = registry.registerOrEvict(entry);
+        if (key == null) {
+            YaaccLogger.w(getClass().getName(), "Media proxy is full, using the link directly");
+            notifyRegistryFull();
+            return null;
+        }
+        // a share no player takes within the claim window is removed by the sweeper
+        getUnclaimedShares().registered(key, Yaacc.shareClockMillis());
+        return ShareService.proxyUrl(ip, key);
+    }
+
+    /**
+     * Gives up the share an item was made for (no player took it): removes its registry key,
+     * which closes the source of a file. Does nothing for an item without a proxy URL. Never throws.
+     */
+    public void discardShareOf(PlayableItem item) {
+        try {
+            Uri uri = item == null ? null : item.getUri();
+            String key = uri == null ? null
+                    : ShareKeyTracker.keyOfProxyPath(uri.getPath(), YaaccUpnpServerService.PROXY_PATH);
+            if (key != null) {
+                getShareRegistry().remove(key);
+                getUnclaimedShares().released(key);
             }
-            return hexString.toString();
-        } catch (NoSuchAlgorithmException ex) {
-            YaaccLogger.e(TabBrowserActivity.class.getName(), "no sha256 found", ex);
-            return input;
+        } catch (RuntimeException e) {
+            YaaccLogger.w(getClass().getName(), "Could not discard a share (" + e.getClass().getSimpleName() + ")");
+        }
+    }
+
+    /**
+     * Waits for the loopback HTTP server, polling {@link #isHttpServerRunning()}. On the main
+     * thread (a misuse) it neither waits nor probes, so the UI never blocks; the share is then
+     * handed out without the readiness check.
+     */
+    private boolean awaitHttpServer() {
+        if (Looper.getMainLooper() != null && Looper.myLooper() == Looper.getMainLooper()) {
+            YaaccLogger.w(getClass().getName(), "Media proxy readiness not checked on the main thread");
+            return true;
+        }
+        return ReadinessWait.await(this::isHttpServerRunning, SERVER_READY_MAX_MILLIS, SERVER_READY_POLL_MILLIS);
+    }
+
+    /** The user switched the proxy on and gets the direct link instead: tell them. No payload. */
+    private void notifyRegistryFull() {
+        Context appContext = getContext().getApplicationContext();
+        new Handler(Looper.getMainLooper()).post(() ->
+                Toast.makeText(appContext, R.string.share_registry_full, Toast.LENGTH_LONG).show());
+    }
+
+    private ShareRegistry getShareRegistry() {
+        return ((Yaacc) getContext().getApplicationContext()).getShareRegistry();
+    }
+
+    private UnclaimedShares getUnclaimedShares() {
+        return ((Yaacc) getContext().getApplicationContext()).getUnclaimedShares();
+    }
+
+    /**
+     * Whether the local HTTP server accepts connections (it runs whenever the app process lives,
+     * whatever the "local server" setting says). A short loopback connect: call it only off the
+     * main thread. See {@link HttpServerProbe}.
+     */
+    public boolean isHttpServerRunning() {
+        return HttpServerProbe.isRunning();
+    }
+
+    /**
+     * The keys of the shares a player plays right now: the last path segment of its proxy URLs
+     * ({@code /proxy/<key>}). Only a snapshot: the list is empty once the player was destroyed,
+     * which is why {@link ShareLifetimeListener} remembers the keys.
+     */
+    private static Set<String> shareKeysOf(Player player) {
+        Set<String> keys = new HashSet<>();
+        try {
+            for (PlayableItem item : new ArrayList<>(player.getItems())) {
+                Uri uri = item == null ? null : item.getUri();
+                String key = uri == null ? null
+                        : ShareKeyTracker.keyOfProxyPath(uri.getPath(), YaaccUpnpServerService.PROXY_PATH);
+                if (key != null) {
+                    keys.add(key);
+                }
+            }
+        } catch (RuntimeException e) {
+            // the list changed under us; the keys remembered earlier still count
+        }
+        return keys;
+    }
+
+    /**
+     * Ends the grace-period countdown of a share when the last player that plays it is removed,
+     * and cancels a pending countdown when a player for it appears. See
+     * {@link ShareLifetimeListener} for why the keys are remembered rather than read at removal.
+     */
+    private final ShareLifetimeListener shareLifetimeListener = new ShareLifetimeListener(
+            UpnpClient::shareKeysOf,
+            () -> new ArrayList<>(getCurrentPlayers()),
+            key -> {
+                getShareRegistry().markActive(key);
+                // a player took the key: the sweeper must not remove it any more
+                getUnclaimedShares().claimed(key);
+            },
+            key -> {
+                getShareRegistry().release(key);
+                getUnclaimedShares().released(key);
+            });
+
+    /** The items of the new players are set now: remember and activate their shares. */
+    private void rememberShares(List<Player> players) {
+        for (Player player : players) {
+            try {
+                shareLifetimeListener.itemsSet(player);
+            } catch (RuntimeException e) {
+                YaaccLogger.w(getClass().getName(), "Could not record the shares of a player ("
+                        + e.getClass().getSimpleName() + ")");
+            }
         }
     }
 

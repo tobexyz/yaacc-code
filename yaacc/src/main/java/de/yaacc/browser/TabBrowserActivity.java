@@ -17,20 +17,10 @@
  */
 package de.yaacc.browser;
 
-import android.Manifest;
-import android.content.ActivityNotFoundException;
-import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.content.pm.PackageManager;
 import android.graphics.drawable.Drawable;
-import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
-import android.os.Handler;
-import android.os.Looper;
-import android.os.PowerManager;
-import android.provider.Settings;
 import de.yaacc.util.YaaccLogger;
 import android.util.TypedValue;
 import android.view.ContextMenu;
@@ -44,12 +34,9 @@ import android.view.View;
 import android.view.View.OnClickListener;
 import android.widget.ImageView;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.app.ActivityCompat;
-import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 import androidx.preference.PreferenceManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -58,95 +45,33 @@ import androidx.viewpager2.widget.ViewPager2;
 
 import com.google.android.material.tabs.TabLayout;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import java.util.Collection;
 
 import de.yaacc.R;
 import de.yaacc.Yaacc;
-import de.yaacc.player.PlayableItem;
-import de.yaacc.player.Player;
 import de.yaacc.settings.SettingsActivity;
+import de.yaacc.share.PickedAction;
 import de.yaacc.upnp.UpnpClient;
-import de.yaacc.upnp.server.YaaccUpnpServerService;
-import de.yaacc.util.AboutActivity;
+import de.yaacc.upnp.server.LocalServerLifecycle;
 import de.yaacc.util.ThemeHelper;
-import de.yaacc.util.YaaccLogActivity;
 
 /**
  * Activity for browsing devices and folders. Represents the entrypoint for the whole application.
  *
  * @author Tobias Schoene (the openbit)
  */
-public class TabBrowserActivity extends AppCompatActivity implements OnClickListener {
+public class TabBrowserActivity extends AppCompatActivity implements OnClickListener, BrowserHost {
 
     private static final String CURRENT_TAB_KEY = "currentTab";
-    //FIXME dirty
-    public static boolean leftSettings = false;
     private TabLayout tabLayout;
     private ViewPager2 viewPager;
     private FragmentStateAdapter pagerAdapter;
 
 
     private UpnpClient upnpClient = null;
-
-
-    private Intent serverService = null;
-
-    //https://developer.android.com/about/versions/14/changes/partial-photo-video-access
-    private static String[] getPermissions() {
-        if (android.os.Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            return new String[]{
-                    Manifest.permission.INTERNET,
-                    Manifest.permission.ACCESS_WIFI_STATE,
-                    Manifest.permission.ACCESS_NETWORK_STATE,
-                    Manifest.permission.CHANGE_WIFI_STATE,
-                    Manifest.permission.CHANGE_WIFI_MULTICAST_STATE,
-                    Manifest.permission.WRITE_EXTERNAL_STORAGE,
-                    Manifest.permission.RECEIVE_BOOT_COMPLETED,
-                    Manifest.permission.WAKE_LOCK,
-                    Manifest.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
-                    Manifest.permission.READ_MEDIA_AUDIO,
-                    Manifest.permission.READ_MEDIA_IMAGES,
-                    Manifest.permission.READ_MEDIA_VIDEO,
-                    Manifest.permission.MANAGE_EXTERNAL_STORAGE,
-                    Manifest.permission.POST_NOTIFICATIONS
-
-            };
-        } else if (android.os.Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            return new String[]{
-                    Manifest.permission.INTERNET,
-                    Manifest.permission.ACCESS_WIFI_STATE,
-                    Manifest.permission.ACCESS_NETWORK_STATE,
-                    Manifest.permission.CHANGE_WIFI_STATE,
-                    Manifest.permission.CHANGE_WIFI_MULTICAST_STATE,
-                    Manifest.permission.WRITE_EXTERNAL_STORAGE,
-                    Manifest.permission.READ_EXTERNAL_STORAGE,
-                    Manifest.permission.RECEIVE_BOOT_COMPLETED,
-                    Manifest.permission.WAKE_LOCK,
-                    Manifest.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
-                    Manifest.permission.MANAGE_EXTERNAL_STORAGE
-            };
-        }
-        return new String[]{
-                Manifest.permission.INTERNET,
-                Manifest.permission.ACCESS_WIFI_STATE,
-                Manifest.permission.ACCESS_NETWORK_STATE,
-                Manifest.permission.CHANGE_WIFI_STATE,
-                Manifest.permission.CHANGE_WIFI_MULTICAST_STATE,
-                Manifest.permission.READ_EXTERNAL_STORAGE,
-                Manifest.permission.WRITE_EXTERNAL_STORAGE,
-                Manifest.permission.RECEIVE_BOOT_COMPLETED,
-                Manifest.permission.WAKE_LOCK,
-                Manifest.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
-
-        };
-
-    }
+    private ShareIntentHandler shareIntentHandler = null;
+    // Opens the receiver picker for a shared file only; normal classic browsing never shows the sheet.
+    private ReceiverPickController pickController;
 
     @Override
     protected void onSaveInstanceState(@NonNull Bundle outState) {
@@ -154,27 +79,12 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
         outState.putInt(CURRENT_TAB_KEY, tabLayout.getSelectedTabPosition());
     }
 
-    private boolean checkIfAlreadyhavePermission() {
-        for (String permission : getPermissions()) {
-            int permissionState = ContextCompat.checkSelfPermission(this, permission);
-            if (permissionState == PackageManager.PERMISSION_DENIED) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private void requestForSpecificPermission() {
-        ActivityCompat.requestPermissions(this, getPermissions(),
-                101);
-
-    }
-
     @Override
     public void onCreate(Bundle savedInstanceState) {
         long start = System.currentTimeMillis();
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_tab_browse);
+        pickController = new ReceiverPickController(this);
         viewPager = findViewById(R.id.browserTabPager);
         tabLayout = findViewById(R.id.browserTabLayout);
         pagerAdapter = new TabBrowserFragmentStateAdapter(this);
@@ -207,13 +117,9 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
                 }
             }
         });
-        if (!checkIfAlreadyhavePermission()) {
-            requestForSpecificPermission();
-        } else {
-            YaaccLogger.d(getClass().getName(), "All permissions granted");
-        }
+        BrowserActivitySupport.requestMissingPermissions(this);
 
-        checkBatteryOptimizationEnabled();
+        BrowserActivitySupport.checkBatteryOptimizationEnabled(this);
 
         // local server startup
         upnpClient = ((Yaacc) getApplicationContext()).getUpnpClient();
@@ -229,107 +135,94 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
 
         }
 
-        checkIfReceivedShareIntent(null);
+        shareIntentHandler = new ShareIntentHandler(getApplicationContext(), upnpClient);
+        handOverShare(getIntent());
         YaaccLogger.d(this.getClass().getName(), "on create took: " + (System.currentTimeMillis() - start));
-    }
-
-    private void checkBatteryOptimizationEnabled() {
-        Intent intent = new Intent();
-        String packageName = getPackageName();
-        PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
-        if (!pm.isIgnoringBatteryOptimizations(packageName)) {
-            intent.setAction(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
-            intent.setData(Uri.parse("package:" + packageName));
-        }
-        try {
-            startActivity(intent);
-        } catch (ActivityNotFoundException ex) {
-            YaaccLogger.d(getClass().getName(), "Ignoring exception ActivityNotFoundException during check for battery optimization");
-        }
     }
 
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
-        checkIfReceivedShareIntent(intent);
+        handOverShare(intent);
     }
 
-    private void checkIfReceivedShareIntent(Intent receivedIntent) {
-        // Get intent, action and MIME type
-        Intent intent = receivedIntent != null ? receivedIntent : getIntent();
-        String action = intent.getAction();
-        Uri contentUri = null;
-        if (Intent.ACTION_SEND.equals(action)) {
-            ArrayList<PlayableItem> items = new ArrayList<>();
-            if (intent.getExtras() != null && intent.getExtras().getString("android.intent.extra.TEXT") != null) {
-                contentUri = Uri.parse(intent.getExtras().getString("android.intent.extra.TEXT"));
-            } else if (intent.getClipData() != null) {
-                for (int i = 0; i < intent.getClipData().getItemCount(); i++) {
-                    if (intent.getClipData().getItemAt(i) != null) {
-                        if (intent.getClipData().getItemAt(i).getText() != null) {
-                            contentUri = Uri.parse(intent.getClipData().getItemAt(i).getText().toString());
-                        } else if (intent.getClipData().getItemAt(i).getUri() != null) {
-                            contentUri = intent.getClipData().getItemAt(i).getUri();
-                        }
-                    }
-                }
-            }
-            //clear intent
-            if (intent.getExtras() != null && intent.getExtras().getString("android.intent.extra.TEXT") != null) {
-                intent.removeExtra("android.intent.extra.TEXT");
-            }
-            if (intent.getClipData() != null) {
-                intent.setClipData(null);
-            }
-            if (contentUri != null) {
-                long delayedExecution = 0;
-                if (upnpClient.getReceiverDevicesReadyCount() == 0) {
-                    //schedule execution to be sure the receiver devices come up
-                    delayedExecution = 3000L;
-                }
-                if (!upnpClient.isPlayerServiceInitialized()) {
-                    //schedule execution to be sure the player devices come up
-                    upnpClient.startService();
-                    delayedExecution += 3000L;
-                }
-
-
-                ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
-                Handler handler = new Handler(Looper.getMainLooper());
-                final Uri uri = contentUri;
-                Runnable execution = () -> {
-                    try {
-                        if (upnpClient.getReceiverDevicesReadyCount() == 0) {
-                            runOnUiThread(() -> Toast.makeText(getApplicationContext(), "no receiver found using local device", Toast.LENGTH_LONG).show());
-
-                            upnpClient.setReceiverDeviceIds(Set.of(UpnpClient.LOCAL_UID));
-                        }
-                        items.add(upnpClient.createPlayableItem(uri));
-
-                        handler.post(() -> {
-
-                            List<Player> players = upnpClient.initializePlayersWithPlayableItems(items);
-                            for (Player player : players) {
-                                player.play();
-                            }
-                            setCurrentTab(BrowserTabs.PLAYER);
-                        });
-                    } catch (IOException ioException) {
-                        throw new RuntimeException(ioException);
-                    }
-                };
-
-                if (delayedExecution > 0) {
-                    executor.schedule(execution, delayedExecution, TimeUnit.MILLISECONDS);
-                    Toast.makeText(getApplicationContext(), String.format("start in %s seconds", delayedExecution / 1000), Toast.LENGTH_LONG).show();
-                } else {
-                    executor.execute(execution);
-                }
-            }
-
+    /**
+     * Hands a shared item to the handler only while the classic layout is the effective one. This
+     * activity is exported, so an app can send it a share even when the user chose the new layout;
+     * the handler would then play a link on this device without the receiver picker. Otherwise the
+     * payload is consumed (the relaunch in {@code onResume} uses a fresh intent).
+     */
+    private void handOverShare(Intent intent) {
+        if (shareIntentHandler == null) {
+            return;
+        }
+        if (ShareIntakeGate.admitOrDiscard(BrowserLayoutChoice.Layout.CLASSIC,
+                BrowserLauncher.effectiveLayout(this), intent)) {
+            shareIntentHandler.handle(intent, this::showPlayers, this);
         }
     }
 
+    @Override
+    protected void onDestroy() {
+        // an open pick is cancelled first: that releases a pending share
+        if (pickController != null) {
+            pickController.release();
+            pickController = null;
+        }
+        if (shareIntentHandler != null) {
+            shareIntentHandler.shutdown();
+            shareIntentHandler = null;
+        }
+        super.onDestroy();
+    }
+
+    @Override
+    public void showServers() {
+        setCurrentTab(BrowserTabs.SERVER);
+    }
+
+    @Override
+    public void showContent() {
+        setCurrentTab(BrowserTabs.CONTENT);
+    }
+
+    @Override
+    public void showReceivers() {
+        setCurrentTab(BrowserTabs.RECEIVER);
+    }
+
+    @Override
+    public void showPlayers() {
+        setCurrentTab(BrowserTabs.PLAYER);
+    }
+
+    @Override
+    public boolean pickReceivers(PickedAction action, String shareName, Collection<String> initialIds) {
+        return pickController != null && pickController.start(action, shareName, initialIds);
+    }
+
+    @Override
+    public boolean isPickOpen(String pickId) {
+        return pickController != null && pickController.isOpen(pickId);
+    }
+
+    /**
+     * A shared file is waiting: the same "Play on..." sheet as in the new layout, showing the cleaned
+     * file name, with the classic receiver selection as the initial ticks. The selection is put
+     * back once the playback has started ({@link de.yaacc.share.AfterStartSelection}).
+     */
+    @Override
+    public void onPendingShare(String token, String displayName) {
+        ShareIntentHandler handler = shareIntentHandler;
+        if (handler == null) {
+            return;
+        }
+        if (pickController == null || upnpClient == null) {
+            handler.cancel(token);
+            return;
+        }
+        pickController.offerShare(handler, token, displayName, upnpClient, false, upnpClient.getReceiverDeviceIds());
+    }
 
     public void setCurrentTab(final BrowserTabs content) {
         runOnUiThread(() -> {
@@ -354,64 +247,33 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
 
     @Override
     public void onResume() {
-        cancelBackgroundIdleTimer();
         long start = System.currentTimeMillis();
         super.onResume();
-        viewPager.setUserInputEnabled(getPreferences().getBoolean(getString(R.string.settings_swipe_chkbx), true));
-        boolean serverOn = getPreferences().getBoolean(
-                getString(R.string.settings_local_server_chkbx), false);
-        if (serverOn) {
-            // (Re)Start upnpserver service for avtransport
-            if (leftSettings) {
-                getApplicationContext().stopService(getYaaccUpnpServerService());
-            }
-            getApplicationContext().startForegroundService(getYaaccUpnpServerService());
-            YaaccLogger.d(this.getClass().getName(), "Starting local service");
-        } else {
-            getApplicationContext().stopService(getYaaccUpnpServerService());
-            YaaccLogger.d(this.getClass().getName(), "Stopping local service");
+        // starts the browser of the effective layout and finishes this one if the "Layout" setting
+        // no longer names the classic layout; the share payload was already handed to the share
+        // handler in onCreate and is not forwarded again
+        if (BrowserLauncher.relaunchIfOtherLayout(this, BrowserLayoutChoice.Layout.CLASSIC)) {
+            return;
         }
-        leftSettings = false;
+        viewPager.setUserInputEnabled(getPreferences().getBoolean(getString(R.string.settings_swipe_chkbx), true));
+        LocalServerLifecycle.apply(this, SettingsActivity.consumeLeftSettings());
+        // after a suspend the network listener and the device registry may be stale
+        if (upnpClient != null) {
+            upnpClient.refreshAfterResume();
+        }
         YaaccLogger.d(this.getClass().getName(), "on on resume took: " + (System.currentTimeMillis() - start));
     }
 
-    private final android.os.Handler backgroundIdleHandler = new android.os.Handler(android.os.Looper.getMainLooper());
-    private static final long BACKGROUND_IDLE_TIMEOUT_MS = 5 * 60 * 1000L; // 5 minutes
-
-    private final Runnable backgroundIdleRunnable = () -> {
-        Yaacc yaacc = (Yaacc) getApplicationContext();
-        UpnpClient client = yaacc.getUpnpClient();
-        boolean playersActive = client != null && !client.getCurrentPlayers().isEmpty();
-        boolean serverEnabled = getPreferences().getBoolean(getString(R.string.settings_local_server_chkbx), false);
-        boolean rendererEnabled = getPreferences().getBoolean(getString(R.string.settings_local_server_receiver_chkbx), false);
-        boolean proxyEnabled = getPreferences().getBoolean(getString(R.string.settings_local_server_proxy_chkbx), false);
-        if (!playersActive && !serverEnabled && !rendererEnabled && !proxyEnabled) {
-            yaacc.exit();
-        }
-    };
-
-    private void cancelBackgroundIdleTimer() {
-        backgroundIdleHandler.removeCallbacks(backgroundIdleRunnable);
+    @Override
+    protected void onStart() {
+        super.onStart();
+        BackgroundIdleTimer.browserStarted(this);
     }
 
     @Override
     protected void onStop() {
         super.onStop();
-        backgroundIdleHandler.postDelayed(backgroundIdleRunnable, BACKGROUND_IDLE_TIMEOUT_MS);
-    }
-
-
-    /**
-     * Singleton to avoid multiple instances when switch
-     *
-     * @return the intent
-     */
-    public Intent getYaaccUpnpServerService() {
-        if (serverService == null) {
-            serverService = new Intent(getApplicationContext(),
-                    YaaccUpnpServerService.class);
-        }
-        return serverService;
+        BackgroundIdleTimer.browserStopped(this);
     }
 
     @Override
@@ -444,22 +306,7 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
      */
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
-        if (item.getItemId() == R.id.menu_exit) {
-
-            ((Yaacc) getApplicationContext()).exit();
-            return true;
-        }
-        if (item.getItemId() == R.id.menu_settings) {
-            Intent i = new Intent(this, SettingsActivity.class);
-            startActivity(i);
-            return true;
-        }
-        if (item.getItemId() == R.id.yaacc_about) {
-            AboutActivity.showAbout(this);
-            return true;
-        }
-        if (item.getItemId() == R.id.yaacc_log) {
-            YaaccLogActivity.showLog(this);
+        if (BrowserActivitySupport.handleCommonMenuItem(this, item)) {
             return true;
         }
         return super.onOptionsItemSelected(item);

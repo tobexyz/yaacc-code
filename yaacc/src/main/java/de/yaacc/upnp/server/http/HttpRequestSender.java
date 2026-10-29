@@ -22,6 +22,7 @@ import android.os.Build;
 
 import org.apache.hc.client5.http.classic.methods.HttpUriRequestBase;
 import org.apache.hc.client5.http.config.ConnectionConfig;
+import org.apache.hc.client5.http.config.RequestConfig;
 import org.apache.hc.client5.http.impl.DefaultConnectionKeepAliveStrategy;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
@@ -51,9 +52,20 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import de.yaacc.share.ShareLogRedactor;
 import de.yaacc.util.YaaccLogger;
 
 public class HttpRequestSender {
+
+    /**
+     * How long a ContentDirectory action (Browse, Search, ...) may take until the response arrives.
+     * The server may need seconds to answer a request for a big folder (this app's own server
+     * included), so such actions are not cut off by the 10 s socket timeout that all other
+     * requests keep.
+     */
+    static final Timeout CONTENT_DIRECTORY_RESPONSE_TIMEOUT = Timeout.of(30, TimeUnit.SECONDS);
+
+    private static final String CONTENT_DIRECTORY_SERVICE_TYPE = ":service:ContentDirectory:";
 
     final private CloseableHttpClient httpClient;
 
@@ -70,12 +82,28 @@ public class HttpRequestSender {
 
     public StreamResponseMessage send(StreamRequestMessage requestMessage) throws IOException {
 
-        YaaccLogger.v(getClass().getName(), "Sending HTTP request: " + requestMessage);
-        YaaccLogger.v(getClass().getName(), "HTTP body: " + requestMessage.getBodyString());
+        YaaccLogger.v(getClass().getName(), "Sending HTTP request: " + ShareLogRedactor.redact(String.valueOf(requestMessage)));
+        YaaccLogger.v(getClass().getName(), "HTTP body: " + ShareLogRedactor.redact(requestMessage.getBodyString()));
         HttpUriRequestBase request = new HttpUriRequestBase(requestMessage.getOperation().getHttpMethodName(), requestMessage.getUri());
         applyRequestHeader(requestMessage, request);
         applyRequestBody(requestMessage, request);
+        if (isContentDirectoryAction(requestMessage)) {
+            request.setConfig(RequestConfig.custom().setResponseTimeout(CONTENT_DIRECTORY_RESPONSE_TIMEOUT).build());
+        }
         return httpClient.execute(request, this::createResponse);
+    }
+
+    private static boolean isContentDirectoryAction(StreamRequestMessage requestMessage) {
+        return isContentDirectoryAction(requestMessage.getHeaders().getFirstHeaderString(UpnpHeader.Type.SOAPACTION));
+    }
+
+    /**
+     * @param soapActionHeader the SOAPACTION header value, e.g.
+     *                         {@code "urn:schemas-upnp-org:service:ContentDirectory:1#Browse"}
+     * @return true if the action belongs to a ContentDirectory service
+     */
+    static boolean isContentDirectoryAction(String soapActionHeader) {
+        return soapActionHeader != null && soapActionHeader.contains(CONTENT_DIRECTORY_SERVICE_TYPE);
     }
 
 
@@ -110,7 +138,7 @@ public class HttpRequestSender {
     private void applyRequestBody(StreamRequestMessage requestMessage, ClassicHttpRequest request) {
         // Body
         if (requestMessage.hasBody()) {
-            YaaccLogger.d(getClass().getName(), "Writing textual request body: " + requestMessage);
+            YaaccLogger.d(getClass().getName(), "Writing textual request body: " + ShareLogRedactor.redact(String.valueOf(requestMessage)));
             MimeType contentType =
                     requestMessage.getContentTypeHeader() != null
                             ? requestMessage.getContentTypeHeader().getValue()
@@ -143,7 +171,7 @@ public class HttpRequestSender {
                             + " from upstream UPnP device - treating as non-UPnP failure response, skipping device");
             responseOperation = new UpnpResponse(response.getCode(), "HTTP " + response.getCode());
         }
-        YaaccLogger.d(getClass().getName(), "Received response: " + responseOperation);
+        YaaccLogger.d(getClass().getName(), "Received response: " + ShareLogRedactor.redact(String.valueOf(responseOperation)));
         StreamResponseMessage responseMessage = new StreamResponseMessage(responseOperation);
         // Headers
         UpnpHeaders headers = new UpnpHeaders();
@@ -167,7 +195,7 @@ public class HttpRequestSender {
         } else {
             YaaccLogger.d(getClass().getName(), "Response did not contain entity body");
         }
-        YaaccLogger.d(getClass().getName(), "Response message complete: " + responseMessage);
+        YaaccLogger.d(getClass().getName(), "Response message complete: " + ShareLogRedactor.redact(String.valueOf(responseMessage)));
         return responseMessage;
     }
 

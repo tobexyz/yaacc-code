@@ -36,6 +36,7 @@ import androidx.media3.ui.PlayerNotificationManager;
 import org.fourthline.cling.support.model.DIDLObject;
 
 import java.net.URI;
+import java.util.Locale;
 
 import de.yaacc.R;
 import de.yaacc.Yaacc;
@@ -460,7 +461,7 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
         long hours = seconds / 3600;
         long minutes = (seconds % 3600) / 60;
         long secs = seconds % 60;
-        return String.format("%02d:%02d:%02d", hours, minutes, secs);
+        return String.format(Locale.getDefault(), "%02d:%02d:%02d", hours, minutes, secs);
     }
 
     @Override

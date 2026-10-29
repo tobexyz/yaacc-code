@@ -31,6 +31,8 @@ import android.net.wifi.WifiManager;
 import androidx.annotation.NonNull;
 import androidx.preference.PreferenceManager;
 
+import java.util.concurrent.Executor;
+
 import de.yaacc.R;
 import de.yaacc.upnp.protocol.UpnpProtocolHandler;
 import de.yaacc.upnp.registry.Registry;
@@ -59,6 +61,13 @@ public class NetworkDeviceListener {
     private final Object lock = new Object();
     private boolean isHotspotEnabled = false;
     private BroadcastReceiver networkStateReceiver;
+    private final NetworkRecoveryNotifier networkRecoveryNotifier = new NetworkRecoveryNotifier();
+    /** Runs {@link #announceLocalDevices()}; a thread of its own: the registry call can wait for the registry's lock. */
+    Executor announceExecutor = task -> {
+        Thread thread = new Thread(task, "AnnounceLocalDevices");
+        thread.setDaemon(true);
+        thread.start();
+    };
 
     private boolean isHotspotEnabled() {
         try {
@@ -69,6 +78,29 @@ public class NetworkDeviceListener {
             YaaccLogger.w(getClass().getName(), "Failed to check hotspot state", e);
             return false;
         }
+    }
+
+    /**
+     * For tests: no system callbacks, no sockets; {@link #enable()} and {@link #disable()} work with what the
+     * factory methods give.
+     */
+    NetworkDeviceListener(Context context, Registry registry, YaaccUpnpServerService service, WifiManager wifiManager) {
+        this.service = service;
+        this.context = context;
+        this.registry = registry;
+        this.wifiManager = wifiManager;
+    }
+
+    MulticastReceiver newMulticastReceiver() {
+        return new MulticastReceiver();
+    }
+
+    UdpTransiver newUdpTransiver() {
+        return new UdpTransiver();
+    }
+
+    UpnpProtocolHandler newProtocolHandler() {
+        return new UpnpProtocolHandler(context, registry, udpTransiver, multicastReceiver, httpRequestSender);
     }
 
     public NetworkDeviceListener(Context context, Registry registry, YaaccUpnpServerService service) throws IllegalStateException {
@@ -84,8 +116,8 @@ public class NetworkDeviceListener {
 
         }
         if (currentNetwork != null || isWifiOrHotspot()) {
-            multicastReceiver = new MulticastReceiver();
-            udpTransiver = new UdpTransiver();
+            multicastReceiver = newMulticastReceiver();
+            udpTransiver = newUdpTransiver();
             httpRequestSender = new HttpRequestSender();
             enable();
         }
@@ -101,16 +133,19 @@ public class NetworkDeviceListener {
                     }
                     currentNetwork = network;
                     if (multicastReceiver == null) {
-                        multicastReceiver = new MulticastReceiver();
+                        multicastReceiver = newMulticastReceiver();
                     }
                     if (udpTransiver == null) {
-                        udpTransiver = new UdpTransiver();
+                        udpTransiver = newUdpTransiver();
                     }
                     if (httpRequestSender == null) {
                         httpRequestSender = new HttpRequestSender();
                     }
                     enable();
                     YaaccLogger.d(getClass().getName(), String.format("Network enabled %s", currentNetwork));
+                    // not for the enable() of the constructor: that is the startup, nothing failed before it
+                    announceLocalDevices();
+                    networkRecoveryNotifier.onNetworkRestored();
                 }
 
             }
@@ -160,10 +195,14 @@ public class NetworkDeviceListener {
                 setWiFiMulticastLock(true);
                 setWifiLock(true);
             }
-            if (multicastReceiver == null) multicastReceiver = new MulticastReceiver();
-            if (udpTransiver == null) udpTransiver = new UdpTransiver();
+            if (multicastReceiver == null) multicastReceiver = newMulticastReceiver();
+            if (udpTransiver == null) udpTransiver = newUdpTransiver();
             if (httpRequestSender == null) httpRequestSender = new HttpRequestSender();
-            upnpProtocolHandler = new UpnpProtocolHandler(context, registry, udpTransiver, multicastReceiver, httpRequestSender);
+            upnpProtocolHandler = newProtocolHandler();
+            // The registry sends with the live handler: it was set once at the start of the service before, so after the
+            // first network change it kept using the first handler, whose sockets disable() had closed (renewals, ALIVE).
+            // Set before the receivers start, so devices found right away are subscribed with it.
+            registry.setUpnpProtocolHandler(upnpProtocolHandler);
             multicastReceiver.init(context, upnpProtocolHandler);
             multicastReceiver.execute();
             udpTransiver.init(context, upnpProtocolHandler);
@@ -184,6 +223,8 @@ public class NetworkDeviceListener {
             if (upnpProtocolHandler != null) {
                 upnpProtocolHandler = null;
             }
+            // nothing to send with until the next enable(); the registry skips its sending meanwhile
+            registry.setUpnpProtocolHandler(null);
             if (multicastReceiver != null) {
                 multicastReceiver.cancel();
                 multicastReceiver = null;
@@ -301,6 +342,18 @@ public class NetworkDeviceListener {
         }
     }
 
+    /**
+     * Registers for "the network is back" (see {@link NetworkRecoveryListener}); held weakly, call
+     * {@link #removeNetworkRecoveryListener} when done.
+     */
+    public void addNetworkRecoveryListener(NetworkRecoveryListener listener) {
+        networkRecoveryNotifier.add(listener);
+    }
+
+    public void removeNetworkRecoveryListener(NetworkRecoveryListener listener) {
+        networkRecoveryNotifier.remove(listener);
+    }
+
     public UdpTransiver getUdpTransiver() {
         return udpTransiver;
     }
@@ -317,8 +370,53 @@ public class NetworkDeviceListener {
         return udpTransiver != null && multicastReceiver != null && upnpProtocolHandler != null;
     }
 
+    /**
+     * Resume check (see {@link ResumeRefreshPolicy}): after a suspend neither {@code onLost} nor
+     * {@code onAvailable} may have been delivered, and a receive loop may have ended unnoticed. If a
+     * network is there but the listener is disabled, was enabled for another network, or one of its
+     * receive loops is gone, it is disabled and enabled again (the same path as a new network).
+     * Opens sockets: not for the main thread.
+     *
+     * @return what was found; {@link ResumeRefreshPolicy.ListenerCheck#needsReenable()} tells if the
+     * listener was re-created
+     */
+    public ResumeRefreshPolicy.ListenerCheck reenableIfStale() {
+        ResumeRefreshPolicy.ListenerCheck check;
+        synchronized (lock) {
+            ConnectivityManager connectivityManager = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
+            Network active = connectivityManager.getActiveNetwork();
+            boolean cellular = isCellular();
+            boolean usable = isWifiOrHotspot() || (active != null && !cellular);
+            boolean changed = active != null && !cellular && !active.equals(currentNetwork);
+            MulticastReceiver multicast = multicastReceiver;
+            UdpTransiver unicast = udpTransiver;
+            check = ResumeRefreshPolicy.checkListener(usable, isInitalized(), changed,
+                    multicast != null && multicast.isReceiving(), unicast != null && unicast.isReceiving());
+            if (!check.needsReenable()) {
+                return check;
+            }
+            YaaccLogger.d(getClass().getName(), "Resume: network listener is stale (" + check + "), enabling it again");
+            try {
+                disable();
+                if (active != null && !cellular) {
+                    currentNetwork = active;
+                }
+                enable();
+            } catch (RuntimeException e) {
+                // no usable interface right now: the network callbacks enable it when one comes up
+                YaaccLogger.w(getClass().getName(), "Resume: could not enable the network listener again (" + e.getClass().getSimpleName() + ")", e);
+                return check;
+            }
+        }
+        // outside the lock: listeners must not be able to block the network callbacks
+        announceLocalDevices();
+        networkRecoveryNotifier.onNetworkRestored();
+        return check;
+    }
+
     private void onNetworkStateChange() {
         YaaccLogger.d(getClass().getName(), "Network state change detected");
+        boolean reEnabled = false;
         synchronized (lock) {
             if (isWifiOrHotspot()) {
                 if (!isInitalized()) {
@@ -328,14 +426,15 @@ public class NetworkDeviceListener {
                         currentNetwork = connectivityManager.getActiveNetwork();
                     }
                     if (currentNetwork != null) {
-                        if (multicastReceiver == null) multicastReceiver = new MulticastReceiver();
-                        if (udpTransiver == null) udpTransiver = new UdpTransiver();
+                        if (multicastReceiver == null) multicastReceiver = newMulticastReceiver();
+                        if (udpTransiver == null) udpTransiver = newUdpTransiver();
                         if (httpRequestSender == null) httpRequestSender = new HttpRequestSender();
                         enable();
                         // Notify service to restart UPnP device
                         if (service != null) {
                             service.onNetworkStateChange();
                         }
+                        reEnabled = true;
                     }
                 }
             } else {
@@ -347,6 +446,28 @@ public class NetworkDeviceListener {
                 }
             }
         }
+        if (reEnabled) {
+            // outside the lock: listeners must not be able to block the network callbacks
+            networkRecoveryNotifier.onNetworkRestored();
+        }
+    }
+
+    /**
+     * Sends ALIVE for the local devices again after the listener was enabled for a new network: the others on that
+     * network have not heard of us (they find us by their own search, but unsolicited announcements are what lets them
+     * see us at once). Without this the registry announced only when a device was added or its advertisement was due
+     * (the wifi state change path re-creates the device, the network callback and resume paths did not). A no-op
+     * without local devices or while there is no handler.
+     */
+    void announceLocalDevices() {
+        announceExecutor.execute(() -> {
+            try {
+                registry.advertiseLocalDevices();
+                YaaccLogger.d(NetworkDeviceListener.class.getName(), "Announced the local devices again after the network listener was enabled");
+            } catch (RuntimeException e) {
+                YaaccLogger.w(NetworkDeviceListener.class.getName(), "Announcing the local devices failed", e);
+            }
+        });
     }
 
     public void cleanup() {

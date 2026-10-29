@@ -43,7 +43,7 @@
         android:focusable="false"
         android:layout_alignBottom="@id/serverList"
         android:textAppearance="@android:style/TextAppearance.Material.Medium"
-        android:textColor="?android:attr/colorForeground" />
+        android:textColor="?attr/colorOnSurface" />
 
 
     <com.google.android.material.switchmaterial.SwitchMaterial
@@ -82,7 +82,7 @@
         android:text="@string/all"
         android:layout_alignBottom="@id/serverList"
         android:textAppearance="@android:style/TextAppearance.Material.Medium"
-        android:textColor="?android:attr/colorForeground" />
+        android:textColor="?attr/colorOnSurface" />
 
 
     <TextView
@@ -98,7 +98,7 @@
         android:focusable="false"
         android:text="@string/upnp_server"
         android:textAppearance="@android:style/TextAppearance.Material.Medium"
-        android:textColor="?android:attr/colorForeground" />
+        android:textColor="?attr/colorOnSurface" />
 
 
     <com.google.android.material.switchmaterial.SwitchMaterial
@@ -165,6 +165,7 @@
     <ImageButton
         android:id="@+id/serverListRefreshButton"
         style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+        android:foreground="@drawable/focus_ring"
         android:layout_width="32dp"
         android:layout_height="32dp"
         android:layout_alignParentEnd="true"

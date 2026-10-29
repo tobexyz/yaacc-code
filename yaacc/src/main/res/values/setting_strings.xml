@@ -44,14 +44,18 @@
     <string name="settings_sort_order_key" translatable="false">sort_order_key</string>
     <string name="settings_sort_name_ascending_key" translatable="false">sort_name_ascending_key</string>
     <string name="settings_sort_date_ascending_key" translatable="false">sort_date_ascending_key</string>
+    <string name="settings_browse_view_mode_key" translatable="false">browse_view_mode_key</string>
     <string name="settings_browse_chunk_size">chunk size when browsing</string>
     <string name="settings_browse_chunk_size_key" translatable="false">browse_chunk_size_key</string>
     <string name="settings_browse_chunk_size_summ">amount of items fetched from server in one request</string>
     <string name="settings_category_appearance">Appearance</string>
     <string name="settings_dark_mode_key" translatable="false">settings_dark_mode_key</string>
-    <string name="settings_dark_mode_title">Dark mode</string>
-    <string name="settings_dark_mode_off">Using system settings</string>
-    <string name="settings_dark_mode_on">Dark mode active</string>
+    <string name="settings_theme_key" translatable="false">settings_theme_key</string>
+    <string name="settings_browser_layout_key" translatable="false">settings_browser_layout_key</string>
+    <string name="settings_theme_title">Theme</string>
+    <string name="settings_theme_system">System</string>
+    <string name="settings_theme_dark">Dark</string>
+    <string name="settings_theme_light">Light</string>
     <string name="settings_log_level_key" translatable="false">settings_log_level_key</string>
     <string name="settings_log_level">Log level</string>
     <string name="settings_local_device_uuid_key" translatable="false">settings_local_server_provider_uuid_key</string>
@@ -89,6 +93,10 @@
     <string name="settings_local_server_proxy_off">media proxy deactivated</string>
     <string name="settings_local_server_proxy_on">media proxy activated</string>
     <string name="settings_local_server_proxy_chkbx" translatable="false">local_server_proxy_chkbx</string>
+    <string name="settings_proxy_restrict_receivers_title">Restrict the media proxy to the chosen receivers</string>
+    <string name="settings_proxy_restrict_receivers_on">Only the chosen receivers can fetch a shared file or link</string>
+    <string name="settings_proxy_restrict_receivers_off">Any device that knows the address can fetch a shared file or link while it is shared</string>
+    <string name="settings_proxy_restrict_receivers_chkbx" translatable="false">proxy_restrict_receivers_chkbx</string>
     <string name="settings_local_server_media_filter_title">media store filtering</string>
     <string name="settings_local_server_media_filter_off">media store filtering deactivated</string>
     <string name="settings_local_server_media_filter_on">media store filtering activated</string>

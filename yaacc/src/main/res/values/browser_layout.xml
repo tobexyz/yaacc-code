@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The stored values are fixed strings read only by BrowserLayoutChoice.resolve -->
+    <string-array name="browser_layout_entries">
+        <item>@string/settings_browser_layout_classic</item>
+        <item>@string/settings_browser_layout_new</item>
+    </string-array>
+
+    <string-array name="browser_layout_values" translatable="false">
+        <item>classic</item>
+        <item>new</item>
+    </string-array>
+</resources>

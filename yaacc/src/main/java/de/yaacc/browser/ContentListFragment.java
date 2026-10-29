@@ -20,17 +20,22 @@ package de.yaacc.browser;
 import android.graphics.drawable.Drawable;
 import android.widget.ProgressBar;
 import android.os.Bundle;
+import android.os.SystemClock;
 import de.yaacc.util.YaaccLogger;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.view.ViewGroup;
 import android.widget.ImageButton;
+import android.widget.Toast;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
+import androidx.core.content.res.ResourcesCompat;
 import androidx.fragment.app.Fragment;
+import androidx.fragment.app.FragmentActivity;
 import androidx.preference.PreferenceManager;
+import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -40,14 +45,17 @@ import org.fourthline.cling.support.model.item.Item;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import de.yaacc.R;
 import de.yaacc.Yaacc;
 import de.yaacc.player.Player;
+import de.yaacc.share.PickedAction;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.UpnpClientListener;
 import de.yaacc.upnp.callback.contentdirectory.ContentDirectoryBrowseResult;
+import de.yaacc.upnp.server.NetworkRecoveryListener;
 import de.yaacc.util.ThemeHelper;
 
 /**
@@ -60,17 +68,74 @@ public class ContentListFragment extends Fragment implements OnClickListener,
     public static final String CONTENT_LIST_NAVIGATOR = "CONTENT_LIST_NAVIGATOR";
     protected RecyclerView contentList;
     private TextView currentReceivers;
+    private TextView currentProvider;
+    private View footerSeparator;
+    // true in the classic layout: this fragment shows the original static footer (current
+    // provider, selected receivers). False when the host owns the receiver bar (new layout).
+    private boolean showsStaticFooter;
     private UpnpClient upnpClient = null;
     private BrowseContentItemAdapter bItemAdapter;
     private Navigator navigator = null;
     private ImageButton backButton;
     private TextView currentFolderNameView;
     private View topSeperator;
-    private TextView currentProvider;
     private ProgressBar progressBar;
     private ImageButton sortByNameButton;
     private ImageButton sortByDateButton;
     private BrowseContentItemAdapter.SortMode currentSortMode = BrowseContentItemAdapter.SortMode.NAME;
+    private ImageButton viewModeToggleButton;
+    private BrowseContentItemAdapter.ViewMode currentViewMode = BrowseContentItemAdapter.ViewMode.DEFAULT;
+
+    /**
+     * Target width of a single card in CARD mode, in dp -- chosen so a
+     * normal phone portrait width yields exactly 2 columns, matching
+     * the "Column count scales with screen width" decision of docs/tech.md ("Browse card-grid view").
+     * Converted to px via the context's {@code DisplayMetrics}, not
+     * hardcoded, so it scales correctly with device density.
+     */
+    private static final int TARGET_CARD_WIDTH_DP = 160;
+
+    private final NetworkRecoveryReloadGate networkRecoveryReloadGate = new NetworkRecoveryReloadGate();
+    // A field: the client holds its listeners weakly, a lambda only the client knows would be collected.
+    private final NetworkRecoveryListener networkRecoveryListener = this::onNetworkRestored;
+
+    @Override
+    public void onStart() {
+        super.onStart();
+        if (upnpClient != null) {
+            upnpClient.addNetworkRecoveryListener(networkRecoveryListener);
+        }
+    }
+
+    @Override
+    public void onStop() {
+        if (upnpClient != null) {
+            upnpClient.removeNetworkRecoveryListener(networkRecoveryListener);
+        }
+        super.onStop();
+    }
+
+    /**
+     * The network is back (called off the main thread): continue a folder whose load failed.
+     */
+    private void onNetworkRestored() {
+        FragmentActivity activity = getActivity();
+        if (activity != null) {
+            activity.runOnUiThread(this::reloadFolderAfterNetworkRestored);
+        }
+    }
+
+    private void reloadFolderAfterNetworkRestored() {
+        if (!isAdded() || bItemAdapter == null || navigator == null) {
+            return;
+        }
+        if (!networkRecoveryReloadGate.shouldReload(bItemAdapter.isLoadFailed(), bItemAdapter.isLoading(), SystemClock.elapsedRealtime())) {
+            return;
+        }
+        YaaccLogger.d(getClass().getName(), "Network is back and the last load of the folder failed, loading again");
+        // Keeps the items shown and loads on from their count: no duplicates, the scroll position stays.
+        populateItemList(false);
+    }
 
 
     @Override
@@ -80,12 +145,19 @@ public class ContentListFragment extends Fragment implements OnClickListener,
             @Override
             public void run() {
                 if (upnpClient.getProviderDevice() != null) {
-                    currentProvider.setText(upnpClient.getProviderDevice().getDetails().getFriendlyName());
+                    showCurrentProvider();
                     if (navigator != null && navigator.getCurrentPosition() != null && navigator.getCurrentPosition().getDeviceId() != null && upnpClient.getProviderDevice().getIdentity().getUdn().getIdentifierString().equals(navigator.getCurrentPosition().getDeviceId())) {
+                        if (bItemAdapter != null && bItemAdapter.isLoadFailed()) {
+                            YaaccLogger.d(getClass().getName(), "Resume: the last load of the folder failed, loading again");
+                        }
                         populateItemList(false);
                     } else {
                         showMainFolder();
                     }
+                } else if (showsFolderOf(upnpClient.getProviderDeviceId())) {
+                    // The user's server is still the selected one but the registry has lost it (it expired
+                    // while the device slept, or the network listener is down): the shown folder stays.
+                    keepFolderWithoutServer("Resume: provider " + upnpClient.getProviderDeviceId() + " is not in the registry, keeping the folder and waiting for it");
                 } else {
 
                     clearItemList();
@@ -94,19 +166,91 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         });
     }
 
+    /**
+     * @return true if the shown folder belongs to the server with this id ({@code uuid:} prefix or not)
+     */
+    private boolean showsFolderOf(String serverId) {
+        Navigator current = navigator;
+        return current != null && current.getCurrentPosition() != null
+                && FolderServerMatch.sameServer(serverId, current.getCurrentPosition().getDeviceId());
+    }
+
+    /**
+     * The server of the shown folder is not reachable right now: the items stay (an empty folder would
+     * look like the server's answer), the load counts as failed, so the next sign of life of that server
+     * (it is added again, a network or resume event) loads the folder on. Main thread only.
+     */
+    private void keepFolderWithoutServer(String reason) {
+        YaaccLogger.d(getClass().getName(), reason + " (" + (bItemAdapter == null ? 0 : bItemAdapter.getItemCount()) + " items shown)");
+        if (bItemAdapter != null) {
+            bItemAdapter.setLoadFailed(true);
+        }
+    }
+
+    /** @return the id of the device as the navigator stores it, null if the device has no identity */
+    private static String serverIdOf(Device<?, ?, ?> device) {
+        if (device == null || device.getIdentity() == null || device.getIdentity().getUdn() == null) {
+            return null;
+        }
+        return device.getIdentity().getUdn().getIdentifierString();
+    }
+
+    /**
+     * The server of the shown folder appeared again: continue the folder if its last load failed. Not
+     * the debounced network gate: a device event is no burst and must not be swallowed by it.
+     */
+    private void reloadWhenServerIsBack(Device<?, ?, ?> device, String event) {
+        String serverId = serverIdOf(device);
+        FragmentActivity activity = getActivity();
+        if (serverId == null || activity == null) {
+            return;
+        }
+        activity.runOnUiThread(() -> {
+            if (!isAdded() || bItemAdapter == null || !showsFolderOf(serverId)) {
+                return;
+            }
+            if (!NetworkRecoveryReloadGate.shouldReloadNow(bItemAdapter.isLoadFailed(), bItemAdapter.isLoading())) {
+                return;
+            }
+            YaaccLogger.d(getClass().getName(), "Resume: provider " + serverId + " " + event + " and the last load of the folder failed, loading again");
+            // Keeps the items shown and loads on from their count: no duplicates, the scroll position stays.
+            populateItemList(false);
+        });
+    }
+
     private void init(Bundle savedInstanceState, View contentlistView) {
         upnpClient = ((Yaacc) requireActivity().getApplicationContext()).getUpnpClient();
         backButton = contentlistView.findViewById(R.id.contentListBackButton);
-        Drawable icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_arrow_back_24, getContext().getTheme()), getContext().getTheme());
+        Drawable icon = ThemeHelper.tintDrawable(ResourcesCompat.getDrawable(getResources(), R.drawable.ic_baseline_arrow_back_24, getContext().getTheme()), getContext().getTheme());
         backButton.setImageDrawable(icon);
         backButton.setOnClickListener((v) -> {
-            onBackPressed();
+            BrowserHost host = browserHost();
+            if (host != null && host.showsBackAtContentRoot() && isAtRoot()) {
+                // the root of a server is one step below the server list
+                host.showServers();
+            } else {
+                onBackPressed();
+            }
         });
+        if (showsBackAtContentRoot()) {
+            backButton.setContentDescription(getString(R.string.browser_back));
+        }
+        // New layout: one tap from any folder depth to the list of servers
+        View serversButton = contentlistView.findViewById(R.id.contentListServersButton);
+        if (serversButton != null) {
+            serversButton.setVisibility(showsBackAtContentRoot() ? View.VISIBLE : View.GONE);
+            serversButton.setOnClickListener(v -> {
+                BrowserHost host = browserHost();
+                if (host != null) {
+                    host.showServers();
+                }
+            });
+        }
         currentFolderNameView = contentlistView.findViewById(R.id.contentListCurrentFolderName);
         currentReceivers = contentlistView.findViewById(R.id.contentListCurrentReceivers);
         currentProvider = contentlistView.findViewById(R.id.contentListCurrentProvider);
-        tintCompoundDrawables(currentReceivers);
-        tintCompoundDrawables(currentProvider);
+        footerSeparator = contentlistView.findViewById(R.id.contentListBottomSeperator);
+        initFooter();
         initSortToggle(contentlistView);
         topSeperator = contentlistView.findViewById(R.id.contentListTopSeperator);
         contentList = contentlistView.findViewById(R.id.contentList);
@@ -116,15 +260,18 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         contentList.setFocusable(true);
         contentList.setFocusableInTouchMode(false); // Good for D-Pad primary interaction
         contentList.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
+        initViewModeToggle(contentlistView);
+        // Before anything is loaded (no server selected yet, a slow server) the label must already clear
+        // the back button that the new layout shows at the root; the margin was only set once content arrived.
+        backButton.setVisibility(showsBackAtContentRoot() ? View.VISIBLE : View.GONE);
+        applyFolderNameMargin(showsBackAtContentRoot());
         upnpClient.addUpnpClientListener(this);
         if (getActivity() != null) {
             getActivity().runOnUiThread(() -> {
 
-                if (upnpClient.getReceiverDevices() != null) {
-                    currentReceivers.setText(upnpClient.getReceiverDevices().stream().map(it -> it.getDetails().getFriendlyName()).collect(Collectors.joining("; ")));
-                }
+                showCurrentReceivers();
                 if (upnpClient.getProviderDevice() != null) {
-                    currentProvider.setText(upnpClient.getProviderDevice().getDetails().getFriendlyName());
+                    showCurrentProvider();
                     if (savedInstanceState == null || savedInstanceState.getSerializable(CONTENT_LIST_NAVIGATOR) == null) {
                         showMainFolder();
                     } else {
@@ -136,7 +283,18 @@ public class ContentListFragment extends Fragment implements OnClickListener,
                         }
                     }
                 } else {
-                    clearItemList();
+                    Navigator restored = savedInstanceState == null ? null : (Navigator) savedInstanceState.getSerializable(CONTENT_LIST_NAVIGATOR);
+                    if (restored != null && restored.getCurrentPosition() != null
+                            && FolderServerMatch.sameServer(upnpClient.getProviderDeviceId(), restored.getCurrentPosition().getDeviceId())) {
+                        // The screen was recreated while the registry has not (yet) got the server back
+                        // (new process, or it expired during a suspend): keep the place, the load fails
+                        // and continues when the server is discovered.
+                        YaaccLogger.d(getClass().getName(), "Resume: provider " + upnpClient.getProviderDeviceId() + " is not in the registry yet, restoring the folder position and waiting for it");
+                        navigator = restored;
+                        populateItemList(true);
+                    } else {
+                        clearItemList();
+                    }
                 }
             });
         }
@@ -220,8 +378,8 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         boolean dateAscending = bItemAdapter != null && bItemAdapter.isDateAscending();
         int sortByNameIconRes = nameAscending ? R.drawable.ic_baseline_sort_by_alpha_32 : R.drawable.ic_baseline_sort_by_alpha_desc_32;
         int sortByDateIconRes = dateAscending ? R.drawable.ic_baseline_date_range_asc_32 : R.drawable.ic_baseline_date_range_32;
-        sortByNameButton.setImageDrawable(ThemeHelper.tintDrawable(getResources().getDrawable(sortByNameIconRes, getContext().getTheme()), getContext().getTheme()));
-        sortByDateButton.setImageDrawable(ThemeHelper.tintDrawable(getResources().getDrawable(sortByDateIconRes, getContext().getTheme()), getContext().getTheme()));
+        sortByNameButton.setImageDrawable(ThemeHelper.tintDrawable(ResourcesCompat.getDrawable(getResources(), sortByNameIconRes, getContext().getTheme()), getContext().getTheme()));
+        sortByDateButton.setImageDrawable(ThemeHelper.tintDrawable(ResourcesCompat.getDrawable(getResources(), sortByDateIconRes, getContext().getTheme()), getContext().getTheme()));
 
         boolean dateAvailable = bItemAdapter != null && bItemAdapter.isDateSortAvailable();
         boolean dateSelected = currentSortMode == BrowseContentItemAdapter.SortMode.DATE;
@@ -232,6 +390,144 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         sortByDateButton.setAlpha(!dateAvailable ? 0.38f : (dateSelected ? 1.0f : 0.6f));
     }
 
+    /**
+     * Wires up the list/card view-mode toggle (see
+     * "Browse card-grid view" in docs/tech.md): finds the button, applies
+     * the persisted view mode from SharedPreferences as the initial
+     * state (mirroring {@link #initSortToggle(View)}'s fallback-to-default
+     * pattern for the sort toggle), makes the {@code contentList}'s
+     * {@code LayoutManager} match that initial mode, installs the click
+     * handler, and installs a width-change listener that keeps the grid's
+     * span count correct across rotation/multi-window resize while in CARD
+     * mode (docs/tech.md, "Browse card-grid view"), without ever recreating the
+     * {@code GridLayoutManager}.
+     */
+    private void initViewModeToggle(View contentlistView) {
+        viewModeToggleButton = contentlistView.findViewById(R.id.contentListViewModeToggle);
+        if (getContext() == null) {
+            return;
+        }
+
+        // The persisted view mode applies even when a layout has no toggle button: the adapter reads the
+        // same preference, so without a matching LayoutManager the cards would be drawn one per row.
+        String persisted = PreferenceManager.getDefaultSharedPreferences(getContext())
+                .getString(getString(R.string.settings_browse_view_mode_key), BrowseContentItemAdapter.ViewMode.DEFAULT.name());
+        try {
+            currentViewMode = BrowseContentItemAdapter.ViewMode.valueOf(persisted);
+        } catch (IllegalArgumentException e) {
+            currentViewMode = BrowseContentItemAdapter.ViewMode.DEFAULT;
+        }
+        applyLayoutManagerForViewMode(currentViewMode);
+
+        if (viewModeToggleButton != null) {
+            viewModeToggleButton.setOnClickListener((v) -> onViewModeToggleClicked());
+            updateViewModeToggleUi();
+        }
+
+        // Covers rotation and multi-window resize (docs/tech.md, "Browse card-grid view"):
+        // only reacts while in CARD mode, and only on an actual width
+        // change, applying the new span count via setSpanCount(...) rather
+        // than recreating the LayoutManager (confirmed safe in
+        // docs/tech.md's "Browse card-grid view" section).
+        contentList.addOnLayoutChangeListener((v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
+            if (currentViewMode != BrowseContentItemAdapter.ViewMode.CARD) {
+                return;
+            }
+            int newWidth = right - left;
+            int oldWidth = oldRight - oldLeft;
+            if (newWidth <= 0 || newWidth == oldWidth) {
+                return;
+            }
+            RecyclerView.LayoutManager layoutManager = contentList.getLayoutManager();
+            if (layoutManager instanceof GridLayoutManager) {
+                ((GridLayoutManager) layoutManager).setSpanCount(CardGridSpanCount.computeSpanCount(newWidth, targetCardWidthPx()));
+            }
+        });
+    }
+
+    private void onViewModeToggleClicked() {
+        BrowseContentItemAdapter.ViewMode newMode = currentViewMode == BrowseContentItemAdapter.ViewMode.LIST
+                ? BrowseContentItemAdapter.ViewMode.CARD
+                : BrowseContentItemAdapter.ViewMode.LIST;
+        currentViewMode = newMode;
+        if (getContext() != null) {
+            PreferenceManager.getDefaultSharedPreferences(getContext()).edit()
+                    .putString(getString(R.string.settings_browse_view_mode_key), newMode.name())
+                    .apply();
+        }
+        if (bItemAdapter != null) {
+            bItemAdapter.setViewMode(newMode);
+        }
+        applyLayoutManagerForViewMode(newMode);
+        updateViewModeToggleUi();
+    }
+
+    /**
+     * Switches {@code contentList}'s {@code LayoutManager} to match
+     * {@code mode}: a plain {@link LinearLayoutManager} for LIST, or a
+     * {@link GridLayoutManager} sized from the RecyclerView's current
+     * width for CARD (docs/tech.md, "Browse card-grid view"). Subsequent width changes
+     * while already in CARD mode are handled by the listener installed in
+     * {@link #initViewModeToggle(View)} via {@code setSpanCount(...)}, not
+     * by calling this method again.
+     */
+    private void applyLayoutManagerForViewMode(BrowseContentItemAdapter.ViewMode mode) {
+        if (contentList == null || getActivity() == null) {
+            return;
+        }
+        if (mode == BrowseContentItemAdapter.ViewMode.CARD) {
+            int initialSpanCount = CardGridSpanCount.computeSpanCount(contentList.getWidth(), targetCardWidthPx());
+            contentList.setLayoutManager(new GridLayoutManager(getActivity(), initialSpanCount));
+        } else {
+            contentList.setLayoutManager(new LinearLayoutManager(getActivity()));
+        }
+    }
+
+    /**
+     * ~160dp target card width (docs/tech.md, "Browse card-grid view"), converted to px via
+     * the context's {@code DisplayMetrics} rather than a hardcoded pixel
+     * value, so it scales correctly with device density.
+     */
+    private int targetCardWidthPx() {
+        return (int) (TARGET_CARD_WIDTH_DP * getResources().getDisplayMetrics().density);
+    }
+
+    /**
+     * Reflects the current view mode as the toggle button's selected/alpha
+     * state, same lightweight convention {@link #updateSortToggleUi()}
+     * uses for the sort toggle's mode selection (no second drawable
+     * needed -- the button's single grid icon, set in the layout XML,
+     * represents the toggle action itself).
+     */
+    private void updateViewModeToggleUi() {
+        if (viewModeToggleButton == null) {
+            return;
+        }
+        boolean cardMode = currentViewMode == BrowseContentItemAdapter.ViewMode.CARD;
+        viewModeToggleButton.setSelected(cardMode);
+        viewModeToggleButton.setAlpha(cardMode ? 1.0f : 0.6f);
+    }
+
+    /**
+     * Classic layout: the content browsing ends in the original static two-line footer -- the
+     * current provider and the selected receivers, each with its icon, not clickable. New layout:
+     * the host shows one receiver bar at every level, so this fragment's footer lines and their
+     * separator are hidden. All three sit in a container that is never GONE itself (see
+     * fragment_content_list.xml), so nothing visible is anchored to a hidden view.
+     */
+    private void initFooter() {
+        BrowserHost host = browserHost();
+        showsStaticFooter = host == null || !host.providesReceiverBar();
+        if (!showsStaticFooter) {
+            currentReceivers.setVisibility(View.GONE);
+            currentProvider.setVisibility(View.GONE);
+            footerSeparator.setVisibility(View.GONE);
+            return;
+        }
+        tintCompoundDrawables(currentReceivers);
+        tintCompoundDrawables(currentProvider);
+    }
+
     private void tintCompoundDrawables(TextView textView) {
         Drawable[] drawables = textView.getCompoundDrawablesRelative();
         for (int i = 0; i < drawables.length; i++) {
@@ -240,6 +536,123 @@ public class ContentListFragment extends Fragment implements OnClickListener,
             }
         }
         textView.setCompoundDrawablesRelativeWithIntrinsicBounds(drawables[0], drawables[1], drawables[2], drawables[3]);
+    }
+
+    /** Classic footer, first line: the selected provider. Main thread only. */
+    private void showCurrentProvider() {
+        if (showsStaticFooter && upnpClient.getProviderDevice() != null) {
+            currentProvider.setText(upnpClient.getProviderDevice().getDetails().getFriendlyName());
+        }
+    }
+
+    /** Classic footer, second line: the selected receivers joined with "; ". Main thread only. */
+    private void showCurrentReceivers() {
+        if (showsStaticFooter && upnpClient.getReceiverDevices() != null) {
+            currentReceivers.setText(upnpClient.getReceiverDevices().stream().map(it -> it.getDetails().getFriendlyName()).collect(Collectors.joining("; ")));
+        }
+    }
+
+    /** The hosting activity as a {@link BrowserHost}, or null if it is not one. */
+    private BrowserHost browserHost() {
+        return getActivity() instanceof BrowserHost ? (BrowserHost) getActivity() : null;
+    }
+
+    private boolean showsBackAtContentRoot() {
+        BrowserHost host = browserHost();
+        return host != null && host.showsBackAtContentRoot();
+    }
+
+    /**
+     * Starts a play, play-all or add-to-playlist action ({@link ContentItemPlayTask}).
+     * <p>
+     * New layout (the host owns the receiver bar): the receivers are picked per action. The host's
+     * "Play on..." sheet opens first; cancelling leaves everything as it was. Confirming stores the
+     * chosen receivers ({@link UpnpClient#setReceiverDeviceIds}), then starts the task, and the
+     * selection is cleared again once the players have been started ({@link #play(List)} and
+     * {@link #addToPlayList}). Only one picked action may be starting at a time (the selection is
+     * global): a request while a pick is open or another action is still starting is dropped, with
+     * a short message.
+     * <p>
+     * Classic (no host, or a host without the receiver bar): the task starts at once with the
+     * tab-based selection, exactly as before, and nothing is cleared.
+     *
+     * @param mode       {@link ContentItemPlayTask#PLAY_CURRENT}, {@link ContentItemPlayTask#PLAY_ALL} or
+     *                   {@link ContentItemPlayTask#ADD_TO_PLAYLIST}
+     * @param onStarted  runs on the main thread right before the task starts (progress, a toast), may be null
+     * @param onComplete runs on the main thread when the task is done, may be null
+     */
+    public void startPlayAction(DIDLObject object, int mode, Runnable onStarted, Runnable onComplete) {
+        if (object == null) {
+            return;
+        }
+        BrowserHost host = browserHost();
+        if (host == null || !host.providesReceiverBar()) {
+            runPlayTask(object, mode, onStarted, onComplete);
+            return;
+        }
+        if (!isAdded() || upnpClient == null
+                || !host.pickReceivers(new PickedAction() {
+            @Override
+            public void onConfirmed(Set<String> receiverIds, Runnable done) {
+                if (!isAdded()) {
+                    done.run(); // the screen is gone; nothing was changed yet
+                    return;
+                }
+                try {
+                    upnpClient.setReceiverDeviceIds(receiverIds);
+                    // the single flight ends with the task: play() / addToPlayList() have cleared the
+                    // selection by then
+                    runPlayTask(object, mode, onStarted, () -> {
+                        try {
+                            if (onComplete != null) {
+                                onComplete.run();
+                            }
+                        } finally {
+                            done.run();
+                        }
+                    });
+                } catch (RuntimeException e) {
+                    done.run();
+                    throw e;
+                }
+            }
+
+            @Override
+            public void onCancelled() {
+                // nothing was changed
+            }
+        }, null, null)) {
+            // a pick is open or an action is still starting, or the screen is not ready: say so
+            showBusyMessage();
+        }
+    }
+
+    private void runPlayTask(DIDLObject object, int mode, Runnable onStarted, Runnable onComplete) {
+        if (onStarted != null) {
+            onStarted.run();
+        }
+        new ContentItemPlayTask(this, object, onComplete).execute(mode);
+    }
+
+    /** A short, fixed message: the tap did not open the receiver picker. */
+    private void showBusyMessage() {
+        try {
+            if (getContext() != null) {
+                Toast.makeText(getContext().getApplicationContext(), R.string.receiver_pick_busy, Toast.LENGTH_SHORT).show();
+            }
+        } catch (RuntimeException e) {
+            YaaccLogger.w("ContentListFragment", "Could not show a message (" + e.getClass().getSimpleName() + ")");
+        }
+    }
+
+    /**
+     * For tests: the client and the layout this fragment acts for, without a view. {@code newLayout}
+     * means the host owns the receiver bar, so the receivers are picked per action and cleared
+     * after it.
+     */
+    void attachForTest(UpnpClient client, boolean newLayout) {
+        this.upnpClient = client;
+        this.showsStaticFooter = !newLayout;
     }
 
     @Override
@@ -272,7 +685,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
      * {@link #updateFolderNavigationUi()} once the new navigator exists.
      */
     private void hideFolderNavigationControls() {
-        backButton.setVisibility(View.GONE);
+        backButton.setVisibility(showsBackAtContentRoot() ? View.VISIBLE : View.GONE);
         topSeperator.setVisibility(View.GONE);
     }
 
@@ -289,13 +702,14 @@ public class ContentListFragment extends Fragment implements OnClickListener,
      * (rightmost) part of the path stays visible.
      */
     private void updateFolderNavigationUi() {
-        boolean atRoot = navigator == null || navigator.getCurrentPosition() == null
-                || Navigator.ITEM_ROOT_OBJECT_ID.equals(navigator.getCurrentPosition().getObjectId());
+        boolean atRoot = isAtRoot();
         // GONE correctly reclaims the back button's space at root -- the
         // path label no longer anchors to it for position at all (see
         // below), so there's no RelativeLayout anchor-to-a-hidden-sibling
         // risk here.
-        backButton.setVisibility(atRoot ? View.GONE : View.VISIBLE);
+        // New layout: the arrow stays at the root and leads back to the server list.
+        boolean showBack = !atRoot || showsBackAtContentRoot();
+        backButton.setVisibility(showBack ? View.VISIBLE : View.GONE);
         // topSeperator divides the header from the content list below it,
         // independent of whether there's a folder to navigate back to --
         // always visible, not tied to atRoot.
@@ -311,13 +725,29 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         // orientation: portrait places the label beside the button (needs
         // to clear its width), landscape places it below (doesn't) -- see
         // values/dimens.xml and values-land/dimens.xml.
-        int marginStartDimenRes = atRoot
+        applyFolderNameMargin(showBack);
+    }
+
+    /** Sets the start margin of the path label so that it clears the back button when that is shown. */
+    private void applyFolderNameMargin(boolean showBack) {
+        int marginStartDimenRes = !showBack
                 ? R.dimen.folder_name_margin_start_base
                 : R.dimen.folder_name_margin_start_with_back;
         ViewGroup.MarginLayoutParams folderNameLayoutParams =
                 (ViewGroup.MarginLayoutParams) currentFolderNameView.getLayoutParams();
         folderNameLayoutParams.setMarginStart(getResources().getDimensionPixelSize(marginStartDimenRes));
         currentFolderNameView.setLayoutParams(folderNameLayoutParams);
+    }
+
+    /**
+     * @return true if the shown folder is the root of the server, or if nothing is loaded yet.
+     * Read-only and null-safe, for hosts that decide what back does (the return value of
+     * {@link #onBackPressed()} cannot tell: it is always true).
+     */
+    public boolean isAtRoot() {
+        Navigator current = navigator;
+        return current == null || current.getCurrentPosition() == null
+                || Navigator.ITEM_ROOT_OBJECT_ID.equals(current.getCurrentPosition().getObjectId());
     }
 
     private String buildPathDisplayText() {
@@ -364,9 +794,6 @@ public class ContentListFragment extends Fragment implements OnClickListener,
                         }
 
                 );
-            }
-            if (requireActivity().getParent() instanceof TabBrowserActivity) {
-                ((TabBrowserActivity) requireActivity().getParent()).setCurrentTab(BrowserTabs.SERVER);
             }
 
         } else {
@@ -487,43 +914,47 @@ public class ContentListFragment extends Fragment implements OnClickListener,
      */
     @Override
     public void deviceAdded(Device<?, ?, ?> device) {
+        reloadWhenServerIsBack(device, "was added");
     }
 
     /**
-     * Refreshes the shown devices when device is removed.
+     * The shown folder stays when its server leaves the registry (byebye, or expiry after the device
+     * slept): the registry often has it back a moment later. The folder is only cleared when the user
+     * navigates away or selects another server ({@link #onResume()}).
      */
     @Override
     public void deviceRemoved(Device<?, ?, ?> device) {
         YaaccLogger.d(this.getClass().toString(), "device removal called");
-        if (device.equals(upnpClient.getProviderDevice())) {
-            clearItemList();
+        String serverId = serverIdOf(device);
+        FragmentActivity activity = getActivity();
+        if (serverId == null || activity == null) {
+            return;
         }
+        activity.runOnUiThread(() -> {
+            if (isAdded() && showsFolderOf(serverId)) {
+                keepFolderWithoutServer("Resume: provider " + serverId + " left the registry, keeping the folder");
+            }
+        });
     }
 
     @Override
     public void deviceUpdated(Device<?, ?, ?> device) {
-
+        reloadWhenServerIsBack(device, "was updated");
     }
 
     @Override
     public void receiverDeviceRemoved(Device<?, ?, ?> device) {
-        if (getActivity() != null) {
-            getActivity().runOnUiThread(() -> {
-                if (upnpClient.getReceiverDevices() != null) {
-                    currentReceivers.setText(upnpClient.getReceiverDevices().stream().map(it -> it.getDetails().getFriendlyName()).collect(Collectors.joining("; ")));
-                }
-            });
-        }
+        updateReceiversOnUiThread();
     }
 
     @Override
     public void receiverDeviceAdded(Device<?, ?, ?> device) {
-        if (getActivity() != null) {
-            getActivity().runOnUiThread(() -> {
-                if (upnpClient.getReceiverDevices() != null) {
-                    currentReceivers.setText(upnpClient.getReceiverDevices().stream().map(it -> it.getDetails().getFriendlyName()).collect(Collectors.joining("; ")));
-                }
-            });
+        updateReceiversOnUiThread();
+    }
+
+    private void updateReceiversOnUiThread() {
+        if (showsStaticFooter && getActivity() != null) {
+            getActivity().runOnUiThread(this::showCurrentReceivers);
         }
     }
 
@@ -552,6 +983,21 @@ public class ContentListFragment extends Fragment implements OnClickListener,
     public void onViewCreated(View view, Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
         init(savedInstanceState, view);
+    }
+
+    @Override
+    public void onDestroyView() {
+        // The client lives as long as the application: a destroyed view must not keep receiving
+        // device events (deviceRemoved would reach a fragment that has no activity any more), and
+        // loads still running must not fill a list nobody sees.
+        if (upnpClient != null) {
+            upnpClient.removeUpnpClientListener(this);
+        }
+        if (bItemAdapter != null) {
+            bItemAdapter.cancelRunningTasks();
+            bItemAdapter.release();
+        }
+        super.onDestroyView();
     }
 
     public void playItem(DIDLObject item) {
@@ -588,7 +1034,8 @@ public class ContentListFragment extends Fragment implements OnClickListener,
                         .collect(Collectors.toList());
                 if (!sortedItems.isEmpty()) {
                     Item target = item instanceof Item ? (Item) item : null;
-                    play(upnpClient.initializePlayers(rotateToStart(sortedItems, target)));
+                    // a folder of the storage access framework mixes images and videos: queue one kind
+                    play(upnpClient.initializePlayers(rotateToStart(SameMediaKind.of(sortedItems, target), target)));
                     return;
                 }
                 // Falls through: current folder has no playable items at
@@ -620,7 +1067,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         } else {
             List<Item> items = result.getResult() == null ? new ArrayList<>() : result.getResult().getItems();
             Item target = item instanceof Item ? (Item) item : null;
-            play(upnpClient.initializePlayers(rotateToStart(items, target)));
+            play(upnpClient.initializePlayers(rotateToStart(SameMediaKind.of(items, target), target)));
         }
     }
 
@@ -647,16 +1094,36 @@ public class ContentListFragment extends Fragment implements OnClickListener,
     }
 
 
+    /**
+     * The single place where a started playback ends. New layout: the picked receivers are only
+     * needed to start it, so the selection is cleared now (also when no player could be created).
+     * Players that run keep their device; an existing share's allowed set was fixed when it was made.
+     */
     private void play(List<Player> players) {
-        for (Player player : players) {
-            if (player != null) {
-                player.play();
+        try {
+            for (Player player : players) {
+                if (player != null) {
+                    player.play();
+                }
             }
+        } finally {
+            clearPickedSelection();
         }
     }
 
     public void addToPlayList(DIDLObject currentObject) {
-        upnpClient.addToPlaylist(currentObject);
+        try {
+            upnpClient.addToPlaylist(currentObject);
+        } finally {
+            clearPickedSelection();
+        }
+    }
+
+    /** New layout only; classic keeps its tab-based selection. Safe on the task's background thread. */
+    private void clearPickedSelection() {
+        if (!showsStaticFooter && upnpClient != null) {
+            upnpClient.clearReceiverDevices();
+        }
     }
 }
 

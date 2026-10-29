@@ -17,6 +17,7 @@
  */
 package de.yaacc.player;
 
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.Dialog;
 import android.os.Bundle;
@@ -86,6 +87,8 @@ public class PlaylistDialogFragment extends DialogFragment {
 
 
     @Override
+    // Initial bind and rebind after the player's current item changes; the playlist content is not diffed here.
+    @SuppressLint("NotifyDataSetChanged")
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         super.onCreateView(inflater, container, savedInstanceState);
         if (savedInstanceState != null) {

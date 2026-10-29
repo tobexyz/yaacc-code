@@ -61,6 +61,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import de.yaacc.upnp.protocol.ProtocolCreationException;
 import de.yaacc.upnp.protocol.ReceivingSync;
@@ -70,10 +71,27 @@ import de.yaacc.util.YaaccLogger;
 public class YaaccUpnpServerProtocolRequestHandler implements AsyncServerRequestHandler<Message<HttpRequest, byte[]>> {
 
     protected ReceivingSync syncProtocol;
-    private final UpnpProtocolHandler upnpProtocolHandler;
+    private final Supplier<UpnpProtocolHandler> protocolHandlerSupplier;
 
-    public YaaccUpnpServerProtocolRequestHandler(UpnpProtocolHandler upnpProtocolHandler) {
-        this.upnpProtocolHandler = upnpProtocolHandler;
+    /**
+     * @param protocolHandlerSupplier resolves the live protocol handler for every request: the handler is replaced on
+     *                                every network change and is null while there is no network. A handler captured
+     *                                once at the start of the server would stay null (or become stale).
+     */
+    public YaaccUpnpServerProtocolRequestHandler(Supplier<UpnpProtocolHandler> protocolHandlerSupplier) {
+        this.protocolHandlerSupplier = protocolHandlerSupplier;
+    }
+
+    /**
+     * @return the current protocol handler, null if there is none (no network) or the supplier fails
+     */
+    private UpnpProtocolHandler resolveProtocolHandler() {
+        try {
+            return protocolHandlerSupplier == null ? null : protocolHandlerSupplier.get();
+        } catch (RuntimeException ex) {
+            YaaccLogger.w(getClass().getName(), "Resolving the protocol handler failed - " + ex);
+            return null;
+        }
     }
 
     @Override
@@ -219,20 +237,34 @@ public class YaaccUpnpServerProtocolRequestHandler implements AsyncServerRequest
     public StreamResponseMessage process(StreamRequestMessage requestMsg) {
         YaaccLogger.v(getClass().getName(), "Processing stream request message: " + requestMsg);
 
+        UpnpProtocolHandler upnpProtocolHandler = resolveProtocolHandler();
+        if (upnpProtocolHandler == null) {
+            // no network (or the listener is being restarted): answer cleanly, the client may try again later
+            YaaccLogger.w(getClass().getName(), "No protocol handler available, answering 503 to " + requestMsg);
+            return new StreamResponseMessage(UpnpResponse.Status.SERVICE_UNAVAILABLE);
+        }
+
+        ReceivingSync protocol;
         try {
             // Try to get a protocol implementation that matches the request message
-            syncProtocol = upnpProtocolHandler.createReceivingSync(requestMsg);
+            protocol = upnpProtocolHandler.createReceivingSync(requestMsg);
         } catch (ProtocolCreationException ex) {
             YaaccLogger.w(getClass().getName(), "Processing stream request failed - " + unwrap(ex).toString());
             return new StreamResponseMessage(UpnpResponse.Status.NOT_IMPLEMENTED);
         }
+        if (protocol == null) {
+            // the handler has no protocol for this method/path combination
+            YaaccLogger.w(getClass().getName(), "No protocol for stream request " + requestMsg);
+            return new StreamResponseMessage(UpnpResponse.Status.NOT_IMPLEMENTED);
+        }
+        syncProtocol = protocol;
 
         // Run it
-        YaaccLogger.v(getClass().getName(), "Running protocol for synchronous message processing: " + syncProtocol);
-        syncProtocol.run();
+        YaaccLogger.v(getClass().getName(), "Running protocol for synchronous message processing: " + protocol);
+        protocol.run();
 
         // ... then grab the response
-        StreamResponseMessage responseMsg = syncProtocol.getOutputMessage();
+        StreamResponseMessage responseMsg = protocol.getOutputMessage();
 
         if (responseMsg == null) {
             // That's ok, the caller is supposed to handle this properly (e.g. convert it to HTTP 404)

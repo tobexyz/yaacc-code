@@ -81,7 +81,9 @@ public class RegistryImpl implements Registry {
 
     private final ExecutorService executorService;
 
-    private UpnpProtocolHandler upnpProtocolHandler;
+    // The live handler of the network listener; it is replaced on every (re-)enable and cleared on disable, from the
+    // listener's thread, and read by the maintainer and protocol threads.
+    private volatile UpnpProtocolHandler upnpProtocolHandler;
 
     protected RegistryMaintainer registryMaintainer;
 
@@ -379,16 +381,6 @@ public class RegistryImpl implements Registry {
     @Override
     synchronized public void setAliveInterval(int intervalMillis) {
         localItems.setAliveIntervalMillis(intervalMillis);
-    }
-
-    /* ############################################################################################################ */
-
-    public UpnpProtocolHandler getProtocolHandler() {
-        return upnpProtocolHandler;
-    }
-
-    public void setProtocolHandler(UpnpProtocolHandler upnpProtocolHandler) {
-        this.upnpProtocolHandler = upnpProtocolHandler;
     }
 
     /* ############################################################################################################ */

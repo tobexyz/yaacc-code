@@ -35,9 +35,10 @@
     <string name="settings_browse_chunk_size">tamaño del fragmento al navegar</string>
     <string name="settings_browse_chunk_size_summ">cantidad de elementos obtenidos del servidor en una solicitud</string>
     <string name="settings_category_appearance">Apariencia</string>
-    <string name="settings_dark_mode_title">modo oscuro</string>
-    <string name="settings_dark_mode_off">Usando la configuración del sistema</string>
-    <string name="settings_dark_mode_on">Modo oscuro activo</string>
+    <string name="settings_theme_title">Tema</string>
+    <string name="settings_theme_system">Sistema</string>
+    <string name="settings_theme_dark">Oscuro</string>
+    <string name="settings_theme_light">Claro</string>
     <string name="settings_log_level">Nivel de registro</string>
     <string name="settings_browse_audio_on">mostrar archivos de audio</string>
     <string name="settings_browse_audio_off">no mostrar archivos de audio</string>
@@ -70,6 +71,9 @@
     <string name="settings_local_server_proxy_title">servicio de proxy de medios</string>
     <string name="settings_local_server_proxy_off">proxy de medios desactivado</string>
     <string name="settings_local_server_proxy_on">proxy de medios activado</string>
+    <string name="settings_proxy_restrict_receivers_title">Restringir el proxy de medios a los receptores elegidos</string>
+    <string name="settings_proxy_restrict_receivers_on">Solo los receptores elegidos pueden obtener un archivo o enlace compartido</string>
+    <string name="settings_proxy_restrict_receivers_off">Cualquier dispositivo que conozca la dirección puede obtener un archivo o enlace compartido mientras se comparte</string>
     <string name="settings_local_server_media_filter_title">filtrado de tienda de medios</string>
     <string name="settings_local_server_media_filter_off">filtrado de la tienda de medios desactivado</string>
     <string name="settings_local_server_media_filter_on">filtrado de la tienda de medios activado</string>
@@ -79,7 +83,7 @@
     <string name="settings_local_server_serve_images_title">servir imágenes</string>
     <string name="settings_local_server_serve_images_off">servir imágenes está deshabilitado</string>
     <string name="settings_local_server_serve_images_on">servir imágenes está habilitado</string>
-    <string name="settings_local_server_serve_music_title">servir musica</string>
+    <string name="settings_local_server_serve_music_title">servir música</string>
     <string name="settings_local_server_serve_music_off">servir música está deshabilitado</string>
     <string name="settings_local_server_serve_music_on">servir música está habilitado</string>
     <string name="settings_local_server_serve_video_title">servir vídeos</string>

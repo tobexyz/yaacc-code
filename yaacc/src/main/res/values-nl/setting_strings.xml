@@ -35,9 +35,10 @@
     <string name="settings_browse_chunk_size">brokgrootte tijdens het browsen</string>
     <string name="settings_browse_chunk_size_summ">hoeveelheid items die in één verzoek van de server zijn opgehaald</string>
     <string name="settings_category_appearance">Verschijning</string>
-    <string name="settings_dark_mode_title">Donkere modus</string>
-    <string name="settings_dark_mode_off">Systeeminstellingen gebruiken</string>
-    <string name="settings_dark_mode_on">Donkere modus actief</string>
+    <string name="settings_theme_title">Thema</string>
+    <string name="settings_theme_system">Systeem</string>
+    <string name="settings_theme_dark">Donker</string>
+    <string name="settings_theme_light">Licht</string>
     <string name="settings_log_level">Logniveau</string>
     <string name="settings_browse_audio_on">audiobestanden weergeven</string>
     <string name="settings_browse_audio_off">toon geen audiobestanden</string>
@@ -70,6 +71,9 @@
     <string name="settings_local_server_proxy_title">mediaproxy-service</string>
     <string name="settings_local_server_proxy_off">mediaproxy gedeactiveerd</string>
     <string name="settings_local_server_proxy_on">mediaproxy geactiveerd</string>
+    <string name="settings_proxy_restrict_receivers_title">Mediaproxy beperken tot de gekozen ontvangers</string>
+    <string name="settings_proxy_restrict_receivers_on">Alleen de gekozen ontvangers kunnen een gedeeld bestand of een gedeelde link ophalen</string>
+    <string name="settings_proxy_restrict_receivers_off">Elk apparaat dat het adres kent, kan een gedeeld bestand of een gedeelde link ophalen zolang het gedeeld wordt</string>
     <string name="settings_local_server_media_filter_title">filteren van media store</string>
     <string name="settings_local_server_media_filter_off">media store filtering gedeactiveerd</string>
     <string name="settings_local_server_media_filter_on">media store filtering geactiveerd</string>

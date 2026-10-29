@@ -102,9 +102,6 @@ public class PlayerListFragment extends Fragment implements
 
     public boolean onBackPressed() {
         YaaccLogger.d(PlayerListFragment.class.getName(), "onBackPressed() CurrentPosition");
-        if (requireActivity().getParent() instanceof TabBrowserActivity) {
-            ((TabBrowserActivity) requireActivity().getParent()).setCurrentTab(BrowserTabs.RECEIVER);
-        }
         return true;
 
     }

@@ -60,7 +60,7 @@ import de.yaacc.upnp.UpnpClient;
  *     <li>{@code BrowseContentItemAdapter#getSortMode()} — returns the
  *     current {@code SortMode}, defaulting to {@code NAME}.</li>
  *     <li>{@code BrowseContentItemAdapter#setSortMode(SortMode)} — changes
- *     the sort mode. Per design.md/tasks.md this is expected to internally
+ *     the sort mode. This is expected to internally
  *     trigger a {@code clear()} + reload when the mode actually changes;
  *     that reload path (adapter {@code loadMore()}) already short-circuits
  *     safely when {@code contentListFragment.getNavigator()} is {@code
@@ -145,6 +145,8 @@ public class BrowseContentItemAdapterSortTest {
                                                 UpnpClient upnpClient, ProgressBar progressBar) {
         BrowseContentItemAdapter adapter = new BrowseContentItemAdapter(contentListFragment, recyclerView, upnpClient, progressBar);
         fixUpAdapterDataObservable(adapter);
+        // the sort runs on a worker thread and posts its result to the main thread: both run right here
+        adapter.setSortExecutors(Runnable::run, Runnable::run);
         return adapter;
     }
 

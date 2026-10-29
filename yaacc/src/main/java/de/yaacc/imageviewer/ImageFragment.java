@@ -39,6 +39,7 @@ import androidx.fragment.app.Fragment;
 import androidx.lifecycle.Lifecycle;
 import androidx.lifecycle.LifecycleEventObserver;
 
+import de.yaacc.share.ShareLogRedactor;
 import de.yaacc.R;
 import de.yaacc.Yaacc;
 import de.yaacc.util.YaaccLogger;
@@ -98,7 +99,7 @@ public class ImageFragment extends Fragment {
     public void loadImage(Uri imageUri) {
         if (imageView == null || imageUri == null) return;
 
-        YaaccLogger.d(getClass().getName(), "Loading image: " + imageUri);
+        YaaccLogger.d(getClass().getName(), "Loading image: " + ShareLogRedactor.redact(String.valueOf(imageUri)));
 
         // Show loading indicator
         if (progressBar != null) {
@@ -169,7 +170,9 @@ public class ImageFragment extends Fragment {
                 }
             }
         } catch (Exception e) {
-            YaaccLogger.e(getClass().getName(), "Failed to load image: " + imageUri, e);
+            // class name only: the exception message of a failed fetch is the full URL (which can carry a proxy key)
+            YaaccLogger.e(getClass().getName(), "Failed to load image: " + ShareLogRedactor.redact(String.valueOf(imageUri))
+                    + " (" + e.getClass().getSimpleName() + ")");
         }
         return null;
     }

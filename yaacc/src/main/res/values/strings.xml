@@ -23,6 +23,11 @@
     <string name="browse_context_title">Available actions</string>
     <string name="browse_context_play">Play item</string>
     <string name="browse_context_download">Download item</string>
+    <string name="browse_context_share">Share item</string>
+    <string name="browse_share_menu_file">Share file</string>
+    <string name="browse_share_menu_link">Share link</string>
+    <string name="browse_share_preparing">Preparing file to share…</string>
+    <string name="browse_share_failed">Can\'t share item: %1$s</string>
     <string name="browse_context_add_to_playplist">Add item to playlist</string>
     <string name="browse_no_content_found">No data found</string>
     <string name="browse_button_devices">Sender Devices</string>
@@ -39,6 +44,12 @@
     <string name="error_upnp_specific">The following error occurred:</string>
     <string name="error_no_receiver_device_found">No receiver device found</string>
     <string name="error_no_receiver_selected">No receiver device selected. Please select a receiver in the Receiver tab first.</string>
+    <string name="share_registry_full">Too many active shares. Try again in a moment.</string>
+    <string name="share_unnamed_file">Shared file</string>
+    <string name="share_open_failed">Could not play the shared file.</string>
+    <string name="share_busy">Another shared file is still being processed. Try again in a moment.</string>
+    <string name="share_unnamed_link">Shared link</string>
+    <string name="share_link_failed">Could not play the shared link.</string>
     <string name="error_no_activity_found">No activity found for playing mimetype \'%1$s\'</string>
     <string name="image_viewer_settings_duration">Picture stay duration</string>
     <string name="image_viewer_settings_duration_key" translatable="false">image_viewer_settings_duration_key</string>
@@ -100,8 +111,13 @@
     <string name="open">open</string>
     <string name="exitActivity">stop</string>
     <string name="icon">icon</string>
+    <string name="volume_placeholder" translatable="false">75%</string>
+    <string name="album_art">Album Art</string>
+    <string name="remove_item">Remove</string>
     <string name="sort_by_name">Sort by name</string>
     <string name="sort_by_date">Sort by date</string>
+    <string name="toggle_view_mode">Switch between list and card view</string>
+    <string name="server_list_button">Server list</string>
     <string name="not_yet_implemented">not yet implemented</string>
     <string name="avtransportPlayerActivityNextLabel">Next:</string>
     <string name="browse_context_control_device">Control device</string>
@@ -128,6 +144,7 @@
     <string name="shared_folders">select shared folders</string>
     <string name="reset_shared_folders">reset shared folders</string>
     <string name="shutdown_timer">Shutdown timer</string>
+    <string name="browser_servers_header">Servers</string>
     <string name="add_saf_content">add source</string>
     <string name="clear_saf_cache">clear SAF cache</string>
     <string name="saf_content">Linked</string>
@@ -136,4 +153,28 @@
     <string name="paused">PAUSED</string>
     <string name="stopped">STOPPED</string>
     <string name="no_media">NO MEDIA</string>
+    <string name="device_sheet_title">Receivers</string>
+    <string name="receiver_bar_none_playing">No receiver playing</string>
+    <string name="receiver_bar_description">Choose receivers</string>
+    <string name="receiver_pick_title">Play on…</string>
+    <string name="receiver_pick_none_hint">Choose at least one receiver.</string>
+    <string name="receiver_pick_confirm_description">%1$s, play on the chosen receivers</string>
+    <string name="receiver_pick_confirm">OK</string>
+    <string name="receiver_pick_busy">Still busy with the last action. Try again in a moment.</string>
+    <string name="mini_player_previous">Previous track</string>
+    <string name="mini_player_play">Play</string>
+    <string name="mini_player_pause">Pause</string>
+    <string name="mini_player_next">Next track</string>
+    <string name="mini_player_stop">Stop</string>
+    <string name="mini_player_art">Album art</string>
+    <string name="mini_player_open">Open player</string>
+    <string name="browser_back">Back</string>
+    <string name="settings_browser_layout_title">Layout</string>
+    <string name="settings_browser_layout_classic">Classic (tabs)</string>
+    <string name="settings_browser_layout_new">New (single screen)</string>
+    <string name="clear_log">Clear log</string>
+    <string name="share_not_accepted">YAACC only accepts audio, video and image files and web links.</string>
+    <string name="share_link_host">Link: %1$s</string>
+    <string name="log_pause">Pause log updates</string>
+    <string name="log_resume">Resume log updates</string>
 </resources>

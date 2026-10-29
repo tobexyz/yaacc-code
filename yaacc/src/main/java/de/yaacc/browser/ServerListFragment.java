@@ -17,8 +17,7 @@
  */
 package de.yaacc.browser;
 
-import static com.google.android.material.timepicker.MaterialTimePicker.INPUT_MODE_KEYBOARD;
-
+import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.drawable.Drawable;
@@ -31,15 +30,14 @@ import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import androidx.annotation.NonNull;
+import androidx.core.content.res.ResourcesCompat;
+import androidx.core.view.ViewCompat;
 import androidx.fragment.app.Fragment;
 import androidx.preference.PreferenceManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.switchmaterial.SwitchMaterial;
-import com.google.android.material.timepicker.MaterialTimePicker;
-import com.google.android.material.timepicker.TimeFormat;
 
 import org.fourthline.cling.model.meta.Device;
 
@@ -52,7 +50,6 @@ import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.UpnpClientListener;
 import de.yaacc.upnp.server.configuration.YaaccUpnpServerControlActivity;
 import de.yaacc.util.FormatHelper;
-import de.yaacc.util.ShutdownTimerListener;
 import de.yaacc.util.ThemeHelper;
 import de.yaacc.util.YaaccLogger;
 
@@ -62,11 +59,15 @@ import de.yaacc.util.YaaccLogger;
  * @author @author Tobias Schoene (the openbit)
  */
 public class ServerListFragment extends Fragment implements
-        UpnpClientListener, OnBackPressedListener, ShutdownTimerListener {
-    private static final String SHUTDOWN_TIMER_REMAINING_TIME = "SHUTDOWN_TIMER_REMAINING_TIME";
+        UpnpClientListener, OnBackPressedListener {
     private UpnpClient upnpClient = null;
     private RecyclerView contentList;
     private BrowseDeviceAdapter bDeviceAdapter;
+    private StreamingPermissionHelper streamingPermissionHelper;
+    private ShutdownTimerController shutdownTimerController;
+    private ShutdownTimerController.Display shutdownTimerDisplay;
+    // true when the host shows the timer in its toolbar: top-level layout, no timer rows
+    private boolean hostProvidesShutdownTimer;
 
 
     /**
@@ -81,33 +82,45 @@ public class ServerListFragment extends Fragment implements
     }
 
     @Override
+    // Permission change affects the status of every row, so all rows must rebind.
+    @SuppressLint("NotifyDataSetChanged")
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        streamingPermissionHelper = new StreamingPermissionHelper(requireContext(), () -> {
+            if (bDeviceAdapter != null) {
+                bDeviceAdapter.notifyDataSetChanged();
+            }
+        });
+    }
 
-        // Register callback for MediaProjection stop events
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-            de.yaacc.upnp.server.media.MediaProjectionHelper.setStopCallback(() -> {
-                // MediaProjection stopped - disable streaming
-                if (getActivity() != null) {
-                    getActivity().runOnUiThread(() -> {
-                        android.content.SharedPreferences prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(requireContext());
-                        prefs.edit()
-                                .putBoolean(getString(R.string.settings_local_server_serve_system_audio_chkbx), false)
-                                .putBoolean(getString(R.string.settings_local_server_serve_screen_cast_chkbx), false)
-                                .apply();
-
-                        BrowseDeviceAdapter.setAudioStreaming(false);
-                        BrowseDeviceAdapter.setVideoStreaming(false);
-
-                        if (bDeviceAdapter != null) {
-                            bDeviceAdapter.notifyDataSetChanged();
-                        }
-
-                        YaaccLogger.i(getClass().getName(), "Streaming disabled - MediaProjection stopped");
-                    });
-                }
-            });
+    @Override
+    public void onStart() {
+        super.onStart();
+        // MediaProjection stop events refresh the server row only while this screen is started
+        streamingPermissionHelper.registerStopCallback();
+        if (shutdownTimerController != null) {
+            shutdownTimerController.attach(shutdownTimerDisplay);
         }
+    }
+
+    @Override
+    public void onStop() {
+        streamingPermissionHelper.unregisterStopCallback();
+        if (shutdownTimerController != null) {
+            shutdownTimerController.detach();
+        }
+        super.onStop();
+    }
+
+    @Override
+    public void onDestroyView() {
+        // the display lambda holds this view hierarchy; the fragment instance can outlive it
+        shutdownTimerDisplay = null;
+        // the client lives as long as the application and has no other way to forget us
+        if (upnpClient != null) {
+            upnpClient.removeUpnpClientListener(this);
+        }
+        super.onDestroyView();
     }
 
     public boolean onBackPressed() {
@@ -132,8 +145,13 @@ public class ServerListFragment extends Fragment implements
                     // Set permission callback for streaming buttons
                     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
                         bDeviceAdapter.setPermissionCallback(() -> {
-                            android.content.Intent intent = de.yaacc.upnp.server.media.MediaProjectionHelper.createPermissionIntent(requireContext());
-                            startActivityForResult(intent, de.yaacc.upnp.server.media.MediaProjectionHelper.REQUEST_CODE_MEDIA_PROJECTION);
+                            // the audio capture needs RECORD_AUDIO on top of the screen capture permission
+                            if (!streamingPermissionHelper.hasRecordAudioPermission()) {
+                                requestPermissions(new String[]{android.Manifest.permission.RECORD_AUDIO},
+                                        StreamingPermissionHelper.REQUEST_CODE_RECORD_AUDIO);
+                                return;
+                            }
+                            requestScreenCapturePermission();
                         });
                     }
                     deviceList.setAdapter(bDeviceAdapter);
@@ -145,24 +163,35 @@ public class ServerListFragment extends Fragment implements
         }
     }
 
+    @androidx.annotation.RequiresApi(android.os.Build.VERSION_CODES.Q)
+    private void requestScreenCapturePermission() {
+        android.content.Intent intent = streamingPermissionHelper.createRequestIntent();
+        if (intent != null) {
+            startActivityForResult(intent, de.yaacc.upnp.server.media.MediaProjectionHelper.REQUEST_CODE_MEDIA_PROJECTION);
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @androidx.annotation.NonNull String[] permissions,
+                                           @androidx.annotation.NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode != StreamingPermissionHelper.REQUEST_CODE_RECORD_AUDIO) {
+            return;
+        }
+        boolean granted = grantResults.length > 0
+                && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED;
+        streamingPermissionHelper.onRecordAudioResult(granted);
+        if (granted && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            requestScreenCapturePermission();
+        }
+    }
+
     /**
      * Refreshes the shown devices when device is added.
      */
     @Override
     public void deviceAdded(Device<?, ?, ?> device) {
         populateDeviceList();
-
-        if (upnpClient.getProviderDevice() != null && upnpClient.getProviderDevice().equals(device)) {
-            try {
-                requireActivity();
-            } catch (IllegalStateException iex) {
-                YaaccLogger.d(getClass().getName(), "ignoring illegal state exception on device added", iex);
-                return;
-            }
-            if (requireActivity().getParent() instanceof TabBrowserActivity) {
-                ((TabBrowserActivity) requireActivity().getParent()).setCurrentTab(BrowserTabs.CONTENT);
-            }
-        }
     }
 
     /**
@@ -204,12 +233,6 @@ public class ServerListFragment extends Fragment implements
         setLocalServerState(getView());
     }
 
-    @Override
-    public void onSaveInstanceState(@NonNull Bundle outState) {
-        super.onSaveInstanceState(outState);
-        outState.putSerializable(SHUTDOWN_TIMER_REMAINING_TIME, ((TextView) getView().findViewById(R.id.serverListShutdownTimerRemaining)).getText().toString());
-    }
-
     private void init(Bundle savedInstanceState, View view) {
         // local server startup
         upnpClient = ((Yaacc) requireActivity().getApplicationContext()).getUpnpClient();
@@ -221,7 +244,7 @@ public class ServerListFragment extends Fragment implements
         contentList.setFocusableInTouchMode(false); // Good for D-Pad primary interaction
         contentList.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
         ImageButton refresh = view.findViewById(R.id.serverListRefreshButton);
-        Drawable icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_refresh_32, getContext().getTheme()), getContext().getTheme());
+        Drawable icon = ThemeHelper.tintDrawable(ResourcesCompat.getDrawable(getResources(), R.drawable.ic_baseline_refresh_32, getContext().getTheme()), getContext().getTheme());
         refresh.setImageDrawable(icon);
         refresh.setOnClickListener((v) -> {
             if (getActivity() != null) {
@@ -231,73 +254,50 @@ public class ServerListFragment extends Fragment implements
             }
             upnpClient.searchDevices();
         });
+        // the top-level layout has the "Servers" header; mark it so screen readers can jump to it
+        View serversHeader = view.findViewById(R.id.serverRootHeader);
+        if (serversHeader != null) {
+            ViewCompat.setAccessibilityHeading(serversHeader, true);
+        }
         setLocalServerState(view);
         SwitchMaterial localServerEnabledSwitch = view.findViewById(R.id.serverListLocalServerEnabled);
         localServerEnabledSwitch.setOnClickListener((v -> {
             getPreferences().edit().putBoolean(v.getContext().getString(R.string.settings_local_server_chkbx), localServerEnabledSwitch.isChecked()).apply();
-            if (v.getContext() instanceof TabBrowserActivity) {
+            if (v.getContext() instanceof BrowserHost) {
                 setLocalServerState(view);
             }
         }));
         ImageButton localServerSettings = view.findViewById(R.id.serverListLocalServerSettings);
-        icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_settings_32, getContext().getTheme()), getContext().getTheme());
+        icon = ThemeHelper.tintDrawable(ResourcesCompat.getDrawable(getResources(), R.drawable.ic_baseline_settings_32, getContext().getTheme()), getContext().getTheme());
         localServerSettings.setImageDrawable(icon);
         localServerSettings.setOnClickListener(v -> {
             Intent intent = new Intent(getContext(), YaaccUpnpServerControlActivity.class);
             startActivity(intent);
         });
-        TextView shutdowwnRemainingTextView = view.findViewById(R.id.serverListShutdownTimerRemaining);
-        if (savedInstanceState != null && savedInstanceState.containsKey(SHUTDOWN_TIMER_REMAINING_TIME)) {
-            shutdowwnRemainingTextView.setText(savedInstanceState.getString(SHUTDOWN_TIMER_REMAINING_TIME));
-            ((Yaacc) getContext().getApplicationContext()).setShutdownTimerListener(this);
-        } else {
-            long duration = getPreferences().getLong(getContext().getString(R.string.settings_shutdown_timer), 0L);
-            shutdowwnRemainingTextView.setText(FormatHelper.parseMillisToTimeStringTo(duration));
-        }
+        if (!hostProvidesShutdownTimer) {
+            TextView shutdowwnRemainingTextView = view.findViewById(R.id.serverListShutdownTimerRemaining);
+            SwitchMaterial shutdownTimerSwitch = (SwitchMaterial) view.findViewById(R.id.serverListShutdownTimerEnabled);
+            shutdownTimerController = new ShutdownTimerController((Yaacc) requireActivity().getApplicationContext(),
+                    getPreferences(), getString(R.string.settings_shutdown_timer));
+            // The display holds views, so the controller only keeps it between onStart and onStop
+            shutdownTimerDisplay = (millis, running) -> {
+                shutdowwnRemainingTextView.setText(FormatHelper.parseMillisToTimeStringTo(millis));
+                shutdownTimerSwitch.setChecked(running);
+            };
 
-        SwitchMaterial shutdownTimerSwitch = (SwitchMaterial) view.findViewById(R.id.serverListShutdownTimerEnabled);
-        shutdownTimerSwitch.setOnClickListener(v -> {
-            long d = getPreferences().getLong(getContext().getString(R.string.settings_shutdown_timer), 0L);
-            if (shutdownTimerSwitch.isChecked()) {
-                ((Yaacc) getContext().getApplicationContext()).setShutdownTimerListener(this);
-                ((Yaacc) getContext().getApplicationContext()).startShutdownTimer(d);
-            } else {
-                shutdowwnRemainingTextView.setText(FormatHelper.parseMillisToTimeStringTo(d));
-                ((Yaacc) getContext().getApplicationContext()).stopShutdownTimer();
-            }
-        });
-        ImageButton shutdowwnSettingsImageView = view.findViewById(R.id.serverListSetShutdownTimer);
-        icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_settings_32, getContext().getTheme()), getContext().getTheme());
-        shutdowwnSettingsImageView.setImageDrawable(icon);
-        shutdowwnSettingsImageView.setOnClickListener(v -> {
-            long d = getPreferences().getLong(getContext().getString(R.string.settings_shutdown_timer), 0L);
-            String durationString = FormatHelper.parseMillisToTimeStringTo(d);
-            String[] splitted = durationString.split(":");
-            int hours = Integer.parseInt(splitted[0]);
-            int minutes = Integer.parseInt(splitted[1]);
-            MaterialTimePicker.Builder builder = new MaterialTimePicker.Builder();
-            MaterialTimePicker picker = builder.setTimeFormat(TimeFormat.CLOCK_24H)
-                    .setHour(hours)
-                    .setMinute(minutes)
-                    .setTitleText(getContext().getString(R.string.shutdown_timer))
-                    .setInputMode(INPUT_MODE_KEYBOARD).build();
-            picker.addOnPositiveButtonClickListener(dialog -> {
-
-                long millis = (picker.getHour() * 3600L + picker.getMinute() * 60L) * 1000L;
-                YaaccLogger.d(getClass().getName(), "time set: " + picker.getHour() + ":" + picker.getMinute() + " millis: " + millis);
-                getPreferences().edit().putLong(getContext().getString(R.string.settings_shutdown_timer), millis).apply();
+            shutdownTimerSwitch.setOnClickListener(v -> {
                 if (shutdownTimerSwitch.isChecked()) {
-                    ((Yaacc) getContext().getApplicationContext()).stopShutdownTimer();
-                    shutdowwnRemainingTextView.setText(FormatHelper.parseMillisToTimeStringTo(millis));
-                    ((Yaacc) getContext().getApplicationContext()).startShutdownTimer(millis);
+                    shutdownTimerController.start();
                 } else {
-                    shutdowwnRemainingTextView.setText(FormatHelper.parseMillisToTimeStringTo(millis));
+                    shutdownTimerController.stop();
                 }
             });
-            picker.show(requireActivity().getSupportFragmentManager(), "CountdownTimer");
-
-        });
-
+            ImageButton shutdowwnSettingsImageView = view.findViewById(R.id.serverListSetShutdownTimer);
+            icon = ThemeHelper.tintDrawable(ResourcesCompat.getDrawable(getResources(), R.drawable.ic_baseline_settings_32, getContext().getTheme()), getContext().getTheme());
+            shutdowwnSettingsImageView.setImageDrawable(icon);
+            shutdowwnSettingsImageView.setOnClickListener(v ->
+                    shutdownTimerController.showPicker(requireActivity().getSupportFragmentManager(), getString(R.string.shutdown_timer)));
+        }
 
         // add ourself as listener
         upnpClient.addUpnpClientListener(this);
@@ -310,27 +310,43 @@ public class ServerListFragment extends Fragment implements
         localServerEnabledSwitch.setChecked(PreferenceManager.getDefaultSharedPreferences(getContext()).getBoolean(getContext().getString(R.string.settings_local_server_chkbx), false));
         ImageView providerImageView = view.findViewById(R.id.serverListProviderEnabled);
         if (getPreferences().getBoolean(getContext().getString(R.string.settings_local_server_provider_chkbx), false)) {
-            Drawable icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_sensors_32, getContext().getTheme()), getContext().getTheme());
+            Drawable icon = ThemeHelper.tintDrawable(ResourcesCompat.getDrawable(getResources(), R.drawable.ic_baseline_sensors_32, getContext().getTheme()), getContext().getTheme());
             providerImageView.setImageDrawable(icon);
+            describeStatusIcon(providerImageView, R.string.settings_local_server_provider_on);
         } else {
-            Drawable icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_sensors_off_32, getContext().getTheme()), getContext().getTheme());
+            Drawable icon = ThemeHelper.tintDrawable(ResourcesCompat.getDrawable(getResources(), R.drawable.ic_baseline_sensors_off_32, getContext().getTheme()), getContext().getTheme());
             providerImageView.setImageDrawable(icon);
+            describeStatusIcon(providerImageView, R.string.settings_local_server_provider_off);
         }
         ImageView receiverImageView = view.findViewById(R.id.serverListReceiverEnabled);
         if (getPreferences().getBoolean(getContext().getString(R.string.settings_local_server_receiver_chkbx), false)) {
-            Drawable icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_devices_24, getContext().getTheme()), getContext().getTheme());
+            Drawable icon = ThemeHelper.tintDrawable(ResourcesCompat.getDrawable(getResources(), R.drawable.ic_baseline_devices_24, getContext().getTheme()), getContext().getTheme());
             receiverImageView.setImageDrawable(icon);
+            describeStatusIcon(receiverImageView, R.string.settings_local_server_receiver_on);
         } else {
-            Drawable icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_desktop_access_disabled_32, getContext().getTheme()), getContext().getTheme());
+            Drawable icon = ThemeHelper.tintDrawable(ResourcesCompat.getDrawable(getResources(), R.drawable.ic_baseline_desktop_access_disabled_32, getContext().getTheme()), getContext().getTheme());
             receiverImageView.setImageDrawable(icon);
+            describeStatusIcon(receiverImageView, R.string.settings_local_server_receiver_off);
         }
         ImageView proxyImageView = view.findViewById(R.id.serverListProxyEnabled);
         if (getPreferences().getBoolean(getContext().getString(R.string.settings_local_server_proxy_chkbx), false)) {
-            Drawable icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_import_export_24, getContext().getTheme()), getContext().getTheme());
+            Drawable icon = ThemeHelper.tintDrawable(ResourcesCompat.getDrawable(getResources(), R.drawable.ic_baseline_import_export_24, getContext().getTheme()), getContext().getTheme());
             proxyImageView.setImageDrawable(icon);
+            describeStatusIcon(proxyImageView, R.string.settings_local_server_proxy_on);
         } else {
-            Drawable icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_mobiledata_off_24, getContext().getTheme()), getContext().getTheme());
+            Drawable icon = ThemeHelper.tintDrawable(ResourcesCompat.getDrawable(getResources(), R.drawable.ic_baseline_mobiledata_off_24, getContext().getTheme()), getContext().getTheme());
             proxyImageView.setImageDrawable(icon);
+            describeStatusIcon(proxyImageView, R.string.settings_local_server_proxy_off);
+        }
+    }
+
+    /**
+     * The status icons carry a description only in the top-level layout (fragment_server_root.xml,
+     * where the footer owns them); the classic layout keeps them hidden from accessibility as before.
+     */
+    private void describeStatusIcon(ImageView icon, int descriptionRes) {
+        if (hostProvidesShutdownTimer) {
+            icon.setContentDescription(getString(descriptionRes));
         }
     }
 
@@ -338,7 +354,11 @@ public class ServerListFragment extends Fragment implements
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
 
-        return inflater.inflate(R.layout.fragment_server_list, container, false);
+        // The top-level layout of the new browser leaves the timer rows out: its toolbar has the timer.
+        hostProvidesShutdownTimer = getActivity() instanceof BrowserHost
+                && ((BrowserHost) getActivity()).providesShutdownTimer();
+        return inflater.inflate(hostProvidesShutdownTimer
+                ? R.layout.fragment_server_root : R.layout.fragment_server_list, container, false);
     }
 
     @Override
@@ -347,70 +367,9 @@ public class ServerListFragment extends Fragment implements
         init(savedInstanceState, view);
     }
 
-    public void setShutdownTimerRemainingTime(String s) {
-        if (getView() != null) {
-            TextView shutdowwnRemainingTextView = getView().findViewById(R.id.serverListShutdownTimerRemaining);
-            shutdowwnRemainingTextView.setText(s);
-        }
-    }
-
-    @Override
-    public void onTick(long millisUntilFinished) {
-        setShutdownTimerRemainingTime(FormatHelper.parseMillisToTimeStringTo(millisUntilFinished));
-    }
-
     @Override
     public void onActivityResult(int requestCode, int resultCode, android.content.Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q &&
-                requestCode == de.yaacc.upnp.server.media.MediaProjectionHelper.REQUEST_CODE_MEDIA_PROJECTION) {
-
-            if (de.yaacc.upnp.server.media.MediaProjectionHelper.handlePermissionResult(requireContext(), resultCode, data)) {
-                // Permission granted - enable only the button that requested it
-                YaaccLogger.i(getClass().getName(), "MediaProjection permission granted");
-
-                android.content.SharedPreferences prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(requireContext());
-                android.content.SharedPreferences.Editor editor = prefs.edit();
-
-                // Enable only the button that requested permission
-                if (BrowseDeviceAdapter.isPendingAudioRequest()) {
-                    editor.putBoolean(getString(R.string.settings_local_server_serve_system_audio_chkbx), true);
-                    BrowseDeviceAdapter.setAudioStreaming(true);
-                }
-                if (BrowseDeviceAdapter.isPendingVideoRequest()) {
-                    editor.putBoolean(getString(R.string.settings_local_server_serve_screen_cast_chkbx), true);
-                    BrowseDeviceAdapter.setVideoStreaming(true);
-                }
-                editor.apply();
-
-                // Clear pending flags
-                BrowseDeviceAdapter.clearPendingRequests();
-
-                // Refresh the adapter to update button states
-                if (bDeviceAdapter != null) {
-                    bDeviceAdapter.notifyDataSetChanged();
-                }
-            } else {
-                // Permission denied - disable both and clear pending
-                YaaccLogger.w(getClass().getName(), "MediaProjection permission denied");
-
-                BrowseDeviceAdapter.clearPendingRequests();
-
-                android.content.SharedPreferences prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(requireContext());
-                prefs.edit()
-                        .putBoolean(getString(R.string.settings_local_server_serve_system_audio_chkbx), false)
-                        .putBoolean(getString(R.string.settings_local_server_serve_screen_cast_chkbx), false)
-                        .apply();
-
-                // Update adapter state
-                if (bDeviceAdapter != null) {
-                    BrowseDeviceAdapter.setAudioStreaming(false);
-                    BrowseDeviceAdapter.setVideoStreaming(false);
-                    // Refresh the adapter to update button states
-                    bDeviceAdapter.notifyDataSetChanged();
-                }
-            }
-        }
+        streamingPermissionHelper.onPermissionResult(requestCode, resultCode, data);
     }
 }

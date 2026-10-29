@@ -179,14 +179,14 @@ public class RemoteDevice extends Device<RemoteDeviceIdentity, RemoteDevice, Rem
 
         // Services
         for (RemoteService service : getServices()) {
-        	if(service == null) continue;
+            if (service == null) continue;
             discovered.add(new ServiceEventCallbackResource(namespace.getEventCallbackPath(service), service));
         }
 
         // Embedded devices
         if (hasEmbeddedDevices()) {
             for (Device embeddedDevice : getEmbeddedDevices()) {
-				if(embeddedDevice == null) continue;
+                if (embeddedDevice == null) continue;
                 discovered.addAll(Arrays.asList(embeddedDevice.discoverResources(namespace)));
             }
         }

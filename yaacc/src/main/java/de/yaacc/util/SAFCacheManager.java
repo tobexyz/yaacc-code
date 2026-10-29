@@ -22,28 +22,58 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.media.MediaMetadataRetriever;
 import android.net.Uri;
+import android.os.Looper;
 
 import androidx.documentfile.provider.DocumentFile;
 import androidx.preference.PreferenceManager;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.function.BooleanSupplier;
+import java.util.function.LongSupplier;
 
 import de.yaacc.R;
+import de.yaacc.upnp.server.contentdirectory.SafDirectoryLister;
 
 /**
  * LRU cache for SAF (Storage Access Framework) file metadata with background preloading.
  * Caches duration, MIME type, and encoded IDs for fast browsing.
+ * <p>
+ * Persistence: the cache lives in its own preferences file ({@value SafCacheMigration#STORE_NAME}), not in the
+ * default preferences (every write rewrites the whole XML file, and the cache was large). Entries of the old place are
+ * moved once ({@link SafCacheMigration}). Reads are served from memory. Changes are collected in memory
+ * ({@link SafCacheWriteBuffer}) and committed in one go by the cache's own I/O thread when
+ * {@link SafCacheFlushPolicy} says so (every {@value #FLUSH_MAX_CHANGES} changes or {@value #FLUSH_MAX_AGE_MILLIS} ms)
+ * and at the end of a preload, with {@code commit()} - never on the main thread. The stored state is loaded on that
+ * thread too; the constructor does no I/O. A caller on the main thread that comes before the load ended gets
+ * metadata computed without the stored state and nothing is persisted for it; other threads wait for the load.
+ * <p>
+ * The short id maps are not stored on their own: they are rebuilt from the stored metadata entries (the short id is
+ * part of the serialized {@link SAFMetadata}), the counter is stored under {@value SafCacheMigration#ID_COUNTER_KEY}.
+ * A short id created in the last {@value #FLUSH_MAX_AGE_MILLIS} ms before the process is killed is lost;
+ * {@link #flushIfCreated(long)} writes the pending changes when the app exits.
  */
 public class SAFCacheManager {
     private static final int MAX_CACHE_SIZE = 1000;
-    private static final String CACHE_PREFIX = "saf_cache_";
-    private static final String ID_COUNTER_KEY = "saf_id_counter";
-    
+    private static final String CACHE_PREFIX = SafCacheMigration.CACHE_PREFIX;
+    private static final String ID_COUNTER_KEY = SafCacheMigration.ID_COUNTER_KEY;
+    static final int FLUSH_MAX_CHANGES = 250;
+    static final long FLUSH_MAX_AGE_MILLIS = 3000;
+    /** How long a thread other than the main thread waits for the stored state to be loaded. */
+    private static final long LOAD_WAIT_MILLIS = 30000;
+
     private static final Map<String, String> MIME_TYPE_BY_EXT = new ConcurrentHashMap<>();
     
     static {
@@ -74,15 +104,26 @@ public class SAFCacheManager {
     }
     
     private final Context context;
-    private final SharedPreferences preferences;
+    /** The default preferences, where the cache used to be: read once for the migration. */
+    private final SharedPreferences legacyPreferences;
+    /** The cache's own preferences file. Written by the I/O thread only. */
+    private final SharedPreferences store;
     private final ExecutorService preloadExecutor;
+    private final ScheduledThreadPoolExecutor ioExecutor;
+    private final BooleanSupplier onMainThread;
+    private final SafCacheLoadGate loadGate = new SafCacheLoadGate();
+    private final SafShortIds ids = new SafShortIds();
+
+    /** Guards {@link #lruCache}, {@link #buffer}, {@link #flushPolicy} and the two flags below. */
+    private final Object lock = new Object();
     private final LRUCache lruCache;
-    private final Map<String, String> shortIdToUri = new ConcurrentHashMap<>();
-    private final Map<String, String> uriToShortId = new ConcurrentHashMap<>();
-    private long idCounter = 1;
-    
-    private int totalFilesIndexed = 0;
-    private boolean isPreloading = false;
+    private final SafCacheWriteBuffer buffer = new SafCacheWriteBuffer();
+    private final SafCacheFlushPolicy flushPolicy;
+    private boolean immediateFlushQueued;
+    private boolean timedFlushQueued;
+
+    private volatile int totalFilesIndexed = 0;
+    private volatile boolean isPreloading = false;
     private long lastProgressNotifyTime = 0;
     private static final long PROGRESS_NOTIFY_INTERVAL = 500; // Notify every 500ms
     private String lastNotifiedFolder = "";
@@ -93,119 +134,257 @@ public class SAFCacheManager {
     
     public static synchronized SAFCacheManager getInstance(Context context) {
         if (instance == null) {
-            instance = new SAFCacheManager(context.getApplicationContext());
+            Context appContext = context.getApplicationContext();
+            instance = new SAFCacheManager(appContext, PreferenceManager.getDefaultSharedPreferences(appContext),
+                    appContext.getSharedPreferences(SafCacheMigration.STORE_NAME, Context.MODE_PRIVATE),
+                    () -> System.nanoTime() / 1_000_000L, () -> Looper.getMainLooper() == Looper.myLooper());
         }
         return instance;
     }
-    
-    private SAFCacheManager(Context context) {
+
+    /**
+     * Writes the changes that wait in memory, if the manager exists; for the exit of the app, where the timer of the
+     * I/O thread would not run any more. Blocks the caller for at most {@code waitMillis}.
+     */
+    public static void flushIfCreated(long waitMillis) {
+        SAFCacheManager manager;
+        synchronized (SAFCacheManager.class) {
+            manager = instance;
+        }
+        if (manager != null) {
+            manager.flushAndWait(waitMillis);
+        }
+    }
+
+    /**
+     * The constructor does no I/O: the stored state is loaded by the I/O thread.
+     */
+    SAFCacheManager(Context context, SharedPreferences legacyPreferences, SharedPreferences store,
+                    LongSupplier clockMillis, BooleanSupplier onMainThread) {
         this.context = context;
-        this.preferences = PreferenceManager.getDefaultSharedPreferences(context);
+        this.legacyPreferences = legacyPreferences;
+        this.store = store;
+        this.onMainThread = onMainThread;
+        this.flushPolicy = new SafCacheFlushPolicy(FLUSH_MAX_CHANGES, FLUSH_MAX_AGE_MILLIS, clockMillis);
         this.preloadExecutor = Executors.newSingleThreadExecutor(r -> {
             Thread t = new Thread(r, "SAFPreloader");
             t.setPriority(Thread.MIN_PRIORITY);
             return t;
         });
+        this.ioExecutor = new ScheduledThreadPoolExecutor(1, r -> {
+            Thread t = new Thread(r, "SAFCacheIO");
+            t.setPriority(Thread.MIN_PRIORITY);
+            t.setDaemon(true);
+            return t;
+        });
         this.lruCache = new LRUCache(MAX_CACHE_SIZE);
-        
-        // Restore ID counter from preferences
-        this.idCounter = preferences.getLong(ID_COUNTER_KEY, 1);
-        
-        loadCacheIndex();
+        submitIo(this::load);
     }
-    
-    /**
-     * Get complete metadata for a SAF file (duration, MIME type, encoded ID).
-     * Returns cached data if available, otherwise extracts synchronously.
-     */
-    private final Object preferencesLock = new Object();
-    
-    public SAFMetadata getMetadata(DocumentFile file) {
-        synchronized (preferencesLock) {
-            return getMetadataInternal(file);
+
+    /** True once the stored state is in memory. */
+    boolean isLoaded() {
+        return loadGate.isOpen();
+    }
+
+    /** For tests: everything given to the I/O thread so far has run. */
+    boolean awaitIdle(long timeoutMillis) {
+        try {
+            ioExecutor.submit(() -> { }).get(timeoutMillis, TimeUnit.MILLISECONDS);
+            return true;
+        } catch (Exception e) {
+            return false;
         }
     }
-    
-    private SAFMetadata getMetadataInternal(DocumentFile file) {
-        if (file == null) return null;
-        
+
+    /** For tests: the preload and background duration tasks given so far have run. */
+    boolean awaitBackgroundIdle(long timeoutMillis) {
+        try {
+            preloadExecutor.submit(() -> { }).get(timeoutMillis, TimeUnit.MILLISECONDS);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /** Waits for the load unless on the main thread; false = work without the stored state. */
+    private boolean awaitLoaded() {
+        return loadGate.await(onMainThread.getAsBoolean(), LOAD_WAIT_MILLIS);
+    }
+
+    /**
+     * Get complete metadata for a SAF file (duration, MIME type, encoded ID).
+     * Returns cached data if available, otherwise builds it from the given values - without a
+     * further query to the document provider. The values come from the directory listing.
+     *
+     * @param uri              the file's document uri (the cache key)
+     * @param name             its display name, may be null
+     * @param providerMimeType the mime type the provider reports for it, may be null
+     * @param fileSize         its size in bytes as the provider reports it
+     */
+    public SAFMetadata getMetadata(Uri uri, String name, String providerMimeType, long fileSize) {
+        if (uri == null) return null;
+        if (!awaitLoaded()) {
+            // main thread (or a load that does not end): nothing stored is known, so nothing is persisted either
+            YaaccLogger.d(getClass().getName(), "SAF cache not loaded yet, metadata of " + name + " is not cached");
+            return new SAFMetadata("", extractMimeType(name, providerMimeType), ids.getOrCreateTransient(uri.toString()), fileSize);
+        }
+        synchronized (lock) {
+            return getMetadataInternal(uri, name, providerMimeType, fileSize);
+        }
+    }
+
+    /** Called with {@link #lock} held. */
+    private SAFMetadata getMetadataInternal(Uri uri, String name, String providerMimeType, long fileSize) {
+        if (uri == null) return null;
+
         long startTime = System.currentTimeMillis();
-        String uri = file.getUri().toString();
-        String key = CACHE_PREFIX + uri;
-        
+        String uriString = uri.toString();
+        String key = CACHE_PREFIX + uriString;
+
         // Check memory cache
         String cached = lruCache.get(key);
         if (cached != null) {
-            SAFMetadata metadata = SAFMetadata.deserialize(cached);
+            SAFMetadata metadata = SafCacheEntries.parseMetadata(cached);
+            if (metadata == null && SafCacheEntries.isBareDuration(cached)) {
+                return upgradeBareDurationLocked(key, uriString, cached, name, providerMimeType, fileSize);
+            }
             if (metadata != null) {
                 // Migrate old entries without shortId
                 if (metadata.shortId == null) {
-                    String shortId = getOrCreateShortId(uri);
+                    String shortId = createShortIdLocked(uriString);
                     metadata = new SAFMetadata(metadata.duration, metadata.mimeType, shortId, metadata.fileSize);
-                    String serialized = metadata.serialize();
-                    lruCache.put(key, serialized);
-                    preferences.edit().putString(key, serialized).apply();
+                    putEntryLocked(key, metadata.serialize());
                 }
                 long elapsed = System.currentTimeMillis() - startTime;
-                YaaccLogger.d(getClass().getName(), "CACHE_HIT_MEMORY: " + file.getName() + " (" + elapsed + "ms)");
+                YaaccLogger.v(getClass().getName(), "CACHE_HIT_MEMORY: " + name + " (" + elapsed + "ms)");
                 return metadata;
             }
         }
-        
-        // Check disk cache
-        cached = preferences.getString(key, null);
+
+        // Check the stored state (served from the memory of the preferences, plus what waits to be written)
+        cached = readStoredLocked(key);
         if (cached != null) {
-            SAFMetadata metadata = SAFMetadata.deserialize(cached);
+            SAFMetadata metadata = SafCacheEntries.parseMetadata(cached);
+            if (metadata == null && SafCacheEntries.isBareDuration(cached)) {
+                return upgradeBareDurationLocked(key, uriString, cached, name, providerMimeType, fileSize);
+            }
             if (metadata != null) {
                 // Migrate old entries without shortId
                 if (metadata.shortId == null) {
-                    String shortId = getOrCreateShortId(uri);
+                    String shortId = createShortIdLocked(uriString);
                     metadata = new SAFMetadata(metadata.duration, metadata.mimeType, shortId, metadata.fileSize);
-                    String serialized = metadata.serialize();
-                    lruCache.put(key, serialized);
-                    preferences.edit().putString(key, serialized).apply();
+                    putEntryLocked(key, metadata.serialize());
                 } else {
                     lruCache.put(key, cached);
                 }
                 long elapsed = System.currentTimeMillis() - startTime;
-                YaaccLogger.d(getClass().getName(), "CACHE_HIT_DISK: " + file.getName() + " (" + elapsed + "ms)");
+                YaaccLogger.v(getClass().getName(), "CACHE_HIT_DISK: " + name + " (" + elapsed + "ms)");
                 return metadata;
             }
         }
-        
+
         // Extract and cache
-        YaaccLogger.w(getClass().getName(), "CACHE_MISS: " + file.getName() + " - extracting...");
-        SAFMetadata metadata = extractMetadata(file);
+        YaaccLogger.v(getClass().getName(), "CACHE_MISS: " + name + " - extracting...");
+        SAFMetadata metadata = extractMetadata(uri, name, providerMimeType, fileSize);
         if (metadata != null) {
-            String serialized = metadata.serialize();
-            lruCache.put(key, serialized);
-            preferences.edit().putString(key, serialized).apply();
-            
-            // Trim disk cache if memory cache evicted entries
-            if (!lruCache.getEvictedKeys().isEmpty()) {
-                trimCache();
-            }
+            putEntryLocked(key, metadata.serialize());
         }
         long elapsed = System.currentTimeMillis() - startTime;
-        YaaccLogger.w(getClass().getName(), "EXTRACTION_COMPLETE: " + file.getName() + " (" + elapsed + "ms)");
+        YaaccLogger.v(getClass().getName(), "EXTRACTION_COMPLETE: " + name + " (" + elapsed + "ms)");
         return metadata;
     }
-    
+
+    /**
+     * An entry that holds a bare duration (written by the former preload) becomes a serialized {@link SAFMetadata}
+     * with that duration: no extraction, and the short id is the one the uri has (a new one only if it has none).
+     * Called with {@link #lock} held.
+     */
+    private SAFMetadata upgradeBareDurationLocked(String key, String uriString, String duration, String name,
+                                                  String providerMimeType, long fileSize) {
+        SAFMetadata upgraded = new SAFMetadata(duration, extractMimeType(name, providerMimeType),
+                createShortIdLocked(uriString), fileSize);
+        putEntryLocked(key, upgraded.serialize());
+        YaaccLogger.d(getClass().getName(), "CACHE_UPGRADED: " + name + " - bare duration " + duration + " -> metadata, shortId=" + upgraded.shortId);
+        return upgraded;
+    }
+
+    /**
+     * Stores the duration in the metadata entry of a file: the entry's mime type, size and short id stay. Without a
+     * readable entry (none yet, a bare duration of the former preload, corrupt) the entry is built from the given
+     * values when {@code createIfMissing}, with the short id the uri has or a new one. Called with {@link #lock} held.
+     *
+     * @return true if an entry was written
+     */
+    private boolean storeDurationLocked(Uri uri, String duration, boolean createIfMissing, String name,
+                                        String providerMimeType, long fileSize) {
+        String uriString = uri.toString();
+        String key = CACHE_PREFIX + uriString;
+        String stored = lruCache.get(key);
+        if (stored == null) {
+            stored = readStoredLocked(key);
+        }
+        SAFMetadata existing = SafCacheEntries.parseMetadata(stored);
+        SAFMetadata updated;
+        if (existing != null) {
+            String shortId = existing.shortId != null ? existing.shortId : createShortIdLocked(uriString);
+            updated = new SAFMetadata(duration, existing.mimeType, shortId, existing.fileSize);
+        } else if (createIfMissing) {
+            updated = new SAFMetadata(duration, extractMimeType(name, providerMimeType), createShortIdLocked(uriString), fileSize);
+        } else {
+            return false;
+        }
+        putEntryLocked(key, updated.serialize());
+        return true;
+    }
+
+    /** True if the file has no duration stored yet. Called with {@link #lock} held. */
+    private boolean needsDurationLocked(String key) {
+        String stored = lruCache.get(key);
+        if (stored == null) {
+            stored = readStoredLocked(key);
+        }
+        return stored == null || SafCacheEntries.durationOf(stored).isEmpty();
+    }
+
+    /** The value of a key as the stored state will have it: waiting writes first. Called with {@link #lock} held. */
+    private String readStoredLocked(String key) {
+        return buffer.read(key, k -> store.getString(k, null));
+    }
+
+    /** Remembers an entry in memory and for the next write. Called with {@link #lock} held. */
+    private void putEntryLocked(String key, String value) {
+        lruCache.put(key, value);
+        buffer.put(key, value);
+        flushPolicy.recordChange();
+        scheduleFlushLocked();
+    }
+
+    /** Called with {@link #lock} held. */
+    private String createShortIdLocked(String uri) {
+        long before = ids.counter();
+        String id = ids.getOrCreate(uri);
+        if (ids.counter() != before) {
+            buffer.putCounter(ids.counter());
+            flushPolicy.recordChange();
+            scheduleFlushLocked();
+            YaaccLogger.v(getClass().getName(), "Created shortId mapping: " + id + " -> " + uri);
+        }
+        return id;
+    }
+
     /**
      * Extract all metadata for a file (duration, MIME type, short ID).
      * NEVER extracts duration on current thread - always queues for background.
      */
-    private SAFMetadata extractMetadata(DocumentFile file) {
-        String uri = file.getUri().toString();
-        String mimeType = extractMimeType(file);
-        String shortId = getOrCreateShortId(uri);
-        long fileSize = file.length();
-        
+    private SAFMetadata extractMetadata(Uri uri, String name, String providerMimeType, long fileSize) {
+        String mimeType = extractMimeType(name, providerMimeType);
+        String shortId = createShortIdLocked(uri.toString());
+
         // Queue duration extraction for background (don't block HTTP thread!)
         if (mimeType != null && (mimeType.startsWith("audio/") || mimeType.startsWith("video/"))) {
-            queueForDurationExtraction(file.getUri(), mimeType);
+            queueForDurationExtraction(uri, mimeType);
         }
-        
+
         // Return immediately with empty duration
         return new SAFMetadata("", mimeType, shortId, fileSize);
     }
@@ -216,89 +395,92 @@ public class SAFCacheManager {
     private void queueForDurationExtraction(Uri uri, String mimeType) {
         preloadExecutor.execute(() -> {
             try {
-                String duration;
-                if (mimeType.startsWith("video/")) {
-                    // Try quick extraction first
-                    duration = extractVideoDurationQuick(uri);
-                    if (duration == null || duration.isEmpty()) {
-                        // Full extraction as fallback
-                        duration = extractAudioDuration(uri);
+                String key = CACHE_PREFIX + uri.toString();
+                synchronized (lock) {
+                    if (!needsDurationLocked(key)) {
+                        // a preload (or an earlier task) got it in the meantime: do not extract it a second time
+                        return;
                     }
-                } else {
-                    // Audio: full extraction
-                    duration = extractAudioDuration(uri);
                 }
-                
+                String duration = durationExtractor.extractInBackground(uri, mimeType);
+
                 if (duration != null && !duration.isEmpty()) {
-                    String key = CACHE_PREFIX + uri.toString();
-                    
-                    // Get the cached metadata (without duration) and update it
-                    String serialized = preferences.getString(key, null);
-                    if (serialized != null) {
-                        SAFMetadata metadata = SAFMetadata.deserialize(serialized);
-                        if (metadata != null) {
-                            // Create new metadata with the extracted duration
-                            SAFMetadata updated = new SAFMetadata(duration, metadata.mimeType, metadata.shortId, metadata.fileSize);
-                            String updatedSerialized = updated.serialize();
-                            
-                            lruCache.put(key, updatedSerialized);
-                            preferences.edit().putString(key, updatedSerialized).apply();
+                    // Update the cached metadata (without duration), if there is one
+                    synchronized (lock) {
+                        if (storeDurationLocked(uri, duration, false, null, mimeType, 0)) {
                             YaaccLogger.d(getClass().getName(), "DURATION_EXTRACTED: " + uri.getLastPathSegment() + " -> " + duration);
                         }
                     }
                 }
             } catch (Exception e) {
-                YaaccLogger.w(getClass().getName(), "DURATION_EXTRACT_FAILED: " + uri.getLastPathSegment(), e);
+                YaaccLogger.w(getClass().getName(), "DURATION_EXTRACT_FAILED: " + uri.getLastPathSegment() + " - " + e.getClass().getSimpleName() + ": " + e.getMessage());
             }
         });
     }
-    
+
+    private String extractInBackground(Uri uri, String mimeType) {
+        String duration;
+        if (mimeType.startsWith("video/")) {
+            // Try quick extraction first
+            duration = extractVideoDurationQuick(uri);
+            if (duration == null || duration.isEmpty()) {
+                // Full extraction as fallback
+                duration = extractAudioDuration(uri);
+            }
+        } else {
+            // Audio: full extraction
+            duration = extractAudioDuration(uri);
+        }
+        return duration;
+    }
+
     /**
-     * Get or create a short ID for a URI.
+     * Get or create a short ID for a URI. On the main thread before the stored state is loaded the id is a
+     * transient one that only this process knows ("t1", ...), see {@link SafShortIds}.
      */
-    public synchronized String getOrCreateShortId(String uri) {
-        String existing = uriToShortId.get(uri);
+    public String getOrCreateShortId(String uri) {
+        String existing = ids.existing(uri);
         if (existing != null) {
             return existing;
         }
-        
-        String id = String.valueOf(idCounter++);
-        uriToShortId.put(uri, id);
-        shortIdToUri.put(id, uri);
-        
-        // Persist counter
-        preferences.edit().putLong(ID_COUNTER_KEY, idCounter).apply();
-        
-        YaaccLogger.d(getClass().getName(), "Created shortId mapping: " + id + " -> " + uri);
-        return id;
+        if (!awaitLoaded()) {
+            return ids.getOrCreateTransient(uri);
+        }
+        synchronized (lock) {
+            return createShortIdLocked(uri);
+        }
     }
     
     /**
-     * Get URI for a short ID.
+     * Get URI for a short ID. Before the stored state is loaded, threads other than the main thread wait for it
+     * (a stored id would not be known yet), the main thread gets null.
      */
     public String getUriForShortId(String shortId) {
-        return shortIdToUri.get(shortId);
+        String uri = ids.uriFor(shortId);
+        if (uri == null && awaitLoaded()) {
+            uri = ids.uriFor(shortId);
+        }
+        return uri;
     }
     
-    private String extractMimeType(DocumentFile file) {
+    private String extractMimeType(String name, String providerMimeType) {
         // Try extension-based lookup first
-        if (file.getName() != null) {
-            int dotIndex = file.getName().lastIndexOf('.');
+        if (name != null) {
+            int dotIndex = name.lastIndexOf('.');
             if (dotIndex > 0) {
-                String ext = file.getName().substring(dotIndex + 1).toLowerCase();
+                String ext = name.substring(dotIndex + 1).toLowerCase(Locale.ROOT);
                 String mimeType = MIME_TYPE_BY_EXT.get(ext);
                 if (mimeType != null) return mimeType;
             }
         }
-        
-        // Fall back to system lookup
-        String mimeType = file.getType();
-        if (mimeType != null && !mimeType.equals("null") && mimeType.contains("/")) {
-            return mimeType;
+
+        // Fall back to the provider's mime type
+        if (providerMimeType != null && !providerMimeType.equals("null") && providerMimeType.contains("/")) {
+            return providerMimeType;
         }
-        
+
         // Heuristic: guess from extension (returns null if unknown)
-        return file.getName() != null ? guessMimeTypeFromExtension(file.getName()) : null;
+        return name != null ? guessMimeTypeFromExtension(name) : null;
     }
 
     public String guessMimeTypeFromExtension(String filename) {
@@ -306,7 +488,7 @@ public class SAFCacheManager {
         int dotIndex = filename.lastIndexOf('.');
         if (dotIndex <= 0) return null;
         
-        String ext = filename.substring(dotIndex + 1).toLowerCase();
+        String ext = filename.substring(dotIndex + 1).toLowerCase(Locale.ROOT);
         switch (ext) {
             case "mp4": case "m4v": case "mov": return "video/mp4";
             case "avi": case "divx": return "video/x-msvideo";
@@ -446,28 +628,32 @@ public class SAFCacheManager {
         String key = CACHE_PREFIX + uri.toString();
         String fileName = uri.getLastPathSegment();
         
-        // Check memory cache first
-        String duration = lruCache.get(key);
-        if (duration != null) {
-            long elapsed = System.currentTimeMillis() - startTime;
-            YaaccLogger.d(getClass().getName(), "CACHE_HIT_MEMORY: " + fileName + " -> " + duration + " (" + elapsed + "ms, cache_size=" + lruCache.size() + ")");
-            return duration;
-        }
-        
-        // Check SharedPreferences
-        duration = preferences.getString(key, null);
-        if (duration != null) {
-            lruCache.put(key, duration);
-            long elapsed = System.currentTimeMillis() - startTime;
-            YaaccLogger.d(getClass().getName(), "CACHE_HIT_DISK: " + fileName + " -> " + duration + " (" + elapsed + "ms, cache_size=" + lruCache.size() + ")");
-            return duration;
+        if (awaitLoaded()) {
+            // Check memory cache first, then the stored state; the value is the serialized metadata (or, written by
+            // the former preload, a bare duration), not the duration itself
+            String stored;
+            synchronized (lock) {
+                stored = lruCache.get(key);
+                if (stored == null) {
+                    stored = readStoredLocked(key);
+                    if (stored != null) {
+                        lruCache.put(key, stored);
+                    }
+                }
+            }
+            String duration = stored == null ? "" : SafCacheEntries.durationOf(stored);
+            if (!duration.isEmpty()) {
+                long elapsed = System.currentTimeMillis() - startTime;
+                YaaccLogger.d(getClass().getName(), "CACHE_HIT: " + fileName + " -> " + duration + " (" + elapsed + "ms, cache_size=" + getCacheSize() + ")");
+                return duration;
+            }
         }
         
         // Extract and cache
         YaaccLogger.w(getClass().getName(), "CACHE_MISS: " + fileName + " - extracting...");
-        duration = extractAndCache(uri);
+        String duration = extractAndCache(uri, false, fileName, null, 0);
         long elapsed = System.currentTimeMillis() - startTime;
-        YaaccLogger.w(getClass().getName(), "EXTRACTION_COMPLETE: " + fileName + " -> " + duration + " (" + elapsed + "ms, cache_size=" + lruCache.size() + ")");
+        YaaccLogger.w(getClass().getName(), "EXTRACTION_COMPLETE: " + fileName + " -> " + duration + " (" + elapsed + "ms, cache_size=" + getCacheSize() + ")");
         return duration;
     }
     
@@ -492,6 +678,11 @@ public class SAFCacheManager {
         preloadExecutor.execute(() -> {
             try {
                 YaaccLogger.d(getClass().getName(), "PRELOAD_THREAD_STARTED");
+                if (!awaitLoaded()) {
+                    YaaccLogger.w(getClass().getName(), "PRELOAD_SKIPPED: the stored SAF cache did not load");
+                    isPreloading = false;
+                    return;
+                }
                 Set<String> safUris = de.yaacc.upnp.server.contentdirectory.MediaPathFilter.getSafPathes(context);
                 YaaccLogger.d(getClass().getName(), "PRELOAD_SCANNING: " + safUris.size() + " SAF roots");
                 
@@ -526,7 +717,7 @@ public class SAFCacheManager {
                     }
                 }
                 long elapsed = System.currentTimeMillis() - preloadStart;
-                YaaccLogger.d(getClass().getName(), "PRELOAD_COMPLETE: " + totalFilesIndexed + " files indexed in " + elapsed + "ms (cache_size=" + lruCache.size() + ")");
+                YaaccLogger.d(getClass().getName(), "PRELOAD_COMPLETE: " + totalFilesIndexed + " files indexed in " + elapsed + "ms (cache_size=" + getCacheSize() + ")");
                 isPreloading = false;
                 YaaccLogger.d(getClass().getName(), "PRELOAD_STATE_SET_FALSE: isPreloading now = " + isPreloading);
                 notifyPreloadComplete();
@@ -536,6 +727,8 @@ public class SAFCacheManager {
             } finally {
                 isPreloading = false;
                 YaaccLogger.d(getClass().getName(), "PRELOAD_FINALLY: isPreloading = " + isPreloading);
+                // the end of a preload: write what is still collected (the commit runs on the I/O thread)
+                requestFlush();
             }
         });
     }
@@ -544,16 +737,20 @@ public class SAFCacheManager {
         Intent intent = new Intent("de.yaacc.CACHE_PRELOAD_PROGRESS");
         intent.putExtra("files_indexed", filesIndexed);
         intent.putExtra("current_folder", currentFolder);
+        // The receiver is registered non-exported in this app, so address the broadcast to this package.
+        intent.setPackage(context.getPackageName());
         context.sendBroadcast(intent);
     }
     
     private void notifyPreloadComplete() {
         Intent intent = new Intent("de.yaacc.CACHE_PRELOAD_COMPLETE");
         intent.putExtra("files_indexed", totalFilesIndexed);
+        // The receiver is registered non-exported in this app, so address the broadcast to this package.
+        intent.setPackage(context.getPackageName());
         context.sendBroadcast(intent);
     }
     
-    private void traverseAndCache(DocumentFile dir, long startTime) {
+    void traverseAndCache(DocumentFile dir, long startTime) {
         traverseAndCache(dir, startTime, 0);
     }
     
@@ -616,12 +813,12 @@ public class SAFCacheManager {
         }
         
         String folderName = dir.getName() != null ? dir.getName() : "Unknown";
-        YaaccLogger.d(getClass().getName(), "PRELOAD_TRAVERSE: " + folderName + " (" + files.length + " items, depth=" + depth + ")");
+        YaaccLogger.v(getClass().getName(), "PRELOAD_TRAVERSE: " + folderName + " (" + files.length + " items, depth=" + depth + ")");
         
         for (int i = 0; i < files.length; i++) {
             DocumentFile file = files[i];
             long fileStart = System.currentTimeMillis();
-            YaaccLogger.d(getClass().getName(), "PRELOAD_FILE_START: [" + i + "/" + files.length + "] " + file.getName());
+            YaaccLogger.v(getClass().getName(), "PRELOAD_FILE_START: [" + i + "/" + files.length + "] " + file.getName());
             
             try {
                 // Check file operation timeout (5 seconds per file)
@@ -632,18 +829,21 @@ public class SAFCacheManager {
                 
                 if (file.isDirectory()) {
                     traverseAndCache(file, startTime, depth + 1);
-                } else if (isMediaFile(file)) {
+                } else if (hasDuration(file)) {
                     String key = CACHE_PREFIX + file.getUri().toString();
-                    
-                    boolean needsExtraction = !preferences.contains(key);
-                    
+
+                    boolean needsExtraction;
+                    synchronized (lock) {
+                        needsExtraction = needsDurationLocked(key);
+                    }
+
                     if (needsExtraction) {
                         long extractStart = System.currentTimeMillis();
-                        extractAndCache(file.getUri());
+                        extractAndCache(file.getUri(), true, file.getName(), file.getType(), file.length());
                         long elapsed = System.currentTimeMillis() - extractStart;
-                        YaaccLogger.d(getClass().getName(), "PRELOAD_EXTRACTED: " + file.getName() + " (" + elapsed + "ms)");
+                        YaaccLogger.v(getClass().getName(), "PRELOAD_EXTRACTED: " + file.getName() + " (" + elapsed + "ms)");
                     } else {
-                        YaaccLogger.d(getClass().getName(), "PRELOAD_CACHED: " + file.getName());
+                        YaaccLogger.v(getClass().getName(), "PRELOAD_CACHED: " + file.getName());
                     }
                     
                     totalFilesIndexed++;
@@ -669,44 +869,98 @@ public class SAFCacheManager {
         }
     }
     
-    private boolean isMediaFile(DocumentFile file) {
+    /** Only audio and video have a duration; the retriever fails on images (and logged a stack trace for each). */
+    private boolean hasDuration(DocumentFile file) {
         String type = file.getType();
-        return type != null && (type.startsWith("audio/") || type.startsWith("video/") || type.startsWith("image/"));
+        return type != null && (type.startsWith("audio/") || type.startsWith("video/"));
     }
     
-    private String extractAndCache(Uri uri) {
+    /** Files the retriever could not read in this process: they are not tried again on every preload. */
+    private final java.util.Set<String> unreadable = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    /**
+     * The two ways a duration is read from a file. A seam so that tests can count the extractions; the real one
+     * uses the platform retriever and the MOOV shortcut for video.
+     */
+    interface DurationExtractor {
+        /** Preload and {@link #getDuration}: null if the file has no duration, throws if it cannot be read. */
+        String extractForPreload(Uri uri) throws Exception;
+
+        /** The background task queued by {@link #getMetadata}: null or empty if there is no duration. */
+        String extractInBackground(Uri uri, String mimeType);
+    }
+
+    private volatile DurationExtractor durationExtractor = new DurationExtractor() {
+        @Override
+        public String extractForPreload(Uri uri) throws Exception {
+            return retrieveDuration(uri);
+        }
+
+        @Override
+        public String extractInBackground(Uri uri, String mimeType) {
+            return SAFCacheManager.this.extractInBackground(uri, mimeType);
+        }
+    };
+
+    /** For tests. */
+    void setDurationExtractor(DurationExtractor durationExtractor) {
+        this.durationExtractor = durationExtractor;
+    }
+
+    /**
+     * Reads the duration of a file and stores it in the file's metadata entry (the short id and the other values of
+     * an existing entry stay; without one the entry is built from the given values if {@code createIfMissing}, else the
+     * duration is not stored: the caller does not know the size, and a size of 0 must not get into the cache).
+     *
+     * @return the duration, null if the file has none or cannot be read
+     */
+    private String extractAndCache(Uri uri, boolean createIfMissing, String name, String providerMimeType, long fileSize) {
+        if (unreadable.contains(uri.toString())) {
+            return null;
+        }
         long extractStart = System.currentTimeMillis();
+        try {
+            String formatted = durationExtractor.extractForPreload(uri);
+            if (formatted != null && !formatted.isEmpty()) {
+                synchronized (lock) {
+                    storeDurationLocked(uri, formatted, createIfMissing, name, providerMimeType, fileSize);
+                }
+                long elapsed = System.currentTimeMillis() - extractStart;
+                YaaccLogger.v(getClass().getName(), "EXTRACT_SUCCESS: " + uri.getLastPathSegment() + " -> " + formatted + " (" + elapsed + "ms)");
+                return formatted;
+            }
+        } catch (Exception e) {
+            long elapsed = System.currentTimeMillis() - extractStart;
+            unreadable.add(uri.toString());
+            // one line, no stack trace: a file the retriever cannot read is not an error of the app
+            YaaccLogger.w(getClass().getName(), "EXTRACT_FAILED: " + uri.getLastPathSegment() + " (" + elapsed + "ms) - "
+                    + e.getClass().getSimpleName() + ": " + e.getMessage());
+        }
+        return null;
+    }
+
+    /** The platform retriever; null if the file has no duration, throws if it cannot be read. */
+    private String retrieveDuration(Uri uri) throws Exception {
         MediaMetadataRetriever retriever = null;
         try {
             long createStart = System.currentTimeMillis();
             retriever = new MediaMetadataRetriever();
             long createTime = System.currentTimeMillis() - createStart;
-            
+
             long setDataStart = System.currentTimeMillis();
             retriever.setDataSource(context, uri);
             long setDataTime = System.currentTimeMillis() - setDataStart;
-            
+
             long metadataStart = System.currentTimeMillis();
             String durationStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION);
             long metadataTime = System.currentTimeMillis() - metadataStart;
-            
-            YaaccLogger.d(getClass().getName(), "EXTRACT_BREAKDOWN: " + uri.getLastPathSegment() + " - create=" + createTime + "ms, setDataSource=" + setDataTime + "ms, extractMetadata=" + metadataTime + "ms");
-            
+
+            YaaccLogger.v(getClass().getName(), "EXTRACT_BREAKDOWN: " + uri.getLastPathSegment() + " - create=" + createTime + "ms, setDataSource=" + setDataTime + "ms, extractMetadata=" + metadataTime + "ms");
+
             if (durationStr != null) {
-                long durationMs = Long.parseLong(durationStr);
-                String formatted = FormatHelper.parseMillisToTimeStringTo(durationMs);
-                
-                String key = CACHE_PREFIX + uri.toString();
-                lruCache.put(key, formatted);
-                preferences.edit().putString(key, formatted).apply();
-                
-                long elapsed = System.currentTimeMillis() - extractStart;
-                YaaccLogger.d(getClass().getName(), "EXTRACT_SUCCESS: " + uri.getLastPathSegment() + " -> " + formatted + " (" + elapsed + "ms)");
-                return formatted;
+                return FormatHelper.parseMillisToTimeStringTo(Long.parseLong(durationStr));
             }
-        } catch (Exception e) {
-            long elapsed = System.currentTimeMillis() - extractStart;
-            YaaccLogger.w(getClass().getName(), "EXTRACT_FAILED: " + uri.getLastPathSegment() + " (" + elapsed + "ms)", e);
+            return null;
         } finally {
             if (retriever != null) {
                 try {
@@ -714,78 +968,263 @@ public class SAFCacheManager {
                 } catch (Exception ignored) {}
             }
         }
-        return null;
     }
-    
-    private void loadCacheIndex() {
+
+    /**
+     * Runs on the I/O thread, first: moves the old entries out of the default preferences, then loads the stored
+     * state into the memory structures and opens the gate. Whatever happens, the gate opens (an empty cache is
+     * better than callers that wait forever).
+     */
+    private void load() {
         long loadStart = System.currentTimeMillis();
-        Map<String, ?> all = preferences.getAll();
         int count = 0;
-        for (Map.Entry<String, ?> entry : all.entrySet()) {
-            String key = entry.getKey();
-            if (key.startsWith(CACHE_PREFIX) && entry.getValue() instanceof String) {
-                lruCache.put(key, (String) entry.getValue());
-                
-                // Restore ID mappings from cached metadata
-                SAFMetadata metadata = SAFMetadata.deserialize((String) entry.getValue());
-                if (metadata != null && metadata.shortId != null) {
-                    String uri = key.substring(CACHE_PREFIX.length());
-                    shortIdToUri.put(metadata.shortId, uri);
-                    uriToShortId.put(uri, metadata.shortId);
-                    
-                    // Update counter to avoid ID collisions
-                    try {
-                        long id = Long.parseLong(metadata.shortId);
-                        if (id >= idCounter) {
-                            idCounter = id + 1;
+        int migrated = 0;
+        try {
+            migrated = migrateFromDefaultPreferences();
+            Map<String, ?> all = store.getAll();
+            synchronized (lock) {
+                for (Map.Entry<String, ?> entry : all.entrySet()) {
+                    String key = entry.getKey();
+                    if (key.startsWith(CACHE_PREFIX) && entry.getValue() instanceof String) {
+                        lruCache.put(key, (String) entry.getValue());
+
+                        // Restore ID mappings from cached metadata
+                        SAFMetadata metadata = SAFMetadata.deserialize((String) entry.getValue());
+                        if (metadata != null && metadata.shortId != null) {
+                            ids.restore(metadata.shortId, key.substring(CACHE_PREFIX.length()));
                         }
-                    } catch (NumberFormatException e) {
-                        // Ignore non-numeric IDs
+                        count++;
                     }
                 }
-                
-                count++;
+                // the counter; never behind a restored id
+                Object counter = all.get(ID_COUNTER_KEY);
+                if (counter instanceof Number) {
+                    ids.restoreCounter(((Number) counter).longValue());
+                }
             }
+        } catch (RuntimeException e) {
+            YaaccLogger.w(getClass().getName(), "CACHE_LOAD_FAILED, starting with what was read: " + e, e);
+        } finally {
+            loadGate.open();
         }
         long elapsed = System.currentTimeMillis() - loadStart;
-        YaaccLogger.i(getClass().getName(), "CACHE_LOADED: " + count + " entries in " + elapsed + "ms (cache_size=" + lruCache.size() + ", id_mappings=" + shortIdToUri.size() + ")");
+        YaaccLogger.i(getClass().getName(), "CACHE_LOADED: " + count + " entries in " + elapsed + "ms (cache_size=" + getCacheSize()
+                + ", id_mappings=" + ids.size() + ", migrated=" + migrated + ")");
+    }
+
+    /**
+     * Moves the SAF cache entries of the default preferences into {@link #store}, see {@link SafCacheMigration}.
+     * I/O thread only. First the new file is committed, then the old keys are removed: if the process dies in
+     * between, the next start finds the old keys again and the plan only adds what the new file lacks.
+     *
+     * @return the number of old keys that were handled
+     */
+    private int migrateFromDefaultPreferences() {
+        SafCacheMigration.Plan plan = SafCacheMigration.plan(legacyPreferences.getAll(), store.getAll());
+        if (plan.isEmpty()) {
+            return 0;
+        }
+        if (plan.needsWrite()) {
+            SharedPreferences.Editor write = store.edit();
+            for (Map.Entry<String, String> entry : plan.entriesToWrite.entrySet()) {
+                write.putString(entry.getKey(), entry.getValue());
+            }
+            if (plan.counterToWrite != null) {
+                write.putLong(ID_COUNTER_KEY, plan.counterToWrite);
+            }
+            if (!write.commit()) {
+                YaaccLogger.w(getClass().getName(), "CACHE_MIGRATION_FAILED: the new file could not be written, the old entries stay");
+                return 0;
+            }
+        }
+        SharedPreferences.Editor remove = legacyPreferences.edit();
+        for (String key : plan.legacyKeysToRemove) {
+            remove.remove(key);
+        }
+        if (!remove.commit()) {
+            YaaccLogger.w(getClass().getName(), "CACHE_MIGRATION: the old entries could not be removed, they are checked again at the next start");
+        }
+        YaaccLogger.d(getClass().getName(), "CACHE_MIGRATION: " + plan.entriesToWrite.size() + " entries copied, "
+                + plan.legacyKeysToRemove.size() + " old keys removed from the default preferences");
+        return plan.legacyKeysToRemove.size();
+    }
+
+    // ---- writing ----
+
+    /** Called with {@link #lock} held: queue a flush now if one is due, else one for the time it becomes due. */
+    private void scheduleFlushLocked() {
+        if (flushPolicy.isDue()) {
+            if (!immediateFlushQueued) {
+                immediateFlushQueued = true;
+                submitIo(this::flush);
+            }
+        } else if (!timedFlushQueued) {
+            long delay = flushPolicy.millisUntilDue();
+            if (delay >= 0) {
+                timedFlushQueued = true;
+                try {
+                    ioExecutor.schedule(this::flush, delay, TimeUnit.MILLISECONDS);
+                } catch (RejectedExecutionException e) {
+                    timedFlushQueued = false;
+                }
+            }
+        }
+    }
+
+    private void submitIo(Runnable task) {
+        try {
+            ioExecutor.execute(task);
+        } catch (RejectedExecutionException e) {
+            YaaccLogger.d(getClass().getName(), "SAF cache I/O thread is shut down, " + e.getMessage());
+        }
+    }
+
+    /** Writes what waits in memory soon, on the I/O thread. */
+    private void requestFlush() {
+        synchronized (lock) {
+            if (!immediateFlushQueued) {
+                immediateFlushQueued = true;
+                submitIo(this::flush);
+            }
+        }
+    }
+
+    /**
+     * Commits the collected changes in one go. I/O thread only (never the main thread: {@code commit()} writes the
+     * file in the calling thread). A failed commit puts the changes back for the next round.
+     */
+    void flush() {
+        SafCacheWriteBuffer.Batch batch;
+        synchronized (lock) {
+            immediateFlushQueued = false;
+            timedFlushQueued = false;
+            batch = buffer.drain();
+            flushPolicy.flushed();
+        }
+        if (batch.isEmpty()) {
+            return;
+        }
+        long start = System.currentTimeMillis();
+        SharedPreferences.Editor editor = store.edit();
+        if (batch.clearAll) {
+            editor.clear();
+        }
+        for (String key : batch.removes) {
+            editor.remove(key);
+        }
+        for (Map.Entry<String, String> entry : batch.puts.entrySet()) {
+            editor.putString(entry.getKey(), entry.getValue());
+        }
+        if (batch.counter != null) {
+            editor.putLong(ID_COUNTER_KEY, batch.counter);
+        }
+        boolean written = editor.commit();
+        if (written) {
+            YaaccLogger.d(getClass().getName(), "SAF cache written: " + batch.puts.size() + " puts, " + batch.removes.size()
+                    + " removes" + (batch.clearAll ? ", cleared" : "") + " in " + (System.currentTimeMillis() - start) + " ms");
+        } else {
+            YaaccLogger.w(getClass().getName(), "SAF cache write failed, " + batch.puts.size() + " puts kept for the next round");
+            synchronized (lock) {
+                buffer.restore(batch);
+                flushPolicy.recordChange();
+                scheduleFlushLocked();
+            }
+        }
+    }
+
+    /**
+     * Queues a flush and waits for it, at most {@code waitMillis}. For the exit of the app only.
+     */
+    void flushAndWait(long waitMillis) {
+        try {
+            Future<?> done = ioExecutor.submit(this::flush);
+            done.get(waitMillis, TimeUnit.MILLISECONDS);
+        } catch (TimeoutException e) {
+            YaaccLogger.w(getClass().getName(), "SAF cache write not finished in " + waitMillis + " ms");
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (Exception e) {
+            YaaccLogger.w(getClass().getName(), "SAF cache write at exit failed: " + e);
+        }
+    }
+
+    /**
+     * Writes what waits in memory (on the I/O thread, so this returns at once). The LRU of the memory is not
+     * mirrored in the stored state: an entry the LRU dropped stays stored, so the short id of a file beyond the
+     * {@value #MAX_CACHE_SIZE}th still resolves after a restart (the former trim never removed anything in practice).
+     */
+    public void trimCache() {
+        requestFlush();
     }
     
     /**
-     * Clear old entries beyond MAX_CACHE_SIZE.
+     * @return true if the preference key is a cache entry of a file below the given SAF tree
      */
-    public void trimCache() {
-        SharedPreferences.Editor editor = preferences.edit();
-        for (String key : lruCache.getEvictedKeys()) {
-            editor.remove(key);
-        }
-        editor.apply();
+    static boolean isCacheKeyUnderTree(String key, String treeUri) {
+        return key != null && treeUri != null && key.startsWith(CACHE_PREFIX + treeUri + "/");
     }
-    
+
+    /**
+     * Forgets the cached metadata (durations) of every file below a SAF tree whose permission was
+     * given up, in memory at once and in the stored state on the I/O thread.
+     */
+    public void removeCachedUnder(String treeUri) {
+        synchronized (lock) {
+            List<String> keys = new ArrayList<>(lruCache.keySet());
+            keys.addAll(buffer.pendingPuts().keySet());
+            removeUnderTreeLocked(keys, treeUri);
+        }
+        submitIo(() -> {
+            // after the load; the keys that are only stored (the LRU holds MAX_CACHE_SIZE of them)
+            List<String> storedKeys = new ArrayList<>(store.getAll().keySet());
+            synchronized (lock) {
+                removeUnderTreeLocked(storedKeys, treeUri);
+            }
+            flush();
+        });
+        // a folder listing below the tree must not outlive the permission
+        SafDirectoryLister.clearCache();
+    }
+
+    private void removeUnderTreeLocked(Iterable<String> keys, String treeUri) {
+        for (String key : keys) {
+            if (isCacheKeyUnderTree(key, treeUri)) {
+                lruCache.remove(key);
+                buffer.remove(key);
+                flushPolicy.recordChange();
+            }
+        }
+    }
+
     /**
      * Clear all cached metadata and ID mappings.
      */
     public void clearCache() {
-        lruCache.clear();
-        shortIdToUri.clear();
-        uriToShortId.clear();
-        idCounter = 1;
-        
-        SharedPreferences.Editor editor = preferences.edit();
-        Map<String, ?> all = preferences.getAll();
-        for (String key : all.keySet()) {
-            if (key.startsWith(CACHE_PREFIX) || key.equals(ID_COUNTER_KEY)) {
-                editor.remove(key);
-            }
+        SafDirectoryLister.clearCache();
+        synchronized (lock) {
+            clearMemoryLocked();
         }
-        editor.apply();
-        
+        // behind the load, if it is still running: the stored state must not come back
+        submitIo(() -> {
+            synchronized (lock) {
+                clearMemoryLocked();
+            }
+            flush();
+        });
         YaaccLogger.i(getClass().getName(), "Cache cleared");
+    }
+
+    private void clearMemoryLocked() {
+        lruCache.clear();
+        ids.reset();
+        buffer.clearAll();
+        flushPolicy.recordChange();
     }
     
     public void shutdown() {
         preloadExecutor.shutdown();
-        trimCache();
+        flushAndWait(1000);
+        ioExecutor.shutdown();
     }
     
     public boolean isPreloading() {
@@ -797,15 +1236,16 @@ public class SAFCacheManager {
     }
     
     public int getCacheSize() {
-        return lruCache.size();
+        synchronized (lock) {
+            return lruCache.size();
+        }
     }
     
     /**
-     * Simple LRU cache using LinkedHashMap.
+     * Simple LRU cache using LinkedHashMap. Not thread safe: the manager's lock guards it.
      */
     private static class LRUCache extends LinkedHashMap<String, String> {
         private final int maxSize;
-        private final java.util.List<String> evictedKeys = new java.util.ArrayList<>();
         
         LRUCache(int maxSize) {
             super(16, 0.75f, true); // accessOrder = true
@@ -814,17 +1254,7 @@ public class SAFCacheManager {
         
         @Override
         protected boolean removeEldestEntry(Map.Entry<String, String> eldest) {
-            if (size() > maxSize) {
-                evictedKeys.add(eldest.getKey());
-                return true;
-            }
-            return false;
-        }
-        
-        java.util.List<String> getEvictedKeys() {
-            java.util.List<String> keys = new java.util.ArrayList<>(evictedKeys);
-            evictedKeys.clear();
-            return keys;
+            return size() > maxSize;
         }
     }
 }

@@ -161,7 +161,7 @@ public class PositionInfo {
         long elapsed = getTrackElapsedSeconds();
         long total = getTrackDurationSeconds();
         if (elapsed == 0 || total == 0) return 0;
-        return new Double(elapsed/((double)total/100)).intValue();
+        return (int) (elapsed / ((double) total / 100));
     }
 
 

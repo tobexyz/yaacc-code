@@ -21,7 +21,6 @@ package de.yaacc.upnp.server.contentdirectory;
 import android.content.Context;
 import android.net.Uri;
 import android.provider.DocumentsContract;
-import android.util.Base64;
 
 import androidx.documentfile.provider.DocumentFile;
 
@@ -50,6 +49,10 @@ import de.yaacc.util.YaaccLogger;
 
 /**
  * Browser for saf folder.
+ * <p>
+ * A folder is listed with ONE provider query ({@link SafDirectoryLister}) and the listing is shared
+ * by the passes of a Browse and by the following chunk requests; only the page slice that is
+ * returned gets the expensive per-item work. See docs/tech.md, "Large SAF folders".
  *
  * @author tobexyz
  */
@@ -67,117 +70,183 @@ public class SafFolderBrowser extends ContentBrowser {
     private static final Comparator<DIDLObject> STABLE_ORDER = (a, b) -> 0;
 
     /**
-     * Lightweight pairing of a candidate item file with the URI string
-     * {@link #createItem} expects, so a folder's items can be sorted by cheap
-     * {@link DocumentFile} fields (name / lastModified) <em>before</em> the
-     * expensive {@code createItem(...)} pipeline (SAF metadata cache lookup,
-     * MIME sniffing, {@code ProtocolInfo}/URI building) runs - that pipeline
-     * is only run for the page slice actually returned, not the whole folder.
+     * A selected SAF file of the SAF root folder (the few user chosen paths): the {@link DocumentFile}
+     * for the per-item work of the page slice, the entry for the cheap sort/filter fields.
      */
-    private static final class SafFileEntry {
+    private static final class RootFile {
         final String uri;
         final DocumentFile file;
+        final SafDirectoryEntry entry;
 
-        SafFileEntry(String uri, DocumentFile file) {
+        RootFile(String uri, DocumentFile file, SafDirectoryEntry entry) {
             this.uri = uri;
             this.file = file;
+            this.entry = entry;
         }
     }
 
-    /**
-     * Cheap accessors for {@link SafFileEntry}, mapping {@code dc:title}/{@code dc:date} -
-     * the same two properties {@link #createItem} attaches to the built DIDL item (see
-     * its {@code DIDLObject.Property.DC.DATE} line) - but reading straight off
-     * {@link DocumentFile} (name / lastModified) instead of a built DIDL item, so sorting
-     * doesn't require {@link #createItem} to have run first.
-     */
-    private static final Map<String, Function<SafFileEntry, String>> ENTRY_ACCESSOR_MAP =
-            Map.of(
-                    SortSupport.PROPERTY_TITLE, entry -> entry.file.getName(),
-                    SortSupport.PROPERTY_DATE, entry -> entry.file.lastModified() > 0
-                            ? SortSupport.formatEpochMillisAsDate(entry.file.lastModified())
-                            : null);
+    /** A sub folder of a listing with the values its container needs. */
+    private static final class FolderCandidate {
+        final String title;
+        final Uri childUri;
+        final boolean canRead;
 
-    /** Same idea as {@link #STABLE_ORDER}, but for the {@link SafFileEntry} pre-sort pass. */
-    private static final Comparator<SafFileEntry> STABLE_ENTRY_ORDER = (a, b) -> 0;
+        FolderCandidate(String title, Uri childUri, boolean canRead) {
+            this.title = title;
+            this.childUri = childUri;
+            this.canRead = canRead;
+        }
+    }
+
+    // Timing of this browser's listing and page work, for the one summary line per Browse (see
+    // browseChildren). A browser serves one Browse on one thread, so plain fields are enough.
+    private int listedEntries = -1;
+    private boolean listedFromProvider;
+    private long listMillis;
+    private long pageMillis;
+    private int pageStart;
+    private int pageEnd;
 
     public SafFolderBrowser(Context context) {
         super(context);
     }
 
+    /** Matches {@link #createItem}'s own playlist-skip check on the root folder's files. */
+    private static boolean isRootPlaylist(RootFile file) {
+        return SafListingSupport.isPlaylist(file.entry.name);
+    }
+
+    /** The values of a {@link DocumentFile} the item building needs (one provider query each). */
+    private static SafDirectoryEntry entryOf(DocumentFile file) {
+        return new SafDirectoryEntry(file.getName(), null, file.getType(), file.lastModified(), file.length(), file.isDirectory());
+    }
+
     /**
-     * Mirrors {@link SortSupport#toComparator}'s direction/null-handling logic
-     * exactly, but generic over a lightweight sort-key type instead of
-     * {@link DIDLObject} - used here so {@link SafFileEntry} lists can be sorted
-     * before the expensive {@link #createItem} pipeline runs. Kept local to this
-     * class since {@code SortSupport.toComparator}'s signature is fixed to
-     * {@code DIDLObject} for its other (MediaStore/synthetic-list) callers.
+     * Logs one line per Browse of a SAF folder: how many entries the folder has, whether they came
+     * from the cache or the provider and how long that took, and the page that was built.
      */
-    private static <T> Comparator<T> buildAccessorComparator(
-            SortCriterion[] orderby,
-            Map<String, Function<T, String>> propertyToAccessor,
-            Comparator<T> defaultComparator) {
-        if (orderby == null || orderby.length == 0) {
-            return defaultComparator;
+    @Override
+    public List<DIDLObject> browseChildren(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
+        List<DIDLObject> result = super.browseChildren(contentDirectory, myId, firstResult, maxResults, orderby);
+        if (listedEntries >= 0) {
+            YaaccLogger.d(getClass().getName(), "SAF browse " + myId + " list=" + listedEntries + " entries from "
+                    + (listedFromProvider ? "provider" : "cache") + " in " + listMillis + " ms, page "
+                    + pageStart + "-" + pageEnd + " in " + pageMillis + " ms");
         }
-        List<Comparator<T>> comparators = new ArrayList<>();
-        for (SortCriterion criterion : orderby) {
-            Function<T, String> accessor = propertyToAccessor.get(criterion.getPropertyName());
-            if (accessor == null) {
-                continue;
-            }
-            Comparator<T> comparator = Comparator.comparing(
-                    accessor, Comparator.nullsFirst(Comparator.naturalOrder()));
-            if (!criterion.isAscending()) {
-                comparator = comparator.reversed();
-            }
-            comparators.add(comparator);
-        }
-        if (comparators.isEmpty()) {
-            return defaultComparator;
-        }
-        Comparator<T> combined = comparators.get(0);
-        for (int i = 1; i < comparators.size(); i++) {
-            combined = combined.thenComparing(comparators.get(i));
-        }
-        return combined;
+        return result;
     }
 
-    /** Matches {@link #createItem}'s own playlist-skip check, so m3u files never
-     *  occupy a candidate slot (and therefore never shift pagination/order for
-     *  real items), without having to call createItem to find that out. */
-    private static boolean isPlaylist(DocumentFile file) {
-        return file.getName() != null && file.getName().endsWith("m3u");
+    /**
+     * @return the listing of the folder from the cache or the provider; never null. A listing that
+     * could not be had (waiting for it timed out, the thread was interrupted) is an empty folder.
+     */
+    private SafDirectory listing(String path) {
+        long start = System.currentTimeMillis();
+        try {
+            SafListingCache.Result<SafDirectory> result = SafDirectoryLister.list(getContext(), path);
+            listMillis += System.currentTimeMillis() - start;
+            listedEntries = result.value.entries.size();
+            listedFromProvider |= !result.fromCache;
+            return result.value;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            YaaccLogger.d(getClass().getName(), "Listing of " + path + " interrupted");
+        } catch (Exception e) {
+            YaaccLogger.w(getClass().getName(), "Listing of " + path + " failed: " + e);
+        }
+        return SafDirectory.listingFailed(null, false);
     }
 
+    /** Remembers the page of a pass; the larger slice of the passes of one Browse is the page that is logged. */
+    private void notePageRange(int total, long firstResult, long maxResults) {
+        int start = SafListingSupport.pageStart(total, firstResult);
+        int end = SafListingSupport.pageEnd(total, firstResult, maxResults);
+        if (end - start >= pageEnd - pageStart) {
+            pageStart = start;
+            pageEnd = end;
+        }
+    }
+
+    /**
+     * BrowseMetadata of the SAF folder itself, of a granted tree, of a sub folder or of a file.
+     * <p>
+     * The short id of the object id is mapped to its document uri with the SAF cache (it is not an encoding of the
+     * uri). One provider query gives the document's name, mime type, size and date; the parent is the SAF folder for a
+     * granted tree, else the folder the document id (or the provider's document path) names, with its short id; a
+     * folder gets the container of {@link #newFolder} (the "[X] " prefix and the restricted flag as in the listing of
+     * its parent) and its child count from the cached listing, a file the item of {@code createItem}.
+     *
+     * @return null if the id is unknown or the document is gone (the caller answers "no such object")
+     */
     @Override
     public DIDLObject browseMeta(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
         if (myId.equals(ContentDirectoryIDs.SAF_FOLDER.getId())) {
             return new StorageFolder(ContentDirectoryIDs.SAF_FOLDER.getId(), ContentDirectoryIDs.ROOT.getId(), getContext().getString(R.string.saf_content), "yaacc", getSize(contentDirectory, myId),
                     null);
-        } else {
-            // Meta for a subfolder
-            String pathEnc = myId.substring(ContentDirectoryIDs.SAF_PREFIX.getId().length());
-            String path = new String(Base64.decode(pathEnc.getBytes(), Base64.NO_WRAP));
-            DocumentFile file = DocumentFile.fromTreeUri(getContext(), Uri.parse(path));
-            String title = (file != null && file.getName() != null) ? file.getName() : path;
-
-            // Determine parent ID - if this is a direct child of SAF root, parent is SAF_FOLDER
-            // Otherwise, find the parent folder
-            String parentId = ContentDirectoryIDs.SAF_FOLDER.getId();
-            DocumentFile parent = file != null ? file.getParentFile() : null;
-            if (parent != null && !getSelectedSafPathes().contains(parent.getUri().toString())) {
-                String parentBase64 = Base64.encodeToString(parent.getUri().toString().getBytes(), Base64.NO_WRAP);
-                parentId = ContentDirectoryIDs.SAF_PREFIX.getId() + parentBase64;
-            }
-            DIDLObject result = null;
-            if (file.isDirectory()) {
+        }
+        String shortId = SafDocumentUris.shortIdOf(myId);
+        String path = shortId == null ? null : SAFCacheManager.getInstance(getContext()).getUriForShortId(shortId);
+        if (path == null) {
+            YaaccLogger.w(getClass().getName(), "Meta: short ID not found: " + shortId + " for id: " + myId);
+            return null;
+        }
+        Uri documentUri = Uri.parse(path);
+        SafDirectoryEntry entry = SafDirectoryLister.queryDocument(getContext(), documentUri);
+        if (entry == null) {
+            YaaccLogger.w(getClass().getName(), "Meta: no document for " + path + " (id " + myId + ")");
+            return null;
+        }
+        SafDocumentUris.Parsed parsed = SafDocumentUris.parse(path);
+        String parentId = parentIdOf(parsed, documentUri);
+        DIDLObject result;
+        if (entry.isDirectory()) {
+            String title = entry.name != null ? entry.name : path;
+            if (parsed != null && parsed.isTreeRoot()) {
+                // a granted tree, as in the listing of the SAF folder
                 result = new StorageFolder(myId, parentId, title, "yaacc", getSize(contentDirectory, myId), null);
             } else {
-                result = createItem(contentDirectory, file.getUri().toString(), file, myId, !file.canRead());
+                boolean canRead = SafDirectoryLister.canRead(getContext(), documentUri, entry.mimeType);
+                result = newFolder(myId, parentId, folderTitle(title, canRead), canRead, getSize(contentDirectory, myId));
             }
-            return result;
+        } else {
+            boolean restricted = !SafDirectoryLister.canRead(getContext(), documentUri, entry.mimeType);
+            result = createItem(contentDirectory, path, entry, parentId, restricted);
         }
+        YaaccLogger.d(getClass().getName(), "SAF meta " + myId + " " + (entry.isDirectory() ? "folder" : "item") + " parent=" + parentId);
+        return result;
+    }
+
+    /**
+     * The object id of the folder a document is in: the SAF folder for a granted tree (and for a uri that is
+     * not a tree document), else the short id of the parent document.
+     */
+    private String parentIdOf(SafDocumentUris.Parsed parsed, Uri documentUri) {
+        if (parsed == null || parsed.isTreeRoot()) {
+            return ContentDirectoryIDs.SAF_FOLDER.getId();
+        }
+        String parentDocumentId = SafDocumentUris.parentDocumentIdFromId(parsed);
+        if (parentDocumentId == null) {
+            // ids that are not paths: ask the provider
+            parentDocumentId = SafDocumentUris.parentFromPath(SafDirectoryLister.findPath(getContext(), documentUri), parsed.documentId);
+        }
+        if (parentDocumentId == null) {
+            YaaccLogger.w(getClass().getName(), "Meta: parent of " + documentUri + " unknown, using the SAF folder");
+            return ContentDirectoryIDs.SAF_FOLDER.getId();
+        }
+        String parentUri = parsed.documentUri(parentDocumentId);
+        return SafDocumentUris.objectIdOf(SAFCacheManager.getInstance(getContext()).getOrCreateShortId(parentUri));
+    }
+
+    /** The title of a sub folder as its parent's listing shows it: the "[X] " prefix when the app may not read it. */
+    private static String folderTitle(String title, boolean canRead) {
+        return canRead ? title : "[X] " + title;
+    }
+
+    /** A sub folder as its parent's listing shows it ({@code shownTitle} from {@link #folderTitle}); the restricted flag follows the read permission. */
+    private static StorageFolder newFolder(String id, String parentId, String shownTitle, boolean canRead, int childCount) {
+        StorageFolder folder = new StorageFolder(id, parentId, shownTitle, "yaacc", childCount, null);
+        folder.setRestricted(canRead);
+        return folder;
     }
 
     @Override
@@ -188,9 +257,9 @@ public class SafFolderBrowser extends ContentBrowser {
             String shortId = myId.substring(ContentDirectoryIDs.SAF_PREFIX.getId().length());
             String path = SAFCacheManager.getInstance(getContext()).getUriForShortId(shortId);
             if (path != null) {
-                DocumentFile file = DocumentFile.fromTreeUri(getContext(), Uri.parse(path));
-                if (file != null && file.isDirectory()) {
-                    return file.listFiles().length;
+                SafDirectory directory = listing(path);
+                if (directory.directory) {
+                    return directory.entries.size();
                 }
             } else {
                 YaaccLogger.w(getClass().getName(), "Short ID not found: " + shortId + " for id: " + myId);
@@ -202,22 +271,17 @@ public class SafFolderBrowser extends ContentBrowser {
     @Override
     public List<Container> browseContainer(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
         long browseStart = System.currentTimeMillis();
-        YaaccLogger.d(getClass().getName(), "browseContainer START: myId=" + myId + ", firstResult=" + firstResult + ", maxResults=" + maxResults);
+        YaaccLogger.v(getClass().getName(), "browseContainer START: myId=" + myId + ", firstResult=" + firstResult + ", maxResults=" + maxResults);
         List<Container> result = new ArrayList<>();
         if (myId.equals(ContentDirectoryIDs.SAF_FOLDER.getId())) {
-            long rootStart = System.currentTimeMillis();
-            YaaccLogger.d(getClass().getName(), "Browsing root SAF folder");
             Set<String> safPaths = getSelectedSafPathes();
-            YaaccLogger.d(getClass().getName(), "Found " + safPaths.size() + " SAF paths in preferences (took " + (System.currentTimeMillis() - rootStart) + "ms)");
             List<String> sortedPathes = new ArrayList<>(safPaths);
             Collections.sort(sortedPathes);
 
             List<Container> allFolders = new ArrayList<>();
             for (int i = 0; i < sortedPathes.size(); i++) {
-                long itemStart = System.currentTimeMillis();
                 String path = sortedPathes.get(i);
                 DocumentFile file = DocumentFile.fromTreeUri(getContext(), Uri.parse(path));
-                YaaccLogger.d(getClass().getName(), "Path[" + i + "] DocumentFile: " + (file != null ? "exists" : "null") + ", isDirectory: " + (file != null && file.isDirectory()) + " (took " + (System.currentTimeMillis() - itemStart) + "ms)");
                 if (file != null && file.isDirectory()) {
                     String title = file.getName() != null ? file.getName() : path;
                     String shortId = SAFCacheManager.getInstance(getContext()).getOrCreateShortId(file.getUri().toString());
@@ -230,15 +294,10 @@ public class SafFolderBrowser extends ContentBrowser {
             // STABLE_ORDER preserves that exactly via stable sort when orderby is empty/null.
             allFolders.sort(SortSupport.toComparator(orderby, CONTAINER_ACCESSOR_MAP, STABLE_ORDER));
 
-            int start = (int) Math.max(0, firstResult);
-            int end = (int) Math.min(allFolders.size(), start + maxResults);
-            YaaccLogger.d(getClass().getName(), "Pagination: start=" + start + ", end=" + end + ", total=" + allFolders.size());
-            result.addAll(allFolders.subList(start, end));
-            YaaccLogger.d(getClass().getName(), "Root browse complete: " + result.size() + " folders (total " + (System.currentTimeMillis() - browseStart) + "ms)");
+            YaaccLogger.v(getClass().getName(), "Pagination: first=" + firstResult + ", max=" + maxResults + ", total=" + allFolders.size());
+            result.addAll(SafListingSupport.page(allFolders, firstResult, maxResults));
         } else {
             // Browse subfolder
-            long subfolderStart = System.currentTimeMillis();
-            YaaccLogger.d(getClass().getName(), "Browsing subfolder with ID: " + myId);
             String shortId = myId.substring(ContentDirectoryIDs.SAF_PREFIX.getId().length());
             String path = SAFCacheManager.getInstance(getContext()).getUriForShortId(shortId);
 
@@ -247,122 +306,124 @@ public class SafFolderBrowser extends ContentBrowser {
                 return result;
             }
 
-            YaaccLogger.d(getClass().getName(), "Resolved path from shortId " + shortId + ": " + path);
-
-            Uri uri = Uri.parse(path);
-            DocumentFile root = null;
-
             // Check if this is a tree URI or document URI
-            if (path.contains("/tree/")) {
-                long treeStart = System.currentTimeMillis();
-                root = DocumentFile.fromTreeUri(getContext(), uri);
-                YaaccLogger.d(getClass().getName(), "Tree URI resolved in " + (System.currentTimeMillis() - treeStart) + "ms");
-            } else {
+            if (!path.contains("/tree/")) {
                 YaaccLogger.w(getClass().getName(), "Document URI detected, skipping: " + path);
                 return result;
             }
 
-            if (root != null && root.isDirectory()) {
-                long listStart = System.currentTimeMillis();
-                DocumentFile[] files = root.listFiles();
-                YaaccLogger.d(getClass().getName(), "listFiles() took " + (System.currentTimeMillis() - listStart) + "ms, found " + files.length + " items");
-
-                List<Container> allFolders = new ArrayList<>();
-                for (int i = 0; i < files.length; i++) {
-                    long itemStart = System.currentTimeMillis();
-                    DocumentFile file = files[i];
-                    if (file.isDirectory()) {
-                        String title = file.getName() != null ? file.getName() : file.getUri().toString();
-                        try {
-                            String authority = file.getUri().getAuthority();
-                            String documentId = DocumentsContract.getDocumentId(file.getUri());
-                            Uri childTreeUri = DocumentsContract.buildTreeDocumentUri(authority, documentId);
-                            DocumentFile testAccess = DocumentFile.fromTreeUri(getContext(), childTreeUri);
-                            if (testAccess != null) {
-                                String childShortId = SAFCacheManager.getInstance(getContext()).getOrCreateShortId(childTreeUri.toString());
-                                String childId = ContentDirectoryIDs.SAF_PREFIX.getId() + childShortId;
-                                if (!testAccess.canRead()) {
-                                    title = "[X] " + title;
-                                }
-                                StorageFolder folder = new StorageFolder(childId, myId, title, "yaacc", 0, null);
-                                folder.setRestricted(testAccess.canRead());
-                                allFolders.add(folder);
-                                YaaccLogger.d(getClass().getName(), "Child[" + i + "] " + title + " (took " + (System.currentTimeMillis() - itemStart) + "ms)");
-                            } else {
-                                YaaccLogger.w(getClass().getName(), "Cannot access child: " + title);
-                            }
-                        } catch (Exception e) {
-                            YaaccLogger.e(getClass().getName(), "Error processing child: " + title, e);
-                        }
-                    }
-                }
-                // allFolders is in listFiles()'s original (unsorted) order, matching today's
-                // behavior; STABLE_ORDER preserves it via stable sort when orderby is empty/null.
-                allFolders.sort(SortSupport.toComparator(orderby, CONTAINER_ACCESSOR_MAP, STABLE_ORDER));
-
-                int start = (int) Math.max(0, firstResult);
-                int end = (int) Math.min(allFolders.size(), start + maxResults);
-                YaaccLogger.d(getClass().getName(), "Pagination: start=" + start + ", end=" + end + ", total=" + allFolders.size());
-                result.addAll(allFolders.subList(start, end));
+            SafDirectory directory = listing(path);
+            if (directory.directory) {
+                long pageStartMillis = System.currentTimeMillis();
+                result.addAll(childFolders(directory, myId, firstResult, maxResults, orderby));
+                pageMillis += System.currentTimeMillis() - pageStartMillis;
             } else {
                 YaaccLogger.e(getClass().getName(), "Root DocumentFile is null or not a directory");
             }
-            YaaccLogger.d(getClass().getName(), "Subfolder browse complete: " + result.size() + " folders (total " + (System.currentTimeMillis() - subfolderStart) + "ms)");
         }
-        YaaccLogger.d(getClass().getName(), "browseContainer END: returning " + result.size() + " containers (total " + (System.currentTimeMillis() - browseStart) + "ms)");
+        YaaccLogger.v(getClass().getName(), "browseContainer END: returning " + result.size() + " containers (total " + (System.currentTimeMillis() - browseStart) + "ms)");
         return result;
+    }
+
+    /**
+     * The sub folders of a listing as containers: the requested page of them.
+     * <p>
+     * The restricted flag and the "[X] " title prefix come from {@code canRead()} of the folder's own
+     * tree document, which is the read permission on its uri plus a mime type from the provider - the
+     * listing has the latter, so no provider query is needed. The prefix is part of the title the
+     * containers are sorted by, so for a title sort every folder needs it before the page is cut; without
+     * a title sort only the page's folders are resolved.
+     */
+    private List<Container> childFolders(SafDirectory directory, String parentId, long firstResult, long maxResults, SortCriterion[] orderby) {
+        Uri folderUri = Uri.parse(directory.rootUri);
+        List<SafDirectoryEntry> folders = SafListingSupport.directories(directory.entries);
+        List<FolderCandidate> pageCandidates = new ArrayList<>();
+        if (SafListingSupport.sortsBy(orderby, SortSupport.PROPERTY_TITLE)) {
+            List<FolderCandidate> all = new ArrayList<>();
+            for (SafDirectoryEntry entry : folders) {
+                FolderCandidate candidate = folderCandidate(folderUri, entry);
+                if (candidate != null) {
+                    all.add(candidate);
+                }
+            }
+            pageCandidates = SafListingSupport.page(
+                    SafListingSupport.sort(all, orderby, c -> c.title, null), firstResult, maxResults);
+            notePageRange(all.size(), firstResult, maxResults);
+        } else {
+            for (SafDirectoryEntry entry : SafListingSupport.page(folders, firstResult, maxResults)) {
+                FolderCandidate candidate = folderCandidate(folderUri, entry);
+                if (candidate != null) {
+                    pageCandidates.add(candidate);
+                }
+            }
+            notePageRange(folders.size(), firstResult, maxResults);
+        }
+        List<Container> containers = new ArrayList<>();
+        for (FolderCandidate candidate : pageCandidates) {
+            String childShortId = SAFCacheManager.getInstance(getContext()).getOrCreateShortId(candidate.childUri.toString());
+            String childId = ContentDirectoryIDs.SAF_PREFIX.getId() + childShortId;
+            containers.add(newFolder(childId, parentId, candidate.title, candidate.canRead, 0));
+        }
+        return containers;
+    }
+
+    private FolderCandidate folderCandidate(Uri folderUri, SafDirectoryEntry entry) {
+        String title = entry.name;
+        try {
+            if (title == null) {
+                title = SafDirectoryLister.childDocumentUri(folderUri, entry.documentId).toString();
+            }
+            // The child is addressed through the tree the user granted (.../tree/<granted>/document/<child>), not
+            // as a tree of its own (.../tree/<child>): the grant of a picked folder covers everything below it, but
+            // only for uris of that tree. A uri rooted at the child would never match the grant, and every sub
+            // folder of a picked folder would show "[X]". DocumentFile.fromTreeUri accepts such a document uri.
+            Uri childUri = SafDirectoryLister.childDocumentUri(folderUri, entry.documentId);
+            boolean canRead = SafDirectoryLister.canRead(getContext(), childUri, entry.mimeType);
+            return new FolderCandidate(folderTitle(title, canRead), childUri, canRead);
+        } catch (Exception e) {
+            YaaccLogger.e(getClass().getName(), "Error processing child: " + title, e);
+            return null;
+        }
     }
 
     @Override
     public List<Item> browseItem(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
         long browseStart = System.currentTimeMillis();
-        YaaccLogger.d(getClass().getName(), "browseItem START: myId=" + myId + ", firstResult=" + firstResult + ", maxResults=" + maxResults);
+        YaaccLogger.v(getClass().getName(), "browseItem START: myId=" + myId + ", firstResult=" + firstResult + ", maxResults=" + maxResults);
         List<Item> result = new ArrayList<>();
         if (myId.equals(ContentDirectoryIDs.SAF_FOLDER.getId())) {
-            long rootStart = System.currentTimeMillis();
             List<String> sortedPathes = new ArrayList<>(getSelectedSafPathes());
             Collections.sort(sortedPathes);
 
-            // Lightweight pass: only resolve each DocumentFile and read its cheap
-            // name/lastModified fields - no SAF metadata cache lookup, MIME sniffing,
-            // or URI/ProtocolInfo building (createItem's expensive pipeline) yet.
-            List<SafFileEntry> candidates = new ArrayList<>();
-            for (int i = 0; i < sortedPathes.size(); i++) {
-                long itemStart = System.currentTimeMillis();
-                String path = sortedPathes.get(i);
+            // Lightweight pass: only the cheap name/lastModified fields are read for sorting -
+            // the expensive createItem pipeline (SAF metadata cache lookup, MIME sniffing,
+            // URI/ProtocolInfo building) runs for the page slice below only.
+            List<RootFile> candidates = new ArrayList<>();
+            for (String path : sortedPathes) {
                 DocumentFile file = DocumentFile.fromSingleUri(getContext(), Uri.parse(path));
-                if (file != null && !file.isDirectory() && !isPlaylist(file)) {
-                    candidates.add(new SafFileEntry(path, file));
+                if (file != null) {
+                    SafDirectoryEntry entry = entryOf(file);
+                    RootFile rootFile = new RootFile(path, file, entry);
+                    if (!entry.isDirectory() && !isRootPlaylist(rootFile)) {
+                        candidates.add(rootFile);
+                    }
                 }
-                YaaccLogger.d(getClass().getName(), "Path[" + i + "] resolved (took " + (System.currentTimeMillis() - itemStart) + "ms)");
             }
             // candidates is already built in today's default (path-alphabetical) order;
-            // STABLE_ENTRY_ORDER preserves that exactly via stable sort when orderby is empty/null.
-            candidates.sort(buildAccessorComparator(orderby, ENTRY_ACCESSOR_MAP, STABLE_ENTRY_ORDER));
-
-            int start = (int) Math.max(0, firstResult);
-            int end = (int) Math.min(candidates.size(), start + maxResults);
-            YaaccLogger.d(getClass().getName(), "Root items: pagination start=" + start + ", end=" + end + ", total=" + candidates.size());
+            // the stable sort keeps it when orderby is empty/null.
+            List<RootFile> page = SafListingSupport.page(SafListingSupport.sort(candidates, orderby,
+                    c -> c.entry.name, c -> SafListingSupport.dateKey(c.entry.lastModified)), firstResult, maxResults);
+            YaaccLogger.v(getClass().getName(), "Root items: first=" + firstResult + ", max=" + maxResults + ", total=" + candidates.size());
 
             // Expensive pass: createItem(...) only for the page slice actually returned.
-            List<Item> allItems = new ArrayList<>();
-            for (int i = start; i < end; i++) {
-                SafFileEntry entry = candidates.get(i);
-                long createStart = System.currentTimeMillis();
-                Item item = createItem(contentDirectory, entry.uri, entry.file, myId, !entry.file.canRead());
+            for (RootFile rootFile : page) {
+                Item item = createItem(contentDirectory, rootFile.uri, rootFile.entry, myId, !rootFile.file.canRead());
                 if (item != null) {
-                    allItems.add(item);
-                    YaaccLogger.d(getClass().getName(), "✓ Added to result: Item[" + (allItems.size() - 1) + "] " + (entry.file.getName() != null ? entry.file.getName() : "unknown") + " (createItem took " + (System.currentTimeMillis() - createStart) + "ms)");
-                } else {
-                    YaaccLogger.d(getClass().getName(), "✗ Skipped (null item): " + (entry.file.getName() != null ? entry.file.getName() : "unknown"));
+                    result.add(item);
                 }
             }
-            result.addAll(allItems);
-            YaaccLogger.d(getClass().getName(), "Root items complete: " + result.size() + " items (total " + (System.currentTimeMillis() - rootStart) + "ms)");
         } else {
             // Browse subfolder items
-            long subfolderStart = System.currentTimeMillis();
-            YaaccLogger.d(getClass().getName(), "Browsing subfolder items for: " + myId);
             String shortId = myId.substring(ContentDirectoryIDs.SAF_PREFIX.getId().length());
             String path = SAFCacheManager.getInstance(getContext()).getUriForShortId(shortId);
 
@@ -371,76 +432,54 @@ public class SafFolderBrowser extends ContentBrowser {
                 return result;
             }
 
-            long treeStart = System.currentTimeMillis();
-            DocumentFile root = DocumentFile.fromTreeUri(getContext(), Uri.parse(path));
-            YaaccLogger.d(getClass().getName(), "Tree URI resolved in " + (System.currentTimeMillis() - treeStart) + "ms");
-
-            if (root != null && root.isDirectory()) {
-                if (root.canRead()) {
-                    long listStart = System.currentTimeMillis();
-                    DocumentFile[] files = root.listFiles();
-                    YaaccLogger.d(getClass().getName(), "listFiles() took " + (System.currentTimeMillis() - listStart) + "ms, found " + files.length + " items");
-
-                    // Lightweight pass: only the cheap name/lastModified fields are read
-                    // here - createItem's expensive pipeline (SAF metadata cache lookup,
-                    // MIME sniffing, ProtocolInfo/URI building) is deferred until after
-                    // sorting, and only run for the page slice below.
-                    List<SafFileEntry> candidates = new ArrayList<>();
-                    for (int i = 0; i < files.length; i++) {
-                        DocumentFile file = files[i];
-                        if (!file.isDirectory() && !isPlaylist(file)) {
-                            candidates.add(new SafFileEntry(file.getUri().toString(), file));
-                        }
-                    }
-                    // candidates is in listFiles()'s original (unsorted) order, matching today's
-                    // behavior; STABLE_ENTRY_ORDER preserves it via stable sort when orderby is empty/null.
-                    candidates.sort(buildAccessorComparator(orderby, ENTRY_ACCESSOR_MAP, STABLE_ENTRY_ORDER));
-
-                    int start = (int) Math.max(0, firstResult);
-                    int end = (int) Math.min(candidates.size(), start + maxResults);
-                    YaaccLogger.d(getClass().getName(), "Pagination: start=" + start + ", end=" + end + ", total=" + candidates.size());
-
-                    // Expensive pass: createItem(...) only for the page slice actually returned.
-                    List<Item> allItems = new ArrayList<>();
-                    for (int i = start; i < end; i++) {
-                        SafFileEntry entry = candidates.get(i);
-                        long createStart = System.currentTimeMillis();
-                        Item item = createItem(contentDirectory, entry.uri, entry.file, myId, !entry.file.canRead());
-                        long createTime = System.currentTimeMillis() - createStart;
-                        if (item != null) allItems.add(item);
-                        YaaccLogger.d(getClass().getName(), "Item[" + i + "] " + (entry.file.getName() != null ? entry.file.getName() : "unknown") + " - createItem=" + createTime + "ms");
-                    }
-                    result.addAll(allItems);
-                } else {
-                    YaaccLogger.w(getClass().getName(), "Cannot read folder: " + path);
-                }
-            } else {
+            SafDirectory directory = listing(path);
+            if (!directory.directory) {
                 YaaccLogger.e(getClass().getName(), "Root DocumentFile is null or not a directory");
+            } else if (!directory.readable) {
+                YaaccLogger.w(getClass().getName(), "Cannot read folder: " + path);
+            } else {
+                long pageStartMillis = System.currentTimeMillis();
+                // Cheap pass on the listing: filter and sort by name/lastModified. The expensive
+                // createItem pipeline is deferred until after sorting and only runs for the page.
+                // The candidates are in the provider's order, matching today's behavior; the stable
+                // sort keeps it when orderby is empty/null.
+                List<SafDirectoryEntry> candidates = SafListingSupport.itemCandidates(directory.entries);
+                List<SafDirectoryEntry> page = SafListingSupport.page(SafListingSupport.sort(candidates, orderby,
+                        e -> e.name, e -> SafListingSupport.dateKey(e.lastModified)), firstResult, maxResults);
+                Uri folderUri = Uri.parse(directory.rootUri);
+                for (SafDirectoryEntry entry : page) {
+                    Uri childUri = SafDirectoryLister.childDocumentUri(folderUri, entry.documentId);
+                    boolean restricted = !SafDirectoryLister.canRead(getContext(), childUri, entry.mimeType);
+                    Item item = createItem(contentDirectory, childUri.toString(), entry, myId, restricted);
+                    if (item != null) {
+                        result.add(item);
+                    }
+                }
+                notePageRange(candidates.size(), firstResult, maxResults);
+                pageMillis += System.currentTimeMillis() - pageStartMillis;
             }
-            YaaccLogger.d(getClass().getName(), "Subfolder items complete: " + result.size() + " items (total " + (System.currentTimeMillis() - subfolderStart) + "ms)");
         }
-        YaaccLogger.d(getClass().getName(), "browseItem END: returning " + result.size() + " items (total " + (System.currentTimeMillis() - browseStart) + "ms)");
+        YaaccLogger.v(getClass().getName(), "browseItem END: returning " + result.size() + " items (total " + (System.currentTimeMillis() - browseStart) + "ms)");
         return result;
     }
 
-    private Item createItem(YaaccContentDirectory contentDirectory, String path, DocumentFile file, String parentId, boolean restricted) {
-        long createStart = System.currentTimeMillis();
-        String fileName = file.getName() != null ? file.getName() : "unknown";
+    private Item createItem(YaaccContentDirectory contentDirectory, String path, SafDirectoryEntry file, String parentId, boolean restricted) {
+        String fileName = file.name != null ? file.name : "unknown";
 
-        if (file.getName() != null && file.getName().endsWith("m3u")) {
+        if (SafListingSupport.isPlaylist(file.name)) {
             return null;
         }
 
         // Get all metadata from cache (duration, MIME type, short ID)
-        SAFMetadata metadata = SAFCacheManager.getInstance(getContext()).getMetadata(file);
+        SAFMetadata metadata = SAFCacheManager.getInstance(getContext()).getMetadata(Uri.parse(path), file.name, file.mimeType, file.size);
         if (metadata == null) {
             return null;
         }
-        
+
         // If MIME type is null or invalid, try to guess from filename
         String mimeTypeStr = metadata.mimeType;
         if (mimeTypeStr == null || mimeTypeStr.equals("null") || !mimeTypeStr.contains("/")) {
-            mimeTypeStr = SAFCacheManager.getInstance(getContext()).guessMimeTypeFromExtension(file.getName());
+            mimeTypeStr = SAFCacheManager.getInstance(getContext()).guessMimeTypeFromExtension(file.name);
             if (mimeTypeStr == null) {
                 return null;  // Still couldn't determine MIME type
             }
@@ -450,9 +489,9 @@ public class SafFolderBrowser extends ContentBrowser {
         String mimeTypeMain = mimeType.getType();
 
         String id = ContentDirectoryIDs.SAF_PREFIX.getId() + metadata.shortId;
-        String title = file.getName() != null ? file.getName() : extractFilenameFromUri(path);
-        if (file.getName() == null) {
-            YaaccLogger.d(getClass().getName(), "file.getName() is null for URI: " + file.getUri());
+        String title = file.name != null ? file.name : extractFilenameFromUri(path);
+        if (file.name == null) {
+            YaaccLogger.v(getClass().getName(), "file name is null for URI: " + path);
         }
 
         if (restricted) {
@@ -461,16 +500,14 @@ public class SafFolderBrowser extends ContentBrowser {
 
         // Use shortId in URI instead of Base64-encoded path
         // Include filename to help renderers display proper title
-        String filenameForUri = file.getName() != null ? file.getName() : "file";
+        String filenameForUri = file.name != null ? file.name : "file";
         // Remove extension and special characters for URI path
         String safeFilename = filenameForUri.replaceAll("[^a-zA-Z0-9._-]", "_");
         String uriContentId = metadata.shortId + "_" + safeFilename;
         String uri = getUriString(contentDirectory, id, mimeType, uriContentId);
-        YaaccLogger.d(getClass().getName(), "Generated URI for " + title + ": " + uri + " (shortId=" + metadata.shortId + ")");
+        YaaccLogger.v(getClass().getName(), "Generated URI for " + title + ": " + uri + " (shortId=" + metadata.shortId + ")");
 
-        long protocolStart = System.currentTimeMillis();
         ProtocolInfo protocolInfo = getProtocolInfo(mimeType);
-        long protocolTime = System.currentTimeMillis() - protocolStart;
 
         String duration = null;
         if (mimeTypeMain.equals("audio") && !restricted) {
@@ -481,28 +518,22 @@ public class SafFolderBrowser extends ContentBrowser {
         YaaccRes yaaccRes = new YaaccRes(protocolInfo, metadata.fileSize, duration, null, uri);
 
         // Create lightweight YaaccItem (no Cling Property overhead)
-        long itemStart = System.currentTimeMillis();
         String clazz = mimeTypeMain.equals("audio") ? "object.item.audioItem"
                 : mimeTypeMain.equals("video") ? "object.item.videoItem"
                 : "object.item.imageItem";
         YaaccItem yaaccItem = new YaaccItem(id, parentId, title, "yaacc", restricted, clazz);
         yaaccItem.addResource(yaaccRes);
-        long itemTime = System.currentTimeMillis() - itemStart;
 
         // Convert to Cling Item only at the end (for UPnP serialization)
-        long convertStart = System.currentTimeMillis();
         Item item = yaaccItem.toClingItem();
-        long convertTime = System.currentTimeMillis() - convertStart;
 
-        // Attach dc:date from the file's lastModified() so SortSupport can honor
+        // Attach dc:date from the file's lastModified so SortSupport can honor
         // SortCriteria="dc:date" against SAF items (0 means unknown - leave unset).
-        long lastModified = file.lastModified();
-        if (lastModified > 0) {
-            item.addProperty(new DIDLObject.Property.DC.DATE(SortSupport.formatEpochMillisAsDate(lastModified)));
+        if (file.lastModified > 0) {
+            item.addProperty(new DIDLObject.Property.DC.DATE(SortSupport.formatEpochMillisAsDate(file.lastModified)));
         }
 
-        long totalTime = System.currentTimeMillis() - createStart;
-        YaaccLogger.d(getClass().getName(), "Item[?] " + fileName + " - protocolInfo=" + protocolTime + "ms, YaaccItem=" + itemTime + "ms, convert=" + convertTime + "ms, total=" + totalTime + "ms");
+        YaaccLogger.v(getClass().getName(), "Item " + fileName + " created");
         return item;
     }
 
@@ -511,35 +542,4 @@ public class SafFolderBrowser extends ContentBrowser {
         int lastSlash = path.lastIndexOf('/');
         return lastSlash >= 0 ? path.substring(lastSlash + 1) : path;
     }
-
-    /*
-        private void loadDurationAsync(DocumentFile file, Item item, Res res) {
-
-            // Use AsyncTask for proper Android background processing
-            new android.os.AsyncTask<Void, Void, String>() {
-                @Override
-                protected String doInBackground(Void... voids) {
-                    return extractDuration(file);
-                }
-
-                @Override
-                protected void onPostExecute(String duration) {
-                    if (duration != null) {
-                        // Update the resource with duration
-                        try {
-                            // Create new resource with duration
-                            Res newRes = new Res(res.getProtocolInfo(), res.getSize(), duration, res.getBitrate(), res.getValue());
-                            // Replace the resource in the item
-                            item.getResources().clear();
-                            item.addResource(newRes);
-                            YaaccLogger.d(getClass().getName(), "Updated duration for: " + item.getTitle() + " -> " + duration);
-                        } catch (Exception e) {
-                            YaaccLogger.w(getClass().getName(), "Failed to update duration for: " + item.getTitle(), e);
-                        }
-                    }
-                    YaaccLogger.d(getClass().getName(), "Item ready for playback: " + item.getTitle());
-                }
-            }.execute();
-        }
-    */
 }

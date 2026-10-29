@@ -474,8 +474,16 @@ public interface Registry {
     public void setAliveInterval(int intervalMillis);
 
 
+    /**
+     * @return the protocol handler of the currently enabled network listener, null while the listener is disabled
+     * (no network): the registry then sends nothing (no renewals, no ALIVE/BYEBYE) and tries again later.
+     */
     UpnpProtocolHandler getUpnpProtocolHandler();
 
+    /**
+     * Sets the handler the registry sends with. The network listener sets its NEW handler on every enable (the old
+     * one owns closed sockets) and null on disable.
+     */
     void setUpnpProtocolHandler(UpnpProtocolHandler upnpProtocolHandler);
 
     ExecutorService getExecutorService();

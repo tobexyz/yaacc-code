@@ -53,7 +53,6 @@ import de.yaacc.settings.SettingsActivity;
 import de.yaacc.util.ActivitySwipeDetector;
 import de.yaacc.util.AboutActivity;
 import de.yaacc.util.SwipeReceiver;
-import de.yaacc.util.ThemeHelper;
 import de.yaacc.util.YaaccLogActivity;
 import de.yaacc.util.YaaccLogger;
 
@@ -434,13 +433,9 @@ public class ImageViewerActivity extends AppCompatActivity implements SwipeRecei
 
     @Override
     public boolean onCreateOptionsMenu(android.view.Menu menu) {
+        // The icons are white vectors; the menu file tints them (app:iconTint) with the title bar's icon
+        // color, which is light on the black bar of the dark theme and dark on the light bar of the light one.
         getMenuInflater().inflate(R.menu.activity_image_viewer, menu);
-        for (int i = 0; i < menu.size(); i++) {
-            android.view.MenuItem item = menu.getItem(i);
-            if (item.getIcon() != null) {
-                item.setIcon(ThemeHelper.tintDrawable(item.getIcon(), getTheme()));
-            }
-        }
         return true;
     }
 
@@ -487,7 +482,64 @@ public class ImageViewerActivity extends AppCompatActivity implements SwipeRecei
             exit();
             return true;
         }
+        if (itemId == R.id.menu_share) {
+            shareCurrentImage();
+            return true;
+        }
         return false;
+    }
+
+    /**
+     * Mirrors BrowseContentItemAdapter's per-item share: a small choice
+     * ("share the file" / "share a link to it") instead of one fixed
+     * behavior - a sharing-the-file's-URL-as-text approach alone would
+     * silently fail for a remote recipient whenever the URL is only
+     * reachable on the local network (this device's own embedded server,
+     * or another server on the same LAN), which is the common case here.
+     * "Share link" is omitted entirely for a local (content://) image,
+     * since that's an opaque, app-private identifier, not a link anyone
+     * else could resolve - unlike the browse list, where every item
+     * always has a real UPnP resource URL.
+     */
+    private void shareCurrentImage() {
+        ImageViewerState state = viewModel.getState().getValue();
+        if (state == null || state.getImageUris() == null || state.getImageUris().isEmpty()) {
+            return;
+        }
+        int index = Math.max(0, Math.min(state.getCurrentIndex(), state.getImageUris().size() - 1));
+        Uri imageUri = state.getImageUris().get(index);
+        String scheme = imageUri.getScheme();
+        boolean isRemote = "http".equals(scheme) || "https".equals(scheme);
+        String title = imageUri.getLastPathSegment();
+        String mimeType = isRemote
+                ? android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(
+                        android.webkit.MimeTypeMap.getFileExtensionFromUrl(imageUri.toString()))
+                : getContentResolver().getType(imageUri);
+        if (mimeType == null) {
+            mimeType = "image/*";
+        }
+
+        List<String> options = new ArrayList<>();
+        options.add(getString(R.string.browse_share_menu_file));
+        if (isRemote) {
+            options.add(getString(R.string.browse_share_menu_link));
+        }
+        String finalMimeType = mimeType;
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle(R.string.browse_context_share)
+                .setItems(options.toArray(new String[0]), (dialog, which) -> {
+                    if (options.get(which).equals(getString(R.string.browse_share_menu_file))) {
+                        Toast.makeText(this, R.string.browse_share_preparing, Toast.LENGTH_SHORT).show();
+                        new de.yaacc.util.ShareFileTask(this, imageUri, title, finalMimeType).execute();
+                    } else {
+                        Intent shareIntent = new Intent(Intent.ACTION_SEND);
+                        shareIntent.setType("text/plain");
+                        shareIntent.putExtra(Intent.EXTRA_SUBJECT, title);
+                        shareIntent.putExtra(Intent.EXTRA_TEXT, imageUri.toString());
+                        startActivity(Intent.createChooser(shareIntent, getString(R.string.browse_context_share)));
+                    }
+                })
+                .show();
     }
 
     @Override

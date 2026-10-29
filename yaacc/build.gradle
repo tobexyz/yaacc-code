@@ -19,13 +19,34 @@ dependencies {
     implementation 'jakarta.enterprise:jakarta.enterprise.cdi-api:5.0.0'
     implementation 'com.google.android.material:material:1.14.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.2.2'
-    // Pinned below the Dependabot-bumped 5.6.5/5.4.4: DefaultHttpClientConnectionOperator's
-    // static initializer calls jdk.net.Sockets/ExtendedSocketOptions (hidden JDK APIs) to
-    // probe TCP keepalive support, which Android's ART blocks for app code, crashing at
-    // class-init time with NoSuchMethodError on every real device. 5.2.1/5.2 predate this.
-    // See https://github.com/Adyen/adyen-java-api-library/issues/1671
-    implementation 'org.apache.httpcomponents.client5:httpclient5:5.2.1'
-    implementation 'org.apache.httpcomponents.core5:httpcore5:5.2'
+    // httpclient5/httpcore5/httpcore5-h2 pinned to the NEWEST versions that
+    // predate a shared Android incompatibility: both httpclient5's
+    // DefaultHttpClientConnectionOperator and httpcore5's ReflectionUtils
+    // gained a static initializer in their 5.4 line that calls
+    // jdk.net.Sockets/ExtendedSocketOptions (hidden JDK APIs) to probe TCP
+    // keepalive support - confirmed via direct bytecode inspection across
+    // versions. Android's ART blocks these hidden APIs for app code, so
+    // merely loading either class crashes with NoSuchMethodError on every
+    // real device. Confirmed boundaries: httpclient5 5.3.1 and httpcore5
+    // 5.3.6 are the newest clean versions (zero jdk/net references); 5.4
+    // (not just later patch releases) is where each library's rewrite
+    // landed. See https://github.com/Adyen/adyen-java-api-library/issues/1671
+    //
+    // KNOWN RESIDUAL RISK, not fixed by this pin: httpcore5 CVE-2026-54399
+    // (HTTP/1.1 header-parsing memory-exhaustion DoS) and CVE-2026-54428
+    // (HTTP/2 HPACK decoder DoS, via httpcore5-h2), both fixed only in
+    // 5.4.3+ - which has the same Android-crashing probe. No upstream
+    // release satisfies both constraints (confirmed: 5.3.6 is explicitly
+    // still vulnerable to both CVEs, no 5.3.x backport exists). This
+    // affects yaacc's embedded UPnP HTTP server's exposure to a
+    // malicious/compromised device on the LAN. Deliberately accepted for
+    // now to keep the app usable; see "Browse card-grid view" in
+    // docs/tech.md for the full
+    // tradeoff and follow-up options (shim ReflectionUtils locally, or
+    // move the embedded server off httpcore5's reactor stack).
+    implementation 'org.apache.httpcomponents.client5:httpclient5:5.3.1'
+    implementation 'org.apache.httpcomponents.core5:httpcore5:5.3.6'
+    implementation 'org.apache.httpcomponents.core5:httpcore5-h2:5.3.6'
     implementation 'androidx.appcompat:appcompat:1.8.0'
     implementation 'androidx.exifinterface:exifinterface:1.4.2'
     implementation 'androidx.exifinterface:exifinterface:1.4.2'

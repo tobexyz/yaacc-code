@@ -23,36 +23,49 @@
     <item
         android:id="@+id/menu_previous"
         android:icon="@drawable/ic_baseline_skip_previous_48"
+        app:iconTint="?attr/colorControlNormal"
         android:orderInCategory="110"
         android:title="@string/previous"
         app:showAsAction="always" />
     <item
         android:id="@+id/menu_play"
         android:icon="@drawable/ic_baseline_play_arrow_48"
+        app:iconTint="?attr/colorControlNormal"
         android:orderInCategory="110"
         android:title="@string/play"
         app:showAsAction="always" />
     <item
         android:id="@+id/menu_pause"
         android:icon="@drawable/ic_baseline_pause_48"
+        app:iconTint="?attr/colorControlNormal"
         android:orderInCategory="110"
         android:title="@string/pause"
         app:showAsAction="always" />
     <item
         android:id="@+id/menu_stop"
         android:icon="@drawable/ic_baseline_stop_48"
+        app:iconTint="?attr/colorControlNormal"
         android:orderInCategory="110"
         android:title="@string/stop"
         app:showAsAction="always" />
     <item
         android:id="@+id/menu_next"
         android:icon="@drawable/ic_baseline_skip_next_48"
+        app:iconTint="?attr/colorControlNormal"
         android:orderInCategory="110"
         android:title="@string/next"
         app:showAsAction="always" />
     <item
+        android:id="@+id/menu_share"
+        android:icon="@drawable/ic_baseline_share_32"
+        app:iconTint="?attr/colorControlNormal"
+        android:orderInCategory="110"
+        android:title="@string/browse_context_share"
+        app:showAsAction="always" />
+    <item
         android:id="@+id/menu_exit"
         android:icon="@drawable/ic_baseline_cancel_48"
+        app:iconTint="?attr/colorControlNormal"
         android:orderInCategory="110"
         android:title="@string/exit"
         app:showAsAction="always" />

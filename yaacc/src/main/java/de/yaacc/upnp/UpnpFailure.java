@@ -33,9 +33,11 @@ public class UpnpFailure {
 	private final ActionInvocation<?> invocation;
 	private final UpnpResponse response;
 	private final String defaultMsg;
+	private final boolean transportFailure;
 
 	/**
-	 * constructor.
+	 * constructor. The failure counts as a transport failure when the invocation failed with an
+	 * {@link UpnpTransportException}.
 	 *
 	 * @param invocation the ActionInvocation
 	 * @param response   the Upnp response
@@ -43,10 +45,33 @@ public class UpnpFailure {
 	 */
 	public UpnpFailure(ActionInvocation<?> invocation, UpnpResponse response,
 					   String defaultMsg) {
+		this(invocation, response, defaultMsg,
+				invocation != null && invocation.getFailure() instanceof UpnpTransportException);
+	}
+
+	/**
+	 * constructor.
+	 *
+	 * @param invocation       the ActionInvocation
+	 * @param response         the Upnp response
+	 * @param defaultMsg       a default message
+	 * @param transportFailure true if the server could not be reached or did not answer
+	 */
+	public UpnpFailure(ActionInvocation<?> invocation, UpnpResponse response,
+					   String defaultMsg, boolean transportFailure) {
 		super();
 		this.invocation = invocation;
 		this.response = response;
 		this.defaultMsg = defaultMsg;
+		this.transportFailure = transportFailure;
+	}
+
+	/**
+	 * @return true if the request did not reach the server or no answer came back, so repeating it
+	 * can help; false for an answer of the server (a UPnP error) or a local problem
+	 */
+	public boolean isTransportFailure() {
+		return transportFailure;
 	}
 
 	/**

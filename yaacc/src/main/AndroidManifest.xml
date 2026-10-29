@@ -4,6 +4,21 @@
     android:versionCode="50500"
     android:versionName="5.5.0-SNAPSHOT">
 
+    <!-- Phones have a touchscreen, Android TV boxes usually do not: do not hide the app from TVs -->
+    <uses-feature
+        android:name="android.hardware.touchscreen"
+        android:required="false" />
+    <uses-feature
+        android:name="android.software.leanback"
+        android:required="false" />
+    <!-- Ethernet-only TV boxes have no Wi-Fi, a device without a microphone can still run everything else -->
+    <uses-feature
+        android:name="android.hardware.wifi"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.microphone"
+        android:required="false" />
+
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
@@ -13,7 +28,11 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
 
-    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- The server and the players have to keep running with the screen off; the app asks the user to
+         exempt it from battery optimization (see BrowserActivitySupport). Play policy: this is a media server/player. -->
+    <uses-permission
+        android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"
+        tools:ignore="BatteryLife" />
 
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission
@@ -32,9 +51,16 @@
     <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <!-- Live stream of the device audio (AudioPlaybackCapture needs it, requested when the stream is started) -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
     <application
         android:name=".Yaacc"
+        tools:targetApi="33"
+        android:allowBackup="false"
+        android:banner="@drawable/tv_banner"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="false"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:localeConfig="@xml/locales_config"
@@ -44,9 +70,10 @@
         android:requestLegacyExternalStorage="true">
 
         <activity
-            android:name=".browser.TabBrowserActivity"
+            android:name=".LauncherActivity"
             android:exported="true"
-            android:label="@string/title_activity_main">
+            android:label="@string/title_activity_main"
+            android:theme="@android:style/Theme.NoDisplay">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <action android:name="android.intent.action.MAIN" />
@@ -63,7 +90,22 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="text/plain" />
             </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="audio/*" />
+                <data android:mimeType="video/*" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
         </activity>
+        <activity
+            android:name=".browser.TabBrowserActivity"
+            android:exported="true"
+            android:label="@string/title_activity_main" />
+        <activity
+            android:name=".browser.BrowserActivity"
+            android:exported="false"
+            android:label="@string/title_activity_main" />
 
         <service
             android:name=".player.PlayerService"
@@ -78,6 +120,16 @@
             android:name=".upnp.server.YaaccUpnpServerService"
             android:enabled="true"
             android:foregroundServiceType="mediaProjection" />
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
 
         <activity
             android:name=".imageviewer.ImageViewerActivity"
