@@ -134,6 +134,12 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
     private boolean dateSortAvailable;
     private boolean serverSortRejected;
     /**
+     * True when the last chunk request of this folder load failed after all retries (see
+     * {@link BrowseRetryPolicy}); the items already shown stay. Reset by the next successful
+     * chunk and by {@link #clear()}. The reload after the network is back reads it.
+     */
+    private boolean loadFailed;
+    /**
      * Name mode's own direction: true = A-Z (ascending), false = Z-A. Kept
      * independent of {@link #dateAscending} per issue #252 Group 4 --
      * switching sort mode never clobbers the other mode's remembered
@@ -334,6 +340,25 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
         return context;
     }
 
+    /**
+     * @return true while a chunk request is running
+     */
+    public boolean isLoading() {
+        return loading;
+    }
+
+    /**
+     * @return true if the last chunk request of the current folder load failed (after the
+     * retries); what is shown is what was loaded before
+     */
+    public boolean isLoadFailed() {
+        return loadFailed;
+    }
+
+    public void setLoadFailed(boolean loadFailed) {
+        this.loadFailed = loadFailed;
+    }
+
     public void setLoading(boolean loading) {
         this.loading = loading;
         // Show/hide progress bar
@@ -378,6 +403,7 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
         allItemsFetched = false;
         dateSortAvailable = false;
         serverSortRejected = false;
+        loadFailed = false;
         notifyDataSetChanged();
     }
 

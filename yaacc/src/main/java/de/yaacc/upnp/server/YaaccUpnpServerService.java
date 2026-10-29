@@ -232,6 +232,11 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         if (networkDeviceListener == null) {
             networkDeviceListener = new NetworkDeviceListener(getApplicationContext(), registry, this);
             registry.setUpnpProtocolHandler(networkDeviceListener.getUpnpProtocolHandler());
+            // screens register at the client; hand the "network is back" over to it
+            UpnpClient recoveryClient = ((Yaacc) getApplicationContext()).getUpnpClient();
+            if (recoveryClient != null) {
+                networkDeviceListener.addNetworkRecoveryListener(recoveryClient.getNetworkRecoveryRelay());
+            }
         }
         // App is active when service starts
         networkDeviceListener.setAppInForeground(true);

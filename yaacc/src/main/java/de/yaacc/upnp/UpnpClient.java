@@ -119,8 +119,12 @@ import de.yaacc.upnp.callback.renderingcontrol.SetVolume;
 import de.yaacc.upnp.protocol.async.SendingSearch;
 import de.yaacc.upnp.registry.Registry;
 import de.yaacc.upnp.registry.RegistryListener;
+import de.yaacc.upnp.server.NetworkDeviceListener;
+import de.yaacc.upnp.server.NetworkRecoveryListener;
+import de.yaacc.upnp.server.NetworkRecoveryNotifier;
 import de.yaacc.upnp.server.YaaccUpnpServerService;
 import de.yaacc.upnp.server.avtransport.AvTransport;
+import de.yaacc.upnp.server.http.HttpRequestSender;
 import de.yaacc.share.HttpServerProbe;
 import de.yaacc.share.ShareAddressResolver;
 import de.yaacc.share.SharedItemFactory;
@@ -142,6 +146,10 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     // player service is bound (or after it was rebound) still gets attached.
     private final List<PlayerListChangeNotifier.Listener> playerListChangeListeners = new CopyOnWriteArrayList<>();
     private final ExecutorService executorService;
+    // Lives as long as the client, so a screen can register before the server service is bound
+    // (which is when the service's NetworkDeviceListener does not exist yet). The service chains
+    // this notifier behind its NetworkDeviceListener.
+    private final NetworkRecoveryNotifier networkRecoveryNotifier = new NetworkRecoveryNotifier();
     SharedPreferences preferences;
 
     private Context context;
@@ -642,31 +650,85 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
                                                    Long maxResults, SortCriterion... orderBy) {
         ContentDirectoryBrowseResult result = new ContentDirectoryBrowseResult();
         if (device == null) {
+            // e.g. the device dropped out of the registry while the network was away; not an empty folder
+            result.setUpnpFailure(new UpnpFailure(null, null, "Device not available", true));
             return result;
         }
         Service<?, ?> service = device.findService(new UDAServiceId("ContentDirectory"));
-        ContentDirectoryBrowseActionCallback actionCallback;
-        if (service != null) {
-            YaaccLogger.d(getClass().getName(), "#####Service found: " + service.getServiceId() + " Type: " + service.getServiceType());
-            actionCallback = new ContentDirectoryBrowseActionCallback(service, objectID, flag, filter, firstResult, maxResults, result, yaaccUpnpServerService.getNetworkDeviceListener().getHttpRequestSender(), orderBy);
-            executorService.execute(actionCallback);
-            while (actionCallback.getStatus() == Status.LOADING && actionCallback.getUpnpFailure() == null) {
-                //FIXME implement maybe async model?
-                try {
-                    TimeUnit.MILLISECONDS.sleep(100);
-                } catch (InterruptedException e) {
-                    YaaccLogger.e(getClass().getName(), "InterruptedException", e);
-                }
+        if (service == null) {
+            result.setUpnpFailure(new UpnpFailure(null, null, "Device has no ContentDirectory service", false));
+            return result;
+        }
+        HttpRequestSender httpRequestSender = getHttpRequestSender();
+        if (httpRequestSender == null) {
+            // no server service bound, no listener yet or no network came up so far
+            YaaccLogger.w(getClass().getName(), "No HTTP request sender available, browse not possible right now");
+            result.setUpnpFailure(new UpnpFailure(null, null, "No HTTP request sender available", true));
+            return result;
+        }
+        YaaccLogger.d(getClass().getName(), "#####Service found: " + service.getServiceId() + " Type: " + service.getServiceType());
+        final ContentDirectoryBrowseActionCallback actionCallback = new ContentDirectoryBrowseActionCallback(service, objectID, flag, filter, firstResult, maxResults, result, httpRequestSender, orderBy);
+        executorService.execute(() -> {
+            try {
+                actionCallback.run();
+            } catch (RuntimeException e) {
+                // without this the pool thread dies and the waiting loop below never ends
+                YaaccLogger.e(getClass().getName(), "Browse action failed unexpectedly", e);
+                result.setUpnpFailure(new UpnpFailure(actionCallback.getActionInvocation(), null, String.valueOf(e), false));
             }
-            if (actionCallback.getUpnpFailure() != null) {
-                YaaccLogger.e(getClass().getName(), "UPnP failure: " + actionCallback.getUpnpFailure());
+        });
+        while (actionCallback.getStatus() == Status.LOADING && actionCallback.getUpnpFailure() == null) {
+            //FIXME implement maybe async model?
+            try {
+                TimeUnit.MILLISECONDS.sleep(100);
+            } catch (InterruptedException e) {
+                // the load was cancelled: stop waiting and keep the interrupt for the caller
+                Thread.currentThread().interrupt();
+                result.setUpnpFailure(new UpnpFailure(actionCallback.getActionInvocation(), null, "Interrupted", false));
+                break;
             }
+        }
+        if (actionCallback.getUpnpFailure() != null) {
+            YaaccLogger.e(getClass().getName(), "UPnP failure: " + actionCallback.getUpnpFailure());
         }
 
         if (preferences.getBoolean(getContext().getString(R.string.settings_browse_thumbnails_coverlookup_chkbx), false)) {
             enrichWithCover(result);
         }
         return result;
+    }
+
+    /**
+     * @return the sender of the server service's network listener, or null when there is none (yet):
+     * no service bound, the listener not created or no network came up since the start
+     */
+    private HttpRequestSender getHttpRequestSender() {
+        YaaccUpnpServerService serverService = yaaccUpnpServerService;
+        if (serverService == null) {
+            return null;
+        }
+        NetworkDeviceListener networkDeviceListener = serverService.getNetworkDeviceListener();
+        return networkDeviceListener == null ? null : networkDeviceListener.getHttpRequestSender();
+    }
+
+    /**
+     * Registers for "the network is back" (see {@link NetworkRecoveryListener}). Held weakly: the
+     * caller keeps the listener and calls {@link #removeNetworkRecoveryListener} when it stops.
+     */
+    public void addNetworkRecoveryListener(NetworkRecoveryListener listener) {
+        networkRecoveryNotifier.add(listener);
+    }
+
+    public void removeNetworkRecoveryListener(NetworkRecoveryListener listener) {
+        networkRecoveryNotifier.remove(listener);
+    }
+
+    /**
+     * @return the listener the server service registers at its network listener, it passes the
+     * "network is back" on to the listeners added with {@link #addNetworkRecoveryListener}
+     */
+    public NetworkRecoveryListener getNetworkRecoveryRelay() {
+        return networkRecoveryNotifier;
     }
 
     /**

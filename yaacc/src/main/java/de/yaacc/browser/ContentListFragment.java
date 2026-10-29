@@ -20,6 +20,7 @@ package de.yaacc.browser;
 import android.graphics.drawable.Drawable;
 import android.widget.ProgressBar;
 import android.os.Bundle;
+import android.os.SystemClock;
 import de.yaacc.util.YaaccLogger;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -32,6 +33,7 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.core.content.res.ResourcesCompat;
 import androidx.fragment.app.Fragment;
+import androidx.fragment.app.FragmentActivity;
 import androidx.preference.PreferenceManager;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -53,6 +55,7 @@ import de.yaacc.share.PickedAction;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.UpnpClientListener;
 import de.yaacc.upnp.callback.contentdirectory.ContentDirectoryBrowseResult;
+import de.yaacc.upnp.server.NetworkRecoveryListener;
 import de.yaacc.util.ThemeHelper;
 
 /**
@@ -91,6 +94,48 @@ public class ContentListFragment extends Fragment implements OnClickListener,
      * hardcoded, so it scales correctly with device density.
      */
     private static final int TARGET_CARD_WIDTH_DP = 160;
+
+    private final NetworkRecoveryReloadGate networkRecoveryReloadGate = new NetworkRecoveryReloadGate();
+    // A field: the client holds its listeners weakly, a lambda only the client knows would be collected.
+    private final NetworkRecoveryListener networkRecoveryListener = this::onNetworkRestored;
+
+    @Override
+    public void onStart() {
+        super.onStart();
+        if (upnpClient != null) {
+            upnpClient.addNetworkRecoveryListener(networkRecoveryListener);
+        }
+    }
+
+    @Override
+    public void onStop() {
+        if (upnpClient != null) {
+            upnpClient.removeNetworkRecoveryListener(networkRecoveryListener);
+        }
+        super.onStop();
+    }
+
+    /**
+     * The network is back (called off the main thread): continue a folder whose load failed.
+     */
+    private void onNetworkRestored() {
+        FragmentActivity activity = getActivity();
+        if (activity != null) {
+            activity.runOnUiThread(this::reloadFolderAfterNetworkRestored);
+        }
+    }
+
+    private void reloadFolderAfterNetworkRestored() {
+        if (!isAdded() || bItemAdapter == null || navigator == null) {
+            return;
+        }
+        if (!networkRecoveryReloadGate.shouldReload(bItemAdapter.isLoadFailed(), bItemAdapter.isLoading(), SystemClock.elapsedRealtime())) {
+            return;
+        }
+        YaaccLogger.d(getClass().getName(), "Network is back and the last load of the folder failed, loading again");
+        // Keeps the items shown and loads on from their count: no duplicates, the scroll position stays.
+        populateItemList(false);
+    }
 
 
     @Override

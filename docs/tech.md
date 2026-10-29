@@ -335,6 +335,17 @@ decisions in more detail while the share-code consolidation (Phase 4) is open; t
 - Card view is the default on a fresh install; the log viewer's "Clear" is a time marker because the system may refuse to empty an app's log
   buffer; mini-player rows have an exit button besides stop (stop keeps the player, exit removes it).
 
+### Browse resilience (network drops)
+- `BrowseItemLoadTask` repeats a failed Browse on its worker thread via `BrowseRetryPolicy`: 3 tries in total, waits of 500 ms and 1500 ms, only
+  for "no answer" (no result, or an `UpnpFailure` with `isTransportFailure()`: no connection/timeout/no response, device or HTTP sender missing).
+  A UPnP error answered by the server (e.g. invalid sort) is not repeated, the sorted-to-unsorted fallback is unchanged; it stops when the task is cancelled.
+- If all tries fail the list is not cleared: the items stay, `BrowseContentItemAdapter.isLoadFailed()` is set (reset by the next successful chunk or
+  `clear()`), loading ends. A real empty folder (result without failure) still clears. Chunk offsets are unchanged; items are added only on success.
+- `NetworkDeviceListener` tells `NetworkRecoveryListener`s (held weakly, via `UpnpClient`'s relay) after it re-enabled for a new network (not at startup);
+  `ContentListFragment` registers while started and, if the load failed and none runs, continues the folder with `populateItemList(false)`
+  (debounce 2 s, `NetworkRecoveryReloadGate`). Not verified on a device.
+- `UpnpClient.browseSync` returns a failure result instead of throwing when the server service, its network listener or HTTP sender is missing.
+
 ## Unified device sheet
 
 Research notes for the device sheet (Phase 1), updated to match the code as built. Line numbers quoted in

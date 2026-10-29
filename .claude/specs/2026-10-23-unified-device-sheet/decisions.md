@@ -198,3 +198,24 @@ in `tasks.md` ("Owner's open items"); accepted risks in `known-risks.md`; how it
 - **What the owner must check on a device.** See the final report of the migration (screens in both themes: server list, content list in list and
   card mode and landscape, device sheet, picker, mini-player, settings, log viewer, image viewer/players, dialogs/time picker, about), plus the
   status bar and navigation bar colors and icon shades (targetSdk 33; with 35 the bars become transparent).
+
+## Browse resilience: retry and reload after a network drop (owner decisions of 2026-10-29)
+- **Why.** A short network drop showed an empty folder (the failed load cleared the list). The app should hide that, no user action.
+- **Retry.** `BrowseRetryPolicy`: 3 tries in total, 500 ms then 1500 ms, worker thread only, stops on cancel/interrupt. Retriable = no result, or an
+  `UpnpFailure.isTransportFailure()` (`UpnpTransportException` from `SendingAction` for "no response"/IO error, plus device not in the registry and
+  no HTTP sender in `UpnpClient.browseSync`). A server fault is never repeated (the same request fails the same way); the sorted-to-unsorted
+  fallback is untouched, and a sorted request that got no answer is not blamed on the sort criteria (no `markServerSortRejected`, no second round unsorted).
+  Other codes of the same value (501 from a server fault) stay non-transport on purpose: the type, not the code, decides.
+- **Failure keeps the list.** On a failure after the tries the adapter is not cleared; `loadFailed` is set (item for the reload and for the error UI
+  that comes later). A result without content and without failure (real empty folder) behaves as before. A null result now also ends the loading state
+  (it used to leave the progress bar on).
+- **Reload.** `NetworkDeviceListener` notifies `NetworkRecoveryListener`s after `enable()` for a new network (and after the Wi-Fi state re-init), not at
+  startup. The client owns an app-lifetime notifier that the service chains behind the listener, so a screen can register before the service is bound.
+  `ContentListFragment` registers in `onStart`, removes in `onStop`; it reloads (`populateItemList(false)`: continues from the item count, keeps scroll and
+  items) only if `loadFailed` and not loading; 2 s debounce (`NetworkRecoveryReloadGate`). A restore while a load is still running is left to that
+  load's own retries.
+- **Guard.** `UpnpClient.browseSync` no longer dereferences a missing server service / network listener / HTTP sender (it gave an NPE on the worker
+  thread); a missing device or sender is a retriable failure, a device without ContentDirectory a non-retriable one. An unexpected exception in the pool
+  thread becomes a failure instead of an endless wait; a cancel (interrupt) ends the wait.
+- **Not done.** Error UI (a later item). The sender is not recreated on a network change (stale pooled connections are validated before reuse).
+

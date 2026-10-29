@@ -59,6 +59,7 @@ public class NetworkDeviceListener {
     private final Object lock = new Object();
     private boolean isHotspotEnabled = false;
     private BroadcastReceiver networkStateReceiver;
+    private final NetworkRecoveryNotifier networkRecoveryNotifier = new NetworkRecoveryNotifier();
 
     private boolean isHotspotEnabled() {
         try {
@@ -111,6 +112,8 @@ public class NetworkDeviceListener {
                     }
                     enable();
                     YaaccLogger.d(getClass().getName(), String.format("Network enabled %s", currentNetwork));
+                    // not for the enable() of the constructor: that is the startup, nothing failed before it
+                    networkRecoveryNotifier.onNetworkRestored();
                 }
 
             }
@@ -301,6 +304,18 @@ public class NetworkDeviceListener {
         }
     }
 
+    /**
+     * Registers for "the network is back" (see {@link NetworkRecoveryListener}); held weakly, call
+     * {@link #removeNetworkRecoveryListener} when done.
+     */
+    public void addNetworkRecoveryListener(NetworkRecoveryListener listener) {
+        networkRecoveryNotifier.add(listener);
+    }
+
+    public void removeNetworkRecoveryListener(NetworkRecoveryListener listener) {
+        networkRecoveryNotifier.remove(listener);
+    }
+
     public UdpTransiver getUdpTransiver() {
         return udpTransiver;
     }
@@ -319,6 +334,7 @@ public class NetworkDeviceListener {
 
     private void onNetworkStateChange() {
         YaaccLogger.d(getClass().getName(), "Network state change detected");
+        boolean reEnabled = false;
         synchronized (lock) {
             if (isWifiOrHotspot()) {
                 if (!isInitalized()) {
@@ -336,6 +352,7 @@ public class NetworkDeviceListener {
                         if (service != null) {
                             service.onNetworkStateChange();
                         }
+                        reEnabled = true;
                     }
                 }
             } else {
@@ -346,6 +363,10 @@ public class NetworkDeviceListener {
                     service.onNetworkStateChange();
                 }
             }
+        }
+        if (reEnabled) {
+            // outside the lock: listeners must not be able to block the network callbacks
+            networkRecoveryNotifier.onNetworkRestored();
         }
     }
 
