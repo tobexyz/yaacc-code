@@ -165,6 +165,7 @@
     <ImageButton
         android:id="@+id/serverListRefreshButton"
         style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+        android:foreground="@drawable/focus_ring"
         android:layout_width="32dp"
         android:layout_height="32dp"
         android:layout_alignParentEnd="true"

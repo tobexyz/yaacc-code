@@ -564,38 +564,17 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
                     v.performClick();
                     return true;
                 case android.view.KeyEvent.KEYCODE_DPAD_RIGHT:
-                    // Focus first visible action button
+                    // Focus the first visible action button of the item; without one the focus search goes on
                     holder = (BrowseContentItemAdapter.ViewHolder) contentList.getChildViewHolder(v);
-                    if (holder.playlistAdd.getVisibility() == View.VISIBLE) {
-                        holder.playlistAdd.requestFocus();
-                        return true;
-                    }
-                    if (holder.download.getVisibility() == View.VISIBLE) {
-                        holder.download.requestFocus();
-                        return true;
-                    }
-                    if (holder.play.getVisibility() == View.VISIBLE) {
-                        holder.play.requestFocus();
+                    View first = DpadActionNavigation.next(holder.actions(), null);
+                    if (first != null) {
+                        first.requestFocus();
                         return true;
                     }
                     return false;
                 case android.view.KeyEvent.KEYCODE_DPAD_LEFT:
-                    holder = (BrowseContentItemAdapter.ViewHolder) contentList.getChildViewHolder(v);
-                    View focus = v.findFocus();
-                    if (holder.playAll.hasFocus()) {
-                        holder.play.requestFocus();
-                        return true;
-                    }
-                    if (holder.play.hasFocus() && holder.download.getVisibility() == View.VISIBLE) {
-                        holder.download.requestFocus();
-                        return true;
-                    }
-                    if (holder.download.hasFocus() && holder.playlistAdd.getVisibility() == View.VISIBLE) {
-                        holder.playlistAdd.requestFocus();
-                        return true;
-                    }
-                    // Let parent handle; if we are on first column maybe switch tabs later
-                    return true;
+                    // The focus search moves to the previous item (card grid) or stays (list)
+                    return false;
             }
             return false;
         });
@@ -841,6 +820,11 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
         ImageButton playlistAdd;
         ImageButton share;
 
+        /** The action buttons in the order they are shown, left to right. */
+        List<View> actions() {
+            return java.util.Arrays.asList(playlistAdd, download, play, playAll, share);
+        }
+
         public ViewHolder(View itemView) {
             super(itemView);
             icon = itemView.findViewById(R.id.browseContentItemIcon);
@@ -854,10 +838,21 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
             View.OnKeyListener actionKeyListener = (v, keyCode, event) -> {
                 if (event.getAction() != android.view.KeyEvent.ACTION_DOWN) return false;
                 switch (keyCode) {
-                    case android.view.KeyEvent.KEYCODE_DPAD_LEFT:
-                        // Move focus back to row root
-                        itemView.requestFocus();
+                    case android.view.KeyEvent.KEYCODE_DPAD_LEFT: {
+                        // previous action button, from the first one back to the item itself
+                        View previous = DpadActionNavigation.previous(actions(), v);
+                        (previous != null ? previous : itemView).requestFocus();
                         return true;
+                    }
+                    case android.view.KeyEvent.KEYCODE_DPAD_RIGHT: {
+                        // next action button; behind the last one the focus search goes on to the next item
+                        View next = DpadActionNavigation.next(actions(), v);
+                        if (next != null) {
+                            next.requestFocus();
+                            return true;
+                        }
+                        return false;
+                    }
                     case android.view.KeyEvent.KEYCODE_DPAD_DOWN:
                     case android.view.KeyEvent.KEYCODE_DPAD_UP:
                         // Let RecyclerView handle vertical navigation

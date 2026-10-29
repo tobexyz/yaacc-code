@@ -2301,3 +2301,7 @@ carries a scope after `%`; `ProxyAccessPolicy.normalize` strips it. The glue sta
 - `mipmap-anydpi-v26/ic_launcher*.xml` have a `<monochrome>` layer (`drawable/ic_launcher_monochrome.xml`, a play button in a ring); it is used for themed icons on Android 13 and later. Keep the `-v26` folder name: an unqualified `mipmap-anydpi` made one launcher show the legacy icon.
 - `RECORD_AUDIO` is declared because `AudioPlaybackCaptureConfiguration` needs it. `ServerListFragment` asks for it before the screen capture permission when a stream button is tapped (`StreamingPermissionHelper.hasRecordAudioPermission`, `onRecordAudioResult`); a denial switches the stream buttons off like a denied screen capture.
 - Check the TV banner without a TV: `aapt2 dump badging app-debug.apk` shows `banner=` and `leanback-launchable-activity`; the real look needs an Android TV emulator image.
+
+### D-pad navigation of the content items
+
+- `DpadActionNavigation` decides which action button of a content item gets the focus on right/left, skipping hidden or disabled ones (`BrowseContentItemAdapter`: the item's key listener moves right to the first shown button, the buttons' listener moves between them and back to the item on the first one). The default focus search never reaches buttons inside the focused item, because they do not lie beside it. The icon buttons draw `drawable/focus_ring` as foreground while focused, so the focus is visible on a TV; left on an item is left to the focus search (previous card of the grid).

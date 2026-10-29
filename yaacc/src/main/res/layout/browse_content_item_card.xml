@@ -100,6 +100,7 @@
                 <ImageButton
                     android:id="@+id/browseContentItemPlaylistAdd"
                     style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+                    android:foreground="@drawable/focus_ring"
                     android:layout_width="32dp"
                     android:layout_height="48dp"
                     android:nextFocusLeft="@id/browseContentItem"
@@ -110,6 +111,7 @@
                 <ImageButton
                     android:id="@+id/browseContentItemDownload"
                     style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+                    android:foreground="@drawable/focus_ring"
                     android:layout_width="32dp"
                     android:layout_height="48dp"
                     android:layout_marginStart="2dp"
@@ -121,6 +123,7 @@
                 <ImageButton
                     android:id="@+id/browseContentItemPlay"
                     style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+                    android:foreground="@drawable/focus_ring"
                     android:layout_width="32dp"
                     android:layout_height="48dp"
                     android:layout_marginStart="2dp"
@@ -132,6 +135,7 @@
                 <ImageButton
                     android:id="@+id/browseContentItemPlayAll"
                     style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+                    android:foreground="@drawable/focus_ring"
                     android:layout_width="32dp"
                     android:layout_height="48dp"
                     android:layout_marginStart="2dp"
@@ -143,6 +147,7 @@
                 <ImageButton
                     android:id="@+id/browseContentItemShare"
                     style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+                    android:foreground="@drawable/focus_ring"
                     android:layout_width="32dp"
                     android:layout_height="48dp"
                     android:layout_marginStart="2dp"

@@ -76,6 +76,7 @@
                 <ImageButton
                     android:id="@+id/browseDeviceItemStreamAudio"
                     style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+                    android:foreground="@drawable/focus_ring"
                     android:layout_width="48dp"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="2dp"
@@ -87,6 +88,7 @@
                 <ImageButton
                     android:id="@+id/browseDeviceItemStreamVideo"
                     style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+                    android:foreground="@drawable/focus_ring"
                     android:layout_width="48dp"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="2dp"

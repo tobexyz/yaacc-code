@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Focus indicator for D-pad / remote control navigation (Android TV): a ring around the focused view.
+     Nothing is drawn while the view is not focused. Used as foreground of the icon buttons. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true">
+        <shape android:shape="rectangle">
+            <corners android:radius="8dp" />
+            <stroke
+                android:width="3dp"
+                android:color="?attr/colorOnSurface" />
+        </shape>
+    </item>
+</selector>
