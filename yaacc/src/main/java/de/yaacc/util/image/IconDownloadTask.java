@@ -23,8 +23,6 @@ import android.net.Uri;
 import android.os.AsyncTask;
 import android.widget.ImageView;
 
-import de.yaacc.browser.BrowseContentItemAdapter;
-
 /**
  * AsyncTask fpr retrieving icons while browsing.
  *
@@ -34,7 +32,7 @@ public class IconDownloadTask extends AsyncTask<Uri, Integer, Bitmap> {
 
     private final ImageView imageView;
     private final IconDownloadCacheHandler cache;
-    private final BrowseContentItemAdapter browseContentItemAdapter;
+    private final Listener listener;
     private final String deviceId;
     private final int targetWidth;
     private final int targetHeight;
@@ -44,19 +42,10 @@ public class IconDownloadTask extends AsyncTask<Uri, Integer, Bitmap> {
         this(imageView, 48, 48);
     }
 
-    public IconDownloadTask(ImageView imageView, BrowseContentItemAdapter browseContentItemAdapter) {
-        this.imageView = imageView;
-        this.cache = IconDownloadCacheHandler.getInstance();
-        this.browseContentItemAdapter = browseContentItemAdapter;
-        this.deviceId = null;
-        this.targetWidth = 48;
-        this.targetHeight = 48;
-    }
-    
     public IconDownloadTask(ImageView imageView, String deviceId) {
         this.imageView = imageView;
         this.cache = IconDownloadCacheHandler.getInstance();
-        this.browseContentItemAdapter = null;
+        this.listener = null;
         this.deviceId = deviceId;
         this.targetWidth = 48;
         this.targetHeight = 48;
@@ -65,27 +54,34 @@ public class IconDownloadTask extends AsyncTask<Uri, Integer, Bitmap> {
     public IconDownloadTask(ImageView imageView, int width, int height) {
         this.imageView = imageView;
         this.cache = IconDownloadCacheHandler.getInstance();
-        this.browseContentItemAdapter = null;
+        this.listener = null;
         this.deviceId = null;
         this.targetWidth = width;
         this.targetHeight = height;
     }
 
     /**
-     * Same as {@link #IconDownloadTask(ImageView, int, int)} but also keeps
-     * the {@code browseContentItemAdapter} reference, so that {@link
-     * #onPostExecute(Bitmap)}'s {@code removeTask(this)} cleanup still runs.
-     * The plain {@code (ImageView, int, int)} constructor unconditionally
-     * sets that reference to {@code null}, which would otherwise leak one
-     * {@code asyncTasks} entry per bound row for the adapter's lifetime --
-     * see {@code docs/tech.md}'s "Browse card-grid view" section
-     * for why this overload exists instead of reusing that one.
+     * Tells the owner of the row that the load is over, on the main thread, whether it delivered, failed or was
+     * cancelled (a cancelled task never reaches {@link #onPostExecute}), so the owner can forget the task.
      */
-    public IconDownloadTask(ImageView imageView, BrowseContentItemAdapter browseContentItemAdapter, int width, int height) {
+    public interface Listener {
+        /**
+         * @param task       the task that ended
+         * @param imageShown true if its bitmap was set on the view
+         */
+        void onFinished(IconDownloadTask task, boolean imageShown);
+    }
+
+    /**
+     * For a recycled row: the bitmap is only set while the view's tag still equals {@code requestKey} (the row
+     * was not bound to something else meanwhile), and {@code listener} is told when the task ends, however it
+     * ends.
+     */
+    public IconDownloadTask(ImageView imageView, String requestKey, int width, int height, Listener listener) {
         this.imageView = imageView;
         this.cache = IconDownloadCacheHandler.getInstance();
-        this.browseContentItemAdapter = browseContentItemAdapter;
-        this.deviceId = null;
+        this.listener = listener;
+        this.deviceId = requestKey;
         this.targetWidth = width;
         this.targetHeight = height;
     }
@@ -102,6 +98,9 @@ public class IconDownloadTask extends AsyncTask<Uri, Integer, Bitmap> {
         int defaultHeight = targetHeight;
         int defaultWidth = targetWidth;
         Bitmap result = null;
+        if (isCancelled()) {
+            return null; // the row was recycled while the task waited in the queue
+        }
         if (cache != null) {
             result = cache.getBitmap(uri[0], defaultHeight, defaultWidth);
         }
@@ -124,17 +123,25 @@ public class IconDownloadTask extends AsyncTask<Uri, Integer, Bitmap> {
      */
     @Override
     protected void onPostExecute(Bitmap result) {
+        boolean shown = false;
         // Check if ImageView still belongs to the same device
-        if (deviceId != null && !deviceId.equals(imageView.getTag())) {
-            return; // Skip - ImageView has been recycled for different device
+        if (deviceId == null || deviceId.equals(imageView.getTag())) {
+            if (result != null) {
+                imageView.setVisibility(android.view.View.VISIBLE);
+                imageView.setImageBitmap(result);
+                shown = true;
+            }
         }
-        
-        if (result != null) {
-            imageView.setVisibility(android.view.View.VISIBLE);
-            imageView.setImageBitmap(result);
+        // else: ImageView has been recycled for a different device
+        if (listener != null) {
+            listener.onFinished(this, shown);
         }
-        if (browseContentItemAdapter != null) {
-            browseContentItemAdapter.removeTask(this);
+    }
+
+    @Override
+    protected void onCancelled(Bitmap result) {
+        if (listener != null) {
+            listener.onFinished(this, false);
         }
     }
 

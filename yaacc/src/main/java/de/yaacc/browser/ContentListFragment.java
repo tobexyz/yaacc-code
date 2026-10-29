@@ -995,6 +995,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         }
         if (bItemAdapter != null) {
             bItemAdapter.cancelRunningTasks();
+            bItemAdapter.release();
         }
         super.onDestroyView();
     }

@@ -21,8 +21,12 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.graphics.Bitmap;
+import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.AsyncTask;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.View;
@@ -49,20 +53,18 @@ import org.fourthline.cling.support.model.item.TextItem;
 import org.fourthline.cling.support.model.item.VideoItem;
 
 import java.net.URI;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
-import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.IdentityHashMap;
-import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import de.yaacc.R;
@@ -70,8 +72,10 @@ import de.yaacc.Yaacc;
 import de.yaacc.player.PlayableItem;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.util.ShareFileTask;
+import de.yaacc.util.ConfigKeyedCache;
 import de.yaacc.util.ThemeHelper;
 import de.yaacc.util.YaaccLogger;
+import de.yaacc.util.image.IconDownloadCacheHandler;
 import de.yaacc.util.image.IconDownloadTask;
 
 /**
@@ -124,7 +128,12 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
     private boolean loading = false;
 
 
-    private List<DIDLObject> objects = new LinkedList<>();
+    private static final String TAG = "BrowseContentItemAdapter";
+    /** Payload of the range change after the sort: the rows are rebound in place, without a change animation. */
+    private static final Object SORT_PAYLOAD = new Object();
+
+    // volatile: getObjects() is read from a worker thread; the sort swaps in a new list instead of mutating this one
+    private volatile List<DIDLObject> objects = new ArrayList<>();
     private Context context;
     private List<AsyncTask> asyncTasks;
     private boolean allItemsFetched;
@@ -164,6 +173,17 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
      * is.
      */
     private ViewMode viewMode;
+
+    // The client-side sort runs on a worker thread; main thread only, except where noted.
+    /** Incremented by everything that makes a running sort stale: a new sort, clear, cancel, added objects. */
+    private int sortGeneration;
+    private boolean sortPending;
+    /** A scroll target that arrived while the sort was running; applied after the swap, as the target is a position in the sorted list. */
+    private Integer deferredScrollPositionId;
+    private Executor sortWorker;
+    private ExecutorService ownedSortExecutor;
+    private Executor mainThread;
+    private final ConfigKeyedCache<Integer, Drawable.ConstantState> typeIcons = new ConfigKeyedCache<>();
 
 
     public BrowseContentItemAdapter(ContentListFragment contentListFragment, RecyclerView contentList, UpnpClient upnpClient, ProgressBar progressBar) {
@@ -327,16 +347,13 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
     }
 
 
-    // The one-shot client-side sort reorders the whole list.
-    @SuppressLint("NotifyDataSetChanged")
     public void setAllItemsFetched(boolean allItemsFetched) {
         boolean justCompleted = allItemsFetched && !this.allItemsFetched;
         this.allItemsFetched = allItemsFetched;
         if (justCompleted) {
             // The whole folder is now loaded: apply the client-side fallback
             // sort once (no mid-load reshuffle).
-            sortObjects();
-            notifyDataSetChanged();
+            startSort();
         }
     }
 
@@ -397,6 +414,10 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
             dateSortAvailable = filteredObjects.stream().anyMatch(BrowseContentItemAdapter::hasDate);
         }
         notifyItemRangeInserted(start, filteredObjects.size());
+        if (sortPending && !filteredObjects.isEmpty()) {
+            // the running sort does not know these objects: sort again
+            startSort();
+        }
     }
 
     // The whole list is cleared; the previous item count is not tracked here.
@@ -410,103 +431,132 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
         dateSortAvailable = false;
         serverSortRejected = false;
         loadFailed = false;
+        dropPendingSort();
         notifyDataSetChanged();
     }
 
     /**
-     * Client-side fallback sort, applied once the whole folder has been
-     * fetched (see {@link #setAllItemsFetched(boolean)}). Only reorders
-     * what is already loaded -- never triggers additional fetches.
+     * Client-side fallback sort, applied once the whole folder has been fetched (see
+     * {@link #setAllItemsFetched(boolean)}). Only reorders what is already loaded -- never triggers additional
+     * fetches. A folder of thousands of items means ten thousands of comparisons, so the sorted copy is computed
+     * on a worker thread ({@link BrowseSorter}, same orderings as before); only the swap and the notification of
+     * the changed range run on the main thread. A result that arrives after the folder, the sort mode or the
+     * direction changed (or the list was cleared) is dropped.
      */
-    private void sortObjects() {
-        if (objects == null || objects.size() < 2) {
+    private void startSort() {
+        int count = objects.size();
+        if (count < 2) {
+            dropPendingSort();
             return;
         }
-        if (sortMode == SortMode.DATE) {
-            // parse every date once instead of twice per comparison: this runs on the main thread
-            // and a folder of thousands of items means ten thousands of comparisons
-            Map<DIDLObject, Long> dates = new IdentityHashMap<>(objects.size());
-            for (DIDLObject object : objects) {
-                dates.put(object, parseDateMillis(object));
-            }
-            objects.sort((a, b) -> compareDates(dates.get(a), dates.get(b), dateAscending));
-        } else {
-            objects.sort((a, b) -> compareByNameGrouped(a, b, nameAscending));
+        final int generation = ++sortGeneration;
+        sortPending = true;
+        final SortMode mode = sortMode;
+        final boolean nameAsc = nameAscending;
+        final boolean dateAsc = dateAscending;
+        final List<DIDLObject> snapshot = new ArrayList<>(objects);
+        try {
+            workerForSort().execute(() -> {
+                long startNanos = System.nanoTime();
+                BrowseSorter.Result result;
+                try {
+                    result = BrowseSorter.sort(snapshot, mode, nameAsc, dateAsc);
+                } catch (RuntimeException e) {
+                    YaaccLogger.e(TAG, "Browse sort failed, the list stays as loaded", e);
+                    mainThreadExecutor().execute(() -> sortFailed(generation));
+                    return;
+                }
+                YaaccLogger.d(TAG, "Browse sort n=" + count + " mode=" + mode + " in "
+                        + (System.nanoTime() - startNanos) / 1_000_000L + " ms off the main thread");
+                mainThreadExecutor().execute(() -> applySortResult(generation, result));
+            });
+        } catch (RejectedExecutionException e) {
+            // released meanwhile
+            YaaccLogger.w(TAG, "Browse sort not started: " + e.getMessage());
+            sortPending = false;
         }
     }
 
-    /**
-     * Name mode: containers before items regardless of direction (issue
-     * #252 Group 4 constraint) -- only the alphabetical comparison within
-     * each group reverses with {@code ascending}.
-     */
-    private static int compareByNameGrouped(DIDLObject a, DIDLObject b, boolean ascending) {
-        boolean aContainer = a instanceof Container;
-        boolean bContainer = b instanceof Container;
-        if (aContainer != bContainer) {
-            return aContainer ? -1 : 1;
+    private void applySortResult(int generation, BrowseSorter.Result result) {
+        if (generation != sortGeneration) {
+            YaaccLogger.d(TAG, "Browse sort result dropped, the list changed meanwhile");
+            return;
         }
-        String titleA = a.getTitle() == null ? "" : a.getTitle();
-        String titleB = b.getTitle() == null ? "" : b.getTitle();
-        int comparison = titleA.compareToIgnoreCase(titleB);
-        return ascending ? comparison : -comparison;
+        sortPending = false;
+        objects = result.sorted;
+        if (result.isChanged()) {
+            notifyItemRangeChanged(result.firstChanged, result.changedCount(), SORT_PAYLOAD);
+        }
+        applyDeferredScroll();
+    }
+
+    private void sortFailed(int generation) {
+        if (generation == sortGeneration) {
+            sortPending = false;
+            applyDeferredScroll();
+        }
+    }
+
+    private void applyDeferredScroll() {
+        Integer id = deferredScrollPositionId;
+        deferredScrollPositionId = null;
+        if (id != null) {
+            scrollToPositionId(id);
+        }
+    }
+
+    /** What a running sort would deliver is no longer wanted. */
+    private void dropPendingSort() {
+        sortGeneration++;
+        sortPending = false;
+        deferredScrollPositionId = null;
+    }
+
+    private Executor workerForSort() {
+        if (sortWorker == null) {
+            // one thread that ends by itself when idle, so nothing lingers if release() is never called
+            ThreadPoolExecutor executor = new ThreadPoolExecutor(1, 1, 5, TimeUnit.SECONDS, new LinkedBlockingQueue<>(),
+                    runnable -> {
+                        Thread thread = new Thread(runnable, "BrowseSort");
+                        thread.setDaemon(true);
+                        return thread;
+                    });
+            executor.allowCoreThreadTimeOut(true);
+            ownedSortExecutor = executor;
+            sortWorker = executor;
+        }
+        return sortWorker;
+    }
+
+    private Executor mainThreadExecutor() {
+        if (mainThread == null) {
+            Handler handler = new Handler(Looper.getMainLooper());
+            mainThread = handler::post;
+        }
+        return mainThread;
+    }
+
+    /** For tests: runs the sort and its result without threads. */
+    void setSortExecutors(Executor worker, Executor mainThread) {
+        this.sortWorker = worker;
+        this.mainThread = mainThread;
     }
 
     /**
-     * Date mode: containers and items fully interleaved, ordered by
-     * {@code dc:date} according to {@code ascending} (oldest-first when
-     * {@code true}, newest-first when {@code false}). Items with a missing
-     * or unparseable date sort last regardless of direction, never
-     * crashing.
+     * Ends the sort thread and drops a running sort; to be called when the adapter is not used any more (the
+     * view of its fragment is destroyed). The adapter can be used again, the thread is created on demand.
      */
-    private static int compareDates(Long dateA, Long dateB, boolean ascending) {
-        if (dateA == null && dateB == null) {
-            return 0;
+    public void release() {
+        dropPendingSort();
+        if (ownedSortExecutor != null) {
+            ownedSortExecutor.shutdownNow();
+            ownedSortExecutor = null;
+            sortWorker = null;
         }
-        if (dateA == null) {
-            return 1;
-        }
-        if (dateB == null) {
-            return -1;
-        }
-        return ascending ? dateA.compareTo(dateB) : dateB.compareTo(dateA);
     }
 
     private static boolean hasDate(DIDLObject object) {
-        return object.getFirstPropertyValue(DIDLObject.Property.DC.DATE.class) != null;
-    }
-
-    /**
-     * Defensively parses a DIDL {@code dc:date} value (format is
-     * server-dependent, not guaranteed to be strict ISO-8601) into epoch
-     * millis for sorting. Returns {@code null} rather than throwing when
-     * the value is missing or cannot be parsed by any of the attempted
-     * formats.
-     */
-    private static Long parseDateMillis(DIDLObject object) {
-        String value = object.getFirstPropertyValue(DIDLObject.Property.DC.DATE.class);
-        if (value == null) {
-            return null;
-        }
-        String trimmed = value.trim();
-        if (trimmed.isEmpty()) {
-            return null;
-        }
-        try {
-            return LocalDate.parse(trimmed).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli();
-        } catch (DateTimeParseException dateOnlyFailed) {
-            // Not a plain date, try a full date-time below.
-        }
-        try {
-            return OffsetDateTime.parse(trimmed).toInstant().toEpochMilli();
-        } catch (DateTimeParseException offsetFailed) {
-            // Not an offset date-time either, try a local date-time.
-        }
-        try {
-            return LocalDateTime.parse(trimmed).toInstant(ZoneOffset.UTC).toEpochMilli();
-        } catch (DateTimeParseException localFailed) {
-            return null;
-        }
+        return BrowseSorter.hasDate(object);
     }
 
     public Object getItem(int position) {
@@ -586,23 +636,6 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
         DIDLObject currentObject = (DIDLObject) getItem(listPosition);
         holder.name.setText(currentObject.getTitle());
 
-        int iconHeightPx = dpToPx(viewMode == ViewMode.CARD ? CARD_ICON_SIZE_DP : LIST_ICON_SIZE_DP);
-        int iconWidthPx = iconHeightPx;
-        IconDownloadTask iconDownloadTask = new IconDownloadTask(holder.icon,
-                this, iconWidthPx, iconHeightPx);
-        asyncTasks.add(iconDownloadTask);
-        // Reset every bind (RecyclerView view recycling) rather than only
-        // when a thumbnail loads: CARD mode's fallback type-icon glyph
-        // should stay at its natural size, centered on the tinted
-        // background (browse_content_item_card.xml) -- CENTER_CROP would
-        // stretch it to fill the whole width instead. Switched to
-        // CENTER_CROP below, only at the point a real thumbnail load is
-        // actually kicked off. LIST mode is untouched (default scaleType),
-        // unaffected by this card-only change.
-        if (viewMode == ViewMode.CARD) {
-            holder.icon.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
-        }
-
         // new layout: each of these opens the receiver picker first; classic starts at once
         holder.playAll.setOnClickListener((v) ->
                 contentListFragment.startPlayAction(currentObject, ContentItemPlayTask.PLAY_ALL, null, null));
@@ -667,8 +700,11 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
             });
             popupMenu.show();
         });
+        // The type icon is the fallback and the only icon of most rows; a thumbnail (if wanted) is loaded over it.
+        int typeIconRes;
+        Uri thumbnailUri = null;
         if (currentObject instanceof Container) {
-            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(ResourcesCompat.getDrawable(getContext().getResources(), R.drawable.ic_baseline_folder_open_48, context.getTheme()), getContext().getTheme()));
+            typeIconRes = R.drawable.ic_baseline_folder_open_48;
             holder.playAll.setVisibility(View.VISIBLE);
             holder.play.setVisibility(View.VISIBLE);
             holder.download.setVisibility(View.GONE);
@@ -676,67 +712,40 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
             holder.playlistAdd.setVisibility(View.GONE);
 
         } else if (currentObject instanceof AudioItem) {
-            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(ResourcesCompat.getDrawable(getContext().getResources(), R.drawable.ic_baseline_audiotrack_48, context.getTheme()), getContext().getTheme()));
+            typeIconRes = R.drawable.ic_baseline_audiotrack_48;
             holder.playAll.setVisibility(View.VISIBLE);
             holder.play.setVisibility(View.VISIBLE);
             holder.download.setVisibility(View.VISIBLE);
             holder.share.setVisibility(View.VISIBLE);
             holder.playlistAdd.setVisibility(View.VISIBLE);
-            if (showThumbnails) {
-                DIDLObject.Property<URI> albumArtProperties = ((AudioItem) currentObject)
-                        .getFirstProperty(DIDLObject.Property.UPNP.ALBUM_ART_URI.class);
-                if (null != albumArtProperties) {
-                    if (viewMode == ViewMode.CARD) {
-                        holder.icon.setScaleType(ImageView.ScaleType.CENTER_CROP);
-                    }
-                    iconDownloadTask.executeOnExecutor(((Yaacc) getContext().getApplicationContext()).getContentLoadExecutor(),
-                            Uri.parse(albumArtProperties
-                                    .getValue().toString()));
-                }
-            }
+            thumbnailUri = albumArtUri(currentObject);
         } else if (currentObject instanceof ImageItem) {
-            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(ResourcesCompat.getDrawable(getContext().getResources(), R.drawable.ic_baseline_image_48, getContext().getTheme()), getContext().getTheme()));
+            typeIconRes = R.drawable.ic_baseline_image_48;
             holder.playAll.setVisibility(View.VISIBLE);
             holder.play.setVisibility(View.VISIBLE);
             holder.download.setVisibility(View.VISIBLE);
             holder.share.setVisibility(View.VISIBLE);
             holder.playlistAdd.setVisibility(View.GONE);
-            if (showThumbnails) {
-                if (viewMode == ViewMode.CARD) {
-                    holder.icon.setScaleType(ImageView.ScaleType.CENTER_CROP);
-                }
-                iconDownloadTask.executeOnExecutor(((Yaacc) getContext().getApplicationContext()).getContentLoadExecutor(),
-                        Uri.parse(currentObject
-                                .getFirstResource().getValue()));
+            if (showThumbnails && currentObject.getFirstResource() != null) {
+                thumbnailUri = Uri.parse(currentObject.getFirstResource().getValue());
             }
         } else if (currentObject instanceof VideoItem) {
-            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(ResourcesCompat.getDrawable(getContext().getResources(), R.drawable.ic_baseline_movie_48, getContext().getTheme()), getContext().getTheme()));
+            typeIconRes = R.drawable.ic_baseline_movie_48;
             holder.playAll.setVisibility(View.VISIBLE);
             holder.play.setVisibility(View.VISIBLE);
             holder.download.setVisibility(View.VISIBLE);
             holder.share.setVisibility(View.VISIBLE);
             holder.playlistAdd.setVisibility(View.VISIBLE);
-            if (showThumbnails) {
-                DIDLObject.Property<URI> albumArtProperties = ((VideoItem) currentObject)
-                        .getFirstProperty(DIDLObject.Property.UPNP.ALBUM_ART_URI.class);
-                if (null != albumArtProperties) {
-                    if (viewMode == ViewMode.CARD) {
-                        holder.icon.setScaleType(ImageView.ScaleType.CENTER_CROP);
-                    }
-                    iconDownloadTask.executeOnExecutor(((Yaacc) getContext().getApplicationContext()).getContentLoadExecutor(),
-                            Uri.parse(albumArtProperties
-                                    .getValue().toString()));
-                }
-            }
+            thumbnailUri = albumArtUri(currentObject);
         } else if (currentObject instanceof PlaylistItem) {
-            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(ResourcesCompat.getDrawable(getContext().getResources(), R.drawable.ic_baseline_library_music_48, getContext().getTheme()), getContext().getTheme()));
+            typeIconRes = R.drawable.ic_baseline_library_music_48;
             holder.playAll.setVisibility(View.GONE);
             holder.play.setVisibility(View.GONE);
             holder.download.setVisibility(View.GONE);
             holder.share.setVisibility(View.GONE);
             holder.playlistAdd.setVisibility(View.GONE);
         } else if (currentObject instanceof TextItem) {
-            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(ResourcesCompat.getDrawable(getContext().getResources(), R.drawable.ic_baseline_text_snippet_48, getContext().getTheme()), getContext().getTheme()));
+            typeIconRes = R.drawable.ic_baseline_text_snippet_48;
             holder.playAll.setVisibility(View.GONE);
             holder.play.setVisibility(View.GONE);
             holder.download.setVisibility(View.GONE);
@@ -744,29 +753,130 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
             holder.playlistAdd.setVisibility(View.GONE);
         } else {
             holder.icon.clearAnimation(); // Clear any previous animation
-            holder.icon.setImageDrawable(ThemeHelper.tintDrawable(ResourcesCompat.getDrawable(getContext().getResources(), R.drawable.ic_baseline_question_mark_48, getContext().getTheme()), getContext().getTheme()));
+            typeIconRes = R.drawable.ic_baseline_question_mark_48;
             holder.playAll.setVisibility(View.GONE);
             holder.play.setVisibility(View.GONE);
             holder.download.setVisibility(View.GONE);
             holder.share.setVisibility(View.GONE);
             holder.playlistAdd.setVisibility(View.GONE);
         }
+        bindIcon(holder, typeIconRes, thumbnailUri);
+    }
+
+    /**
+     * The album art of an audio or video item, if thumbnails are switched on and the item has one.
+     */
+    private Uri albumArtUri(DIDLObject object) {
+        if (!showThumbnails) {
+            return null;
+        }
+        DIDLObject.Property<URI> albumArt = object.getFirstProperty(DIDLObject.Property.UPNP.ALBUM_ART_URI.class);
+        return albumArt == null ? null : Uri.parse(albumArt.getValue().toString());
+    }
+
+    /**
+     * Shows the type icon and, if the row has a thumbnail, the thumbnail: from the memory cache at once, else
+     * loaded by one task per recycled row. A bind of the request the row already shows or loads changes nothing,
+     * so a re-bind (notify, sort) does not flash the fallback icon or start a second download; the task of the
+     * request the row showed before is cancelled.
+     */
+    private void bindIcon(ViewHolder holder, int typeIconRes, Uri thumbnailUri) {
+        int sizePx = dpToPx(viewMode == ViewMode.CARD ? CARD_ICON_SIZE_DP : LIST_ICON_SIZE_DP);
+        String key = thumbnailUri == null ? null : ThumbnailSlot.key(thumbnailUri.toString(), sizePx, sizePx);
+        Bitmap cached = thumbnailUri == null ? null : IconDownloadCacheHandler.getInstance().getBitmap(thumbnailUri, sizePx, sizePx);
+        if (holder.thumbnailTask != null && holder.thumbnailTask.isCancelled()) {
+            // cancelled with the folder load, its end has not been delivered yet
+            holder.thumbnail.onFinished(holder.thumbnail.key(), false);
+            holder.thumbnailTask = null;
+        }
+        ThumbnailSlot.Decision decision = holder.thumbnail.onBind(key, cached != null);
+        if (decision == ThumbnailSlot.Decision.KEEP) {
+            return;
+        }
+        cancelThumbnailTask(holder);
+        // Reset every bind (RecyclerView view recycling) rather than only
+        // when a thumbnail loads: CARD mode's fallback type-icon glyph
+        // should stay at its natural size, centered on the tinted
+        // background (browse_content_item_card.xml) -- CENTER_CROP would
+        // stretch it to fill the whole width instead. Switched to
+        // CENTER_CROP below, only at the point a real thumbnail is
+        // shown or its load is actually kicked off. LIST mode is untouched
+        // (default scaleType), unaffected by this card-only change.
+        if (viewMode == ViewMode.CARD) {
+            holder.icon.setScaleType(decision == ThumbnailSlot.Decision.NONE ? ImageView.ScaleType.CENTER_INSIDE : ImageView.ScaleType.CENTER_CROP);
+        }
+        holder.icon.setTag(key);
+        if (decision == ThumbnailSlot.Decision.SHOW_CACHED) {
+            holder.icon.setVisibility(View.VISIBLE);
+            holder.icon.setImageBitmap(cached);
+            return;
+        }
+        holder.icon.setImageDrawable(typeIcon(typeIconRes));
+        if (decision == ThumbnailSlot.Decision.LOAD) {
+            IconDownloadTask task = new IconDownloadTask(holder.icon, key, sizePx, sizePx, (finished, shown) -> {
+                removeTask(finished);
+                if (holder.thumbnailTask == finished) {
+                    holder.thumbnailTask = null;
+                }
+                holder.thumbnail.onFinished(key, shown);
+            });
+            holder.thumbnailTask = task;
+            asyncTasks.add(task);
+            task.executeOnExecutor(((Yaacc) getContext().getApplicationContext()).getContentLoadExecutor(), thumbnailUri);
+        }
+    }
+
+    private void cancelThumbnailTask(ViewHolder holder) {
+        IconDownloadTask task = holder.thumbnailTask;
+        if (task != null) {
+            holder.thumbnailTask = null;
+            task.cancel(true);
+            removeTask(task);
+        }
+    }
+
+    /**
+     * The tinted type icon: resolved and tinted once per icon and night mode, each row gets a new drawable from
+     * the cached constant state (a drawable instance must not be shared between views).
+     */
+    private Drawable typeIcon(int drawableRes) {
+        int nightMode = context.getResources().getConfiguration().uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK;
+        Drawable.ConstantState state = typeIcons.get(nightMode, drawableRes, () -> {
+            Drawable tinted = ThemeHelper.tintDrawable(ResourcesCompat.getDrawable(context.getResources(), drawableRes, context.getTheme()), context.getTheme());
+            return tinted.getConstantState();
+        });
+        if (state != null) {
+            return state.newDrawable(context.getResources(), context.getTheme());
+        }
+        return ThemeHelper.tintDrawable(ResourcesCompat.getDrawable(context.getResources(), drawableRes, context.getTheme()), context.getTheme());
     }
 
     public void cancelRunningTasks() {
         if (asyncTasks != null) {
-            for (AsyncTask task : asyncTasks) {
+            // cancelled tasks never run onPostExecute; a copy because the cancelled ones may call removeTask
+            for (AsyncTask task : new ArrayList<>(asyncTasks)) {
                 task.cancel(true);
             }
+            // nothing in the list is of use once cancelled, and nothing else would remove it
+            asyncTasks.clear();
         }
         loading = false;
         allItemsFetched = false;
+        dropPendingSort();
     }
 
     public void removeTask(AsyncTask task) {
         if (asyncTasks != null && task != null) {
             asyncTasks.remove(task);
         }
+    }
+
+    @Override
+    public void onViewRecycled(ViewHolder holder) {
+        cancelThumbnailTask(holder);
+        holder.thumbnail.release();
+        holder.icon.setTag(null);
+        super.onViewRecycled(holder);
     }
 
     public DIDLObject getFolder(int position) {
@@ -798,6 +908,11 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
 
     public void scrollToPositionId(Integer id) {
         if (id == null) return;
+        if (sortPending) {
+            // the position is one of the sorted list: scroll after the swap
+            deferredScrollPositionId = id;
+            return;
+        }
         ((LinearLayoutManager) contentList.getLayoutManager()).scrollToPositionWithOffset(id, 0);
     }
 
@@ -813,6 +928,9 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
 
     static class ViewHolder extends RecyclerView.ViewHolder {
         ImageView icon;
+        /** The thumbnail request of this recycled row and its running task (main thread only). */
+        final ThumbnailSlot thumbnail = new ThumbnailSlot();
+        IconDownloadTask thumbnailTask;
         TextView name;
         ImageButton play;
         ImageButton playAll;

@@ -145,6 +145,8 @@ public class BrowseContentItemAdapterSortTest {
                                                 UpnpClient upnpClient, ProgressBar progressBar) {
         BrowseContentItemAdapter adapter = new BrowseContentItemAdapter(contentListFragment, recyclerView, upnpClient, progressBar);
         fixUpAdapterDataObservable(adapter);
+        // the sort runs on a worker thread and posts its result to the main thread: both run right here
+        adapter.setSortExecutors(Runnable::run, Runnable::run);
         return adapter;
     }
 

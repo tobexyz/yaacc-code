@@ -49,6 +49,13 @@ public class SquareImageView extends AppCompatImageView {
 
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+        if (MeasureSpec.getMode(widthMeasureSpec) == MeasureSpec.EXACTLY) {
+            // The grid and list give the card a fixed width: the size is known without asking the drawable
+            // (the full measure of the image view resolves the intrinsic size of the type icon or bitmap, twice).
+            int size = MeasureSpec.getSize(widthMeasureSpec);
+            setMeasuredDimension(size, size);
+            return;
+        }
         super.onMeasure(widthMeasureSpec, widthMeasureSpec);
         setMeasuredDimension(getMeasuredWidth(), getMeasuredWidth());
     }
