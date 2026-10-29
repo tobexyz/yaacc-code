@@ -44,21 +44,20 @@ public class TreeNodeFactoryTest {
     }
 
     @Test
-    public void safChildrenKeepTheProvidersOrderAndTakeTheFolderFlagFromTheMimeType() {
+    public void safChildrenAreOnlyTheFoldersInTheProvidersOrder() {
         List<SafDirectoryEntry> entries = Arrays.asList(
                 entry("zeta.jpg", "primary:z", "image/jpeg"),
+                entry("Beta", "primary:b", SafDirectoryEntry.MIME_TYPE_DIR),
                 entry("Alpha", "primary:a", SafDirectoryEntry.MIME_TYPE_DIR),
-                entry("beta.mp3", "primary:b", "audio/mpeg"));
+                entry("beta.mp3", "primary:m", "audio/mpeg"));
 
         List<TreeNode> nodes = TreeNodeFactory.safChildren(entries, e -> "content://x/document/" + e.documentId, 7);
 
-        assertEquals(3, nodes.size());
-        assertEquals("zeta.jpg", nodes.get(0).getValue().getName());
+        assertEquals(2, nodes.size());
+        assertEquals("Beta", nodes.get(0).getValue().getName());
         assertEquals("Alpha", nodes.get(1).getValue().getName());
-        assertEquals("beta.mp3", nodes.get(2).getValue().getName());
-        assertFalse(nodes.get(0).getValue().isDirectory());
+        assertTrue(nodes.get(0).getValue().isDirectory());
         assertTrue(nodes.get(1).getValue().isDirectory());
-        assertFalse(nodes.get(2).getValue().isDirectory());
         for (TreeNode node : nodes) {
             assertTrue(node.getValue().isSaf());
             assertEquals(7, node.getLayoutId());
@@ -67,23 +66,24 @@ public class TreeNodeFactoryTest {
     }
 
     @Test
-    public void aSafChildWithoutNameShowsItsUri() {
+    public void aSafFolderWithoutNameShowsItsUri() {
+        String dir = SafDirectoryEntry.MIME_TYPE_DIR;
         List<TreeNode> nodes = TreeNodeFactory.safChildren(
-                List.of(entry(null, "id", "text/plain")), e -> "content://x/document/id", 1);
+                List.of(entry(null, "id", dir)), e -> "content://x/document/id", 1);
         assertEquals("content://x/document/id", nodes.get(0).getValue().getName());
         assertEquals("", TreeNodeFactory.safChildren(
-                List.of(entry("", "id", "text/plain")), e -> "content://x/document/id", 1).get(0).getValue().getName());
+                List.of(entry("", "id", dir)), e -> "content://x/document/id", 1).get(0).getValue().getName());
     }
 
     @Test
-    public void aThousandsOfEntriesBecomeThatManyNodes() {
+    public void thousandsOfFilesBecomeNoNodesAndTheFoldersAmongThemStay() {
         List<SafDirectoryEntry> entries = new ArrayList<>();
         for (int i = 0; i < 6000; i++) {
-            entries.add(entry("f" + i, "id" + i, "image/jpeg"));
+            entries.add(entry("f" + i, "id" + i, i % 1000 == 0 ? SafDirectoryEntry.MIME_TYPE_DIR : "image/jpeg"));
         }
         List<TreeNode> nodes = TreeNodeFactory.safChildren(entries, e -> "u/" + e.documentId, 1);
-        assertEquals(6000, nodes.size());
-        assertEquals("f5999", nodes.get(5999).getValue().getName());
+        assertEquals(6, nodes.size());
+        assertEquals("f5000", nodes.get(5).getValue().getName());
     }
 
     @Test
@@ -97,22 +97,21 @@ public class TreeNodeFactoryTest {
     }
 
     @Test
-    public void fileChildrenKeepTheOrderOfTheArrayAndFlagFolders() throws Exception {
+    public void fileChildrenAreOnlyTheExistingFoldersInTheOrderOfTheArray() throws Exception {
         File folder = temp.newFolder("sub");
+        File other = temp.newFolder("another");
         File file = temp.newFile("a.txt");
         File missing = new File(temp.getRoot(), "gone");
 
-        List<TreeNode> nodes = TreeNodeFactory.fileChildren(new File[]{file, missing, folder}, 3);
+        List<TreeNode> nodes = TreeNodeFactory.fileChildren(new File[]{file, missing, folder, null, other}, 3);
 
         assertEquals(2, nodes.size());
         TreeNodeData first = nodes.get(0).getValue();
-        assertEquals("a.txt", first.getName());
-        assertEquals(file.getAbsolutePath(), first.getPath());
+        assertEquals("sub", first.getName());
+        assertEquals(folder.getAbsolutePath(), first.getPath());
         assertFalse(first.isSaf());
-        assertFalse(first.isDirectory());
-        TreeNodeData second = nodes.get(1).getValue();
-        assertEquals("sub", second.getName());
-        assertTrue(second.isDirectory());
+        assertTrue(first.isDirectory());
+        assertEquals("another", nodes.get(1).getValue().getName());
     }
 
     @Test

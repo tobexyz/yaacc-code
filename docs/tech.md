@@ -128,6 +128,8 @@ the expand symbol until it was read and is empty, stale results are dropped by a
 `notifyItemRangeInserted` (`TreeNodeManager.Change`, `ArrayList`). Queries for N files: before about N + 3 + 7V on the main thread when opening (V visible rows)
 and about 3N when scrolling; now 3 on the worker (0 within 30 s) and 0 on the main thread. D log: `SAF tree <uri> children=<n> loaded in <ms> ms`.
 
+- The shared-folder tree of the server configuration shows folders only (`TreeNodeFactory`): only folders can be selected as a shared path, files were shown without a check box. A folder that holds nothing but files shows the expand arrow until it was opened once and then reads as empty.
+
 ## Browse card-grid view
 
 The content tab can show a list or a grid of cards (`ContentListFragment` + `BrowseContentItemAdapter`,

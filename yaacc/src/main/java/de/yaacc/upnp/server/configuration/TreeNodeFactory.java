@@ -45,10 +45,16 @@ final class TreeNodeFactory {
         return new TreeNode(new TreeNodeData(file.getName(), file.getAbsolutePath(), false, file.isDirectory()), layoutId);
     }
 
-    /** The nodes of the existing files, in the order of {@code files}. */
+    /**
+     * The nodes of the existing folders among {@code files}, in their order. Only folders can be
+     * selected as a shared path, so files are not shown at all.
+     */
     static List<TreeNode> fileChildren(File[] files, int layoutId) {
         List<TreeNode> nodes = new ArrayList<>(files.length);
         for (File file : files) {
+            if (file == null || !file.isDirectory()) {
+                continue;
+            }
             TreeNode node = fileNode(file, layoutId);
             if (node != null) {
                 nodes.add(node);
@@ -63,7 +69,8 @@ final class TreeNodeFactory {
     }
 
     /**
-     * The nodes of the entries of a SAF listing, in the provider's order. The folder flag is the
+     * The nodes of the folders among the entries of a SAF listing, in the provider's order (files
+     * are not shown: only folders can be selected as a shared path). The folder flag is the
      * listing's own (mime type), so no row asks the provider again; a child without a display name
      * shows its uri.
      *
@@ -72,6 +79,9 @@ final class TreeNodeFactory {
     static List<TreeNode> safChildren(List<SafDirectoryEntry> entries, Function<SafDirectoryEntry, String> childUri, int layoutId) {
         List<TreeNode> nodes = new ArrayList<>(entries.size());
         for (SafDirectoryEntry entry : entries) {
+            if (!entry.isDirectory()) {
+                continue;
+            }
             String uri = childUri.apply(entry);
             nodes.add(new TreeNode(new TreeNodeData(entry.name != null ? entry.name : uri, uri, true, entry.isDirectory()), layoutId));
         }
