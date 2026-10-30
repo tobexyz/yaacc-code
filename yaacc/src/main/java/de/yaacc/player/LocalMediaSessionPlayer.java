@@ -69,6 +69,16 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
         // Don't initialize ExoPlayer here - wait until service connected
     }
 
+    /** The setting "repeat playlist" (default on, as in {@link AbstractPlayer#next()}). */
+    private boolean replayPlaylist() {
+        return androidx.preference.PreferenceManager.getDefaultSharedPreferences(getContext())
+                .getBoolean(getContext().getString(R.string.settings_replay_playlist_chkbx), true);
+    }
+
+    private int replayRepeatMode() {
+        return RepeatPolicy.repeatMode(replayPlaylist());
+    }
+
     private void initializeExoPlayer() {
         if (exoPlayer != null) {
             return; // Already initialized
@@ -84,10 +94,22 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
                         .build();
         exoPlayer.setAudioAttributes(audioAttributes, true);
 
-        // Enable repeat mode so next/previous buttons always show
-        exoPlayer.setRepeatMode(androidx.media3.common.Player.REPEAT_MODE_ALL);
+        // The repeat mode follows the setting "repeat playlist" (applied again before every start). It was
+        // always ALL so that next/previous show; that repeated a single song, or a TTS sentence sent by Home
+        // Assistant, for ever although the setting was off.
+        exoPlayer.setRepeatMode(replayRepeatMode());
 
         exoPlayer.addListener(new Player.Listener() {
+            @Override
+            public void onPlaybackStateChanged(int playbackState) {
+                if (playbackState == Player.STATE_ENDED && RepeatPolicy.stopsAtEnd(replayPlaylist())) {
+                    // The end of the playlist without repeat: report STOPPED (the transport state of the media
+                    // renderer), otherwise a controller waits for ever for the end of the song.
+                    YaaccLogger.d(getClass().getName(), "End of the playlist reached, repeat is off: stopping");
+                    new Handler(Looper.getMainLooper()).post(() -> LocalMediaSessionPlayer.this.stop());
+                }
+            }
+
             @Override
             public void onMediaItemTransition(@Nullable MediaItem mediaItem, int reason) {
                 if (mediaItem != null && reason == Player.MEDIA_ITEM_TRANSITION_REASON_SEEK) {
@@ -293,6 +315,7 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
                     player.prepare();
                 }
                 // Now seek and play
+                player.setRepeatMode(replayRepeatMode());
                 player.seekTo(index, 0);
                 player.play();
                 setPlaying(true);

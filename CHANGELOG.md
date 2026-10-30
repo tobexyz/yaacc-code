@@ -30,6 +30,7 @@
 - **Idle exit**: One process-wide timer now quits the app after 5 minutes in the background when nothing is playing and the server, renderer and proxy options are off, instead of one timer per screen; a screen rotation or a layout change no longer leaves a stale timer behind.
 
 ### Fixed
+- **Repeated songs (Home Assistant)**: The local music player repeated a single song or a text-to-speech sentence for ever, whatever the setting "repeat playlist" said. It now follows the setting, and at the end of the playlist without repeat it stops and reports the stopped state to the controller.
 - **Images in a SAF folder**: Tapping an image (or audio) in a folder that mixes images and videos, as SAF folders like DCIM/Camera do, queues only items of the same kind, so it opens in the in-app image viewer (or player) instead of the "open with" chooser of other apps.
 - **Stop on an idle renderer**: A control point such as Home Assistant that sends *Stop* to YAACC's renderer while nothing is loaded no longer gets the UPnP error 701; the renderer just stays idle.
 - **Device announcements after a network change**: After switching networks or coming back from sleep, the app's own announcements (alive messages of the local server/receiver) and the renewal of event subscriptions use the new network connection instead of the closed first one, and the local devices are announced again.
