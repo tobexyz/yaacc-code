@@ -82,13 +82,13 @@ public final class PlayMode {
     }
 
     /**
-     * Reads the two settings (defaults as in the settings screen: replay on, shuffle off).
+     * Reads the two settings (defaults as in the settings screen: replay off, shuffle off).
      *
      * @param replayKey  the key of the "replay playlist" setting
      * @param shuffleKey the key of the "shuffle music" setting
      */
     public static PlayMode fromPreferences(SharedPreferences preferences, String replayKey, String shuffleKey) {
-        return fromSettings(preferences.getBoolean(replayKey, true), preferences.getBoolean(shuffleKey, false));
+        return fromSettings(preferences.getBoolean(replayKey, false), preferences.getBoolean(shuffleKey, false));
     }
 
     public RepeatMode getRepeat() {

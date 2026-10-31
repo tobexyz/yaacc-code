@@ -54,7 +54,7 @@ public class LocalImagePlayerPlayModeTest {
         when(context.getSharedPreferences(anyString(), anyInt())).thenReturn(preferences);
         when(context.getString(de.yaacc.R.string.settings_replay_playlist_chkbx)).thenReturn("replay");
         when(context.getString(de.yaacc.R.string.settings_music_player_shuffle_chkbx)).thenReturn("shuffle");
-        when(preferences.getBoolean("replay", true)).thenReturn(true);
+        when(preferences.getBoolean("replay", false)).thenReturn(true);
         when(preferences.getBoolean("shuffle", false)).thenReturn(false);
         player = new LocalImagePlayer(client);
         player.addPropertyChangeListener(event -> {
@@ -87,7 +87,7 @@ public class LocalImagePlayerPlayModeTest {
     @Test
     public void theSettingsAreReadOnlyOnceForThePlayer() {
         player.getPlayMode();
-        when(preferences.getBoolean("replay", true)).thenReturn(false);
+        when(preferences.getBoolean("replay", false)).thenReturn(false);
 
         assertEquals(RepeatMode.ALL, player.getPlayMode().getRepeat());
     }

@@ -13,6 +13,7 @@
 - **Playlist in play order**: With shuffle on, the playlist dialog lists the items in the order they will play (the playing item marked at its place); dragging an item changes the play order and leaves your list as it is, deleting removes the item from both. Without shuffle it shows the list as before. The dialog follows the player: switching shuffle, adding or removing items and a new current item update it at once.
 
 ### Changed
+- **Repeat playlist is off by default**: A new installation starts with the setting *replay playlist* unchecked, so a song or a playlist is played once. An existing installation keeps its stored value.
 - **Android TV and icons**: The app has a TV banner, a themed (monochrome) launcher icon for Android 13 and later, and no longer requires a touchscreen, Wi-Fi or a microphone, so it is not hidden from Android TV boxes. Starting the audio or video live stream asks for the audio recording permission first, which the capture of the device audio needs.
 - **Shared links**: A link inside a shared sentence is found and used (the first one). The receiver picker shows "Link: <host>" for a shared link, so you see which site will play. A text without a web link shows the notice that only audio, video, image files and web links are accepted.
 - **Log viewer**: New lines are appended without replacing the text, so a selection and the scroll position stay; while text is selected the view is not updated.

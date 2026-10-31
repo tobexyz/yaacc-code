@@ -85,18 +85,29 @@ public class PlayModeTest {
     }
 
     @Test
-    public void preferencesDefaultToReplayOnAndShuffleOff() {
+    public void preferencesDefaultToReplayOffAndShuffleOff() {
         SharedPreferences preferences = mock(SharedPreferences.class);
-        when(preferences.getBoolean("replay", true)).thenAnswer(i -> i.getArgument(1));
+        when(preferences.getBoolean("replay", false)).thenAnswer(i -> i.getArgument(1));
         when(preferences.getBoolean("shuffle", false)).thenAnswer(i -> i.getArgument(1));
 
-        assertEquals(PlayMode.of(RepeatMode.ALL, false), PlayMode.fromPreferences(preferences, "replay", "shuffle"));
+        assertEquals(PlayMode.of(RepeatMode.OFF, false), PlayMode.fromPreferences(preferences, "replay", "shuffle"));
+    }
+
+    @Test
+    public void theSettingsScreenStartsWithReplayPlaylistUnchecked() throws Exception {
+        java.io.File xml = new java.io.File("src/main/res/xml/preference.xml");
+        String text = new String(java.nio.file.Files.readAllBytes(xml.toPath()), java.nio.charset.StandardCharsets.UTF_8);
+        int key = text.indexOf("@string/settings_replay_playlist_chkbx");
+        assertTrue(key > 0);
+        int start = text.lastIndexOf("<CheckBoxPreference", key);
+        String element = text.substring(start, text.indexOf("/>", key));
+        assertTrue(element, element.contains("android:defaultValue=\"false\""));
     }
 
     @Test
     public void preferencesAreReadWithTheirKeys() {
         SharedPreferences preferences = mock(SharedPreferences.class);
-        when(preferences.getBoolean("replay", true)).thenReturn(false);
+        when(preferences.getBoolean("replay", false)).thenReturn(false);
         when(preferences.getBoolean("shuffle", false)).thenReturn(true);
 
         assertEquals(PlayMode.of(RepeatMode.OFF, true), PlayMode.fromPreferences(preferences, "replay", "shuffle"));

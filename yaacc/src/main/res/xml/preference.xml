@@ -99,8 +99,8 @@
             android:key="@string/settings_silence_duration_key"
             android:title="@string/settings_silence_duration" />
         <CheckBoxPreference
-            android:defaultValue="true"
-            android:disableDependentsState="true"
+            android:defaultValue="false"
+            android:disableDependentsState="false"
             android:title="@string/settings_replay_title"
             android:key="@string/settings_replay_playlist_chkbx"
             android:summaryOff="@string/settings_replay_playlist_off"

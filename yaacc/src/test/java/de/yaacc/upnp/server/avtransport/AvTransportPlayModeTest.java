@@ -97,7 +97,7 @@ public class AvTransportPlayModeTest {
         when(context.getSharedPreferences(anyString(), anyInt())).thenReturn(preferences);
         when(context.getString(de.yaacc.R.string.settings_replay_playlist_chkbx)).thenReturn("replay");
         when(context.getString(de.yaacc.R.string.settings_music_player_shuffle_chkbx)).thenReturn("shuffle");
-        when(preferences.getBoolean("replay", true)).thenReturn(replay);
+        when(preferences.getBoolean("replay", false)).thenReturn(replay);
         when(preferences.getBoolean("shuffle", false)).thenReturn(shuffle);
     }
 

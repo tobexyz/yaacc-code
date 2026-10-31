@@ -156,7 +156,7 @@ public class AbstractPlayerPlayModeTest {
         when(context.getSharedPreferences(anyString(), anyInt())).thenReturn(preferences);
         when(context.getString(de.yaacc.R.string.settings_replay_playlist_chkbx)).thenReturn("replay");
         when(context.getString(de.yaacc.R.string.settings_music_player_shuffle_chkbx)).thenReturn("shuffle");
-        when(preferences.getBoolean("replay", true)).thenReturn(false);
+        when(preferences.getBoolean("replay", false)).thenReturn(false);
         when(preferences.getBoolean("shuffle", false)).thenReturn(true);
 
         assertEquals(PlayMode.of(RepeatMode.OFF, true), PlayModeSettings.defaultPlayMode(context));
