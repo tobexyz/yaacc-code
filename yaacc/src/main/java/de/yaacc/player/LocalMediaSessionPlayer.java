@@ -314,24 +314,7 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
                 if (exoPlayer != null) {
                     exoPlayer.clearMediaItems();
                     for (PlayableItem item : playableItems) {
-                        MediaItem.Builder builder = new MediaItem.Builder()
-                                .setUri(item.getUri());
-
-                        if (item.getTitle() != null) {
-                            MediaMetadata.Builder metadataBuilder = new MediaMetadata.Builder()
-                                    .setTitle(item.getTitle());
-                            
-                            // Add album art if available
-                            DIDLObject.Property<URI> albumArtProp = item.getItem() == null ? null :
-                                    item.getItem().getFirstProperty(DIDLObject.Property.UPNP.ALBUM_ART_URI.class);
-                            if (albumArtProp != null && albumArtProp.getValue() != null) {
-                                metadataBuilder.setArtworkUri(android.net.Uri.parse(albumArtProp.getValue().toString()));
-                            }
-                            
-                            builder.setMediaMetadata(metadataBuilder.build());
-                        }
-
-                        exoPlayer.addMediaItem(builder.build());
+                        exoPlayer.addMediaItem(toMediaItem(item));
                     }
                     if (exoPlayer != null) {
                         exoPlayer.prepare();
@@ -370,22 +353,7 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
                     // Clear and rebuild playlist
                     player.clearMediaItems();
                     for (PlayableItem item : getItems()) {
-                        MediaItem.Builder builder = new MediaItem.Builder()
-                                .setUri(item.getUri());
-                        if (item.getTitle() != null) {
-                            MediaMetadata.Builder metadataBuilder = new MediaMetadata.Builder()
-                                    .setTitle(item.getTitle());
-                            
-                            // Add album art if available
-                            DIDLObject.Property<URI> albumArtProp = item.getItem() == null ? null :
-                                    item.getItem().getFirstProperty(DIDLObject.Property.UPNP.ALBUM_ART_URI.class);
-                            if (albumArtProp != null && albumArtProp.getValue() != null) {
-                                metadataBuilder.setArtworkUri(android.net.Uri.parse(albumArtProp.getValue().toString()));
-                            }
-                            
-                            builder.setMediaMetadata(metadataBuilder.build());
-                        }
-                        player.addMediaItem(builder.build());
+                        player.addMediaItem(toMediaItem(item));
                     }
                     player.prepare();
                 } else if (player.getPlaybackState() == Player.STATE_IDLE) {
@@ -416,6 +384,48 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
     protected void doPostLoadItem(PlayableItem playableItem) {
         // ExoPlayer handles track changes automatically, don't start timer
         YaaccLogger.d(getClass().getName(), "doPostLoadItem - ExoPlayer handles track changes");
+    }
+
+    /** The media item of ExoPlayer for a playable item: uri, title and album art. */
+    private MediaItem toMediaItem(PlayableItem item) {
+        MediaItem.Builder builder = new MediaItem.Builder().setUri(item.getUri());
+        if (item.getTitle() != null) {
+            MediaMetadata.Builder metadataBuilder = new MediaMetadata.Builder().setTitle(item.getTitle());
+            // Add album art if available
+            DIDLObject.Property<URI> albumArtProp = item.getItem() == null ? null :
+                    item.getItem().getFirstProperty(DIDLObject.Property.UPNP.ALBUM_ART_URI.class);
+            if (albumArtProp != null && albumArtProp.getValue() != null) {
+                metadataBuilder.setArtworkUri(android.net.Uri.parse(albumArtProp.getValue().toString()));
+            }
+            builder.setMediaMetadata(metadataBuilder.build());
+        }
+        return builder.build();
+    }
+
+    /**
+     * Items added while ExoPlayer has the playlist (add to playlist during playback) are appended to it at once;
+     * before, they only reached ExoPlayer with the next start of an item, so it never played them. With shuffle
+     * our play order, which places the new items at random behind the current one, is installed again.
+     */
+    @Override
+    public void addItems(List<PlayableItem> playableItems) {
+        int sizeBefore = getItems().size();
+        super.addItems(playableItems);
+        if (playableItems == null || playableItems.isEmpty()) {
+            return;
+        }
+        List<PlayableItem> added = new java.util.ArrayList<>(playableItems);
+        int[] order = getPlayMode().isShuffle() ? getPlayOrder() : null;
+        new Handler(Looper.getMainLooper()).post(() -> {
+            ExoPlayer player = exoPlayer;
+            if (player != null && ExoPlaylistSync.canAppend(player.getMediaItemCount(), sizeBefore)) {
+                for (PlayableItem item : added) {
+                    player.addMediaItem(toMediaItem(item));
+                }
+                applyPlayMode(player, order);
+                YaaccLogger.d(getClass().getName(), "Appended " + added.size() + " items to ExoPlayer");
+            }
+        });
     }
 
     @Override

@@ -32,6 +32,7 @@
 - **Idle exit**: One process-wide timer now quits the app after 5 minutes in the background when nothing is playing and the server, renderer and proxy options are off, instead of one timer per screen; a screen rotation or a layout change no longer leaves a stale timer behind.
 
 ### Fixed
+- **Add to playlist while music plays**: Items added to the playlist of the music player on this device during playback are appended to the player at once (with shuffle at a random place behind the current song). Before, they were only played after the next start of a song.
 - **Repeat and shuffle changed from outside**: When the system media controls, a Bluetooth device, the notification or a watch change the repeat or shuffle mode of the local music player, the buttons in the player screen and the renderer's *CurrentPlayMode* follow (before, they kept showing the old mode). The playlist dialog also no longer keeps a stale delete button position after an item was moved.
 - **Repeated songs (Home Assistant)**: The local music player repeated a single song or a text-to-speech sentence for ever, whatever the setting "repeat playlist" said. It now follows the setting, and at the end of the playlist without repeat it stops and reports the stopped state to the controller.
 - **Images in a SAF folder**: Tapping an image (or audio) in a folder that mixes images and videos, as SAF folders like DCIM/Camera do, queues only items of the same kind, so it opens in the in-app image viewer (or player) instead of the "open with" chooser of other apps.

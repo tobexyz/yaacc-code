@@ -2473,3 +2473,5 @@ ExoPlayer's callbacks (order of `onShuffleModeEnabledChanged` and the timeline c
 controllers against the real media session, dragging and deleting in the playlist dialog on a touch screen and with the D-pad, `moveMediaItem` / `removeMediaItem` while playing in the shuffle order.
 ExoPlayer's behavior with `setShuffleOrder` + REPEAT_MODE_ONE/ALL (order at the wrap around, next/previous in shuffle, `onMediaItemTransition` reasons), the layouts of the new buttons
 (portrait and landscape, small phones, TV focus ring and D-pad order), the menu items of the image viewer in the title bar, Home Assistant `SetPlayMode` against the real renderer.
+
+- **Items added during playback (local music player).** `LocalMediaSessionPlayer.addItems` appends the new items to the ExoPlayer playlist on the main thread when ExoPlayer's list was in step with the player's list before the addition (`ExoPlaylistSync.canAppend`; otherwise the next `startItem` builds the whole list), and installs the play order again when shuffle is on, so new items are placed at random behind the current one.
