@@ -344,6 +344,7 @@ public class YaaccContentDirectory {
                 + " browseFlag: " + browseFlag + " filter: " + filter
                 + " firstResult: " + firstResult + " maxResults: " + maxResults
                 + " orderby: " + stream(orderby).map(SortCriterion::toString).collect(Collectors.joining(",")));
+        long computedMaxResults = maxResults == 0 ? Long.MAX_VALUE : maxResults;
         long childCount;
         long totalMatches = 1L;
         DIDLObject didlObject;
@@ -386,7 +387,7 @@ public class YaaccContentDirectory {
             ContentBrowser browser = findBrowserFor(objectID);
             if (browser != null) {
                 if (browseFlag == BrowseFlag.METADATA) {
-                    didlObject = browser.browseMeta(this, objectID, firstResult, maxResults, orderby);
+                    didlObject = browser.browseMeta(this, objectID, firstResult, computedMaxResults, orderby);
                     if (didlObject == null) {
                         // an id that is not known (any more): answering with an empty result would look like an object without data
                         throw new ContentDirectoryException(ContentDirectoryErrorCode.NO_SUCH_OBJECT, "No such object: " + objectID);
@@ -399,7 +400,7 @@ public class YaaccContentDirectory {
                 } else {
                     // only BrowseDirectChildren: the number of children, so that a client can page
                     totalMatches = browser.getSize(this, objectID);
-                    List<DIDLObject> children = browser.browseChildren(this, objectID, firstResult, maxResults, orderby);
+                    List<DIDLObject> children = browser.browseChildren(this, objectID, firstResult, computedMaxResults, orderby);
                     for (DIDLObject child : children) {
                         didl.addObject(child);
                         childCount++;
