@@ -63,6 +63,7 @@ public class MusicPlayerActivity extends AppCompatActivity implements ServiceCon
     protected boolean updateTime = false;
     protected SeekBar seekBar = null;
     private PlayerService playerService;
+    private PlayModeControls.Binding playModeBinding;
 
     public void onServiceConnected(ComponentName className, IBinder binder) {
         if (binder instanceof PlayerService.PlayerServiceBinder) {
@@ -91,6 +92,11 @@ public class MusicPlayerActivity extends AppCompatActivity implements ServiceCon
         ImageButton btnExit = (ImageButton) findViewById(R.id.musicActivityControlExit);
         ImageButton btnFf = (ImageButton) findViewById(R.id.musicActivityControlFastForward);
         ImageButton btnFr = (ImageButton) findViewById(R.id.musicActivityControlFastRewind);
+        if (playModeBinding == null) {
+            playModeBinding = new PlayModeControls.Binding(this,
+                    findViewById(R.id.musicActivityControlRepeat), findViewById(R.id.musicActivityControlShuffle));
+        }
+        playModeBinding.attach(player);
         if (player == null) {
             btnPrev.setActivated(false);
             btnNext.setActivated(false);
@@ -239,6 +245,9 @@ public class MusicPlayerActivity extends AppCompatActivity implements ServiceCon
         super.onDestroy();
         YaaccLogger.d(getClass().getName(), "Activity onDestroy - unbinding from service");
         updateTime = false;
+        if (playModeBinding != null) {
+            playModeBinding.detach();
+        }
         try {
             unbindService(this);
             YaaccLogger.d(getClass().getName(), "Successfully unbound from service");

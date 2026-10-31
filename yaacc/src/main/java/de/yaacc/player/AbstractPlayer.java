@@ -25,7 +25,6 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
-import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.drawable.Drawable;
@@ -43,16 +42,15 @@ import androidx.core.content.ContextCompat;
 import androidx.core.graphics.drawable.IconCompat;
 import androidx.media.app.NotificationCompat.MediaStyle;
 import androidx.media.session.MediaButtonReceiver;
-import androidx.preference.PreferenceManager;
 
 import java.beans.PropertyChangeListener;
 import java.beans.PropertyChangeSupport;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Date;
 import java.util.List;
+import java.util.Random;
 import java.util.Timer;
 import java.util.TimerTask;
 
@@ -86,6 +84,10 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
     private int currentLoadedIndex = -1;
     private Bitmap icon = null;
     private MediaSessionCompat mediaSession;
+    // The repeat and shuffle mode of this player: starts with the settings, then belongs to the player.
+    private volatile PlayMode playMode;
+    private final PlayOrder playOrder = new PlayOrder(new Random());
+    private final Object playModeLock = new Object();
 
     /**
      * @param upnpClient the upnpclient
@@ -207,6 +209,20 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
      */
     @Override
     public void next() {
+        advance(false);
+    }
+
+    /*
+     * (non-Javadoc)
+     *
+     * @see de.yaacc.player.Player#onItemEnded()
+     */
+    @Override
+    public void onItemEnded() {
+        advance(true);
+    }
+
+    private void advance(boolean itemEnded) {
         if (isProcessingCommand()) {
             return;
         }
@@ -216,19 +232,11 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
         paused = false;
         previousIndex = currentIndex;
         cancelTimer();
-        currentIndex++;
-        if (currentIndex > items.size() - 1) {
-            currentIndex = 0;
-            SharedPreferences preferences = PreferenceManager
-                    .getDefaultSharedPreferences(getContext());
-            boolean replay = preferences.getBoolean(
-                    getContext().getString(
-                            R.string.settings_replay_playlist_chkbx), true);
-            if (!replay) {
-                stop();
-                return;
-            }
-
+        if (!moveToNext(itemEnded)) {
+            // The command flag has to be free again, stop() ignores a call while a command runs
+            setProcessingCommand(false);
+            stop();
+            return;
         }
         Context context = getUpnpClient().getContext();
         if (context instanceof Activity) {
@@ -243,6 +251,33 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
         setProcessingCommand(false);
         play();
 
+    }
+
+    /**
+     * Moves the current index to the item that follows as the play mode says.
+     *
+     * @param itemEnded true if the current item ended by itself (repeat one repeats it), false if somebody
+     *                  skipped to the next one
+     * @return false at the end of a list that is not repeated: the index is unchanged, the player has to stop
+     */
+    boolean moveToNext(boolean itemEnded) {
+        playOrder.fit(items.size(), currentIndex);
+        int target = playOrder.next(currentIndex, getPlayMode().getRepeat(), itemEnded);
+        if (target == PlayOrder.NONE) {
+            return false;
+        }
+        currentIndex = target;
+        return true;
+    }
+
+    /**
+     * Moves the current index to the previous item of the order; before the first one it goes to the
+     * last (an empty list stays at index 0).
+     */
+    void moveToPrevious() {
+        playOrder.fit(items.size(), currentIndex);
+        int target = playOrder.previous(currentIndex);
+        currentIndex = target == PlayOrder.NONE ? 0 : target;
     }
 
     //
@@ -262,14 +297,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
         paused = false;
         previousIndex = currentIndex;
         cancelTimer();
-        currentIndex--;
-        if (currentIndex < 0) {
-            if (!items.isEmpty()) {
-                currentIndex = items.size() - 1;
-            } else {
-                currentIndex = 0;
-            }
-        }
+        moveToPrevious();
         Context context = getUpnpClient().getContext();
         if (context instanceof Activity) {
             ((Activity) context).runOnUiThread(() -> {
@@ -386,7 +414,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
             @Override
             public void run() {
                 cancelTimer();
-                currentIndex = 0;
+                currentIndex = restart();
                 Context context = getUpnpClient().getContext();
                 if (context instanceof Activity) {
                     ((Activity) context).runOnUiThread(() -> {
@@ -414,9 +442,216 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
      */
 
     protected boolean isShufflePlay() {
-        //FIXME need to be a property in each player
-        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(getContext());
-        return preferences.getBoolean(getContext().getString(R.string.settings_music_player_shuffle_chkbx), false);
+        return getPlayMode().isShuffle();
+    }
+
+    /**
+     * The mode a new player starts with: the two settings "replay playlist" and "shuffle music". Only
+     * read once per player (the first time the mode is asked).
+     */
+    protected PlayMode readDefaultPlayMode() {
+        return PlayModeSettings.defaultPlayMode(getContext());
+    }
+
+    @Override
+    public PlayMode getPlayMode() {
+        PlayMode mode = playMode;
+        if (mode == null) {
+            synchronized (playModeLock) {
+                if (playMode == null) {
+                    playMode = readDefaultPlayMode();
+                }
+                mode = playMode;
+            }
+        }
+        return mode;
+    }
+
+    @Override
+    public void setPlayMode(PlayMode mode) {
+        if (mode == null) {
+            return;
+        }
+        PlayMode old = getPlayMode();
+        if (old.equals(mode)) {
+            return;
+        }
+        playMode = mode;
+        playOrder.fit(items.size(), currentIndex);
+        playOrder.setShuffle(mode.isShuffle(), currentIndex);
+        YaaccLogger.d(getClass().getName(), "Play mode " + old + " -> " + mode);
+        onPlayModeChanged(old, mode);
+        firePropertyChange(PROPERTY_PLAY_MODE, old, mode);
+    }
+
+    /**
+     * The engine of a player applies the new play mode here (the order of the items is already adapted:
+     * see {@link #getPlayOrder()}). Called before the property change is fired, possibly on any thread.
+     */
+    protected void onPlayModeChanged(PlayMode oldMode, PlayMode newMode) {
+        //default: the next item is decided by this class when the current one ended
+    }
+
+    /**
+     * @return the order in which the items are played: the index of the item at each position, adapted to
+     * the current playlist. The list order without shuffle.
+     */
+    @Override
+    public int[] getPlayOrder() {
+        playOrder.fit(items.size(), currentIndex);
+        return playOrder.toArray();
+    }
+
+    /**
+     * An item is part of what has been played, or plays, when the player is playing or paused; a stopped
+     * player starts at the first item of the order, so everything can be edited.
+     */
+    private boolean isActive() {
+        return isPlaying() || isPaused();
+    }
+
+    @Override
+    public boolean isPlaylistPositionLocked(int position) {
+        playOrder.fit(items.size(), currentIndex);
+        return isActive() && playOrder.isAtOrBeforeCurrent(position, currentIndex);
+    }
+
+    /**
+     * The index of the item a stopped player starts with: the first of the play order (0 without shuffle).
+     */
+    private int startIndex() {
+        return items.isEmpty() ? 0 : Math.max(0, playOrder.first());
+    }
+
+    @Override
+    public boolean moveInPlayOrder(int fromPosition, int toPosition) {
+        int size = items.size();
+        if (fromPosition == toPosition || fromPosition < 0 || toPosition < 0
+                || fromPosition >= size || toPosition >= size) {
+            return false;
+        }
+        if (isPlaylistPositionLocked(fromPosition) || isPlaylistPositionLocked(toPosition)) {
+            return false;
+        }
+        if (playOrder.isShuffle()) {
+            // The list keeps its order, only the order the items play in changes
+            if (!playOrder.move(fromPosition, toPosition)) {
+                return false;
+            }
+            if (!isActive()) {
+                currentIndex = startIndex();
+            }
+            onPlayOrderMoved();
+        } else {
+            // Without shuffle the position is the index. Only items behind the current one move while the
+            // player is active, so the current index stays; a stopped player starts with the first one
+            items.add(toPosition, items.remove(fromPosition));
+            currentLoadedIndex = -1;
+            loadedItem = null;
+            if (!isActive()) {
+                currentIndex = startIndex();
+            }
+            onItemMoved(fromPosition, toPosition);
+        }
+        firePropertyChange(PROPERTY_PLAYLIST, null, null);
+        return true;
+    }
+
+    @Override
+    public boolean removeItem(int itemIndex) {
+        if (itemIndex < 0 || itemIndex >= items.size()) {
+            return false;
+        }
+        playOrder.fit(items.size(), currentIndex);
+        int position = playOrder.positionOf(itemIndex);
+        if (position < 0 || isPlaylistPositionLocked(position)) {
+            return false;
+        }
+        boolean active = isActive();
+        items.remove(itemIndex);
+        playOrder.remove(itemIndex);
+        // The indexes behind the removed item moved down by one, so the cached loaded item is not the one
+        // of its index any more
+        currentLoadedIndex = -1;
+        loadedItem = null;
+        if (previousIndex > itemIndex) {
+            previousIndex--;
+        }
+        previousIndex = Math.max(0, Math.min(previousIndex, items.size() - 1));
+        if (!active) {
+            currentIndex = startIndex();
+        } else if (itemIndex < currentIndex) {
+            // With shuffle an item can come after the current one in the order and before it in the list
+            currentIndex--;
+        }
+        onItemRemoved(itemIndex);
+        firePropertyChange(PROPERTY_PLAYLIST, null, null);
+        return true;
+    }
+
+    /**
+     * The list order changed: the item at {@code fromIndex} moved to {@code toIndex} (shuffle is off).
+     * For an engine that holds the list too. Called on the caller's thread, before the property change.
+     */
+    protected void onItemMoved(int fromIndex, int toIndex) {
+        //default: the engine plays one item at a time
+    }
+
+    /**
+     * The item at {@code index} was removed from the list and the play order. Called on the caller's
+     * thread, before the property change.
+     */
+    protected void onItemRemoved(int index) {
+        //default: the engine plays one item at a time
+    }
+
+    /**
+     * The play order changed by a move (shuffle is on, the list is unchanged); read it with {@link
+     * #getPlayOrder()}. Called on the caller's thread, before the property change.
+     */
+    protected void onPlayOrderMoved() {
+        //default: the next item is decided by this class when the current one ended
+    }
+
+    /**
+     * Creates the play order of the playlist again with the given item first (with shuffle a new random
+     * order, otherwise the list order). For an engine that follows {@link #getPlayOrder()} and starts
+     * playing at the item.
+     */
+    protected void resetPlayOrder(int firstIndex) {
+        playOrder.reset(items.size(), firstIndex, getPlayMode().isShuffle());
+        firePropertyChange(PROPERTY_PLAYLIST, null, null);
+    }
+
+    /**
+     * Creates the play order again for playing from the beginning.
+     *
+     * @return the index of the item that starts: the first of the order, which is 0 without shuffle and a
+     * random item with shuffle
+     */
+    private int restart() {
+        boolean shuffle = getPlayMode().isShuffle();
+        playOrder.reset(items.size(), PlayOrder.NONE, shuffle);
+        firePropertyChange(PROPERTY_PLAYLIST, null, null);
+        return shuffle && !items.isEmpty() ? playOrder.first() : 0;
+    }
+
+    /**
+     * @return the index of the item that plays after the current one in the play order, {@link
+     * PlayOrder#NONE} at the end of the list (also with repeat all: the wrap around is not shown)
+     */
+    public int getNextItemIndex() {
+        playOrder.fit(items.size(), currentIndex);
+        return playOrder.following(currentIndex);
+    }
+
+    /**
+     * @return the index of the item before the current one in the play order, {@link PlayOrder#NONE}
+     * before the first one
+     */
+    public int getPreviousItemIndex() {
+        playOrder.fit(items.size(), currentIndex);
+        return playOrder.preceding(currentIndex);
     }
 
     /*
@@ -427,6 +662,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
     @Override
     public void clear() {
         items.clear();
+        firePropertyChange(PROPERTY_PLAYLIST, null, null);
     }
 
     protected void cancelTimer() {
@@ -485,12 +721,17 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
         boolean wasPlaying = isPlaying();
         cancelTimer(); // Cancel any pending auto-advance timer
         items.clear(); // Clear existing items before adding new ones
-        List<PlayableItem> itemsList = Arrays.asList(playableItems);
-
-        if (isShufflePlay()) {
-            Collections.shuffle(itemsList);
+        items.addAll(Arrays.asList(playableItems));
+        if (isShufflePlay() && !wasPlaying) {
+            // A new shuffled playlist starts with a random item, the others follow in random order
+            playOrder.reset(items.size(), PlayOrder.NONE, true);
+            if (!items.isEmpty()) {
+                currentIndex = playOrder.first();
+            }
+        } else {
+            playOrder.reset(items.size(), Math.min(currentIndex, items.size() - 1), isShufflePlay());
         }
-        items.addAll(itemsList);
+        firePropertyChange(PROPERTY_PLAYLIST, null, null);
         showNotification();
 
         // Restart timer if we were playing
@@ -502,6 +743,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
     @Override
     public void addItems(List<PlayableItem> playableItems) {
         items.addAll(playableItems);
+        firePropertyChange(PROPERTY_PLAYLIST, null, null);
     }
 
     /**
@@ -538,9 +780,10 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
      */
     public String getNextItemTitle() {
         String result = "";
-        if (currentIndex + 1 < items.size()) {
+        int next = getNextItemIndex();
+        if (next >= 0 && next < items.size()) {
 
-            result = items.get(currentIndex + 1).getTitle();
+            result = items.get(next).getTitle();
         }
         return result;
     }
@@ -575,7 +818,8 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
     }
 
     protected void doPostLoadItem(PlayableItem playableItem) {
-        if (isPlaying() && items.size() > 1) {
+        // Repeat one needs the timer for a single item too: it plays that item again
+        if (isPlaying() && (items.size() > 1 || getPlayMode().getRepeat() == PlayMode.RepeatMode.ONE)) {
             if (playableItem.getDuration() > -1) {
                 //Only start timer if automatic track change is active
                 startTimer(playableItem.getDuration() + getSilenceDuration());

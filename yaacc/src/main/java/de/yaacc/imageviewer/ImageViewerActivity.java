@@ -25,6 +25,7 @@ import android.content.ServiceConnection;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.IBinder;
+import android.view.Menu;
 import android.view.MotionEvent;
 import android.view.View;
 import android.widget.ImageButton;
@@ -38,6 +39,7 @@ import androidx.core.view.WindowInsetsCompat;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.viewpager2.widget.ViewPager2;
 
+import java.beans.PropertyChangeEvent;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
@@ -47,6 +49,8 @@ import java.util.TimerTask;
 import de.yaacc.R;
 import de.yaacc.Yaacc;
 import de.yaacc.player.LocalImagePlayer;
+import de.yaacc.player.PlayMode;
+import de.yaacc.player.PlayModeControls;
 import de.yaacc.player.Player;
 import de.yaacc.player.PlayerService;
 import de.yaacc.settings.SettingsActivity;
@@ -69,6 +73,9 @@ public class ImageViewerActivity extends AppCompatActivity implements SwipeRecei
     private PlayerService playerService;
     private ImageViewerBroadcastReceiver broadcastReceiver;
     private Timer controlHideTimer;
+    // The player whose play mode the slideshow follows (while the service is bound)
+    private LocalImagePlayer followedPlayer;
+    private final java.beans.PropertyChangeListener playModeListener = this::onPlayerPropertyChange;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -137,6 +144,9 @@ public class ImageViewerActivity extends AppCompatActivity implements SwipeRecei
                 viewPager.setUserInputEnabled(true);
             }
         });
+
+        // The repeat and shuffle items of the menu show the play mode
+        viewModel.getPlayModeLive().observe(this, mode -> invalidateOptionsMenu());
     }
 
     private void initViews() {
@@ -271,6 +281,7 @@ public class ImageViewerActivity extends AppCompatActivity implements SwipeRecei
     @Override
     protected void onStop() {
         super.onStop();
+        followPlayer(null);
         try {
             unbindService(this);
         } catch (IllegalArgumentException e) {
@@ -345,6 +356,36 @@ public class ImageViewerActivity extends AppCompatActivity implements SwipeRecei
         if (binder instanceof PlayerService.PlayerServiceBinder) {
             YaaccLogger.d(getClass().getName(), "PlayerService connected");
             playerService = ((PlayerService.PlayerServiceBinder) binder).getService();
+            Player player = playerService.getFirstCurrentPlayerOfType(LocalImagePlayer.class);
+            followPlayer(player instanceof LocalImagePlayer ? (LocalImagePlayer) player : null);
+        }
+    }
+
+    /**
+     * The slideshow plays by the play mode of the image player (set by its owner: this screen, a
+     * controller, the settings at the creation of the player); without a player it keeps its own.
+     */
+    private void followPlayer(LocalImagePlayer player) {
+        if (followedPlayer != null) {
+            followedPlayer.removePropertyChangeListener(playModeListener);
+        }
+        followedPlayer = player;
+        if (player != null) {
+            player.addPropertyChangeListener(playModeListener);
+            viewModel.setPlayMode(player.getPlayMode());
+        }
+    }
+
+    private void onPlayerPropertyChange(PropertyChangeEvent event) {
+        if (Player.PROPERTY_PLAY_MODE.equals(event.getPropertyName()) && event.getNewValue() instanceof PlayMode) {
+            viewModel.setPlayMode((PlayMode) event.getNewValue());
+        }
+    }
+
+    private void changePlayMode(PlayMode mode) {
+        viewModel.setPlayMode(mode);
+        if (followedPlayer != null) {
+            followedPlayer.setPlayMode(mode);
         }
     }
 
@@ -440,6 +481,20 @@ public class ImageViewerActivity extends AppCompatActivity implements SwipeRecei
     }
 
     @Override
+    public boolean onPrepareOptionsMenu(Menu menu) {
+        PlayMode mode = viewModel.getPlayMode();
+        android.view.MenuItem repeat = menu.findItem(R.id.menu_repeat);
+        if (repeat != null) {
+            PlayModeControls.renderRepeat(this, repeat, mode);
+        }
+        android.view.MenuItem shuffle = menu.findItem(R.id.menu_shuffle);
+        if (shuffle != null) {
+            PlayModeControls.renderShuffle(this, shuffle, mode);
+        }
+        return super.onPrepareOptionsMenu(menu);
+    }
+
+    @Override
     public boolean onOptionsItemSelected(android.view.MenuItem item) {
         return handleMenuItem(item.getItemId()) || super.onOptionsItemSelected(item);
     }
@@ -468,6 +523,14 @@ public class ImageViewerActivity extends AppCompatActivity implements SwipeRecei
         }
         if (itemId == R.id.menu_stop) {
             stop();
+            return true;
+        }
+        if (itemId == R.id.menu_repeat) {
+            changePlayMode(viewModel.getPlayMode().nextRepeat());
+            return true;
+        }
+        if (itemId == R.id.menu_shuffle) {
+            changePlayMode(viewModel.getPlayMode().toggleShuffle());
             return true;
         }
         if (itemId == R.id.yaacc_log) {

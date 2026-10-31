@@ -174,4 +174,9 @@
     <string name="log_pause">Suspendre l\'actualisation</string>
     <string name="log_resume">Reprendre l\'actualisation</string>
     <string name="toggle_view_mode">Basculer entre la vue liste et la vue cartes</string>
+    <string name="repeat_off">Répétition désactivée</string>
+    <string name="repeat_all">Tout répéter</string>
+    <string name="repeat_one">Répéter un titre</string>
+    <string name="shuffle_off">Lecture aléatoire désactivée</string>
+    <string name="shuffle_on">Lecture aléatoire activée</string>
 </resources>

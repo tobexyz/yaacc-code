@@ -353,3 +353,38 @@ in `tasks.md` ("Owner's open items"); accepted risks in `known-risks.md`; how it
 - **Decision.** `getSize` only for BrowseDirectChildren; BrowseMetadata sets NumberReturned = TotalMatches = 1 after `browseMeta` found the object (null is still 701, without a `getSize`). DirectChildren, UpdateID and the test-content branch are unchanged.
   `findBrowserFor` is package-private so a test can plug in a fake browser; no `Search` action exists, so there is no other count path.
 - **Left alone.** The test-content branch (`TotalMatches` stays 1 for its folders); an unknown BrowseFlag is handled like DirectChildren.
+
+
+## Repeat and shuffle per player (owner request, 2026-10-30)
+- **Why.** Repeat and shuffle were global settings (`settings_replay_playlist_chkbx`, `settings_music_player_shuffle_chkbx`) read at several places (`AbstractPlayer.next()` / `isShufflePlay()` / `setItems`,
+  `LocalMediaSessionPlayer`, and written by `AVTransportPlayerWrapper.setRepeatMode` / `setShuffleModeEnabled`); one player could not repeat while another did not, and a controller changing the mode rewrote the settings.
+- **Decision.** The settings are only the start value of a new player (`PlayModeSettings.defaultPlayMode`, read once per player). Each `Player` has a transient `PlayMode` (repeat OFF/ALL/ONE + shuffle),
+  `getPlayMode` / `setPlayMode` and `PROPERTY_PLAY_MODE`; nothing is written back. Pure `PlayMode` (UPnP mapping both ways) and `PlayOrder` (order, next/previous, shuffle created once, current item first,
+  `fit` for added items) with tests; `Player.onItemEnded()` separates "ended by itself" (repeat one repeats) from a skip (repeat one acts like off, as in ExoPlayer). ExoPlayer gets repeat mode, shuffle mode and the
+  `PlayOrder` as its shuffle order. Buttons (`PlayModeControls.Binding`) in the music, AVTransport and multi content screens, a menu item pair in the image viewer; five strings in all seven locales. The renderer's
+  `SetPlayMode` / `GetTransportSettings` / `CurrentPlayMode` now reach and follow the players (`AvTransport.setPlayMode`, `attachPlayers`).
+- **Consequences.** `setItems` no longer shuffles the stored list (the playlist dialog shows the list order, the play order is separate). The images in the viewer now obey repeat (before they always looped) and shuffle.
+  An unknown `SetPlayMode` value answers 712 (it was swallowed). The mode of a renderer instance survives its players (a new player of the transport gets the mode last set or chosen).
+- **Bugs found on the way.** `AbstractPlayer.next()` at the end of the list with repeat off called `stop()` with the command flag still set, so the player stayed blocked; `LocalMediaSessionPlayer` updated its index only for
+  seeks, so an item that ended by itself left the screen on the old title (`onMediaItemTransition` now handles every reason except a changed playlist).
+- **Left alone.** No play mode control in the mini-player and device sheet rows; `AVTransportController` (no own playlist) hides the buttons; no `SetPlayMode` is sent to a remote renderer by `AVTransportPlayer`
+  (the app drives the items); a Media3 controller (system media controls) that sets ExoPlayer's repeat or shuffle directly is not mirrored into the `PlayMode` (races with our own changes); the `DIRECT_1` and
+  `INTRO` values are still advertised and play as normal; repeat ONE with shuffle is reported as REPEAT_ONE.
+
+
+## Playlist dialog shows the play order; external controllers are mirrored (owner request, 2026-10-31)
+- **Why.** Since `PlayOrder` shuffles instead of the stored list, the playlist dialog showed the list order while the player followed another; and a system / Bluetooth / notification / Wear controller that
+  set ExoPlayer's repeat or shuffle mode left the `PlayMode` (buttons, `CurrentPlayMode`) stale (the "left alone" item of the entry above).
+- **Decision (dialog).** The dialog shows `Player.getPlayOrder()` (identity without shuffle, so the list order as before). Pure logic in `PlayOrder`: `positionOf` / `itemAt`, `move(from, to)` (shift, as a drag),
+  `remove(index)` (keeps the relative order of the rest; `fit` would shuffle again), `isAtOrBeforeCurrent` (lock rule). `AbstractPlayer.moveInPlayOrder` / `removeItem` / `isPlaylistPositionLocked` are the edit API
+  (defaults in `Player` for the image player): with shuffle a move only changes the order, without it the list; delete removes from both and keeps `currentIndex` on the same item. Locked = playing or paused item and
+  everything before it in the shown order (before: playing only, in list order); a stopped player has nothing locked and `currentIndex` is the first shown item after an edit. New `Player.PROPERTY_PLAYLIST`
+  (set / add / clear / remove / move / order reset at start and stop). The adapter applies its own edits with precise notifications and skips the event it caused; other changes are a full refresh, only if the shown
+  order differs. The listener is removed in `onDestroyView` (it leaked the fragment before). Click listeners ask the holder for the position (they captured a stale one after a move).
+- **Decision (ExoPlayer).** The edits reach ExoPlayer as `moveMediaItem` / `removeMediaItem` / `setShuffleOrder` (hooks `onItemMoved`, `onItemRemoved`, `onPlayOrderMoved`); `syncPlaylistToExoPlayer` (rebuilt the part
+  behind ExoPlayer's current item) is removed, it was wrong as soon as an item before the current one in the list could be edited.
+- **Decision (mirror).** `Player.Listener` in `LocalMediaSessionPlayer` takes over the changed part (repeat or shuffle) through `RepeatPolicy.adoptExoRepeatMode` / `adoptExoShuffleMode` and `setPlayMode`; our own
+  `applyPlayMode` is recognized by a main-thread flag and by "value equals play mode". Shuffle turned on from outside: `setPlayMode` creates our order, `onPlayModeChanged` installs it with `setShuffleOrder`.
+  `AVTransportPlayerWrapper` already routed to the `PlayMode`; nothing changed there.
+- **Left alone / found.** `addItems` on a `LocalMediaSessionPlayer` does not append to ExoPlayer (it is rebuilt at the next `startItem`; ExoPlayer's order lacks the new items until then); mini-player and device sheet
+  rows list no queue, so nothing to change there; a change of the other part of the mode within the few ms between our `setPlayMode` and the posted `applyPlayMode` is the only race left (last writer wins).

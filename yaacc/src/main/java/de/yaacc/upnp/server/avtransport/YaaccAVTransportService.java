@@ -403,28 +403,34 @@ public class YaaccAVTransportService implements LastChangeDelegator {
         }
     }
 
+    /**
+     * {@code SetPlayMode}, for example from Home Assistant's repeat and shuffle services: the five modes
+     * {@code NORMAL}, {@code REPEAT_ONE}, {@code REPEAT_ALL}, {@code SHUFFLE} and {@code RANDOM} are played
+     * (see {@link de.yaacc.player.PlayMode#fromUpnpPlayMode}); {@code DIRECT_1} and {@code INTRO} are
+     * accepted and played as normal. The mode is also given to the players that play now and to every
+     * player this instance starts later.
+     *
+     * @throws AVTransportException PLAYMODE_NOT_SUPPORTED (712) for a value that is not a UPnP play mode
+     */
     @UpnpAction
     public void setPlayMode(@UpnpInputArgument(name = "InstanceID") UnsignedIntegerFourBytes instanceId,
                             @UpnpInputArgument(name = "NewPlayMode", stateVariable = "CurrentPlayMode") String newPlayMode)
             throws AVTransportException {
+        PlayMode mode;
         try {
-            AVTransport transport = findStateMachine(instanceId).getCurrentState().getTransport();
-            try {
-                transport.setTransportSettings(
-                        new TransportSettings(
-                                PlayMode.valueOf(newPlayMode),
-                                transport.getTransportSettings().getRecQualityMode()
-                        )
-                );
-            } catch (IllegalArgumentException ex) {
-                throw new AVTransportException(
-                        AVTransportErrorCode.PLAYMODE_NOT_SUPPORTED, "Unsupported play mode: " + newPlayMode
-                );
-            }
-        } catch (AVTransportException e) {
-            // Silently ignore when no media is present
-            YaaccLogger.d(getClass().getName(), "setPlayMode called with no media present, ignoring");
+            mode = PlayMode.valueOf(newPlayMode);
+        } catch (IllegalArgumentException | NullPointerException ex) {
+            throw new AVTransportException(
+                    AVTransportErrorCode.PLAYMODE_NOT_SUPPORTED, "Unsupported play mode: " + newPlayMode
+            );
         }
+        AVTransport transport = findStateMachine(instanceId).getCurrentState().getTransport();
+        if (transport instanceof AvTransport) {
+            ((AvTransport) transport).setPlayMode(mode);
+        } else {
+            transport.setTransportSettings(new TransportSettings(mode, transport.getTransportSettings().getRecQualityMode()));
+        }
+        YaaccLogger.d(getClass().getName(), "setPlayMode: " + mode);
     }
 
     @UpnpAction
@@ -542,11 +548,8 @@ public class YaaccAVTransportService implements LastChangeDelegator {
     public TransportSettings getTransportSettings(@UpnpInputArgument(name = "InstanceID") UnsignedIntegerFourBytes instanceId)
             throws AVTransportException {
         try {
-            AVTransportStateMachine stateMachine = findStateMachine(instanceId);
-            if (stateMachine.getCurrentState() instanceof AvTransportMediaRendererNoMediaPresent) {
-                return new TransportSettings();
-            }
-            return stateMachine.getCurrentState().getTransport().getTransportSettings();
+            // Also with no media present: a play mode is set before something plays
+            return findStateMachine(instanceId).getCurrentState().getTransport().getTransportSettings();
         } catch (Exception e) {
             return new TransportSettings();
         }

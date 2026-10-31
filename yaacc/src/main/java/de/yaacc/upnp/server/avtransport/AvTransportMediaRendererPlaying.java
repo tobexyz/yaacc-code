@@ -88,6 +88,8 @@ public class AvTransportMediaRendererPlaying extends Playing<AvTransport> implem
         if (!hasPausedPlayer) {
             players = upnpClient.initializePlayers(getTransport());
         }
+        // The play mode a control point set (or the one of the players) is in place before the first note
+        getTransport().attachPlayers(players);
         for (Player player : players) {
             player.play();
         }

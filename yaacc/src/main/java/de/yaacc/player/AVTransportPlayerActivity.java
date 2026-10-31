@@ -74,6 +74,7 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
     private int playerId;
 
     private AVTransportController player;
+    private PlayModeControls.Binding playModeBinding;
 
     public void onServiceConnected(ComponentName className, IBinder binder) {
         if (binder instanceof PlayerService.PlayerServiceBinder) {
@@ -137,6 +138,9 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
     protected void onDestroy() {
         super.onDestroy();
         updateTime = false;
+        if (playModeBinding != null) {
+            playModeBinding.detach();
+        }
         try {
             unbindService(this);
         } catch (IllegalArgumentException iae) {
@@ -156,6 +160,18 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
         ImageButton btnExit = findViewById(R.id.avtransportPlayerActivityControlExit);
         ImageButton btnFf = findViewById(R.id.avtransportPlayerActivityControlFastForward);
         ImageButton btnFr = findViewById(R.id.avtransportPlayerActivityControlFastRewind);
+        ImageButton btnRepeat = findViewById(R.id.avtransportPlayerActivityControlRepeat);
+        ImageButton btnShuffle = findViewById(R.id.avtransportPlayerActivityControlShuffle);
+        if (playModeBinding == null) {
+            playModeBinding = new PlayModeControls.Binding(this, btnRepeat, btnShuffle);
+        }
+        if (player instanceof AVTransportController) {
+            // Only controls the transport of a receiver: there is no playlist of ours to repeat or shuffle
+            btnRepeat.setVisibility(View.GONE);
+            btnShuffle.setVisibility(View.GONE);
+        } else {
+            playModeBinding.attach(player);
+        }
         if (player == null) {
             btnPrev.setActivated(false);
             btnNext.setActivated(false);

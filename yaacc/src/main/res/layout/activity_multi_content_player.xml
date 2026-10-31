@@ -114,5 +114,35 @@
                     app:tint="?attr/colorControlNormal" />
     </LinearLayout>
 
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:paddingLeft="16dp"
+        android:paddingRight="16dp">
+
+        <ImageButton
+            android:id="@+id/multiContentPlayerActivityControlShuffle"
+            style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginStart="2dp"
+            android:foreground="@drawable/focus_ring"
+            android:contentDescription="@string/shuffle_off"
+            app:srcCompat="@drawable/ic_baseline_shuffle_32"
+            app:tint="?attr/colorControlNormal" />
+
+        <ImageButton
+            android:id="@+id/multiContentPlayerActivityControlRepeat"
+            style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginStart="2dp"
+            android:foreground="@drawable/focus_ring"
+            android:contentDescription="@string/repeat_off"
+            app:srcCompat="@drawable/ic_baseline_repeat_32"
+            app:tint="?attr/colorControlNormal" />
+    </LinearLayout>
 
 </LinearLayout>

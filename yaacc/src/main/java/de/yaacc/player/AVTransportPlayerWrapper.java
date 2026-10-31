@@ -17,7 +17,6 @@
  */
 package de.yaacc.player;
 
-import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
@@ -39,7 +38,6 @@ import androidx.media3.common.VideoSize;
 import androidx.media3.common.text.CueGroup;
 import androidx.media3.common.util.Size;
 import androidx.media3.common.util.UnstableApi;
-import androidx.preference.PreferenceManager;
 
 import org.fourthline.cling.support.model.DIDLObject;
 
@@ -47,7 +45,6 @@ import java.net.URI;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-import de.yaacc.R;
 import de.yaacc.util.YaaccLogger;
 
 /**
@@ -59,7 +56,6 @@ public class AVTransportPlayerWrapper implements Player {
 
     private final AVTransportPlayer avTransportPlayer;
     private final List<Listener> listeners = new CopyOnWriteArrayList<>();
-    private SharedPreferences preferences;
     private int state;
 
     public AVTransportPlayerWrapper(AVTransportPlayer avTransportPlayer, Listener listener) {
@@ -67,7 +63,6 @@ public class AVTransportPlayerWrapper implements Player {
         if (listener != null) {
             this.listeners.add(listener);
         }
-        this.preferences = PreferenceManager.getDefaultSharedPreferences(avTransportPlayer.getContext());
     }
 
     public void notifyPlaybackStateChanged() {
@@ -75,6 +70,15 @@ public class AVTransportPlayerWrapper implements Player {
             for (Listener listener : listeners) {
                 listener.onIsPlayingChanged(avTransportPlayer.isPlaying());
                 listener.onMediaItemTransition(getCurrentMediaItem(), Player.MEDIA_ITEM_TRANSITION_REASON_AUTO);
+            }
+        });
+    }
+
+    public void notifyPlayModeChanged() {
+        new Handler(Looper.getMainLooper()).post(() -> {
+            for (Listener listener : listeners) {
+                listener.onRepeatModeChanged(getRepeatMode());
+                listener.onShuffleModeEnabledChanged(getShuffleModeEnabled());
             }
         });
     }
@@ -272,30 +276,25 @@ public class AVTransportPlayerWrapper implements Player {
         return playing;
     }
 
+    // Repeat and shuffle are the play mode of the AVTransportPlayer (one per player, never the settings)
     @Override
     public void setRepeatMode(int repeatMode) {
-        preferences.edit().putBoolean(avTransportPlayer.getContext().getString(R.string.settings_replay_playlist_chkbx), repeatMode == REPEAT_MODE_ALL).apply();
-
+        avTransportPlayer.setPlayMode(avTransportPlayer.getPlayMode().withRepeat(RepeatPolicy.fromExoRepeatMode(repeatMode)));
     }
 
     @Override
     public int getRepeatMode() {
-        if (preferences.getBoolean(avTransportPlayer.getContext().getString(R.string.settings_replay_playlist_chkbx), false)) {
-            return REPEAT_MODE_ALL;
-        }
-        ;
-
-        return REPEAT_MODE_OFF;
+        return RepeatPolicy.repeatMode(avTransportPlayer.getPlayMode());
     }
 
     @Override
     public void setShuffleModeEnabled(boolean shuffleModeEnabled) {
-        preferences.edit().putBoolean(avTransportPlayer.getContext().getString(R.string.settings_music_player_shuffle_chkbx), shuffleModeEnabled).apply();
+        avTransportPlayer.setPlayMode(avTransportPlayer.getPlayMode().withShuffle(shuffleModeEnabled));
     }
 
     @Override
     public boolean getShuffleModeEnabled() {
-        return avTransportPlayer.isShufflePlay();
+        return avTransportPlayer.getPlayMode().isShuffle();
     }
 
     @Override
@@ -345,13 +344,13 @@ public class AVTransportPlayerWrapper implements Player {
 
     @Override
     public boolean hasPreviousMediaItem() {
-        return avTransportPlayer.getCurrentItemIndex() > 0;
+        return avTransportPlayer.getPreviousItemIndex() != PlayOrder.NONE;
     }
 
     @Override
     public boolean hasNextMediaItem() {
         return avTransportPlayer.getItems() != null &&
-                avTransportPlayer.getCurrentItemIndex() < avTransportPlayer.getItems().size() - 1;
+                avTransportPlayer.getNextItemIndex() != PlayOrder.NONE;
     }
 
     @Override
@@ -431,7 +430,7 @@ public class AVTransportPlayerWrapper implements Player {
 
     @Override
     public int getNextMediaItemIndex() {
-        return hasNextMediaItem() ? getCurrentMediaItemIndex() + 1 : -1;
+        return avTransportPlayer.getNextItemIndex();
     }
 
     @Override
@@ -441,7 +440,7 @@ public class AVTransportPlayerWrapper implements Player {
 
     @Override
     public int getPreviousMediaItemIndex() {
-        return hasPreviousMediaItem() ? getCurrentMediaItemIndex() - 1 : -1;
+        return avTransportPlayer.getPreviousItemIndex();
     }
 
     @Override

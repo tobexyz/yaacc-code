@@ -174,4 +174,9 @@
     <string name="log_pause">Verversen pauzeren</string>
     <string name="log_resume">Verversen hervatten</string>
     <string name="toggle_view_mode">Wisselen tussen lijst- en kaartweergave</string>
+    <string name="repeat_off">Herhalen uit</string>
+    <string name="repeat_all">Alles herhalen</string>
+    <string name="repeat_one">Eén herhalen</string>
+    <string name="shuffle_off">Willekeurig uit</string>
+    <string name="shuffle_on">Willekeurig aan</string>
 </resources>

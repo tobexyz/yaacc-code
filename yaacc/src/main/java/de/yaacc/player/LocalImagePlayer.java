@@ -62,6 +62,9 @@ public class LocalImagePlayer implements Player, ServiceConnection {
     private boolean isPaused;
     private ArrayList<Uri> imageUris;  // Store URIs for reopening activity
     private int currentIndex;  // Store current position for resuming slideshow
+    // The repeat and shuffle mode of the slideshow: starts with the settings, then belongs to this player.
+    // The ImageViewerActivity follows the player's mode and plays the slideshow by it.
+    private volatile PlayMode playMode;
 
     public LocalImagePlayer(UpnpClient upnpClient, String name, String shortName) {
         this(upnpClient);
@@ -102,6 +105,34 @@ public class LocalImagePlayer implements Player, ServiceConnection {
 
     public boolean isPlaying() {
         return isPlaying;
+    }
+
+    @Override
+    public PlayMode getPlayMode() {
+        PlayMode mode = playMode;
+        if (mode == null) {
+            synchronized (pcs) {
+                if (playMode == null) {
+                    playMode = PlayModeSettings.defaultPlayMode(upnpClient.getContext());
+                }
+                mode = playMode;
+            }
+        }
+        return mode;
+    }
+
+    @Override
+    public void setPlayMode(PlayMode mode) {
+        if (mode == null) {
+            return;
+        }
+        PlayMode old = getPlayMode();
+        if (old.equals(mode)) {
+            return;
+        }
+        playMode = mode;
+        YaaccLogger.d(getClass().getName(), "Play mode " + old + " -> " + mode);
+        pcs.firePropertyChange(PROPERTY_PLAY_MODE, old, mode);
     }
 
     public void setPlaying(boolean isPlaying) {

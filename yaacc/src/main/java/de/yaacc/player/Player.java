@@ -34,6 +34,18 @@ import java.util.List;
 public interface Player {
 
     /**
+     * Name of the property change fired (see {@link #addPropertyChangeListener}) when the play mode
+     * changed; old and new value are {@link PlayMode}s.
+     */
+    String PROPERTY_PLAY_MODE = "playMode";
+
+    /**
+     * Name of the property change fired when the playlist changed: items set, added, removed or moved, or
+     * the play order created again (a stop, a start). Old and new value are null; read the playlist again.
+     */
+    String PROPERTY_PLAYLIST = "playlist";
+
+    /**
      * play the next item
      */
     void next();
@@ -42,6 +54,15 @@ public interface Player {
      * play the previous item
      */
     void previous();
+
+    /**
+     * The current item has ended by itself (a timer, or the renderer reported it): go on as the play
+     * mode says, which unlike {@link #next()} repeats the item with repeat one. The default is
+     * {@link #next()}.
+     */
+    default void onItemEnded() {
+        next();
+    }
 
     /**
      * Pause the current item
@@ -245,4 +266,66 @@ public interface Player {
     boolean isPaused();
 
     boolean isStopped();
+
+    /**
+     * The repeat and shuffle mode of this player. It starts with the mode the settings "replay playlist"
+     * and "shuffle music" give a new player and then belongs to the player only: it is never written back
+     * to the settings and ends with the player.
+     *
+     * @return the mode, never null
+     */
+    PlayMode getPlayMode();
+
+    /**
+     * Changes the repeat and shuffle mode of this player; the current item goes on playing. Fires
+     * {@link #PROPERTY_PLAY_MODE} if the mode differs.
+     *
+     * @param mode the new mode, null is ignored
+     */
+    void setPlayMode(PlayMode mode);
+
+    /**
+     * The order in which the items of the playlist play (with shuffle the shuffled order, otherwise the
+     * list order), as the index into {@link #getItems()} of the item at each position. The playlist
+     * screen shows the items in this order.
+     *
+     * @return a copy, one entry per item
+     */
+    default int[] getPlayOrder() {
+        int[] order = new int[getItems().size()];
+        for (int i = 0; i < order.length; i++) {
+            order[i] = i;
+        }
+        return order;
+    }
+
+    /**
+     * Moves an item in the playlist as the screen shows it: with shuffle the item moves in the play order
+     * (the list is not touched), otherwise in the list. The positions are positions of
+     * {@link #getPlayOrder()}. Fires {@link #PROPERTY_PLAYLIST}.
+     *
+     * @return false if nothing moved: the positions are invalid or locked
+     */
+    default boolean moveInPlayOrder(int fromPosition, int toPosition) {
+        return false;
+    }
+
+    /**
+     * Removes an item from the playlist (and from the play order).
+     *
+     * @param itemIndex the index into {@link #getItems()}
+     * @return false if nothing was removed: the index is invalid or the item is locked
+     */
+    default boolean removeItem(int itemIndex) {
+        return false;
+    }
+
+    /**
+     * @param position a position of {@link #getPlayOrder()}
+     * @return true if the item at the position cannot be edited: it plays (or is paused) or came before
+     * the one that plays
+     */
+    default boolean isPlaylistPositionLocked(int position) {
+        return false;
+    }
 }

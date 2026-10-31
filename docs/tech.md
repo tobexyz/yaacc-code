@@ -2379,3 +2379,97 @@ carries a scope after `%`; `ProxyAccessPolicy.normalize` strips it. The glue sta
 ### Play queue of one media kind
 
 - Tapping a non-video item (or "play all") queues the loaded siblings of the item's folder. SAF folders mix images, videos and audio, the media store folders do not. A mixed queue chooses the multi content player, which starts every item with `ACTION_VIEW` and shows the app chooser. `SameMediaKind.of` therefore narrows the queue to the kind (`image`, `audio`, `video` of the first resource's content format) of the tapped item before it is rotated to start there (`ContentListFragment.playAllChildsOfParentFrom` and the server re-browse fallback). A target without a known kind keeps the whole queue.
+
+## Play mode (repeat and shuffle per player)
+
+Repeat and shuffle belong to the player, not to the settings. The settings `settings_replay_playlist_chkbx` (default true) and
+`settings_music_player_shuffle_chkbx` (default false) are read in one place, `PlayModeSettings.defaultPlayMode(Context)`, when a player is asked for its
+mode the first time; after that the player owns a `PlayMode` and nothing writes the settings. The mode lives as long as the player.
+
+### Pure classes (plain JVM, tests in `src/test/java/de/yaacc/player`)
+- `PlayMode`: immutable `RepeatMode {OFF, ALL, ONE}` + `shuffle`. `fromSettings(replay, shuffle)` (replay true is ALL), `withRepeat`, `withShuffle`, `nextRepeat()` (OFF, ALL,
+  ONE, OFF), `toggleShuffle()`, `toUpnpPlayMode()` / `fromUpnpPlayMode(String)`. UPnP mapping (the one Home Assistant's `media_player.repeat_set` / `shuffle_set`
+  use through async_upnp_client): (OFF,off) NORMAL, (OFF,on) SHUFFLE, (ALL,off) REPEAT_ALL, (ALL,on) RANDOM, (ONE,any) REPEAT_ONE. `DIRECT_1`, `INTRO`, null and unknown
+  strings read as NORMAL. Repeat one with shuffle reads back as REPEAT_ONE without shuffle (the protocol has no such value).
+- `PlayOrder`: the order the items play in, a permutation of the item indexes. Without shuffle the list order. With shuffle it is created once (new playlist, shuffle switched on,
+  stop) and kept, so previous walks back along it. A created order starts with the current item (switching shuffle on/off keeps it); a new shuffled playlist and a stop start
+  with a random item. The position is not stored: it is looked up from the current index, which the player owns (ExoPlayer changes it too). `fit(size, current)` adapts to a
+  playlist that grew (appended, with shuffle inserted at random behind the current item) or shrank (created again, current first). `next(current, repeat, autoAdvance)`:
+  repeat ONE repeats an item that ended by itself (`autoAdvance`), a skip treats ONE like OFF (ExoPlayer does the same: no wrap around); ALL wraps; OFF returns `NONE`.
+  `previous` wraps to the last item (the old behavior); `following` / `preceding` do not wrap (next-item title, `hasNextMediaItem`).
+  Editing: `positionOf(index)` / `itemAt(position)` map list index and position (identical without shuffle), `move(from, to)` shifts the items in between (a drag) and only changes the
+  order, `remove(index)` takes a removed item out and moves the higher indexes down while keeping the order of the rest (unlike `fit`, which would shuffle again),
+  `isAtOrBeforeCurrent(position, current)` is the lock rule.
+- `RepeatPolicy` (package private): `PlayMode` / `RepeatMode` to the ExoPlayer constants and back; `stopsAtEnd(mode)` is true for repeat OFF. `adoptExoRepeatMode(current, exoRepeat, ownChange)` /
+  `adoptExoShuffleMode(current, exoShuffle, ownChange)` decide what an ExoPlayer callback means: null (keep) for our own echo or no difference, otherwise the mode with that one part replaced.
+
+### Player contract
+- `Player.getPlayMode()` / `setPlayMode(PlayMode)` and the `Player.PROPERTY_PLAY_MODE` property change (old and new `PlayMode`, fired on the caller's thread, only if the value
+  differs). `Player.onItemEnded()` (default `next()`) is "the item ended by itself": the timer broadcast (`PlayerServiceBroadcastReceiver`) and the end detection of
+  `AVTransportPlayer` call it; `next()` is a skip.
+- `AbstractPlayer` (AVTransportPlayer, MultiContentPlayer, LocalMediaSessionPlayer): `moveToNext(itemEnded)` / `moveToPrevious()` move `currentIndex` by the `PlayOrder`;
+  `setItems` no longer shuffles the list itself (the list keeps the order it was given; the playlist dialog shows the play order with shuffle, see "Playlist dialog" below). `stop()` resets the order and the index
+  (`restart()`: 0, or the first of a new shuffle). The end of the list with repeat OFF calls `stop()` after the command flag is released: before, `next()` called `stop()`
+  while `isProcessingCommand` was still true, `stop()` returned at once and the player stayed blocked (found while replacing the settings read).
+  `doPostLoadItem` starts the auto-advance timer for a single item too when the mode is repeat ONE.
+- `LocalImagePlayer` is not an `AbstractPlayer`: it only holds the mode; `ImageViewerActivity` follows it (`followPlayer`) and `ImageViewerViewModel` plays the slideshow by it
+  (`PlayOrder`, auto-advance stops the slideshow on the last image with repeat OFF, repeat ONE keeps the image, a skip at the end with OFF stays). Without a player (an external
+  `ACTION_VIEW`) the view model keeps its own mode (from the settings).
+
+### Engines
+- `LocalMediaSessionPlayer` (ExoPlayer, Media3 1.11.1): `applyPlayMode(player, order)` (main thread) sets `setRepeatMode` (OFF/ALL/ONE), `setShuffleModeEnabled` and, when shuffle
+  is on, `setShuffleOrder(new ShuffleOrder.DefaultShuffleOrder(int[] order, seed))` with the `PlayOrder` of the player (current item first), so the list is played through once
+  with repeat OFF. It is applied at init, before every `startItem` (after `resetPlayOrder(index)`) and in `onPlayModeChanged` (the order only when shuffle changed). The
+  ExoPlayer list is the player's list (media item index = list index), so `onMediaItemTransition` sets `currentIndex` for AUTO, REPEAT and SEEK (not PLAYLIST_CHANGED, whose
+  first item is only ExoPlayer's pick) and fires `PROPERTY_ITEM`; before, only a seek updated the index and an item that ended by itself left the screen on the old title.
+  `STATE_ENDED` with repeat OFF calls `stop()` (as before). `getNextItemTitle()` uses the cached `getNextMediaItemIndex()`. ExoPlayer navigation (`hasNextMediaItem`,
+  `seekToNextMediaItem`) treats REPEAT_MODE_ONE as OFF, as `PlayOrder.next` does for a skip.
+- External controllers: `LocalMediaSessionPlayer` adds a `Player.Listener` whose `onRepeatModeChanged` / `onShuffleModeEnabledChanged` call `setPlayMode(...)` with the mode from
+  `RepeatPolicy.adoptExo*` (only the changed part is taken over, so a pending change of the other part is not overwritten). `PROPERTY_PLAY_MODE`, the buttons and the renderer's
+  `CurrentPlayMode` follow. Loop guard: `applyPlayMode` holds the main-thread flag `applyingPlayMode` while it sets ExoPlayer's modes (the callbacks are synchronous on the application
+  looper), and a value equal to the play mode is no change anyway. When an external controller turns shuffle on, ExoPlayer first picks a random order of its own; `setPlayMode` creates
+  the `PlayOrder` (current item first) and `onPlayModeChanged` posts `applyPlayMode` with it, which installs it with `setShuffleOrder`. `applyPlayMode` is always posted, never run
+  inside a listener callback (ExoPlayer delivers events raised inside a callback after it). The Media3 session of the AVTransport player (`AVTransportPlayerWrapper`) already writes to
+  the `PlayMode` (`setRepeatMode` / `setShuffleModeEnabled`) and reads from it (`getRepeatMode` / `getShuffleModeEnabled`), so a controller there needs nothing more.
+- `AVTransportPlayer` (controller of a remote renderer): the app sends one item at a time, so the next item is `AbstractPlayer`'s job (`onItemEnded()` from the transport-state
+  and the position polling, the timer). No `SetPlayMode` is sent to the remote renderer (it would repeat a single item itself). `AVTransportPlayerWrapper.setRepeatMode` /
+  `getRepeatMode` / `setShuffleModeEnabled` / `getShuffleModeEnabled` use the player's `PlayMode` (they used to write and read the settings) and `notifyPlayModeChanged()`
+  tells the Media3 listeners; `hasNextMediaItem` and the media item indexes follow the order. `AVTransportController` (controls a device without our playlist) hides the buttons.
+- `MultiContentPlayer` needs nothing of its own: the timer of `AbstractPlayer` ends an item (`ACTION_VIEW` per item), `onItemEnded()` picks the next by the order.
+
+### UI
+- Buttons: `PlayModeControls.Binding` binds a repeat and a shuffle `ImageButton` to a `Player` (click, follow `PROPERTY_PLAY_MODE` on the UI thread, `detach()` in `onDestroy`).
+  Style `Widget.MaterialComponents.Button.UnelevatedButton`, `android:foreground="@drawable/focus_ring"`, `app:tint="?attr/colorControlNormal"`. State without color: repeat ONE
+  has its own icon, an inactive control (repeat OFF, shuffle off) has alpha 0.5; the content description names the state (`repeat_off|all|one`, `shuffle_off|on`, all seven
+  locales; `PlayModeResourcesTest`). Music and AVTransport screens: both buttons are the ends of the second row (`layout_weight` for the six buttons, so the row fits 320dp
+  portrait and 640dp landscape); the multi content screen has a row of its own (its first row is already wider than a phone); the image viewer has `menu_repeat` and
+  `menu_shuffle` (`ifRoom`; title and icon alpha follow the mode in `onPrepareOptionsMenu`).
+- Playlist dialog (`PlaylistDialogFragment`, `PlaylistItemAdapter`): shows the items in `Player.getPlayOrder()` order: the shuffled play order with shuffle, the list order without. A row is a
+  position of that order; the item is `items.get(order[position])`; the adapter keeps a snapshot of both. The playing item (bold, a marker) is found by its index in the order. The dialog follows
+  `PROPERTY_PLAY_MODE` and `Player.PROPERTY_PLAYLIST` (items set, added, removed, moved; the order created again at a start or a stop) with a full refresh (`notifyDataSetChanged`, only if the
+  shown order differs), and `PROPERTY_ITEM` / `playing` with a rebind of the rows (lock, marker). The listener is removed in `onDestroyView`. Editing goes to the player:
+  `moveInPlayOrder(fromPosition, toPosition)` (shuffle on: `PlayOrder.move`, the list is not touched; off: the list is moved) and `removeItem(itemIndex)` (list and `PlayOrder.remove`; the current
+  index follows when the removed item has a lower list index, which is possible with shuffle). Both refuse a locked position: the playing or paused item and everything before it in the shown
+  order; a stopped player has nothing locked and starts with the first shown item afterwards. The adapter applies a successful edit itself (`notifyItemMoved` / `notifyItemRemoved`, precise, so a
+  running drag is not interrupted) and ignores the change event it caused. The rows ask the holder for their position when clicked (the position at bind time is stale after a move).
+  `LocalMediaSessionPlayer` mirrors an edit into ExoPlayer without rebuilding the list: `moveMediaItem` (list moved), `removeMediaItem` and `setShuffleOrder` with the edited order (the
+  old `syncPlaylistToExoPlayer`, which rebuilt the part behind ExoPlayer's current item and was wrong for items before it, is gone). The next-item text of the player screens
+  (`getNextItemTitle`: `PlayOrder.following`, ExoPlayer's `getNextMediaItemIndex` for the local player) and the media item indexes of the Media3 wrapper already follow the order. No other screen
+  (mini-player, device sheet, notification) lists a queue.
+- Not done: the mini-player and the device sheet rows have no play mode control (no simple hook; the rows would need two more buttons).
+
+### Media renderer (`upnp/server/avtransport`)
+- `SetPlayMode`, `GetTransportSettings` and the `CurrentPlayMode` state variable (allowed values: the cling `PlayMode` enum, unchanged) existed but only stored the value. Now:
+  `YaaccAVTransportService.setPlayMode` rejects an unknown value with 712 (`PLAYMODE_NOT_SUPPORTED`; the old code threw it inside a `catch (AVTransportException)` that swallowed it)
+  and calls `AvTransport.setPlayMode`. `AvTransport` stores the value in its `TransportSettings`, puts `CurrentPlayMode` into the `LastChange` (only when it changes), gives the mode
+  to the players of the transport (`UpnpClient.getCurrentPlayers(transport)`) and, through `attachPlayers(...)` in `AvTransportMediaRendererPlaying.onEntry`, to every player started
+  later; a change at a player (`PROPERTY_PLAY_MODE`) is stored and evented the same way and is kept for the next player of the transport. As long as nothing was set or reported,
+  `getTransportSettings()` returns the mode a new player would get from the settings (not NORMAL). `GetTransportSettings` also answers in the NoMediaPresent state now.
+  `RecQualityMode` stays NOT_IMPLEMENTED. There is no `PossiblePlayModes` variable in AVTransport:1; controllers read the allowed values of `CurrentPlayMode`.
+- Tests: `AvTransportPlayModeTest` (service actions with the real state machine, a mocked `UpnpClient` and `Player`).
+
+### Not verified on a device
+ExoPlayer's callbacks (order of `onShuffleModeEnabledChanged` and the timeline change) when an external controller turns shuffle on and `setShuffleOrder` follows, system / Bluetooth / Wear / notification
+controllers against the real media session, dragging and deleting in the playlist dialog on a touch screen and with the D-pad, `moveMediaItem` / `removeMediaItem` while playing in the shuffle order.
+ExoPlayer's behavior with `setShuffleOrder` + REPEAT_MODE_ONE/ALL (order at the wrap around, next/previous in shuffle, `onMediaItemTransition` reasons), the layouts of the new buttons
+(portrait and landscape, small phones, TV focus ring and D-pad order), the menu items of the image viewer in the title bar, Home Assistant `SetPlayMode` against the real renderer.

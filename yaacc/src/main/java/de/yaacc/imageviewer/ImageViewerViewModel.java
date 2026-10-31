@@ -27,8 +27,13 @@ import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 
 import java.util.List;
+import java.util.Random;
 import java.util.Timer;
 import java.util.TimerTask;
+
+import de.yaacc.player.PlayMode;
+import de.yaacc.player.PlayModeSettings;
+import de.yaacc.player.PlayOrder;
 
 /**
  * ViewModel for ImageViewerActivity.
@@ -39,8 +44,39 @@ public class ImageViewerViewModel extends AndroidViewModel {
 
     private Timer slideshowTimer;
 
+    // Repeat and shuffle of the slideshow: the mode of the LocalImagePlayer when there is one (the activity
+    // hands it over), otherwise the one the settings give; the order is the one the slideshow walks along
+    private final MutableLiveData<PlayMode> _playMode = new MutableLiveData<>();
+    private volatile PlayMode playMode;
+    private final PlayOrder playOrder = new PlayOrder(new Random());
+
     public ImageViewerViewModel(@NonNull Application application) {
         super(application);
+    }
+
+    public LiveData<PlayMode> getPlayModeLive() { return _playMode; }
+
+    public PlayMode getPlayMode() {
+        PlayMode mode = playMode;
+        if (mode == null) {
+            mode = PlayModeSettings.defaultPlayMode(getApplication());
+            playMode = mode;
+        }
+        return mode;
+    }
+
+    /** May be called from any thread. */
+    public void setPlayMode(PlayMode mode) {
+        if (mode == null || mode.equals(getPlayMode())) {
+            return;
+        }
+        playMode = mode;
+        ImageViewerState current = _state.getValue();
+        int total = current == null ? 0 : current.getTotalImages();
+        int index = current == null ? 0 : current.getCurrentIndex();
+        playOrder.fit(total, index);
+        playOrder.setShuffle(mode.isShuffle(), index);
+        _playMode.postValue(mode);
     }
 
     public void setImageUris(List<Uri> uris) {
@@ -49,6 +85,7 @@ public class ImageViewerViewModel extends AndroidViewModel {
             current.setImageUris(uris);
             current.setCurrentIndex(0);
             current.setPlaying(false);
+            playOrder.reset(current.getTotalImages(), 0, getPlayMode().isShuffle());
             _state.setValue(current);
         }
     }
@@ -61,15 +98,35 @@ public class ImageViewerViewModel extends AndroidViewModel {
         }
     }
 
+    /** Somebody skips to the next image (swipe, button, remote control). */
     public void next() {
+        move(false);
+    }
+
+    /** The slideshow shows the next image after its time: repeat one stays, the end may stop it. */
+    private void onSlideEnded() {
+        move(true);
+    }
+
+    private void move(boolean slideEnded) {
         ImageViewerState current = _state.getValue();
         if (current == null) return;
 
-        int nextIndex = current.getCurrentIndex() + 1;
-        if (nextIndex >= current.getTotalImages()) {
-            nextIndex = 0;
+        playOrder.fit(current.getTotalImages(), current.getCurrentIndex());
+        int target = playOrder.next(current.getCurrentIndex(), getPlayMode().getRepeat(), slideEnded);
+        if (target == PlayOrder.NONE) {
+            if (slideEnded) {
+                // The list is shown once (repeat off): the slideshow ends on the last image
+                cancelSlideshowTimer();
+                current.setPlaying(false);
+                _state.postValue(current);
+            }
+            return;
         }
-        current.setCurrentIndex(nextIndex);
+        if (target == current.getCurrentIndex()) {
+            return; // repeat one: the image stays
+        }
+        current.setCurrentIndex(target);
         _state.postValue(current); // Use postValue for background thread safety
     }
 
@@ -77,11 +134,9 @@ public class ImageViewerViewModel extends AndroidViewModel {
         ImageViewerState current = _state.getValue();
         if (current == null) return;
 
-        int prevIndex = current.getCurrentIndex() - 1;
-        if (prevIndex < 0) {
-            prevIndex = Math.max(0, current.getTotalImages() - 1);
-        }
-        current.setCurrentIndex(prevIndex);
+        playOrder.fit(current.getTotalImages(), current.getCurrentIndex());
+        int target = playOrder.previous(current.getCurrentIndex());
+        current.setCurrentIndex(target == PlayOrder.NONE ? 0 : target);
         _state.postValue(current); // Use postValue for background thread safety
     }
 
@@ -108,7 +163,10 @@ public class ImageViewerViewModel extends AndroidViewModel {
         ImageViewerState current = _state.getValue();
         if (current != null) {
             current.setPlaying(false);
-            current.setCurrentIndex(0);
+            // Back to the beginning of the order: image 0, or a random one with shuffle
+            boolean shuffle = getPlayMode().isShuffle();
+            playOrder.reset(current.getTotalImages(), PlayOrder.NONE, shuffle);
+            current.setCurrentIndex(shuffle && current.getTotalImages() > 0 ? playOrder.first() : 0);
             _state.setValue(current);
         }
     }
@@ -157,7 +215,7 @@ public class ImageViewerViewModel extends AndroidViewModel {
                 if (_state.getValue() != null && _state.getValue().isPlaying()) {
                     // Post to main thread
                     _state.postValue(_state.getValue());
-                    next();
+                    onSlideEnded();
                 }
             }
         }, current.getDurationMs(), current.getDurationMs());
