@@ -58,7 +58,6 @@ import org.seamless.statemachine.TransitionException;
 
 import java.beans.PropertyChangeSupport;
 import java.net.URI;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -237,11 +236,8 @@ public class YaaccAVTransportService implements LastChangeDelegator {
     Class<? extends AVTransportStateMachine> stateMachineDefinition;
     Class<? extends AbstractState<?>> initialState;
     Class<? extends AVTransport> transportClass;
-    // No eventMaximumRateMilliseconds: Cling drops (not delays) an event that comes within that time of the
-    // last one, and a LastChange that was fired is cleared, so a dropped change would be lost. The pace of the
-    // events is kept by AvTransportServiceManager.
-    @UpnpStateVariable
-    private LastChange lastChange = new ObservableLastChange(new AVTransportLastChangeParser());
+    @UpnpStateVariable(eventMaximumRateMilliseconds = 200)
+    private LastChange lastChange = new LastChange(new AVTransportLastChangeParser());
 
     protected YaaccAVTransportService(Class<? extends AVTransportStateMachine> stateMachineDefinition,
                                       Class<? extends AbstractState<?>> initialState) {
@@ -272,20 +268,9 @@ public class YaaccAVTransportService implements LastChangeDelegator {
     @Override
     public LastChange getLastChange() {
         if (lastChange == null) {
-            lastChange = new ObservableLastChange(new AVTransportLastChangeParser());
+            lastChange = new LastChange(new AVTransportLastChangeParser());
         }
         return lastChange;
-    }
-
-    /**
-     * @param listener called after every change of the LastChange (see {@link ObservableLastChange}); the
-     *                 service manager uses it to send the event to the subscribers
-     */
-    public void setLastChangeListener(Runnable listener) {
-        LastChange current = getLastChange();
-        if (current instanceof ObservableLastChange) {
-            ((ObservableLastChange) current).setChangeListener(listener);
-        }
     }
 
     @Override
@@ -433,8 +418,7 @@ public class YaaccAVTransportService implements LastChangeDelegator {
             throws AVTransportException {
         PlayMode mode;
         try {
-            // Home Assistant sends the enum name; spaces and case are forgiven
-            mode = PlayMode.valueOf(newPlayMode.trim().toUpperCase(Locale.ROOT));
+            mode = PlayMode.valueOf(newPlayMode);
         } catch (IllegalArgumentException | NullPointerException ex) {
             throw new AVTransportException(
                     AVTransportErrorCode.PLAYMODE_NOT_SUPPORTED, "Unsupported play mode: " + newPlayMode

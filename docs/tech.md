@@ -2467,20 +2467,6 @@ mode the first time; after that the player owns a `PlayMode` and nothing writes 
   `getTransportSettings()` returns the mode a new player would get from the settings (not NORMAL). `GetTransportSettings` also answers in the NoMediaPresent state now.
   `RecQualityMode` stays NOT_IMPLEMENTED. There is no `PossiblePlayModes` variable in AVTransport:1; controllers read the allowed values of `CurrentPlayMode`.
 - Tests: `AvTransportPlayModeTest` (service actions with the real state machine, a mocked `UpnpClient` and `Player`).
-- **Events (`LastChange`).** `CurrentPlayMode` is not evented itself (`sendEvents=false`, allowed values: the seven UPnP modes); like `TransportState` and the others it travels inside the `LastChange`
-  variable: `<Event xmlns="urn:schemas-upnp-org:metadata-1-0/AVT/"><InstanceID val="0"><CurrentPlayMode val="REPEAT_ONE"/>...`. Home Assistant (async_upnp_client `DmrDevice`) reads `play_mode` from the state
-  variable `CurrentPlayMode`, which it fills from these events and, only when it is not subscribed or at its first update, from the `GetTransportSettings` answer (output `PlayMode`, related variable
-  `CurrentPlayMode`); after its own `SetPlayMode` it does not poll, it waits for the event. The renderer used a plain `DefaultServiceManager`, so nothing ever called `LastChange.fire`: the changes were collected
-  (and shown to a *new* subscriber as the accumulated, incomplete initial event) but never sent to a subscriber. Now `AvTransportServiceManager` (a `LastChangeAwareServiceManager`) is the manager of the service:
-  the initial event is the full state of instance 0 (`YaaccAVTransportService.appendCurrentState`; if that fails the old accumulated event is sent instead of failing the subscription), and the `LastChange`
-  of the service is an `ObservableLastChange` whose listener asks the manager to fire after every `setEventedValue` (states of the state machine, `AvTransport.storePlayMode`, buttons at a player).
-  Firing runs on a background thread (`avtransport-events`, ends when idle), never on the caller's thread (a player may call from the main thread, firing takes the manager lock that a running action holds),
-  coalesces changes and keeps events at least 250 ms apart. `eventMaximumRateMilliseconds` of the `LastChange` variable was removed: Cling drops (does not delay) an event inside that time and a fired `LastChange` is
-  cleared, so a dropped change was lost for good (Home Assistant sets repeat and shuffle with two calls in a row). Log (D, tag `AvTransportServiceManager`): `AVT event: CurrentPlayMode=<mode> (instance 0) sent to <n> subscribers`
-  when a fired event carries a play mode (n = subscriptions, 0 means nobody is subscribed), and `AVT initial event for a new subscriber: CurrentPlayMode=<mode>` for each SUBSCRIBE. Tests: `AvTransportEventTest`.
-- Home Assistant sends one item at a time (`media_player.play_media`: Stop if possible, `SetAVTransportURI`, `Play`; no `SetNextAVTransportURI`), so repeat one/all repeat that item (the app's
-  `onItemEnded` with a one-item list) and shuffle has nothing to reorder. Next/Previous are reported in `CurrentTransportActions` in every state (see `getPossibleTransportActions`), so Home Assistant offers
-  them; `AvTransportMediaRendererPlaying.next()/previous()` only log.
 
 ### Not verified on a device
 ExoPlayer's callbacks (order of `onShuffleModeEnabledChanged` and the timeline change) when an external controller turns shuffle on and `setShuffleOrder` follows, system / Bluetooth / Wear / notification
