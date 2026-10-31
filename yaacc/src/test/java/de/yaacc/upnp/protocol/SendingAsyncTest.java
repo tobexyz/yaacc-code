@@ -36,4 +36,41 @@ public class SendingAsyncTest {
         sendingAsync.run();
         assertTrue(executed[0]);
     }
+
+    @Test
+    public void anUnreachablePeerDoesNotEndTheThread() {
+        // an event callback behind a proxy: a connect timeout must not leave the pool thread (it ends the app)
+        SendingAsync sendingAsync = new SendingAsync() {
+            @Override
+            protected void execute() throws java.io.IOException {
+                throw new java.io.IOException(new java.net.SocketTimeoutException("connect timed out"));
+            }
+        };
+
+        sendingAsync.run();
+    }
+
+    @Test
+    public void anUnexpectedExceptionDoesNotEndTheThreadEither() {
+        SendingAsync sendingAsync = new SendingAsync() {
+            @Override
+            protected void execute() {
+                throw new IllegalStateException("broken");
+            }
+        };
+
+        sendingAsync.run();
+    }
+
+    @Test
+    public void anInterruptionIsNotAFailure() {
+        SendingAsync sendingAsync = new SendingAsync() {
+            @Override
+            protected void execute() throws java.io.IOException {
+                throw new java.io.IOException(new InterruptedException());
+            }
+        };
+
+        sendingAsync.run();
+    }
 }

@@ -261,6 +261,17 @@ public class AvTransportCommandsAndEventsTest {
 
     // --- 3. the subscriber (Home Assistant subscribes when its entity is set up)
 
+    /** @return the sent event that carries the full state (it has the TransportStatus), or null */
+    private static String fullStateEvent(RendererHarness h) {
+        for (String event : new java.util.ArrayList<>(h.sentEvents)) {
+            String text = unescape(event);
+            if (text.contains("<TransportStatus val=")) {
+                return text;
+            }
+        }
+        return null;
+    }
+
     @Test
     public void aSubscriberIsAnsweredAndGetsTheFullStateAsInitialEvent() throws Exception {
         RendererHarness h = events();
@@ -269,8 +280,11 @@ public class AvTransportCommandsAndEventsTest {
         int status = h.subscribeExchange();
 
         assertEquals(200, status);
-        await("the initial event", () -> !h.sentEvents.isEmpty());
-        String initial = unescape(h.sentEvents.get(0));
+        // The initial event and a change event of the SetPlayMode above are sent from two threads of the pool and
+        // can arrive in either order (the sequence numbers tell them apart): the one with the full state is the
+        // initial event.
+        await("the initial event", () -> fullStateEvent(h) != null);
+        String initial = fullStateEvent(h);
         assertTrue(initial, carries(initial, "CurrentPlayMode", "REPEAT_ALL"));
         for (String variable : new String[]{"TransportState", "TransportStatus", "CurrentTransportActions", "AVTransportURI", "NumberOfTracks"}) {
             assertTrue(variable + " in " + initial, initial.contains("<" + variable + " val="));
