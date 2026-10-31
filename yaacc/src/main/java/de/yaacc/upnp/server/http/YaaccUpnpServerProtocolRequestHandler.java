@@ -44,6 +44,9 @@ import org.apache.hc.core5.http.HttpRequest;
 import org.apache.hc.core5.http.HttpStatus;
 import org.apache.hc.core5.http.Message;
 import org.apache.hc.core5.http.nio.AsyncRequestConsumer;
+import org.apache.hc.core5.http.nio.AsyncResponseProducer;
+import org.apache.hc.core5.http.nio.DataStreamChannel;
+import org.apache.hc.core5.http.nio.ResponseChannel;
 import org.apache.hc.core5.http.nio.AsyncServerRequestHandler;
 import org.apache.hc.core5.http.nio.entity.AsyncEntityProducers;
 import org.apache.hc.core5.http.nio.entity.BasicAsyncEntityConsumer;
@@ -61,6 +64,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 import de.yaacc.upnp.protocol.ProtocolCreationException;
@@ -70,7 +74,6 @@ import de.yaacc.util.YaaccLogger;
 
 public class YaaccUpnpServerProtocolRequestHandler implements AsyncServerRequestHandler<Message<HttpRequest, byte[]>> {
 
-    protected ReceivingSync syncProtocol;
     private final Supplier<UpnpProtocolHandler> protocolHandlerSupplier;
 
     /**
@@ -108,13 +111,19 @@ public class YaaccUpnpServerProtocolRequestHandler implements AsyncServerRequest
             final ResponseTrigger responseTrigger,
             final HttpContext context) throws HttpException, IOException {
         final AsyncResponseBuilder responseBuilder = AsyncResponseBuilder.create(HttpStatus.SC_OK);
+        // The protocol of THIS request: several requests are handled at the same time (one I/O thread each), so
+        // it must not be kept in a field of the shared handler (a subscriber's "response sent" went to whichever
+        // protocol ran last).
+        ReceivingSync protocol = null;
+        StreamResponseMessage responseMessage = null;
 
         try {
             StreamRequestMessage requestMessage = readRequestMessage(message);
             YaaccLogger.v(getClass().getName(), "Processing new request message: " + requestMessage + " body: " + requestMessage.getBodyString());
 
-
-            StreamResponseMessage responseMessage = process(requestMessage);
+            Processed processed = processRequest(requestMessage);
+            protocol = processed.protocol;
+            responseMessage = processed.response;
 
             if (responseMessage != null) {
 
@@ -125,7 +134,8 @@ public class YaaccUpnpServerProtocolRequestHandler implements AsyncServerRequest
                 YaaccLogger.v(getClass().getName(), "Sending HTTP response status: " + HttpStatus.SC_NOT_FOUND);
                 responseBuilder.setStatus(HttpStatus.SC_NOT_FOUND);
             }
-            responseTrigger.submitResponse(responseBuilder.build(), context);
+            responseTrigger.submitResponse(
+                    new DeliveryReportingResponseProducer(responseBuilder.build(), protocol, responseMessage), context);
 
         } catch (Throwable t) {
             YaaccLogger.i(getClass().getName(), "Exception occurred during UPnP stream processing: " + t);
@@ -134,7 +144,9 @@ public class YaaccUpnpServerProtocolRequestHandler implements AsyncServerRequest
             responseBuilder.setStatus(HttpStatus.SC_INTERNAL_SERVER_ERROR);
             responseTrigger.submitResponse(responseBuilder.build(), context);
 
-            responseException(t);
+            if (protocol != null) {
+                protocol.responseException(t);
+            }
         }
     }
 
@@ -235,13 +247,28 @@ public class YaaccUpnpServerProtocolRequestHandler implements AsyncServerRequest
      * @return The TCP (HTTP) stream response message, or <code>null</code> if a 404 should be send to the client.
      */
     public StreamResponseMessage process(StreamRequestMessage requestMsg) {
+        return processRequest(requestMsg).response;
+    }
+
+    /** The answer to a request and the protocol that made it (null when there was none). */
+    private static final class Processed {
+        final StreamResponseMessage response;
+        final ReceivingSync protocol;
+
+        Processed(StreamResponseMessage response, ReceivingSync protocol) {
+            this.response = response;
+            this.protocol = protocol;
+        }
+    }
+
+    private Processed processRequest(StreamRequestMessage requestMsg) {
         YaaccLogger.v(getClass().getName(), "Processing stream request message: " + requestMsg);
 
         UpnpProtocolHandler upnpProtocolHandler = resolveProtocolHandler();
         if (upnpProtocolHandler == null) {
             // no network (or the listener is being restarted): answer cleanly, the client may try again later
             YaaccLogger.w(getClass().getName(), "No protocol handler available, answering 503 to " + requestMsg);
-            return new StreamResponseMessage(UpnpResponse.Status.SERVICE_UNAVAILABLE);
+            return new Processed(new StreamResponseMessage(UpnpResponse.Status.SERVICE_UNAVAILABLE), null);
         }
 
         ReceivingSync protocol;
@@ -250,14 +277,13 @@ public class YaaccUpnpServerProtocolRequestHandler implements AsyncServerRequest
             protocol = upnpProtocolHandler.createReceivingSync(requestMsg);
         } catch (ProtocolCreationException ex) {
             YaaccLogger.w(getClass().getName(), "Processing stream request failed - " + unwrap(ex).toString());
-            return new StreamResponseMessage(UpnpResponse.Status.NOT_IMPLEMENTED);
+            return new Processed(new StreamResponseMessage(UpnpResponse.Status.NOT_IMPLEMENTED), null);
         }
         if (protocol == null) {
             // the handler has no protocol for this method/path combination
             YaaccLogger.w(getClass().getName(), "No protocol for stream request " + requestMsg);
-            return new StreamResponseMessage(UpnpResponse.Status.NOT_IMPLEMENTED);
+            return new Processed(new StreamResponseMessage(UpnpResponse.Status.NOT_IMPLEMENTED), null);
         }
-        syncProtocol = protocol;
 
         // Run it
         YaaccLogger.v(getClass().getName(), "Running protocol for synchronous message processing: " + protocol);
@@ -269,30 +295,93 @@ public class YaaccUpnpServerProtocolRequestHandler implements AsyncServerRequest
         if (responseMsg == null) {
             // That's ok, the caller is supposed to handle this properly (e.g. convert it to HTTP 404)
             YaaccLogger.v(getClass().getName(), "Protocol did not return any response message");
-            return null;
+            return new Processed(null, protocol);
         }
         YaaccLogger.v(getClass().getName(), "Protocol returned response: " + responseMsg);
-        return responseMsg;
+        return new Processed(responseMsg, protocol);
     }
 
     /**
-     * Must be called by a subclass after the response has been successfully sent to the client.
-     *
-     * @param responseMessage The response message successfully sent to the client.
+     * Tells the protocol of a request whether its answer reached the client, as UDA requires and Cling's own
+     * servers do: {@link ReceivingSync#responseSent} (a SUBSCRIBE registers its subscription at the service and
+     * sends the initial event only now) or {@link ReceivingSync#responseException}. Nothing called these in this
+     * server, so a control point that subscribed (Home Assistant does for AVTransport) was answered with a
+     * subscription id but never got an event, neither the initial one nor a later one.
+     * <p>
+     * The producer is released when the exchange is over, after the response was written (or failed).
      */
-    protected void responseSent(StreamResponseMessage responseMessage) {
-        if (syncProtocol != null)
-            syncProtocol.responseSent(responseMessage);
-    }
+    static final class DeliveryReportingResponseProducer implements AsyncResponseProducer {
+        private final AsyncResponseProducer delegate;
+        private final ReceivingSync protocol;
+        private final StreamResponseMessage response;
+        private final AtomicBoolean reported = new AtomicBoolean();
+        private volatile Throwable failure;
 
-    /**
-     * Must be called by a subclass if the response was not delivered to the client.
-     *
-     * @param t The reason why the response wasn't delivered.
-     */
-    protected void responseException(Throwable t) {
-        if (syncProtocol != null)
-            syncProtocol.responseException(t);
+        DeliveryReportingResponseProducer(AsyncResponseProducer delegate, ReceivingSync protocol, StreamResponseMessage response) {
+            this.delegate = delegate;
+            this.protocol = protocol;
+            this.response = response;
+        }
+
+        @Override
+        public void sendResponse(ResponseChannel channel, HttpContext context) throws HttpException, IOException {
+            try {
+                delegate.sendResponse(channel, context);
+            } catch (HttpException | IOException | RuntimeException e) {
+                failure = e;
+                throw e;
+            }
+        }
+
+        @Override
+        public int available() {
+            return delegate.available();
+        }
+
+        @Override
+        public void produce(DataStreamChannel channel) throws IOException {
+            try {
+                delegate.produce(channel);
+            } catch (IOException | RuntimeException e) {
+                failure = e;
+                throw e;
+            }
+        }
+
+        @Override
+        public void failed(Exception cause) {
+            failure = cause;
+            try {
+                delegate.failed(cause);
+            } finally {
+                report();
+            }
+        }
+
+        @Override
+        public void releaseResources() {
+            try {
+                delegate.releaseResources();
+            } finally {
+                report();
+            }
+        }
+
+        private void report() {
+            if (protocol == null || !reported.compareAndSet(false, true)) {
+                return;
+            }
+            try {
+                Throwable cause = failure;
+                if (cause != null) {
+                    protocol.responseException(cause);
+                } else {
+                    protocol.responseSent(response);
+                }
+            } catch (RuntimeException e) {
+                YaaccLogger.w(getClass().getName(), "Reporting the delivery of a response failed: " + e, e);
+            }
+        }
     }
 
     @Override

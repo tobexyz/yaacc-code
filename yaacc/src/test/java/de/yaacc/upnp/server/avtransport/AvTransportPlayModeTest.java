@@ -279,6 +279,7 @@ public class AvTransportPlayModeTest {
 
     @Test
     public void attachingThePlayerAgainReplacesItsListener() throws Exception {
+        when(client.getCurrentPlayers()).thenReturn(List.of(player));
         transport().attachPlayers(Collections.singletonList(player));
         transport().attachPlayers(Collections.singletonList(player));
 

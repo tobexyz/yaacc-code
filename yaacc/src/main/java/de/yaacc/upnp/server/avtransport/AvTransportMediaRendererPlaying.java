@@ -74,22 +74,29 @@ public class AvTransportMediaRendererPlaying extends Playing<AvTransport> implem
                 || getTransport().getPositionInfo().getTrackURI().equals("")) {
             return;
         }
-        // Try to get existing players if resuming from pause
-        players = upnpClient.getCurrentPlayers(getTransport());
-        boolean hasPausedPlayer = false;
-        if (players != null && !players.isEmpty()) {
-            for (Player player : players) {
-                if (player != null && player.isPaused()) {
-                    hasPausedPlayer = true;
-                    break;
+        // The player that plays now may be replaced by a new one below: until the new one is attached, the end of the
+        // old one does not mean that the transport has no player left (it would forget its play mode)
+        getTransport().playersStarting();
+        try {
+            // Try to get existing players if resuming from pause
+            players = upnpClient.getCurrentPlayers(getTransport());
+            boolean hasPausedPlayer = false;
+            if (players != null && !players.isEmpty()) {
+                for (Player player : players) {
+                    if (player != null && player.isPaused()) {
+                        hasPausedPlayer = true;
+                        break;
+                    }
                 }
             }
+            if (!hasPausedPlayer) {
+                players = upnpClient.initializePlayers(getTransport());
+            }
+            // The play mode a control point set (or the one of the players) is in place before the first note
+            getTransport().attachPlayers(players);
+        } finally {
+            getTransport().playersStarted();
         }
-        if (!hasPausedPlayer) {
-            players = upnpClient.initializePlayers(getTransport());
-        }
-        // The play mode a control point set (or the one of the players) is in place before the first note
-        getTransport().attachPlayers(players);
         for (Player player : players) {
             player.play();
         }

@@ -2467,11 +2467,56 @@ mode the first time; after that the player owns a `PlayMode` and nothing writes 
   `getTransportSettings()` returns the mode a new player would get from the settings (not NORMAL). `GetTransportSettings` also answers in the NoMediaPresent state now.
   `RecQualityMode` stays NOT_IMPLEMENTED. There is no `PossiblePlayModes` variable in AVTransport:1; controllers read the allowed values of `CurrentPlayMode`.
 - Tests: `AvTransportPlayModeTest` (service actions with the real state machine, a mocked `UpnpClient` and `Player`).
+- **Events (`LastChange`).** `CurrentPlayMode` is not evented itself (`sendEvents=false`, allowed values: the seven UPnP modes); like `TransportState` and the others it travels inside the `LastChange`
+  variable: `<Event xmlns="urn:schemas-upnp-org:metadata-1-0/AVT/"><InstanceID val="0"><CurrentPlayMode val="REPEAT_ONE"/>...`. Home Assistant (async_upnp_client `DmrDevice`) reads `play_mode` from the state
+  variable `CurrentPlayMode`, which it fills from these events and, only when it is not subscribed or at its first update, from the `GetTransportSettings` answer (output `PlayMode`, related variable
+  `CurrentPlayMode`); after its own `SetPlayMode` it does not poll, it waits for the event. Three things were missing for an event to reach it:
+  1. **The subscription was never established.** `ReceivingSubscribe` registers the subscription at the service and sends the initial event in `responseSent(...)`, which the server must call once the SUBSCRIBE
+     answer was written. `YaaccUpnpServerProtocolRequestHandler` never did (and kept the protocol of the request in a field of the handler shared by all I/O threads), so a control point got a subscription id and
+     then nothing, neither the initial event nor a later one. Now `handle(...)` hands the answer to `DeliveryReportingResponseProducer`, which calls `responseSent` (or `responseException`) of the protocol of *that*
+     request when the exchange is over. `ReceivingSubscribe.EventSendingSubscription.establishAndSendInitialEvent()` registers first and then reads the state again (under the monitor of the subscription), so a change
+     that happened between the first read (at SUBSCRIBE) and the registration - Home Assistant sets shuffle and repeat with two calls in a row, right when it subscribes - is in the initial event.
+  2. **Nobody fired the `LastChange`.** `AvTransportServiceManager` (a `LastChangeAwareServiceManager`) is the manager of the service: the initial event is the full state of instance 0
+     (`YaaccAVTransportService.appendCurrentState`; if that fails the accumulated event is sent instead of failing the subscription), and the `LastChange` of the service is an `ObservableLastChange` whose
+     listener asks the manager to fire after every `setEventedValue` (states of the state machine, `AvTransport.storePlayMode`, buttons at a player). `eventMaximumRateMilliseconds` of the `LastChange` variable was removed:
+     Cling drops (does not delay) an event inside that time and a fired `LastChange` is cleared, so a dropped change was lost for good.
+  3. **An event must never hold up a command.** Actions run under the lock of the service manager (`AbstractActionExecutor` -> `manager.execute`); a command that does not get it within `LOCK_TIMEOUT` (5 s) is
+     answered with UPnP error 501 "Failed to acquire lock in milliseconds" and the control point drops it. Cling's `LastChangeAwareServiceManager.fireLastChange()` takes that lock and delivers to the subscriptions
+     while holding it; the methods of a `LocalGENASubscription` are `synchronized` and `registerOnService()` / `end()` need the manager lock from inside that monitor, so a subscription that was busy (or a subscriber
+     that did not return) made the event thread and that caller wait for each other, with every command queued behind them (reproduced: `AvTransportCommandsAndEventsTest`, 501 after the lock timeout). Also
+     `PropertyChangeSupport.firePropertyChange` stops at the first listener that throws. Now the event thread (`avtransport-events`, a daemon thread that ends when idle) takes **no manager lock**: it takes what changed
+     out of the `LastChange` in one step (the `LastChange` monitor, microseconds; take and clear are atomic, no change is lost), then hands the `EVENTED_STATE_VARIABLES` event to each listener of the service on its own,
+     logging and skipping one that throws. Changes in a row are sent together; two events are at least 250 ms apart (end of one to start of the next).
+  Log (D, tag `AvTransportServiceManager`): `AVT event: CurrentPlayMode=<mode> (instance 0) sent to <n> subscribers` when a fired event carries a play mode (n = subscriptions that took it, 0 means nobody is subscribed),
+  `AVT initial event for a new subscriber: CurrentPlayMode=<mode>` for each SUBSCRIBE, and per received command (tag `YaaccAVTransportService`) `AVT SetPlayMode <mode> from <User-Agent>: applied to <n> players`
+  (`rejected (712)` for an unknown value). `SetPlayMode` takes the `RemoteClientInfo` of the request as an unannotated last parameter (Cling fills it) for the User-Agent in that line.
+- **`SetPlayMode` in every state.** It is not a state transition: it is answered 200 (a `SetPlayModeResponse`) in NoMediaPresent, Stopped, Playing and Paused for all seven values and changes no state
+  (`AvTransportCommandsAndEventsTest.setPlayModeIsAnsweredAndAppliedForEveryModeInEveryState`: states x modes through the real receiving path and the real state machine).
+- **Memory of the mode.** A mode set by a control point or at a player (`playModeChosen`) is given to every player the transport starts later. Home Assistant plays one item at a time and every item is a new player (the
+  one that plays is shut down by `PlayerService.createPlayer...`), so the mode has to survive that replacement; but it must not survive the *end* of the playback, or the next playback of the day starts with
+  the shuffle that was chosen yesterday. So: `attachPlayers(...)` (called from `AvTransportMediaRendererPlaying.onEntry`) remembers the players of the transport and registers a `PlayerListChangeNotifier.Listener` at the
+  `UpnpClient`; every removal of a player runs `checkPlayersGone()`: if none of the attached players is among `UpnpClient.getCurrentPlayers()` any more (closed in the app, ended, removed), `forgetPlayMode()` clears
+  `playModeChosen` / `playModeKnown`, so `getTransportSettings()` and the next player are the settings again, and, if that differs from what the control point last saw, `CurrentPlayMode` of the settings is put
+  into the `LastChange` (Home Assistant shows it). The listener is removed at that point and registered again by the next `attachPlayers`. `playersStarting()` / `playersStarted()` around the creation of the players in
+  `onEntry` keep the removal of the *replaced* player from counting as "no player left" (its notice comes on the main thread, possibly before the new player is attached); `playersStarted()` looks again, so a
+  new player that could not be created ends in a forgotten mode. A mode set while the transport never had a player stays for the first one. State changes of the player do not matter, only its removal: a stopped
+  player is still a player (`stop()` keeps it). Tests: `AvTransportPlayModeMemoryTest`.
+- Tests: `AvTransportEventTest` (event XML, initial event, `GetTransportSettings`, SCPD declarations, scheduling), `AvTransportCommandsAndEventsTest` (commands and events together, with the harness below),
+  `RendererHarness` (the real `AnnotationLocalServiceBinder` service, `YaaccUpnpServerProtocolRequestHandler.handle`, `UpnpProtocolHandler`, `ReceivingAction` / `ReceivingSubscribe`, Cling's message parsing and
+  action executor, a mocked `UpnpClient` with fake players and a mocked `HttpRequestSender` that records the event messages).
+- Home Assistant sends one item at a time (`media_player.play_media`: Stop if possible, `SetAVTransportURI`, `Play`; no `SetNextAVTransportURI`), so repeat one/all repeat that item (the app's
+  `onItemEnded` with a one-item list) and shuffle has nothing to reorder. Next/Previous are reported in `CurrentTransportActions` in every state (see `getPossibleTransportActions`), so Home Assistant offers
+  them; `AvTransportMediaRendererPlaying.next()/previous()` only log.
+- `UpnpClient.getCurrentPlayers(AvTransport)` does not look up "the players of this transport": it returns the active players of the *kind* the current track's mime type needs
+  (`getPlayerClassForMimeType`). A `SetPlayMode` therefore reaches the player of that kind and the log says `applied to 0 players` when there is none. By reading the code (not reproduced): `initializePlayers`
+  takes the mime type from the DIDL `protocolInfo` only and a track without it gets a `MultiContentPlayer`, while `getCurrentPlayers(transport)` falls back to the file extension and looks for an
+  audio / video / image player, so for such a track `SetPlayMode` (and Stop / Pause, which use the same lookup) would not find the player.
 
 ### Not verified on a device
 ExoPlayer's callbacks (order of `onShuffleModeEnabledChanged` and the timeline change) when an external controller turns shuffle on and `setShuffleOrder` follows, system / Bluetooth / Wear / notification
 controllers against the real media session, dragging and deleting in the playlist dialog on a touch screen and with the D-pad, `moveMediaItem` / `removeMediaItem` while playing in the shuffle order.
 ExoPlayer's behavior with `setShuffleOrder` + REPEAT_MODE_ONE/ALL (order at the wrap around, next/previous in shuffle, `onMediaItemTransition` reasons), the layouts of the new buttons
-(portrait and landscape, small phones, TV focus ring and D-pad order), the menu items of the image viewer in the title bar, Home Assistant `SetPlayMode` against the real renderer.
+(portrait and landscape, small phones, TV focus ring and D-pad order), the menu items of the image viewer in the title bar, Home Assistant `SetPlayMode` against the real renderer, and its GENA subscription to the AVTransport service (that its callback is reachable from the phone, that
+it accepts the initial event and an event right behind it - they are sent from two threads of the registry pool and can overtake each other - and what it shows afterwards).
 
 - **Items added during playback (local music player).** `LocalMediaSessionPlayer.addItems` appends the new items to the ExoPlayer playlist on the main thread when ExoPlayer's list was in step with the player's list before the addition (`ExoPlaylistSync.canAppend`; otherwise the next `startItem` builds the whole list), and installs the play order again when shuffle is on, so new items are placed at random behind the current one.

@@ -388,3 +388,47 @@ in `tasks.md` ("Owner's open items"); accepted risks in `known-risks.md`; how it
   `AVTransportPlayerWrapper` already routed to the `PlayMode`; nothing changed there.
 - **Left alone / found.** `addItems` on a `LocalMediaSessionPlayer` does not append to ExoPlayer (it is rebuilt at the next `startItem`; ExoPlayer's order lacks the new items until then); mini-player and device sheet
   rows list no queue, so nothing to change there; a change of the other part of the mode within the few ms between our `setPlayMode` and the posted `applyPlayMode` is the only race left (last writer wins).
+
+
+## Home Assistant events again: why 066a598e could not work, what it could break, and the mode memory (owner test, 2026-10-31)
+- **Symptom (owner).** With 066a598e (the renderer sends its `LastChange`) Home Assistant's shuffle and repeat buttons seemed to do nothing in the app player, which had started with shuffle enabled; before it the
+  buttons changed the app player (HA showed no state). The commit was reverted (592bc528) and this is the second attempt, done with a harness that runs the real receiving path (`RendererHarness`: the real
+  `AnnotationLocalServiceBinder` service, `YaaccUpnpServerProtocolRequestHandler.handle`, `UpnpProtocolHandler`, `ReceivingAction` / `ReceivingSubscribe`, Cling's message parsing and action executor, mocked
+  `UpnpClient` / players / `HttpRequestSender`).
+- **Finding 1 - the events never left the device, with or without 066a598e.** `ReceivingSubscribe` registers the subscription at the service and sends the initial event in `responseSent(...)`, which the server must
+  call after the SUBSCRIBE answer was written. `YaaccUpnpServerProtocolRequestHandler.handle` (HEAD: `submitResponse` at line 128; `responseSent` line 283 never called by anyone) did not, so Home Assistant got `200` and a
+  subscription id and then nothing: no initial event, no change event (`registry.addLocalSubscription` only stores the subscription). The handler also kept the protocol of the request in the field `syncProtocol`
+  (line 73, set at 260), shared by the 8 I/O threads, so with overlapping requests the "sent" would have gone to another request's protocol. Red: every test that waits for an event at a subscriber
+  (`AvTransportCommandsAndEventsTest`: 9 of the 17 tests failed with "not within 5 s: the initial event / the last mode", 2 more are the lock cases below). Consequence for Home Assistant: it believes it is subscribed (`is_subscribed`), so it does not poll
+  `GetTransportSettings` again - its repeat / shuffle state is whatever the first poll returned and never changes, from either side.
+- **Finding 2 - could the event thread of 066a598e stop the commands (the owner's suspicion)?** Not in the shipped state, and not by the wire: for a session as Home Assistant sends it (Get*, Stop, SetPlayMode,
+  SetAVTransportURI, Play, Pause, ... 19 calls) every SOAP answer and the final play mode of the player are identical with Cling's plain manager and with the 066a598e manager
+  (`everyAnswerAndThePlayerEffectAreTheSameWithAndWithoutTheEventManager`, green on the shipped code); SetPlayMode is a valid `SetPlayModeResponse` for all seven values in NoMediaPresent, Stopped, Playing and Paused
+  and changes no state; 150 parallel SetPlayMode calls (plus changes at the player) with a subscriber lose none. There was exactly one instance of the service, state machine and `AvTransport` per manager. **But** the design had a real
+  coupling that only shows once a subscription exists (so it was latent, because of Finding 1): `fireLastChange()` held the service manager lock while it delivered to the subscriptions. Actions run under the same
+  lock (`AbstractActionExecutor` -> `manager.execute`, `LOCK_TIMEOUT` 5 s). With a subscriber that does not return, a command is answered `501 ... Failed to acquire lock in milliseconds: 600` (red:
+  `aCommandDuringAnEventThatIsBeingSentIsNotHeldUp`, `everyCommandStillWorksWhileTheSubscriberIsStuck`); a busy subscription (`LocalGENASubscription.propertyChange/registerOnService/end` are `synchronized`, the last
+  two then need the manager lock) and the event thread wait for each other until the lock times out, with every command behind them (red: `aSubscriptionThatIsBusyDoesNotStallTheCommandsBehindTheEventThread`); one
+  listener that throws stops `PropertyChangeSupport.firePropertyChange` and the others miss the event (red: `aSubscriberThatThrowsDoesNotHurtTheCommandOrTheOtherSubscribers`). Home Assistant would have logged
+  the 501 and the command would have been lost - exactly the owner's symptom, once the subscription worked. Candidates that did not hold: initial event (the full state is sent and tested; a failing `appendCurrentState` falls back to the accumulated
+  event, by code only), ordering `storePlayMode` / `applyPlayMode` (no event listener on that path), re-entrancy of `LastChange` (the order manager lock -> `LastChange` monitor is the same in actions and event thread),
+  main-thread deadlock (nothing the main thread calls takes the manager lock).
+- **What the owner saw is therefore not explained by the events; likely by the mode memory, and by the lookup.** The app player started with shuffle because the mode last set on the transport was handed to the next
+  player (Finding 3), while Home Assistant, never getting an event, showed the state of its first poll: its shuffle button then sent a mode the app already had (no visible change). And
+  `UpnpClient.getCurrentPlayers(transport)` finds the players by the *kind* the track's mime type needs, not by transport, and takes the mime type differently from the code that created the player
+  (DIDL protocolInfo vs file extension): for such a track `SetPlayMode` reached no player (by reading, not reproduced). Both are handled/logged now (`applied to <n> players`; the transport also gives the mode to the
+  players it started itself). To be confirmed by the owner with the log lines in `docs/tech.md`.
+- **Finding 3 - the mode survived the players.** `AvTransport` kept `playModeChosen` for ever, so a shuffle set from Home Assistant yesterday started the next playback shuffled. Decision: remembered while a player of
+  the transport exists (also across the replacement of the player by the next item: Home Assistant plays every item on a new player), forgotten when none is left; the settings are then the start mode again
+  and a subscribed controller is told. Where: `AvTransport.attachPlayers` remembers the players and listens at the `UpnpClient` player list, `checkPlayersGone()` on every removal, `playersStarting()` /
+  `playersStarted()` in `AvTransportMediaRendererPlaying.onEntry` so the removal of the replaced player does not count. Rejected: forgetting on the state change to Stopped / NoMediaPresent (a stopped player is
+  still a player, and the state machine never returns to NoMediaPresent); a timer (the order of the "removed" notice and the new player is not deterministic, a flag around the creation is).
+- **Decision (events).** `AvTransportServiceManager` fires **without the manager lock**: the event thread takes the changes out of the `LastChange` in one step (its own monitor, microseconds), then calls each listener of
+  the service on its own with the `EVENTED_STATE_VARIABLES` event and skips (logs) one that throws; `ReceivingSubscribe` registers first and reads the state again afterwards, so a change between the first read and the
+  registration is in the initial event (test: `aSubscriberThatComesWhileSetPlayModeRunsMissesNoChange`). `YaaccUpnpServerProtocolRequestHandler.handle` hands the answer to a `DeliveryReportingResponseProducer` that calls
+  `responseSent` / `responseException` of that request's protocol when HttpCore releases the response. Kept from 066a598e: `ObservableLastChange`, the full initial event, no `eventMaximumRateMilliseconds`, 250 ms spacing
+  (now from the end of one event to the start of the next), the D log lines; new: one log line per received `SetPlayMode` with the User-Agent of the caller and the number of players it was applied to.
+- **Left alone / found.** Initial event and first change event are sent from two threads of the registry pool and can arrive in either order (Cling has the same note; HA's tolerance is not verified).
+  The HTTP server runs actions on its I/O threads (8): a long action (`Play` while the player is created) blocks the connections of that thread. `AvTransportMediaRendererPlaying/Stopped/Paused` capture
+  `AvTransport.getUpnpClient()` when the state machine is created (now also possible at SUBSCRIBE time, via the initial event): if the client was still null then, the states keep null. The transport does not tell a
+  controller when its player was closed in the app (TransportState stays PLAYING); only the play mode is reset.

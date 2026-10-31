@@ -31,6 +31,7 @@ import org.fourthline.cling.binding.annotations.UpnpStateVariable;
 import org.fourthline.cling.binding.annotations.UpnpStateVariables;
 import org.fourthline.cling.model.ModelUtil;
 import org.fourthline.cling.model.types.ErrorCode;
+import org.fourthline.cling.model.profile.RemoteClientInfo;
 import org.fourthline.cling.model.types.UnsignedIntegerFourBytes;
 import org.fourthline.cling.support.avtransport.AVTransportErrorCode;
 import org.fourthline.cling.support.avtransport.AVTransportException;
@@ -58,6 +59,7 @@ import org.seamless.statemachine.TransitionException;
 
 import java.beans.PropertyChangeSupport;
 import java.net.URI;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -236,8 +238,11 @@ public class YaaccAVTransportService implements LastChangeDelegator {
     Class<? extends AVTransportStateMachine> stateMachineDefinition;
     Class<? extends AbstractState<?>> initialState;
     Class<? extends AVTransport> transportClass;
-    @UpnpStateVariable(eventMaximumRateMilliseconds = 200)
-    private LastChange lastChange = new LastChange(new AVTransportLastChangeParser());
+    // No eventMaximumRateMilliseconds: Cling drops (not delays) an event that comes within that time of the
+    // last one, and a LastChange that was fired is cleared, so a dropped change would be lost. The pace of the
+    // events is kept by AvTransportServiceManager.
+    @UpnpStateVariable
+    private LastChange lastChange = new ObservableLastChange(new AVTransportLastChangeParser());
 
     protected YaaccAVTransportService(Class<? extends AVTransportStateMachine> stateMachineDefinition,
                                       Class<? extends AbstractState<?>> initialState) {
@@ -268,9 +273,20 @@ public class YaaccAVTransportService implements LastChangeDelegator {
     @Override
     public LastChange getLastChange() {
         if (lastChange == null) {
-            lastChange = new LastChange(new AVTransportLastChangeParser());
+            lastChange = new ObservableLastChange(new AVTransportLastChangeParser());
         }
         return lastChange;
+    }
+
+    /**
+     * @param listener called after every change of the LastChange (see {@link ObservableLastChange}); the
+     *                 service manager uses it to send the event to the subscribers
+     */
+    public void setLastChangeListener(Runnable listener) {
+        LastChange current = getLastChange();
+        if (current instanceof ObservableLastChange) {
+            ((ObservableLastChange) current).setChangeListener(listener);
+        }
     }
 
     @Override
@@ -408,29 +424,46 @@ public class YaaccAVTransportService implements LastChangeDelegator {
      * {@code NORMAL}, {@code REPEAT_ONE}, {@code REPEAT_ALL}, {@code SHUFFLE} and {@code RANDOM} are played
      * (see {@link de.yaacc.player.PlayMode#fromUpnpPlayMode}); {@code DIRECT_1} and {@code INTRO} are
      * accepted and played as normal. The mode is also given to the players that play now and to every
-     * player this instance starts later.
+     * player this instance starts later. Not a state transition: it is answered in every transport state.
      *
+     * @param clientInfo the control point (filled in by Cling for the last parameter of this type); only for the log
      * @throws AVTransportException PLAYMODE_NOT_SUPPORTED (712) for a value that is not a UPnP play mode
      */
     @UpnpAction
     public void setPlayMode(@UpnpInputArgument(name = "InstanceID") UnsignedIntegerFourBytes instanceId,
-                            @UpnpInputArgument(name = "NewPlayMode", stateVariable = "CurrentPlayMode") String newPlayMode)
+                            @UpnpInputArgument(name = "NewPlayMode", stateVariable = "CurrentPlayMode") String newPlayMode,
+                            RemoteClientInfo clientInfo)
             throws AVTransportException {
         PlayMode mode;
         try {
-            mode = PlayMode.valueOf(newPlayMode);
+            // Home Assistant sends the enum name; spaces and case are forgiven
+            mode = PlayMode.valueOf(newPlayMode.trim().toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException | NullPointerException ex) {
+            YaaccLogger.d(getClass().getName(), "AVT SetPlayMode " + newPlayMode + " from " + callerOf(clientInfo) + ": rejected (712)");
             throw new AVTransportException(
                     AVTransportErrorCode.PLAYMODE_NOT_SUPPORTED, "Unsupported play mode: " + newPlayMode
             );
         }
         AVTransport transport = findStateMachine(instanceId).getCurrentState().getTransport();
+        int applied;
         if (transport instanceof AvTransport) {
-            ((AvTransport) transport).setPlayMode(mode);
+            applied = ((AvTransport) transport).setPlayMode(mode);
         } else {
             transport.setTransportSettings(new TransportSettings(mode, transport.getTransportSettings().getRecQualityMode()));
+            applied = 0;
         }
-        YaaccLogger.d(getClass().getName(), "setPlayMode: " + mode);
+        YaaccLogger.d(getClass().getName(), "AVT SetPlayMode " + mode + " from " + callerOf(clientInfo)
+                + ": applied to " + applied + " players");
+    }
+
+    /** {@code SetPlayMode} without the information about the control point (tests, internal callers). */
+    public void setPlayMode(UnsignedIntegerFourBytes instanceId, String newPlayMode) throws AVTransportException {
+        setPlayMode(instanceId, newPlayMode, null);
+    }
+
+    private static String callerOf(RemoteClientInfo clientInfo) {
+        String userAgent = clientInfo == null ? null : clientInfo.getRequestUserAgent();
+        return userAgent == null || userAgent.isEmpty() ? "unknown control point" : userAgent;
     }
 
     @UpnpAction

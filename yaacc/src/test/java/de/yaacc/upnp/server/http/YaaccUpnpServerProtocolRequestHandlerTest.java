@@ -21,14 +21,19 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import org.apache.hc.core5.http.nio.AsyncResponseProducer;
 import org.fourthline.cling.model.message.StreamRequestMessage;
 import org.fourthline.cling.model.message.StreamResponseMessage;
 import org.fourthline.cling.model.message.UpnpRequest;
 import org.fourthline.cling.model.message.UpnpResponse;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.net.URI;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -135,5 +140,88 @@ public class YaaccUpnpServerProtocolRequestHandlerTest {
         YaaccUpnpServerProtocolRequestHandler handler = new YaaccUpnpServerProtocolRequestHandler(() -> live);
 
         assertNull(handler.process(request()));
+    }
+
+    // --- the protocol is told whether its answer arrived (a SUBSCRIBE is only established by that)
+
+    private static ReceivingSync protocolAnswering(StreamResponseMessage answer) {
+        ReceivingSync sync = mock(ReceivingSync.class);
+        when(sync.getOutputMessage()).thenReturn(answer);
+        return sync;
+    }
+
+    @Test
+    public void theProtocolIsToldWhenItsAnswerWasSent() {
+        StreamResponseMessage answer = new StreamResponseMessage(UpnpResponse.Status.OK);
+        ReceivingSync protocol = protocolAnswering(answer);
+        AsyncResponseProducer delegate = mock(AsyncResponseProducer.class);
+        YaaccUpnpServerProtocolRequestHandler.DeliveryReportingResponseProducer producer =
+                new YaaccUpnpServerProtocolRequestHandler.DeliveryReportingResponseProducer(delegate, protocol, answer);
+
+        verify(protocol, never()).responseSent(org.mockito.ArgumentMatchers.any());
+        producer.releaseResources();
+        producer.releaseResources(); // the server may release twice
+
+        verify(delegate, times(2)).releaseResources();
+        verify(protocol, times(1)).responseSent(answer);
+        verify(protocol, never()).responseException(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    public void theProtocolIsToldWhenItsAnswerFailedAndNotThatItWasSentAfterwards() {
+        StreamResponseMessage answer = new StreamResponseMessage(UpnpResponse.Status.OK);
+        ReceivingSync protocol = protocolAnswering(answer);
+        AsyncResponseProducer delegate = mock(AsyncResponseProducer.class);
+        YaaccUpnpServerProtocolRequestHandler.DeliveryReportingResponseProducer producer =
+                new YaaccUpnpServerProtocolRequestHandler.DeliveryReportingResponseProducer(delegate, protocol, answer);
+        IOException reset = new IOException("connection reset");
+
+        producer.failed(reset);
+        producer.releaseResources();
+
+        verify(delegate).failed(reset);
+        verify(protocol).responseException(reset);
+        verify(protocol, never()).responseSent(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    public void aFailureWhileWritingIsAFailureNotASentAnswer() throws Exception {
+        StreamResponseMessage answer = new StreamResponseMessage(UpnpResponse.Status.OK);
+        ReceivingSync protocol = protocolAnswering(answer);
+        AsyncResponseProducer delegate = mock(AsyncResponseProducer.class);
+        IOException broken = new IOException("broken pipe");
+        org.mockito.Mockito.doThrow(broken).when(delegate).produce(org.mockito.ArgumentMatchers.any());
+        YaaccUpnpServerProtocolRequestHandler.DeliveryReportingResponseProducer producer =
+                new YaaccUpnpServerProtocolRequestHandler.DeliveryReportingResponseProducer(delegate, protocol, answer);
+
+        try {
+            producer.produce(null);
+        } catch (IOException expected) {
+            // handed on to the server, which then calls failed()/releaseResources()
+        }
+        producer.releaseResources();
+
+        verify(protocol).responseException(broken);
+        verify(protocol, never()).responseSent(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    public void aReportThatThrowsDoesNotBreakTheRelease() {
+        StreamResponseMessage answer = new StreamResponseMessage(UpnpResponse.Status.OK);
+        ReceivingSync protocol = protocolAnswering(answer);
+        org.mockito.Mockito.doThrow(new IllegalStateException("registry gone")).when(protocol).responseSent(answer);
+        YaaccUpnpServerProtocolRequestHandler.DeliveryReportingResponseProducer producer =
+                new YaaccUpnpServerProtocolRequestHandler.DeliveryReportingResponseProducer(mock(AsyncResponseProducer.class), protocol, answer);
+
+        producer.releaseResources(); // must not throw into the server's I/O thread
+    }
+
+    @Test
+    public void noProtocolNothingToReport() {
+        YaaccUpnpServerProtocolRequestHandler.DeliveryReportingResponseProducer producer =
+                new YaaccUpnpServerProtocolRequestHandler.DeliveryReportingResponseProducer(mock(AsyncResponseProducer.class), null, null);
+
+        producer.releaseResources();
+        producer.failed(new IOException("x"));
     }
 }

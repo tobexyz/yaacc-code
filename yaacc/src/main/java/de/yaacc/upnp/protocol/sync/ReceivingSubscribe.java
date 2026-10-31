@@ -42,9 +42,11 @@ import org.fourthline.cling.model.message.gena.IncomingSubscribeRequestMessage;
 import org.fourthline.cling.model.message.gena.OutgoingSubscribeResponseMessage;
 import org.fourthline.cling.model.meta.LocalService;
 import org.fourthline.cling.model.resource.ServiceEventSubscriptionResource;
+import org.fourthline.cling.model.state.StateVariableValue;
 
 import java.io.IOException;
 import java.net.URL;
+import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 
@@ -166,18 +168,7 @@ public class ReceivingSubscribe extends ReceivingSync<StreamRequestMessage, Outg
 
 
         try {
-            subscription = new LocalGENASubscription(service, timeoutSeconds, callbackURLs) {
-                public void established() {
-                }
-
-                public void ended(CancelReason reason) {
-                }
-
-                public void eventReceived() {
-                    // The only thing we are interested in, sending an event when the state changes
-                    executorService.execute(new SendingEvent(httpRequestSender, this));
-                }
-            };
+            subscription = new EventSendingSubscription(service, timeoutSeconds, callbackURLs);
         } catch (Exception ex) {
             YaaccLogger.w(getClass().getName(), "Couldn't create local subscription to service: ", Exceptions.unwrap(ex));
             return new OutgoingSubscribeResponseMessage(UpnpResponse.Status.INTERNAL_SERVER_ERROR);
@@ -203,11 +194,13 @@ public class ReceivingSubscribe extends ReceivingSync<StreamRequestMessage, Outg
             // subscriber is supposed to figure out what to do with out-of-sequence messages. I would be
             // surprised though if actual implementations won't crash!
             YaaccLogger.v(getClass().getName(), "Establishing subscription");
-            subscription.registerOnService();
-            subscription.establish();
-
-            YaaccLogger.v(getClass().getName(), "Response to subscription sent successfully, now sending initial event asynchronously");
-            executorService.execute(new SendingEvent(httpRequestSender, subscription));
+            if (subscription instanceof EventSendingSubscription) {
+                ((EventSendingSubscription) subscription).establishAndSendInitialEvent();
+            } else {
+                subscription.registerOnService();
+                subscription.establish();
+                executorService.execute(new SendingEvent(httpRequestSender, subscription));
+            }
 
         } else if (subscription.getCurrentSequence().getValue() == 0) {
             YaaccLogger.v(getClass().getName(), "Subscription request's response aborted, not sending initial event");
@@ -226,5 +219,65 @@ public class ReceivingSubscribe extends ReceivingSync<StreamRequestMessage, Outg
         if (subscription == null) return; // Nothing to do, we didn't get that far
         YaaccLogger.v(getClass().getName(), "Response could not be send to subscriber, removing local GENA subscription: " + subscription);
         registry.removeLocalSubscription(subscription);
+    }
+
+    /**
+     * A subscription of a control point to a local service that sends its events by HTTP.
+     */
+    protected class EventSendingSubscription extends LocalGENASubscription {
+
+        EventSendingSubscription(LocalService service, Integer requestedDurationSeconds, List<URL> callbackURLs) throws Exception {
+            super(service, requestedDurationSeconds, callbackURLs);
+        }
+
+        public void established() {
+        }
+
+        public void ended(CancelReason reason) {
+        }
+
+        public void eventReceived() {
+            // The only thing we are interested in, sending an event when the state changes
+            executorService.execute(new SendingEvent(httpRequestSender, this));
+        }
+
+        /**
+         * Registers at the service, reads the state of the service again and sends it as the initial event.
+         * <p>
+         * The state was first read when the subscription was created, before the answer was written: a change
+         * between then and the registration (Home Assistant sets shuffle and repeat with two calls in a row, right
+         * when it subscribes) is neither in that state nor sent as an event to a subscription that is not
+         * registered yet, so the subscriber would keep the old value until the next change. Reading after the
+         * registration closes the gap: what is changed before the registration is in the state, what is changed
+         * after it arrives as an event. Everything runs under the monitor of this subscription, so an event cannot
+         * overtake the initial one in its sequence number.
+         */
+        void establishAndSendInitialEvent() {
+            SendingEvent initialEvent;
+            synchronized (this) {
+                registerOnService();
+                refreshCurrentValues();
+                establish();
+                initialEvent = new SendingEvent(httpRequestSender, this);
+            }
+            YaaccLogger.v(getClass().getName(), "Response to subscription sent successfully, now sending initial event asynchronously");
+            executorService.execute(initialEvent);
+        }
+
+        private void refreshCurrentValues() {
+            try {
+                Collection<StateVariableValue> values = getService().getManager().getCurrentState();
+                if (values == null || values.isEmpty()) {
+                    return;
+                }
+                currentValues.clear();
+                for (StateVariableValue value : values) {
+                    currentValues.put(value.getStateVariable().getName(), value);
+                }
+            } catch (Exception e) {
+                // the state read when subscribing is still a state
+                YaaccLogger.w(getClass().getName(), "State for the initial event not read again, sending the first one: " + Exceptions.unwrap(e));
+            }
+        }
     }
 }
