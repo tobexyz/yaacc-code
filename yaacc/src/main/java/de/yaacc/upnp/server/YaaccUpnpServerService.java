@@ -87,6 +87,7 @@ import de.yaacc.upnp.protocol.UpnpProtocolHandler;
 import de.yaacc.upnp.registry.Registry;
 import de.yaacc.upnp.registry.RegistryImpl;
 import de.yaacc.upnp.server.avtransport.AvTransport;
+import de.yaacc.upnp.server.avtransport.AvTransportServiceManager;
 import de.yaacc.upnp.server.avtransport.YaaccAVTransportService;
 import de.yaacc.upnp.server.configuration.YaaccUpnpServerControlActivity;
 import de.yaacc.upnp.server.connectionmanager.ConnectionManagerService;
@@ -949,17 +950,8 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         }
 
         LocalService<YaaccAVTransportService> avTransportService = new AnnotationLocalServiceBinder().read(YaaccAVTransportService.class);
-        avTransportService.setManager(new DefaultServiceManager<>(avTransportService, null) {
-            @Override
-            protected int getLockTimeoutMillis() {
-                return LOCK_TIMEOUT;
-            }
-
-            @Override
-            protected YaaccAVTransportService createServiceInstance() {
-                return new YaaccAVTransportService();
-            }
-        });
+        // sends the LastChange (CurrentPlayMode, TransportState, ...) to the subscribers, see AvTransportServiceManager
+        avTransportService.setManager(new AvTransportServiceManager(avTransportService, LOCK_TIMEOUT));
         return avTransportService;
     }
 

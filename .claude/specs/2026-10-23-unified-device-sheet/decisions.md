@@ -388,3 +388,19 @@ in `tasks.md` ("Owner's open items"); accepted risks in `known-risks.md`; how it
   `AVTransportPlayerWrapper` already routed to the `PlayMode`; nothing changed there.
 - **Left alone / found.** `addItems` on a `LocalMediaSessionPlayer` does not append to ExoPlayer (it is rebuilt at the next `startItem`; ExoPlayer's order lacks the new items until then); mini-player and device sheet
   rows list no queue, so nothing to change there; a change of the other part of the mode within the few ms between our `setPlayMode` and the posted `applyPlayMode` is the only race left (last writer wins).
+
+
+## Home Assistant does not see repeat / shuffle: the renderer never fired its LastChange (owner test, 2026-10-31)
+- **Symptom.** `media_player.repeat_set` / `shuffle_set` (SetPlayMode) reached the players and the play mode buttons of YAACC followed, but Home Assistant's entity kept the old `repeat` / `shuffle`.
+- **Root cause.** `YaaccUpnpServerService.createAVTransportService` used a plain `DefaultServiceManager`. `YaaccAVTransportService.getLastChange()` collects changes, but only `LastChange.fire(...)` (via
+  `LastChangeAwareServiceManager.fireLastChange`) hands them to the GENA subscribers, and nothing in the app ever called it (the `LastChangeAwareServiceManager` only existed in the Cling samples). The previous play mode
+  work stored `CurrentPlayMode` in the `LastChange` (correctly, XML verified) but no event left the device; the initial event of a new subscriber was the accumulated, incomplete `LastChange`
+  (`readInitialEventedStateVariableValues` was not overridden). `async_upnp_client` relies on events for `CurrentPlayMode` once subscribed (it polls `GetTransportSettings` only when not subscribed or at its first update).
+- **Decision.** `AvTransportServiceManager extends LastChangeAwareServiceManager`: full initial event, fire on a background thread after every change (`ObservableLastChange` listener), coalesced, >= 250 ms apart.
+  Removed `eventMaximumRateMilliseconds = 200` from the `LastChange` variable (Cling drops instead of delaying, a fired LastChange is cleared). Firing is general, not only for the play mode: transport state and
+  media URI changes are sent too. `SetPlayMode` trims and upper-cases the value. D log lines for sent events and initial events.
+- **Verified / not verified.** XML, initial event, `GetTransportSettings` output (`PlayMode` -> `CurrentPlayMode`), SCPD declarations (`CurrentPlayMode` `sendEvents=false`, seven allowed values) and the
+  asynchronous delivery are covered by `AvTransportEventTest`. Not verified without Home Assistant: that its subscription to the AVT service succeeds (callback reachable) and what it shows afterwards.
+- **Left alone.** `GetCurrentTransportActions` still lists Next and Previous in every state (Home Assistant therefore offers them; `next()`/`previous()` of the renderer state only log). `CurrentTransportActions`
+  is part of the initial event but not sent again when the state changes (the `LastChange` of the states does not carry it).
+
