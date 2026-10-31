@@ -236,9 +236,41 @@ public class ReceivingSubscribe extends ReceivingSync<StreamRequestMessage, Outg
         public void ended(CancelReason reason) {
         }
 
+        private final EventDeliveryHealth health = new EventDeliveryHealth();
+        private final SendingEvent.DeliveryListener deliveryListener = new SendingEvent.DeliveryListener() {
+            @Override
+            public void delivered() {
+                health.succeeded();
+            }
+
+            @Override
+            public void failed(Exception cause) {
+                if (health.failed()) {
+                    giveUp(cause);
+                }
+            }
+        };
+
         public void eventReceived() {
             // The only thing we are interested in, sending an event when the state changes
-            executorService.execute(new SendingEvent(httpRequestSender, this));
+            executorService.execute(new SendingEvent(httpRequestSender, this, deliveryListener));
+        }
+
+        /**
+         * The subscriber cannot be reached (its callback address is not routable from here, or it is gone): every
+         * event would block a pool thread for the connect timeout. The subscription is removed, a control point
+         * that is still there finds out when it renews it and subscribes again.
+         */
+        private void giveUp(Exception cause) {
+            YaaccLogger.w(getClass().getName(), "Event delivery to " + getCallbackURLs() + " failed "
+                    + EventDeliveryHealth.MAX_FAILURES_IN_A_ROW + " times in a row, dropping subscription "
+                    + getSubscriptionId() + ": " + Exceptions.unwrap(cause));
+            try {
+                registry.removeLocalSubscription(this);
+                end(CancelReason.EXPIRED);
+            } catch (RuntimeException e) {
+                YaaccLogger.w(getClass().getName(), "Subscription " + getSubscriptionId() + " not removed: " + e);
+            }
         }
 
         /**
@@ -258,7 +290,7 @@ public class ReceivingSubscribe extends ReceivingSync<StreamRequestMessage, Outg
                 registerOnService();
                 refreshCurrentValues();
                 establish();
-                initialEvent = new SendingEvent(httpRequestSender, this);
+                initialEvent = new SendingEvent(httpRequestSender, this, deliveryListener);
             }
             YaaccLogger.v(getClass().getName(), "Response to subscription sent successfully, now sending initial event asynchronously");
             executorService.execute(initialEvent);

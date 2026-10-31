@@ -292,6 +292,45 @@ public class AvTransportCommandsAndEventsTest {
     }
 
     @Test
+    public void aSubscriberThatCannotBeReachedIsDroppedAfterThreeFailedDeliveries() throws Exception {
+        RendererHarness h = events();
+        h.deliveryFails = true; // Home Assistant behind a proxy: its callback address is not routable from here
+
+        assertEquals(200, h.subscribeExchange());
+        await("the initial delivery", () -> h.deliveryAttempts.get() >= 1);
+        h.setPlayMode("SHUFFLE");
+        await("the second delivery", () -> h.deliveryAttempts.get() >= 2);
+        h.setPlayMode("REPEAT_ALL");
+
+        org.mockito.Mockito.verify(h.registry, org.mockito.Mockito.timeout(10_000)).removeLocalSubscription(
+                org.mockito.ArgumentMatchers.any());
+        int attempts = h.deliveryAttempts.get();
+        assertEquals(3, attempts);
+
+        // no more events to the dropped subscriber, and commands still work
+        h.setPlayMode("NORMAL");
+        Thread.sleep(700);
+        assertEquals(attempts, h.deliveryAttempts.get());
+        assertTrue(RendererHarness.succeeded(h.setPlayMode("RANDOM")));
+    }
+
+    @Test
+    public void aDeliveryThatSucceedsStartsTheCountAgain() throws Exception {
+        RendererHarness h = events();
+        assertEquals(200, h.subscribeExchange());
+        await("the initial event", () -> h.sentEvents.size() >= 1);
+        h.deliveryFails = true;
+        h.setPlayMode("SHUFFLE");
+        await("a failed delivery", () -> h.deliveryAttempts.get() >= 2);
+        h.deliveryFails = false;
+        h.setPlayMode("REPEAT_ALL");
+        await("a delivery again", () -> anyCarries(h.sentEvents, "CurrentPlayMode", "REPEAT_ALL"));
+
+        org.mockito.Mockito.verify(h.registry, org.mockito.Mockito.never()).removeLocalSubscription(
+                org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
     public void aSubscriberGetsAnEventForEveryChange() throws Exception {
         RendererHarness h = events();
         bringTo(h, "PLAYING");

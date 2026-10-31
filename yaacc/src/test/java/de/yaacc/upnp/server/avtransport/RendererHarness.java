@@ -93,6 +93,9 @@ final class RendererHarness implements AutoCloseable {
     final List<Player> players = new CopyOnWriteArrayList<>();
     /** Bodies of the event messages the renderer sent to subscribers, with the subscription id. */
     final List<String> sentEvents = new CopyOnWriteArrayList<>();
+    /** When set, every delivery of an event fails like a connect timeout to an address that is not reachable. */
+    volatile boolean deliveryFails;
+    final java.util.concurrent.atomic.AtomicInteger deliveryAttempts = new java.util.concurrent.atomic.AtomicInteger();
     final List<LocalGENASubscription> subscriptions = new CopyOnWriteArrayList<>();
     /** The pool of the registry ({@code Registry.getExecutorService}) that sends events; plays the HTTP I/O threads too. */
     final ExecutorService executor = Executors.newFixedThreadPool(8, runnable -> {
@@ -109,6 +112,10 @@ final class RendererHarness implements AutoCloseable {
         try {
             when(sender.send(any(OutgoingEventRequestMessage.class))).thenAnswer(invocation -> {
                 OutgoingEventRequestMessage message = invocation.getArgument(0);
+                deliveryAttempts.incrementAndGet();
+                if (deliveryFails) {
+                    throw new java.io.IOException("connect timed out");
+                }
                 sentEvents.add(message.getBodyString());
                 return new StreamResponseMessage(new UpnpResponse(UpnpResponse.Status.OK));
             });
