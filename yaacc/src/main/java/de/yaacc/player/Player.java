@@ -46,6 +46,15 @@ public interface Player {
     String PROPERTY_PLAYLIST = "playlist";
 
     /**
+     * Name of the property change fired when the player has <em>stopped</em>: {@link #stop()} is done, whoever
+     * called it - the end of the playlist without repeat, the stop button of the app, the media renderer's
+     * {@code Stop}. Not fired for a pause or for the end of an item that goes on with the next one. Old and new
+     * value are null. May be fired on any thread; a listener must return quickly and must not call back into
+     * the player.
+     */
+    String PROPERTY_STOPPED = "stopped";
+
+    /**
      * play the next item
      */
     void next();

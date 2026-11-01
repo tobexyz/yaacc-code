@@ -323,11 +323,14 @@ public class YaaccAVTransportService implements LastChangeDelegator {
      */
     protected AVTransportStateMachine createStateMachine(
             UnsignedIntegerFourBytes instanceId) {
-        return StateMachineBuilder.build(
+        AvTransport transport = new AvTransport(instanceId, getLastChange(), StorageMedium.NETWORK);
+        AvTransportStateMachine stateMachine = StateMachineBuilder.build(
                 AvTransportStateMachine.class,
                 AvTransportMediaRendererNoMediaPresent.class, new Class[]{
-                        AvTransport.class}, new Object[]{
-                        new AvTransport(instanceId, getLastChange(), StorageMedium.NETWORK)});
+                        AvTransport.class}, new Object[]{transport});
+        // the players tell the transport that they stopped; the state machine decides what that means in its state
+        transport.setStopRequester(stateMachine::playerStopped);
+        return stateMachine;
     }
 
     @UpnpAction(name = "GetCurrentTransportActions", out = @UpnpOutputArgument(name = "Actions", stateVariable = "CurrentTransportActions"))

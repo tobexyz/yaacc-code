@@ -36,6 +36,7 @@ import java.beans.PropertyChangeSupport;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import de.yaacc.player.PlayMode;
@@ -163,7 +164,38 @@ final class RendererHarness extends ServiceHarness<YaaccAVTransportService> {
             listeners.removePropertyChangeListener((PropertyChangeListener) invocation.getArgument(0));
             return null;
         }).when(player).removePropertyChangeListener(any());
+        // like AbstractPlayer: play() and pause() change what isPlaying() / isPaused() say, stop() ends both and then
+        // tells the listeners (PROPERTY_STOPPED), whoever called it: the end of the playlist, the app, the renderer
+        AtomicBoolean playing = new AtomicBoolean();
+        AtomicBoolean paused = new AtomicBoolean();
+        when(player.isPlaying()).thenAnswer(invocation -> playing.get());
+        when(player.isPaused()).thenAnswer(invocation -> paused.get());
+        doAnswer(invocation -> {
+            playing.set(true);
+            paused.set(false);
+            return null;
+        }).when(player).play();
+        doAnswer(invocation -> {
+            playing.set(false);
+            paused.set(true);
+            return null;
+        }).when(player).pause();
+        doAnswer(invocation -> {
+            playing.set(false);
+            paused.set(false);
+            listeners.firePropertyChange(Player.PROPERTY_STOPPED, null, null);
+            return null;
+        }).when(player).stop();
         return player;
+    }
+
+    /**
+     * The playlist of the player is played to its end with repeat off: what {@code LocalMediaSessionPlayer} does at
+     * "End of the playlist reached, repeat is off: stopping" (and {@code AbstractPlayer.advance} at the end of the list)
+     * is {@code stop()} of the player itself. The player stays among the active players.
+     */
+    void playerEnds(Player player) {
+        player.stop();
     }
 
     void settings(boolean replay, boolean shuffle) {

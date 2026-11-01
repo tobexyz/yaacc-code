@@ -29,6 +29,7 @@ import org.fourthline.cling.support.model.PositionInfo;
 
 import java.net.URI;
 
+import de.yaacc.player.Player;
 import de.yaacc.upnp.UpnpClient;
 
 /**
@@ -80,6 +81,11 @@ public class AvTransportMediaRendererNoMediaPresent extends
     public Class<? extends AbstractState<?>> stop() {
         YaaccLogger.d(this.getClass().getName(), "stop: nothing to stop");
         return AvTransportMediaRendererNoMediaPresent.class;
+    }
+
+    /** Nothing plays: a player that stops changes nothing. */
+    public Class<? extends AbstractState<?>> playerStopped(Player player) {
+        return null;
     }
 
     @Override

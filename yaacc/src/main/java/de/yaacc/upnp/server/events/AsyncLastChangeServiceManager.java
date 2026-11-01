@@ -63,6 +63,10 @@ import de.yaacc.util.YaaccLogger;
  * all it shares with a command) and then hands it to each subscriber on its own, a failing subscriber being
  * logged and skipped. Several changes in a row are sent together; two events are at least
  * {@link #MIN_EVENT_INTERVAL_MILLIS} apart (from the end of one to the start of the next), so nothing is sent at a pace a control point could not follow.
+ * <b>Except a change of the state of the service</b> ({@link #isUrgent}: the transport state): it goes out at once, with
+ * whatever else is pending. A control point decides what to send next from the last state it was told (Home Assistant
+ * skips its {@code Play} when the last {@code TransportState} it saw says PLAYING), and one that acts right after its own
+ * command - Stop, SetAVTransportURI, look at the state - must not find the state it just changed delayed.
  * <p>
  * A subclass creates the service instance, calls {@link #attachEvents} with it, and says what it wants to see in
  * the log ({@link #describeChanges}, {@link #describeCurrentState}).
@@ -141,14 +145,39 @@ public abstract class AsyncLastChangeServiceManager<T extends LastChangeDelegato
     }
 
     /**
+     * Whether the changes collected in the {@code LastChange} must be sent at once, without waiting for the pace
+     * ({@link #MIN_EVENT_INTERVAL_MILLIS}). The default is no: volume and mute may wait. Called with the
+     * {@code LastChange} locked: only read it, and quickly.
+     */
+    protected boolean isUrgent(LastChange lastChange) {
+        return false;
+    }
+
+    /**
      * Asks to send the collected {@code LastChange} to the subscribers soon. Does not block and may be called
      * from any thread, also while the LastChange is locked.
      */
     private void requestFireLastChange() {
+        if (isUrgentSafely(eventedLastChange)) {
+            // also when an event is pending for its pace: this one goes now, and the pending one finds nothing left
+            firePending.set(true);
+            schedule(0);
+            return;
+        }
         if (!firePending.compareAndSet(false, true)) {
             return; // the pending event takes this change along
         }
         schedule(lastFireEndNanos + TimeUnit.MILLISECONDS.toNanos(MIN_EVENT_INTERVAL_MILLIS) - System.nanoTime());
+    }
+
+    private boolean isUrgentSafely(LastChange lastChange) {
+        try {
+            synchronized (lastChange) { // a reentrant monitor when called from the LastChange's listener
+                return isUrgent(lastChange);
+            }
+        } catch (RuntimeException e) {
+            return false; // the pace is only a nicety
+        }
     }
 
     private void schedule(long delayNanos) {
@@ -162,7 +191,7 @@ public abstract class AsyncLastChangeServiceManager<T extends LastChangeDelegato
 
     private void fireNow() {
         long waitNanos = lastFireEndNanos + TimeUnit.MILLISECONDS.toNanos(MIN_EVENT_INTERVAL_MILLIS) - System.nanoTime();
-        if (waitNanos > 0) {
+        if (waitNanos > 0 && !isUrgentSafely(eventedLastChange)) {
             schedule(waitNanos); // the previous event is too recent; the request stays pending
             return;
         }
