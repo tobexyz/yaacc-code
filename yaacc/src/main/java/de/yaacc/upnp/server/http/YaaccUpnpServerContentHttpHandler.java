@@ -264,9 +264,14 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
                 if (fileSize > 0) {
                     long start = range.getStart() != null ? range.getStart() : 0;
                     long end = range.getEnd() != null ? range.getEnd() : fileSize - 1;
-                    responseBuilder.setHeader(HttpHeaders.CONTENT_RANGE,
-                            "bytes " + start + "-" + end + "/" + fileSize);
-                    YaaccLogger.d(getClass().getName(), "Partial content: " + start + "-" + end + "/" + fileSize);
+                    String contentRange = "bytes " + start + "-" + end + "/" + fileSize;
+                    // the bytes that are sent: end clipped to the file, a suffix range is the tail
+                    RangeWindow window = RangeWindow.resolve(range, fileSize);
+                    if (window.isSatisfiable()) {
+                        contentRange = window.contentRange(fileSize);
+                    }
+                    responseBuilder.setHeader(HttpHeaders.CONTENT_RANGE, contentRange);
+                    YaaccLogger.d(getClass().getName(), "Partial content: " + contentRange);
                 }
             } else {
                 responseBuilder.setStatus(HttpStatus.SC_OK);
@@ -847,115 +852,16 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
         @Override
         public AsyncEntityProducer getEntityProducer() throws IOException {
             if (documentFile != null && documentFile.exists() && !documentFile.isDirectory()) {
-                return new AbstractBinAsyncEntityProducer(8192, ContentType.parse(getMimeType().toString())) {
-                    private InputStream input;
-                    private long totalBytesRead = 0;
-                    private final long fileLength = documentFile.length();
-                    private long startPosition = 0;
-                    private long rangeLength = fileLength;
-
-                    {
-                        // Calculate range if specified
-                        if (!ranges.isEmpty()) {
-                            HttpRange range = ranges.get(0);
-                            startPosition = range.getStart() == null ? 0 : range.getStart();
-                            if (range.getEnd() != null && range.getEnd() > 0) {
-                                rangeLength = range.getEnd() - startPosition + 1;
-                            } else {
-                                rangeLength = fileLength - startPosition;
-                            }
-                            if (range.getSuffixLength() != null && range.getSuffixLength() > 0) {
-                                startPosition = Math.max(0, fileLength - range.getSuffixLength());
-                                rangeLength = range.getSuffixLength();
-                            }
-                            // Ensure range is valid
-                            if (startPosition >= fileLength) {
-                                startPosition = 0;
-                                rangeLength = fileLength;
-                            }
-                            if (startPosition + rangeLength > fileLength) {
-                                rangeLength = fileLength - startPosition;
-                            }
-                        }
+                // the whole document without a range, else the first range (clipped to the document)
+                RangeWindow window = RangeWindow.resolve(ranges.isEmpty() ? null : ranges.get(0),
+                        Math.max(0, documentFile.length()));
+                return new RangedStreamEntityProducer(ContentType.parse(getMimeType().toString()), () -> {
+                    InputStream input = context.getContentResolver().openInputStream(documentFile.getUri());
+                    if (input == null) {
+                        throw new IOException("No input stream for the SAF document");
                     }
-
-                    @Override
-                    public long getContentLength() {
-                        return rangeLength;
-                    }
-
-                    @Override
-                    protected int availableData() {
-                        return input != null ? 1 : 0;
-                    }
-
-                    @Override
-                    protected void produceData(final StreamChannel<ByteBuffer> channel) throws IOException {
-                        if (input == null) {
-                            try {
-                                input = context.getContentResolver().openInputStream(documentFile.getUri());
-                                if (startPosition > 0) {
-                                    input.skip(startPosition);
-                                }
-                                YaaccLogger.d(getClass().getName(), "Opened SAF input stream for: " + documentFile.getUri() +
-                                        " range: " + startPosition + "-" + (startPosition + rangeLength - 1));
-                            } catch (Exception e) {
-                                YaaccLogger.e(getClass().getName(), "Error opening SAF input stream", e);
-                                channel.endStream();
-                                return;
-                            }
-                        }
-
-                        if (input != null && totalBytesRead < rangeLength) {
-                            byte[] buffer = new byte[8192];
-                            int maxRead = (int) Math.min(buffer.length, rangeLength - totalBytesRead);
-                            try {
-                                int bytesRead = input.read(buffer, 0, maxRead);
-                                if (bytesRead > 0) {
-                                    totalBytesRead += bytesRead;
-                                    channel.write(ByteBuffer.wrap(buffer, 0, bytesRead));
-                                } else {
-                                    YaaccLogger.d(getClass().getName(), "End of SAF stream reached. Total bytes: " + totalBytesRead);
-                                    input.close();
-                                    channel.endStream();
-                                }
-                            } catch (IOException e) {
-                                YaaccLogger.e(getClass().getName(), "Error reading from SAF stream", e);
-                                if (input != null) {
-                                    try {
-                                        input.close();
-                                    } catch (IOException ignored) {
-                                    }
-                                }
-                                channel.endStream();
-                            }
-                        } else {
-                            if (input != null) {
-                                try {
-                                    input.close();
-                                } catch (IOException ignored) {
-                                }
-                            }
-                            channel.endStream();
-                        }
-                    }
-
-                    @Override
-                    public boolean isRepeatable() {
-                        return false;
-                    }
-
-                    @Override
-                    public void failed(final Exception cause) {
-                        YaaccLogger.e(getClass().getName(), "SAF streaming failed", cause);
-                        if (input != null) {
-                            try {
-                                input.close();
-                            } catch (IOException ignored) {
-                            }
-                        }
-                    }
-                };
+                    return input;
+                }, window.start(), window.length());
             }
             YaaccLogger.e(getClass().getName(), "DocumentFile is null, doesn't exist, or is a directory");
             return super.getEntityProducer();
@@ -1292,11 +1198,9 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
 
                                     @Override
                                     protected int availableData() {
-                                        try {
-                                            return input != null ? input.available() : 0;
-                                        } catch (IOException e) {
-                                            return 0;
-                                        }
+                                        // input.available() is 0 at the end of a file and for slow providers; HttpCore
+                                        // would then never call produceData() again, so the stream would never end (#294)
+                                        return input != null ? 8192 : 0;
                                     }
 
                                     @Override
@@ -1347,86 +1251,7 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
         }
 
         private AsyncEntityProducer createStreamingEntityProducer(File file, List<HttpRange> ranges) {
-            return new AbstractBinAsyncEntityProducer(8192, ContentType.parse(getMimeType().toString())) {
-                private RandomAccessFile raf;
-                private long startPosition = 0;
-                private long rangeLength;
-                private long bytesRead = 0;
-
-                {
-                    try {
-                        raf = new RandomAccessFile(file, "r");
-                        long fileSize = raf.length();
-
-                        if (!ranges.isEmpty()) {
-                            HttpRange range = ranges.get(0);
-                            startPosition = range.getStart() == null ? 0 : range.getStart();
-                            if (range.getEnd() == null || range.getEnd() == 0) {
-                                rangeLength = fileSize - startPosition;
-                            } else {
-                                rangeLength = range.getEnd() - startPosition + 1;
-                            }
-                            if (range.getSuffixLength() != null && range.getSuffixLength() > 0) {
-                                startPosition = fileSize - range.getSuffixLength();
-                                rangeLength = range.getSuffixLength();
-                            }
-                        } else {
-                            rangeLength = fileSize;
-                        }
-
-                        raf.seek(startPosition);
-                    } catch (IOException e) {
-                        YaaccLogger.e(getClass().getName(), "Error initializing streaming producer", e);
-                    }
-                }
-
-                @Override
-                public long getContentLength() {
-                    return rangeLength;
-                }
-
-                @Override
-                protected int availableData() {
-                    return (bytesRead < rangeLength) ? 8192 : 0;
-                }
-
-                @Override
-                protected void produceData(final StreamChannel<ByteBuffer> channel) throws IOException {
-                    if (raf != null && bytesRead < rangeLength) {
-                        byte[] buffer = new byte[8192];
-                        int toRead = (int) Math.min(buffer.length, rangeLength - bytesRead);
-                        int read = raf.read(buffer, 0, toRead);
-                        if (read > 0) {
-                            bytesRead += read;
-                            channel.write(ByteBuffer.wrap(buffer, 0, read));
-                        } else {
-                            raf.close();
-                            channel.endStream();
-                        }
-                    } else {
-                        if (raf != null) {
-                            raf.close();
-                        }
-                        channel.endStream();
-                    }
-                }
-
-                @Override
-                public void failed(final Exception cause) {
-                    YaaccLogger.e(getClass().getName(), "Streaming failed", cause);
-                    if (raf != null) {
-                        try {
-                            raf.close();
-                        } catch (IOException ignored) {
-                        }
-                    }
-                }
-
-                @Override
-                public boolean isRepeatable() {
-                    return false; // File streaming is not repeatable
-                }
-            };
+            return new RangedFileEntityProducer(file, ContentType.parse(getMimeType().toString()), ranges);
         }
     }
 

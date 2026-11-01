@@ -2379,3 +2379,76 @@ carries a scope after `%`; `ProxyAccessPolicy.normalize` strips it. The glue sta
 ### Play queue of one media kind
 
 - Tapping a non-video item (or "play all") queues the loaded siblings of the item's folder. SAF folders mix images, videos and audio, the media store folders do not. A mixed queue chooses the multi content player, which starts every item with `ACTION_VIEW` and shows the app chooser. `SameMediaKind.of` therefore narrows the queue to the kind (`image`, `audio`, `video` of the first resource's content format) of the tapped item before it is rotated to start there (`ContentListFragment.playAllChildsOfParentFrom` and the server re-browse fallback). A target without a known kind keeps the whole queue.
+
+## Issue #294: ranged answers of large local files never ended
+
+Reported by maitelorf with the analysis and the proposed fix (end the stream in the same `produceData()` call as the last write).
+A request such as `Range: bytes=100000000-100499999` for a local file above 50 MB (or a range above 50 MB) got a body that was shorter
+than `Content-Length` by the part still in the 8 KB buffer, and the connection stayed open until the client timed out (VLC reads the
+end of an MP4 first, so such files failed first).
+
+### What HttpCore 5.3.6 does (read from the bytecode, `javap -p -c` on `httpcore5-5.3.6.jar`; the jar has no sources)
+
+- `AbstractHttp1StreamDuplexer#onOutput`: per output event it calls `produceOutput()` once (which ends in
+  `AsyncServerExchangeHandler.produce(channel)` -> `AsyncEntityProducer.produce(channel)`, also when `available()` is 0), then
+  `isOutputReady()` (offsets 105 and 109). When that is false and the output buffer is empty it clears `OP_WRITE` (offset 158). Nothing
+  asks for output again by itself.
+- `ServerHttp1StreamHandler#isOutputReady` is `exchangeHandler.available() > 0` while the response is in the body state (offset 40).
+- `AbstractBinAsyncEntityProducer#available`: `availableData()` while the state is ACTIVE, else the number of bytes in its internal buffer.
+- `AbstractBinAsyncEntityProducer#produce`: calls `produceData(channel)` exactly once (only in ACTIVE); then, in FLUSHING, flushes the buffer
+  and, when it is empty, sets END_STREAM and ends the stream.
+- The channel handed to `produceData`: `endStream()` -> `streamEnd`: ACTIVE -> FLUSHING, flush, and if the buffer is empty END_STREAM and
+  `endStream()` on the real channel; else the next `produce()` flushes the rest (`available()` is then the buffered byte count).
+- `write(ByteBuffer)` -> `writeData`: a chunk of at most the fragment size (8192 here) goes into the internal buffer and is flushed only when
+  the buffer is full; the call takes the chunk whole or returns 0 when the buffer cannot make room after a partial flush. The return value
+  has to be honored.
+
+### Cause
+
+`createStreamingEntityProducer` returned `availableData() = 0` as soon as `bytesRead >= rangeLength`. The call that wrote the last chunk did
+not end the stream, so `produceData()` was never called again: a partial last chunk stayed in the internal buffer (the client got a multiple
+of 8192 bytes) and `endStream()` never ran (a range whose length is a multiple of 8192 arrived complete but never ended). Reproduced in
+`RangedFileEntityProducerTest` against the unchanged logic: `expected.length=500000 actual.length=499712` (61 * 8192) for the reporter's
+range, `stream ended for bytes=8192-24575` for a multiple of 8192, `actual.length=0` for a range below one chunk, and, with a client that takes
+1000 bytes per write, `actual.length=24384 ... first differed at element [8192]` (a chunk that `write()` did not take was dropped).
+
+### Fix
+
+- `RangedStreamEntityProducer` (new, package-private): a body of `length` bytes from byte `start` of a stream. It ends the stream in the
+  `produceData()` call that writes the last byte; `availableData()` is 8192 until then and does not ask the stream; a chunk the channel did not
+  take is kept and offered first on the next call; the stream is opened by the first `produceData()`, `skip()` is repeated (falling back to
+  `read()`) until `start` is reached, and the stream is closed at the end, on a failed read or write, in `failed()` and in `releaseResources()`.
+  A stream that ends early fails the response instead of ending it with less than the announced length. `isRepeatable()` is false.
+- `RangedFileEntityProducer` (new): the same over a `FileInputStream` of a local file; used by `ContentHolder#createStreamingEntityProducer`
+  (files above 50 MB, or a range above 50 MB).
+- `RangeWindow` (new): which bytes one `Range` entry selects. `bytes=0-0` is the first byte (an end of 0 used to mean "no end"), an end beyond
+  the file is clipped, a suffix longer than the file is the whole file, a range that selects nothing (start at or beyond the size, end below start,
+  suffix 0, empty file) has length 0 and the body ends at once (before: a negative length). The `Content-Range` header of the handler uses it,
+  so it names the bytes that are sent (before: the end was not clipped and a suffix range was announced as the whole file).
+- `SafContentHolder#getEntityProducer` (SAF documents, with and without range) uses `RangedStreamEntityProducer` and `RangeWindow`. Before, the
+  skip to the start used `skip()` once (it may skip less), `bytes=0-0` served the whole document, and a start beyond the end served the whole
+  document.
+- The `DocumentFile` branch of `ContentHolder#getEntityProducer` without a range reported `input.available()` as available data. That is 0 at
+  the end of a file and for providers that buffer nothing, so by the rule above the last read that ends the stream never happens; it now
+  reports 8192 while the stream is open (as the external URL producer does).
+
+### Verification
+
+`RangedFileEntityProducerTest`, `RangedStreamEntityProducerTest` and `RangeWindowTest` drive the producers the way HttpCore does: one
+`produce()` for the first output event, then `produce()` while `available() > 0`; the body is compared byte for byte and the stream must be ended.
+Cases: the reporter's range in a sparse 120 MB file, a range at the end of the file, a length that is a multiple of 8192 and one that is not,
+below one chunk, the whole file, `bytes=0-0`, an end beyond the file, suffix ranges, a start at or beyond the end, an empty file, a client that
+takes 1000 bytes per write, streams with short reads / short skips / `available() == 0`, and that the input is closed after the body, after a
+failed read or write, and by `failed()` and `releaseResources()`.
+
+### Not covered / left
+
+- Not run on a device or with VLC. The real `DataStreamChannel` was not exercised (the tests use a fake channel with the semantics above).
+- `ContentHolder#readRangeFormFile` (files up to 50 MB, in memory) has the same kind of edge case bugs: the length is `end - start` (one byte
+  less than the `Content-Range` announces), `bytes=0-0` returns the whole file, a start beyond the end throws `NegativeArraySizeException`, and a
+  single `RandomAccessFile.read` may return less than the buffer. Not part of this issue.
+- The status is still 206 for every range request, also when nothing can be served; the proper answer would be 416 with `Content-Range: bytes */size`
+  (the handler cannot be tested without a device, so it was not changed). A start beyond the end now gets a 206 with an empty body.
+- The external URL producer and the `DocumentFile` branch of `ContentHolder` ignore the return value of `write()`, so under back pressure
+  (a client that reads slowly) a chunk can be dropped as shown above. The external URL producer ends its stream correctly (it reads until
+  the origin signals the end, `availableData()` is 8192 while open). Both could use `RangedStreamEntityProducer`.
