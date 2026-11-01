@@ -116,9 +116,13 @@ public final class SafDirectoryLister {
      * the listing already holds: read permission on the uri and a provider mime type that is not empty.
      */
     public static boolean canRead(Context context, Uri documentUri, String mimeType) {
+        return hasReadPermission(context, documentUri) && !TextUtils.isEmpty(mimeType);
+    }
+
+    /** Read permission on a document uri: one Binder call to the system server (use {@link SafReadAccess} for many children of a folder). */
+    static boolean hasReadPermission(Context context, Uri documentUri) {
         return context.checkCallingOrSelfUriPermission(documentUri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                == PackageManager.PERMISSION_GRANTED
-                && !TextUtils.isEmpty(mimeType);
+                == PackageManager.PERMISSION_GRANTED;
     }
 
     /**

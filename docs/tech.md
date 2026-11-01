@@ -121,6 +121,66 @@ As built:
 Not verified without a device: the provider's time for the one query of a 5000+ file folder (it depends on the provider; for the
 external storage provider it stats each file), and the permission check behaviour of providers other than the external storage one.
 
+#### Browse speed of a big folder (issue #299, Home Assistant timeout)
+
+Report: a Browse of a folder with 5570 files (Home Assistant: one request, `RequestedCount=0`, waits 5 s, then hangs up, our server logs `Broken pipe`) logged
+`SAF browse 11009995661 list=5570 entries from cache in 0 ms, page 0-5569 in 6783 ms`. The listing was cached (0 ms), so the 6783 ms are the page build: **1.22 ms per entry**
+(derived: 6783 / 5570), and the DIDL writing comes after that number. The answer must stay the complete list (no cap, no virtual "more" folders); only speed can change.
+
+Where the time goes. *Measured* = timed on a desktop JVM in the unit test environment (this sandbox, JIT warm after the first rounds, so a phone is slower by a factor of
+roughly 3 to 10, which is an estimate). *Derived* = read from the code, cannot be timed without a device.
+
+| # | Cost per entry (before) | Where | Evidence | After |
+|---|---|---|---|---|
+| 1 | `contentDirectory.getIpAddress()` for every resource url: `InterfaceResolutionHelper.getNetworkInterface` reads two preferences, splits the blacklist and calls `NetworkInterface.getNetworkInterfaces()` (a `getifaddrs` call and one Java object per interface and address) | `ContentBrowser.getUriString` (called from `SafFolderBrowser.createItem`), `InterfaceResolutionHelper.java:getNetworkInterface` | Measured: 8 to 21 us per call on a box with 2 interfaces (48 to 118 ms for 5570). Derived for a phone: more interfaces (wlan, rmnet_data0..7, dummy, p2p, lo, ...), a netlink dump per call, so 0.2 to 1 ms; this and (2) are the only per entry calls that leave the process, and together they fit the 1.22 ms | once per Browse (`SafFolderBrowser.itemFactory`), `SafItemFactory` builds the url from a prefix |
+| 2 | `SafDirectoryLister.canRead` -> `checkCallingOrSelfUriPermission`, a Binder call into the system server, for every file (`browseItem`) and every sub folder (`childFolders`) | `SafFolderBrowser` | Derived: one Binder round trip is 50 to 150 us on an idle phone and more while the system server is busy (the preload asks the provider at the same time). Not measurable on the JVM | once per folder and Browse (`SafReadAccess`) |
+| 3 | `SAFCacheManager.getMetadata`: the global lock per entry, with a cold cache one entry built, serialized and written into the write buffer; every 250 changes a flush commit that rewrites the whole preferences XML | `SAFCacheManager.getMetadataInternal`, `scheduleFlushLocked` | Measured: 14 to 70 us per entry cold (78 to 394 ms for 5570, with mock `Uri` overhead of a few us), 35 to 42 commits for two passes over 5570 entries; warm 5 to 14 us. A phone is 3 to 10 times slower, so 0.3 to 1.5 s cold (derived). The lock hold times are short, the preload never extracts while holding the lock (`extractAndCache` calls the extractor outside `synchronized`), so there was no long lock wait | `getMetadataBulk`: lock per 256 entries, one flush at the end. Measured: 88 to 150 ms cold, 47 to 83 ms warm, 1 commit |
+| 4 | `createItem` rest: `replaceAll` regex (compiles a pattern per call), `MimeType.valueOf` per entry, mime to extension (`MimeTypeMap`; with no extension a D line per file), protocol info lookup, `YaaccLogger.v("..." + x)` strings built per entry although the level is off (`Generated URI`, `Item created`, `CACHE_HIT_*`, `Created shortId mapping`), `formatEpochMillisAsDate` per entry | `SafFolderBrowser.createItem`, `SAFCacheManager` | Measured together with the Cling objects (`toClingItem`, `DIDLObject.Property`): 7 to 140 ms for 5570 (large spread: JIT warm-up) | `SafItemFactory`: precompiled pattern, per mime type work once, date per day once, no per entry log strings (`YaaccLogger.isVerbose()`) |
+| 5 | DIDL: `DIDLParser.generate` builds a DOM and runs the platform XML transformer. 5570 items are 2.5 MB and about 33000 elements | `YaaccContentDirectory.browse` | Measured: 79 to 327 ms on the JVM (the Android DOM and Xalan transformer are slower: derived 0.5 to 3 s). Then Cling's SOAP layer escapes the 2.5 MB once more (not changed) | `DidlWriter` for 300 objects and more. Measured: 9 to 59 ms (10 to 20 ms warm) |
+| 6 | The preload (`SAFCacheManager.traverseAndCache`) asks the same provider about every file (`isDirectory()`, `getType()`) and also called `file.getName()` for a verbose log line per file even with the level off: three provider queries per file, 36.7 s for the `.thumbnails` folder in the owner's log | `SAFCacheManager.java:traverseAndCache` | Read from the code. No lock is held while it queries (so it did not block the Browse on `lock`), but it competes for the provider, the Binder threads and the processor | the per file log is guarded; the preload and the queued duration tasks wait (at most 10 s each time) while a Browse of the SAF content runs (`SafBrowseGate`) |
+
+Not on the list (checked): `awaitLoaded()` is a latch read after the load; `readStoredLocked` is one `HashMap` read in the preferences; `createShortIdLocked` is two map puts;
+the `SafCacheWriteBuffer` is two map operations per entry; sorting is the key-per-entry sort of `SafListingSupport` (a few ms for 5570); `SafDirectoryLister.childDocumentUri`
+builds an `android.net.Uri` per page entry (derived 5 to 10 us each, 30 to 60 ms for 5570, left as it is because the short ids and cache keys depend on that exact string).
+
+As built:
+- `SafReadAccess` (plain JVM): asks the system for the folder's own uri once and uses the answer for every child whose uri is in the same tree
+  (`<authority>/tree/<tree id>/document/`). **Assumption**: a grant of a tree (what the system picker gives, persisted) covers every document below it, so a granted
+  folder means granted children of that tree. It is used in that direction only: a folder that is not granted, a child outside the folder's tree (also a tree id that only
+  starts the same), or a folder uri that is not a tree document uri make the child be asked on its own, exactly as before. A child without a mime type is "not readable" without
+  any call (`DocumentFile.canRead()` semantics). One `SafReadAccess` per folder and Browse (the browser instance lives for one Browse). Not changed: `browseMeta` asks for the one document.
+- `SAFCacheManager.getMetadataBulk(List<SafMetadataRequest>)`: the same results as `getMetadata` per request (same order, null where the single call answers null, transient ids before the
+  load on the main thread). The lock is taken per 256 entries (`BULK_CHUNK`, bounds the wait of the duration tasks and the preload to a couple of milliseconds even on a phone), the write
+  is only scheduled when the request ends, so a cold folder is one commit with all new entries instead of one per 250 changes.
+- `SafItemFactory` (plain JVM) builds the item from the listing entry and the metadata; the resource url prefix `http://<ip>:<port>/saf/` is looked up once per Browse.
+- `DidlWriter` (plain JVM) writes the DIDL for answers of 300 objects and more if every object is a plain item (only `dc:date` as extra property, resources) or a plain folder, and every string is
+  made of characters whose escaping is certain. Anything else (other properties, `refID`, write status, search/create classes, desc metadata, control characters, surrogates, C1 characters, U+2028/9, U+FFFE/F)
+  returns null and the answer is written by `DIDLParser` as before. `DidlWriterTest` compares both writers over 2540 generated objects with special characters (`& < > " '`, umlauts, CJK, `]]>`, a CDATA start, 300 character
+  titles, empty strings): identical, and byte identical where the attribute order is the same. **Not provable on the JVM**: the order in which a serializer writes the attributes of one element. The JVM's DOM sorts them
+  alphabetically (`childCount, id, parentID, ...` and `duration, protocolInfo, size`), the writer uses the order of the generator (`id, parentID, childCount, restricted, ...`, `protocolInfo, size, duration`), which is the
+  insertion order a DOM keeps on Android as far as known; no XML parser depends on it. The root declares `xmlns`, `xmlns:dc`, `xmlns:sec`, `xmlns:upnp` in that order (as the JVM serializer does).
+- `SafBrowseGate`: `YaaccContentDirectory.browse` opens it for a Browse that goes to the `SafFolderBrowser` (until the DIDL is written); the preload waits between two files and the
+  background duration tasks before an extraction, each time at most 10 s, the time waited does not count as a stall of the preload. A Browse never waits for them.
+- Logging: no log call that builds its text with `+` runs per entry unless its level is on (`YaaccLogger.isVerbose()` / `isDebug()`).
+
+Log lines (D level):
+- `SAF browse <id> list=<n> entries from cache|provider in <ms> ms, page <a>-<b> in <ms> ms (permissions <ms> ms in <folder checks>+<entry checks> checks, metadata <ms> ms, ip <ms> ms, items <ms> ms)`;
+  the four times are the parts of the page time (permissions of the files and folders of the page, `getMetadataBulk`, the ip lookup, building the items with the Cling objects). `<folder checks>+<entry checks>` is
+  `1+0` for a folder the app may read; many entry checks mean the folder was not granted.
+- `CDS didl <n> items <bytes> bytes in <ms> ms (direct|dom)`: the writing of the answer (`direct` = `DidlWriter`, `dom` = `DIDLParser`), bytes are UTF-8 bytes of the XML before Cling puts it into the SOAP envelope.
+
+Budget for 5570 entries on a phone (derived from the measured JVM numbers times 3 to 10, NOT measured on a device): permissions 1 Binder call, ip 1 lookup, metadata 0.1 to 0.8 s cold and 0.05 to 0.4 s warm,
+items 0.1 to 0.3 s, DIDL 0.1 to 0.4 s: well under 2 s warm, about 1.5 s cold, where before the page alone took 6.8 s.
+
+What remains: the first listing of a slow or network provider (`SafDirectoryLister.load`, one query with N rows, nothing here helps; a background listing would be the next step); the SOAP envelope that Cling builds around the
+2.5 MB result (it escapes the text again); the same per entry `getIpAddress()` in the MediaStore browsers (`ContentBrowser.getUriString` is used by them for every item: not changed, out of scope);
+`childDocumentUri` per page entry. Not verified without a device: every phone number above, whether the system's answer for a tree document equals the answer for the tree for all providers (the assumption of `SafReadAccess`), and the attribute order of
+the Android DOM serializer.
+
+Manual test: restart the app, set the log level to D, let Home Assistant (or any control point) browse the 5570 file folder once (navigate there from another folder, so the metadata cache is cold). The log shows
+`SAF browse ... (permissions ... in 1+0 checks, metadata ..., ip ..., items ...)` and `CDS didl 5570 items ... bytes in ... ms (direct)`; the first Browse should answer in about 1.5 s, a second one (within 30 s) faster. If `permissions` still shows
+thousands of checks the folder is not granted (its files are marked `[X]`).
+
 Server configuration screen (shared folders tree): it used the same per-property `DocumentFile` queries on the main thread (`exists()` per child
 on open; per bound row `getName()`, `isDirectory()` twice and, for folders, a full `listFiles()` for the expand symbol). Now one worker thread of the
 activity reads a folder with `SafDirectoryLister` (shared cache) or `File.listFiles()` into plain `TreeNodeData`; binding asks nothing, every folder shows

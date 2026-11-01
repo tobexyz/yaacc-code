@@ -73,6 +73,10 @@ public class SAFCacheManager {
     static final long FLUSH_MAX_AGE_MILLIS = 3000;
     /** How long a thread other than the main thread waits for the stored state to be loaded. */
     private static final long LOAD_WAIT_MILLIS = 30000;
+    /** Entries a bulk request handles per lock acquisition: bounds how long the others (duration tasks, preload) wait. */
+    static final int BULK_CHUNK = 256;
+    /** The longest the preload gives way to a running Browse before it goes on (it never waits for good). */
+    private static final long PRELOAD_BACKOFF_MAX_MILLIS = 10_000;
 
     private static final Map<String, String> MIME_TYPE_BY_EXT = new ConcurrentHashMap<>();
     
@@ -113,6 +117,7 @@ public class SAFCacheManager {
     private final BooleanSupplier onMainThread;
     private final SafCacheLoadGate loadGate = new SafCacheLoadGate();
     private final SafShortIds ids = new SafShortIds();
+    private final SafBrowseGate browseGate = new SafBrowseGate();
 
     /** Guards {@link #lruCache}, {@link #buffer}, {@link #flushPolicy} and the two flags below. */
     private final Object lock = new Object();
@@ -121,6 +126,8 @@ public class SAFCacheManager {
     private final SafCacheFlushPolicy flushPolicy;
     private boolean immediateFlushQueued;
     private boolean timedFlushQueued;
+    /** Bulk requests that are running: while there is one, changes are only collected, the flush is scheduled at its end. */
+    private int bulkRunning;
 
     private volatile int totalFilesIndexed = 0;
     private volatile boolean isPreloading = false;
@@ -233,11 +240,59 @@ public class SAFCacheManager {
         }
     }
 
+    /**
+     * The metadata of many files at once (a Browse of a folder): the same results as {@link #getMetadata} called for each
+     * one, in the same order, for the cost of one load check, a lock acquisition per {@value #BULK_CHUNK} files instead of
+     * one per file and ONE write of what was new (a cold cache of N files is N new entries; the single calls schedule a
+     * write after every {@value #FLUSH_MAX_CHANGES} of them, and every write rewrites the whole preferences file).
+     *
+     * @return one element per request, null where {@link #getMetadata} would answer null (no uri)
+     */
+    public SAFMetadata[] getMetadataBulk(List<SafMetadataRequest> requests) {
+        SAFMetadata[] result = new SAFMetadata[requests.size()];
+        if (result.length == 0) {
+            return result;
+        }
+        if (!awaitLoaded()) {
+            YaaccLogger.d(getClass().getName(), "SAF cache not loaded yet, metadata of " + result.length + " files is not cached");
+            for (int i = 0; i < result.length; i++) {
+                SafMetadataRequest request = requests.get(i);
+                if (request.uri != null) {
+                    result[i] = new SAFMetadata("", extractMimeType(request.name, request.providerMimeType),
+                            ids.getOrCreateTransient(request.uri.toString()), request.fileSize);
+                }
+            }
+            return result;
+        }
+        synchronized (lock) {
+            bulkRunning++;
+        }
+        try {
+            for (int from = 0; from < result.length; from += BULK_CHUNK) {
+                int to = Math.min(result.length, from + BULK_CHUNK);
+                synchronized (lock) {
+                    for (int i = from; i < to; i++) {
+                        SafMetadataRequest request = requests.get(i);
+                        result[i] = getMetadataInternal(request.uri, request.name, request.providerMimeType, request.fileSize);
+                    }
+                }
+            }
+        } finally {
+            synchronized (lock) {
+                bulkRunning--;
+                scheduleFlushLocked();
+            }
+        }
+        return result;
+    }
+
     /** Called with {@link #lock} held. */
     private SAFMetadata getMetadataInternal(Uri uri, String name, String providerMimeType, long fileSize) {
         if (uri == null) return null;
 
-        long startTime = System.currentTimeMillis();
+        // the per entry log lines build their text even if the level is off: only when they will be written
+        boolean verbose = YaaccLogger.isVerbose();
+        long startTime = verbose ? System.currentTimeMillis() : 0;
         String uriString = uri.toString();
         String key = CACHE_PREFIX + uriString;
 
@@ -255,8 +310,9 @@ public class SAFCacheManager {
                     metadata = new SAFMetadata(metadata.duration, metadata.mimeType, shortId, metadata.fileSize);
                     putEntryLocked(key, metadata.serialize());
                 }
-                long elapsed = System.currentTimeMillis() - startTime;
-                YaaccLogger.v(getClass().getName(), "CACHE_HIT_MEMORY: " + name + " (" + elapsed + "ms)");
+                if (verbose) {
+                    YaaccLogger.v(getClass().getName(), "CACHE_HIT_MEMORY: " + name + " (" + (System.currentTimeMillis() - startTime) + "ms)");
+                }
                 return metadata;
             }
         }
@@ -277,20 +333,24 @@ public class SAFCacheManager {
                 } else {
                     lruCache.put(key, cached);
                 }
-                long elapsed = System.currentTimeMillis() - startTime;
-                YaaccLogger.v(getClass().getName(), "CACHE_HIT_DISK: " + name + " (" + elapsed + "ms)");
+                if (verbose) {
+                    YaaccLogger.v(getClass().getName(), "CACHE_HIT_DISK: " + name + " (" + (System.currentTimeMillis() - startTime) + "ms)");
+                }
                 return metadata;
             }
         }
 
         // Extract and cache
-        YaaccLogger.v(getClass().getName(), "CACHE_MISS: " + name + " - extracting...");
+        if (verbose) {
+            YaaccLogger.v(getClass().getName(), "CACHE_MISS: " + name + " - extracting...");
+        }
         SAFMetadata metadata = extractMetadata(uri, name, providerMimeType, fileSize);
         if (metadata != null) {
             putEntryLocked(key, metadata.serialize());
         }
-        long elapsed = System.currentTimeMillis() - startTime;
-        YaaccLogger.v(getClass().getName(), "EXTRACTION_COMPLETE: " + name + " (" + elapsed + "ms)");
+        if (verbose) {
+            YaaccLogger.v(getClass().getName(), "EXTRACTION_COMPLETE: " + name + " (" + (System.currentTimeMillis() - startTime) + "ms)");
+        }
         return metadata;
     }
 
@@ -367,7 +427,9 @@ public class SAFCacheManager {
             buffer.putCounter(ids.counter());
             flushPolicy.recordChange();
             scheduleFlushLocked();
-            YaaccLogger.v(getClass().getName(), "Created shortId mapping: " + id + " -> " + uri);
+            if (YaaccLogger.isVerbose()) {
+                YaaccLogger.v(getClass().getName(), "Created shortId mapping: " + id + " -> " + uri);
+            }
         }
         return id;
     }
@@ -402,6 +464,8 @@ public class SAFCacheManager {
                         return;
                     }
                 }
+                // a Browse that is answered right now has the provider and the processor first
+                browseGate.awaitIdle(PRELOAD_BACKOFF_MAX_MILLIS);
                 String duration = durationExtractor.extractInBackground(uri, mimeType);
 
                 if (duration != null && !duration.isEmpty()) {
@@ -432,6 +496,15 @@ public class SAFCacheManager {
             duration = extractAudioDuration(uri);
         }
         return duration;
+    }
+
+    /**
+     * The gate a Browse of the SAF content opens while it is answered ({@link SafBrowseGate#enter()} / {@code exit()}); the
+     * duration preload and the background duration tasks wait (at most {@value #PRELOAD_BACKOFF_MAX_MILLIS} ms each time)
+     * between two files while it is open, so a Browse does not compete with them for the provider and the processor.
+     */
+    public SafBrowseGate browseGate() {
+        return browseGate;
     }
 
     /**
@@ -817,8 +890,15 @@ public class SAFCacheManager {
         
         for (int i = 0; i < files.length; i++) {
             DocumentFile file = files[i];
+            // give way to a Browse that is answered right now; the time spent waiting is not a stall of the preload
+            long waited = browseGate.awaitIdle(PRELOAD_BACKOFF_MAX_MILLIS);
+            if (waited > 0) {
+                lastFileIndexedTime += waited;
+            }
             long fileStart = System.currentTimeMillis();
-            YaaccLogger.v(getClass().getName(), "PRELOAD_FILE_START: [" + i + "/" + files.length + "] " + file.getName());
+            if (YaaccLogger.isVerbose()) {
+                YaaccLogger.v(getClass().getName(), "PRELOAD_FILE_START: [" + i + "/" + files.length + "] " + file.getName());
+            }
             
             try {
                 // Check file operation timeout (5 seconds per file)
@@ -841,8 +921,10 @@ public class SAFCacheManager {
                         long extractStart = System.currentTimeMillis();
                         extractAndCache(file.getUri(), true, file.getName(), file.getType(), file.length());
                         long elapsed = System.currentTimeMillis() - extractStart;
-                        YaaccLogger.v(getClass().getName(), "PRELOAD_EXTRACTED: " + file.getName() + " (" + elapsed + "ms)");
-                    } else {
+                        if (YaaccLogger.isVerbose()) {
+                            YaaccLogger.v(getClass().getName(), "PRELOAD_EXTRACTED: " + file.getName() + " (" + elapsed + "ms)");
+                        }
+                    } else if (YaaccLogger.isVerbose()) {
                         YaaccLogger.v(getClass().getName(), "PRELOAD_CACHED: " + file.getName());
                     }
                     
@@ -1053,6 +1135,9 @@ public class SAFCacheManager {
 
     /** Called with {@link #lock} held: queue a flush now if one is due, else one for the time it becomes due. */
     private void scheduleFlushLocked() {
+        if (bulkRunning > 0) {
+            return; // a bulk request schedules it once at its end
+        }
         if (flushPolicy.isDue()) {
             if (!immediateFlushQueued) {
                 immediateFlushQueued = true;

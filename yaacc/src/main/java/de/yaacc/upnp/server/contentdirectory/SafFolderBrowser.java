@@ -21,30 +21,30 @@ package de.yaacc.upnp.server.contentdirectory;
 import android.content.Context;
 import android.net.Uri;
 import android.provider.DocumentsContract;
+import android.webkit.MimeTypeMap;
 
 import androidx.documentfile.provider.DocumentFile;
 
 import org.fourthline.cling.support.model.DIDLObject;
-import org.fourthline.cling.support.model.ProtocolInfo;
 import org.fourthline.cling.support.model.SortCriterion;
 import org.fourthline.cling.support.model.container.Container;
 import org.fourthline.cling.support.model.container.StorageFolder;
 import org.fourthline.cling.support.model.item.Item;
-import org.seamless.util.MimeType;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
 import de.yaacc.R;
-import de.yaacc.upnp.model.YaaccItem;
-import de.yaacc.upnp.model.YaaccRes;
+import de.yaacc.upnp.server.YaaccUpnpServerService;
 import de.yaacc.util.SAFCacheManager;
 import de.yaacc.util.SAFMetadata;
+import de.yaacc.util.SafMetadataRequest;
 import de.yaacc.util.YaaccLogger;
 
 /**
@@ -106,6 +106,17 @@ public class SafFolderBrowser extends ContentBrowser {
     private long pageMillis;
     private int pageStart;
     private int pageEnd;
+    // The split of the page time (nanoseconds): read permission, metadata (SAF cache), the host/ip lookup for the
+    // resource urls, and the rest of the item building (including the Cling objects).
+    private long permissionNanos;
+    private long metadataNanos;
+    private long ipNanos;
+    private long itemNanos;
+
+    /** The read permission of the children of a folder, one per folder and Browse (see {@link SafReadAccess}), by the folder's document uri. */
+    private final Map<String, SafReadAccess> readAccessByFolder = new HashMap<>();
+    /** Builds the items of this Browse; created with the first item (it needs the ip address of the device, looked up once). */
+    private SafItemFactory itemFactory;
 
     public SafFolderBrowser(Context context) {
         super(context);
@@ -123,17 +134,59 @@ public class SafFolderBrowser extends ContentBrowser {
 
     /**
      * Logs one line per Browse of a SAF folder: how many entries the folder has, whether they came
-     * from the cache or the provider and how long that took, and the page that was built.
+     * from the cache or the provider and how long that took, the page that was built and where the
+     * time of the page went (read permission with the number of system calls, metadata, ip lookup, rest of the item building).
      */
     @Override
     public List<DIDLObject> browseChildren(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
         List<DIDLObject> result = super.browseChildren(contentDirectory, myId, firstResult, maxResults, orderby);
-        if (listedEntries >= 0) {
+        if (listedEntries >= 0 && YaaccLogger.isDebug()) {
+            int folderChecks = 0;
+            int entryChecks = 0;
+            for (SafReadAccess access : readAccessByFolder.values()) {
+                folderChecks += access.folderChecks();
+                entryChecks += access.entryChecks();
+            }
             YaaccLogger.d(getClass().getName(), "SAF browse " + myId + " list=" + listedEntries + " entries from "
                     + (listedFromProvider ? "provider" : "cache") + " in " + listMillis + " ms, page "
-                    + pageStart + "-" + pageEnd + " in " + pageMillis + " ms");
+                    + pageStart + "-" + pageEnd + " in " + pageMillis + " ms (permissions " + millis(permissionNanos)
+                    + " ms in " + folderChecks + "+" + entryChecks + " checks, metadata " + millis(metadataNanos)
+                    + " ms, ip " + millis(ipNanos) + " ms, items " + millis(itemNanos) + " ms)");
         }
         return result;
+    }
+
+    private static long millis(long nanos) {
+        return nanos / 1_000_000L;
+    }
+
+    private SafReadAccess readAccess(String folderDocumentUri) {
+        return readAccessByFolder.computeIfAbsent(folderDocumentUri, uri -> new SafReadAccess(uri,
+                documentUri -> SafDirectoryLister.hasReadPermission(getContext(), Uri.parse(documentUri))));
+    }
+
+    private SafItemFactory itemFactory(YaaccContentDirectory contentDirectory) {
+        if (itemFactory == null) {
+            long start = System.nanoTime();
+            // looking the ip address up lists the network interfaces: once per Browse, not once per item
+            String uriPrefix = "http://" + contentDirectory.getIpAddress() + ":" + YaaccUpnpServerService.PORT + "/saf/";
+            ipNanos += System.nanoTime() - start;
+            itemFactory = new SafItemFactory(uriPrefix, this::extensionOfMimeType, this::getProtocolInfo);
+        }
+        return itemFactory;
+    }
+
+    /** Called once per mime type of a Browse (the item factory keeps the answer). */
+    private String extensionOfMimeType(String mimeType) {
+        String extension = MimeTypeMap.getSingleton().getExtensionFromMimeType(mimeType);
+        if (extension == null) {
+            YaaccLogger.d(getClass().getName(), "Can't lookup file extension from mimetype: " + mimeType);
+        }
+        return extension;
+    }
+
+    private String guessMimeType(String fileName) {
+        return SAFCacheManager.getInstance(getContext()).guessMimeTypeFromExtension(fileName);
     }
 
     /**
@@ -338,12 +391,13 @@ public class SafFolderBrowser extends ContentBrowser {
      */
     private List<Container> childFolders(SafDirectory directory, String parentId, long firstResult, long maxResults, SortCriterion[] orderby) {
         Uri folderUri = Uri.parse(directory.rootUri);
+        SafReadAccess access = readAccess(directory.rootUri);
         List<SafDirectoryEntry> folders = SafListingSupport.directories(directory.entries);
         List<FolderCandidate> pageCandidates = new ArrayList<>();
         if (SafListingSupport.sortsBy(orderby, SortSupport.PROPERTY_TITLE)) {
             List<FolderCandidate> all = new ArrayList<>();
             for (SafDirectoryEntry entry : folders) {
-                FolderCandidate candidate = folderCandidate(folderUri, entry);
+                FolderCandidate candidate = folderCandidate(folderUri, access, entry);
                 if (candidate != null) {
                     all.add(candidate);
                 }
@@ -353,7 +407,7 @@ public class SafFolderBrowser extends ContentBrowser {
             notePageRange(all.size(), firstResult, maxResults);
         } else {
             for (SafDirectoryEntry entry : SafListingSupport.page(folders, firstResult, maxResults)) {
-                FolderCandidate candidate = folderCandidate(folderUri, entry);
+                FolderCandidate candidate = folderCandidate(folderUri, access, entry);
                 if (candidate != null) {
                     pageCandidates.add(candidate);
                 }
@@ -369,7 +423,7 @@ public class SafFolderBrowser extends ContentBrowser {
         return containers;
     }
 
-    private FolderCandidate folderCandidate(Uri folderUri, SafDirectoryEntry entry) {
+    private FolderCandidate folderCandidate(Uri folderUri, SafReadAccess access, SafDirectoryEntry entry) {
         String title = entry.name;
         try {
             if (title == null) {
@@ -380,7 +434,9 @@ public class SafFolderBrowser extends ContentBrowser {
             // only for uris of that tree. A uri rooted at the child would never match the grant, and every sub
             // folder of a picked folder would show "[X]". DocumentFile.fromTreeUri accepts such a document uri.
             Uri childUri = SafDirectoryLister.childDocumentUri(folderUri, entry.documentId);
-            boolean canRead = SafDirectoryLister.canRead(getContext(), childUri, entry.mimeType);
+            long start = System.nanoTime();
+            boolean canRead = access.canRead(childUri.toString(), entry.mimeType);
+            permissionNanos += System.nanoTime() - start;
             return new FolderCandidate(folderTitle(title, canRead), childUri, canRead);
         } catch (Exception e) {
             YaaccLogger.e(getClass().getName(), "Error processing child: " + title, e);
@@ -448,15 +504,7 @@ public class SafFolderBrowser extends ContentBrowser {
                 List<SafDirectoryEntry> candidates = SafListingSupport.itemCandidates(directory.entries);
                 List<SafDirectoryEntry> page = SafListingSupport.page(SafListingSupport.sort(candidates, orderby,
                         e -> e.name, e -> SafListingSupport.dateKey(e.lastModified)), firstResult, maxResults);
-                Uri folderUri = Uri.parse(directory.rootUri);
-                for (SafDirectoryEntry entry : page) {
-                    Uri childUri = SafDirectoryLister.childDocumentUri(folderUri, entry.documentId);
-                    boolean restricted = !SafDirectoryLister.canRead(getContext(), childUri, entry.mimeType);
-                    Item item = createItem(contentDirectory, childUri.toString(), entry, myId, restricted);
-                    if (item != null) {
-                        result.add(item);
-                    }
-                }
+                result.addAll(buildItems(contentDirectory, myId, directory, page));
                 notePageRange(candidates.size(), firstResult, maxResults);
                 pageMillis += System.currentTimeMillis() - pageStartMillis;
             }
@@ -465,9 +513,47 @@ public class SafFolderBrowser extends ContentBrowser {
         return result;
     }
 
-    private Item createItem(YaaccContentDirectory contentDirectory, String path, SafDirectoryEntry file, String parentId, boolean restricted) {
-        String fileName = file.name != null ? file.name : "unknown";
+    /**
+     * The items of a page of a folder's listing: the read permission of each (one system call for the folder, see
+     * {@link SafReadAccess}), the metadata of all in one request to the SAF cache, then the items.
+     */
+    private List<Item> buildItems(YaaccContentDirectory contentDirectory, String parentId, SafDirectory directory, List<SafDirectoryEntry> page) {
+        Uri folderUri = Uri.parse(directory.rootUri);
+        SafReadAccess access = readAccess(directory.rootUri);
+        Uri[] childUris = new Uri[page.size()];
+        boolean[] restricted = new boolean[page.size()];
+        List<SafMetadataRequest> requests = new ArrayList<>(page.size());
+        for (int i = 0; i < page.size(); i++) {
+            SafDirectoryEntry entry = page.get(i);
+            childUris[i] = SafDirectoryLister.childDocumentUri(folderUri, entry.documentId);
+            long start = System.nanoTime();
+            restricted[i] = !access.canRead(childUris[i].toString(), entry.mimeType);
+            permissionNanos += System.nanoTime() - start;
+            requests.add(new SafMetadataRequest(childUris[i], entry.name, entry.mimeType, entry.size));
+        }
 
+        long start = System.nanoTime();
+        SAFMetadata[] metadata = SAFCacheManager.getInstance(getContext()).getMetadataBulk(requests);
+        metadataNanos += System.nanoTime() - start;
+
+        SafItemFactory factory = itemFactory(contentDirectory);
+        start = System.nanoTime();
+        List<Item> items = new ArrayList<>(page.size());
+        for (int i = 0; i < page.size(); i++) {
+            if (metadata[i] == null) {
+                continue;
+            }
+            Item item = factory.create(childUris[i].toString(), page.get(i), metadata[i], parentId, restricted[i], this::guessMimeType);
+            if (item != null) {
+                items.add(item);
+            }
+        }
+        itemNanos += System.nanoTime() - start;
+        return items;
+    }
+
+    /** One item (a selected file of the SAF folder, or a BrowseMetadata request); a folder's page goes through {@link #buildItems}. */
+    private Item createItem(YaaccContentDirectory contentDirectory, String path, SafDirectoryEntry file, String parentId, boolean restricted) {
         if (SafListingSupport.isPlaylist(file.name)) {
             return null;
         }
@@ -477,73 +563,9 @@ public class SafFolderBrowser extends ContentBrowser {
         if (metadata == null) {
             return null;
         }
-
-        // If MIME type is null or invalid, try to guess from filename
-        String mimeTypeStr = metadata.mimeType;
-        if (mimeTypeStr == null || mimeTypeStr.equals("null") || !mimeTypeStr.contains("/")) {
-            mimeTypeStr = SAFCacheManager.getInstance(getContext()).guessMimeTypeFromExtension(file.name);
-            if (mimeTypeStr == null) {
-                return null;  // Still couldn't determine MIME type
-            }
-        }
-
-        MimeType mimeType = MimeType.valueOf(mimeTypeStr);
-        String mimeTypeMain = mimeType.getType();
-
-        String id = ContentDirectoryIDs.SAF_PREFIX.getId() + metadata.shortId;
-        String title = file.name != null ? file.name : extractFilenameFromUri(path);
-        if (file.name == null) {
-            YaaccLogger.v(getClass().getName(), "file name is null for URI: " + path);
-        }
-
-        if (restricted) {
-            title = "[X] " + title;
-        }
-
-        // Use shortId in URI instead of Base64-encoded path
-        // Include filename to help renderers display proper title
-        String filenameForUri = file.name != null ? file.name : "file";
-        // Remove extension and special characters for URI path
-        String safeFilename = filenameForUri.replaceAll("[^a-zA-Z0-9._-]", "_");
-        String uriContentId = metadata.shortId + "_" + safeFilename;
-        String uri = getUriString(contentDirectory, id, mimeType, uriContentId);
-        YaaccLogger.v(getClass().getName(), "Generated URI for " + title + ": " + uri + " (shortId=" + metadata.shortId + ")");
-
-        ProtocolInfo protocolInfo = getProtocolInfo(mimeType);
-
-        String duration = null;
-        if (mimeTypeMain.equals("audio") && !restricted) {
-            duration = metadata.duration;
-        }
-
-        // Create lightweight YaaccRes (no Cling overhead)
-        // the size of the listing: the cached metadata holds the size of the first sighting, which is too small for a
-        // file that was still being written then (a download); 0 = the provider has none
-        YaaccRes yaaccRes = new YaaccRes(protocolInfo, file.size > 0 ? file.size : metadata.fileSize, duration, null, uri);
-
-        // Create lightweight YaaccItem (no Cling Property overhead)
-        String clazz = mimeTypeMain.equals("audio") ? "object.item.audioItem"
-                : mimeTypeMain.equals("video") ? "object.item.videoItem"
-                : "object.item.imageItem";
-        YaaccItem yaaccItem = new YaaccItem(id, parentId, title, "yaacc", restricted, clazz);
-        yaaccItem.addResource(yaaccRes);
-
-        // Convert to Cling Item only at the end (for UPnP serialization)
-        Item item = yaaccItem.toClingItem();
-
-        // Attach dc:date from the file's lastModified so SortSupport can honor
-        // SortCriteria="dc:date" against SAF items (0 means unknown - leave unset).
-        if (file.lastModified > 0) {
-            item.addProperty(new DIDLObject.Property.DC.DATE(SortSupport.formatEpochMillisAsDate(file.lastModified)));
-        }
-
-        YaaccLogger.v(getClass().getName(), "Item " + fileName + " created");
+        long start = System.nanoTime();
+        Item item = itemFactory(contentDirectory).create(path, file, metadata, parentId, restricted, this::guessMimeType);
+        itemNanos += System.nanoTime() - start;
         return item;
-    }
-
-    private String extractFilenameFromUri(String path) {
-        if (path == null) return "unknown";
-        int lastSlash = path.lastIndexOf('/');
-        return lastSlash >= 0 ? path.substring(lastSlash + 1) : path;
     }
 }
