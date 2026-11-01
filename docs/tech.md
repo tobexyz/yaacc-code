@@ -2419,8 +2419,8 @@ range, `stream ended for bytes=8192-24575` for a multiple of 8192, `actual.lengt
   take is kept and offered first on the next call; the stream is opened by the first `produceData()`, `skip()` is repeated (falling back to
   `read()`) until `start` is reached, and the stream is closed at the end, on a failed read or write, in `failed()` and in `releaseResources()`.
   A stream that ends early fails the response instead of ending it with less than the announced length. `isRepeatable()` is false.
-- `RangedFileEntityProducer` (new): the same over a `FileInputStream` of a local file; used by `ContentHolder#createStreamingEntityProducer`
-  (files above 50 MB, or a range above 50 MB).
+- `RangedFileEntityProducer` (new): the same over a `FileInputStream` of a local file; first used for files above 50 MB (or a range above
+  50 MB), since the follow-up below for every ranged request of a local file.
 - `RangeWindow` (new): which bytes one `Range` entry selects. `bytes=0-0` is the first byte (an end of 0 used to mean "no end"), an end beyond
   the file is clipped, a suffix longer than the file is the whole file, a range that selects nothing (start at or beyond the size, end below start,
   suffix 0, empty file) has length 0 and the body ends at once (before: a negative length). The `Content-Range` header of the handler uses it,
@@ -2444,11 +2444,102 @@ failed read or write, and by `failed()` and `releaseResources()`.
 ### Not covered / left
 
 - Not run on a device or with VLC. The real `DataStreamChannel` was not exercised (the tests use a fake channel with the semantics above).
-- `ContentHolder#readRangeFormFile` (files up to 50 MB, in memory) has the same kind of edge case bugs: the length is `end - start` (one byte
-  less than the `Content-Range` announces), `bytes=0-0` returns the whole file, a start beyond the end throws `NegativeArraySizeException`, and a
-  single `RandomAccessFile.read` may return less than the buffer. Not part of this issue.
-- The status is still 206 for every range request, also when nothing can be served; the proper answer would be 416 with `Content-Range: bytes */size`
-  (the handler cannot be tested without a device, so it was not changed). A start beyond the end now gets a 206 with an empty body.
+- `ContentHolder#readRangeFormFile` (files up to 50 MB, in memory) and the status 206 for every range request: done in the follow-up below.
 - The external URL producer and the `DocumentFile` branch of `ContentHolder` ignore the return value of `write()`, so under back pressure
   (a client that reads slowly) a chunk can be dropped as shown above. The external URL producer ends its stream correctly (it reads until
   the origin signals the end, `availableData()` is 8192 while open). Both could use `RangedStreamEntityProducer`.
+
+### Follow-up: 416 and the ranges of files up to 50 MB
+
+#### What `getContentLength()` returns (the status needs the FULL size)
+
+Read for every `ContentHolder` subclass in `YaaccUpnpServerContentHttpHandler`; it is the size of the whole resource, never the length of a range:
+
+| Holder | `getContentLength()` | Note |
+|---|---|---|
+| `ContentHolder`, `byte[]` content (thumbnail, default icon) | `content.length` | |
+| `ContentHolder`, local file path (media store, album art file) | `file.length()` | 0 for an empty file |
+| `ContentHolder`, `http(s)` link | `Content-Length` of a HEAD request to the origin (5 s timeouts), else -1 | one request per call, so the handler asks once (see the plan) |
+| `ContentHolder`, `content:` URI (not a file) | `DocumentFile.fromSingleUri(...).length()`, -1 on an exception | a provider that does not know the size reports 0 |
+| `SafContentHolder` | now `max(0, documentFile.length())` of the document the producer reads (before: a second `fromSingleUri` lookup) | status, `Content-Range` and body come from one size; 0 = unknown size of the provider, a range then gets 416 (before: 206 with an empty body) |
+| `LiveStreamContentHolder` | -1; its `ranges` are always empty | ranges are not supported: answer 200 (before: 206 without `Content-Range` and the whole live stream) |
+| `ByteArrayContentHolder`, `FileContentHolder` | never constructed (dead code) | |
+
+#### `RangeResponsePlan` (plain JVM, `RangeResponsePlanTest`)
+
+`RangeResponsePlan.of(ranges, size)` decides status, `Content-Range` and the window; `ContentHolder#getRangePlan()` computes it once per request from `getContentLength()`
+(so the log line, the status line and the body use one size, and an external link is asked once instead of twice or three times). `handle()` calls `plan.applyTo(responseBuilder)`
+for every holder and sets the entity only if `plan.hasBody()`.
+
+| Request | Size | Answer |
+|---|---|---|
+| no usable `Range` | known or unknown | 200, no `Content-Range`, whole resource |
+| range | unknown (< 0, external link without length) | 206 without `Content-Range`, the range is passed on to the origin (as before) |
+| satisfiable range | known | 206, `Content-Range: bytes first-last/size` of the `RangeWindow` (end clipped, suffix = tail), body = exactly that window |
+| start >= size, `-0`, last < first, any range of an empty resource | known | 416, `Content-Range: bytes */size`, NO entity (`Content-Length: 0`), the resource is not opened |
+
+HEAD gets the same status and headers (HttpCore sends `Content-Length` of the entity and no body; checked over a real server in `RangedResponseOverHttpTest`).
+`Accept-Ranges: bytes` and the DLNA headers are set on every answer of a found resource, a 416 included.
+
+#### Decisions
+
+- **Unit other than `bytes`, unparsable header, a number beyond `long`, header over 1024 characters**: ignored, answer 200. `HttpRange.parseRangeHeader` throws a `RuntimeException`
+  for all of them (also `NumberFormatException`; it matches `bytes=` case-sensitively and does not accept a space after a comma), which used to leave `handle()` with an exception.
+  `RangeResponsePlan.parseHeader` catches it. RFC 9110 14.2 allows ignoring any `Range` header; an unknown unit must be ignored.
+- **Several ranges**: the first one is served as 206 (as before), the others are ignored; no `multipart/byteranges`. If the FIRST one is not satisfiable the answer is 416 even if a later
+  one would be (RFC 9110 14.1.2 would serve that one; not worth a second code path). An external link gets only the first range upstream now (before: all, and an origin may answer multipart).
+- **Last position below the first (`bytes=10-5`)**: 416 (RFC 9110 14.1.1 calls it invalid and lets a server ignore or reject it). `ByteRangeResolver` (shares) ignores it and answers 200.
+- **`If-Range`**: not supported, ignored (the range is served).
+- **Size 0**: an empty resource has no satisfiable range: 416 `bytes */0`. A SAF provider that reports 0 for an unknown size therefore also gets 416.
+- **416 body**: empty (the task asked for no producer; `ProxyShareResponder` sends a short HTML text).
+- **Live streams** answer 200 to a range request (they used to answer 206 without `Content-Range`).
+
+#### Small files
+
+`readRangeFormFile` and the 50 MB branch are removed: every ranged request of a local file uses `RangedFileEntityProducer` with the window of the plan (the file is read in 8 KB steps, no
+heap for the body). Reasons: one behavior for all sizes, less code, no `OutOfMemoryError` risk for a range of up to 50 MB. A body of a normal range is byte for byte what the old code sent where it was
+correct (`SmallFileRangeCompatTest` has a copy of the old code and compares open ranges, suffix ranges up to the file length, an end beyond the file, the whole file); the differences are the old bugs:
+
+| Request (file of 100000 bytes) | Old in-memory body | Now |
+|---|---|---|
+| `bytes=100-199` | 99 bytes under `Content-Range: bytes 100-199/100000` | 100 bytes |
+| `bytes=0-0` | the whole file | 1 byte |
+| `bytes=200000-` | `NegativeArraySizeException` | 416 |
+| `bytes=-900000` (suffix longer than the file) | `IOException` (negative seek) | 206, the whole file |
+| a short `RandomAccessFile.read` | a body padded with zeros | the stream producer reads until the window is full |
+
+Also removed: the 206 text "DocumentFile range requests not implemented" for a `content:` URI (a ranged request now streams the window of the document like `SafContentHolder`) and the full-body answer
+of an in-memory resource (thumbnail) to a range request: it now sends the slice under the `Content-Range` it announces. The file without a range is still `AsyncEntityProducers.create(file)`.
+
+#### Other users of the ranges list
+
+`lookupContent`, `lookupAlbumArt`, `lookupThumbnail` and `lookupSafContent` only pass the list on; all of them reach the plan through `ContentHolder`. `ProxyShareResponder` (shares) uses `ByteRangeResolver`, which already
+answers 200/206/416 with `Content-Range: bytes */size`, `Accept-Ranges` and a short HTML body, and never throws on a header: its 416 handling is the model for the status and header. Not changed.
+Differences kept on purpose: the content handler serves the first of several ranges (the resolver answers 200), treats `last < first` as 416 (the resolver ignores the header), and an unknown size is 206 without
+`Content-Range` in both. `RangeResponsePlan` duplicates the resolver's decision on `HttpRange` objects; unifying both would change those cases for one of the two users and was left.
+
+#### Verification
+
+`RangeResponsePlanTest` (status table, garbage headers), `SmallFileRangeCompatTest` (old vs new body, in-memory slice, live holder), `RangedResponseOverHttpTest` (a real HttpCore 5.3.6 server on the loopback interface built like the
+one of `YaaccUpnpServerService`, raw socket client, the real `ContentHolder`, a 300 kB and a sparse 120 MB file: status line, `Content-Range`, `Content-Length`, body bytes, 416 with and without HEAD, garbage headers, HEAD with a range).
+Not covered by a test: the part of `handle()` before the lookup (path, preferences, MediaStore) and after it, `SafContentHolder` and the `content:` branch (need a device), an external link.
+
+#### curl checks (device; `N-5000` etc. stand for the computed number; `<url>` of a local file below 50 MB (S) and above 50 MB (B); `-i` shows the head, `-s -o /dev/null -w '%{http_code} %{size_download}\n'` the size)
+
+| Request | S (size N) and B (size N) |
+|---|---|
+| `curl -i <url>` | `200 OK`, no `Content-Range`, `Content-Length: N`, N bytes |
+| `curl -i -H 'Range: bytes=0-0' <url>` | `206 Partial Content`, `Content-Range: bytes 0-0/N`, `Content-Length: 1`, 1 byte (same for S and B) |
+| `-H 'Range: bytes=0-99'` | `206`, `bytes 0-99/N`, 100 bytes |
+| `-H 'Range: bytes=100000-100499'` | `206`, `bytes 100000-100499/N`, 500 bytes, connection ends at once |
+| `-H 'Range: bytes=N-5000-'` (open end) | `206`, `bytes N-5000-(N-1)/N`, 5000 bytes |
+| `-H 'Range: bytes=-500'` | `206`, `bytes N-500-(N-1)/N`, 500 bytes |
+| `-H 'Range: bytes=-99999999999'` (suffix > file) | `206`, `bytes 0-(N-1)/N`, N bytes |
+| `-H 'Range: bytes=N-100-N+999999'` (end beyond) | `206`, `bytes N-100-(N-1)/N`, 100 bytes |
+| `-H 'Range: bytes=0-9,20-29'` | `206`, `bytes 0-9/N`, 10 bytes |
+| `-H 'Range: bytes=N-'` or `bytes=N+1000-` | `416 Requested Range Not Satisfiable`, `Content-Range: bytes */N`, `Content-Length: 0`, no body |
+| `-H 'Range: bytes=-0'`, `bytes=10-5` | `416`, `bytes */N`, no body |
+| `-H 'Range: bytes=abc'`, `items=0-5`, `bytes=0-5,x`, `garbage` | `200 OK`, no `Content-Range`, N bytes |
+| `curl -I -H 'Range: bytes=100-199' <url>` (HEAD) | `206`, `bytes 100-199/N`, `Content-Length: 100`, no body |
+| `curl -I -H 'Range: bytes=N-' <url>` (HEAD) | `416`, `bytes */N`, `Content-Length: 0` |
+| `curl -I <url>` (HEAD) | `200`, `Content-Length: N`, no `Content-Range` |
