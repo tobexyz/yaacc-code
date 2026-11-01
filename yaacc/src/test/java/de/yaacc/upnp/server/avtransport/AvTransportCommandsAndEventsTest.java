@@ -180,6 +180,38 @@ public class AvTransportCommandsAndEventsTest {
         }
     }
 
+    // Home Assistant sends Stop before every play_media, whatever the renderer is doing (issue 296: error 701 in NoMediaPresent)
+    @Test
+    public void stopIsAnsweredInEveryState() throws Exception {
+        for (String state : STATES) {
+            RendererHarness h = events();
+            bringTo(h, state);
+
+            StreamResponseMessage answer = h.stop();
+
+            String where = "Stop in " + state + ": " + RendererHarness.describe(answer);
+            assertTrue(where, RendererHarness.succeeded(answer));
+            assertFalse(where, answer.getBodyString().contains("Fault"));
+        }
+    }
+
+    @Test
+    public void stopThenSetAvTransportUriAndPlayWorksLikeHomeAssistantDoesIt() throws Exception {
+        RendererHarness h = events();
+
+        assertTrue(RendererHarness.describe(h.stop()), RendererHarness.succeeded(h.stop()));
+        assertTrue(RendererHarness.succeeded(h.setAvTransportUri("http://192.0.2.1/a.mp3")));
+        assertEquals("PLAYING", transportState(h));
+        // and again, for the next item, from the playing state
+        assertTrue(RendererHarness.succeeded(h.stop()));
+        assertTrue(RendererHarness.succeeded(h.setAvTransportUri("http://192.0.2.1/b.mp3")));
+        // Home Assistant sends Play when the renderer does not play by itself after SetAVTransportURI
+        if (!"PLAYING".equals(transportState(h))) {
+            assertTrue(RendererHarness.succeeded(h.play()));
+        }
+        assertEquals("PLAYING", transportState(h));
+    }
+
     @Test
     public void setPlayModeWorksThroughTheHttpExchangeToo() throws Exception {
         RendererHarness h = events();
