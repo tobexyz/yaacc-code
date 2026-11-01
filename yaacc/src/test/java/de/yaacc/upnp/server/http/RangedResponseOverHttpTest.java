@@ -96,6 +96,9 @@ public class RangedResponseOverHttpTest {
     @Before
     public void startServer() throws Exception {
         server = H2ServerBootstrap.bootstrap()
+                // the test sends "Host: localhost": the server answers 421 to any other host than its canonical name, which is the
+                // host name of the machine (the CI runner is not called localhost)
+                .setCanonicalHostName("localhost")
                 .setIOReactorConfig(IOReactorConfig.custom().setSoTimeout(Timeout.ofSeconds(20)).build())
                 .register("*", new TestHandler())
                 .create();
