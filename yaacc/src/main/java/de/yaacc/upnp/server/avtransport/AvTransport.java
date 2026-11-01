@@ -31,7 +31,12 @@ import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 import de.yaacc.player.PlayMode;
 import de.yaacc.player.PlayModeSettings;
@@ -53,6 +58,12 @@ import de.yaacc.util.YaaccLogger;
  * item at a time, each one on a new player). Once <em>all</em> the players of the transport are gone (closed,
  * ended, removed) the transport forgets the mode: the next playback starts with the settings again, and the
  * control point is told the mode of the settings by an event.
+ * <p>
+ * <b>The end of the playback.</b> A player that has played its playlist to the end (repeat off), a player that is
+ * stopped in the app and a player that is closed make the transport leave PLAYING / PAUSED the way a {@code Stop} of a
+ * control point does: the state machine goes to the Stopped state, which events {@code TransportState} and
+ * {@code CurrentTransportActions} and stops the position updates. A control point such as Home Assistant keeps the last
+ * evented {@code TransportState} and skips its {@code Play} when that still says PLAYING (see {@link #playbackEnded}).
  *
  * @author Tobias Schoene (TheOpenBit)
  */
@@ -72,6 +83,11 @@ public class AvTransport extends AVTransport {
     // > 0 while a player is being started: the one that is replaced is removed, the new one not attached yet
     private final AtomicInteger startingPlayers = new AtomicInteger();
     private UpnpClient listeningClient;
+    // asks the state machine of this transport to look whether the playback has ended (set by the service that owns it)
+    private volatile Consumer<Player> stopRequester;
+    // set by the state that leaves PLAYING / PAUSED because the players have stopped (or are gone), read by the Stopped
+    // state that follows at once under the same lock: the players need no Stop of their own then
+    private volatile boolean playersAlreadyStopped;
     private final PlayerListChangeNotifier.Listener playerListListener = new PlayerListChangeNotifier.Listener() {
         @Override
         public void onPlayerAdded(Player player) {
@@ -83,14 +99,29 @@ public class AvTransport extends AVTransport {
             checkPlayersGone();
         }
     };
-    private final PropertyChangeListener playerPlayModeListener = event -> {
+    private final PropertyChangeListener playerListener = event -> {
         if (Player.PROPERTY_PLAY_MODE.equals(event.getPropertyName()) && event.getNewValue() instanceof PlayMode) {
             synchronized (modeLock) {
                 playModeChosen = true;
                 storePlayMode(upnpName((PlayMode) event.getNewValue()));
             }
+        } else if (Player.PROPERTY_STOPPED.equals(event.getPropertyName()) && event.getSource() instanceof Player) {
+            // on the thread of the player (a timer thread): only queue the look, nothing else
+            requestStop((Player) event.getSource());
         }
     };
+
+    /**
+     * The looks at the state machine, one at a time in the order they came, on a daemon thread that ends when idle. They
+     * wait for the lock of the state machine, which a transition holds while it creates and starts players, so they
+     * must not run on the thread of a player or on the main thread.
+     */
+    private static final ThreadPoolExecutor STATE_REQUESTS = new ThreadPoolExecutor(0, 1, 10, TimeUnit.SECONDS,
+            new LinkedBlockingQueue<>(), runnable -> {
+        Thread thread = new Thread(runnable, "avtransport-player-end");
+        thread.setDaemon(true);
+        return thread;
+    });
 
     public AvTransport(UnsignedIntegerFourBytes instanceID, LastChange lastChange, StorageMedium possiblePlayMedium) {
         super(instanceID, lastChange, possiblePlayMedium);
@@ -102,6 +133,76 @@ public class AvTransport extends AVTransport {
 
     public static UpnpClient getUpnpClient() {
         return upnpClient;
+    }
+
+    /**
+     * @param requester what asks the state machine of this transport whether the playback has ended
+     *                  ({@code AvTransportStateMachine.playerStopped}); called on the request thread of the transports,
+     *                  never while a lock of the transport is held. The argument is the player that stopped, or null
+     *                  when the players of the transport are gone.
+     */
+    void setStopRequester(Consumer<Player> requester) {
+        this.stopRequester = requester;
+    }
+
+    private void requestStop(Player stopped) {
+        Consumer<Player> requester = stopRequester;
+        if (requester == null) {
+            return;
+        }
+        try {
+            STATE_REQUESTS.execute(() -> {
+                try {
+                    requester.accept(stopped);
+                } catch (RuntimeException e) {
+                    YaaccLogger.w(getClass().getName(), "AVT end of the playback not handled", e);
+                }
+            });
+        } catch (RejectedExecutionException e) {
+            YaaccLogger.w(getClass().getName(), "AVT end of the playback not handled", e);
+        }
+    }
+
+    /**
+     * Decides, inside the state machine (the Playing and Paused states, under its lock), whether the playback of this
+     * transport has ended. It has when the player that stopped is one this transport plays on and none of the others
+     * is playing or paused, or, for {@code null}, when none of the players this transport started is active any more.
+     * <p>
+     * A player that is not (or not any more) among the active players of the transport says nothing: the player that was
+     * replaced by the next item stops late, after the new one is attached, and must not take the new playback down.
+     * Only getters of the players and the player list are called here, nothing that waits.
+     *
+     * @param stopped the player that stopped, null if the players are gone
+     * @return true if the transport is to leave PLAYING / PAUSED; the Stopped state that follows then leaves the players
+     * alone (they have stopped or are gone)
+     */
+    boolean playbackEnded(Player stopped) {
+        UpnpClient client = upnpClient;
+        if (client == null) {
+            return false;
+        }
+        Collection<Player> active = client.getCurrentPlayers();
+        if (active == null) {
+            active = Collections.emptyList();
+        }
+        if (stopped != null && (!attachedPlayers.contains(stopped) || !active.contains(stopped))) {
+            return false;
+        }
+        for (Player player : attachedPlayers) {
+            if (player != stopped && active.contains(player)
+                    && (stopped == null || player.isPlaying() || player.isPaused())) {
+                return false;
+            }
+        }
+        playersAlreadyStopped = true;
+        return true;
+    }
+
+    /** @return true (once) if the playback ended and the players need no Stop of the transport */
+    boolean takePlayersAlreadyStopped() {
+        boolean stopped = playersAlreadyStopped;
+        playersAlreadyStopped = false;
+        return stopped;
     }
 
     /**
@@ -151,8 +252,8 @@ public class AvTransport extends AVTransport {
         }
         for (Player player : players) {
             if (player != null) {
-                player.removePropertyChangeListener(playerPlayModeListener);
-                player.addPropertyChangeListener(playerPlayModeListener);
+                player.removePropertyChangeListener(playerListener);
+                player.addPropertyChangeListener(playerListener);
             }
         }
         // the players are asked before the lock is taken: nothing calls into a player while it is held
@@ -174,7 +275,7 @@ public class AvTransport extends AVTransport {
             }
         }
         for (Player player : dropped) {
-            player.removePropertyChangeListener(playerPlayModeListener);
+            player.removePropertyChangeListener(playerListener);
         }
         if (chosen) {
             applyPlayMode(players);
@@ -228,9 +329,12 @@ public class AvTransport extends AVTransport {
             stopListeningForPlayerEnd();
         }
         for (Player player : gone) {
-            player.removePropertyChangeListener(playerPlayModeListener);
+            player.removePropertyChangeListener(playerListener);
         }
         forgetPlayMode();
+        // nothing plays any more, so a transport that says PLAYING or PAUSED is wrong; queued, because this may run inside
+        // a transition of the state machine (playersStarted) or on the main thread
+        requestStop(null);
     }
 
     /**

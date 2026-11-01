@@ -431,6 +431,9 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
                 paused = false;
                 updatePlaybackState(PlaybackStateCompat.STATE_STOPPED);
                 setProcessingCommand(false);
+                // Whoever stopped it (the end of the playlist, the stop button, the media renderer): the media
+                // renderer's transport leaves PLAYING when it hears this
+                firePropertyChange(PROPERTY_STOPPED, null, null);
             }
         }, new Date(System.currentTimeMillis()));
     }

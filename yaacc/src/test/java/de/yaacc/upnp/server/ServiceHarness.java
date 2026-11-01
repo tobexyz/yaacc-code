@@ -78,6 +78,8 @@ public class ServiceHarness<T> implements AutoCloseable {
     public final Registry registry = mock(Registry.class);
     /** Bodies of the event messages the service sent to subscribers, with the subscription id. */
     public final List<String> sentEvents = new CopyOnWriteArrayList<>();
+    /** {@code System.nanoTime()} at which each entry of {@link #sentEvents} was sent (same index). */
+    public final List<Long> sentEventNanos = new CopyOnWriteArrayList<>();
     /** When set, every delivery of an event fails like a connect timeout to an address that is not reachable. */
     public volatile boolean deliveryFails;
     public final AtomicInteger deliveryAttempts = new AtomicInteger();
@@ -111,7 +113,11 @@ public class ServiceHarness<T> implements AutoCloseable {
                 if (deliveryFails) {
                     throw new java.io.IOException("connect timed out");
                 }
-                sentEvents.add(message.getBodyString());
+                synchronized (sentEvents) { // both lists in step, also when two threads of the pool send
+                    // time first: a reader that sees the event also sees when it was sent
+                    sentEventNanos.add(System.nanoTime());
+                    sentEvents.add(message.getBodyString());
+                }
                 return new StreamResponseMessage(new UpnpResponse(UpnpResponse.Status.OK));
             });
         } catch (java.io.IOException e) {

@@ -54,10 +54,30 @@ public class AvTransportServiceManager extends AsyncLastChangeServiceManager<Yaa
         return service;
     }
 
+    /**
+     * A change of the transport state (and of what can be done in it) is not paced: a control point acts on the last state
+     * it saw, see {@link AsyncLastChangeServiceManager}.
+     */
+    @Override
+    protected boolean isUrgent(LastChange lastChange) {
+        for (UnsignedIntegerFourBytes instanceId : lastChange.getInstanceIDs()) {
+            if (lastChange.getEventedValue(instanceId, AVTransportVariable.TransportState.class) != null
+                    || lastChange.getEventedValue(instanceId, AVTransportVariable.CurrentTransportActions.class) != null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     @Override
     protected List<String> describeChanges(LastChange lastChange) {
         List<String> descriptions = new ArrayList<>();
         for (UnsignedIntegerFourBytes instanceId : lastChange.getInstanceIDs()) {
+            AVTransportVariable.TransportState transportState =
+                    lastChange.getEventedValue(instanceId, AVTransportVariable.TransportState.class);
+            if (transportState != null) {
+                descriptions.add("TransportState=" + transportState.getValue() + " (instance " + instanceId.getValue() + ")");
+            }
             AVTransportVariable.CurrentPlayMode playMode =
                     lastChange.getEventedValue(instanceId, AVTransportVariable.CurrentPlayMode.class);
             if (playMode != null) {
