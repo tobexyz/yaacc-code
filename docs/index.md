@@ -226,8 +226,9 @@ previous/next buttons (the image viewer in its menu bar).
   it on or off while playing keeps the current item; previous goes back through the
   order that was played.
 
-The settings *replay playlist* and *shuffle music* (see [Settings](settings.html)) only
-give the mode a new player starts with. A change with the buttons belongs to that player
+The settings *Repeat for new players* and *Shuffle for new players* (see [Settings](settings.html); they
+were called *replay playlist* and *shuffle music*) only give the mode a new player starts with. They are not a switch
+for all players: every player, also one that Home Assistant controls, has its own mode. A change with the buttons belongs to that player
 only: it is not written to the settings and ends with the player. The mode of the
 player of YAACC's own media renderer can also be changed by a control point
 (UPnP *SetPlayMode*, for example the repeat and shuffle services of Home Assistant), and a change

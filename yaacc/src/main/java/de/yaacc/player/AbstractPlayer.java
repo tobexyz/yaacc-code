@@ -460,6 +460,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
             synchronized (playModeLock) {
                 if (playMode == null) {
                     playMode = readDefaultPlayMode();
+                    YaaccLogger.d(getClass().getName(), "New player starts with the play mode of the settings: " + playMode);
                 }
                 mode = playMode;
             }
