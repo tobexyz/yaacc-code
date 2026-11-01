@@ -106,10 +106,16 @@ public class YaaccContentDirectory {
     // No eventMaximumRateMilliseconds: Cling drops (not delays) an event inside that time, and a dropped
     // SystemUpdateID would leave a control point on an outdated number until the next change.
     @UpnpStateVariable(defaultValue = "0")
-    private final UnsignedIntegerFourBytes systemUpdateID = new UnsignedIntegerFourBytes(
-            0);
+    private final UnsignedIntegerFourBytes systemUpdateID;
 
+    /** The SystemUpdateID starts with a value that is higher with every start: what changed while the server was stopped is announced. */
     public YaaccContentDirectory(Context context) {
+        this(context, SystemUpdateIds.startValue(System.currentTimeMillis()));
+    }
+
+    /** @param initialSystemUpdateId the SystemUpdateID the service starts with (tests pass 0) */
+    public YaaccContentDirectory(Context context, long initialSystemUpdateId) {
+        this.systemUpdateID = new UnsignedIntegerFourBytes(initialSystemUpdateId);
         this.context = context;
         preferences = PreferenceManager.getDefaultSharedPreferences(context);
 

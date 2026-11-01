@@ -107,7 +107,7 @@ public class LocalServicesEventsTest {
     private YaaccContentDirectory contentDirectory() {
         Context context = mock(Context.class);
         when(context.getSharedPreferences(any(), anyInt())).thenReturn(mock(SharedPreferences.class));
-        return new YaaccContentDirectory(context);
+        return new YaaccContentDirectory(context, 0);
     }
 
     // --- ConnectionManager

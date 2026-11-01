@@ -367,7 +367,7 @@ public class AvTransportCommandsAndEventsTest {
         RendererHarness h = events();
         bringTo(h, "PLAYING");
         assertEquals(200, h.subscribeExchange());
-        await("the initial event", () -> h.sentEvents.size() == 1);
+        await("the initial event", () -> !h.sentEvents.isEmpty()); // not == 1: a change right after the subscribe may be the second event already
 
         h.setPlayMode("SHUFFLE");
         await("SHUFFLE", () -> anyCarries(h.sentEvents, "CurrentPlayMode", "SHUFFLE"));
@@ -382,7 +382,7 @@ public class AvTransportCommandsAndEventsTest {
         RendererHarness h = events();
         bringTo(h, "PLAYING");
         assertEquals(200, h.subscribeExchange());
-        await("the initial event", () -> h.sentEvents.size() == 1);
+        await("the initial event", () -> !h.sentEvents.isEmpty()); // not == 1: a change right after the subscribe may be the second event already
 
         // the repeat button at the player screen
         h.players.get(0).setPlayMode(PlayMode.of(PlayMode.RepeatMode.ONE, false));
@@ -423,7 +423,7 @@ public class AvTransportCommandsAndEventsTest {
         RendererHarness h = events();
         bringTo(h, "PLAYING");
         assertEquals(200, h.subscribeExchange());
-        await("the initial event", () -> h.sentEvents.size() == 1);
+        await("the initial event", () -> !h.sentEvents.isEmpty()); // not == 1: a change right after the subscribe may be the second event already
 
         for (int round = 0; round < 5; round++) {
             assertTrue(RendererHarness.succeeded(h.setPlayMode("SHUFFLE")));
@@ -518,7 +518,7 @@ public class AvTransportCommandsAndEventsTest {
             }
         });
         assertEquals(200, h.subscribeExchange());
-        await("the initial event", () -> h.sentEvents.size() == 1);
+        await("the initial event", () -> !h.sentEvents.isEmpty()); // not == 1: a change right after the subscribe may be the second event already
 
         assertTrue(RendererHarness.succeeded(h.setPlayMode("SHUFFLE")));
 
@@ -536,7 +536,7 @@ public class AvTransportCommandsAndEventsTest {
         RendererHarness h = events();
         bringTo(h, "PLAYING");
         assertEquals(200, h.subscribeExchange());
-        await("the initial event", () -> h.sentEvents.size() == 1);
+        await("the initial event", () -> !h.sentEvents.isEmpty()); // not == 1: a change right after the subscribe may be the second event already
         LocalGENASubscription subscription = h.subscriptions.get(0);
         CountDownLatch holding = new CountDownLatch(1);
         ExecutorService other = Executors.newSingleThreadExecutor();
@@ -573,7 +573,7 @@ public class AvTransportCommandsAndEventsTest {
         RendererHarness h = events();
         bringTo(h, "PLAYING");
         assertEquals(200, h.subscribeExchange());
-        await("the initial event", () -> h.sentEvents.size() == 1);
+        await("the initial event", () -> !h.sentEvents.isEmpty()); // not == 1: a change right after the subscribe may be the second event already
         ExecutorService pool = Executors.newFixedThreadPool(6);
         try {
             List<Future<Integer>> answers = new ArrayList<>();
