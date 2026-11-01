@@ -2543,3 +2543,18 @@ Not covered by a test: the part of `handle()` before the lookup (path, preferenc
 | `curl -I -H 'Range: bytes=100-199' <url>` (HEAD) | `206`, `bytes 100-199/N`, `Content-Length: 100`, no body |
 | `curl -I -H 'Range: bytes=N-' <url>` (HEAD) | `416`, `bytes */N`, `Content-Length: 0` |
 | `curl -I <url>` (HEAD) | `200`, `Content-Length: N`, no `Content-Range` |
+
+### The `Date` header of the HTTP server (found while testing #294)
+
+A `curl -I` against a phone with the German language showed `Date: So., 01 Nov. 2026 17:55:36 GMT+00:00`. Two causes:
+- **httpcore5 5.3.6** (`HttpDateGenerator`, read with `javap`) builds its formatter with `DateTimeFormatterBuilder.appendPattern("EEE, dd MMM yyyy HH:mm:ss zzz").toFormatter()`,
+  which uses the **default locale** of the device: day and month names in the device language, the zone name as the platform writes it (on Android `GMT+00:00`). RFC 9110 wants the
+  English IMF-fixdate `Sun, 01 Nov 2026 17:55:36 GMT`. Reproduced on the JVM with the default locale `de_DE` (`ServerDateHeaderTest`).
+- **`YaaccUpnpServerProtocolRequestHandler`** (the answers of the UPnP protocol: SOAP, GENA) set `Date` to `System.currentTimeMillis()` as a plain number (`Date: 1793555736000`), and the
+  library keeps a header that is already there. It uses `HttpDates.now()` now.
+
+Fix: `HttpDates.imfFixdate` (fixed English pattern, `Locale.US`, UTC, literal `GMT`, two digit day) and `ServerHttpProcessor`, set with `H2ServerBootstrap.setHttpProcessor`: it adds the `Date`
+before the library's interceptor would. Pitfall found by the loopback test: `setHttpProcessor` gives ONE processor to both protocols, while the default is `HttpProcessors.server()` for HTTP/1.1 and
+`H2Processors.server()` for HTTP/2 (`H2ServerBootstrap.create`, bytecode); the HTTP/2 chain on an HTTP/1.1 connection ends in an empty answer. `ServerHttpProcessor` therefore holds both chains
+(`customServer(null)` = the default ones, same `Server` header) and picks by the protocol version in the context (set by `ServerHttp1StreamHandler` / `ServerH2StreamHandler`).
+Not verified without a device: HTTP/2 on a real connection (the unit test sets the version in the context), and the Android formatting of the old header (read from the report, not reproduced).
