@@ -132,6 +132,62 @@ and about 3N when scrolling; now 3 on the worker (0 within 30 s) and 0 on the ma
 
 - **Permission of sub folders and "[X]".** The grant of a folder picked with the system picker covers everything below it, but only for uris of that tree (`.../tree/<picked>/document/<child>`). Sub folders are therefore addressed as `SafDirectoryLister.childDocumentUri(parent, documentId)` and their permission is checked on that uri; `DocumentFile.fromTreeUri` accepts it. Before, a sub folder was addressed as a tree of its own (`buildTreeDocumentUri(authority, childId)`), which no grant matches, so the sub folders of a picked folder could show `[X]` although they are readable. `[X]` now means the app really holds no permission for the folder (e.g. a grant that was revoked).
 
+### New files and folders in a shared SAF folder (issue #299)
+
+Report: after a torrent downloaded a folder tree into an included SAF folder, the new content only showed up after removing and adding the
+folder again. Cause (read from the code, not reproduced on a device): **the server listed the new content, but no control point was told.**
+`SafListingCache` re-lists a folder at most 30 s after it was loaded, so a Browse sees new files and sub folders at once. Control points
+(VLC, BubbleUPnP, Kodi, Windows, Home Assistant, yaacc as a client) cache Browse results and refresh them only when the ContentDirectory's
+`SystemUpdateID` changes (GENA event or `GetSystemUpdateID`). Before, the number was raised only when the *list of shared folders* changed
+(`de.yaacc.SAF_PATHS_CHANGED`, receiver `YaaccUpnpServerService.safPathsChangedReceiver`, line 215, which calls `notifyContentDirectoryChanged()`, line 225; sent
+by `MediaPathFilter.saveSafPathes`, line 74-81). Removing and adding the folder is exactly such a change - which is the user's workaround ("rescan").
+
+| | Candidate | Real? | Evidence |
+|---|---|---|---|
+| (a) | `SAFCacheManager` metadata holds stale or wrong data for files that appear later | Partly (not the cause) | `getMetadataInternal` (SAFCacheManager.java:237-282) is keyed by the document uri only and never compares size or date again: a file seen while it was still written keeps its first `fileSize` (mime type comes from the extension first, `extractMimeType`, line 466, so a `.part` file and the renamed file are different uris and different entries; the duration of an audio/video file seen half written is extracted once and kept). The size was used for `res@size` of the DIDL item (`SafFolderBrowser.createItem`); **fixed**: the size of the (fresh) listing is used when the provider has one. The HTTP handler does not use the cached size. The cached duration of a half written file is **not** changed. |
+| (b) | `SafListingCache` TTL/LRU keeps a listing too long | No | `LISTING_TTL_MILLIS` = 30 s (SafDirectoryLister.java:52), checked on every access (SafListingCache.java:112), so a listing is never older than 30 s when a request uses it; the root listing of a selected tree is cached under the same rule (it goes through `SafFolderBrowser.listing`, line 143, like every folder). Invalidated by `SafDirectoryLister.clearCache()` (clear button, permission given up, SAF path preferences). A Browse after a bump always lists again if the entry is older than 30 s. |
+| (c) | Server control tree view shows a stale tree | Yes, cosmetic, not the cause | `YaaccUpnpServerControlActivity.readChildren` (line 345) reads a folder once when it is opened and keeps the children until the tree is rebuilt. It only affects the selection screen, not what is served. Not changed. |
+| (d) | "Selected" semantics: sub folders of a granted tree not served | No | The SAF root lists the selected paths (`SafFolderBrowser.browseContainer`, line 283-296); every folder below is listed from the provider with all its sub folders (`childFolders`, `SafListingSupport.directories`), no sub folder needs to be selected. A check box on a sub folder (`TreeViewHolder`, line 128-141) only adds it as one more top-level entry. **Related gap, not fixed:** changing the selection (`saveSelectedSafPathes`) sends no broadcast, so ticking or unticking a folder does not raise the `SystemUpdateID` (the service only clears the listing cache, `onSharedPreferenceChanged`, line 757); only add/remove of a folder (`saveSafPathes`) does. |
+
+As built:
+- `SafChangeDetector` (plain JVM): one 64 bit fingerprint per watched folder - the sum of one mixed hash per entry (name, document id, last modified,
+  size, directory flag) combined with the entry count, so the order the provider returns the entries in does not matter. The first listing of a
+  folder is the baseline, not a change; a listing that failed (query error, permission lost, not a directory: `SafDirectory.isCacheable()` false) is neither a change nor a baseline and keeps
+  the old fingerprint. Changed folders are collected; `takeDue()` hands them all over at once (many changed folders = ONE bump) if the last bump is at least
+  15 s ago (`MIN_BUMP_INTERVAL_MILLIS`), otherwise the change waits (`delayUntilBump()`), it is never dropped. `takeDue()` starts the interval at once, so a change seen while the
+  event is being sent waits for the next one; `giveBack()` undoes it when no bump was possible (no ContentDirectory yet). At most 16 folders are known, the least recently watched is forgotten first.
+- `SafWatchSet` (plain JVM): the roots of the selected SAF trees (`MediaPathFilter.getSelectedSafPathes`) always, then the folders a Browse listed in the last 15 min
+  (`SafFolderBrowser.listing` reports them), newest first, 16 folders at most (roots first). No recursion: a library can have 100000 files, and the directory entry of
+  a direct sub folder carries its last-modified date, which a file system based provider (the external storage provider) changes when a file is added to it, so the root's fingerprint then also notices a new file one level down (provider dependent, not verified on a device).
+- `SafChangeMonitor` (plain JVM): `runPass(roots)` lists the watched folders one by one with `SafDirectoryLister.refresh` (the provider is asked even if the cached listing is
+  younger than 30 s, and the fresh listing REPLACES the cached one - `SafListingCache.refresh`, which keeps the old listing if the new one failed and does not put a listing back
+  that a `clear()` overran), compares, and calls `flush()`. `onBrowse(folder, listing, fromCache)` is the hook of a normal Browse: it marks the folder as watched and, if the listing was
+  just read from the provider (or the folder is not known yet), compares it with the earlier one - no extra query. A difference asks the runner for a `flush()` (it never bumps on the Browse thread: that thread holds
+  the service lock of the Browse action). `flush()` bumps through `YaaccUpnpServerService.bumpContentDirectory()` = `YaaccContentDirectory.changeSystemUpdateID()` (raise and event to the subscribers) and
+  logs `SAF change detected in <n> folder(s), SystemUpdateID bumped` (D); one `SAF change pass: ...` line (V) per pass, no per-file lines.
+- `SafChangeRunner` (Android glue, owned by the service): one daemon thread (`saf-change-check`, a `ScheduledThreadPoolExecutor`), first pass 10 s after the start, then
+  30 s after the end of the previous pass (`SafChangeMonitor.pauseAfterPass`: three times the duration of a pass if that is longer than 10 s, so a huge folder
+  does not keep the provider busy). It exists only while `shouldWatch(server on, content provider on, serve SAF folders on, at least one selected SAF folder)`; `update()` is called when the
+  device is (re)created and when the SAF preferences change, `stop()` in `onDestroy()` and `restartServer()`. Otherwise there is no thread and no query. A pass and the bump run on that thread, not on the main thread and not on a
+  Cling or HTTP thread. When the shared folders change (`SAF_PATHS_CHANGED`, or the SAF preferences) the monitor forgets everything it saw (that change is bumped by the existing code).
+- Cost of a pass: for each watched folder (at most 16) the three queries of `SafDirectoryLister.load` - two single row queries (`isDirectory()`, `canRead()`) and ONE query for all children. `SafDirectoryLister.MAX_CACHED_FOLDERS` was raised from 8 to 16 so a pass does not push the
+  folder a control point is paging through out of the cache (the sum of the entries, 100000, still bounds the memory).
+- Delay: a change is seen by the next pass (up to 30 s, longer after a slow pass), the bump follows at once, or after the rest of the 15 s interval if there was a bump just before. So about 30 to 45 s in the worst case.
+  A file that is written all the time (a download, a copy) changes size and date in every pass: the control point is told about every 15 s to 30 s as long as that goes on.
+
+Why no `ContentObserver` (decision): polling is the baseline either way, and the observer cannot replace it. The documentation of `DocumentsProvider.queryChildDocuments`
+(developer.android.com/reference/android/provider/DocumentsProvider) says a provider notifies only "to support change notifications" by calling `Cursor.setNotificationUri` with
+`DocumentsContract.buildChildDocumentsUri(authority, parentDocumentId)` - a provider *may* do that, nothing says the external storage provider or any third party provider (Drive, Nextcloud, SD card, Samba apps) does. The uri
+is the plain one, not the `.../tree/<id>/document/<id>/children` uri that `buildChildDocumentsUriUsingTree` gives (the one the listing uses), so an observer would have to be registered per folder on a provider specific uri, and a download that writes
+all the time would send an event per write that needs the same coalescing. Not verifiable without a device and a provider; a wrong guess means a feature that works on one phone only. **No `FileObserver`**: a SAF tree has no file path, and inotify would not see other providers.
+
+Limits: only the roots and the lately browsed folders are watched; a sub folder nobody browsed within 15 min that a control point still shows from its cache is not noticed (a change in a direct sub folder of a watched folder is, through its date). More than 16 selected roots: only the first 16 (alphabetically) are watched. A change
+of a folder that can not be listed (provider gone, permission lost) is not reported. The check does not run while the process or the device sleeps (a `ScheduledThreadPoolExecutor` uses `System.nanoTime`, no wake lock, no alarm).
+`YaaccContentDirectory.changeSystemUpdateID()` after a service lock timeout (5 s) throws a `RuntimeException`: the monitor keeps the change and retries with the next pass.
+
+Not verified without a device: how fast and how correctly real providers report `last_modified` of directories and of files that are still being written, and which control points react to a `SystemUpdateID` event (the event
+itself, its delivery to a subscriber and the numbering are covered by `LocalServicesEventsTest`; whether VLC, Kodi, BubbleUPnP, Windows or Home Assistant then browse again is up to them).
+
 ## Browse card-grid view
 
 The content tab can show a list or a grid of cards (`ContentListFragment` + `BrowseContentItemAdapter`,
@@ -2573,7 +2629,7 @@ mode the first time; after that the player owns a `PlayMode` and nothing writes 
   - ContentDirectory **never changed `SystemUpdateID`**: `changeSystemUpdateID()` existed (protected) and nobody called it, so after the initial event no event was ever sent. It is public now, increments under the monitor of the object but fires the property change **outside** of it (the
     manager takes its lock to read the new value, an action that holds that lock may need the monitor: a lock order inversion that ends in a 5 s lock timeout), logs `CDS event: SystemUpdateID=<n>` (D) and survives a subscriber that throws. The `eventMaximumRateMilliseconds = 200` of `SystemUpdateID` was removed (Cling drops, not delays: a dropped
     last number leaves the control point on an outdated one). `YaaccUpnpServerService` calls it (on its own thread, the main thread must not wait for the lock a long Browse holds) when the shared folders change (`de.yaacc.SAF_PATHS_CHANGED`). Not done: an observer of the
-    MediaStore (no content observer exists in the app, so changes to the device's own media do not bump the number) and the end of the SAF duration preload (it does not change what is listed).
+    MediaStore (no content observer exists in the app, so changes to the device's own media do not bump the number) and the end of the SAF duration preload (it does not change what is listed). New files and folders inside a shared SAF folder do bump it since issue #299 (see "New files and folders in a shared SAF folder").
   - These services still deliver to their subscribers on the thread that fires, not through an event thread: a subscriber that throws stops the ones behind it for that one event (the manager's listener catches and logs it). They change rarely and have no commands that depend on the delivery, so
     the machinery of the LastChange services was not copied.
 - **The log flood (`doSetTrackInfo`).** Root cause (from reading the code, and the unit tests that show the state's way out; not reproduced on a device): `AvTransportMediaRendererPlaying.updateTime()` scheduled the next tick on a **new `Timer` per tick** and re-armed itself as long as the field `updateTime` was true. That flag was only cleared by `stop()`, `pause()`,

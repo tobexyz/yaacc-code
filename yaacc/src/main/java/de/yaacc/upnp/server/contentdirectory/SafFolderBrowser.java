@@ -147,6 +147,8 @@ public class SafFolderBrowser extends ContentBrowser {
             listMillis += System.currentTimeMillis() - start;
             listedEntries = result.value.entries.size();
             listedFromProvider |= !result.fromCache;
+            // the folder is watched for changes from now on; a listing just read from the provider is compared
+            SafChangeRunner.onBrowse(path, result.value, result.fromCache);
             return result.value;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -515,7 +517,9 @@ public class SafFolderBrowser extends ContentBrowser {
         }
 
         // Create lightweight YaaccRes (no Cling overhead)
-        YaaccRes yaaccRes = new YaaccRes(protocolInfo, metadata.fileSize, duration, null, uri);
+        // the size of the listing: the cached metadata holds the size of the first sighting, which is too small for a
+        // file that was still being written then (a download); 0 = the provider has none
+        YaaccRes yaaccRes = new YaaccRes(protocolInfo, file.size > 0 ? file.size : metadata.fileSize, duration, null, uri);
 
         // Create lightweight YaaccItem (no Cling Property overhead)
         String clazz = mimeTypeMain.equals("audio") ? "object.item.audioItem"

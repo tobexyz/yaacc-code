@@ -295,6 +295,14 @@ In the server control view, you can add SAF folders to share:
 
 ![server_control](./screenshots/5.1.x/server_control.png){:height="30%" width="30%"}
 
+### New files and folders
+
+New files and folders inside an added SAF folder appear by themselves; you do not have to add the folder again. While the local server runs,
+YAACC looks at the added folders (and at the folders your control points opened lately) every 30 seconds and tells the connected control points when something changed,
+at most once every 15 seconds, so a download that is still running does not flood them. A new file or folder is therefore shown after about 30 to 45 seconds.
+If a control point (media player, Home Assistant ...) still shows the old content after that, refresh the folder there or open it again; not every control point reacts to the message.
+Changing which folders are ticked in the server settings is not announced; refresh the control point after that.
+
 ### Performance optimization
 
 YAACC caches metadata (duration, MIME type, file size) for faster browsing:

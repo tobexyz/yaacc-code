@@ -37,11 +37,16 @@ import org.junit.After;
 import org.junit.Test;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 
 import de.yaacc.upnp.server.connectionmanager.ConnectionManagerService;
+import de.yaacc.upnp.server.contentdirectory.SafChangeMonitor;
+import de.yaacc.upnp.server.contentdirectory.SafDirectory;
+import de.yaacc.upnp.server.contentdirectory.SafDirectoryEntry;
 import de.yaacc.upnp.server.contentdirectory.YaaccContentDirectory;
 
 /**
@@ -156,6 +161,37 @@ public class LocalServicesEventsTest {
 
         await("the new id", () -> anyContains(h, "<SystemUpdateID>1</SystemUpdateID>"));
         assertEquals("1", String.valueOf(h.service().getSystemUpdateID().getValue()));
+    }
+
+    @Test
+    public void aSafChangeFoundByTheCheckReachesASubscriberAsASystemUpdateIdEvent() throws Exception {
+        ServiceHarness<YaaccContentDirectory> h = harness(YaaccContentDirectory.class, "ContentDirectory", this::contentDirectory);
+        assertEquals(200, h.subscribeExchange());
+        await("the initial event", () -> h.sentEvents.size() == 1);
+        AtomicReference<SafDirectory> folder = new AtomicReference<>(safListing("a.mp4"));
+        SafChangeMonitor monitor = new SafChangeMonitor(key -> folder.get(), () -> {
+            h.service().changeSystemUpdateID();
+            return true;
+        }, delayMillis -> { }, System::currentTimeMillis);
+        List<String> roots = Collections.singletonList("content://p/tree/lib/document/lib");
+
+        monitor.runPass(roots); // the baseline
+        monitor.runPass(roots); // nothing new
+        assertEquals("0", String.valueOf(h.service().getSystemUpdateID().getValue()));
+        folder.set(safListing("a.mp4", "b.mp4")); // e.g. a torrent finished in the shared folder
+        monitor.runPass(roots);
+
+        await("the event of the change", () -> anyContains(h, "<SystemUpdateID>1</SystemUpdateID>"));
+        monitor.runPass(roots); // the same listing again: no second event
+        assertEquals("1", String.valueOf(h.service().getSystemUpdateID().getValue()));
+    }
+
+    private static SafDirectory safListing(String... names) {
+        List<SafDirectoryEntry> entries = new ArrayList<>();
+        for (String name : names) {
+            entries.add(new SafDirectoryEntry(name, "doc:" + name, "video/mp4", 1, 10, false));
+        }
+        return SafDirectory.listed("content://p/tree/lib/document/lib", true, entries);
     }
 
     @Test

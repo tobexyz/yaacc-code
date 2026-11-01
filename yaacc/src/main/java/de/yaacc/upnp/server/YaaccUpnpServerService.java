@@ -91,6 +91,7 @@ import de.yaacc.upnp.server.avtransport.AvTransportServiceManager;
 import de.yaacc.upnp.server.avtransport.YaaccAVTransportService;
 import de.yaacc.upnp.server.configuration.YaaccUpnpServerControlActivity;
 import de.yaacc.upnp.server.connectionmanager.ConnectionManagerService;
+import de.yaacc.upnp.server.contentdirectory.SafChangeRunner;
 import de.yaacc.upnp.server.contentdirectory.SafDirectoryLister;
 import de.yaacc.upnp.server.contentdirectory.YaaccContentDirectory;
 import de.yaacc.upnp.server.http.YaaccUpnpServerContentHttpHandler;
@@ -135,7 +136,9 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
     public String locaDeviceUuid;
     protected IBinder binder = new YaaccUpnpServerServiceBinder();
     SharedPreferences preferences;
-    private LocalService<YaaccContentDirectory> contentDirectoryService;
+    private volatile LocalService<YaaccContentDirectory> contentDirectoryService;
+    // notices new files and folders in the shared SAF folders and raises the SystemUpdateID (issue #299)
+    private SafChangeRunner safChangeRunner;
 
 
     private NetworkDeviceListener networkDeviceListener;
@@ -173,6 +176,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         YaaccLogger.i(getClass().getName(), "YaaccUpnpServerService onCreate called");
         // when the service starts, the preferences are initialized
         preferences = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
+        safChangeRunner = new SafChangeRunner(getApplicationContext(), this::bumpContentDirectory);
         preferences.registerOnSharedPreferenceChangeListener(this);
 
         // Register broadcast receiver for cache updates
@@ -219,6 +223,8 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
             showNotification();
             // the shared folders changed: control points that browse this server have to look again
             notifyContentDirectoryChanged();
+            // what the change check saw belongs to the old folders
+            safChangeRunner.pathsChanged();
         }
     };
 
@@ -241,6 +247,22 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         }, "content-directory-update").start();
     }
 
+
+    /**
+     * Increments the SystemUpdateID of the content directory and sends it to the subscribed control points, on the
+     * calling thread: the SAF change check calls it on its own thread (reading the new value needs the lock of the
+     * service, which a long Browse holds, so not the main thread).
+     *
+     * @return false if there is no content directory (yet)
+     */
+    private boolean bumpContentDirectory() {
+        LocalService<YaaccContentDirectory> service = contentDirectoryService;
+        if (service == null || service.getManager() == null) {
+            return false;
+        }
+        service.getManager().getImplementation().changeSystemUpdateID();
+        return true;
+    }
 
     /*
      * (non-Javadoc)
@@ -331,6 +353,8 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
             YaaccLogger.w(getClass().getName(), "Error unregistering SAF paths receiver", e);
         }
 
+
+        safChangeRunner.stop();
 
         if (localDevice != null) {
             registry.removeDevice(localDevice);
@@ -678,6 +702,9 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
             registry.setAliveInterval(aliveInterval);
             YaaccLogger.d(this.getClass().getName(), "UPnP ALIVE interval set to: " + aliveInterval + "ms");
 
+            // runs only while this device serves a selected SAF folder
+            safChangeRunner.update();
+
         } catch (ValidationException e) {
             YaaccLogger.e(this.getClass().getName(), "Exception during device creation", e);
             if (e.getErrors() != null) {
@@ -730,6 +757,8 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
             YaaccLogger.d(this.getClass().getName(), "SAF paths changed, reloading cache");
             SafDirectoryLister.clearCache();
             SAFCacheManager.getInstance(getApplicationContext()).preloadSafDurations();
+            // another folder is watched now (or none): forget what was seen, start or stop the change check
+            safChangeRunner.pathsChanged();
         }
 
         // Notify content directory change when media-type serving preferences change
@@ -1410,6 +1439,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         }
 
         // Stop current server
+        safChangeRunner.stop();
         networkDeviceListener.disable();
         if (httpServer != null) {
             httpServer.initiateShutdown();
