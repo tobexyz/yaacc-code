@@ -238,11 +238,24 @@ public class NetworkDeviceListener {
     }
 
     private boolean isWifi() {
+        return hasTransport(NetworkCapabilities.TRANSPORT_WIFI);
+    }
+
+    /**
+     * The capabilities are read once: the active network can be gone between two calls (onLost runs just then),
+     * which made {@code getNetworkCapabilities} return null for the second one and crashed the app.
+     */
+    boolean hasTransport(int transport) {
         ConnectivityManager connectivityManager = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
-        if (connectivityManager.getNetworkCapabilities(connectivityManager.getActiveNetwork()) == null) {
+        if (connectivityManager == null) {
             return false;
         }
-        return connectivityManager.getNetworkCapabilities(connectivityManager.getActiveNetwork()).hasTransport(NetworkCapabilities.TRANSPORT_WIFI);
+        Network active = connectivityManager.getActiveNetwork();
+        if (active == null) {
+            return false;
+        }
+        NetworkCapabilities capabilities = connectivityManager.getNetworkCapabilities(active);
+        return capabilities != null && capabilities.hasTransport(transport);
     }
 
     private boolean isWifiOrHotspot() {
@@ -250,11 +263,7 @@ public class NetworkDeviceListener {
     }
 
     private boolean isCellular() {
-        ConnectivityManager connectivityManager = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
-        if (connectivityManager.getNetworkCapabilities(connectivityManager.getActiveNetwork()) == null) {
-            return false;
-        }
-        return connectivityManager.getNetworkCapabilities(connectivityManager.getActiveNetwork()).hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR);
+        return hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR);
     }
 
     protected void setWiFiMulticastLock(boolean enable) {

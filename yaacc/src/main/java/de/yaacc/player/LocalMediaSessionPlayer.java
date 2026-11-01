@@ -139,21 +139,23 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
         }
         YaaccLogger.d(getClass().getName(), "Initializing ExoPlayer");
         // Create ExoPlayer with audio attributes
-        exoPlayer = new ExoPlayer.Builder(getContext()).build();
+        // A local reference: onDestroy (any thread) sets the field to null, also while this runs
+        final ExoPlayer player = new ExoPlayer.Builder(getContext()).build();
+        exoPlayer = player;
 
         androidx.media3.common.AudioAttributes audioAttributes =
                 new androidx.media3.common.AudioAttributes.Builder()
                         .setContentType(androidx.media3.common.C.AUDIO_CONTENT_TYPE_MUSIC)
                         .setUsage(androidx.media3.common.C.USAGE_MEDIA)
                         .build();
-        exoPlayer.setAudioAttributes(audioAttributes, true);
+        player.setAudioAttributes(audioAttributes, true);
 
         // The repeat and shuffle mode follow the play mode of this player (applied again before every start).
         // The repeat mode was always ALL so that next/previous show; that repeated a single song, or a TTS
         // sentence sent by Home Assistant, for ever although the player was set to play the list once.
-        applyPlayMode(exoPlayer, null);
+        applyPlayMode(player, null);
 
-        exoPlayer.addListener(new Player.Listener() {
+        player.addListener(new Player.Listener() {
             @Override
             public void onPlaybackStateChanged(int playbackState) {
                 if (playbackState == Player.STATE_ENDED && RepeatPolicy.stopsAtEnd(getPlayMode())) {
@@ -212,7 +214,13 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
                 PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT
         );
 
-        mediaSession = new MediaSession.Builder(getContext(), exoPlayer)
+        if (exoPlayer != player) {
+            // destroyed while it was being set up: nothing to build a session for
+            YaaccLogger.d(getClass().getName(), "Player destroyed during initialization, ExoPlayer released");
+            player.release();
+            return;
+        }
+        mediaSession = new MediaSession.Builder(getContext(), player)
                 .setId("local_audio_" + getId() + "_" + System.currentTimeMillis())
                 .setSessionActivity(sessionActivity)
                 .build();
@@ -252,7 +260,7 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
         notificationManager.setUseNextActionInCompactView(true);
         notificationManager.setUsePreviousActionInCompactView(true);
 
-        notificationManager.setPlayer(exoPlayer);
+        notificationManager.setPlayer(player);
         notificationManager.setMediaSessionToken(mediaSession.getPlatformToken());
 
         YaaccLogger.d(getClass().getName(), "ExoPlayer, MediaSession and notification initialized");
@@ -276,9 +284,11 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
             // Initialize ExoPlayer now that we have proper ID
             initializeExoPlayer();
 
-            // Register our MediaSession with the service
-            playerService.registerMediaSession(mediaSession);
-            YaaccLogger.d(getClass().getName(), "MediaSession registered with PlayerService");
+            // Register our MediaSession with the service (none if the player was destroyed meanwhile)
+            if (mediaSession != null) {
+                playerService.registerMediaSession(mediaSession);
+                YaaccLogger.d(getClass().getName(), "MediaSession registered with PlayerService");
+            }
 
             // If there's a pending item, play it now
             if (pendingItem != null) {
