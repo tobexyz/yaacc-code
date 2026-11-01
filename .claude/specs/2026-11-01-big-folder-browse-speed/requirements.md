@@ -20,6 +20,14 @@ The request asked for the whole folder (page 0-5569 = RequestedCount 0). At the 
 2. `SAFCacheManager.getMetadata` takes the global cache lock per entry and, on a cache miss, builds and serializes an entry (first Browse of a never-seen folder); it competes with the duration preload for that lock.
 3. Per-entry string work (`replaceAll`, URI building, logging) and `toClingItem`/DIDL generation.
 
-## Open Questions (for the owner)
-1. May the server answer a Browse with RequestedCount=0 with a limited number of items (UPnP allows NumberReturned < TotalMatches), e.g. 1000? Risk: a control point that does not ask for the rest shows only the first 1000. Recommendation: NO, make it fast instead.
-2. Is a smaller win acceptable if the measurement shows the cost is mostly DIDL serialization (answer takes e.g. 3 s for 5570 items)?
+## Decisions (owner, 2026-11-01)
+1. NO cap of the number of returned items below TotalMatches and NO virtual "More..." folders (confusing, strange client behavior). Always answer the complete list.
+   Home Assistant (checked in its source) sends ONE Browse per folder with RequestedCount=0 and never pages; the library's default wait is 5 s.
+   The only lever is speed on our side.
+2. The slow Browse was NOT a repeat: the owner navigated from another folder into the large one (so the listing was cached by the size/meta calls before,
+   the metadata cache was probably cold: one cache entry built per file).
+
+## Scope
+- Per-entry cost of `SafFolderBrowser.browseItem` / `browseContainer` / `createItem`, `SAFCacheManager.getMetadata`, the DIDL generation of the answer,
+  and the contention with the duration preload.
+- Out of scope: the first listing of a slow (network) provider; if it is slow by itself nothing here helps (noted for later: background listing).
