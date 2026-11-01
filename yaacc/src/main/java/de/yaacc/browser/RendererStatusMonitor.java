@@ -39,12 +39,12 @@ import java.util.concurrent.Executors;
 
 import de.yaacc.upnp.callback.avtransport.GetPositionInfo;
 import de.yaacc.upnp.callback.avtransport.GetTransportInfo;
-import de.yaacc.upnp.callback.renderingcontrol.GetVolume;
 import de.yaacc.upnp.server.http.HttpRequestSender;
 import de.yaacc.util.YaaccLogger;
 
 /**
- * Monitors UPnP renderer status by polling AVTransport and RenderingControl services.
+ * Monitors UPnP renderer status (transport state and track) by polling the AVTransport service. Volume and mute are
+ * polled by {@link ReceiverVolumeLiveUpdater}, per host and only for the rows on screen.
  * <p>
  * One app-wide instance ({@link #getShared()}) serves the Receiver tab and the
  * device sheet, so opening the sheet doesn't start a second poller. Polling
@@ -121,7 +121,7 @@ public class RendererStatusMonitor {
             @Override
             public void received(ActionInvocation invocation, TransportInfo transportInfo) {
                 String state = transportInfo.getCurrentTransportState().getValue();
-                getTrackTitleAndVolume(device, state, pollGeneration);
+                getTrackTitle(device, state, pollGeneration);
             }
 
             @Override
@@ -136,55 +136,28 @@ public class RendererStatusMonitor {
         handler.postDelayed(() -> pollDevice(device, pollGeneration), POLL_INTERVAL_MS);
     }
 
-    private void getTrackTitleAndVolume(Device device, String state, int pollGeneration) {
+    private void getTrackTitle(Device device, String state, int pollGeneration) {
         if ("PLAYING".equals(state) || "PAUSED_PLAYBACK".equals(state)) {
             Service avTransport = device.findService(new UDAServiceId("AVTransport"));
             executorService.execute(new GetPositionInfo(avTransport, httpRequestSender) {
                 @Override
                 public void received(ActionInvocation invocation, PositionInfo positionInfo) {
                     String title = parseTrackTitle(positionInfo.getTrackMetaData());
-                    getVolume(device, state, title, pollGeneration);
+                    updateStatus(device, state, title, pollGeneration);
                 }
-                
+
                 @Override
                 public void failure(ActionInvocation invocation, UpnpResponse response, String msg) {
-                    getVolume(device, state, null, pollGeneration);
+                    updateStatus(device, state, null, pollGeneration);
                 }
             });
         } else {
-            getVolume(device, state, null, pollGeneration);
+            updateStatus(device, state, null, pollGeneration);
         }
     }
-    
-    private void getVolume(Device device, String state, String trackTitle, int pollGeneration) {
-        Service renderingControl = device.findService(new UDAServiceId("RenderingControl"));
-        if (renderingControl == null) {
-            updateStatus(device, state, trackTitle, 50, pollGeneration);
-            return;
-        }
-        
-        // Check if GetVolume action is supported
-        if (renderingControl.getAction("GetVolume") == null) {
-            YaaccLogger.d(getClass().getName(), "GetVolume action not supported by device: " + device.getDisplayString());
-            updateStatus(device, state, trackTitle, 50, pollGeneration);
-            return;
-        }
-        
-        executorService.execute(new GetVolume(renderingControl, httpRequestSender) {
-            @Override
-            public void received(ActionInvocation invocation, int currentVolume) {
-                updateStatus(device, state, trackTitle, currentVolume, pollGeneration);
-            }
-            
-            @Override
-            public void failure(ActionInvocation invocation, UpnpResponse response, String msg) {
-                updateStatus(device, state, trackTitle, 50, pollGeneration);
-            }
-        });
-    }
-    
-    private void updateStatus(Device device, String state, String trackTitle, int volume, int pollGeneration) {
-        RendererStatus status = new RendererStatus(device, state, trackTitle, volume);
+
+    private void updateStatus(Device device, String state, String trackTitle, int pollGeneration) {
+        RendererStatus status = new RendererStatus(device, state, trackTitle);
         statusMap.put(device, status);
 
         handler.post(() -> {
@@ -195,7 +168,7 @@ public class RendererStatusMonitor {
             }
         });
     }
-    
+
     private String parseTrackTitle(String trackMetaData) {
         if (trackMetaData == null || trackMetaData.isEmpty()) {
             return null;

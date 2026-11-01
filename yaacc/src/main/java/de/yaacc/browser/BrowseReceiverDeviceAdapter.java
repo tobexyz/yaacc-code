@@ -32,8 +32,10 @@ import org.fourthline.cling.model.meta.Device;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 
 import de.yaacc.R;
 import de.yaacc.upnp.UpnpClient;
@@ -49,6 +51,7 @@ public class BrowseReceiverDeviceAdapter extends RecyclerView.Adapter<BrowseRece
     private List<Device<?, ?, ?>> devices;
     private RecyclerView devicesListView;
     private final ReceiverRowBinder rowBinder;
+    private final ReceiverVolumeLiveUpdater volumeUpdater;
     // Selection re-sorts the device list, so row positions change wholesale.
     @SuppressLint("NotifyDataSetChanged")
     private final ReceiverRowBinder.SelectionListener selectionListener = (device, selected) -> {
@@ -69,7 +72,38 @@ public class BrowseReceiverDeviceAdapter extends RecyclerView.Adapter<BrowseRece
         this.selectedDevices = new LinkedList<>(selectedDevices);
         this.devicesListView = devicesListView;
         this.rowBinder = new ReceiverRowBinder(ctx, upnpClient);
+        this.volumeUpdater = new ReceiverVolumeLiveUpdater(rowBinder, upnpClient, this::visibleRows);
         sortDevices();
+    }
+
+    /** The rows that are laid out right now, for {@link ReceiverVolumeLiveUpdater}. */
+    private Map<Device<?, ?, ?>, ReceiverRowBinder.RowViews> visibleRows() {
+        Map<Device<?, ?, ?>, ReceiverRowBinder.RowViews> result = new LinkedHashMap<>();
+        for (int i = 0; i < devices.size(); i++) {
+            RecyclerView.ViewHolder holder = devicesListView.findViewHolderForAdapterPosition(i);
+            if (holder instanceof ViewHolder) {
+                result.put(devices.get(i), ((ViewHolder) holder).views);
+            }
+        }
+        return result;
+    }
+
+    /**
+     * From the tab's onResume: the rows follow the volume and mute of their receivers (and of this
+     * phone) until {@link #stopLiveVolume()}.
+     */
+    void startLiveVolume() {
+        volumeUpdater.start();
+    }
+
+    /** From the tab's onPause: drops the system volume listener and the reads of the receivers. */
+    void stopLiveVolume() {
+        volumeUpdater.stop();
+    }
+
+    /** One step of the tab's 2 s poll: the volume and mute of the rows. */
+    void tickLiveVolume() {
+        volumeUpdater.tick();
     }
 
     private void sortDevices() {
@@ -143,6 +177,16 @@ public class BrowseReceiverDeviceAdapter extends RecyclerView.Adapter<BrowseRece
     }
 
     @Override
+    public void onBindViewHolder(@NonNull ViewHolder holder, int listPosition, @NonNull List<Object> payloads) {
+        if (payloads.contains(ReceiverRowBinder.PAYLOAD_STATUS)) {
+            // only the status changed: no volume and mute reload, the slider is left alone
+            rowBinder.bindStatus(holder.views, getItem(listPosition));
+            return;
+        }
+        super.onBindViewHolder(holder, listPosition, payloads);
+    }
+
+    @Override
     public void onBindViewHolder(final BrowseReceiverDeviceAdapter.ViewHolder holder, final int listPosition) {
         Device<?, ?, ?> device = getItem(listPosition);
         rowBinder.bind(holder.views, device, selectedDevices.contains(device), selectionListener);
@@ -186,7 +230,7 @@ public class BrowseReceiverDeviceAdapter extends RecyclerView.Adapter<BrowseRece
             // Just update the item
             for (int i = 0; i < devices.size(); i++) {
                 if (devices.get(i).equals(status.getDevice())) {
-                    notifyItemChanged(i);
+                    notifyItemChanged(i, ReceiverRowBinder.PAYLOAD_STATUS);
                     break;
                 }
             }
@@ -209,8 +253,8 @@ public class BrowseReceiverDeviceAdapter extends RecyclerView.Adapter<BrowseRece
                 RendererStatus localStatus = rowBinder.localDeviceStatus(device);
                 if (localStatus != null) {
                     updateStatus(localStatus);
-                } else {
-                    rowBinder.clearStatus(device);
+                } else if (rowBinder.clearStatus(device)) {
+                    // only when a status was shown: a rebind of every row each 2 s would re-read all volumes
                     notifyDataSetChanged();
                 }
                 break;

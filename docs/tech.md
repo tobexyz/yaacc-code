@@ -905,12 +905,40 @@ unchanged.
   is on top or the app is in the background. Coming back, the list is
   rebuilt once. While started, the sheet:
   - subscribes to `RendererStatusMonitor.getShared()` with the AVTransport
-    devices (10 s poll per remote renderer);
+    devices (10 s poll per remote renderer: transport state and track title);
   - listens for player add/remove through
     `UpnpClient.addPlayerListChangeListener` and rebuilds the list;
   - polls every 2 s for the local device's status (it has no monitor feed)
     and for changed session titles or art, rebinding only rows whose shown
     state changed.
+- **Volume and mute are live** (`ReceiverVolumeLiveUpdater`, started and stopped
+  with the live updates; the Receiver tab does the same from `onResume()` /
+  `onPause()` through the same `ReceiverRowBinder`). Before, they were read once
+  per bound row (`DeviceVolumeStateLoadTask` / `DeviceMuteStateLoadTask`), so a
+  change in Home Assistant showed only after the row was rebound. Now:
+  - *This phone* (the local row, yaacc's own renderer): `SystemVolume.addChangeListener`
+    shows a change made through the app or the RenderingControl service at once
+    (the listener only posts to the main thread; it is removed in `stop()`), and
+    each 2 s tick reads the music stream again, because the hardware keys are only
+    broadcast while a controller is subscribed (`SystemVolumeBroadcastWatcher`).
+  - *Other receivers*: `GetVolume` / `GetMute` as plain SOAP actions, no GENA
+    (the callback address is often unreachable behind a proxy), only for rows that
+    are on screen and for receivers that have the actions. A pool of 3 daemon
+    threads, one request per receiver at a time. `ReceiverStateRefreshPlan`
+    (plain Java, `ReceiverStateRefreshPlanTest`) decides: a receiver is read at
+    most every 6 s (every 3rd tick), is skipped while its request runs, and after
+    failures the pause doubles (12 s, 24 s, 48 s, 60 s max).
+  - *The user wins*: a read is dropped while a slider is held, for 3 s after the
+    user's last action on the row, and when the user acted after the read was
+    started. Showing a read sets the progress / checked state programmatically and
+    never sends it back: the slider listener only sends `fromUser` changes (it is
+    set in `ReceiverRowBinder.bind`, not after the first load, and no longer
+    de-duplicates against a stale `lastVolume`).
+  - Status updates (`RendererStatusMonitor`, the local poll) rebind a row with the
+    payload `ReceiverRowBinder.PAYLOAD_STATUS` -> `bindStatus` only, so they no
+    longer re-run the volume/mute load tasks. `RendererStatus` has no volume any
+    more (it was 50 whenever the receiver did not answer, and the local row's was
+    always 50), and the monitor no longer sends `GetVolume`.
 - **One shared monitor.** `RendererStatusMonitor.getShared()` is the only
   instance. `subscribe(listener, devices)` starts polling devices not yet
   polled; `unsubscribe(listener)` stops all polling once the last listener
