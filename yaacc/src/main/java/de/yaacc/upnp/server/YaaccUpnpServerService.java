@@ -94,6 +94,7 @@ import de.yaacc.upnp.server.connectionmanager.ConnectionManagerService;
 import de.yaacc.upnp.server.contentdirectory.SafChangeRunner;
 import de.yaacc.upnp.server.contentdirectory.SafDirectoryLister;
 import de.yaacc.upnp.server.contentdirectory.YaaccContentDirectory;
+import de.yaacc.upnp.server.http.ClientDisconnects;
 import de.yaacc.upnp.server.http.YaaccUpnpServerContentHttpHandler;
 import de.yaacc.upnp.server.http.YaaccUpnpServerProtocolRequestHandler;
 import de.yaacc.upnp.server.media.CombinedCaptureService;
@@ -837,7 +838,10 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
 
                             @Override
                             public void execute(Exception ex) {
-                                if (ex instanceof SocketTimeoutException) {
+                                if (ClientDisconnects.isClientDisconnect(ex)) {
+                                    // the client hung up while we were answering: normal, one line, no stack
+                                    YaaccLogger.d(getClass().getName(), "client disconnected: " + ex);
+                                } else if (ex instanceof SocketTimeoutException) {
                                     YaaccLogger.e(getClass().getName(), "connection timeout:", ex);
                                 } else if (ex instanceof ConnectionClosedException) {
                                     YaaccLogger.e(getClass().getName(), "connection closed:", ex);
