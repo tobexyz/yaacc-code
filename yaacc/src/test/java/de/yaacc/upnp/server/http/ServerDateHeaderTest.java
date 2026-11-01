@@ -69,6 +69,9 @@ public class ServerDateHeaderTest {
         locale = Locale.getDefault();
         Locale.setDefault(Locale.GERMANY);
         server = H2ServerBootstrap.bootstrap()
+                // the test sends "Host: localhost": the server answers 421 to any other host than its canonical name, which is the
+                // host name of the machine (the CI runner is not called localhost)
+                .setCanonicalHostName("localhost")
                 .setIOReactorConfig(IOReactorConfig.custom().setSoTimeout(Timeout.ofSeconds(20)).build())
                 .setHttpProcessor(ServerHttpProcessor.create())
                 .register("/plain", new Handler(null))
