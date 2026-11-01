@@ -27,116 +27,40 @@ import static org.mockito.Mockito.when;
 import android.content.Context;
 import android.content.SharedPreferences;
 
-import org.apache.hc.core5.http.HttpRequest;
-import org.apache.hc.core5.http.Message;
-import org.apache.hc.core5.http.message.BasicHttpRequest;
-import org.apache.hc.core5.http.nio.AsyncResponseProducer;
-import org.apache.hc.core5.http.nio.DataStreamChannel;
-import org.apache.hc.core5.http.nio.ResponseChannel;
-import org.apache.hc.core5.http.nio.AsyncServerRequestHandler;
-import org.apache.hc.core5.http.protocol.BasicHttpContext;
-import org.apache.hc.core5.http.protocol.HttpContext;
-import org.fourthline.cling.binding.annotations.AnnotationLocalServiceBinder;
-import org.fourthline.cling.model.ServiceManager;
-import org.fourthline.cling.model.message.StreamRequestMessage;
 import org.fourthline.cling.model.message.StreamResponseMessage;
-import org.fourthline.cling.model.message.UpnpHeaders;
-import org.fourthline.cling.model.message.UpnpRequest;
-import org.fourthline.cling.model.message.UpnpResponse;
-import org.fourthline.cling.model.message.gena.OutgoingEventRequestMessage;
 import org.fourthline.cling.model.meta.LocalService;
-import org.fourthline.cling.model.resource.ServiceControlResource;
-import org.fourthline.cling.model.resource.ServiceEventSubscriptionResource;
-import org.fourthline.cling.model.gena.LocalGENASubscription;
+import org.fourthline.cling.model.ServiceManager;
 
 import java.beans.PropertyChangeListener;
 import java.beans.PropertyChangeSupport;
-import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 
 import de.yaacc.player.PlayMode;
 import de.yaacc.player.Player;
 import de.yaacc.player.PlayerListChangeNotifier;
 import de.yaacc.upnp.UpnpClient;
-import de.yaacc.upnp.protocol.UpnpProtocolHandler;
-import de.yaacc.upnp.registry.Registry;
-import de.yaacc.upnp.server.http.HttpRequestSender;
-import de.yaacc.upnp.server.http.YaaccUpnpServerProtocolRequestHandler;
+import de.yaacc.upnp.server.ServiceHarness;
 
 /**
- * Runs a control point's SOAP actions and GENA subscriptions against the media renderer's real AVTransport
- * service the way the app receives them: the service is bound from its annotations
- * ({@link AnnotationLocalServiceBinder}), a service manager is set on it, and a request goes through
- * {@link YaaccUpnpServerProtocolRequestHandler#process} (the method the HTTP server's I/O thread calls),
- * {@link UpnpProtocolHandler#createReceivingSync}, {@code ReceivingAction} / {@code ReceivingSubscribe},
- * Cling's incoming message parsing, the service's action executor, the manager lock and the SOAP answer.
- * Only the network and the players are replaced: a mocked {@link UpnpClient} with fake {@link Player}s that
- * keep their {@link PlayMode} and tell their property change listeners like {@code AbstractPlayer} does,
- * and a mocked {@link HttpRequestSender} that records the event messages sent to subscribers. Plain JVM.
+ * The media renderer's real AVTransport service run the way the app receives a control point's requests (see
+ * {@link ServiceHarness}). Only the network and the players are replaced: a mocked {@link UpnpClient} with fake
+ * {@link Player}s that keep their {@link PlayMode} and tell their property change listeners like
+ * {@code AbstractPlayer} does. Plain JVM.
  */
-final class RendererHarness implements AutoCloseable {
+final class RendererHarness extends ServiceHarness<YaaccAVTransportService> {
 
     static final String SERVICE_TYPE = "urn:schemas-upnp-org:service:AVTransport:1";
-    private static final URI CONTROL = URI.create("/upnp/dev/uuid/svc/upnp-org/AVTransport/action");
-    private static final URI EVENTS = URI.create("/upnp/dev/uuid/svc/upnp-org/AVTransport/event");
 
-    final LocalService<YaaccAVTransportService> localService;
     final UpnpClient client = mock(UpnpClient.class);
-    final HttpRequestSender sender = mock(HttpRequestSender.class);
-    final Registry registry = mock(Registry.class);
     /** The players the renderer plays on (what {@code UpnpClient.getCurrentPlayers(transport)} answers). */
     final List<Player> players = new CopyOnWriteArrayList<>();
-    /** Bodies of the event messages the renderer sent to subscribers, with the subscription id. */
-    final List<String> sentEvents = new CopyOnWriteArrayList<>();
-    /** When set, every delivery of an event fails like a connect timeout to an address that is not reachable. */
-    volatile boolean deliveryFails;
-    final java.util.concurrent.atomic.AtomicInteger deliveryAttempts = new java.util.concurrent.atomic.AtomicInteger();
-    final List<LocalGENASubscription> subscriptions = new CopyOnWriteArrayList<>();
-    /** The pool of the registry ({@code Registry.getExecutorService}) that sends events; plays the HTTP I/O threads too. */
-    final ExecutorService executor = Executors.newFixedThreadPool(8, runnable -> {
-        Thread thread = new Thread(runnable, "harness-io");
-        thread.setDaemon(true);
-        return thread;
-    });
-    private final YaaccUpnpServerProtocolRequestHandler handler;
 
     RendererHarness(ServiceManagerFactory managerFactory) {
+        super(YaaccAVTransportService.class, SERVICE_TYPE, "AVTransport", managerFactory::create);
         AvTransport.setUpnpClient(client);
-        localService = new AnnotationLocalServiceBinder().read(YaaccAVTransportService.class);
-        localService.setManager(managerFactory.create(localService));
-        try {
-            when(sender.send(any(OutgoingEventRequestMessage.class))).thenAnswer(invocation -> {
-                OutgoingEventRequestMessage message = invocation.getArgument(0);
-                deliveryAttempts.incrementAndGet();
-                if (deliveryFails) {
-                    throw new java.io.IOException("connect timed out");
-                }
-                sentEvents.add(message.getBodyString());
-                return new StreamResponseMessage(new UpnpResponse(UpnpResponse.Status.OK));
-            });
-        } catch (java.io.IOException e) {
-            throw new IllegalStateException(e);
-        }
-        when(registry.getExecutorService()).thenReturn(executor);
-        when(registry.getResource(any(), any())).thenAnswer(invocation -> {
-            Class<?> type = invocation.getArgument(0);
-            if (type == ServiceControlResource.class) {
-                return new ServiceControlResource(CONTROL, localService);
-            }
-            if (type == ServiceEventSubscriptionResource.class) {
-                return new ServiceEventSubscriptionResource(EVENTS, localService);
-            }
-            return null;
-        });
-        doAnswer(invocation -> subscriptions.add(invocation.getArgument(0))).when(registry).addLocalSubscription(any());
-        UpnpProtocolHandler protocols = new UpnpProtocolHandler(mock(Context.class), registry, null, null, sender);
-        handler = new YaaccUpnpServerProtocolRequestHandler(() -> protocols);
-
         when(client.getCurrentPlayers(any(AvTransport.class))).thenAnswer(invocation ->
                 lookupByKindFindsNothing ? new ArrayList<Player>() : new ArrayList<>(players));
         when(client.getCurrentPlayers()).thenAnswer(invocation -> new ArrayList<>(players));
@@ -185,43 +109,9 @@ final class RendererHarness implements AutoCloseable {
         ServiceManager<YaaccAVTransportService> create(LocalService<YaaccAVTransportService> service);
     }
 
-    YaaccAVTransportService service() {
-        return localService.getManager().getImplementation();
-    }
-
     AvTransport transport() throws Exception {
         return (AvTransport) service().findStateMachine(YaaccAVTransportService.getDefaultInstanceID())
                 .getCurrentState().getTransport();
-    }
-
-    // ---- control point: SOAP
-
-    /**
-     * @param action     SOAP action name
-     * @param nameValues argument names and values in order, e.g. {@code "InstanceID", "0", "NewPlayMode", "SHUFFLE"}
-     * @return what the control point gets back: status 200 and {@code <u:XResponse>}, or 500 and a SOAP fault
-     */
-    StreamResponseMessage soap(String action, String... nameValues) {
-        String body = soapBody(action, nameValues);
-        StreamRequestMessage request = new StreamRequestMessage(UpnpRequest.Method.POST, CONTROL, body);
-        UpnpHeaders headers = new UpnpHeaders();
-        headers.add("CONTENT-TYPE", "text/xml; charset=\"utf-8\"");
-        headers.add("SOAPACTION", "\"" + SERVICE_TYPE + "#" + action + "\"");
-        request.setHeaders(headers);
-        return handler.process(request);
-    }
-
-    private static String soapBody(String action, String... nameValues) {
-        StringBuilder body = new StringBuilder();
-        body.append("<?xml version=\"1.0\"?><s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\" ")
-                .append("s:encodingStyle=\"http://schemas.xmlsoap.org/soap/encoding/\"><s:Body><u:").append(action)
-                .append(" xmlns:u=\"").append(SERVICE_TYPE).append("\">");
-        for (int i = 0; i < nameValues.length; i += 2) {
-            body.append('<').append(nameValues[i]).append('>').append(escape(nameValues[i + 1]))
-                    .append("</").append(nameValues[i]).append('>');
-        }
-        body.append("</u:").append(action).append("></s:Body></s:Envelope>");
-        return body.toString();
     }
 
     StreamResponseMessage setPlayMode(String mode) {
@@ -242,132 +132,6 @@ final class RendererHarness implements AutoCloseable {
 
     StreamResponseMessage pause() {
         return soap("Pause", "InstanceID", "0");
-    }
-
-    static boolean succeeded(StreamResponseMessage response) {
-        return response != null && response.getOperation().getStatusCode() == 200;
-    }
-
-    static String describe(StreamResponseMessage response) {
-        return response == null ? "no response (404)"
-                : response.getOperation().getStatusCode() + " " + response.getBodyString();
-    }
-
-    // ---- control point: GENA
-
-    /** SUBSCRIBE with a callback, as Home Assistant does; returns the answer to the control point. */
-    StreamResponseMessage subscribe() {
-        StreamRequestMessage request = new StreamRequestMessage(UpnpRequest.Method.SUBSCRIBE, EVENTS);
-        UpnpHeaders headers = new UpnpHeaders();
-        headers.add("CALLBACK", "<http://192.0.2.10:8123/api/dlna_dmr/notify>");
-        headers.add("NT", "upnp:event");
-        headers.add("TIMEOUT", "Second-300");
-        request.setHeaders(headers);
-        return handler.process(request);
-    }
-
-
-    /**
-     * A complete HTTP exchange the way the server's I/O thread runs it: {@code handle(...)} of the handler with
-     * the request as the server parsed it, then what the server does with the answer it was handed: write it,
-     * and release the response producer when the exchange is over (or tell it about a failed write).
-     *
-     * @return the HTTP status code that was sent
-     */
-    int exchange(String method, URI uri, String body, String... headerNameValues) throws Exception {
-        return start(method, uri, body, headerNameValues).complete(false);
-    }
-
-    /** An exchange whose answer is computed but not yet written: {@link Exchange#complete} writes it. */
-    Exchange start(String method, URI uri, String body, String... headerNameValues) throws Exception {
-        HttpRequest request = new BasicHttpRequest(method, uri.toString());
-        for (int i = 0; i < headerNameValues.length; i += 2) {
-            request.addHeader(headerNameValues[i], headerNameValues[i + 1]);
-        }
-        byte[] bytes = body == null ? null : body.getBytes(java.nio.charset.StandardCharsets.UTF_8);
-        AtomicReference<AsyncResponseProducer> submitted = new AtomicReference<>();
-        AsyncServerRequestHandler.ResponseTrigger trigger = new AsyncServerRequestHandler.ResponseTrigger() {
-            @Override
-            public void sendInformation(org.apache.hc.core5.http.HttpResponse response, HttpContext context) {
-            }
-
-            @Override
-            public void submitResponse(AsyncResponseProducer producer, HttpContext context) {
-                submitted.set(producer);
-            }
-
-            @Override
-            public void pushPromise(org.apache.hc.core5.http.HttpRequest promise, HttpContext context,
-                                    org.apache.hc.core5.http.nio.AsyncPushProducer push) {
-            }
-        };
-        HttpContext context = new BasicHttpContext();
-        handler.handle(new Message<>(request, bytes), trigger, context);
-        if (submitted.get() == null) {
-            throw new IllegalStateException("no response was submitted");
-        }
-        return new Exchange(submitted.get(), context);
-    }
-
-    static final class Exchange {
-        private final AsyncResponseProducer producer;
-        private final HttpContext context;
-
-        Exchange(AsyncResponseProducer producer, HttpContext context) {
-            this.producer = producer;
-            this.context = context;
-        }
-
-        /**
-         * What the server does with the answer: write it, then release the producer when the exchange is over
-         * (or tell it that the write failed).
-         *
-         * @return the HTTP status code that was sent
-         */
-        int complete(boolean writeFails) throws Exception {
-            int[] status = {-1};
-            ResponseChannel channel = new ResponseChannel() {
-                @Override
-                public void sendInformation(org.apache.hc.core5.http.HttpResponse response, HttpContext ctx) {
-                }
-
-                @Override
-                public void sendResponse(org.apache.hc.core5.http.HttpResponse response,
-                                         org.apache.hc.core5.http.EntityDetails entity, HttpContext ctx) {
-                    status[0] = response.getCode();
-                }
-
-                @Override
-                public void pushPromise(org.apache.hc.core5.http.HttpRequest promise,
-                                        org.apache.hc.core5.http.nio.AsyncPushProducer push, HttpContext ctx) {
-                }
-            };
-            producer.sendResponse(channel, context);
-            if (writeFails) {
-                producer.failed(new java.io.IOException("connection reset"));
-            } else {
-                producer.releaseResources();
-            }
-            return status[0];
-        }
-    }
-
-    int soapExchange(String action, String... nameValues) throws Exception {
-        return exchange("POST", CONTROL, soapBody(action, nameValues),
-                "Content-Type", "text/xml; charset=\"utf-8\"", "SOAPACTION", "\"" + SERVICE_TYPE + "#" + action + "\"");
-    }
-
-    int subscribeExchange() throws Exception {
-        return startSubscribe().complete(false);
-    }
-
-    Exchange startSubscribe() throws Exception {
-        return start("SUBSCRIBE", EVENTS, null,
-                "CALLBACK", "<http://192.0.2.10:8123/api/dlna_dmr/notify>", "NT", "upnp:event", "TIMEOUT", "Second-300");
-    }
-
-    YaaccUpnpServerProtocolRequestHandler handler() {
-        return handler;
     }
 
     // ---- players
@@ -415,13 +179,9 @@ final class RendererHarness implements AutoCloseable {
         newPlayerMode = PlayMode.fromSettings(replay, shuffle);
     }
 
-    private static String escape(String s) {
-        return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
-    }
-
     @Override
     public void close() {
-        executor.shutdownNow();
+        super.close();
         AvTransport.setUpnpClient(null);
     }
 }

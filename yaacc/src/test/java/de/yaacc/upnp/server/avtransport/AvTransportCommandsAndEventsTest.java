@@ -595,4 +595,35 @@ public class AvTransportCommandsAndEventsTest {
         await("the last change", () -> carries(h.sentEvents.get(h.sentEvents.size() - 1), "CurrentPlayMode", "SHUFFLE"));
         assertNotNull(h.sentEvents);
     }
+
+    // --- 5. the position info is only updated while the transport plays
+
+    private static AvTransportMediaRendererPlaying playingState(RendererHarness h) throws Exception {
+        return (AvTransportMediaRendererPlaying) h.service()
+                .findStateMachine(YaaccAVTransportService.getDefaultInstanceID()).getCurrentState();
+    }
+
+    @Test
+    public void thePositionInfoIsOnlyUpdatedWhileThePlayingStateIsCurrentWhicheverWayItIsLeft() throws Exception {
+        RendererHarness h = events();
+        bringTo(h, "PLAYING");
+        AvTransportMediaRendererPlaying playing = playingState(h);
+        assertTrue(playing.isUpdatingTrackInfo());
+
+        assertTrue(RendererHarness.succeeded(h.play())); // Play while playing enters the state again
+        assertTrue(playing.isUpdatingTrackInfo());
+
+        // Home Assistant: a new item while playing leaves Playing without Stop or Pause (the update chain used to run on for ever)
+        assertTrue(RendererHarness.succeeded(h.setAvTransportUri("http://192.0.2.1/b.mp3")));
+        assertFalse(playing.isUpdatingTrackInfo());
+
+        assertTrue(RendererHarness.succeeded(h.play()));
+        assertTrue(playing.isUpdatingTrackInfo());
+        assertTrue(RendererHarness.succeeded(h.pause()));
+        assertFalse(playing.isUpdatingTrackInfo());
+        assertTrue(RendererHarness.succeeded(h.play()));
+        assertTrue(playing.isUpdatingTrackInfo());
+        assertTrue(RendererHarness.succeeded(h.stop()));
+        assertFalse(playing.isUpdatingTrackInfo());
+    }
 }

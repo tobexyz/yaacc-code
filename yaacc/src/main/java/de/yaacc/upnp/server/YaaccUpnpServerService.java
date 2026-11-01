@@ -99,6 +99,7 @@ import de.yaacc.upnp.server.media.CombinedCaptureService;
 import de.yaacc.upnp.server.media.MediaProjectionHelper;
 import de.yaacc.upnp.server.media.ScreenCastCaptureService;
 import de.yaacc.upnp.server.media.SystemAudioCaptureService;
+import de.yaacc.upnp.server.renderingcontrol.RenderingControlServiceManager;
 import de.yaacc.upnp.server.renderingcontrol.YaaccAudioRenderingControlService;
 import de.yaacc.util.InterfaceResolutionHelper;
 import de.yaacc.util.NotificationId;
@@ -216,8 +217,29 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
             SafDirectoryLister.clearCache();
             SAFCacheManager.getInstance(getApplicationContext()).preloadSafDurations();
             showNotification();
+            // the shared folders changed: control points that browse this server have to look again
+            notifyContentDirectoryChanged();
         }
     };
+
+    /**
+     * Increments the SystemUpdateID of the content directory and sends it to the subscribed control points. Runs on
+     * its own thread: reading the new value needs the lock of the service, which a long Browse holds, and this is
+     * called on the main thread.
+     */
+    private void notifyContentDirectoryChanged() {
+        LocalService<YaaccContentDirectory> service = contentDirectoryService;
+        if (service == null || service.getManager() == null) {
+            return;
+        }
+        new Thread(() -> {
+            try {
+                service.getManager().getImplementation().changeSystemUpdateID();
+            } catch (RuntimeException e) {
+                YaaccLogger.w(getClass().getName(), "SystemUpdateID not changed", e);
+            }
+        }, "content-directory-update").start();
+    }
 
 
     /*
@@ -958,17 +980,9 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
     private LocalService<AbstractAudioRenderingControl> createRenderingControl() {
         LocalService<AbstractAudioRenderingControl> renderingControlService = new AnnotationLocalServiceBinder()
                 .read(AbstractAudioRenderingControl.class);
-        renderingControlService.setManager(new DefaultServiceManager<>(renderingControlService, null) {
-            @Override
-            protected int getLockTimeoutMillis() {
-                return LOCK_TIMEOUT;
-            }
-
-            @Override
-            protected AbstractAudioRenderingControl createServiceInstance() {
-                return new YaaccAudioRenderingControlService(getApplicationContext());
-            }
-        });
+        // sends the LastChange (Volume, Mute) to the subscribers, see RenderingControlServiceManager
+        renderingControlService.setManager(new RenderingControlServiceManager(renderingControlService, LOCK_TIMEOUT,
+                () -> new YaaccAudioRenderingControlService(getApplicationContext())));
         return renderingControlService;
     }
 
@@ -1009,7 +1023,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
 
             @Override
             protected ConnectionManagerService createServiceInstance() {
-                return new ConnectionManagerService(sourceProtocols, null);
+                return new ConnectionManagerService(sourceProtocols, new ProtocolInfos()); // no sink protocols listed: an empty list, not null
             }
         });
 

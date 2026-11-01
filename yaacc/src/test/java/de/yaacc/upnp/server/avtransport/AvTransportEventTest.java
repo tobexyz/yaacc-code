@@ -78,6 +78,8 @@ public class AvTransportEventTest {
     private ScheduledExecutorService executor;
     private final List<String> events = new ArrayList<>();
     private final BlockingQueue<String> asyncEvents = new LinkedBlockingQueue<>();
+    // when the latest event reached the subscriber
+    private volatile long lastEventNanos;
     private UpnpClient client;
 
     @SuppressWarnings("unchecked")
@@ -113,6 +115,7 @@ public class AvTransportEventTest {
                 for (StateVariableValue value : (Collection<StateVariableValue>) e.getNewValue()) {
                     if ("LastChange".equals(value.getStateVariable().getName())) {
                         events.add(value.toString());
+                        lastEventNanos = System.nanoTime();
                         asyncEvents.add(value.toString());
                     }
                 }
@@ -366,13 +369,22 @@ public class AvTransportEventTest {
         return event;
     }
 
+    /** The next event that has this variable; creating the state machine (first action) may send an event of its own before. */
+    private String nextAsyncEventWith(String element) throws InterruptedException {
+        String event;
+        do {
+            event = nextAsyncEvent();
+        } while (!event.contains(element));
+        return event;
+    }
+
     @Test
     public void aSetPlayModeSendsTheEventWithoutAnyoneFiringIt() throws Exception {
         startManagerWithRealExecutor();
         try {
             invoke("SetPlayMode", "InstanceID", ID, "NewPlayMode", "REPEAT_ONE");
 
-            assertInstance0Carries(nextAsyncEvent(), "CurrentPlayMode", "REPEAT_ONE");
+            assertInstance0Carries(nextAsyncEventWith("<CurrentPlayMode "), "CurrentPlayMode", "REPEAT_ONE");
         } finally {
             executor.shutdownNow();
         }
@@ -385,7 +397,10 @@ public class AvTransportEventTest {
             Player player = mock(Player.class);
             when(player.getPlayMode()).thenReturn(de.yaacc.player.PlayMode.NORMAL);
             transport().attachPlayers(Collections.singletonList(player));
-            nextAsyncEvent(); // attaching reports the mode of the player
+            nextAsyncEventWith("<CurrentPlayMode "); // attaching reports the mode of the player
+            while (asyncEvents.poll(AvTransportServiceManager.MIN_EVENT_INTERVAL_MILLIS + 150, TimeUnit.MILLISECONDS) != null) {
+                // whatever else the creation of the state machine sent
+            }
             ArgumentCaptor<PropertyChangeListener> listener = ArgumentCaptor.forClass(PropertyChangeListener.class);
             verify(player).addPropertyChangeListener(listener.capture());
 
@@ -404,13 +419,13 @@ public class AvTransportEventTest {
         try {
             // Home Assistant sets repeat and shuffle with two calls right after each other
             invoke("SetPlayMode", "InstanceID", ID, "NewPlayMode", "REPEAT_ALL");
-            long first = System.nanoTime();
-            nextAsyncEvent();
+            nextAsyncEventWith("<CurrentPlayMode ");
+            long first = lastEventNanos;
             invoke("SetPlayMode", "InstanceID", ID, "NewPlayMode", "RANDOM");
             invoke("SetPlayMode", "InstanceID", ID, "NewPlayMode", "REPEAT_ONE");
 
             String second = nextAsyncEvent();
-            long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - first);
+            long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(lastEventNanos - first);
 
             assertInstance0Carries(second, "CurrentPlayMode", "REPEAT_ONE");
             assertTrue("events are spaced, " + elapsedMillis + " ms", elapsedMillis >= AvTransportServiceManager.MIN_EVENT_INTERVAL_MILLIS - 20);
@@ -431,35 +446,6 @@ public class AvTransportEventTest {
 
         assertNull(String.valueOf(set.getFailure()), set.getFailure());
         assertEquals(PlayMode.SHUFFLE, service().getTransportSettings(ID).getPlayMode());
-    }
-
-    // --- ObservableLastChange
-
-    @Test
-    public void theLastChangeTellsItsListenerAboutEveryValueButNotAboutNothing() {
-        ObservableLastChange lastChange = new ObservableLastChange(new AVTransportLastChangeParser());
-        AtomicInteger calls = new AtomicInteger();
-        lastChange.setChangeListener(calls::incrementAndGet);
-
-        lastChange.setEventedValue(ID, new AVTransportVariable.CurrentPlayMode(PlayMode.NORMAL));
-        lastChange.setEventedValue(0, new AVTransportVariable.CurrentPlayMode(PlayMode.SHUFFLE));
-        lastChange.setEventedValue(ID, (org.fourthline.cling.support.lastchange.EventedValue) null);
-        lastChange.setEventedValue(ID);
-
-        assertEquals(2, calls.get());
-        assertEquals(PlayMode.SHUFFLE, lastChange.getEventedValue(ID, AVTransportVariable.CurrentPlayMode.class).getValue());
-    }
-
-    @Test
-    public void aListenerThatThrowsDoesNotBreakTheChange() {
-        ObservableLastChange lastChange = new ObservableLastChange(new AVTransportLastChangeParser());
-        lastChange.setChangeListener(() -> {
-            throw new IllegalStateException("boom");
-        });
-
-        lastChange.setEventedValue(ID, new AVTransportVariable.CurrentPlayMode(PlayMode.RANDOM));
-
-        assertEquals(PlayMode.RANDOM, lastChange.getEventedValue(ID, AVTransportVariable.CurrentPlayMode.class).getValue());
     }
 
     @Test

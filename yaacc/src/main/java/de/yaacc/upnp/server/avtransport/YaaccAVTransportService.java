@@ -19,6 +19,7 @@
 package de.yaacc.upnp.server.avtransport;
 
 import de.yaacc.share.ShareLogRedactor;
+import de.yaacc.upnp.server.events.ObservableLastChange;
 import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.binding.annotations.UpnpAction;
@@ -276,17 +277,6 @@ public class YaaccAVTransportService implements LastChangeDelegator {
             lastChange = new ObservableLastChange(new AVTransportLastChangeParser());
         }
         return lastChange;
-    }
-
-    /**
-     * @param listener called after every change of the LastChange (see {@link ObservableLastChange}); the
-     *                 service manager uses it to send the event to the subscribers
-     */
-    public void setLastChangeListener(Runnable listener) {
-        LastChange current = getLastChange();
-        if (current instanceof ObservableLastChange) {
-            ((ObservableLastChange) current).setChangeListener(listener);
-        }
     }
 
     @Override
