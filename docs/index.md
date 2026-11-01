@@ -212,6 +212,27 @@ Tap a player to open its player view.
 * While the sheet is open, receiver status and the list of running players update live.
   Status polling stops when the sheet is closed or the app goes to the background.
 
+### Repeat and shuffle
+
+Every player has its own repeat and shuffle buttons: the music player, the player of a
+receiver (AVTransport) and the player for videos and mixed content have them next to the
+previous/next buttons (the image viewer in its menu bar).
+
+* **Repeat** cycles *off* (the playlist is played once, then the player stops), *all*
+  (starts again with the first item after the last one) and *one* (the same item is
+  played again and again; the next and previous buttons still skip to another item).
+  The symbol shows a "1" for repeat one; a symbol drawn half transparent means off.
+* **Shuffle** plays the items in a random order, every item once per round. Switching
+  it on or off while playing keeps the current item; previous goes back through the
+  order that was played.
+
+The settings *replay playlist* and *shuffle music* (see [Settings](settings.html)) only
+give the mode a new player starts with. A change with the buttons belongs to that player
+only: it is not written to the settings and ends with the player. The mode of the
+player of YAACC's own media renderer can also be changed by a control point
+(UPnP *SetPlayMode*, for example the repeat and shuffle services of Home Assistant), and a change
+with the buttons is reported back to the control point.
+
 ### Lock screen controls
 
 When playing media locally, YAACC provides lock screen controls:
@@ -347,6 +368,10 @@ switch at the bottom of the server list, or the YAACC server service notificatio
 This service allows your device acting as an media renderer. Therefore the
 device can be controlled by other UPnP/DLNA controllers in your network
 and receive and play media from UPnP/DLNA servers.
+Control points can set the play mode (*SetPlayMode*: `NORMAL`, `REPEAT_ONE`, `REPEAT_ALL`,
+`SHUFFLE`, `RANDOM`; `DIRECT_1` and `INTRO` are accepted and played as normal) and read it
+(*GetTransportSettings*, the `CurrentPlayMode` event). It is the repeat and shuffle mode of the
+player the renderer plays on, see [Repeat and shuffle](#repeat-and-shuffle).
 
 ## Sharing to YAACC
 

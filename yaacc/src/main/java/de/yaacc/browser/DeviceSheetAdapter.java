@@ -104,8 +104,11 @@ final class DeviceSheetAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
     private final boolean pickMode;
     // Pick mode: the ticked receiver ids. Only this adapter writes it; it is never UpnpClient's stored set.
     private final Set<String> picked = new LinkedHashSet<>();
+    private final ReceiverVolumeLiveUpdater volumeUpdater;
     private String localStatusSignature;
     private boolean focusFirstReceiver;
+    // Non-null exactly while the adapter is set on the sheet's list; see onAttachedToRecyclerView.
+    private RecyclerView recyclerView;
 
     /** The normal sheet: receivers with their controls, and their player sessions. */
     DeviceSheetAdapter(Context context, UpnpClient upnpClient) {
@@ -128,7 +131,53 @@ final class DeviceSheetAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
             }
         }
         this.rowBinder = new ReceiverRowBinder(context, upnpClient);
+        this.volumeUpdater = new ReceiverVolumeLiveUpdater(rowBinder, upnpClient, this::visibleReceiverRows);
         setHasStableIds(true);
+    }
+
+    @Override
+    public void onAttachedToRecyclerView(@NonNull RecyclerView recyclerView) {
+        super.onAttachedToRecyclerView(recyclerView);
+        this.recyclerView = recyclerView;
+    }
+
+    @Override
+    public void onDetachedFromRecyclerView(@NonNull RecyclerView recyclerView) {
+        this.recyclerView = null;
+        super.onDetachedFromRecyclerView(recyclerView);
+    }
+
+    /** The receiver rows that are laid out right now, for {@link ReceiverVolumeLiveUpdater}. */
+    private Map<Device<?, ?, ?>, ReceiverRowBinder.RowViews> visibleReceiverRows() {
+        Map<Device<?, ?, ?>, ReceiverRowBinder.RowViews> result = new LinkedHashMap<>();
+        if (recyclerView == null) {
+            return result;
+        }
+        for (int i = 0; i < entries.size(); i++) {
+            Entry entry = entries.get(i);
+            if (entry.kind == Row.Kind.RECEIVER && entry.device != null) {
+                RecyclerView.ViewHolder holder = recyclerView.findViewHolderForAdapterPosition(i);
+                if (holder instanceof ReceiverHolder) {
+                    result.put(entry.device, ((ReceiverHolder) holder).views);
+                }
+            }
+        }
+        return result;
+    }
+
+    /**
+     * From the sheet's onStart: the receiver rows follow the volume and mute of their receivers (and of
+     * this phone) until {@link #stopLiveVolume()}. Not for the picker, whose rows have no controls.
+     */
+    void startLiveVolume() {
+        if (!pickMode) {
+            volumeUpdater.start();
+        }
+    }
+
+    /** From the sheet's onStop: drops the system volume listener and the reads of the receivers. */
+    void stopLiveVolume() {
+        volumeUpdater.stop();
     }
 
     /**
@@ -241,7 +290,7 @@ final class DeviceSheetAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
         String deviceId = status.getDevice().getIdentity().getUdn().getIdentifierString();
         int position = receiverPosition(deviceId);
         if (position != RecyclerView.NO_POSITION) {
-            notifyItemChanged(position);
+            notifyItemChanged(position, ReceiverRowBinder.PAYLOAD_STATUS);
         }
     }
 
@@ -264,9 +313,10 @@ final class DeviceSheetAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
                 } else {
                     rowBinder.updateStatus(status);
                 }
-                notifyItemChanged(localPosition);
+                notifyItemChanged(localPosition, ReceiverRowBinder.PAYLOAD_STATUS);
             }
         }
+        volumeUpdater.tick();
         for (int i = 0; i < entries.size(); i++) {
             Entry entry = entries.get(i);
             if (entry.kind == Row.Kind.PLAYER_SESSION
@@ -278,6 +328,7 @@ final class DeviceSheetAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
 
     /** Stops the binder's transport-action thread; call when the sheet's view goes away. */
     void release() {
+        volumeUpdater.stop();
         rowBinder.shutdown();
     }
 
@@ -355,6 +406,16 @@ final class DeviceSheetAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
             }
         });
         return holder;
+    }
+
+    @Override
+    public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position, @NonNull List<Object> payloads) {
+        if (holder instanceof ReceiverHolder && payloads.contains(ReceiverRowBinder.PAYLOAD_STATUS)) {
+            // only the status changed: no volume and mute reload, the slider is left alone
+            rowBinder.bindStatus(((ReceiverHolder) holder).views, entries.get(position).device);
+            return;
+        }
+        super.onBindViewHolder(holder, position, payloads);
     }
 
     @Override

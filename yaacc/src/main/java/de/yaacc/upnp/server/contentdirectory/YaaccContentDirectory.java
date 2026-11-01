@@ -101,7 +101,9 @@ public class YaaccContentDirectory {
     private final Map<String, DIDLObject> content = new HashMap<>();
     private final Context context;
     private final SharedPreferences preferences;
-    @UpnpStateVariable(defaultValue = "0", eventMaximumRateMilliseconds = 200)
+    // No eventMaximumRateMilliseconds: Cling drops (not delays) an event inside that time, and a dropped
+    // SystemUpdateID would leave a control point on an outdated number until the next change.
+    @UpnpStateVariable(defaultValue = "0")
     private final UnsignedIntegerFourBytes systemUpdateID = new UnsignedIntegerFourBytes(
             0);
 
@@ -276,17 +278,28 @@ public class YaaccContentDirectory {
     }
 
     /**
-     * Call this method after making changes to your content directory.
+     * Call this method after making changes to your content directory (e.g. the shared folders were changed).
      * <p>
-     * This will notify clients that their view of the content directory is
-     * potentially outdated and has to be refreshed.
-     * </p>
+     * Increments the {@code SystemUpdateID} and sends it to the subscribed control points as an event, which tells
+     * them that their view of the content directory is potentially outdated and has to be refreshed. Not
+     * synchronized while the event is sent: the service manager takes its own lock to read the new value, and an
+     * action that holds that lock may need the monitor of this object.
      */
-    synchronized protected void changeSystemUpdateID() {
-        Long oldUpdateID = getSystemUpdateID().getValue();
-        systemUpdateID.increment(true);
-        getPropertyChangeSupport().firePropertyChange("SystemUpdateID",
-                oldUpdateID, getSystemUpdateID().getValue());
+    public void changeSystemUpdateID() {
+        Long oldUpdateID;
+        Long newUpdateID;
+        synchronized (this) {
+            oldUpdateID = systemUpdateID.getValue();
+            systemUpdateID.increment(true);
+            newUpdateID = systemUpdateID.getValue();
+        }
+        try {
+            getPropertyChangeSupport().firePropertyChange("SystemUpdateID", oldUpdateID, newUpdateID);
+        } catch (RuntimeException e) {
+            // the number is changed; a subscriber that fails does not undo that
+            YaaccLogger.w(getClass().getName(), "SystemUpdateID event not accepted by a subscriber", e);
+        }
+        YaaccLogger.d(getClass().getName(), "CDS event: SystemUpdateID=" + newUpdateID);
     }
 
     /**
@@ -344,6 +357,7 @@ public class YaaccContentDirectory {
                 + " browseFlag: " + browseFlag + " filter: " + filter
                 + " firstResult: " + firstResult + " maxResults: " + maxResults
                 + " orderby: " + stream(orderby).map(SortCriterion::toString).collect(Collectors.joining(",")));
+        long computedMaxResults = maxResults == 0 ? Long.MAX_VALUE : maxResults;
         long childCount;
         long totalMatches = 1L;
         DIDLObject didlObject;
@@ -386,7 +400,7 @@ public class YaaccContentDirectory {
             ContentBrowser browser = findBrowserFor(objectID);
             if (browser != null) {
                 if (browseFlag == BrowseFlag.METADATA) {
-                    didlObject = browser.browseMeta(this, objectID, firstResult, maxResults, orderby);
+                    didlObject = browser.browseMeta(this, objectID, firstResult, computedMaxResults, orderby);
                     if (didlObject == null) {
                         // an id that is not known (any more): answering with an empty result would look like an object without data
                         throw new ContentDirectoryException(ContentDirectoryErrorCode.NO_SUCH_OBJECT, "No such object: " + objectID);
@@ -399,7 +413,7 @@ public class YaaccContentDirectory {
                 } else {
                     // only BrowseDirectChildren: the number of children, so that a client can page
                     totalMatches = browser.getSize(this, objectID);
-                    List<DIDLObject> children = browser.browseChildren(this, objectID, firstResult, maxResults, orderby);
+                    List<DIDLObject> children = browser.browseChildren(this, objectID, firstResult, computedMaxResults, orderby);
                     for (DIDLObject child : children) {
                         didl.addObject(child);
                         childCount++;

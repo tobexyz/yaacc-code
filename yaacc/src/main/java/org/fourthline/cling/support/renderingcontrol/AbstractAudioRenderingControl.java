@@ -89,7 +89,10 @@ import java.beans.PropertyChangeSupport;
 })
 public abstract class AbstractAudioRenderingControl implements LastChangeDelegator {
 
-    @UpnpStateVariable(eventMaximumRateMilliseconds = 200)
+    // No eventMaximumRateMilliseconds: Cling drops (not delays) an event that comes within that time of the last
+    // one, and a LastChange that was fired is cleared, so a dropped change would be lost for good. The pace of the
+    // events is kept by the service manager (AsyncLastChangeServiceManager).
+    @UpnpStateVariable
     final private LastChange lastChange;
 
     final protected PropertyChangeSupport propertyChangeSupport;

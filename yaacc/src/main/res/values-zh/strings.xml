@@ -174,4 +174,9 @@
     <string name="log_pause">暂停刷新</string>
     <string name="log_resume">继续刷新</string>
     <string name="toggle_view_mode">在列表视图和卡片视图之间切换</string>
+    <string name="repeat_off">重复播放：关</string>
+    <string name="repeat_all">重复全部</string>
+    <string name="repeat_one">重复单曲</string>
+    <string name="shuffle_off">随机播放：关</string>
+    <string name="shuffle_on">随机播放：开</string>
 </resources>

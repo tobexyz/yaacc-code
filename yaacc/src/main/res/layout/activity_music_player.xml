@@ -200,13 +200,26 @@
         android:layout_height="wrap_content"
         android:gravity="center"
         android:orientation="horizontal"
-        android:paddingLeft="16dp"
-        android:paddingRight="16dp">
+        android:paddingLeft="0dp"
+        android:paddingRight="0dp">
 
 
         <ImageButton
+            android:id="@+id/musicActivityControlShuffle"
+            style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="48dp"
+            android:layout_marginStart="2dp"
+            android:foreground="@drawable/focus_ring"
+            android:contentDescription="@string/shuffle_off"
+            app:srcCompat="@drawable/ic_baseline_shuffle_32"
+            app:tint="?attr/colorControlNormal" />
+
+        <ImageButton
             android:id="@+id/musicActivityControlPrev"
-            android:layout_width="48dp"
+            android:layout_width="0dp"
+            android:layout_weight="1"
             android:layout_height="48dp"
             android:layout_marginStart="2dp"
             android:contentDescription="@string/previous"
@@ -215,7 +228,8 @@
 
         <ImageButton
             android:id="@+id/musicActivityControlFastRewind"
-            android:layout_width="48dp"
+            android:layout_width="0dp"
+            android:layout_weight="1"
             android:layout_height="48dp"
             android:layout_marginStart="2dp"
             android:contentDescription="@string/fast_rewind"
@@ -225,7 +239,8 @@
 
         <ImageButton
             android:id="@+id/musicActivityControlFastForward"
-            android:layout_width="48dp"
+            android:layout_width="0dp"
+            android:layout_weight="1"
             android:layout_height="48dp"
             android:layout_marginStart="2dp"
             android:contentDescription="@string/fast_forward"
@@ -234,13 +249,25 @@
 
         <ImageButton
             android:id="@+id/musicActivityControlNext"
-            android:layout_width="48dp"
+            android:layout_width="0dp"
+            android:layout_weight="1"
             android:layout_height="48dp"
             android:layout_marginStart="2dp"
             android:contentDescription="@string/next"
             app:srcCompat="@drawable/ic_baseline_skip_next_32"
                     app:tint="?attr/colorControlNormal" />
 
+        <ImageButton
+            android:id="@+id/musicActivityControlRepeat"
+            style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="48dp"
+            android:layout_marginStart="2dp"
+            android:foreground="@drawable/focus_ring"
+            android:contentDescription="@string/repeat_off"
+            app:srcCompat="@drawable/ic_baseline_repeat_32"
+            app:tint="?attr/colorControlNormal" />
     </LinearLayout>
 
 </LinearLayout>

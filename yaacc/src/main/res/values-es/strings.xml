@@ -174,4 +174,9 @@
     <string name="log_pause">Pausar la actualización</string>
     <string name="log_resume">Reanudar la actualización</string>
     <string name="toggle_view_mode">Cambiar entre vista de lista y de tarjetas</string>
+    <string name="repeat_off">Repetir desactivado</string>
+    <string name="repeat_all">Repetir todo</string>
+    <string name="repeat_one">Repetir uno</string>
+    <string name="shuffle_off">Aleatorio desactivado</string>
+    <string name="shuffle_on">Aleatorio activado</string>
 </resources>
