@@ -138,14 +138,14 @@
     <string name="settings_sending_upnp_alive_interval">sending UPnP alive notifications</string>
     <string name="settings_sending_upnp_alive_interval_key" translatable="false">settings_sending_upnp_alive_interval_key</string>
     <string name="settings_category_playing">media playing behavior</string>
-    <string name="settings_replay_title">replay playlist</string>
+    <string name="settings_replay_title">Repeat for new players</string>
     <string name="settings_replay_playlist_chkbx" translatable="false">settings_replay_playlist_chkbx</string>
-    <string name="settings_replay_playlist_on">replay playlist</string>
-    <string name="settings_replay_playlist_off">don\'t replay playlist</string>
-    <string name="settings_music_player_shuffle_title">shuffle music</string>
+    <string name="settings_replay_playlist_on">New players repeat the playlist. Each player has its own repeat button.</string>
+    <string name="settings_replay_playlist_off">New players play the playlist once. Each player has its own repeat button.</string>
+    <string name="settings_music_player_shuffle_title">Shuffle for new players</string>
     <string name="settings_music_player_shuffle_chkbx" translatable="false">settings_music_player_chkbx</string>
-    <string name="settings_music_player_shuffle_on">shuffled music play</string>
-    <string name="settings_music_player_shuffle_off">ordered music play</string>
+    <string name="settings_music_player_shuffle_on">New players play shuffled. Each player has its own shuffle button.</string>
+    <string name="settings_music_player_shuffle_off">New players play in order. Each player has its own shuffle button.</string>
     <string name="settings_category_synchronization">synchronization settings</string>
     <string name="settings_category_renderer_settings">Renderer Settings</string>
     <string name="settings_swipe_chkbx" translatable="false">settings_swipe_chkbx</string>

@@ -166,6 +166,19 @@ public class AvTransportMediaRendererPlaying extends Playing<AvTransport> implem
         return AvTransportMediaRendererStopped.class;
     }
 
+    /**
+     * The player has played to its end (repeat off), was stopped in the app or the players were closed: the transport
+     * goes to Stopped like it does for a Stop of a control point, so {@code TransportState} is evented and the position
+     * updates end ({@link #onExit}).
+     */
+    public Class<? extends AbstractState<?>> playerStopped(Player player) {
+        if (!getTransport().playbackEnded(player)) {
+            return null;
+        }
+        YaaccLogger.d(this.getClass().getName(), "AVT player ended: transport -> STOPPED");
+        return AvTransportMediaRendererStopped.class;
+    }
+
     /*
      * (non-Javadoc)
      * @see org.fourthline.cling.support.avtransport.impl.state.Playing#play(java.lang.String)

@@ -218,7 +218,10 @@ public class AvTransportPlayModeMemoryTest {
 
         h.closePlayer(h.players.get(0));
 
-        await("NORMAL", () -> h.sentEvents.size() > before && anyEventCarries(h, "NORMAL"));
+        // an event after the SHUFFLE one (the STOPPED event of the transport does not count: it has no play mode)
+        await("NORMAL", () -> h.sentEvents.size() > before
+                && new ArrayList<>(h.sentEvents.subList(before, h.sentEvents.size())).stream()
+                .anyMatch(event -> event.replace("&quot;", "\"").contains("CurrentPlayMode val=\"NORMAL\"")));
     }
 
     @Test
@@ -230,12 +233,25 @@ public class AvTransportPlayModeMemoryTest {
         assertEquals(200, h.subscribeExchange());
         await("the initial event", () -> !h.sentEvents.isEmpty());
         Thread.sleep(400);
-        int before = h.sentEvents.size();
+        int before = playModeEvents(h);
 
         h.closePlayer(h.players.get(0));
 
+        // The transport stops now that its last player is gone (TransportState=STOPPED is evented, see
+        // AvTransportPlayerEndTest); the play mode was not changed, so no event carries it
+        await("the STOPPED event", () -> h.sentEvents.stream().anyMatch(event -> event.replace("&quot;", "\"").contains("TransportState val=\"STOPPED\"")));
         Thread.sleep(700);
-        assertEquals(before, h.sentEvents.size());
+        assertEquals(before, playModeEvents(h));
+    }
+
+    private static int playModeEvents(RendererHarness h) {
+        int count = 0;
+        for (String event : h.sentEvents) {
+            if (event.contains("CurrentPlayMode")) {
+                count++;
+            }
+        }
+        return count;
     }
 
     @Test

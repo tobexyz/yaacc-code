@@ -182,7 +182,8 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
                             firePropertyChange(PROPERTY_ITEM, null, items.get(index));
                         }
                     }
-                    YaaccLogger.d(getClass().getName(), "Media item changed: " + mediaItem.mediaMetadata.title);
+                    YaaccLogger.d(getClass().getName(), "Media item changed: " + mediaItem.mediaMetadata.title
+                            + " (reason " + reason + ", play mode " + getPlayMode() + ")");
                 }
                 refreshNextItemIndex();
             }

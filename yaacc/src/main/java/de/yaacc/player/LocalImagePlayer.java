@@ -208,6 +208,7 @@ public class LocalImagePlayer implements Player, ServiceConnection {
                 upnpClient.getContext().sendBroadcast(intent);
                 setPlaying(false);
                 setPaused(false);
+                pcs.firePropertyChange(PROPERTY_STOPPED, null, null);
             }
         }, new Date());
     }

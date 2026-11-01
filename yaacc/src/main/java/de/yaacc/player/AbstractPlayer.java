@@ -431,6 +431,9 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
                 paused = false;
                 updatePlaybackState(PlaybackStateCompat.STATE_STOPPED);
                 setProcessingCommand(false);
+                // Whoever stopped it (the end of the playlist, the stop button, the media renderer): the media
+                // renderer's transport leaves PLAYING when it hears this
+                firePropertyChange(PROPERTY_STOPPED, null, null);
             }
         }, new Date(System.currentTimeMillis()));
     }
@@ -460,6 +463,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
             synchronized (playModeLock) {
                 if (playMode == null) {
                     playMode = readDefaultPlayMode();
+                    YaaccLogger.d(getClass().getName(), "New player starts with the play mode of the settings: " + playMode);
                 }
                 mode = playMode;
             }
