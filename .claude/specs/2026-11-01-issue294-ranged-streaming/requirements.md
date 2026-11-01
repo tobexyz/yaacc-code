@@ -22,3 +22,16 @@ Proposed fix of the reporter: end the stream in the same `produceData()` call as
 - Range edge cases of the streaming producer are checked and fixed only where clearly wrong and low risk: `bytes=0-0` (end 0 is treated as "no end" now), end beyond the file, suffix range,
   start beyond the end of the file. Existing behavior for normal ranges stays.
 - Producers are anonymous classes with a `Context`; move the file producer into a small package-private class that a JVM unit test can drive (see `ProducerTestSupport`, `GuardedEntityProducerTest`, `LengthOnlyEntityProducerTest` for how producers are tested here).
+
+## Follow-up (owner, 2026-11-01): 416 and ranges of files up to 50 MB
+Left over from the fix of #294 (see docs/tech.md "Issue #294"):
+1. The status is 206 for EVERY range request, also when nothing can be served (start at or beyond the end of the file). RFC 9110: answer 416 Range Not Satisfiable
+   with `Content-Range: bytes */<size>` and no body (the body of a 416 is empty or a short text).
+2. `ContentHolder#readRangeFormFile` (in-memory path for files up to 50 MB) differs from the streaming path: the length is `end - start` (one byte less than the `Content-Range` announces),
+   `bytes=0-0` returns the whole file, a start beyond the end throws `NegativeArraySizeException`, one `RandomAccessFile.read` may return less than the buffer.
+   `bytes=0-0` behaves differently above and below 50 MB.
+Preferred approach (verify, justify in the report): use the same `RangeWindow` + `RangedFileEntityProducer` for EVERY ranged request of a local file and drop `readRangeFormFile` and the 50 MB branch
+(less code, one behavior, less memory); only keep the in-memory path if a test or a compatibility reason shows the streaming producer is not a drop-in replacement
+(same body bytes, same Content-Length, same headers). The status and `Content-Range` decision belongs in one small testable class (e.g. `RangeResponsePlan`: status 200/206/416, Content-Range text, the window), used by `handle()` for ALL holder types (local file, SAF, album art, thumbnail, external URL with unknown length: no Content-Range, as today).
+Edge cases to decide with the RFC (note the decision in tech.md): several ranges in one header (today the first one is served as 206: keep, or ignore the header and send 200? RFC allows ignoring Range; prefer keeping today's behavior), `Range` with a unit other than bytes (ignore -> 200), unparsable header (ignore -> 200), `If-Range` (not supported, ignore), HEAD with Range.
+Non-goals: multipart/byteranges; live streams (no ranges).
