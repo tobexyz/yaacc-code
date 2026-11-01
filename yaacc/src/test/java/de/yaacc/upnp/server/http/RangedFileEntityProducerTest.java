@@ -85,7 +85,8 @@ public class RangedFileEntityProducerTest {
     }
 
     private static RangedFileEntityProducer producer(File file, List<HttpRange> ranges) {
-        return new RangedFileEntityProducer(file, ContentType.APPLICATION_OCTET_STREAM, ranges);
+        return new RangedFileEntityProducer(file, ContentType.APPLICATION_OCTET_STREAM,
+                RangeWindow.resolve(ranges.isEmpty() ? null : ranges.get(0), file.length()));
     }
 
     /**
