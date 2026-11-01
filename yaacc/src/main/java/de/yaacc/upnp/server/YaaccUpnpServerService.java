@@ -138,6 +138,8 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
     protected IBinder binder = new YaaccUpnpServerServiceBinder();
     SharedPreferences preferences;
     private volatile LocalService<YaaccContentDirectory> contentDirectoryService;
+    // one SystemUpdateID change for the preferences of one user action (adding a folder writes two)
+    private final DebouncedAction contentDirectoryChanged = new DebouncedAction(this::changeContentDirectoryUpdateId, 1000, "content-directory-update");
     // notices new files and folders in the shared SAF folders and raises the SystemUpdateID (issue #299)
     private SafChangeRunner safChangeRunner;
 
@@ -230,22 +232,24 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
     };
 
     /**
-     * Increments the SystemUpdateID of the content directory and sends it to the subscribed control points. Runs on
-     * its own thread: reading the new value needs the lock of the service, which a long Browse holds, and this is
-     * called on the main thread.
+     * Asks for a new SystemUpdateID of the content directory (the shared folders changed). Requests that come close together
+     * (adding a folder writes two preferences) are one change. It runs on its own thread: reading the new value needs the lock
+     * of the service, which a long Browse holds, and this is called on the main thread.
      */
     private void notifyContentDirectoryChanged() {
+        contentDirectoryChanged.request();
+    }
+
+    private void changeContentDirectoryUpdateId() {
         LocalService<YaaccContentDirectory> service = contentDirectoryService;
         if (service == null || service.getManager() == null) {
             return;
         }
-        new Thread(() -> {
-            try {
-                service.getManager().getImplementation().changeSystemUpdateID();
-            } catch (RuntimeException e) {
-                YaaccLogger.w(getClass().getName(), "SystemUpdateID not changed", e);
-            }
-        }, "content-directory-update").start();
+        try {
+            service.getManager().getImplementation().changeSystemUpdateID();
+        } catch (RuntimeException e) {
+            YaaccLogger.w(getClass().getName(), "SystemUpdateID not changed", e);
+        }
     }
 
 
@@ -356,6 +360,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
 
 
         safChangeRunner.stop();
+        contentDirectoryChanged.shutdown();
 
         if (localDevice != null) {
             registry.removeDevice(localDevice);
@@ -760,6 +765,8 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
             SAFCacheManager.getInstance(getApplicationContext()).preloadSafDurations();
             // another folder is watched now (or none): forget what was seen, start or stop the change check
             safChangeRunner.pathsChanged();
+            // ticking or unticking a shared folder: control points that browse this server have to look again
+            notifyContentDirectoryChanged();
         }
 
         // Notify content directory change when media-type serving preferences change
