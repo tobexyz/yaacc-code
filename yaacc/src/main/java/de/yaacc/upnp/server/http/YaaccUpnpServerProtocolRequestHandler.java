@@ -217,7 +217,7 @@ public class YaaccUpnpServerProtocolRequestHandler implements AsyncServerRequest
             }
         }
         // The Date header is recommended in UDA
-        responseBuilder.addHeader("Date", "" + System.currentTimeMillis());
+        responseBuilder.addHeader("Date", HttpDates.now());
 
         // Body
         byte[] responseBodyBytes = responseMessage.hasBody() ? responseMessage.getBodyBytes() : null;
