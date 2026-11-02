@@ -61,6 +61,9 @@ public class AvTransportMediaRendererStopped extends Stopped<AvTransport> implem
     public void onEntry() {
         YaaccLogger.d(this.getClass().getName(), "On Entry");
         super.onEntry();
+        if (getTransport().takePlayersAlreadyStopped()) {
+            return; // the players stopped by themselves (or are gone): the transport only follows
+        }
         List<Player> players = upnpClient.getCurrentPlayers(getTransport());
         for (Player player : players) {
             if (player != null) {
@@ -112,6 +115,11 @@ public class AvTransportMediaRendererStopped extends Stopped<AvTransport> implem
 // / Same here, if you are stopped already and someone calls STOP,
 // well...
         return AvTransportMediaRendererStopped.class;
+    }
+
+    /** Already stopped: a player that stops changes nothing (the Stop of this transport ends here too). */
+    public Class<? extends AbstractState<?>> playerStopped(Player player) {
+        return null;
     }
 
     /*

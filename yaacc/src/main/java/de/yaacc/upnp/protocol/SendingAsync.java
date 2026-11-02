@@ -41,8 +41,9 @@ import de.yaacc.util.YaaccLogger;
  * Supertype for all synchronously executing protocols, sending UPnP messages.
  *
  * <p>
- * A {@link IOException} during execution will be wrapped in a fatal <code>RuntimeException</code>,
- * unless its cause is an <code>InterruptedException</code>, in which case an INFO message will be logged.
+ * A failure during execution (an {@link IOException} of an unreachable peer, or any other exception) is
+ * logged as a warning and does not leave the thread, because an uncaught exception on a pool thread ends
+ * the app; an <code>InterruptedException</code> as the cause is logged at verbose level.
  * </p>
  *
  * @author Christian Bauer
@@ -65,9 +66,13 @@ public abstract class SendingAsync implements Runnable {
             if (cause instanceof InterruptedException) {
                 YaaccLogger.v(getClass().getName(), "Interrupted protocol '" + getClass().getSimpleName() + "': " + ex, cause);
             } else {
-                throw new RuntimeException(
-                        "Fatal error while executing protocol '" + getClass().getSimpleName() + "': " + ex, ex
-                );
+                // A protocol runs on a pool thread of the app: an exception that leaves it ends the whole
+                // process (Android's default handler). A peer that cannot be reached (an event callback of
+                // a control point behind a proxy, a renderer that went away) must never do that.
+                YaaccLogger.w(getClass().getName(), "Protocol '" + getClass().getSimpleName() + "' failed: "
+                        + cause.getClass().getSimpleName() + ": " + cause.getMessage()
+                        + (cause == ex ? "" : " (" + ex.getClass().getSimpleName() + ")"));
+                YaaccLogger.v(getClass().getName(), "Protocol failure details", ex);
             }
         }
     }

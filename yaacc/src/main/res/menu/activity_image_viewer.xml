@@ -56,6 +56,20 @@
         android:title="@string/next"
         app:showAsAction="always" />
     <item
+        android:id="@+id/menu_shuffle"
+        android:icon="@drawable/ic_baseline_shuffle_32"
+        app:iconTint="?attr/colorControlNormal"
+        android:orderInCategory="110"
+        android:title="@string/shuffle_off"
+        app:showAsAction="ifRoom" />
+    <item
+        android:id="@+id/menu_repeat"
+        android:icon="@drawable/ic_baseline_repeat_32"
+        app:iconTint="?attr/colorControlNormal"
+        android:orderInCategory="110"
+        android:title="@string/repeat_off"
+        app:showAsAction="ifRoom" />
+    <item
         android:id="@+id/menu_share"
         android:icon="@drawable/ic_baseline_share_32"
         app:iconTint="?attr/colorControlNormal"

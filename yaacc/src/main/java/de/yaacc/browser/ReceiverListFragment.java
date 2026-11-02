@@ -88,6 +88,10 @@ public class ReceiverListFragment extends Fragment implements
         
         // Poll local device status every 2 seconds
         startLocalDevicePolling();
+        // Volume and mute of the rows follow the receivers; the adapter may only be created a moment later
+        if (bDeviceAdapter != null) {
+            bDeviceAdapter.startLiveVolume();
+        }
     }
     
     @Override
@@ -96,6 +100,9 @@ public class ReceiverListFragment extends Fragment implements
         // Stop monitoring when fragment not visible
         RendererStatusMonitor.getShared().unsubscribe(statusListener);
         stopLocalDevicePolling();
+        if (bDeviceAdapter != null) {
+            bDeviceAdapter.stopLiveVolume();
+        }
     }
     
     private Handler localDeviceHandler = new Handler(Looper.getMainLooper());
@@ -104,6 +111,7 @@ public class ReceiverListFragment extends Fragment implements
         public void run() {
             if (bDeviceAdapter != null) {
                 bDeviceAdapter.updateLocalDeviceStatus();
+                bDeviceAdapter.tickLiveVolume();
             }
             localDeviceHandler.postDelayed(this, 2000);
         }
@@ -170,6 +178,9 @@ public class ReceiverListFragment extends Fragment implements
                     if (bDeviceAdapter == null) {
                         bDeviceAdapter = new BrowseReceiverDeviceAdapter(getActivity(), upnpClient, contentList, receiverDevices, upnpClient.getReceiverDevices());
                         contentList.setAdapter(bDeviceAdapter);
+                        if (isResumed()) {
+                            bDeviceAdapter.startLiveVolume();
+                        }
                     } else {
                         bDeviceAdapter.setDevices(receiverDevices);
                     }

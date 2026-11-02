@@ -1,19 +1,27 @@
 package de.yaacc.browser;
 
 import android.os.AsyncTask;
-import android.widget.CheckBox;
+import android.os.SystemClock;
 
 import org.fourthline.cling.model.meta.Device;
 
 import de.yaacc.upnp.UpnpClient;
 
+/**
+ * Reads a receiver's mute state once, when its row is bound, and shows it through
+ * {@link ReceiverRowBinder#showMute}, which drops it while the user is acting on the row. Later changes
+ * are read by {@link ReceiverVolumeLiveUpdater}. The box's click listener lives in {@link ReceiverRowBinder}.
+ */
 public class DeviceMuteStateLoadTask extends AsyncTask<Device<?, ?, ?>, Integer, Boolean> {
-    CheckBox targetWidget;
-    UpnpClient upnpClient;
-    Device<?, ?, ?> device;
+    private final ReceiverRowBinder.RowViews views;
+    private final ReceiverRowBinder binder;
+    private final UpnpClient upnpClient;
+    private final long startedAt = SystemClock.elapsedRealtime();
+    private Device<?, ?, ?> device;
 
-    public DeviceMuteStateLoadTask(CheckBox targetWidget, UpnpClient upnpClient) {
-        this.targetWidget = targetWidget;
+    DeviceMuteStateLoadTask(ReceiverRowBinder.RowViews views, ReceiverRowBinder binder, UpnpClient upnpClient) {
+        this.views = views;
+        this.binder = binder;
         this.upnpClient = upnpClient;
     }
 
@@ -31,18 +39,18 @@ public class DeviceMuteStateLoadTask extends AsyncTask<Device<?, ?, ?>, Integer,
 
     @Override
     protected void onPostExecute(Boolean result) {
-        if (result == null) {
-            targetWidget.setChecked(false);
-            targetWidget.setEnabled(false);
+        if (device == null) {
             return;
         }
-        targetWidget.setEnabled(true);
-        // Restore alpha to full if we successfully got the mute state
-        // (may have been dimmed if the initial supportsMuteControl() check timed out)
-        targetWidget.setAlpha(1.0f);
-        targetWidget.setChecked(result);
-        targetWidget.setOnClickListener((it) -> {
-            upnpClient.setMute(device, targetWidget.isChecked());
-        });
+        String deviceId = device.getIdentity().getUdn().getIdentifierString();
+        if (!ReceiverRowBinder.isBoundTo(views, deviceId)) {
+            return; // the row was recycled for another device meanwhile
+        }
+        if (result == null) {
+            views.mute.setChecked(false);
+            views.mute.setEnabled(false);
+            return;
+        }
+        binder.showMute(views, deviceId, startedAt, result);
     }
 }

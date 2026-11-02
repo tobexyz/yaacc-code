@@ -20,7 +20,8 @@ package de.yaacc.browser;
 import org.fourthline.cling.model.meta.Device;
 
 /**
- * Holds the current status of a UPnP renderer.
+ * Holds the current status of a UPnP renderer: transport state and track. Volume and mute are not part of it,
+ * see {@link ReceiverVolumeLiveUpdater}.
  */
 public class RendererStatus {
     public enum State { PLAYING, PAUSED, STOPPED, NO_MEDIA }
@@ -28,13 +29,11 @@ public class RendererStatus {
     private final Device device;
     private State state;
     private String trackTitle;
-    private int volume;
     
-    public RendererStatus(Device device, String upnpState, String trackTitle, int volume) {
+    public RendererStatus(Device device, String upnpState, String trackTitle) {
         this.device = device;
         this.state = parseState(upnpState);
         this.trackTitle = trackTitle;
-        this.volume = volume;
     }
     
     private State parseState(String upnpState) {
@@ -54,10 +53,6 @@ public class RendererStatus {
     
     public String getTrackTitle() {
         return trackTitle;
-    }
-    
-    public int getVolume() {
-        return volume;
     }
     
     public boolean isPlaying() {
