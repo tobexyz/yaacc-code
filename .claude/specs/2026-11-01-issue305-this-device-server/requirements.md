@@ -2,7 +2,7 @@
 
 Issue (owner): "add an entry 'this device' to the server list. Allow to pick local files and pass them only once to a receiver without serving it constantly like the server does."
 
-Status: DRAFT for discussion. Nothing is implemented. The base is feat/issue299 with feat/issue296 merged in.
+Status: **ON HOLD, draft for discussion. Nothing is implemented.** The owner decides first whether the entry is a good enhancement or whether the improved share intake is enough (see "Is it worth it?" in design.md). The base is feat/issue299 with feat/issue296 merged in.
 
 ## Problem Statement
 To play a file of the phone on a receiver today there are two ways: the local UPnP server (the shared folders are listed and served to the whole network as long as the server and the content provider are on), or the share intake (one file, shared to yaacc from another app). Neither lets the owner browse folders of the phone like a server and send single items to a receiver without serving them constantly.
@@ -12,10 +12,11 @@ To play a file of the phone on a receiver today there are two ways: the local UP
 2. Sources: only folders picked with the Storage Access Framework (SAF). NOT the media store.
 3. Browsing the content works exactly like browsing a real server (same screens, sorting, paging, navigation, play / play all / add to playlist / "Play on...").
 4. It also works with this phone as the receiver (local playback), like the share intake.
+5. (2026-11-02) The owner does not want a "pick folders" feature as such: the content is browsed in the app's own screens like a server. SAF needs a one-time grant of a folder with the system picker before the app can list it (the system picker is a file browser, not our content browsing); that cannot be avoided. Open: whether the entry reuses the folders already granted for the local server (default proposal) or has its own list.
 
 ## Goals
 - A server list entry "This device" (identity fixed, not announced on the network, no content directory is published, no port is opened for it).
-- The folders under it are SAF folders the owner picked for this purpose.
+- The content under it are SAF folders that were granted once with the system picker (the proposal: the ones already granted for the local server, so there is nothing new to pick; if none exists the entry shows a hint and an "Add folder" button that opens the system picker).
 - Playing an item on a receiver hands the receiver one keyed, expiring, address-restricted share of that file (the existing share machinery) and nothing else is reachable. When playback ends or the share expires the file is not served any more.
 - Same browse experience as a real server, including big folders (the Browse speed work of #299 applies: no network round trip, but keep the paging and the per-folder cost low).
 

@@ -24,21 +24,36 @@
 Recommendation to discuss: A.
 
 ## Design questions for A
-1. **Folder list:** a separate list of "this device" folders (recommended: serving rules differ, the server's list means "served constantly") or reuse the server's SAF folders? A separate list costs a second picker and shares the persisted grant budget.
-2. **Where do the folders get picked?** In the entry itself (an empty root with an "Add folder" button, and a remove action per root), or in the settings / server configuration screen?
-3. **Late binding in the play path:** a playlist of 50 files must not register 50 shares at once (limit 8). Register a share when the item is about to be sent to the receiver (current item and the next one for prefetch) and release it when the item is done. Needs a "URI resolver" on `PlayableItem` or in `AVTransportPlayer` that is called at send time. What is the least invasive hook?
-4. **What does "once" mean?** A renderer asks for the same file several times (HEAD, ranges, seeking, a second connection). Proposal: the share lives while the item is current (idle grace after the last request, absolute maximum as today) and is dropped when the item ends or the player is closed, not after a single request.
-5. **Receiver restriction:** use the existing "restrict the media proxy to the chosen receivers" behavior (address check by `ShareAddressResolver`)? Default for this entry: always restricted.
-6. **Object ids:** the server uses short ids from `SAFCacheManager` (numbers mapped to document uris, persisted). The virtual source can reuse them so `Navigator` positions and the "back" stack behave the same. Ids must not be fetchable through any HTTP path.
-7. **Metadata:** durations / mime types come from the same cache as the server (`SAFMetadata`); album art for SAF items: none, as for the server.
-8. **Server list behaviour:** icon, sort position (first or last), long-press actions, what the entry shows when no folder was picked (a hint, not an error), what happens when a grant was revoked (the `[X]` marking like the server).
-9. **Local playback (decision 4):** `LOCAL_UID` receiver: pass the SAF content uri to `LocalMediaSessionPlayer` (ExoPlayer can read `content://` through a `ContentDataSource`); no share needed. Check the current share intake for what it does for `LOCAL_UID` (ShareIntentHandler ~756).
-10. **Tests:** pure parts (object-id mapping, which shares to hold for which items, release rules) as JVM tests; the in-process Browse with the SAF listing seams of the server tests; the play-path hook with the existing `PlayerService` / `AVTransportPlayer` tests where possible.
+1. **Which folders does the entry show? (clarified 2026-11-02)** SAF can only list a folder after the owner granted it once with the system picker (the picker is Android's file browser; our own screens do the content browsing afterwards). On Android 11+ the picker refuses the root of the internal storage and folders like `Download` and `Android/data`; `Music`, `Movies`, `DCIM`, `Documents` and the root of an SD card / USB stick can be granted. Browsing the whole storage without a grant would need `MANAGE_EXTERNAL_STORAGE` ("all files access"): not proposed.
+   - **Proposal (default): reuse the folders already granted for the local server** (`settings_saf_tree_uris*`). Nothing new to pick; the entry works even when the local server and its content provider are off, and delivery is one-shot. If no folder exists yet, the entry shows a hint and an "Add folder" button (system picker, one time). Caveat: a folder added there also lands in the server's list and is served by the server when it runs.
+   - **Alternative: a separate list for this entry** (the server's list means "served constantly"): costs a second picker and shares Android's persisted grant budget (128, 512 since Android 11). Owner has not decided.
+2. **Late binding in the play path:** a playlist of 50 files must not register 50 shares at once (limit 8). Register a share when the item is about to be sent to the receiver (current item and the next one for prefetch) and release it when the item is done. Needs a "URI resolver" on `PlayableItem` or in `AVTransportPlayer` that is called at send time. What is the least invasive hook?
+3. **What does "once" mean?** A renderer asks for the same file several times (HEAD, ranges, seeking, a second connection). Proposal: the share lives while the item is current (idle grace after the last request, absolute maximum as today) and is dropped when the item ends or the player is closed, not after a single request.
+4. **Receiver restriction:** use the existing "restrict the media proxy to the chosen receivers" behavior (address check by `ShareAddressResolver`)? Default for this entry: always restricted.
+5. **Object ids:** the server uses short ids from `SAFCacheManager` (numbers mapped to document uris, persisted). The virtual source can reuse them so `Navigator` positions and the "back" stack behave the same. Ids must not be fetchable through any HTTP path.
+6. **Metadata:** durations / mime types come from the same cache as the server (`SAFMetadata`); album art for SAF items: none, as for the server.
+7. **Server list behaviour:** icon, sort position (first or last), long-press actions, what the entry shows when no folder was granted (a hint, not an error), what happens when a grant was revoked (the `[X]` marking like the server).
+8. **Local playback (decision 4):** `LOCAL_UID` receiver: pass the SAF content uri to `LocalMediaSessionPlayer` (ExoPlayer can read `content://` through a `ContentDataSource`); no share needed. Check the current share intake for what it does for `LOCAL_UID` (ShareIntentHandler ~756).
+9. **Tests:** pure parts (object-id mapping, which shares to hold for which items, release rules) as JVM tests; the in-process Browse with the SAF listing seams of the server tests; the play-path hook with the existing `PlayerService` / `AVTransportPlayer` tests where possible.
 
 ## Risks
 - The late binding changes how `PlayableItem` gets its URI (touches all players). Mitigation: the placeholder is resolved in one place, everything else stays.
 - Persisted SAF grant limit (see requirements).
 - SAF providers that do not support what the share path needs (size unknown, no seeking): same as the server today.
 
+## Is it worth it? (decision pending: this entry vs the improved share)
+What the share intake does today (`ShareIntentHandler`, docs/index.md "Sharing to YAACC"): another app (gallery, files, music player) shares ONE file (`ACTION_SEND`, item 0 only, no `ACTION_SEND_MULTIPLE`) or a link; yaacc asks for the receivers ("Play on...") and plays it through a keyed, expiring, address-restricted share. Nothing is served afterwards.
+
+| | Improved share (extend the intake) | "This device" entry |
+|---|---|---|
+| Browsing | in the other app (files, gallery, music player) | in yaacc, same screens as a server |
+| Several files / a folder / an album | only if the intake learns `ACTION_SEND_MULTIPLE` (a list of files, queue); a whole folder cannot be shared | browse, "play all", "add to playlist", sorting, paging like a server |
+| Setup | none | one-time folder grant (or reuse the server's) |
+| Work | small (intake, queue of shares) | large (virtual browse source, late binding in the play path, server list entry) |
+| Risk | low | touches `PlayableItem` / players, grant budget |
+| Fits users who | pick files in another app and send them | live in yaacc and want to browse their own media like the server list |
+
+Possible middle way: first extend the share intake (multiple files via `ACTION_SEND_MULTIPLE`, queue with just-in-time shares), which needs the same late-binding hook (question 2) and is the basis for the entry if it is built later.
+
 ## Next step
-Discuss the open questions (especially 1, 2, 3, 4), then write requirements/tasks for the chosen option.
+The owner decides whether the entry is wanted or the improved share is enough (see above). Until then nothing is implemented. If the entry is wanted: settle questions 1-3, then write tasks.md.
