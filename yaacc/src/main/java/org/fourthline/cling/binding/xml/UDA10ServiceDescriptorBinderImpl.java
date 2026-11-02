@@ -426,8 +426,11 @@ public class UDA10ServiceDescriptorBinderImpl implements ServiceDescriptorBinder
         appendNewElementIfNotNull(descriptor, actionArgumentElement, ELEMENT.name, actionArgument.getName());
         appendNewElementIfNotNull(descriptor, actionArgumentElement, ELEMENT.direction, actionArgument.getDirection().toString().toLowerCase(Locale.ROOT));
         if (actionArgument.isReturnValue()) {
-            // TODO: UPNP VIOLATION: WMP12 will discard RenderingControl service if it contains <retval> tags
-            YaaccLogger.w(getClass().getName(), "UPnP specification violation: Not producing <retval> element to be compatible with WMP12: " + actionArgument);
+            // WMP12 discards a RenderingControl service that contains <retval> tags, so none is written. <retval> is
+            // only an optional marker of the return value (UDA 1.0), controllers read the out arguments by name.
+            // Logged at verbose level: it is written for every out argument each time a control point fetches the
+            // service description (it filled the log with warnings that need no action).
+            YaaccLogger.v(getClass().getName(), "Not producing <retval> element to be compatible with WMP12: " + actionArgument);
             // appendNewElement(descriptor, actionArgumentElement, ELEMENT.retval);
         }
         appendNewElementIfNotNull(descriptor, actionArgumentElement, ELEMENT.relatedStateVariable, actionArgument.getRelatedStateVariableName());

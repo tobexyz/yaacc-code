@@ -25,6 +25,7 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
+import android.os.SystemClock;
 import android.view.View;
 import android.widget.CheckBox;
 import android.widget.ImageButton;
@@ -78,6 +79,12 @@ final class ReceiverRowBinder {
     private static final String ACTION_PAUSE = "Pause";
     private static final String ACTION_STOP = "Stop";
 
+    /**
+     * Payload of {@code notifyItemChanged(position, PAYLOAD_STATUS)}: only the status changed, so the host
+     * rebinds the row with {@link #bindStatus} instead of {@link #bind}.
+     */
+    static final String PAYLOAD_STATUS = "status";
+
     /** Told after the user toggled a row's checkbox and the receiver set in {@link UpnpClient} changed. */
     interface SelectionListener {
         void onSelectionChanged(Device<?, ?, ?> device, boolean selected);
@@ -121,6 +128,8 @@ final class ReceiverRowBinder {
     private final UpnpClient upnpClient;
     private final Map<Device, RendererStatus> statusMap = new HashMap<>();
     private final ExecutorService executorService = Executors.newSingleThreadExecutor();
+    // What the user is doing to the rows and when a receiver is read next; see ReceiverVolumeLiveUpdater.
+    private final ReceiverStateRefreshPlan refreshPlan = new ReceiverStateRefreshPlan();
 
     ReceiverRowBinder(Context context, UpnpClient upnpClient) {
         this.context = context;
@@ -213,8 +222,9 @@ final class ReceiverRowBinder {
             });
             holder.checkBox.setChecked(selected);
         }
-        new DeviceVolumeStateLoadTask(holder.volume, holder.volumeText, upnpClient).execute(device);
-        new DeviceMuteStateLoadTask(holder.mute, upnpClient).execute(device);
+        wireVolumeAndMute(holder, device, deviceId);
+        new DeviceVolumeStateLoadTask(holder, this, upnpClient).execute(device);
+        new DeviceMuteStateLoadTask(holder, this, upnpClient).execute(device);
 
         // Wire up playback controls
         holder.btnPlay.setOnClickListener(v -> executeAction(device, ACTION_PLAY));
@@ -224,7 +234,19 @@ final class ReceiverRowBinder {
         // Set device name (always shown)
         holder.name.setText(device.getDetails().getFriendlyName());
 
-        // Update status display
+        bindStatus(holder, device);
+    }
+
+    /**
+     * Binds what a {@link RendererStatus} changes in a row: highlight, badge and track text. Volume and
+     * mute are not part of it; they are loaded when the row is bound and kept current by
+     * {@link ReceiverVolumeLiveUpdater}. The hosts rebind a row with this alone when only the status
+     * changed ({@code notifyItemChanged(position, payload)}), so a status update neither re-reads the
+     * receiver's volume and mute nor touches the slider the user may be dragging.
+     */
+    void bindStatus(RowViews holder, Device<?, ?, ?> device) {
+        String deviceId = device.getIdentity().getUdn().getIdentifierString();
+        Player player = primaryPlayer(device);
         RendererStatus status = statusMap.get(device);
         if (status != null) {
             // Highlight if playing
@@ -240,13 +262,6 @@ final class ReceiverRowBinder {
             } else {
                 holder.statusText.setVisibility(View.GONE);
             }
-
-            // Update volume only if changed
-            int newVolume = status.getVolume();
-            if (holder.volume.getProgress() != newVolume) {
-                holder.volume.setProgress(newVolume);
-                holder.volumeText.setText(newVolume + "%");
-            }
         } else {
             // No status from monitor - check if local device has active player
             holder.statusText.setVisibility(View.GONE);
@@ -257,7 +272,7 @@ final class ReceiverRowBinder {
                         player.isPaused() ? RendererStatus.State.PAUSED :
                                 RendererStatus.State.STOPPED;
                 String trackTitle = player.getCurrentItemTitle();
-                RendererStatus localStatus = new RendererStatus(device, state.name(), trackTitle, 50); // Default volume
+                RendererStatus localStatus = new RendererStatus(device, state.name(), trackTitle);
 
                 // Add to status map so sorting works
                 statusMap.put(device, localStatus);
@@ -298,8 +313,95 @@ final class ReceiverRowBinder {
      * Re-reads volume and mute for an already bound row.
      */
     void refreshVolumeAndMute(View rowView, Device<?, ?, ?> device) {
-        new DeviceVolumeStateLoadTask(rowView.findViewById(R.id.browseReceiverDeviceItemMuteVolumeSeekBar), upnpClient).execute(device);
-        new DeviceMuteStateLoadTask(rowView.findViewById(R.id.browseReceiverDeviceItemMute), upnpClient).execute(device);
+        RowViews views = new RowViews(rowView);
+        new DeviceVolumeStateLoadTask(views, this, upnpClient).execute(device);
+        new DeviceMuteStateLoadTask(views, this, upnpClient).execute(device);
+    }
+
+    ReceiverStateRefreshPlan refreshPlan() {
+        return refreshPlan;
+    }
+
+    /**
+     * What the user does to a row is reported to the {@link #refreshPlan} (so a value read meanwhile does
+     * not take it back) and sent to the receiver. Only a change {@code fromUser} is sent: setting the
+     * slider or box from a read ({@link #showVolume}, {@link #showMute}) calls the listener with
+     * {@code fromUser == false} or not at all and must not write the value back.
+     */
+    private void wireVolumeAndMute(RowViews holder, Device<?, ?, ?> device, String deviceId) {
+        holder.volume.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                if (!fromUser) {
+                    return;
+                }
+                refreshPlan.userChanged(deviceId, SystemClock.elapsedRealtime());
+                holder.volumeText.setText(progress + "%");
+                upnpClient.setVolume(device, progress);
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {
+                refreshPlan.userTouchStarted(deviceId, SystemClock.elapsedRealtime());
+                // Prevent ViewPager2 interception during drag
+                seekBar.getParent().requestDisallowInterceptTouchEvent(true);
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+                refreshPlan.userTouchEnded(deviceId, SystemClock.elapsedRealtime());
+                seekBar.getParent().requestDisallowInterceptTouchEvent(false);
+            }
+        });
+        holder.mute.setOnClickListener(v -> {
+            refreshPlan.userChanged(deviceId, SystemClock.elapsedRealtime());
+            upnpClient.setMute(device, holder.mute.isChecked());
+        });
+    }
+
+    /** Whether the row still shows the device (a load task may finish after the row was recycled). */
+    static boolean isBoundTo(RowViews views, String deviceId) {
+        return deviceId.equals(views.icon.getTag());
+    }
+
+    /**
+     * Shows a volume that was read from the receiver (main thread). Dropped, returning false, while the
+     * user is touching the row or just did ({@link ReceiverStateRefreshPlan#shouldIgnoreRead}). Setting the
+     * progress here does not send anything: the listener only sends changes made by the user.
+     *
+     * @param readStartedAt {@link SystemClock#elapsedRealtime()} when the read was started
+     */
+    boolean showVolume(RowViews views, String deviceId, long readStartedAt, int percent) {
+        if (views.volume.isPressed()
+                || refreshPlan.shouldIgnoreRead(deviceId, readStartedAt, SystemClock.elapsedRealtime())) {
+            return false;
+        }
+        int value = ReceiverStateRefreshPlan.clampPercent(percent);
+        // Restore the controls if the first check timed out and dimmed them (see bind)
+        views.volume.setEnabled(true);
+        views.volume.setAlpha(1.0f);
+        if (views.volume.getProgress() != value) {
+            views.volume.setProgress(value);
+        }
+        String text = value + "%";
+        if (!text.contentEquals(views.volumeText.getText())) {
+            views.volumeText.setText(text);
+        }
+        return true;
+    }
+
+    /** Shows a mute state that was read (main thread); dropped like {@link #showVolume} while the user acts. */
+    boolean showMute(RowViews views, String deviceId, long readStartedAt, boolean muted) {
+        if (views.mute.isPressed()
+                || refreshPlan.shouldIgnoreRead(deviceId, readStartedAt, SystemClock.elapsedRealtime())) {
+            return false;
+        }
+        views.mute.setEnabled(true);
+        views.mute.setAlpha(1.0f);
+        if (views.mute.isChecked() != muted) {
+            views.mute.setChecked(muted);
+        }
+        return true;
     }
 
     /**
@@ -314,8 +416,9 @@ final class ReceiverRowBinder {
         return wasPlaying != status.isPlaying();
     }
 
-    void clearStatus(Device<?, ?, ?> device) {
-        statusMap.remove(device);
+    /** @return true if there was a status to clear, so the row needs a rebind */
+    boolean clearStatus(Device<?, ?, ?> device) {
+        return statusMap.remove(device) != null;
     }
 
     /**
@@ -332,7 +435,7 @@ final class ReceiverRowBinder {
         String state = player.isPlaying() ? "PLAYING" :
                 player.isPaused() ? "PAUSED_PLAYBACK" :
                         "STOPPED";
-        return new RendererStatus(device, state, player.getCurrentItemTitle(), 50);
+        return new RendererStatus(device, state, player.getCurrentItemTitle());
     }
 
     /**
@@ -399,7 +502,8 @@ final class ReceiverRowBinder {
         return primary == null ? null : playersById.get(primary.playerId());
     }
 
-    private static boolean isLocalDevice(Device<?, ?, ?> device) {
+    /** This phone's volume: the dummy device of the local row and yaacc's own renderer; both are {@code SystemVolume}. */
+    static boolean isLocalDevice(Device<?, ?, ?> device) {
         return device instanceof LocalDevice || device instanceof UpnpClient.LocalDummyDevice;
     }
 
@@ -492,7 +596,7 @@ final class ReceiverRowBinder {
     /**
      * Check if device supports volume control (GetVolume action).
      */
-    private boolean supportsVolumeControl(Device<?, ?, ?> device) {
+    boolean supportsVolumeControl(Device<?, ?, ?> device) {
         org.fourthline.cling.model.meta.Service renderingControl = device.findService(new org.fourthline.cling.model.types.UDAServiceId("RenderingControl"));
         return renderingControl != null && renderingControl.getAction("GetVolume") != null;
     }
@@ -500,7 +604,7 @@ final class ReceiverRowBinder {
     /**
      * Check if device supports mute control (GetMute action).
      */
-    private boolean supportsMuteControl(Device<?, ?, ?> device) {
+    boolean supportsMuteControl(Device<?, ?, ?> device) {
         org.fourthline.cling.model.meta.Service renderingControl = device.findService(new org.fourthline.cling.model.types.UDAServiceId("RenderingControl"));
         return renderingControl != null && renderingControl.getAction("GetMute") != null;
     }

@@ -174,4 +174,9 @@
     <string name="log_pause">Aktualisierung anhalten</string>
     <string name="log_resume">Aktualisierung fortsetzen</string>
     <string name="toggle_view_mode">Zwischen Listen- und Kartenansicht wechseln</string>
+    <string name="repeat_off">Wiederholung aus</string>
+    <string name="repeat_all">Alle wiederholen</string>
+    <string name="repeat_one">Titel wiederholen</string>
+    <string name="shuffle_off">Zufallswiedergabe aus</string>
+    <string name="shuffle_on">Zufallswiedergabe ein</string>
 </resources>

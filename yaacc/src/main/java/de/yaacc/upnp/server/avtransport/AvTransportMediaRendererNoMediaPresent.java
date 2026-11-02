@@ -29,6 +29,7 @@ import org.fourthline.cling.support.model.PositionInfo;
 
 import java.net.URI;
 
+import de.yaacc.player.Player;
 import de.yaacc.upnp.UpnpClient;
 
 /**
@@ -68,6 +69,23 @@ public class AvTransportMediaRendererNoMediaPresent extends
                 new AVTransportVariable.CurrentTrackURI(uri));
 
         return AvTransportMediaRendererPlaying.class;
+    }
+
+    /**
+     * Control points such as Home Assistant send {@code Stop} when they switch a player off, also when
+     * nothing is loaded. There is nothing to stop, so the renderer stays where it is instead of answering
+     * with UPnP error 701 (this state lists {@code Stop} as a possible action as well). Cling's
+     * {@code NoMediaPresent} does not declare {@code stop()}: the state machine looks a signal up by its
+     * name on the current state and answers 701 when there is none, so this method is what makes it work.
+     */
+    public Class<? extends AbstractState<?>> stop() {
+        YaaccLogger.d(this.getClass().getName(), "stop: nothing to stop");
+        return AvTransportMediaRendererNoMediaPresent.class;
+    }
+
+    /** Nothing plays: a player that stops changes nothing. */
+    public Class<? extends AbstractState<?>> playerStopped(Player player) {
+        return null;
     }
 
     @Override

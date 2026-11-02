@@ -97,6 +97,7 @@ public class Yaacc extends Application {
     public void onCreate() {
         super.onCreate();
         YaaccLogger.initialize(this);
+        YaaccLogger.i(getClass().getName(), "YAACC " + BuildConfig.VERSION_NAME + " build " + BuildConfig.GIT_COMMIT + " started");
         createNotificationChannel();
         PreferenceManager.setDefaultValues(this, R.xml.preference, false);
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);

@@ -353,3 +353,116 @@ in `tasks.md` ("Owner's open items"); accepted risks in `known-risks.md`; how it
 - **Decision.** `getSize` only for BrowseDirectChildren; BrowseMetadata sets NumberReturned = TotalMatches = 1 after `browseMeta` found the object (null is still 701, without a `getSize`). DirectChildren, UpdateID and the test-content branch are unchanged.
   `findBrowserFor` is package-private so a test can plug in a fake browser; no `Search` action exists, so there is no other count path.
 - **Left alone.** The test-content branch (`TotalMatches` stays 1 for its folders); an unknown BrowseFlag is handled like DirectChildren.
+
+
+## Repeat and shuffle per player (owner request, 2026-10-30)
+- **Why.** Repeat and shuffle were global settings (`settings_replay_playlist_chkbx`, `settings_music_player_shuffle_chkbx`) read at several places (`AbstractPlayer.next()` / `isShufflePlay()` / `setItems`,
+  `LocalMediaSessionPlayer`, and written by `AVTransportPlayerWrapper.setRepeatMode` / `setShuffleModeEnabled`); one player could not repeat while another did not, and a controller changing the mode rewrote the settings.
+- **Decision.** The settings are only the start value of a new player (`PlayModeSettings.defaultPlayMode`, read once per player). Each `Player` has a transient `PlayMode` (repeat OFF/ALL/ONE + shuffle),
+  `getPlayMode` / `setPlayMode` and `PROPERTY_PLAY_MODE`; nothing is written back. Pure `PlayMode` (UPnP mapping both ways) and `PlayOrder` (order, next/previous, shuffle created once, current item first,
+  `fit` for added items) with tests; `Player.onItemEnded()` separates "ended by itself" (repeat one repeats) from a skip (repeat one acts like off, as in ExoPlayer). ExoPlayer gets repeat mode, shuffle mode and the
+  `PlayOrder` as its shuffle order. Buttons (`PlayModeControls.Binding`) in the music, AVTransport and multi content screens, a menu item pair in the image viewer; five strings in all seven locales. The renderer's
+  `SetPlayMode` / `GetTransportSettings` / `CurrentPlayMode` now reach and follow the players (`AvTransport.setPlayMode`, `attachPlayers`).
+- **Consequences.** `setItems` no longer shuffles the stored list (the playlist dialog shows the list order, the play order is separate). The images in the viewer now obey repeat (before they always looped) and shuffle.
+  An unknown `SetPlayMode` value answers 712 (it was swallowed). The mode of a renderer instance survives its players (a new player of the transport gets the mode last set or chosen).
+- **Bugs found on the way.** `AbstractPlayer.next()` at the end of the list with repeat off called `stop()` with the command flag still set, so the player stayed blocked; `LocalMediaSessionPlayer` updated its index only for
+  seeks, so an item that ended by itself left the screen on the old title (`onMediaItemTransition` now handles every reason except a changed playlist).
+- **Left alone.** No play mode control in the mini-player and device sheet rows; `AVTransportController` (no own playlist) hides the buttons; no `SetPlayMode` is sent to a remote renderer by `AVTransportPlayer`
+  (the app drives the items); a Media3 controller (system media controls) that sets ExoPlayer's repeat or shuffle directly is not mirrored into the `PlayMode` (races with our own changes); the `DIRECT_1` and
+  `INTRO` values are still advertised and play as normal; repeat ONE with shuffle is reported as REPEAT_ONE.
+
+
+## Playlist dialog shows the play order; external controllers are mirrored (owner request, 2026-10-31)
+- **Why.** Since `PlayOrder` shuffles instead of the stored list, the playlist dialog showed the list order while the player followed another; and a system / Bluetooth / notification / Wear controller that
+  set ExoPlayer's repeat or shuffle mode left the `PlayMode` (buttons, `CurrentPlayMode`) stale (the "left alone" item of the entry above).
+- **Decision (dialog).** The dialog shows `Player.getPlayOrder()` (identity without shuffle, so the list order as before). Pure logic in `PlayOrder`: `positionOf` / `itemAt`, `move(from, to)` (shift, as a drag),
+  `remove(index)` (keeps the relative order of the rest; `fit` would shuffle again), `isAtOrBeforeCurrent` (lock rule). `AbstractPlayer.moveInPlayOrder` / `removeItem` / `isPlaylistPositionLocked` are the edit API
+  (defaults in `Player` for the image player): with shuffle a move only changes the order, without it the list; delete removes from both and keeps `currentIndex` on the same item. Locked = playing or paused item and
+  everything before it in the shown order (before: playing only, in list order); a stopped player has nothing locked and `currentIndex` is the first shown item after an edit. New `Player.PROPERTY_PLAYLIST`
+  (set / add / clear / remove / move / order reset at start and stop). The adapter applies its own edits with precise notifications and skips the event it caused; other changes are a full refresh, only if the shown
+  order differs. The listener is removed in `onDestroyView` (it leaked the fragment before). Click listeners ask the holder for the position (they captured a stale one after a move).
+- **Decision (ExoPlayer).** The edits reach ExoPlayer as `moveMediaItem` / `removeMediaItem` / `setShuffleOrder` (hooks `onItemMoved`, `onItemRemoved`, `onPlayOrderMoved`); `syncPlaylistToExoPlayer` (rebuilt the part
+  behind ExoPlayer's current item) is removed, it was wrong as soon as an item before the current one in the list could be edited.
+- **Decision (mirror).** `Player.Listener` in `LocalMediaSessionPlayer` takes over the changed part (repeat or shuffle) through `RepeatPolicy.adoptExoRepeatMode` / `adoptExoShuffleMode` and `setPlayMode`; our own
+  `applyPlayMode` is recognized by a main-thread flag and by "value equals play mode". Shuffle turned on from outside: `setPlayMode` creates our order, `onPlayModeChanged` installs it with `setShuffleOrder`.
+  `AVTransportPlayerWrapper` already routed to the `PlayMode`; nothing changed there.
+- **Left alone / found.** `addItems` on a `LocalMediaSessionPlayer` does not append to ExoPlayer (it is rebuilt at the next `startItem`; ExoPlayer's order lacks the new items until then); mini-player and device sheet
+  rows list no queue, so nothing to change there; a change of the other part of the mode within the few ms between our `setPlayMode` and the posted `applyPlayMode` is the only race left (last writer wins).
+
+
+## Home Assistant events again: why 066a598e could not work, what it could break, and the mode memory (owner test, 2026-10-31)
+- **Symptom (owner).** With 066a598e (the renderer sends its `LastChange`) Home Assistant's shuffle and repeat buttons seemed to do nothing in the app player, which had started with shuffle enabled; before it the
+  buttons changed the app player (HA showed no state). The commit was reverted (592bc528) and this is the second attempt, done with a harness that runs the real receiving path (`RendererHarness`: the real
+  `AnnotationLocalServiceBinder` service, `YaaccUpnpServerProtocolRequestHandler.handle`, `UpnpProtocolHandler`, `ReceivingAction` / `ReceivingSubscribe`, Cling's message parsing and action executor, mocked
+  `UpnpClient` / players / `HttpRequestSender`).
+- **Finding 1 - the events never left the device, with or without 066a598e.** `ReceivingSubscribe` registers the subscription at the service and sends the initial event in `responseSent(...)`, which the server must
+  call after the SUBSCRIBE answer was written. `YaaccUpnpServerProtocolRequestHandler.handle` (HEAD: `submitResponse` at line 128; `responseSent` line 283 never called by anyone) did not, so Home Assistant got `200` and a
+  subscription id and then nothing: no initial event, no change event (`registry.addLocalSubscription` only stores the subscription). The handler also kept the protocol of the request in the field `syncProtocol`
+  (line 73, set at 260), shared by the 8 I/O threads, so with overlapping requests the "sent" would have gone to another request's protocol. Red: every test that waits for an event at a subscriber
+  (`AvTransportCommandsAndEventsTest`: 9 of the 17 tests failed with "not within 5 s: the initial event / the last mode", 2 more are the lock cases below). Consequence for Home Assistant: it believes it is subscribed (`is_subscribed`), so it does not poll
+  `GetTransportSettings` again - its repeat / shuffle state is whatever the first poll returned and never changes, from either side.
+- **Finding 2 - could the event thread of 066a598e stop the commands (the owner's suspicion)?** Not in the shipped state, and not by the wire: for a session as Home Assistant sends it (Get*, Stop, SetPlayMode,
+  SetAVTransportURI, Play, Pause, ... 19 calls) every SOAP answer and the final play mode of the player are identical with Cling's plain manager and with the 066a598e manager
+  (`everyAnswerAndThePlayerEffectAreTheSameWithAndWithoutTheEventManager`, green on the shipped code); SetPlayMode is a valid `SetPlayModeResponse` for all seven values in NoMediaPresent, Stopped, Playing and Paused
+  and changes no state; 150 parallel SetPlayMode calls (plus changes at the player) with a subscriber lose none. There was exactly one instance of the service, state machine and `AvTransport` per manager. **But** the design had a real
+  coupling that only shows once a subscription exists (so it was latent, because of Finding 1): `fireLastChange()` held the service manager lock while it delivered to the subscriptions. Actions run under the same
+  lock (`AbstractActionExecutor` -> `manager.execute`, `LOCK_TIMEOUT` 5 s). With a subscriber that does not return, a command is answered `501 ... Failed to acquire lock in milliseconds: 600` (red:
+  `aCommandDuringAnEventThatIsBeingSentIsNotHeldUp`, `everyCommandStillWorksWhileTheSubscriberIsStuck`); a busy subscription (`LocalGENASubscription.propertyChange/registerOnService/end` are `synchronized`, the last
+  two then need the manager lock) and the event thread wait for each other until the lock times out, with every command behind them (red: `aSubscriptionThatIsBusyDoesNotStallTheCommandsBehindTheEventThread`); one
+  listener that throws stops `PropertyChangeSupport.firePropertyChange` and the others miss the event (red: `aSubscriberThatThrowsDoesNotHurtTheCommandOrTheOtherSubscribers`). Home Assistant would have logged
+  the 501 and the command would have been lost - exactly the owner's symptom, once the subscription worked. Candidates that did not hold: initial event (the full state is sent and tested; a failing `appendCurrentState` falls back to the accumulated
+  event, by code only), ordering `storePlayMode` / `applyPlayMode` (no event listener on that path), re-entrancy of `LastChange` (the order manager lock -> `LastChange` monitor is the same in actions and event thread),
+  main-thread deadlock (nothing the main thread calls takes the manager lock).
+- **What the owner saw is therefore not explained by the events; likely by the mode memory, and by the lookup.** The app player started with shuffle because the mode last set on the transport was handed to the next
+  player (Finding 3), while Home Assistant, never getting an event, showed the state of its first poll: its shuffle button then sent a mode the app already had (no visible change). And
+  `UpnpClient.getCurrentPlayers(transport)` finds the players by the *kind* the track's mime type needs, not by transport, and takes the mime type differently from the code that created the player
+  (DIDL protocolInfo vs file extension): for such a track `SetPlayMode` reached no player (by reading, not reproduced). Both are handled/logged now (`applied to <n> players`; the transport also gives the mode to the
+  players it started itself). To be confirmed by the owner with the log lines in `docs/tech.md`.
+- **Finding 3 - the mode survived the players.** `AvTransport` kept `playModeChosen` for ever, so a shuffle set from Home Assistant yesterday started the next playback shuffled. Decision: remembered while a player of
+  the transport exists (also across the replacement of the player by the next item: Home Assistant plays every item on a new player), forgotten when none is left; the settings are then the start mode again
+  and a subscribed controller is told. Where: `AvTransport.attachPlayers` remembers the players and listens at the `UpnpClient` player list, `checkPlayersGone()` on every removal, `playersStarting()` /
+  `playersStarted()` in `AvTransportMediaRendererPlaying.onEntry` so the removal of the replaced player does not count. Rejected: forgetting on the state change to Stopped / NoMediaPresent (a stopped player is
+  still a player, and the state machine never returns to NoMediaPresent); a timer (the order of the "removed" notice and the new player is not deterministic, a flag around the creation is).
+- **Decision (events).** `AvTransportServiceManager` fires **without the manager lock**: the event thread takes the changes out of the `LastChange` in one step (its own monitor, microseconds), then calls each listener of
+  the service on its own with the `EVENTED_STATE_VARIABLES` event and skips (logs) one that throws; `ReceivingSubscribe` registers first and reads the state again afterwards, so a change between the first read and the
+  registration is in the initial event (test: `aSubscriberThatComesWhileSetPlayModeRunsMissesNoChange`). `YaaccUpnpServerProtocolRequestHandler.handle` hands the answer to a `DeliveryReportingResponseProducer` that calls
+  `responseSent` / `responseException` of that request's protocol when HttpCore releases the response. Kept from 066a598e: `ObservableLastChange`, the full initial event, no `eventMaximumRateMilliseconds`, 250 ms spacing
+  (now from the end of one event to the start of the next), the D log lines; new: one log line per received `SetPlayMode` with the User-Agent of the caller and the number of players it was applied to.
+- **Left alone / found.** Initial event and first change event are sent from two threads of the registry pool and can arrive in either order (Cling has the same note; HA's tolerance is not verified).
+  The HTTP server runs actions on its I/O threads (8): a long action (`Play` while the player is created) blocks the connections of that thread. `AvTransportMediaRendererPlaying/Stopped/Paused` capture
+  `AvTransport.getUpnpClient()` when the state machine is created (now also possible at SUBSCRIBE time, via the initial event): if the client was still null then, the states keep null. The transport does not tell a
+  controller when its player was closed in the app (TransportState stays PLAYING); only the play mode is reset.
+
+
+## RenderingControl events, the other services, and the idle log flood (owner test, 2026-11-01)
+- **Symptom (owner).** Home Assistant's repeat and shuffle are right now, its mute state is not; the log has `AvTransportMediaRendererPlaying: doSetTrackInfo: ...Posinfo ... 00:00:00` several times a second with no player active.
+- **Finding (mute).** The RenderingControl service never sent an event: plain `DefaultServiceManager`, nothing put into its `LastChange`, `getCurrentInstanceIds()` / `getCurrentChannels()` returned `null` (the full state could not even be built), `eventMaximumRateMilliseconds = 200` on `LastChange`.
+  Home Assistant is subscribed, so it does not poll `GetMute`. **Decision:** the machinery of the AVTransport events becomes `AsyncLastChangeServiceManager` (+ `ObservableLastChange`, `SubscriberAwarePropertyChangeSupport`) in `upnp/server/events`;
+  `RenderingControlServiceManager` is its second user. Rejected: a copy of `AvTransportServiceManager` (two threads, two sets of bugs); Cling's `fireLastChange()` (holds the manager lock while delivering).
+- **Decision (sources).** The value stays the system's (`SystemVolume` around `AudioManager`, music stream; the app's `UpnpClient` uses it too). Changes inside the app tell in-process listeners; changes from outside come through the system's volume / mute broadcasts, in a receiver that
+  exists **only while a controller is subscribed** (subscriber count of the `PropertyChangeSupport`; no timer). Rejected: `ContentObserver` on `Settings.System` (no mute), a poll, watching from the start of the renderer (a receiver and a read per key press for nobody).
+  Only a difference to the values the subscribers know is put into the `LastChange`; the broadcast is not trusted (the value is read again). Percent rounding changed from floor to nearest (99 % was 93 %); `Channel` / `InstanceID` stay unchecked (any name answers with the master volume).
+- **Decision (no unchanged values).** `ObservableLastChange` drops a value equal to the one put last (it is what all subscribers know). That also stops the events that `Stop` in Stopped, `Play` in Playing or a repeated `SetPlayMode` caused. Rejected: comparing in every state class.
+- **Finding (other services).** ConnectionManager, ContentDirectory and the registrar send a valid initial event and nothing throws (`LocalServicesEventsTest`). `SystemUpdateID` never changed (`changeSystemUpdateID` had no caller): now public, fires outside the object's monitor (lock order with the manager lock), no rate limit,
+  called from the server service on the SAF paths change on a worker thread. Sink protocol list `null` -> empty. They keep Cling's `DefaultServiceManager` (rare changes, no command depends on the delivery); not done: MediaStore observer for `SystemUpdateID`, `ContainerUpdateIDs` / `TransferIDs` (not declared, CDS:2).
+- **Finding (log flood).** `AvTransportMediaRendererPlaying.updateTime()` re-armed itself with a new `Timer` per tick while a flag was true; only stop/pause/next/previous cleared it, `setTransportURI` and a closed player did not, and every re-entry of the state started a further chain: unbounded chains, each logging at D once a second.
+  **Decision:** `TrackInfoUpdater`, one task owned by the state, stopped in `onExit()` and when no player is active, writes and logs (V) only a change. The event machinery was checked and is not involved (`doSetTrackInfo` never touches the `LastChange`; the position is not evented).
+- **Left alone / found.** The two timing tests `AvTransportEventTest.aSetPlayModeSendsTheEventWithoutAnyoneFiringIt` / `quickChangesInARowAreNotLostAndTheLastOneWins` (and `aChangeAtThePlayerSendsTheEventWithoutAnyoneFiringIt`) failed on a cold first run at HEAD (the first event can be the one of the state machine's creation; the 250 ms spacing was
+  measured from before the first event): made independent of that. `AvTransportMediaRendererPlaying.seek()` still dereferences `players` (null when `onEntry` returned early).
+
+
+## Live volume and mute in the receiver rows (owner test, 2026-11-01)
+- **Symptom (owner).** With the receiver sheet open, a mute/volume change made in Home Assistant is not visible; the sheet has to be closed and reopened.
+- **Finding.** `ReceiverRowBinder.bind` read volume and mute once per bind (`DeviceVolumeStateLoadTask` / `DeviceMuteStateLoadTask`). The sheet rebinds a row only when the device or primary player changes (`DiffUtil`), and a status update rebinds it
+  through `notifyItemChanged` (that did re-run the load tasks for remote rows, every 10 s, mute included, on the serial `AsyncTask` thread, and set the slider while the user drags). The local row is not in the monitor; `localDeviceStatus` built a status with volume 50
+  and `bind` pushed it into the slider (`status.getVolume()`), and the monitor did the same with 50 whenever `GetVolume` failed or was missing. `SystemVolume`'s change listener and `SystemVolumeBroadcastWatcher` fed only the RenderingControl events, nothing in the UI.
+  The task text says the monitor polls every 2 s; it is `POLL_INTERVAL_MS = 10000`.
+- **Decision.** One `ReceiverVolumeLiveUpdater` per host (sheet adapter, Receiver tab adapter), started/stopped with the existing live updates, ticked by the existing 2 s poll. Local rows: `SystemVolume` change listener (immediate) + a read of the stream each tick (hardware keys). Remote rows: a separate
+  poller (`GetVolume`/`GetMute`, SOAP, no GENA) for the rows on screen, 6 s per receiver, 3 pool threads, one request per receiver, doubling pause after failures (max 60 s). Decisions in `ReceiverStateRefreshPlan` (plain Java, unit-tested).
+  Rejected: adding `GetMute` to the `RendererStatusMonitor` chain (one thread for all receivers, 10 s cycle, one slow receiver delays every row, and the monitor lives past the sheet); GENA subscriptions (callbacks not reachable behind a proxy).
+- **Decision (user wins).** A read is dropped while the slider is held, 3 s after the last user action on the row, and if the user acted after the read was started. Programmatic `setProgress`/`setChecked` never writes back (listener sends `fromUser` only). The slider listener moved from the load task
+  into `bind` (it was installed only after a successful load, and its `lastVolume` de-duplication went stale once the slider is set from outside: dragging back to the old value sent nothing).
+- **Decision (status vs volume).** `RendererStatus` lost its volume and the monitor its `GetVolume` step (one source for volume, no 50 as "unknown", less traffic per receiver). Status updates rebind with a payload and `bindStatus` only. The Receiver tab's 2 s poll no longer does `notifyDataSetChanged()` when the local device has no
+  player and no status to clear (it rebound and re-read every row every 2 s).
+- **Left alone / found.** `UpnpClient.setVolume(Device,int)` / `setMute(Device,boolean)` have no `return` after the local branch: for yaacc's own `LocalDevice` the value is set twice (once directly, once through the local RenderingControl action). `setMute(Device)` runs from the main thread (click listener) as before.
+  The load tasks are `AsyncTask`s (deprecated, serial executor, `getVolume(Device)` blocks up to 10 s): unchanged, they run once per bind. The mini-player and the other screens show no receiver volume/mute (only `AVTransportPlayerActivity` and `MusicPlayerActivity` have their own, per player).

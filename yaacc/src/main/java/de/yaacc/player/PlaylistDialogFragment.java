@@ -17,10 +17,10 @@
  */
 package de.yaacc.player;
 
-import android.annotation.SuppressLint;
-import android.app.Activity;
 import android.app.Dialog;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -32,7 +32,6 @@ import androidx.fragment.app.FragmentManager;
 import androidx.recyclerview.widget.ItemTouchHelper;
 import androidx.recyclerview.widget.RecyclerView;
 
-import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 
 import de.yaacc.R;
@@ -43,6 +42,8 @@ public class PlaylistDialogFragment extends DialogFragment {
     private Toolbar toolbar;
     private Player player;
     private PlaylistItemAdapter playlistItemAdapter;
+    private PropertyChangeListener playerListener;
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     public PlaylistDialogFragment() {
     }
@@ -87,55 +88,62 @@ public class PlaylistDialogFragment extends DialogFragment {
 
 
     @Override
-    // Initial bind and rebind after the player's current item changes; the playlist content is not diffed here.
-    @SuppressLint("NotifyDataSetChanged")
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         super.onCreateView(inflater, container, savedInstanceState);
-        if (savedInstanceState != null) {
+        if (savedInstanceState != null && getActivity() != null) {
             player = ((Yaacc) getActivity().getApplicationContext()).getUpnpClient().getPlayer(savedInstanceState.getInt("player")).orElse(null);
         }
         View view = inflater.inflate(R.layout.fragment_playlist_dialog, container, false);
-        if (playlistItemAdapter == null && getActivity() != null) {
-            RecyclerView itemList = view.findViewById(R.id.playlistDialogList);
-            playlistItemAdapter = new PlaylistItemAdapter(getActivity(), itemList, player);
-            itemList.setAdapter(playlistItemAdapter);
-            playlistItemAdapter.notifyDataSetChanged();
-            ItemTouchHelper itemTouchHelper = new ItemTouchHelper(new ItemTouchHelper.SimpleCallback(
-                    ItemTouchHelper.UP | ItemTouchHelper.DOWN, 0) {
-                @Override
-                public boolean onMove(@NonNull RecyclerView recyclerView, @NonNull RecyclerView.ViewHolder viewHolder, @NonNull RecyclerView.ViewHolder target) {
-                    int fromPosition = viewHolder.getAdapterPosition();
-                    int toPosition = target.getAdapterPosition();
-                    return playlistItemAdapter.moveItem(fromPosition, toPosition);
-                }
+        RecyclerView itemList = view.findViewById(R.id.playlistDialogList);
+        // The adapter shows the playlist in the order it plays (list order, the shuffled play order with shuffle)
+        playlistItemAdapter = new PlaylistItemAdapter(getActivity(), itemList, player);
+        itemList.setAdapter(playlistItemAdapter);
+        ItemTouchHelper itemTouchHelper = new ItemTouchHelper(new ItemTouchHelper.SimpleCallback(
+                ItemTouchHelper.UP | ItemTouchHelper.DOWN, 0) {
+            @Override
+            public boolean onMove(@NonNull RecyclerView recyclerView, @NonNull RecyclerView.ViewHolder viewHolder, @NonNull RecyclerView.ViewHolder target) {
+                int fromPosition = viewHolder.getBindingAdapterPosition();
+                int toPosition = target.getBindingAdapterPosition();
+                return playlistItemAdapter.moveItem(fromPosition, toPosition);
+            }
 
-                @Override
-                public void onSwiped(@NonNull RecyclerView.ViewHolder viewHolder, int direction) {
-                }
-            });
-            itemTouchHelper.attachToRecyclerView(itemList);
-        }
+            @Override
+            public void onSwiped(@NonNull RecyclerView.ViewHolder viewHolder, int direction) {
+            }
+        });
+        itemTouchHelper.attachToRecyclerView(itemList);
 
         toolbar = view.findViewById(R.id.toolbar);
 
-        player.addPropertyChangeListener(new PropertyChangeListener() {
-            @Override
-            public void propertyChange(PropertyChangeEvent evt) {
-                if (evt.getPropertyName().equals(AbstractPlayer.PROPERTY_ITEM)) {
-                    if (getContext() instanceof Activity && getContext() != null) {
-                        ((Activity) getContext()).runOnUiThread(new Runnable() {
-                            @Override
-                            public void run() {
-                                playlistItemAdapter.notifyDataSetChanged();
-
-                            }
-                        });
-                    }
+        if (player != null) {
+            // Follow the player: shuffle switched (list <-> play order), items added, removed or moved,
+            // another current item. Events come from any thread.
+            playerListener = evt -> {
+                String property = evt.getPropertyName();
+                boolean playlist = Player.PROPERTY_PLAY_MODE.equals(property) || Player.PROPERTY_PLAYLIST.equals(property);
+                boolean state = AbstractPlayer.PROPERTY_ITEM.equals(property) || "playing".equals(property);
+                if (playlist || state) {
+                    mainHandler.post(() -> {
+                        if (playlistItemAdapter != null) {
+                            playlistItemAdapter.refresh(state);
+                        }
+                    });
                 }
-            }
-        });
+            };
+            player.addPropertyChangeListener(playerListener);
+        }
 
         return view;
+    }
+
+    @Override
+    public void onDestroyView() {
+        if (player != null && playerListener != null) {
+            player.removePropertyChangeListener(playerListener);
+        }
+        playerListener = null;
+        playlistItemAdapter = null;
+        super.onDestroyView();
     }
 
     @Override

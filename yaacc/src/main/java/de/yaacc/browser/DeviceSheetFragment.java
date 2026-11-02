@@ -61,8 +61,9 @@ import de.yaacc.util.YaaccLogger;
  * each, the yaacc players running on it (spec 2026-10-23-unified-device-sheet).
  * <p>
  * While started (visible) it is subscribed to the shared
- * {@link RendererStatusMonitor}, to player add/remove events and to a 2 s
- * local-device poll; all three are dropped in {@link #onStop()} (and in
+ * {@link RendererStatusMonitor}, to player add/remove events, to the system volume
+ * (the volume and mute of every row follow {@link ReceiverVolumeLiveUpdater}) and to a 2 s
+ * poll; all of them are dropped in {@link #onStop()} (and in
  * {@link #onDestroyView()} as a backstop), and callbacks that still arrive
  * afterwards are ignored. An in-app dialog only:
  * nothing is exported and it is opened only through {@link #show(FragmentManager)} or
@@ -441,8 +442,9 @@ public class DeviceSheetFragment extends BottomSheetDialogFragment {
 
     /**
      * Subscribes to the shared {@link RendererStatusMonitor} (which polls each
-     * receiver right away), to player add/remove events, and starts the 2 s
-     * local poll. Coming back after {@link #onStop()}, the list is rebuilt
+     * receiver right away), to player add/remove events, to the system volume
+     * and starts the 2 s poll (local status, volume and mute of the rows).
+     * Coming back after {@link #onStop()}, the list is rebuilt
      * once first, since players may have started or ended meanwhile.
      */
     private void startLiveUpdates() {
@@ -456,6 +458,7 @@ public class DeviceSheetFragment extends BottomSheetDialogFragment {
         listFresh = false;
         RendererStatusMonitor.getShared().subscribe(statusListener, upnpClient.getDevicesProvidingAvTransportService());
         upnpClient.addPlayerListChangeListener(playerListListener);
+        adapter.startLiveVolume();
         handler.postDelayed(localPoller, LOCAL_POLL_INTERVAL_MS);
     }
 
@@ -465,6 +468,9 @@ public class DeviceSheetFragment extends BottomSheetDialogFragment {
         }
         liveUpdatesRunning = false;
         handler.removeCallbacks(localPoller);
+        if (adapter != null) {
+            adapter.stopLiveVolume();
+        }
         RendererStatusMonitor.getShared().unsubscribe(statusListener);
         if (upnpClient != null) {
             upnpClient.removePlayerListChangeListener(playerListListener);

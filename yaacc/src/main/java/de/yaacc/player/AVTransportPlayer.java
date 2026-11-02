@@ -161,6 +161,12 @@ public class AVTransportPlayer extends AbstractPlayer {
 
         // Initialize Media3 Player wrapper
         playerWrapper = new AVTransportPlayerWrapper(this, null);
+        // The media session shows repeat and shuffle of the play mode: tell it when the mode changes
+        addPropertyChangeListener(event -> {
+            if (PROPERTY_PLAY_MODE.equals(event.getPropertyName())) {
+                playerWrapper.notifyPlayModeChanged();
+            }
+        });
         BitmapLoader bitmapLoader = new BitmapLoader() {
             @Override
             public boolean supportsMimeType(String mimeType) {
@@ -1176,7 +1182,7 @@ public class AVTransportPlayer extends AbstractPlayer {
                         if ("0:00:00".equals(relTime) || "0:00:01".equals(relTime)) {
                             YaaccLogger.d(getClass().getName(), "Track ended (position at start), advancing to next");
                             consecutivePositionFailures = 0;
-                            next();
+                            onItemEnded();
                             return;
                         } else {
                             YaaccLogger.d(getClass().getName(), "Device stopped but position is " + relTime + ", not advancing (device may have reconnected)");
@@ -1192,7 +1198,7 @@ public class AVTransportPlayer extends AbstractPlayer {
                         // No position info, assume track ended
                         YaaccLogger.d(getClass().getName(), "Device stopped, no position info, advancing to next");
                         consecutivePositionFailures = 0;
-                        next();
+                        onItemEnded();
                         return;
                     }
                 }
