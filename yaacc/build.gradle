@@ -106,6 +106,18 @@ android {
     }
 
     defaultConfig {
+        // the commit the APK was built from: logged at start, so a log tells which build produced it
+        def gitCommit = 'unknown'
+        try {
+            def process = ['git', 'rev-parse', '--short', 'HEAD'].execute(null, rootDir)
+            def output = process.text.trim()
+            if (process.waitFor() == 0 && output) {
+                gitCommit = output
+            }
+        } catch (Exception ignored) {
+            // no git (source archive): the commit stays unknown
+        }
+        buildConfigField "String", "GIT_COMMIT", "\"${gitCommit}\""
         resourceConfigurations += ["en", "de", "nl", "fr", "pt", "es", "zh"]
         targetSdkVersion 33
         minSdkVersion 27
@@ -115,6 +127,7 @@ android {
     }
     buildFeatures {
         viewBinding true
+        buildConfig true
     }
 
     testOptions {
