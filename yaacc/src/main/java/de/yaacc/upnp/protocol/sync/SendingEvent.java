@@ -64,9 +64,23 @@ public class SendingEvent extends SendingSync<OutgoingEventRequestMessage, Strea
     final protected OutgoingEventRequestMessage[] requestMessages;
     final protected UnsignedIntegerFourBytes currentSequence;
     private final HttpRequestSender httpRequestSender;
+    private final DeliveryListener deliveryListener;
+
+    /** Told whether an event reached the subscriber. Called on the thread that sends the event. */
+    public interface DeliveryListener {
+        void delivered();
+
+        void failed(Exception cause);
+    }
 
     public SendingEvent(HttpRequestSender httpRequestSender, LocalGENASubscription subscription) {
-        super(null); // Special case, we actually need to send several messages to each callback URL
+        this(httpRequestSender, subscription, null);
+    }
+
+    public SendingEvent(HttpRequestSender httpRequestSender, LocalGENASubscription subscription,
+                        DeliveryListener deliveryListener) {
+        super(null);
+        this.deliveryListener = deliveryListener; // Special case, we actually need to send several messages to each callback URL
         this.httpRequestSender = httpRequestSender;
         // TODO: Ugly design! It is critical (concurrency) that we prepare the event messages here, in the constructor thread!
 
@@ -106,10 +120,17 @@ public class SendingEvent extends SendingSync<OutgoingEventRequestMessage, Strea
             try {
                 lastResponse = httpRequestSender.send(requestMessage);
             } catch (IOException e) {
+                if (deliveryListener != null) {
+                    deliveryListener.failed(e);
+                }
                 throw new IOException(e);
             }
             YaaccLogger.v(getClass().getName(), "Received event callback response: " + lastResponse);
 
+        }
+
+        if (deliveryListener != null) {
+            deliveryListener.delivered();
         }
 
         // It's not really used, so just return the last one - we have only one callback URL most of the

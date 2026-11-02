@@ -21,6 +21,8 @@ package de.yaacc.upnp.server.avtransport;
 import org.fourthline.cling.support.avtransport.impl.AVTransportStateMachine;
 import org.seamless.statemachine.States;
 
+import de.yaacc.player.Player;
+
 /**
  * @author Tobias Schöne (openbit)
  */
@@ -37,5 +39,13 @@ public interface AvTransportStateMachine extends AVTransportStateMachine {
     void syncPause(String referencedPresentationTime, String referencedClockId);
 
     void syncStop(String referencedPresentationTime, String referencedClockId);
+
+    /**
+     * A player of the transport has stopped (the end of its playlist with repeat off, the stop button of the app, a
+     * Stop of the transport itself), or, with {@code null}, the players of the transport are gone. Playing and
+     * Paused go to Stopped when that means that nothing plays any more (see {@link AvTransport#playbackEnded}); the
+     * other states do nothing. Not an action of a control point: {@code AvTransport} calls it, never under one of its locks.
+     */
+    void playerStopped(Player player);
 
 }

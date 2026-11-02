@@ -87,6 +87,15 @@ public class AvTransportMediaRendererPaused extends PausedPlay<AvTransport> impl
         return AvTransportMediaRendererStopped.class;
     }
 
+    /** The player was stopped in the app or closed while paused: the transport goes to Stopped like for a Stop. */
+    public Class<? extends AbstractState<?>> playerStopped(Player player) {
+        if (!getTransport().playbackEnded(player)) {
+            return null;
+        }
+        YaaccLogger.d(this.getClass().getName(), "AVT player ended: transport -> STOPPED");
+        return AvTransportMediaRendererStopped.class;
+    }
+
     /* (non-Javadoc)
      * @see org.fourthline.cling.support.avtransport.impl.state.PausedPlay#stop()
      */

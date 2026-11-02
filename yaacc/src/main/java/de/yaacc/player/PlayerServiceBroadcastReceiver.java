@@ -52,7 +52,8 @@ public class PlayerServiceBroadcastReceiver extends BroadcastReceiver {
             Player player = playerService.getCurrentPlayerById(playerId);
             if (player != null) {
                 YaaccLogger.d(this.getClass().getName(), "Player of intent found: " + playerId + " Intent: " + intent);
-                player.next();
+                // The timer of a player: the item ended, the play mode decides what plays next
+                player.onItemEnded();
             } else {
                 YaaccLogger.d(this.getClass().getName(), "Player of intent not found: " + playerId + " Intent: " + intent);
             }

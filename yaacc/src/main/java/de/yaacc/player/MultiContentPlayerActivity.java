@@ -44,6 +44,7 @@ import de.yaacc.util.YaaccLogActivity;
 public class MultiContentPlayerActivity extends AppCompatActivity implements ServiceConnection {
 
     private PlayerService playerService;
+    private PlayModeControls.Binding playModeBinding;
 
     public void onServiceConnected(ComponentName className, IBinder binder) {
         if (binder instanceof PlayerService.PlayerServiceBinder) {
@@ -69,6 +70,12 @@ public class MultiContentPlayerActivity extends AppCompatActivity implements Ser
         ImageButton btnPause = findViewById(R.id.multiContentPlayerActivityControlPause);
         ImageButton btnPlaylist = (ImageButton) findViewById(R.id.multiContentPlayerActivityControlPlaylist);
         ImageButton btnExit = findViewById(R.id.multiContentPlayerActivityControlExit);
+        if (playModeBinding == null) {
+            playModeBinding = new PlayModeControls.Binding(this,
+                    findViewById(R.id.multiContentPlayerActivityControlRepeat),
+                    findViewById(R.id.multiContentPlayerActivityControlShuffle));
+        }
+        playModeBinding.attach(player);
         if (player == null) {
             btnPrev.setActivated(false);
             btnNext.setActivated(false);
@@ -145,6 +152,9 @@ public class MultiContentPlayerActivity extends AppCompatActivity implements Ser
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        if (playModeBinding != null) {
+            playModeBinding.detach();
+        }
         unbindService(this);
     }
 
