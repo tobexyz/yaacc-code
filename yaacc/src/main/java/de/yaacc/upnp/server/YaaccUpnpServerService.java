@@ -95,6 +95,7 @@ import de.yaacc.upnp.server.contentdirectory.SafChangeRunner;
 import de.yaacc.upnp.server.contentdirectory.SafDirectoryLister;
 import de.yaacc.upnp.server.contentdirectory.YaaccContentDirectory;
 import de.yaacc.upnp.server.http.ClientDisconnects;
+import de.yaacc.upnp.server.http.ServerHttpProcessor;
 import de.yaacc.upnp.server.http.YaaccUpnpServerContentHttpHandler;
 import de.yaacc.upnp.server.http.YaaccUpnpServerProtocolRequestHandler;
 import de.yaacc.upnp.server.media.CombinedCaptureService;
@@ -841,6 +842,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
                         .build();
                 httpServer = H2ServerBootstrap.bootstrap()
                         .setIOReactorConfig(config)
+                        .setHttpProcessor(ServerHttpProcessor.create())
                         .setExceptionCallback(new Callback<Exception>() {
 
                             @Override
