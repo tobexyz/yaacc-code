@@ -2,7 +2,7 @@
 
 Issue (owner): "add an entry 'this device' to the server list. Allow to pick local files and pass them only once to a receiver without serving it constantly like the server does."
 
-Status: **ON HOLD, draft for discussion. Nothing is implemented.** The owner decides first whether the entry is a good enhancement or whether the improved share intake is enough (see "Is it worth it?" in design.md). The base is feat/issue299 with feat/issue296 merged in.
+Status: **SUPERSEDED on 2026-11-03 by `../2026-11-03-issue305-pick-and-play` (owner: pick files or a folder with SAF, then the receiver picker; no entry, no browsing). Kept for the analysis.** Earlier: ON HOLD, draft for discussion. Nothing is implemented.** The owner decides first whether the entry is a good enhancement or whether the improved share intake is enough (see "Is it worth it?" in design.md). The base is feat/issue299 with feat/issue296 merged in.
 
 ## Problem Statement
 To play a file of the phone on a receiver today there are two ways: the local UPnP server (the shared folders are listed and served to the whole network as long as the server and the content provider are on), or the share intake (one file, shared to yaacc from another app). Neither lets the owner browse folders of the phone like a server and send single items to a receiver without serving them constantly.
