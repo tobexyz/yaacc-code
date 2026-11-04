@@ -87,6 +87,11 @@ public final class YxcClient {
         return YxcPlayInfo.fromJson(get("netusb/getPlayInfo"));
     }
 
+    /** What the tuner plays; only meaningful while the zone input is the tuner. */
+    public YxcTunerInfo getTunerPlayInfo() throws YxcException {
+        return YxcTunerInfo.fromJson(get("tuner/getPlayInfo"));
+    }
+
     // ---- zone setters used by the group logic
 
     public void setPower(String zone, boolean on) throws YxcException {
@@ -160,6 +165,118 @@ public final class YxcClient {
             throw new IllegalArgumentException("mode too long");
         }
         get(checkedZone(zone) + "/setInput?input=" + encode(checkedToken(inputId)) + "&mode=" + encode(checkedMode));
+    }
+
+    // ---- device-level settings (system)
+
+    /** @param value the display brightness, inside the {@code dimmer} range of the system features ({@code -1} is automatic where listed) */
+    public void setDimmer(int value) throws YxcException {
+        get("system/setDimmer?value=" + value);
+    }
+
+    public void setAutoPowerStandby(boolean enabled) throws YxcException {
+        get("system/setAutoPowerStandby?enable=" + enabled);
+    }
+
+    // ---- the device's own source (network source, tuner)
+
+    /** @param playback {@code play}, {@code pause}, {@code stop}, {@code previous} or {@code next} */
+    public void setPlayback(String playback) throws YxcException {
+        if (!"play".equals(playback) && !"pause".equals(playback) && !"stop".equals(playback)
+                && !"previous".equals(playback) && !"next".equals(playback)) {
+            throw new IllegalArgumentException("not a playback command");
+        }
+        get("netusb/setPlayback?playback=" + playback);
+    }
+
+    /** @param mode a value of the play info's {@code repeat_available}: {@code off}, {@code one} or {@code all} */
+    public void setRepeat(String mode) throws YxcException {
+        if (!"off".equals(mode) && !"one".equals(mode) && !"all".equals(mode)) {
+            throw new IllegalArgumentException("not a repeat mode");
+        }
+        get("netusb/setRepeat?mode=" + mode);
+    }
+
+    /** @param mode a value of the play info's {@code shuffle_available}: {@code off} or {@code on} */
+    public void setShuffle(String mode) throws YxcException {
+        if (!"off".equals(mode) && !"on".equals(mode)) {
+            throw new IllegalArgumentException("not a shuffle mode");
+        }
+        get("netusb/setShuffle?mode=" + mode);
+    }
+
+    /** Starts the FM seek: the tuner scans up or down by itself until it finds a station (play info {@code auto_scan}). */
+    public void seekFm(boolean up) throws YxcException {
+        get("tuner/setFreq?band=fm&tuning=" + (up ? "auto_up" : "auto_down") + "&num=0");
+    }
+
+    /** Steps the FM frequency by one step (50 kHz on the measured device); the tuner also switches to FM if it was on DAB. */
+    public void stepFm(boolean up) throws YxcException {
+        get("tuner/setFreq?band=fm&tuning=" + (up ? "up" : "down") + "&num=0");
+    }
+
+    /** Stops an FM scan that is running; the tuner stays on the station it reached. */
+    public void cancelFmScan() throws YxcException {
+        get("tuner/setFreq?band=fm&tuning=cancel&num=0");
+    }
+
+    /** @param band {@code fm} or {@code dab}: the tuner changes its band (the zone input stays the tuner) */
+    public void setTunerBand(String band) throws YxcException {
+        if (!"fm".equals(band) && !"dab".equals(band)) {
+            throw new IllegalArgumentException("not a tuner band");
+        }
+        get("tuner/setBand?band=" + band);
+    }
+
+    /** Switches the DAB tuner to the next or previous service. */
+    public void stepDabService(boolean next) throws YxcException {
+        get("tuner/setDabService?dir=" + (next ? "next" : "previous"));
+    }
+
+    // ---- presets and recently played
+
+    /** The presets of the network source; the position in the list is the preset number. */
+    public List<YxcPresets.Entry> getNetPresets() throws YxcException {
+        return YxcPresets.netPresets(get("netusb/getPresetInfo"));
+    }
+
+    /** The recently played radio stations and streaming entries (the tracks of UPnP servers are left out). */
+    public List<YxcPresets.Entry> getRecentItems() throws YxcException {
+        return YxcPresets.recentItems(get("netusb/getRecentInfo"));
+    }
+
+    /** @param band {@code fm} or {@code dab} */
+    public List<YxcPresets.Entry> getTunerPresets(String band) throws YxcException {
+        return YxcPresets.tunerPresets(get("tuner/getPresetInfo?band=" + checkedBand(band)), band);
+    }
+
+    /** @param number the position in the list of {@link #getNetPresets()} (1 to 100) */
+    public void recallNetPreset(int number) throws YxcException {
+        get("netusb/recallPreset?zone=main&num=" + checkedPresetNumber(number));
+    }
+
+    /** @param number the position in the list of {@link #getRecentItems()} as the device lists it (1 to 100) */
+    public void recallRecentItem(int number) throws YxcException {
+        get("netusb/recallRecentItem?zone=main&num=" + checkedPresetNumber(number));
+    }
+
+    /** @param band {@code fm} or {@code dab}; the tuner switches to that band */
+    public void recallTunerPreset(String band, int number) throws YxcException {
+        get("tuner/recallPreset?zone=main&band=" + checkedBand(band) + "&num=" + checkedPresetNumber(number));
+    }
+
+    private static String checkedBand(String band) {
+        if (!"fm".equals(band) && !"dab".equals(band)) {
+            throw new IllegalArgumentException("not a tuner band");
+        }
+        return band;
+    }
+
+    private static int checkedPresetNumber(int number) {
+        if (number < 1 || number > YxcSourceCapabilities.MAX_PRESETS) {
+            throw new IllegalArgumentException("preset number out of range");
+        }
+        return number;
     }
 
     // ---- group calls ("dist")

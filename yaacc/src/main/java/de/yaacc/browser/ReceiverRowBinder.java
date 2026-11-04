@@ -73,6 +73,7 @@ import de.yaacc.yxc.YxcGroupVolume;
 import de.yaacc.yxc.YxcVolumeAccess;
 import de.yaacc.yxc.YxcLinkCandidates;
 import de.yaacc.yxc.YxcMonitor;
+import de.yaacc.yxc.YxcSourceControls;
 import de.yaacc.util.YaaccLogger;
 import de.yaacc.util.image.IconDownloadTask;
 
@@ -112,8 +113,17 @@ final class ReceiverRowBinder {
         final TextView statusText;
         final TextView yxcText;
         final View yxcActions;
+        final View yxcSource;
+        final ImageButton yxcSrcPrev;
+        final ImageButton yxcSrcNext;
+        final ImageButton yxcSrcRepeat;
+        final com.google.android.material.button.MaterialButtonToggleGroup yxcSrcBand;
+        final android.widget.Button yxcSrcBandFm;
+        final android.widget.Button yxcSrcBandDab;
+        final ImageButton yxcSrcShuffle;
         final ImageButton yxcToggle;
         final ImageButton yxcSettings;
+        final ImageButton yxcPresets;
         final SeekBar yxcGroupVolume;
         final TextView yxcGroupVolumeText;
         final TextView volumeText;
@@ -133,8 +143,17 @@ final class ReceiverRowBinder {
             statusText = itemView.findViewById(R.id.status_text);
             yxcText = itemView.findViewById(R.id.yxc_text);
             yxcActions = itemView.findViewById(R.id.yxc_actions);
+            yxcSource = itemView.findViewById(R.id.yxc_source);
+            yxcSrcPrev = itemView.findViewById(R.id.yxc_src_prev);
+            yxcSrcNext = itemView.findViewById(R.id.yxc_src_next);
+            yxcSrcRepeat = itemView.findViewById(R.id.yxc_src_repeat);
+            yxcSrcBand = itemView.findViewById(R.id.yxc_src_band);
+            yxcSrcBandFm = itemView.findViewById(R.id.yxc_src_band_fm);
+            yxcSrcBandDab = itemView.findViewById(R.id.yxc_src_band_dab);
+            yxcSrcShuffle = itemView.findViewById(R.id.yxc_src_shuffle);
             yxcToggle = itemView.findViewById(R.id.yxc_btn_link);
             yxcSettings = itemView.findViewById(R.id.yxc_btn_settings);
+            yxcPresets = itemView.findViewById(R.id.yxc_btn_presets);
             yxcGroupVolume = itemView.findViewById(R.id.yxc_group_volume);
             yxcGroupVolumeText = itemView.findViewById(R.id.yxc_group_volume_text);
             volumeText = itemView.findViewById(R.id.volume_text);
@@ -272,6 +291,7 @@ final class ReceiverRowBinder {
     void bindStatus(RowViews holder, Device<?, ?, ?> device) {
         String deviceId = device.getIdentity().getUdn().getIdentifierString();
         bindGroupState(holder, deviceId);
+        bindSourceControls(holder, device, deviceId);
         Player player = primaryPlayer(device);
         RendererStatus status = statusMap.get(device);
         if (status != null) {
@@ -464,6 +484,138 @@ final class ReceiverRowBinder {
     }
 
     /**
+     * The controls of the device's own source (network source, tuner): previous / next (or seek, or the DAB service),
+     * repeat and shuffle, only what the source offers (see {@link YxcSourceControls}). While the device plays a source of
+     * its own and yaacc plays nothing on it, the row's play / pause / stop work on that source, and the ones it does
+     * not offer are shown disabled.
+     */
+    private void bindSourceControls(RowViews holder, Device<?, ?, ?> device, String udn) {
+        if (holder.yxcSource == null) {
+            return;
+        }
+        YxcDeviceState state = YxcMonitor.getShared().getState(udn);
+        boolean yaaccActive = yaaccActive(device);
+        Set<YxcSourceControls.Control> offered = YxcSourceControls.available(state, yaaccActive);
+        boolean scanning = offered.contains(YxcSourceControls.Control.CANCEL_SCAN);
+        // FM: a short tap steps the frequency (or stops a scan that runs), a long tap scans; the other sources: a tap
+        YxcSourceControls.Control previous = scanning ? YxcSourceControls.Control.CANCEL_SCAN : firstOffered(offered,
+                YxcSourceControls.Control.PREVIOUS, YxcSourceControls.Control.STEP_DOWN,
+                YxcSourceControls.Control.SERVICE_PREVIOUS);
+        YxcSourceControls.Control next = scanning ? YxcSourceControls.Control.CANCEL_SCAN : firstOffered(offered,
+                YxcSourceControls.Control.NEXT, YxcSourceControls.Control.STEP_UP,
+                YxcSourceControls.Control.SERVICE_NEXT);
+        bindSourceButton(holder.yxcSrcPrev, udn, previous, previous == null ? 0 : sourceDescription(previous, false),
+                offered.contains(YxcSourceControls.Control.SEEK_DOWN) ? YxcSourceControls.Control.SEEK_DOWN : null);
+        bindSourceButton(holder.yxcSrcNext, udn, next, next == null ? 0 : sourceDescription(next, true),
+                offered.contains(YxcSourceControls.Control.SEEK_UP) ? YxcSourceControls.Control.SEEK_UP : null);
+        // the tuner band: both names, the one that plays is selected; a tap on the other one switches
+        boolean toDab = offered.contains(YxcSourceControls.Control.BAND_DAB);
+        boolean toFm = offered.contains(YxcSourceControls.Control.BAND_FM);
+        boolean band = toDab || toFm;
+        if (!band) {
+            holder.yxcSrcBand.setVisibility(View.GONE);
+            holder.yxcSrcBandFm.setOnClickListener(null);
+            holder.yxcSrcBandDab.setOnClickListener(null);
+        } else {
+            holder.yxcSrcBand.check(toDab ? R.id.yxc_src_band_fm : R.id.yxc_src_band_dab);
+            holder.yxcSrcBandFm.setOnClickListener(v -> {
+                if (toFm) {
+                    YxcSourceController.getShared().perform(udn, YxcSourceControls.Control.BAND_FM);
+                }
+            });
+            holder.yxcSrcBandDab.setOnClickListener(v -> {
+                if (toDab) {
+                    YxcSourceController.getShared().perform(udn, YxcSourceControls.Control.BAND_DAB);
+                }
+            });
+            holder.yxcSrcBand.setVisibility(View.VISIBLE);
+        }
+        boolean repeat = offered.contains(YxcSourceControls.Control.REPEAT);
+        boolean shuffle = offered.contains(YxcSourceControls.Control.SHUFFLE);
+        String repeatMode = state == null || state.getPlayInfo() == null ? null : state.getPlayInfo().getRepeat();
+        String shuffleMode = state == null || state.getPlayInfo() == null ? null : state.getPlayInfo().getShuffle();
+        holder.yxcSrcRepeat.setImageResource("one".equals(repeatMode) ? R.drawable.ic_baseline_repeat_one_32
+                : R.drawable.ic_baseline_repeat_32);
+        bindSourceButton(holder.yxcSrcRepeat, udn, repeat ? YxcSourceControls.Control.REPEAT : null, R.string.yxc_source_repeat, null);
+        holder.yxcSrcRepeat.setAlpha(repeat && repeatMode != null && !"off".equals(repeatMode) ? 1f : 0.5f);
+        bindSourceButton(holder.yxcSrcShuffle, udn, shuffle ? YxcSourceControls.Control.SHUFFLE : null, R.string.yxc_source_shuffle, null);
+        holder.yxcSrcShuffle.setAlpha(shuffle && shuffleMode != null && !"off".equals(shuffleMode) ? 1f : 0.5f);
+        boolean any = previous != null || next != null || band || repeat || shuffle;
+        holder.yxcSource.setVisibility(any ? View.VISIBLE : View.GONE);
+        // the row's own buttons: shown as what they will do
+        boolean mapped = YxcSourceControls.rowMapsToOwnSource(state, yaaccActive);
+        holder.btnPlay.setEnabled(!mapped || offered.contains(YxcSourceControls.Control.PLAY));
+        holder.btnPause.setEnabled(!mapped || offered.contains(YxcSourceControls.Control.PAUSE));
+        holder.btnStop.setEnabled(!mapped || offered.contains(YxcSourceControls.Control.STOP));
+        holder.btnPlay.setAlpha(holder.btnPlay.isEnabled() ? 1f : 0.4f);
+        holder.btnPause.setAlpha(holder.btnPause.isEnabled() ? 1f : 0.4f);
+        holder.btnStop.setAlpha(holder.btnStop.isEnabled() ? 1f : 0.4f);
+    }
+
+    /**
+     * @param longPress the control a long tap starts (the FM scan), {@code null} for none
+     */
+    private void bindSourceButton(ImageButton button, String udn, YxcSourceControls.Control control, int description,
+                                  YxcSourceControls.Control longPress) {
+        if (control == null) {
+            button.setVisibility(View.GONE);
+            button.setOnClickListener(null);
+            button.setOnLongClickListener(null);
+            button.setLongClickable(false);
+            return;
+        }
+        button.setVisibility(View.VISIBLE);
+        if (description != 0) {
+            button.setContentDescription(context.getString(description));
+        }
+        button.setOnClickListener(v -> YxcSourceController.getShared().perform(udn, control));
+        if (longPress == null) {
+            button.setOnLongClickListener(null);
+            button.setLongClickable(false);
+        } else {
+            button.setOnLongClickListener(v -> {
+                YxcSourceController.getShared().perform(udn, longPress);
+                return true;
+            });
+        }
+    }
+
+    private static YxcSourceControls.Control firstOffered(Set<YxcSourceControls.Control> offered,
+                                                          YxcSourceControls.Control... candidates) {
+        for (YxcSourceControls.Control candidate : candidates) {
+            if (offered.contains(candidate)) {
+                return candidate;
+            }
+        }
+        return null;
+    }
+
+    private static int sourceDescription(YxcSourceControls.Control control, boolean up) {
+        switch (control) {
+            case CANCEL_SCAN:
+                return R.string.yxc_source_cancel_scan;
+            case STEP_DOWN:
+                return R.string.yxc_source_step_down;
+            case STEP_UP:
+                return R.string.yxc_source_step_up;
+            case SERVICE_PREVIOUS:
+                return R.string.yxc_source_service_previous;
+            case SERVICE_NEXT:
+                return R.string.yxc_source_service_next;
+            case NEXT:
+                return R.string.yxc_source_next;
+            default:
+                return up ? R.string.yxc_source_next : R.string.yxc_source_previous;
+        }
+    }
+
+    /** yaacc has a player on the device that plays or is paused: the device then plays what yaacc sent. */
+    private boolean yaaccActive(Device<?, ?, ?> device) {
+        Player player = primaryPlayer(device);
+        return player != null && (player.isPlaying() || player.isPaused());
+    }
+
+    /**
      * The one toggle of a device that supports groups: the link icon (always the same: the row text says whether
      * the device serves a group), disabled while it is a client of another device. Both open the picker (a server's
      * clients are checked; unchecking some removes them, unchecking all ends the group). The group is changed from the
@@ -490,11 +642,32 @@ final class ReceiverRowBinder {
             }
         });
         bindSettingsButton(holder, udn, state);
+        bindPresetsButton(holder, udn, state);
         bindGroupVolume(holder, udn, unlink);
     }
 
     // the open settings sheet, so that a second tap does not open another one
     private android.app.Dialog settingsDialog;
+
+    // the open presets sheet, so that a second tap does not open another one
+    private android.app.Dialog presetsDialog;
+
+    /** The star: shown for a device that lists presets or recently played stations; it opens the presets sheet. */
+    private void bindPresetsButton(RowViews holder, String udn, YxcDeviceState state) {
+        if (holder.yxcPresets == null) {
+            return;
+        }
+        de.yaacc.yxc.YxcSourceCapabilities caps = state == null ? null : state.getCapabilities();
+        boolean available = state != null && state.isReachable() && state.isPowerOn() && caps != null
+                && (caps.getNetPresets() > 0 || caps.hasRecent() || caps.getTunerPresets() > 0);
+        holder.yxcPresets.setVisibility(available ? View.VISIBLE : View.GONE);
+        holder.yxcPresets.setOnClickListener(available ? v -> {
+            if (presetsDialog != null && presetsDialog.isShowing()) {
+                return;
+            }
+            presetsDialog = YxcPresetsSheet.show(context, udn, YxcRowText.clean(friendlyName(udn)));
+        } : null);
+    }
 
     /** The settings icon: shown for a device with group support that answers; it opens the settings sheet. */
     private void bindSettingsButton(RowViews holder, String udn, YxcDeviceState state) {
@@ -846,6 +1019,9 @@ final class ReceiverRowBinder {
         groupVolumeStarter.shutdownNow();
         groupVolumeReaders.shutdownNow();
         // an open sheet or picker would keep the activity alive
+        if (presetsDialog != null && presetsDialog.isShowing()) {
+            presetsDialog.dismiss();
+        }
         if (settingsDialog != null && settingsDialog.isShowing()) {
             settingsDialog.dismiss();
         }
@@ -906,6 +1082,19 @@ final class ReceiverRowBinder {
     }
 
     private void executeAction(Device<?, ?, ?> device, String action) {
+        // a device that plays a source of its own (net radio, tuner) and nothing from yaacc: the buttons act on that source
+        if (!isLocalDevice(device)) {
+            String udn = device.getIdentity().getUdn().getIdentifierString();
+            YxcDeviceState state = YxcMonitor.getShared().getState(udn);
+            if (YxcSourceControls.rowMapsToOwnSource(state, yaaccActive(device))) {
+                YxcSourceControls.Control control = ACTION_PLAY.equals(action) ? YxcSourceControls.Control.PLAY
+                        : ACTION_PAUSE.equals(action) ? YxcSourceControls.Control.PAUSE : YxcSourceControls.Control.STOP;
+                if (YxcSourceControls.available(state).contains(control)) {
+                    YxcSourceController.getShared().perform(udn, control);
+                }
+                return; // never the UPnP call: the source would not do what the button says
+            }
+        }
         // Handle local device differently
         if (isLocalDevice(device)) {
             Player player = primaryPlayer(device);

@@ -199,4 +199,20 @@ public class YxcRowTextTest {
         org.junit.Assert.assertTrue(stuck.isStuckClient());
         assertEquals("On · No group, link input", YxcRowText.describe(stuck, WORDS, "Kitchen", java.util.Collections.<String>emptyList()));
     }
+
+    @Test
+    public void whatTheDevicePlaysByItselfComesOnASecondLine() throws Exception {
+        String play = "{\"response_code\":0,\"input\":\"net_radio\",\"playback\":\"play\",\"artist\":\"Test Radio\",\"track\":\"Test Title\"}";
+        YxcDeviceState state = state(status("on", "net_radio", null), NO_GROUP)
+                .withPlayInfo(new YxcClient(new de.yaacc.yxc.YxcTransport() {
+                    public String get(String path) {
+                        return play;
+                    }
+
+                    public String post(String path, String body) {
+                        return play;
+                    }
+                }).getPlayInfo());
+        assertEquals("On \u00b7 Net radio\nTest Radio \u00b7 Test Title", YxcRowText.describe(state, WORDS));
+    }
 }

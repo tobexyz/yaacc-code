@@ -1,0 +1,35 @@
+{
+  "response_code": 0,
+  "band": "fm",
+  "auto_scan": false,
+  "fm": {
+    "preset": 1,
+    "freq": 87550,
+    "tuned": true,
+    "audio_mode": "mono"
+  },
+  "rds": {
+    "program_type": "Pop music",
+    "program_service": " TEST 1",
+    "radio_text_a": "Test Song - Test Artist_",
+    "radio_text_b": "Test Radio One - example.org/one_"
+  },
+  "dab": {
+    "preset": 0,
+    "id": 206,
+    "status": "ready",
+    "freq": 0,
+    "category": "primary",
+    "audio_mode": "stereo",
+    "bit_rate": 104,
+    "quality": 41,
+    "tune_aid": 33,
+    "off_air": false,
+    "dab_plus": true,
+    "program_type": "",
+    "ch_label": "",
+    "service_label": "TESTRADIO ONE   ",
+    "dls": "Test Radio One - example.org/one",
+    "ensemble_label": ""
+  }
+}

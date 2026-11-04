@@ -23,6 +23,9 @@ get statusZone4     zone4/getStatus
 get distInfo        dist/getDistributionInfo
 get netusbPlayInfo  netusb/getPlayInfo
 get tunerPlayInfo   tuner/getPlayInfo
+get netusbPresetInfo netusb/getPresetInfo
+get tunerPresetFm   tuner/getPresetInfo?band=fm
+get tunerPresetDab  tuner/getPresetInfo?band=dab
 get soundPrograms   main/getSoundProgramList
 get clockInfo       clock/getSettings
 # the UPnP device description (the tag that marks a YXC device); the usual place, adjust the port if yours differs

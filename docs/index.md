@@ -15,7 +15,7 @@ layout: default
 * UPnP/DLNA Client - receive media from other devices on your device
 * UPnP/DLNA Controller - control media renderer in the network
 * Control multiple media renderer
-* Link Yamaha MusicCast devices into a group, set the group volume and change device settings, see [MusicCast devices](#musiccast-devices)
+* Link Yamaha MusicCast devices into a group, set the group volume, control their own sources (now playing, tuner, presets) and change device settings, see [MusicCast devices](#musiccast-devices)
 * Allow download files to the device
 * Share a link (http or https) or one audio, video or image file from another app to YAACC and play it on the receivers you pick, see [Sharing to YAACC](#sharing-to-yaacc)
 * Pick files or a folder of your device and play them on the receivers you pick without serving them constantly, see [Playing files from this device](#playing-files-from-this-device)
@@ -357,6 +357,19 @@ YAACC recognizes receivers that are Yamaha MusicCast devices and offers a few ex
 
 Besides the usual status and controls, the row of a MusicCast device shows whether it is on, in standby or not reachable, its current input, and, while it is in a group, "Linked with <name>" (a group leader shows the names of its members). The row follows the device within a moment, also when you change something with another app or the remote control: the devices report changes by themselves, and YAACC reads them completely every 30 seconds in addition.
 
+### The device's own sources
+
+While a MusicCast device plays something of its own (net radio, a streaming service, a server on the network, the FM or DAB tuner) and YAACC plays nothing on it, the row shows a second line with what is playing (station, title, artist, or the frequency or service of the tuner) and adds controls for that source. Only what the device reports for the current source is shown:
+
+* Play, pause and stop on the row work on the device's source. While YAACC plays or has paused something on the device, they stay with YAACC's own playback and the controls of the source are hidden.
+* Previous, next, repeat and shuffle appear when the source supports them (net radio, for example, has only play and stop).
+* Tuner: the two buttons step the FM frequency by one step; a long press scans to the next station (a tap stops the scan). A switch with both names, FM and DAB, changes the band; with DAB the two buttons select the previous or next service.
+* The star button opens a sheet with the device's presets (the stored stations of the net source and of the tuner) and its recently played entries. Empty slots are not shown; a tap recalls the entry, which also switches the device to its input.
+
+The controls act on the device only after YAACC has read its current state again, so a stale display does not send a wrong command.
+
+### Linking devices
+
 ### Linking devices
 
 The link button on the row opens a list of the other MusicCast devices in the same style as the receiver picker.
@@ -377,12 +390,12 @@ The volume slider and the mute button of a MusicCast device use the device's own
 
 ### Device settings
 
-The settings button on the row opens a sheet with what the device reports as changeable: power, input, sound program, sleep timer, a three-band equalizer and the link settings (audio delay, audio quality). Entries a device does not offer are not shown, and the sheet only offers the values the device reports. The sheet says so when the settings cannot be read or changed.
+The settings button on the row opens a sheet with what the device reports as changeable: power, input, sound program, sleep timer, a three-band equalizer, the brightness of the display, the automatic standby and the link settings (audio delay, audio quality). Entries a device does not offer are not shown, and the sheet only offers the values the device reports. The sheet says so when the settings cannot be read or changed.
 
 ### Limits
 
 * MusicCast devices only; no MusicCast account, streaming-service login, network or firmware setup, clock or alarm.
-* Play, pause and stop on the row are those of the UPnP renderer; the controls of the device's own sources (net radio, streaming services) are not part of YAACC.
+* Play, pause and stop on the row are those of the UPnP renderer while YAACC plays on the device; otherwise they control the device's own source. Searching and choosing content inside a streaming service or the net radio directory is not part of YAACC; use the presets or the manufacturer's app for that.
 * Updates reach the app as UDP messages from the device to the phone. If the Wi-Fi isolates devices from each other, or the phone's Wi-Fi is in power save, they may not arrive; the row is then updated by the 30 second read.
 * YAACC talks to a device only at the address it announced in your network, and shows everything a device sends as plain text.
 

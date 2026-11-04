@@ -95,9 +95,11 @@ final class YxcSettingsSheet {
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(0, (int) (8 * density), 0, pad);
         TextView title = new TextView(context);
-        title.setTextAppearance(android.R.style.TextAppearance_Material_Medium);
+        // the name of the device is the most important text of the sheet
+        title.setTextAppearance(android.R.style.TextAppearance_Material_Large);
+        title.setTypeface(title.getTypeface(), android.graphics.Typeface.BOLD);
         title.setText(deviceName == null ? context.getString(R.string.yxc_action_settings) : deviceName);
-        title.setPadding(pad, 0, pad, (int) (4 * density));
+        title.setPadding(pad, (int) (4 * density), pad, (int) (8 * density));
         root.addView(title);
         message = new TextView(context);
         message.setPadding(pad, 0, pad, (int) (8 * density));
@@ -140,15 +142,22 @@ final class YxcSettingsSheet {
             if (client == null) {
                 throw new java.io.IOException("device not available");
             }
-            YxcZoneFeatures features = client.getFeatures().getZone(ZONE);
+            de.yaacc.yxc.YxcFeatures deviceFeatures = client.getFeatures();
+            YxcZoneFeatures features = deviceFeatures.getZone(ZONE);
             YxcZoneStatus status = client.getZoneStatus(ZONE);
+            de.yaacc.yxc.YxcFuncStatus funcStatus;
+            try {
+                funcStatus = client.getFuncStatus();
+            } catch (YxcException e) {
+                funcStatus = null; // no device-level settings then
+            }
             YxcNameText names;
             try {
                 names = client.getNameText();
             } catch (YxcException e) {
                 names = YxcNameText.empty(); // the ids made readable are used
             }
-            List<YxcSettings.Item> built = YxcSettings.build(features, status, names);
+            List<YxcSettings.Item> built = YxcSettings.build(features, status, names, deviceFeatures, funcStatus);
             post(() -> render(built));
         });
     }
@@ -193,6 +202,12 @@ final class YxcSettingsSheet {
                     break;
                 case LINK_AUDIO_QUALITY:
                     body.addView(choiceRow(item, R.string.yxc_setting_link_audio_quality, pad, density));
+                    break;
+                case DIMMER:
+                    body.addView(bandRow(item, R.string.yxc_setting_dimmer, pad, density));
+                    break;
+                case AUTO_POWER_STANDBY:
+                    body.addView(autoStandbySwitch(item, pad));
                     break;
                 default:
                     break;
@@ -319,14 +334,36 @@ final class YxcSettingsSheet {
         return item.getCurrentLabel();
     }
 
-    /** One band of the equalizer: a slider over the range the device reports; the value is sent when the finger is lifted. */
+    /** The value of a slider as text; the brightness {@code -1} is the automatic mode of the display. */
+    private String numberText(YxcSettings.Item item, int value) {
+        return item.getId() == YxcSettings.Id.DIMMER && value == -1 ? context.getString(R.string.yxc_setting_dimmer_auto)
+                : String.valueOf(value);
+    }
+
+    private View autoStandbySwitch(YxcSettings.Item item, int pad) {
+        SwitchCompat toggle = new SwitchCompat(context);
+        toggle.setText(R.string.yxc_setting_auto_power_standby);
+        toggle.setMinHeight((int) (56 * context.getResources().getDisplayMetrics().density));
+        toggle.setPadding(pad, 0, pad, 0);
+        toggle.setChecked(item.isOn());
+        toggle.setOnCheckedChangeListener((CompoundButton button, boolean checked) -> {
+            setBusy(true);
+            run(true, () -> {
+                writer().setAutoPowerStandby(items, checked);
+                load(SETTLE_MILLIS / 2);
+            });
+        });
+        return toggle;
+    }
+
+    /** One band of the equalizer (or the brightness): a slider over the range the device reports; the value is sent when the finger is lifted. */
     private View bandRow(YxcSettings.Item item, int titleResource, int pad, float density) {
         LinearLayout row = new LinearLayout(context);
         row.setOrientation(LinearLayout.VERTICAL);
         row.setPadding(pad, (int) (6 * density), pad, (int) (6 * density));
         TextView title = new TextView(context);
         title.setTextSize(12);
-        title.setText(context.getString(titleResource) + "  " + item.getNumber());
+        title.setText(context.getString(titleResource) + "  " + numberText(item, item.getNumber()));
         row.addView(title);
         android.widget.SeekBar slider = new android.widget.SeekBar(context);
         slider.setMax(item.getSteps());
@@ -335,7 +372,7 @@ final class YxcSettingsSheet {
         slider.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(android.widget.SeekBar seekBar, int progress, boolean fromUser) {
-                title.setText(context.getString(titleResource) + "  " + item.valueAt(progress));
+                title.setText(context.getString(titleResource) + "  " + numberText(item, item.valueAt(progress)));
             }
 
             @Override
@@ -352,7 +389,11 @@ final class YxcSettingsSheet {
                 }
                 setBusy(true);
                 run(true, () -> {
-                    writer().setEqualizerBand(items, item.getId(), value);
+                    if (item.getId() == YxcSettings.Id.DIMMER) {
+                        writer().setDimmer(items, value);
+                    } else {
+                        writer().setEqualizerBand(items, item.getId(), value);
+                    }
                     load(SETTLE_MILLIS / 2);
                 });
             }

@@ -122,4 +122,28 @@ public final class YxcPlayInfo {
     public List<String> getShuffleAvailable() {
         return shuffleAvailable;
     }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (!(o instanceof YxcPlayInfo)) {
+            return false;
+        }
+        YxcPlayInfo other = (YxcPlayInfo) o;
+        return java.util.Objects.equals(input, other.input) && java.util.Objects.equals(playback, other.playback)
+                && java.util.Objects.equals(repeat, other.repeat) && java.util.Objects.equals(shuffle, other.shuffle)
+                && java.util.Objects.equals(artist, other.artist) && java.util.Objects.equals(album, other.album)
+                && java.util.Objects.equals(track, other.track) && java.util.Objects.equals(albumArtUrl, other.albumArtUrl)
+                && java.util.Objects.equals(totalTime, other.totalTime) && java.util.Objects.equals(playTime, other.playTime)
+                && java.util.Objects.equals(attribute, other.attribute)
+                && repeatAvailable.equals(other.repeatAvailable) && shuffleAvailable.equals(other.shuffleAvailable);
+    }
+
+    @Override
+    public int hashCode() {
+        return java.util.Objects.hash(input, playback, repeat, shuffle, artist, album, track, albumArtUrl, totalTime, playTime,
+                attribute, repeatAvailable, shuffleAvailable);
+    }
 }

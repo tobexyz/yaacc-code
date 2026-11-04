@@ -1,0 +1,35 @@
+{
+  "response_code": 0,
+  "band": "dab",
+  "auto_scan": false,
+  "fm": {
+    "preset": 0,
+    "freq": 87550,
+    "tuned": false,
+    "audio_mode": "mono"
+  },
+  "rds": {
+    "program_type": "Pop music",
+    "program_service": " TEST 1",
+    "radio_text_a": "Test Song - Test Artist_",
+    "radio_text_b": "Test Radio One - example.org/one_"
+  },
+  "dab": {
+    "preset": 1,
+    "id": 415,
+    "status": "ready",
+    "freq": 215072,
+    "category": "primary",
+    "audio_mode": "stereo",
+    "bit_rate": 72,
+    "quality": 99,
+    "tune_aid": 52,
+    "off_air": false,
+    "dab_plus": true,
+    "program_type": "",
+    "ch_label": "10D",
+    "service_label": "TESTRADIO TWO   ",
+    "dls": "",
+    "ensemble_label": ""
+  }
+}

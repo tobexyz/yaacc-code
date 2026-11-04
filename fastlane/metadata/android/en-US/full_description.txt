@@ -12,7 +12,7 @@ YAACC (Yet Another Android Client Controller) allows you to play media from UPNP
 * Lock screen controls - hardware volume buttons and media controls
 * Receiver controls - play/pause/stop directly from receiver tab
 * Control multiple media renderer
-* Yamaha MusicCast devices: link them into a group, group volume, device settings
+* Yamaha MusicCast devices: link them into a group, group volume, now playing, tuner and presets, device settings
 * Allow download files from a media server to the device
 * Allow sharing of urls with the app and sending them to the current media renderers
 * Pick files or a folder of your device and play them on the receivers you pick

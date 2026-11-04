@@ -3,7 +3,9 @@
 
 Usage: python3 scrub.py <dir>      (changes the .json and .xml files in place)
 Replaced: MAC addresses, IPv4 addresses (stable mapping to 192.0.2.x), values of keys that identify a device or a network
-(serial / id / names / SSID / keys / account data), UUIDs in the UPnP description. Read the result before you share it.
+(serial / id / names / SSID / keys / account data), the free text of play infos (artist, album, track, station and service
+names, radio text, URLs of cover art: every key that names such text, see FREE_TEXT_KEY), UUIDs in the UPnP description.
+Read the result before you share it. When a test needs a readable value, write an invented text by hand (e.g. "Test Radio One").
 """
 import json, re, sys, pathlib
 
@@ -13,6 +15,8 @@ SECRET_KEYS = {
     "location_id", "account_name", "user_name", "group_name", "text", "friendly_name",
     "model_name", "netmodule_checksum",
 }
+# keys that carry free text of a station, a track or a service (play infos, tuner infos, preset lists, recent lists)
+FREE_TEXT_KEY = re.compile(r"(artist|album|track|title|label|dls|radio_text|program_service|url|station|text|name)", re.I)
 KEEP_KEYS = set()  # add keys here that are named like a secret key but carry no personal data
 MAC = re.compile(r"\b[0-9A-Fa-f]{2}(?:[:\-][0-9A-Fa-f]{2}){5}\b")
 IPV4 = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
@@ -43,7 +47,7 @@ def scrub_json(v, key=None):
     if isinstance(v, list):
         return [scrub_json(x, key) for x in v]
     if isinstance(v, str):
-        if key in SECRET_KEYS and key not in KEEP_KEYS and v:
+        if key not in KEEP_KEYS and v and (key in SECRET_KEYS or (key is not None and FREE_TEXT_KEY.search(key))):
             return "scrubbed-" + key
         return scrub_text(v)
     return v

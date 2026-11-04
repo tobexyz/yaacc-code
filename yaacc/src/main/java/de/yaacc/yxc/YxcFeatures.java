@@ -37,15 +37,18 @@ public final class YxcFeatures {
     private final List<YxcZoneFeatures> zones;
     private final boolean netUsb;
     private final YxcDistributionFeatures distribution;
+    private final YxcSourceCapabilities sources;
 
     private YxcFeatures(List<String> systemFunctions, Map<String, YxcRange> systemRanges, List<YxcSystemInput> systemInputs,
-                        List<YxcZoneFeatures> zones, boolean netUsb, YxcDistributionFeatures distribution) {
+                        List<YxcZoneFeatures> zones, boolean netUsb, YxcDistributionFeatures distribution,
+                        YxcSourceCapabilities sources) {
         this.systemFunctions = systemFunctions;
         this.systemRanges = systemRanges;
         this.systemInputs = systemInputs;
         this.zones = zones;
         this.netUsb = netUsb;
         this.distribution = distribution;
+        this.sources = sources;
     }
 
     static YxcFeatures fromJson(JSONObject json) {
@@ -79,7 +82,13 @@ public final class YxcFeatures {
                 Collections.unmodifiableList(inputs),
                 Collections.unmodifiableList(zones),
                 netUsb,
-                YxcDistributionFeatures.fromFeatures(json));
+                YxcDistributionFeatures.fromFeatures(json),
+                YxcSourceCapabilities.fromJson(json));
+    }
+
+    /** @return the bands of the tuner and the preset counts of the sources, as the device reports them */
+    public YxcSourceCapabilities getSourceCapabilities() {
+        return sources;
     }
 
     public List<String> getSystemFunctions() {

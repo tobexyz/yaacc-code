@@ -53,6 +53,8 @@ public final class YxcEventPlan {
         if (netUsb != null && netUsb.isPlayInfoUpdated()) {
             result.add(Refresh.PLAY_INFO);
         }
+        // a flag of the tuner is NOT a reason to read: the tuner sends up to three a second (docs/tech.md, section 10);
+        // its play info is read with the input change, the power change, the periodic read and after our own tuner action
         if (main != null && main.getInput() != null) {
             result.add(Refresh.PLAY_INFO);
         }

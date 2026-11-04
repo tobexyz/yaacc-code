@@ -43,7 +43,7 @@ in order to play media from your device on any UPnP renderer in your network.
 * Optional single-screen layout with a mini-player (Settings > Appearance > Layout); a fresh install starts in the single screen, an updated installation keeps the classic tabs
 * Sort browsed folders by name or date added, with server-side sorting when supported
 * Control multiple media renderer
-* Yamaha MusicCast devices: link them into a group, group volume, device settings (see the documentation)
+* Yamaha MusicCast devices: link them into a group, group volume, now playing and controls of their own sources, presets, device settings (see the documentation)
 * Allow download files to the device
 * Share a link or one audio, video or image file from another app and play it on the receivers you pick
 * Pick files or a folder of your device and play them on the receivers you pick, each file is offered on the network only while it plays

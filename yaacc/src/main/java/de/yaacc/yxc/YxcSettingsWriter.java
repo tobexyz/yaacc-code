@@ -99,6 +99,19 @@ public final class YxcSettingsWriter {
         client.setLinkAudioQuality(zone, value);
     }
 
+    /** Sets the display brightness; the value must be inside the range the device reports and a step from its minimum. */
+    public void setDimmer(List<YxcSettings.Item> items, int value) throws YxcException {
+        YxcSettings.Item item = YxcSettings.find(items, YxcSettings.Id.DIMMER);
+        require(item != null && item.getKind() == YxcSettings.Kind.NUMBER, "the device does not offer a display brightness");
+        require(item.accepts(value), "value outside of the range of the device");
+        client.setDimmer(value);
+    }
+
+    public void setAutoPowerStandby(List<YxcSettings.Item> items, boolean enabled) throws YxcException {
+        require(YxcSettings.find(items, YxcSettings.Id.AUTO_POWER_STANDBY) != null, "the device does not offer automatic standby");
+        client.setAutoPowerStandby(enabled);
+    }
+
     private static void require(boolean ok, String message) {
         if (!ok) {
             throw new IllegalArgumentException(message);
