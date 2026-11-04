@@ -19,6 +19,7 @@
 package de.yaacc.yxc;
 
 import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
@@ -33,7 +34,63 @@ import java.util.List;
  */
 final class YxcJson {
 
+    /** The deepest nesting an answer of a device may have; real answers stay below 10. */
+    static final int MAX_ANSWER_DEPTH = 32;
+
     private YxcJson() {
+    }
+
+    /**
+     * Parses a JSON object from the network. The text of a device is not trusted: Android's {@code org.json}
+     * has no depth limit and recurses, so a body of 100,000 brackets would end in a {@code StackOverflowError}
+     * on the calling thread. The depth is checked first, and the error is turned into a {@link JSONException}
+     * if it happens anyway.
+     *
+     * @param maxDepth the deepest nesting accepted
+     * @throws JSONException when the text is null, no object, or nested too deeply
+     */
+    static JSONObject parseObject(String text, int maxDepth) throws JSONException {
+        if (text == null) {
+            throw new JSONException("no text");
+        }
+        if (bracketDepth(text) > maxDepth) {
+            throw new JSONException("nested too deeply");
+        }
+        try {
+            return new JSONObject(text);
+        } catch (StackOverflowError e) {
+            throw new JSONException("nested too deeply");
+        }
+    }
+
+    /**
+     * The deepest nesting of brackets outside of strings. Strings are skipped the way {@code org.json} reads
+     * them: delimited by {@code "} or {@code '}, with a backslash escaping the next character. A bracket inside
+     * a string is no nesting, and a closing bracket inside a string closes nothing. The {@code StackOverflowError}
+     * handler in {@link #parseObject} stays as the last line of defense for any form this scan reads differently.
+     */
+    static int bracketDepth(String text) {
+        int depth = 0;
+        int max = 0;
+        char quote = 0;
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (quote != 0) {
+                if (c == '\\') {
+                    i++;
+                } else if (c == quote) {
+                    quote = 0;
+                }
+            } else if (c == '"' || c == '\'') {
+                quote = c;
+            } else if (c == '{' || c == '[') {
+                depth++;
+                max = Math.max(max, depth);
+            } else if ((c == '}' || c == ']') && depth > 0) {
+                depth--;
+            }
+        }
+        return max;
     }
 
     private static Object value(JSONObject object, String key) {

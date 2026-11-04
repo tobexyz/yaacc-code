@@ -184,7 +184,7 @@ public final class YxcClient {
         }
         JSONObject json;
         try {
-            json = new JSONObject(text);
+            json = YxcJson.parseObject(text, YxcJson.MAX_ANSWER_DEPTH);
         } catch (JSONException | NullPointerException e) {
             throw YxcException.malformed(call, "not a JSON object", e);
         }

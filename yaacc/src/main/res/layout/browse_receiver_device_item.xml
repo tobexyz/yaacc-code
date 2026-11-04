@@ -106,6 +106,19 @@
                 android:ellipsize="end"
                 android:visibility="gone" />
             
+            <!-- State of a device with group support (power, input, group) -->
+            <TextView
+                android:id="@+id/yxc_text"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="56dp"
+                android:layout_marginTop="2dp"
+                android:textSize="12sp"
+                android:textColor="?attr/colorOnSurfaceVariant"
+                android:maxLines="2"
+                android:ellipsize="end"
+                android:visibility="gone" />
+
             <!-- Spacer to push controls to bottom -->
             <View
                 android:layout_width="match_parent"

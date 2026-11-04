@@ -60,6 +60,7 @@ import de.yaacc.upnp.callback.avtransport.Play;
 import de.yaacc.upnp.callback.avtransport.Stop;
 import de.yaacc.upnp.server.http.HttpRequestSender;
 import de.yaacc.util.ThemeHelper;
+import de.yaacc.yxc.YxcMonitor;
 import de.yaacc.util.YaaccLogger;
 import de.yaacc.util.image.IconDownloadTask;
 
@@ -97,6 +98,7 @@ final class ReceiverRowBinder {
         final TextView name;
         final TextView statusBadge;
         final TextView statusText;
+        final TextView yxcText;
         final TextView volumeText;
         final CheckBox checkBox;
         final CheckBox mute;
@@ -112,6 +114,7 @@ final class ReceiverRowBinder {
             name = itemView.findViewById(R.id.browseReceiverDeviceItemName);
             statusBadge = itemView.findViewById(R.id.status_badge);
             statusText = itemView.findViewById(R.id.status_text);
+            yxcText = itemView.findViewById(R.id.yxc_text);
             volumeText = itemView.findViewById(R.id.volume_text);
             checkBox = itemView.findViewById(R.id.browseReceiverDeviceItemCheckbox);
             mute = itemView.findViewById(R.id.browseReceiverDeviceItemMute);
@@ -246,6 +249,7 @@ final class ReceiverRowBinder {
      */
     void bindStatus(RowViews holder, Device<?, ?, ?> device) {
         String deviceId = device.getIdentity().getUdn().getIdentifierString();
+        bindGroupState(holder, deviceId);
         Player player = primaryPlayer(device);
         RendererStatus status = statusMap.get(device);
         if (status != null) {
@@ -403,6 +407,60 @@ final class ReceiverRowBinder {
         }
         return true;
     }
+
+    /**
+     * Shows power, input and group of a device with group support, from {@link YxcMonitor}; hidden for every
+     * other receiver (the monitor knows no state for them).
+     */
+    private void bindGroupState(RowViews holder, String udn) {
+        if (holder.yxcText == null) {
+            return;
+        }
+        String text = YxcRowText.describe(YxcMonitor.getShared().getState(udn), yxcWords);
+        if (text == null) {
+            holder.yxcText.setVisibility(View.GONE);
+        } else {
+            holder.yxcText.setText(text);
+            holder.yxcText.setVisibility(View.VISIBLE);
+        }
+    }
+
+    private final YxcRowText.Words yxcWords = new YxcRowText.Words() {
+        @Override
+        public String on() {
+            return context.getString(R.string.yxc_state_on);
+        }
+
+        @Override
+        public String standby() {
+            return context.getString(R.string.yxc_state_standby);
+        }
+
+        @Override
+        public String notReachable() {
+            return context.getString(R.string.yxc_state_unreachable);
+        }
+
+        @Override
+        public String linkedWith(String group) {
+            return context.getString(R.string.yxc_group_linked_with, group);
+        }
+
+        @Override
+        public String linked() {
+            return context.getString(R.string.yxc_group_linked);
+        }
+
+        @Override
+        public String groupOf(String group) {
+            return context.getString(R.string.yxc_group_leader_of, group);
+        }
+
+        @Override
+        public String groupLeader() {
+            return context.getString(R.string.yxc_group_leader);
+        }
+    };
 
     /**
      * Stores a status from {@code RendererStatusMonitor} (or the local poll).

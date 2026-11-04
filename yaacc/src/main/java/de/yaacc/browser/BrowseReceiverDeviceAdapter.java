@@ -222,6 +222,16 @@ public class BrowseReceiverDeviceAdapter extends RecyclerView.Adapter<BrowseRece
         this.selectedDevices.remove(device);
     }
 
+    /** The power, input or group of a device with group support changed: rebinds that row's status part. */
+    public void onGroupStateChanged(String udn) {
+        for (int i = 0; i < devices.size(); i++) {
+            if (devices.get(i).getIdentity().getUdn().getIdentifierString().equals(udn)) {
+                notifyItemChanged(i, ReceiverRowBinder.PAYLOAD_STATUS);
+                break;
+            }
+        }
+    }
+
     public void updateStatus(RendererStatus status) {
         // Re-sort if playing state changed (affects sort order)
         if (rowBinder.updateStatus(status)) {

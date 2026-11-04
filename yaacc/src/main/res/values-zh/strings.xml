@@ -179,4 +179,12 @@
     <string name="repeat_one">重复单曲</string>
     <string name="shuffle_off">随机播放：关</string>
     <string name="shuffle_on">随机播放：开</string>
+    <!-- state of a device that speaks the YXC protocol, shown in the receiver row -->
+    <string name="yxc_state_on">开机</string>
+    <string name="yxc_state_standby">待机</string>
+    <string name="yxc_state_unreachable">无法连接</string>
+    <string name="yxc_group_linked_with">已与 %1$s 链接</string>
+    <string name="yxc_group_linked">已链接</string>
+    <string name="yxc_group_leader_of">群组 %1$s</string>
+    <string name="yxc_group_leader">群组主设备</string>
 </resources>

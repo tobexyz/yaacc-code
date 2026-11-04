@@ -250,4 +250,97 @@ public class YxcHttpTransportTest {
         assertEquals(80, YxcHttpTransport.DEFAULT_PORT);
     }
 
+
+    @Test
+    public void aBodyThatTakesTooLongIsRefused() throws Exception {
+        java.io.InputStream endless = new java.io.InputStream() {
+            @Override
+            public int read() {
+                return 'x';
+            }
+
+            @Override
+            public int read(byte[] b, int off, int len) {
+                b[off] = 'x';
+                return 1; // a byte at a time, like a peer that trickles
+            }
+        };
+
+        try {
+            YxcHttpTransport.readBounded(endless, System.nanoTime() - 1);
+            fail("read on past the deadline");
+        } catch (IOException expected) {
+            assertTrue(expected.getMessage().contains("too long"));
+        }
+    }
+
+    /** A server that answers the status line and then drips header lines, never ending the headers. */
+    static final class DrippingServer implements AutoCloseable {
+        private final java.net.ServerSocket server;
+        private final Thread thread;
+
+        DrippingServer() throws IOException {
+            server = new java.net.ServerSocket(0, 1, java.net.InetAddress.getLoopbackAddress());
+            thread = new Thread(() -> {
+                try (java.net.Socket socket = server.accept()) {
+                    java.io.OutputStream out = socket.getOutputStream();
+                    out.write("HTTP/1.1 200 OK\r\n".getBytes(java.nio.charset.StandardCharsets.US_ASCII));
+                    for (int i = 0; i < 100; i++) {
+                        out.write(("X-Drip-" + i + ": x\r\n").getBytes(java.nio.charset.StandardCharsets.US_ASCII));
+                        out.flush();
+                        Thread.sleep(100);
+                    }
+                } catch (IOException | InterruptedException ignored) {
+                    // the client gave up: the point of the test
+                }
+            }, "dripping-server");
+            thread.setDaemon(true);
+            thread.start();
+        }
+
+        int port() {
+            return server.getLocalPort();
+        }
+
+        @Override
+        public void close() throws IOException {
+            server.close();
+        }
+    }
+
+    @Test
+    public void headersThatDripPastTheDeadlineAreCutOff() throws Exception {
+        try (DrippingServer server = new DrippingServer()) {
+            // every single read is far inside the read timeout, only the total time is exceeded
+            YxcHttpTransport transport = new YxcHttpTransport(HOST, server.port(), 0, 2000, 5000, 600);
+            long start = System.nanoTime();
+
+            try {
+                transport.get("system/getDeviceInfo");
+                fail("answered");
+            } catch (IOException expected) {
+                // ok
+            }
+
+            long seconds = (System.nanoTime() - start) / 1_000_000_000L;
+            assertTrue("gave up after " + seconds + " s", seconds < 4);
+        }
+    }
+
+    @Test
+    public void theDescriptionFetchIsCutOffTheSameWay() throws Exception {
+        try (DrippingServer server = new DrippingServer()) {
+            YxcHttpDescriptionFetcher fetcher = new YxcHttpDescriptionFetcher(600);
+            long start = System.nanoTime();
+
+            try {
+                fetcher.fetch("http://" + HOST + ":" + server.port() + "/desc.xml");
+                fail("answered");
+            } catch (IOException expected) {
+                // ok
+            }
+
+            assertTrue((System.nanoTime() - start) / 1_000_000_000L < 4);
+        }
+    }
 }

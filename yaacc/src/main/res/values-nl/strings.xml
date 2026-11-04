@@ -179,4 +179,12 @@
     <string name="repeat_one">Eén herhalen</string>
     <string name="shuffle_off">Willekeurig uit</string>
     <string name="shuffle_on">Willekeurig aan</string>
+    <!-- state of a device that speaks the YXC protocol, shown in the receiver row -->
+    <string name="yxc_state_on">Aan</string>
+    <string name="yxc_state_standby">Stand-by</string>
+    <string name="yxc_state_unreachable">Niet bereikbaar</string>
+    <string name="yxc_group_linked_with">Gekoppeld aan %1$s</string>
+    <string name="yxc_group_linked">Gekoppeld</string>
+    <string name="yxc_group_leader_of">Groep %1$s</string>
+    <string name="yxc_group_leader">Groepsleider</string>
 </resources>

@@ -368,4 +368,19 @@ public class YxcClientTest {
             // refused before anything was sent
         }
     }
+
+    @Test
+    public void anAnswerNestedTooDeeplyIsAMalformedAnswerNotACrash() {
+        String deep = new String(new char[100_000]).replace('\0', '[');
+        String quoteTrick = "{'a':'\"','b':" + new String(new char[2000]).replace('\0', '[') + "}";
+        for (String body : new String[]{deep, quoteTrick}) {
+            YxcClient client = new YxcClient(new RecordingTransport().answerEverythingWith(body));
+            try {
+                client.getDistributionInfo();
+                fail("accepted: " + body.length() + " characters");
+            } catch (YxcException expected) {
+                assertEquals(YxcException.NONE, expected.getResponseCode());
+            }
+        }
+    }
 }
