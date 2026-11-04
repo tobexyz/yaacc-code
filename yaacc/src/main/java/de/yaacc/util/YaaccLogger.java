@@ -70,6 +70,19 @@ public class YaaccLogger {
         }
     }
 
+    /**
+     * True if verbose messages are logged. Guard a message that is built with string concatenation in a path that runs
+     * per entry (a file of a big folder): {@code v(tag, "..." + x)} builds the string even if the level is off.
+     */
+    public static boolean isVerbose() {
+        return currentLogLevel <= VERBOSE;
+    }
+
+    /** True if debug messages are logged; see {@link #isVerbose()}. */
+    public static boolean isDebug() {
+        return currentLogLevel <= DEBUG;
+    }
+
     public static void v(String tag, String msg) {
         if (currentLogLevel <= VERBOSE) {
             Log.v(tag, msg);

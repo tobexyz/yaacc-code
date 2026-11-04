@@ -96,4 +96,14 @@ public class ShareLogRedactorTest {
         String text = "http://h:1/proxying/info and /myproxy/x";
         assertEquals(text, ShareLogRedactor.redact(text));
     }
+
+    @Test
+    public void aContentUriKeepsOnlyItsAuthority() {
+        String redacted = ShareLogRedactor.redact(
+                "Failed to load image: content://com.android.externalstorage.documents/tree/primary%3AMusic/document/primary%3AMusic%2FSecret%20Song.jpg (IOException)");
+        assertEquals("Failed to load image: content://com.android.externalstorage.documents/[redacted] (IOException)",
+                redacted);
+        assertEquals("content://x/[redacted]", ShareLogRedactor.redact("CONTENT://x/SomeName.jpg"));
+        assertEquals("plain text", ShareLogRedactor.redact("plain text"));
+    }
 }

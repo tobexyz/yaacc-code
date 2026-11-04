@@ -102,6 +102,24 @@ public final class ShareService {
      * null after the failure was reported to the user and everything was cleaned up
      */
     public Prepared prepare(PendingShare.Data data, Set<String> receiverIds) {
+        return prepare(data, () -> ShareAddressResolver.resolve(upnpClient, appContext, receiverIds));
+    }
+
+    /** What a share allows is decided before: the addresses of the receivers are fixed at confirm. */
+    private interface Addresses {
+        Set<String> get();
+    }
+
+    /**
+     * Same, with the allowed receiver addresses given (resolved once at the confirm, not at every
+     * later bind: a receiver that changed its address or left the registry must not change what
+     * its share allows).
+     */
+    public Prepared prepareFor(PendingShare.Data data, Set<String> allowedAddresses) {
+        return prepare(data, () -> allowedAddresses);
+    }
+
+    private Prepared prepare(PendingShare.Data data, Addresses addresses) {
         Yaacc yaacc = (Yaacc) appContext;
         ShareRegistry registry = yaacc.getShareRegistry();
         PositionalSource source = null;
@@ -125,7 +143,7 @@ public final class ShareService {
                 return null;
             }
             ShareRegistry.Entry entry = new ShareRegistry.Entry(ShareRegistry.Kind.LOCAL_FILE, source,
-                    data.getMimeType(), ShareAddressResolver.resolve(upnpClient, appContext, receiverIds),
+                    data.getMimeType(), addresses.get(),
                     ShareLimits.IDLE_GRACE_MILLIS, ShareLimits.ABSOLUTE_MAX_MILLIS);
             key = registry.registerOrEvict(entry);
             if (key == null) {

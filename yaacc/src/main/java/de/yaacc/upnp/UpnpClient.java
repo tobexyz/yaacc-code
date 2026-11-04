@@ -1441,6 +1441,24 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         return players;
     }
 
+    /**
+     * Creates the players of a picked queue on the stored receiver selection (one player per receiver
+     * and media type, see {@link PlayerService#createQueuePlayers}); worker thread. Not started.
+     */
+    public List<Player> initializeQueuePlayers(de.yaacc.share.PickedQueue.Result queue) {
+        if (playerService == null && !startService()) {
+            return Collections.emptyList();
+        }
+        if (!waitForPlayerServiceComeUp()) {
+            return Collections.emptyList();
+        }
+        Collection<Device<?, ?, ?>> receivers = awaitReceiverDevices();
+        if (receivers.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return playerService.createQueuePlayers(this, queue, receivers);
+    }
+
     public boolean getMute(Device<?, ?, ?> device) {
         if (device == null) {
             return false;

@@ -38,7 +38,9 @@ import java.util.function.LongSupplier;
  *   <li>single flight: while a folder is being listed, other requests for it wait for that listing
  *   (for at most {@code maxWaitMillis}) instead of starting their own;</li>
  *   <li>values the {@code cacheable} predicate rejects (failed listings) are handed to the waiting
- *   requests but not kept.</li>
+ *   requests but not kept;</li>
+ *   <li>{@link #refresh} lists a folder again although its cached listing is still valid and replaces
+ *   that listing, so a background check leaves the cache as fresh as a request would have.</li>
  * </ul>
  * Thread-safe. No Android types and an injectable clock, so it is testable on the plain JVM.
  *
@@ -83,6 +85,8 @@ public final class SafListingCache<V> {
     // access order: the eldest entry is the least recently used one
     private final LinkedHashMap<String, Slot<V>> slots = new LinkedHashMap<>(16, 0.75f, true);
     private long totalWeight;
+    // counts the clear() calls: a refresh that started before one must not put its listing back
+    private long generation;
 
     public SafListingCache(int maxFolders, long maxTotalWeight, long ttlMillis, long maxWaitMillis,
                            LongSupplier clock, ToIntFunction<V> weigher, Predicate<V> cacheable) {
@@ -146,6 +150,51 @@ public final class SafListingCache<V> {
         return new Result<>(value, false);
     }
 
+    /**
+     * Lists the folder again now, whatever the age of the cached listing, and keeps the result in its place if it
+     * is {@code cacheable}; a listing that is not (or a loader that throws) leaves the cached one alone. If another
+     * thread is just listing the same folder, that listing is awaited and returned instead (it is as fresh).
+     * Requests that come in meanwhile are served the old cached listing, never made to wait for this one.
+     *
+     * @return the new listing; {@code fromCache} is true only if another thread's listing was awaited
+     * @throws TimeoutException if another thread's listing of the same key did not finish in time
+     */
+    public Result<V> refresh(String key, Loader<V> loader) throws Exception {
+        Slot<V> inFlight;
+        long startedAt;
+        synchronized (lock) {
+            inFlight = slots.get(key);
+            if (inFlight != null && inFlight.completed) {
+                inFlight = null;
+            }
+            startedAt = generation;
+        }
+        if (inFlight != null) {
+            return new Result<>(await(inFlight), true);
+        }
+        V value = loader.load();
+        if (cacheable.test(value)) {
+            synchronized (lock) {
+                Slot<V> current = slots.get(key);
+                // not after a clear() (the permission may be gone), not over a request's listing that is under way
+                if (generation == startedAt && (current == null || current.completed)) {
+                    if (current != null) {
+                        remove(key, current);
+                    }
+                    Slot<V> slot = new Slot<>();
+                    slot.completed = true;
+                    slot.loadedAt = clock.getAsLong();
+                    slot.weight = weigher.applyAsInt(value);
+                    slot.future.complete(value);
+                    slots.put(key, slot);
+                    totalWeight += slot.weight;
+                    evictFor(slot);
+                }
+            }
+        }
+        return new Result<>(value, false);
+    }
+
     private V await(Slot<V> slot) throws Exception {
         try {
             return slot.future.get(maxWaitMillis, TimeUnit.MILLISECONDS);
@@ -169,6 +218,7 @@ public final class SafListingCache<V> {
         synchronized (lock) {
             slots.clear();
             totalWeight = 0;
+            generation++;
         }
     }
 
