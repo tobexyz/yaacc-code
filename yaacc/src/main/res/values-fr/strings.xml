@@ -203,4 +203,20 @@
     <string name="yxc_pick_plays_via">joue sur %1$s</string>
     <string name="yxc_picker_end_hint">Décochez tous les appareils pour dissoudre le groupe.</string>
     <string name="yxc_group_volume">Volume du groupe</string>
+    <string name="yxc_action_settings">Réglages de l\'appareil</string>
+    <string name="yxc_setting_power">Allumé</string>
+    <string name="yxc_setting_input">Entrée</string>
+    <string name="yxc_setting_sound_program">Programme sonore</string>
+    <string name="yxc_settings_loading">Chargement …</string>
+    <string name="yxc_settings_failed">Les réglages n\'ont pas pu être lus ou modifiés.</string>
+    <string name="yxc_setting_sleep">Minuterie d\'arrêt</string>
+    <string name="yxc_sleep_off">Désactivée</string>
+    <string name="yxc_sleep_minutes">%1$d min</string>
+    <string name="yxc_setting_equalizer">Égaliseur</string>
+    <string name="yxc_setting_eq_low">Graves</string>
+    <string name="yxc_setting_eq_mid">Médiums</string>
+    <string name="yxc_setting_eq_high">Aigus</string>
+    <string name="yxc_setting_link_control">Contrôle de la liaison</string>
+    <string name="yxc_setting_link_audio_delay">Retard audio de la liaison</string>
+    <string name="yxc_setting_link_audio_quality">Qualité audio de la liaison</string>
 </resources>

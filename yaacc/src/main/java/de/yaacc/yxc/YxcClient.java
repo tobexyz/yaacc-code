@@ -43,6 +43,7 @@ public final class YxcClient {
 
     private static final Pattern ZONE = Pattern.compile("main|zone2|zone3|zone4");
     private static final Pattern GROUP_ID = Pattern.compile("[0-9A-Fa-f]{32}");
+    private static final Pattern TOKEN = Pattern.compile("[A-Za-z0-9_.-]{1,64}");
     private static final Pattern ADDRESS = Pattern.compile("[0-9A-Za-z.:-]{1,64}");
 
     private final YxcTransport transport;
@@ -77,6 +78,11 @@ public final class YxcClient {
         return YxcDistributionInfo.fromJson(get("dist/getDistributionInfo"));
     }
 
+    /** The names of zones, inputs and sound programs as the owner set them. */
+    public YxcNameText getNameText() throws YxcException {
+        return YxcNameText.fromJson(get("system/getNameText"));
+    }
+
     public YxcPlayInfo getPlayInfo() throws YxcException {
         return YxcPlayInfo.fromJson(get("netusb/getPlayInfo"));
     }
@@ -102,9 +108,58 @@ public final class YxcClient {
         get(checkedZone(zone) + "/setMute?enable=" + muted);
     }
 
+    /** @param program an id from the zone's {@code sound_program_list} */
+    public void setSoundProgram(String zone, String program) throws YxcException {
+        get(checkedZone(zone) + "/setSoundProgram?program=" + encode(checkedToken(program)));
+    }
+
+    /** @param minutes {@code 0} (off), {@code 30}, {@code 60}, {@code 90} or {@code 120} */
+    public void setSleep(String zone, int minutes) throws YxcException {
+        if (minutes < 0 || minutes > 120) {
+            throw new IllegalArgumentException("sleep timer out of range");
+        }
+        get(checkedZone(zone) + "/setSleep?sleep=" + minutes);
+    }
+
+    /** @param mode an id from the zone's {@code equalizer_mode_list} */
+    public void setEqualizerMode(String zone, String mode) throws YxcException {
+        get(checkedZone(zone) + "/setEqualizer?mode=" + encode(checkedToken(mode)));
+    }
+
+    /**
+     * Sets one band of the equalizer.
+     *
+     * @param band {@code low}, {@code mid} or {@code high}
+     */
+    public void setEqualizerBand(String zone, String band, int value) throws YxcException {
+        if (!"low".equals(band) && !"mid".equals(band) && !"high".equals(band)) {
+            throw new IllegalArgumentException("not an equalizer band");
+        }
+        get(checkedZone(zone) + "/setEqualizer?" + band + "=" + value);
+    }
+
+    /** @param control an id from the zone's {@code link_control_list} */
+    public void setLinkControl(String zone, String control) throws YxcException {
+        get(checkedZone(zone) + "/setLinkControl?control=" + encode(checkedToken(control)));
+    }
+
+    /** @param delay an id from the zone's {@code link_audio_delay_list} */
+    public void setLinkAudioDelay(String zone, String delay) throws YxcException {
+        get(checkedZone(zone) + "/setLinkAudioDelay?delay=" + encode(checkedToken(delay)));
+    }
+
+    /** @param mode an id from the zone's {@code link_audio_quality_list} */
+    public void setLinkAudioQuality(String zone, String mode) throws YxcException {
+        get(checkedZone(zone) + "/setLinkAudioQuality?mode=" + encode(checkedToken(mode)));
+    }
+
     /** @param mode the mode word, empty for none (the open-source clients send the parameter empty) */
     public void setInput(String zone, String inputId, String mode) throws YxcException {
-        get(checkedZone(zone) + "/setInput?input=" + encode(inputId) + "&mode=" + encode(mode == null ? "" : mode));
+        String checkedMode = mode == null ? "" : mode;
+        if (checkedMode.length() > 64) {
+            throw new IllegalArgumentException("mode too long");
+        }
+        get(checkedZone(zone) + "/setInput?input=" + encode(checkedToken(inputId)) + "&mode=" + encode(checkedMode));
     }
 
     // ---- group calls ("dist")
@@ -235,6 +290,13 @@ public final class YxcClient {
             throw new IllegalArgumentException("not a zone id");
         }
         return zone;
+    }
+
+    private static String checkedToken(String value) {
+        if (value == null || !TOKEN.matcher(value).matches()) {
+            throw new IllegalArgumentException("not an option id");
+        }
+        return value;
     }
 
     private static String checkedGroupId(String groupId) {

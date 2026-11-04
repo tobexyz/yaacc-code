@@ -203,4 +203,20 @@
     <string name="yxc_pick_plays_via">speelt via %1$s</string>
     <string name="yxc_picker_end_hint">Vink alle apparaten uit om de groep op te heffen.</string>
     <string name="yxc_group_volume">Groepsvolume</string>
+    <string name="yxc_action_settings">Apparaatinstellingen</string>
+    <string name="yxc_setting_power">Aan</string>
+    <string name="yxc_setting_input">Ingang</string>
+    <string name="yxc_setting_sound_program">Geluidsprogramma</string>
+    <string name="yxc_settings_loading">Laden …</string>
+    <string name="yxc_settings_failed">De instellingen konden niet worden gelezen of gewijzigd.</string>
+    <string name="yxc_setting_sleep">Slaaptimer</string>
+    <string name="yxc_sleep_off">Uit</string>
+    <string name="yxc_sleep_minutes">%1$d min</string>
+    <string name="yxc_setting_equalizer">Equalizer</string>
+    <string name="yxc_setting_eq_low">Laag</string>
+    <string name="yxc_setting_eq_mid">Midden</string>
+    <string name="yxc_setting_eq_high">Hoog</string>
+    <string name="yxc_setting_link_control">Linkbesturing</string>
+    <string name="yxc_setting_link_audio_delay">Link-audiovertraging</string>
+    <string name="yxc_setting_link_audio_quality">Link-audiokwaliteit</string>
 </resources>

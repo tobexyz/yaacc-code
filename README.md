@@ -43,6 +43,7 @@ in order to play media from your device on any UPnP renderer in your network.
 * Optional single-screen layout with a mini-player (Settings > Appearance > Layout); a fresh install starts in the single screen, an updated installation keeps the classic tabs
 * Sort browsed folders by name or date added, with server-side sorting when supported
 * Control multiple media renderer
+* Yamaha MusicCast devices: link them into a group, group volume, device settings (see the documentation)
 * Allow download files to the device
 * Share a link or one audio, video or image file from another app and play it on the receivers you pick
 * Use your device as an proxy if your media renderer can't process https media URLs
@@ -87,4 +88,4 @@ After the build has finished the debug apk is located in
 
 ## Trademarks
 
-Android and Android TV are trademarks of Google LLC. UPnP and DLNA are trademarks or certification marks of their respective owners; YAACC is not UPnP or DLNA certified. Home Assistant, VLC, Kodi, BubbleUPnP, Windows and the other product and company names mentioned in this documentation are trademarks or registered trademarks of their respective owners and are used only to identify compatible products. YAACC is an independent project and is not affiliated with, authorized or endorsed by any of them.
+Android and Android TV are trademarks of Google LLC. UPnP and DLNA are trademarks or certification marks of their respective owners; YAACC is not UPnP or DLNA certified. Yamaha and MusicCast are trademarks or registered trademarks of Yamaha Corporation. Home Assistant, VLC, Kodi, BubbleUPnP, Windows and the other product and company names mentioned in this documentation are trademarks or registered trademarks of their respective owners and are used only to identify compatible products. YAACC is an independent project and is not affiliated with, authorized or endorsed by any of them.

@@ -90,10 +90,10 @@ public class YxcClientTest {
     @Test
     public void setInputSendsTheEmptyModeLikeTheLibrariesDo() throws Exception {
         client.setInput("main", "mc_link", "");
-        client.setInput("main", "net radio", null);
+        client.setInput("main", "net_radio", "a b");
 
         assertEquals("main/setInput?input=mc_link&mode=", transport.requests.get(0).path);
-        assertEquals("values are URL-encoded", "main/setInput?input=net+radio&mode=", transport.requests.get(1).path);
+        assertEquals("values are URL-encoded", "main/setInput?input=net_radio&mode=a+b", transport.requests.get(1).path);
     }
 
     // ---- group calls
@@ -382,5 +382,90 @@ public class YxcClientTest {
                 assertEquals(YxcException.NONE, expected.getResponseCode());
             }
         }
+    }
+
+    @Test
+    public void theSettingsCallsHaveThePathsOfTheDevices() throws Exception {
+        RecordingTransport transport = new RecordingTransport();
+        YxcClient client = new YxcClient(transport);
+
+        client.setSoundProgram("main", "bass_booster");
+        client.setSleep("main", 60);
+        client.setEqualizerMode("main", "manual");
+        client.setEqualizerBand("main", "low", -3);
+        client.setLinkControl("main", "stability");
+        client.setLinkAudioDelay("main", "audio_sync_on");
+        client.setLinkAudioQuality("main", "compressed");
+
+        assertEquals("main/setSoundProgram?program=bass_booster", transport.requests.get(0).path);
+        assertEquals("main/setSleep?sleep=60", transport.requests.get(1).path);
+        assertEquals("main/setEqualizer?mode=manual", transport.requests.get(2).path);
+        assertEquals("main/setEqualizer?low=-3", transport.requests.get(3).path);
+        assertEquals("main/setLinkControl?control=stability", transport.requests.get(4).path);
+        assertEquals("main/setLinkAudioDelay?delay=audio_sync_on", transport.requests.get(5).path);
+        assertEquals("main/setLinkAudioQuality?mode=compressed", transport.requests.get(6).path);
+    }
+
+    @Test
+    public void badSettingsArgumentsNeverReachTheDevice() throws Exception {
+        RecordingTransport transport = new RecordingTransport();
+        YxcClient client = new YxcClient(transport);
+        int refused = 0;
+        try { client.setSoundProgram("main", "a&b=c"); } catch (IllegalArgumentException e) { refused++; }
+        try { client.setSoundProgram("main", null); } catch (IllegalArgumentException e) { refused++; }
+        try { client.setSleep("main", 500); } catch (IllegalArgumentException e) { refused++; }
+        try { client.setEqualizerBand("main", "bass", 1); } catch (IllegalArgumentException e) { refused++; }
+        try { client.setLinkControl("../main", "x"); } catch (IllegalArgumentException e) { refused++; }
+
+        assertEquals(5, refused);
+        assertTrue(transport.requests.isEmpty());
+    }
+
+    @Test
+    public void theNamesOfTheDeviceAreRead() throws Exception {
+        YxcNameText names = new YxcClient(new RecordingTransport().answer("system/getNameText", YxcFixtures.read("nameText.json")))
+                .getNameText();
+
+        assertEquals("FM Radio", names.inputText("tuner"));
+        assertEquals("Bass+", names.soundProgramText("bass_booster"));
+        assertEquals("Test Room", names.zoneText("main"));
+        assertNull(names.inputText("unknown"));
+        assertNull(YxcNameText.empty().inputText("tuner"));
+    }
+
+    @Test
+    public void theLimitsOfTheSettingsArguments() throws Exception {
+        RecordingTransport transport = new RecordingTransport();
+        YxcClient client = new YxcClient(transport);
+        String longest = new String(new char[64]).replace('\0', 'a');
+
+        client.setSoundProgram("main", longest);
+        client.setSleep("main", 0);
+        client.setSleep("main", 120);
+        int refused = 0;
+        try { client.setSoundProgram("main", longest + "a"); } catch (IllegalArgumentException e) { refused++; }
+        try { client.setSoundProgram("main", ""); } catch (IllegalArgumentException e) { refused++; }
+        try { client.setSleep("main", -1); } catch (IllegalArgumentException e) { refused++; }
+        try { client.setSleep("main", 121); } catch (IllegalArgumentException e) { refused++; }
+
+        assertEquals(4, refused);
+        assertEquals(3, transport.requests.size());
+    }
+
+    @Test
+    public void nameTextWithMissingPartialOrHugeListsIsTolerated() throws Exception {
+        assertNull(new YxcClient(new RecordingTransport().answer("system/getNameText", "{\"response_code\":0}"))
+                .getNameText().inputText("tuner"));
+        assertNull(new YxcClient(new RecordingTransport().answer("system/getNameText",
+                "{\"response_code\":0,\"input_list\":[{\"id\":\"tuner\"},{\"text\":\"x\"}]}")).getNameText().inputText("tuner"));
+        StringBuilder list = new StringBuilder();
+        for (int i = 0; i < 500; i++) {
+            list.append(i == 0 ? "" : ",").append("{\"id\":\"i").append(i).append("\",\"text\":\"n").append(i).append("\"}");
+        }
+        YxcNameText names = new YxcClient(new RecordingTransport().answer("system/getNameText",
+                "{\"response_code\":0,\"input_list\":[" + list + "]}")).getNameText();
+
+        assertEquals("n0", names.inputText("i0"));
+        assertNull("the list is cut at 128 entries", names.inputText("i400"));
     }
 }

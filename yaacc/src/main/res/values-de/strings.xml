@@ -203,4 +203,20 @@
     <string name="yxc_pick_plays_via">spielt über %1$s</string>
     <string name="yxc_picker_end_hint">Alle Geräte abwählen, um die Gruppe aufzulösen.</string>
     <string name="yxc_group_volume">Gruppenlautstärke</string>
+    <string name="yxc_action_settings">Geräteeinstellungen</string>
+    <string name="yxc_setting_power">Eingeschaltet</string>
+    <string name="yxc_setting_input">Eingang</string>
+    <string name="yxc_setting_sound_program">Klangprogramm</string>
+    <string name="yxc_settings_loading">Wird geladen …</string>
+    <string name="yxc_settings_failed">Die Einstellungen konnten nicht gelesen oder geändert werden.</string>
+    <string name="yxc_setting_sleep">Einschlaftimer</string>
+    <string name="yxc_sleep_off">Aus</string>
+    <string name="yxc_sleep_minutes">%1$d Min.</string>
+    <string name="yxc_setting_equalizer">Equalizer</string>
+    <string name="yxc_setting_eq_low">Tiefen</string>
+    <string name="yxc_setting_eq_mid">Mitten</string>
+    <string name="yxc_setting_eq_high">Höhen</string>
+    <string name="yxc_setting_link_control">Link-Steuerung</string>
+    <string name="yxc_setting_link_audio_delay">Link-Audioverzögerung</string>
+    <string name="yxc_setting_link_audio_quality">Link-Audioqualität</string>
 </resources>

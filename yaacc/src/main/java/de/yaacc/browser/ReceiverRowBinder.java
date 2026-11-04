@@ -113,6 +113,7 @@ final class ReceiverRowBinder {
         final TextView yxcText;
         final View yxcActions;
         final ImageButton yxcToggle;
+        final ImageButton yxcSettings;
         final SeekBar yxcGroupVolume;
         final TextView yxcGroupVolumeText;
         final TextView volumeText;
@@ -133,6 +134,7 @@ final class ReceiverRowBinder {
             yxcText = itemView.findViewById(R.id.yxc_text);
             yxcActions = itemView.findViewById(R.id.yxc_actions);
             yxcToggle = itemView.findViewById(R.id.yxc_btn_link);
+            yxcSettings = itemView.findViewById(R.id.yxc_btn_settings);
             yxcGroupVolume = itemView.findViewById(R.id.yxc_group_volume);
             yxcGroupVolumeText = itemView.findViewById(R.id.yxc_group_volume_text);
             volumeText = itemView.findViewById(R.id.volume_text);
@@ -476,7 +478,9 @@ final class ReceiverRowBinder {
         boolean unlink = actions.contains(YxcLinkCandidates.Action.UNLINK_GROUP);
         boolean blocked = actions.contains(YxcLinkCandidates.Action.LINK_UNAVAILABLE);
         ImageButton toggle = holder.yxcToggle;
-        holder.yxcActions.setVisibility(link || unlink || blocked ? View.VISIBLE : View.GONE);
+        boolean settingsAvailable = state != null && state.isReachable(); // the settings do not depend on the group
+        holder.yxcActions.setVisibility(link || unlink || blocked || settingsAvailable ? View.VISIBLE : View.GONE);
+        toggle.setVisibility(link || unlink || blocked ? View.VISIBLE : View.GONE);
         toggle.setContentDescription(context.getString(unlink ? R.string.yxc_action_edit_group : R.string.yxc_action_link));
         toggle.setEnabled(!blocked);
         toggle.setAlpha(blocked ? 0.4f : 1f);
@@ -485,7 +489,26 @@ final class ReceiverRowBinder {
                 showLinkDialog(udn); // for a server too: the clients can be unchecked one by one, all of them ends the group
             }
         });
+        bindSettingsButton(holder, udn, state);
         bindGroupVolume(holder, udn, unlink);
+    }
+
+    // the open settings sheet, so that a second tap does not open another one
+    private android.app.Dialog settingsDialog;
+
+    /** The settings icon: shown for a device with group support that answers; it opens the settings sheet. */
+    private void bindSettingsButton(RowViews holder, String udn, YxcDeviceState state) {
+        if (holder.yxcSettings == null) {
+            return;
+        }
+        boolean available = state != null && state.isReachable();
+        holder.yxcSettings.setVisibility(available ? View.VISIBLE : View.GONE);
+        holder.yxcSettings.setOnClickListener(available ? v -> {
+            if (settingsDialog != null && settingsDialog.isShowing()) {
+                return;
+            }
+            settingsDialog = YxcSettingsSheet.show(context, udn, YxcRowText.clean(friendlyName(udn)));
+        } : null);
     }
 
     // The drag of each server's group volume slider, by UDN. It lives here and not in the listener: the row is rebound
@@ -822,6 +845,13 @@ final class ReceiverRowBinder {
         // the group volume pools too: a sheet that is created and destroyed repeatedly must not leave threads behind
         groupVolumeStarter.shutdownNow();
         groupVolumeReaders.shutdownNow();
+        // an open sheet or picker would keep the activity alive
+        if (settingsDialog != null && settingsDialog.isShowing()) {
+            settingsDialog.dismiss();
+        }
+        if (linkDialog != null && linkDialog.isShowing()) {
+            linkDialog.dismiss();
+        }
     }
 
     /**
