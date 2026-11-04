@@ -52,9 +52,24 @@ Rules: tests first for the pure parts; all new strings in values + de/es/fr/nl/p
 - [x] 5.3 Step 2: equalizer (mode, low / mid / high) and sleep timer | model, writer, sheet, strings
 - [x] 5.4 Step 3: link control, audio delay, audio quality | model, writer, sheet, strings
 - [x] 5.5 Review gate: reviewer PASS (cycle 2), security-reviewer PASS (cycle 2).
-- [ ] (later, not asked now) Playback controls / repeat / shuffle of network sources where the device reports them
+- [x] (moved into Group 7 on 2026-11-04) Playback controls / repeat / shuffle of network sources where the device reports them
 
 ## Group 6: Documentation update
 - [x] README / docs: user description with the trademark notice, `docs/tech.md` final, CHANGELOG
   - **Accept**: no stale references; the notice from requirements.md is in place.
   - **Verify**: `grep -r 'TODO\|FIXME\|PLACEHOLDER' README.md docs/ || true` shows nothing plan-related.
+
+## Group 7: Net sources, presets, tuner and more settings (slice 5 in design.md; owner decisions 2026-11-04)
+- [x] 7.0 Captures and experiments by the owner: `capture.sh` (+ presets) while net radio / the tuner play, `source_test.sh` (playback, repeat, shuffle, recall preset, tuner seek) | `capture/`, `docs/tech.md`, `yaacc/src/test/resources/yxc/captured/`
+  - **Accept**: the real answers are in docs/tech.md and scrubbed fixtures; the open points of the slice are answered.
+  - **Verify**: files exist and `scrub.py` ran over them.
+- [x] 7.1 Now playing on the row (`YxcNowPlaying`, tuner play info and preset info in the monitor, row text) | `yxc/`, `browser/`
+  - **Accept**: tests with the captured play infos: text for net radio, streaming, tuner, none for hdmi / off / client; text cleaned and capped.
+- [x] 7.2 Source controls (code done; to try on the owner's devices) (calls, `YxcSourceControls`, icons on the row, row play / pause / stop to the device's source while yaacc plays nothing) | `yxc/`, `browser/`
+  - **Accept**: controls offered only as the play info allows; fresh read before each action; no double send; UPnP transport unchanged while yaacc plays.
+- [x] 7.3 Presets (code done; to try on the owner's devices) (`YxcPresets`, calls, star icon, `YxcPresetsSheet`) | `yxc/`, `browser/`, `res/`
+  - **Accept**: empty slots hidden, recall only of a listed non-empty slot, names cleaned and capped, at most 100.
+- [x] 7.4 (device level only: display brightness and automatic standby; the zone extras wait for a device that lists them) More device settings (dimmer, auto power standby, network standby, tone control, dialogue, subwoofer, switches) | `YxcSettings`, `YxcSettingsWriter`, sheet, strings
+  - **Accept**: only what the device reports; ranges checked with `(value - min) % step == 0`.
+- [x] 7.5 Review gate: reviewer PASS, then security-reviewer PASS | `review.md`, `security-review.md`
+- [x] 7.6 Documentation: README / docs, docs/tech.md as built, CHANGELOG, strings in 7 languages | `README.md`, `docs/`

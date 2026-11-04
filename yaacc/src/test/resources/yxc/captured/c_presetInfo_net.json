@@ -1,0 +1,169 @@
+{
+  "response_code": 0,
+  "preset_info": [
+    {
+      "input": "net_radio",
+      "text": "Test Radio One"
+    },
+    {
+      "input": "unknown",
+      "text": ""
+    },
+    {
+      "input": "spotify",
+      "text": "Test Playlist"
+    },
+    {
+      "input": "unknown",
+      "text": ""
+    },
+    {
+      "input": "unknown",
+      "text": ""
+    },
+    {
+      "input": "unknown",
+      "text": ""
+    },
+    {
+      "input": "unknown",
+      "text": ""
+    },
+    {
+      "input": "unknown",
+      "text": ""
+    },
+    {
+      "input": "unknown",
+      "text": ""
+    },
+    {
+      "input": "unknown",
+      "text": ""
+    },
+    {
+      "input": "unknown",
+      "text": ""
+    },
+    {
+      "input": "unknown",
+      "text": ""
+    },
+    {
+      "input": "unknown",
+      "text": ""
+    },
+    {
+      "input": "unknown",
+      "text": ""
+    },
+    {
+      "input": "unknown",
+      "text": ""
+    },
+    {
+      "input": "unknown",
+      "text": ""
+    },
+    {
+      "input": "unknown",
+      "text": ""
+    },
+    {
+      "input": "unknown",
+      "text": ""
+    },
+    {
+      "input": "unknown",
+      "text": ""
+    },
+    {
+      "input": "unknown",
+      "text": ""
+    },
+    {
+      "input": "unknown",
+      "text": ""
+    },
+    {
+      "input": "unknown",
+      "text": ""
+    },
+    {
+      "input": "unknown",
+      "text": ""
+    },
+    {
+      "input": "unknown",
+      "text": ""
+    },
+    {
+      "input": "unknown",
+      "text": ""
+    },
+    {
+      "input": "unknown",
+      "text": ""
+    },
+    {
+      "input": "unknown",
+      "text": ""
+    },
+    {
+      "input": "unknown",
+      "text": ""
+    },
+    {
+      "input": "unknown",
+      "text": ""
+    },
+    {
+      "input": "unknown",
+      "text": ""
+    },
+    {
+      "input": "unknown",
+      "text": ""
+    },
+    {
+      "input": "unknown",
+      "text": ""
+    },
+    {
+      "input": "unknown",
+      "text": ""
+    },
+    {
+      "input": "unknown",
+      "text": ""
+    },
+    {
+      "input": "unknown",
+      "text": ""
+    },
+    {
+      "input": "unknown",
+      "text": ""
+    },
+    {
+      "input": "unknown",
+      "text": ""
+    },
+    {
+      "input": "unknown",
+      "text": ""
+    },
+    {
+      "input": "unknown",
+      "text": ""
+    },
+    {
+      "input": "unknown",
+      "text": ""
+    }
+  ],
+  "func_list": [
+    "clear",
+    "move"
+  ]
+}

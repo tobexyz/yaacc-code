@@ -196,6 +196,8 @@ public class YxcMonitorTest {
         String status = YxcFixtures.read("captured/c_status_linked_client.json");
         String dist = YxcFixtures.read("captured/c_distInfo_client.json");
         String play = YxcFixtures.read("captured/c_playInfo.json");
+        String tuner = YxcFixtures.read("captured/c_tunerPlayInfo_fm.json");
+        String features = YxcFixtures.read("captured/c_features.json");
 
         @Override
         public String get(String path) throws IOException {
@@ -215,6 +217,10 @@ public class YxcMonitorTest {
                     return dist;
                 case "netusb/getPlayInfo":
                     return play;
+                case "tuner/getPlayInfo":
+                    return tuner;
+                case "system/getFeatures":
+                    return features;
                 default:
                     return "{\"response_code\":3}";
             }
@@ -269,6 +275,62 @@ public class YxcMonitorTest {
         assertTrue(state.isLinkInput());
         assertEquals(YxcDistributionInfo.Role.CLIENT, state.getRole());
         assertEquals("the same state is available without a listener", state, monitor.getState(YXC_UDN));
+    }
+
+    @Test
+    public void theTunerPlayInfoIsReadOnlyWhileTheInputIsTheTuner() {
+        FakeDevice device = yxcDevice();
+        device.status = YxcFixtures.read("captured/c_status_unlinked.json");
+        device.dist = YxcFixtures.read("captured/c_distInfo_none.json");
+
+        monitor.subscribe(listener, watch(YXC_UDN, YXC_URL));
+
+        YxcDeviceState state = last.get(YXC_UDN);
+        assertEquals("tuner", state.getInput());
+        assertEquals(1, device.count("tuner/getPlayInfo"));
+        assertNotNull(state.getTuner());
+        assertEquals("FM 87.55 MHz \u00b7 TEST 1 \u00b7 Test Song - Test Artist", YxcNowPlaying.describe(state));
+    }
+
+    @Test
+    public void aPlayInfoRefreshReadsNeitherTheZoneNorTheGroup() {
+        FakeDevice device = yxcDevice();
+        device.status = YxcFixtures.read("captured/c_status_unlinked.json");
+        device.dist = YxcFixtures.read("captured/c_distInfo_none.json");
+        monitor.subscribe(listener, watch(YXC_UDN, YXC_URL));
+        int zone = device.count("main/getStatus");
+        int dist = device.count("dist/getDistributionInfo");
+        int tuner = device.count("tuner/getPlayInfo");
+
+        monitor.refreshPlayInfoNow(YXC_UDN);
+
+        assertEquals(zone, device.count("main/getStatus"));
+        assertEquals(dist, device.count("dist/getDistributionInfo"));
+        assertEquals("the tuner info is read again while a scan runs", tuner + 1, device.count("tuner/getPlayInfo"));
+    }
+
+    @Test
+    public void theFeaturesAreReadOnceAndGiveTheBandsAndPresetCounts() {
+        FakeDevice device = yxcDevice();
+
+        monitor.subscribe(listener, watch(YXC_UDN, YXC_URL));
+        monitor.refreshNow(YXC_UDN);
+        clock.advance(YxcMonitor.DEBOUNCE_MILLIS + 1);
+
+        assertEquals(1, device.count("system/getFeatures"));
+        YxcSourceCapabilities caps = last.get(YXC_UDN).getCapabilities();
+        assertTrue(caps.hasFm() && caps.hasDab());
+        assertEquals(40, caps.getTunerPresets());
+    }
+
+    @Test
+    public void theTunerPlayInfoIsNotReadWhileAnotherInputIsSelected() {
+        FakeDevice device = yxcDevice();
+
+        monitor.subscribe(listener, watch(YXC_UDN, YXC_URL));
+
+        assertEquals("the device is on the link input", 0, device.count("tuner/getPlayInfo"));
+        assertNull(last.get(YXC_UDN).getTuner());
     }
 
     @Test

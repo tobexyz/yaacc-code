@@ -289,7 +289,7 @@ public final class YxcMonitor {
             if (client == null) {
                 continue;
             }
-            Read result = read(client, EnumSet.of(YxcEventPlan.Refresh.DIST_INFO));
+            Read result = read(client, EnumSet.of(YxcEventPlan.Refresh.DIST_INFO), null, false);
             Notification notification = null;
             synchronized (this) {
                 Watched device = watched.get(udn);
@@ -380,6 +380,17 @@ public final class YxcMonitor {
         Watched device = watched.get(udn);
         if (active && device != null) {
             requestLocked(device, EnumSet.allOf(YxcEventPlan.Refresh.class));
+        }
+    }
+
+    /**
+     * Asks for the play info of one device now (the network source and, on the tuner input, the tuner), for example while
+     * a tuner scan runs: the tuner's own events are not used (they flood). Cheaper than {@link #refreshNow}.
+     */
+    public synchronized void refreshPlayInfoNow(String udn) {
+        Watched device = watched.get(udn);
+        if (active && device != null) {
+            requestLocked(device, EnumSet.of(YxcEventPlan.Refresh.PLAY_INFO));
         }
     }
 
@@ -553,6 +564,8 @@ public final class YxcMonitor {
         while (true) {
             Set<YxcEventPlan.Refresh> what;
             String url;
+            String knownInput;
+            boolean needCapabilities;
             YxcEndpoint endpoint;
             synchronized (this) {
                 if (!active || readGeneration != generation) {
@@ -560,6 +573,8 @@ public final class YxcMonitor {
                 }
                 what = EnumSet.copyOf(device.pending);
                 device.pending.clear();
+                knownInput = device.state.getInput();
+                needCapabilities = device.state.getCapabilities() == null;
                 url = device.descriptorUrl;
                 endpoint = device.endpoint;
             }
@@ -589,7 +604,7 @@ public final class YxcMonitor {
                 }
                 client = device.client;
             }
-            Read result = read(client, what);
+            Read result = read(client, what, knownInput, needCapabilities);
             Notification notification = null;
             boolean again;
             synchronized (this) {
@@ -621,6 +636,9 @@ public final class YxcMonitor {
         YxcPlayInfo playInfo;
         boolean playInfoAsked;
         boolean playInfoMissing;
+        YxcTunerInfo tunerInfo;
+        boolean tunerAsked;
+        YxcSourceCapabilities capabilities;
         boolean unreachable;
 
         YxcDeviceState applyTo(YxcDeviceState state) {
@@ -637,13 +655,29 @@ public final class YxcMonitor {
             if (playInfoAsked) {
                 result = result.withPlayInfo(playInfoMissing ? null : playInfo);
             }
+            if (tunerAsked) {
+                result = result.withTunerInfo(tunerInfo);
+            }
+            if (capabilities != null) {
+                result = result.withCapabilities(capabilities);
+            }
             return result;
         }
     }
 
-    private Read read(YxcClient client, Set<YxcEventPlan.Refresh> what) {
+    private Read read(YxcClient client, Set<YxcEventPlan.Refresh> what, String knownInput, boolean needCapabilities) {
         Read result = new Read();
         try {
+            if (needCapabilities && what.contains(YxcEventPlan.Refresh.ZONE_STATUS)) {
+                // the bands and preset counts do not change: read once
+                try {
+                    result.capabilities = client.getFeatures().getSourceCapabilities();
+                } catch (YxcException e) {
+                    if (isTransportFailure(e)) {
+                        throw e;
+                    }
+                }
+            }
             if (what.contains(YxcEventPlan.Refresh.ZONE_STATUS)) {
                 result.zone = client.getZoneStatus(YxcDeviceState.MAIN_ZONE);
             }
@@ -666,6 +700,19 @@ public final class YxcMonitor {
                         throw e;
                     }
                     result.playInfoMissing = true; // the input has no play info
+                }
+                // the tuner has its own play info; it is read only while the zone input is the tuner
+                String input = result.zone != null ? result.zone.getInput() : knownInput;
+                if (YxcNowPlaying.TUNER_INPUT.equalsIgnoreCase(input)) {
+                    result.tunerAsked = true;
+                    try {
+                        result.tunerInfo = client.getTunerPlayInfo();
+                    } catch (YxcException e) {
+                        if (isTransportFailure(e)) {
+                            throw e;
+                        }
+                        // a device without a tuner block: nothing to show
+                    }
                 }
             }
         } catch (YxcException e) {

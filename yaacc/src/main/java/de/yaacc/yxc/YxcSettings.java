@@ -33,7 +33,11 @@ public final class YxcSettings {
     public enum Id {
         POWER, INPUT, SOUND_PROGRAM,
         SLEEP, EQUALIZER_MODE, EQUALIZER_LOW, EQUALIZER_MID, EQUALIZER_HIGH,
-        LINK_CONTROL, LINK_AUDIO_DELAY, LINK_AUDIO_QUALITY
+        LINK_CONTROL, LINK_AUDIO_DELAY, LINK_AUDIO_QUALITY,
+        /** Device level: the brightness of the display ({@code -1} is automatic where the range allows it). */
+        DIMMER,
+        /** Device level: the device goes to standby by itself after a while without use. */
+        AUTO_POWER_STANDBY
     }
 
     public enum Kind {SWITCH, CHOICE, NUMBER}
@@ -194,6 +198,16 @@ public final class YxcSettings {
      * @return the items, in the order the sheet shows them
      */
     public static List<Item> build(YxcZoneFeatures features, YxcZoneStatus status, YxcNameText names) {
+        return build(features, status, names, null, null);
+    }
+
+    /**
+     * Same with the device-level settings: {@code system} (the functions and the {@code dimmer} range of
+     * {@code getFeatures}) and {@code funcStatus} ({@code system/getFuncStatus}); either may be {@code null}, then there
+     * are none.
+     */
+    public static List<Item> build(YxcZoneFeatures features, YxcZoneStatus status, YxcNameText names, YxcFeatures system,
+                                   YxcFuncStatus funcStatus) {
         List<Item> items = new ArrayList<>();
         if (features == null || status == null) {
             return items;
@@ -230,6 +244,7 @@ public final class YxcSettings {
         addSleep(items, features, status);
         addEqualizer(items, features, status);
         addLink(items, features, status);
+        addDevice(items, system, funcStatus);
         return items;
     }
 
@@ -280,6 +295,24 @@ public final class YxcSettings {
         if (value != null) {
             items.add(new Item(id, Kind.NUMBER, false, Collections.<Option>emptyList(), null, range.getMin(), range.getMax(),
                     range.getStep(), Math.max(range.getMin(), Math.min(range.getMax(), value)), enabled));
+        }
+    }
+
+    private static void addDevice(List<Item> items, YxcFeatures system, YxcFuncStatus funcStatus) {
+        if (system == null || funcStatus == null) {
+            return;
+        }
+        YxcRange range = system.getSystemRange("dimmer");
+        Integer dimmer = funcStatus.getDimmer();
+        if (system.hasSystemFunction("dimmer") && range != null && dimmer != null && range.getStep() > 0
+                && range.getMax() >= range.getMin()
+                && ((long) range.getMax() - range.getMin()) / range.getStep() <= MAX_BAND_STEPS) {
+            items.add(new Item(Id.DIMMER, Kind.NUMBER, false, Collections.<Option>emptyList(), null, range.getMin(),
+                    range.getMax(), range.getStep(), Math.max(range.getMin(), Math.min(range.getMax(), dimmer)), true));
+        }
+        if (system.hasSystemFunction("auto_power_standby") && funcStatus.getAutoPowerStandby() != null) {
+            items.add(new Item(Id.AUTO_POWER_STANDBY, Kind.SWITCH, funcStatus.getAutoPowerStandby(),
+                    Collections.<Option>emptyList(), null));
         }
     }
 

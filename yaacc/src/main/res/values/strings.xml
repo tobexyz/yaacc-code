@@ -206,6 +206,28 @@
     <string name="yxc_pick_plays_via">plays via %1$s</string>
     <string name="yxc_picker_end_hint">Uncheck all devices to end the group.</string>
     <string name="yxc_group_volume">Group volume</string>
+    <string name="yxc_source_repeat">Repeat</string>
+    <string name="yxc_source_shuffle">Shuffle</string>
+    <string name="yxc_source_previous">Previous</string>
+    <string name="yxc_source_next">Next</string>
+    <string name="yxc_source_service_previous">Previous station</string>
+    <string name="yxc_source_service_next">Next station</string>
+    <string name="yxc_source_switch_fm">Switch to FM</string>
+    <string name="yxc_source_switch_dab">Switch to DAB</string>
+    <string name="yxc_band_fm" translatable="false">FM</string>
+    <string name="yxc_band_dab" translatable="false">DAB</string>
+    <string name="yxc_source_step_down">Frequency down (hold to scan)</string>
+    <string name="yxc_source_step_up">Frequency up (hold to scan)</string>
+    <string name="yxc_source_cancel_scan">Stop the scan</string>
+    <string name="yxc_action_presets">Presets and recently played</string>
+    <string name="yxc_presets_recent">Recently played</string>
+    <string name="yxc_presets_net">Presets</string>
+    <string name="yxc_presets_fm">FM presets</string>
+    <string name="yxc_presets_dab">DAB presets</string>
+    <string name="yxc_presets_empty">No presets or recently played stations on this device.</string>
+    <string name="yxc_presets_failed">The presets could not be read.</string>
+    <string name="yxc_presets_changed">The list has changed. Please choose again.</string>
+    <string name="yxc_presets_recall_failed">Switching failed.</string>
     <string name="yxc_action_settings">Device settings</string>
     <string name="yxc_setting_power">Power</string>
     <string name="yxc_setting_input">Input</string>
@@ -219,6 +241,9 @@
     <string name="yxc_setting_eq_low">Low</string>
     <string name="yxc_setting_eq_mid">Mid</string>
     <string name="yxc_setting_eq_high">High</string>
+    <string name="yxc_setting_dimmer">Display brightness</string>
+    <string name="yxc_setting_dimmer_auto">Auto</string>
+    <string name="yxc_setting_auto_power_standby">Automatic standby</string>
     <string name="yxc_setting_link_control">Link control</string>
     <string name="yxc_setting_link_audio_delay">Link audio delay</string>
     <string name="yxc_setting_link_audio_quality">Link audio quality</string>

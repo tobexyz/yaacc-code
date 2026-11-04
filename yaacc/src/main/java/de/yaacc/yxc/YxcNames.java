@@ -23,6 +23,9 @@ public final class YxcNames {
     /** The longest name shown; a device can send much more. */
     public static final int MAX_NAME_CHARS = 48;
 
+    /** The longest text of a "now playing" line (a station and a stream title are longer than a name). */
+    public static final int MAX_TEXT_CHARS = 120;
+
     private YxcNames() {
     }
 
@@ -32,11 +35,16 @@ public final class YxcNames {
      * @return the cleaned text, {@code null} when nothing is left
      */
     public static String clean(String raw) {
+        return clean(raw, MAX_NAME_CHARS);
+    }
+
+    /** Same with another length cap ({@code maxChars} of text, then an ellipsis). */
+    public static String clean(String raw, int maxChars) {
         if (raw == null) {
             return null;
         }
         StringBuilder out = new StringBuilder();
-        for (int i = 0; i < raw.length() && out.length() <= MAX_NAME_CHARS; ) {
+        for (int i = 0; i < raw.length() && out.length() <= maxChars; ) {
             int cp = raw.codePointAt(i);
             i += Character.charCount(cp);
             int type = Character.getType(cp);
@@ -51,6 +59,6 @@ public final class YxcNames {
         if (text.isEmpty()) {
             return null;
         }
-        return text.length() > MAX_NAME_CHARS ? text.substring(0, MAX_NAME_CHARS) + "\u2026" : text;
+        return text.length() > maxChars ? text.substring(0, maxChars) + "\u2026" : text;
     }
 }

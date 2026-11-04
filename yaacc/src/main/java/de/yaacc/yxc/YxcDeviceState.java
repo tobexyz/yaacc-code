@@ -48,13 +48,13 @@ public final class YxcDeviceState {
     private final String groupName;
     private final String groupId;
     private final List<String> clients;
-    private final String playback;
-    private final String artist;
-    private final String track;
+    private final YxcPlayInfo playInfo;
+    private final YxcTunerInfo tuner;
+    private final YxcSourceCapabilities capabilities;
 
     private YxcDeviceState(boolean reachable, String power, String input, String inputText, Integer volume, Integer maxVolume,
                            Boolean mute, YxcDistributionInfo.Role role, String groupName, String groupId, List<String> clients,
-                           String playback, String artist, String track) {
+                           YxcPlayInfo playInfo, YxcTunerInfo tuner, YxcSourceCapabilities capabilities) {
         this.reachable = reachable;
         this.power = power;
         this.input = input;
@@ -66,9 +66,9 @@ public final class YxcDeviceState {
         this.groupName = groupName;
         this.groupId = groupId;
         this.clients = clients;
-        this.playback = playback;
-        this.artist = artist;
-        this.track = track;
+        this.playInfo = playInfo;
+        this.tuner = tuner;
+        this.capabilities = capabilities;
     }
 
     /** Nothing known yet: not reachable, role unknown. */
@@ -78,28 +78,30 @@ public final class YxcDeviceState {
 
     /** The device did not answer; what it said before is dropped except the group, which is kept for the row. */
     public YxcDeviceState unreachable() {
-        return new YxcDeviceState(false, null, null, null, null, null, null, role, groupName, groupId, clients, null, null, null);
+        return new YxcDeviceState(false, null, null, null, null, null, null, role, groupName, groupId, clients, null, null, capabilities);
     }
 
     public YxcDeviceState withZone(YxcZoneStatus status) {
         return new YxcDeviceState(true, status.getPower(), status.getInput(), status.getInputText(), status.getVolume(),
-                status.getMaxVolume(), status.getMute(), role, groupName, groupId, clients, playback, artist, track);
+                status.getMaxVolume(), status.getMute(), role, groupName, groupId, clients, playInfo, tuner, capabilities);
     }
 
     public YxcDeviceState withDistribution(YxcDistributionInfo info) {
         return new YxcDeviceState(true, power, input, inputText, volume, maxVolume, mute, info.getRole(),
                 info.isNullGroup() ? null : info.getGroupName(), info.isNullGroup() ? null : info.getGroupId(),
-                Collections.unmodifiableList(new ArrayList<>(info.getClients())), playback, artist, track);
+                Collections.unmodifiableList(new ArrayList<>(info.getClients())), playInfo, tuner, capabilities);
     }
 
     /** @param info the play info, or {@code null} when the device has none (the row then shows no title) */
     public YxcDeviceState withPlayInfo(YxcPlayInfo info) {
-        if (info == null) {
-            return new YxcDeviceState(reachable, power, input, inputText, volume, maxVolume, mute, role, groupName, groupId, clients,
-                    null, null, null);
-        }
-        return new YxcDeviceState(true, power, input, inputText, volume, maxVolume, mute, role, groupName, groupId, clients,
-                info.getPlayback(), info.getArtist(), info.getTrack());
+        return new YxcDeviceState(info == null ? reachable : true, power, input, inputText, volume, maxVolume, mute, role,
+                groupName, groupId, clients, info, tuner, capabilities);
+    }
+
+    /** @param info the tuner play info, or {@code null} when the device has none or the input is not the tuner */
+    public YxcDeviceState withTunerInfo(YxcTunerInfo info) {
+        return new YxcDeviceState(info == null ? reachable : true, power, input, inputText, volume, maxVolume, mute, role,
+                groupName, groupId, clients, playInfo, info, capabilities);
     }
 
     /**
@@ -118,7 +120,7 @@ public final class YxcDeviceState {
                 block.getVolume() != null ? block.getVolume() : volume,
                 maxVolume,
                 block.getMute() != null ? block.getMute() : mute,
-                role, groupName, groupId, clients, playback, artist, track);
+                role, groupName, groupId, clients, playInfo, tuner, capabilities);
     }
 
     public boolean isReachable() {
@@ -197,28 +199,54 @@ public final class YxcDeviceState {
         return role == YxcDistributionInfo.Role.SERVER ? clients : Collections.<String>emptyList();
     }
 
+    /** @return the play info of the network source, {@code null} if none was read */
+    public YxcPlayInfo getPlayInfo() {
+        return playInfo;
+    }
+
+    /** @param caps what the device says about its sources (read once), {@code null} to forget */
+    public YxcDeviceState withCapabilities(YxcSourceCapabilities caps) {
+        return new YxcDeviceState(reachable, power, input, inputText, volume, maxVolume, mute, role, groupName, groupId, clients,
+                playInfo, tuner, caps);
+    }
+
+    /** @return the bands and preset counts of the sources, {@code null} until the features were read */
+    public YxcSourceCapabilities getCapabilities() {
+        return capabilities;
+    }
+
+    /** @return the play info of the tuner, {@code null} if none was read (only read while the input is the tuner) */
+    public YxcTunerInfo getTuner() {
+        return tuner;
+    }
+
     /** @return {@code play}, {@code pause}, {@code stop} (the words of the device) or {@code null} */
     public String getPlayback() {
-        return playback;
+        return playInfo == null ? null : playInfo.getPlayback();
     }
 
     public String getArtist() {
-        return artist;
+        return playInfo == null ? null : playInfo.getArtist();
     }
 
     public String getTrack() {
-        return track;
+        return playInfo == null ? null : playInfo.getTrack();
     }
 
     /**
-     * Whether the receiver row would look the same: power, input, group and reachability. Volume, mute and the
-     * playing track are kept in the state but not shown yet, so a change of those alone does not need a redraw.
+     * Whether the receiver row would look the same: power, input, group, reachability and the now playing line. Volume
+     * and mute are kept in the state but not shown, and the play time is not part of the line, so a change of those
+     * alone does not need a redraw.
      */
     public boolean sameForRow(YxcDeviceState other) {
         return other != null && reachable == other.reachable && Objects.equals(power, other.power)
                 && Objects.equals(input, other.input) && Objects.equals(inputText, other.inputText)
                 && role == other.role && Objects.equals(groupName, other.groupName)
-                && Objects.equals(groupId, other.groupId) && getClientAddresses().equals(other.getClientAddresses());
+                && Objects.equals(groupId, other.groupId) && getClientAddresses().equals(other.getClientAddresses())
+                && Objects.equals(YxcNowPlaying.describe(this), YxcNowPlaying.describe(other))
+                && YxcSourceControls.available(this).equals(YxcSourceControls.available(other))
+                && Objects.equals(playInfo == null ? null : playInfo.getRepeat(), other.playInfo == null ? null : other.playInfo.getRepeat())
+                && Objects.equals(playInfo == null ? null : playInfo.getShuffle(), other.playInfo == null ? null : other.playInfo.getShuffle());
     }
 
     @Override
@@ -235,14 +263,14 @@ public final class YxcDeviceState {
                 && Objects.equals(inputText, other.inputText)
                 && Objects.equals(volume, other.volume) && Objects.equals(maxVolume, other.maxVolume)
                 && Objects.equals(mute, other.mute) && role == other.role
-                && Objects.equals(groupName, other.groupName) && Objects.equals(playback, other.playback)
-                && Objects.equals(artist, other.artist) && Objects.equals(track, other.track);
+                && Objects.equals(groupName, other.groupName) && Objects.equals(playInfo, other.playInfo)
+                && Objects.equals(tuner, other.tuner) && Objects.equals(capabilities, other.capabilities);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(reachable, power, input, inputText, volume, maxVolume, mute, role, groupName, groupId, clients,
-                playback, artist, track);
+                playInfo, tuner, capabilities);
     }
 
     /** Names and tracks are not part of the text, so a log line does not carry them. */

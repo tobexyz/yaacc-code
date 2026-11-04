@@ -25,6 +25,7 @@ import java.util.Locale;
 
 import de.yaacc.yxc.YxcDeviceState;
 import de.yaacc.yxc.YxcDistributionInfo;
+import de.yaacc.yxc.YxcNowPlaying;
 import de.yaacc.yxc.YxcNames;
 
 /**
@@ -87,7 +88,13 @@ final class YxcRowText {
         if (group != null) {
             parts.add(group);
         }
-        return parts.isEmpty() ? null : String.join(SEPARATOR, parts);
+        if (parts.isEmpty()) {
+            return null;
+        }
+        String status = String.join(SEPARATOR, parts);
+        // what the device plays by itself (a station, a track, the tuner) on a second line
+        String nowPlaying = YxcNowPlaying.describe(state);
+        return nowPlaying == null ? status : status + "\n" + nowPlaying;
     }
 
     private static String groupPart(YxcDeviceState state, Words words, String serverName, List<String> clientNames) {

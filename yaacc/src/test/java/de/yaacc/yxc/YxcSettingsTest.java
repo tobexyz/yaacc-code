@@ -504,4 +504,94 @@ public class YxcSettingsTest {
         assertEquals(0, band.valueAt(400));
         assertEquals("a position beyond the end stays inside", 2000000000, band.valueAt(100000));
     }
+
+    // ---- device level: display brightness and automatic standby (measured 2026-11-04, docs/tech.md)
+
+    private static YxcFeatures system(String device) throws Exception {
+        return new YxcClient(new RecordingTransport().answer("system/getFeatures",
+                YxcFixtures.read("captured/" + device + "_features.json"))).getFeatures();
+    }
+
+    private static YxcFuncStatus funcStatus(String device) throws Exception {
+        return new YxcClient(new RecordingTransport().answer("system/getFuncStatus",
+                YxcFixtures.read("captured/" + device + "_funcStatus.json"))).getFuncStatus();
+    }
+
+    private static List<YxcSettings.Item> withDevice(String device, String status) throws Exception {
+        return YxcSettings.build(features(device), status(status), YxcNameText.empty(), system(device), funcStatus(device));
+    }
+
+    @Test
+    public void theDisplayBrightnessUsesTheRangeOfTheDeviceAndKeepsAutomaticWhereTheRangeHasIt() throws Exception {
+        YxcSettings.Item a = YxcSettings.find(withDevice("a", "a_status_unlinked"), YxcSettings.Id.DIMMER);
+        assertEquals(YxcSettings.Kind.NUMBER, a.getKind());
+        assertEquals(-1, a.getMin());
+        assertEquals(2, a.getMax());
+        assertEquals("a is on automatic", -1, a.getNumber());
+        YxcSettings.Item b = YxcSettings.find(withDevice("b", "b_status_unlinked"), YxcSettings.Id.DIMMER);
+        assertEquals("b has no automatic value", 0, b.getMin());
+        assertEquals(2, b.getNumber());
+        YxcSettings.Item c = YxcSettings.find(withDevice("c", "c_status_unlinked"), YxcSettings.Id.DIMMER);
+        assertEquals(9, c.getMax());
+    }
+
+    @Test
+    public void automaticStandbyIsASwitchWithTheStateOfTheDevice() throws Exception {
+        YxcSettings.Item item = YxcSettings.find(withDevice("a", "a_status_unlinked"), YxcSettings.Id.AUTO_POWER_STANDBY);
+        assertEquals(YxcSettings.Kind.SWITCH, item.getKind());
+        assertTrue(item.isOn());
+    }
+
+    @Test
+    public void withoutTheSystemAnswersThereAreNoDeviceSettings() throws Exception {
+        List<YxcSettings.Item> items = YxcSettings.build(features("a"), status("a_status_unlinked"), YxcNameText.empty());
+        assertNull(YxcSettings.find(items, YxcSettings.Id.DIMMER));
+        assertNull(YxcSettings.find(items, YxcSettings.Id.AUTO_POWER_STANDBY));
+        List<YxcSettings.Item> noStatus = YxcSettings.build(features("a"), status("a_status_unlinked"), YxcNameText.empty(),
+                system("a"), null);
+        assertNull(YxcSettings.find(noStatus, YxcSettings.Id.DIMMER));
+    }
+
+    @Test
+    public void aFunctionTheDeviceDoesNotListGivesNoItem() throws Exception {
+        String features = YxcFixtures.read("captured/a_features.json").replace("\"dimmer\"", "\"dimmer_x\"")
+                .replace("\"auto_power_standby\"", "\"auto_power_standby_x\"");
+        YxcFeatures changed = new YxcClient(new RecordingTransport().answer("system/getFeatures", features)).getFeatures();
+        List<YxcSettings.Item> items = YxcSettings.build(features("a"), status("a_status_unlinked"), YxcNameText.empty(),
+                changed, funcStatus("a"));
+        assertNull(YxcSettings.find(items, YxcSettings.Id.DIMMER));
+        assertNull(YxcSettings.find(items, YxcSettings.Id.AUTO_POWER_STANDBY));
+    }
+
+    @Test
+    public void theBrightnessIsSentOnlyInsideTheRangeAndOnAStep() throws Exception {
+        List<YxcSettings.Item> items = withDevice("b", "b_status_unlinked");
+        RecordingTransport transport = new RecordingTransport();
+        YxcSettingsWriter writer = new YxcSettingsWriter(new YxcClient(transport), "main");
+        writer.setDimmer(items, 1);
+        assertEquals("system/setDimmer?value=1", transport.requests.get(0).path);
+        for (int bad : new int[]{-1, 3, 99}) {
+            try {
+                writer.setDimmer(items, bad);
+                org.junit.Assert.fail("value " + bad + " must be refused");
+            } catch (IllegalArgumentException expected) {
+                // refused before anything is sent
+            }
+        }
+        assertEquals(1, transport.requests.size());
+    }
+
+    @Test
+    public void automaticStandbyIsSentWithTheSwitchValue() throws Exception {
+        List<YxcSettings.Item> items = withDevice("a", "a_status_unlinked");
+        RecordingTransport transport = new RecordingTransport();
+        new YxcSettingsWriter(new YxcClient(transport), "main").setAutoPowerStandby(items, false);
+        assertEquals("system/setAutoPowerStandby?enable=false", transport.requests.get(0).path);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void theDeviceSettingsCannotBeWrittenWhenTheDeviceDoesNotOfferThem() throws Exception {
+        List<YxcSettings.Item> items = YxcSettings.build(features("a"), status("a_status_unlinked"), YxcNameText.empty());
+        new YxcSettingsWriter(new YxcClient(new RecordingTransport()), "main").setDimmer(items, 1);
+    }
 }
