@@ -1,0 +1,14 @@
+{
+  "response_code": 0,
+  "group_id": "00000000000000000000000000000001",
+  "group_name": "scrubbed-group_name",
+  "role": "server",
+  "server_zone": "main",
+  "status": "working",
+  "client_list": [
+    {
+      "ip_address": "192.0.2.1",
+      "data_type": "base"
+    }
+  ]
+}

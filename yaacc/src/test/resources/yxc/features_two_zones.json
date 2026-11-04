@@ -1,0 +1,51 @@
+{
+  "response_code": 0,
+  "system": {
+    "func_list": ["party_mode", "speaker_a", "speaker_b", "dimmer", "invented_future_function"],
+    "input_list": [
+      {"id": "mc_link", "distribution_enable": false, "play_info_type": "none"},
+      {"id": "net_radio", "distribution_enable": true, "play_info_type": "netusb"},
+      {"id": "optical", "distribution_enable": true, "play_info_type": "none"},
+      {"id": "line", "distribution_enable": true, "play_info_type": "none"}
+    ],
+    "range_step": [
+      {"id": "dimmer", "min": -1, "max": 3, "step": 1}
+    ]
+  },
+  "zone": [
+    {
+      "id": "main",
+      "func_list": ["power", "volume", "mute", "sound_program", "equalizer", "tone_control", "pure_direct", "link_control", "link_audio_delay", "link_audio_quality", "invented_zone_function"],
+      "input_list": ["mc_link", "net_radio", "optical", "line"],
+      "sound_program_list": ["straight", "movie", "music"],
+      "equalizer_mode_list": ["manual", "bypass"],
+      "tone_control_mode_list": ["manual", "bypass", "auto"],
+      "link_control_list": ["standard", "stability", "speed"],
+      "link_audio_delay_list": ["balanced", "lip_sync"],
+      "link_audio_quality_list": ["compressed", "uncompressed"],
+      "range_step": [
+        {"id": "volume", "min": 0, "max": 60, "step": 1},
+        {"id": "equalizer", "min": -12, "max": 12, "step": 1},
+        {"id": "tone_control", "min": -6, "max": 6, "step": 2},
+        {"id": "subwoofer_volume", "min": -4, "max": 4, "step": 1}
+      ]
+    },
+    {
+      "id": "zone2",
+      "func_list": ["power", "volume", "mute"],
+      "input_list": ["mc_link", "optical"],
+      "range_step": [
+        {"id": "volume", "min": 1, "max": 61, "step": 2}
+      ]
+    }
+  ],
+  "netusb": {
+    "func_list": ["recall_preset"]
+  },
+  "tuner": {
+    "func_list": ["range"]
+  },
+  "distribution": {
+    "server_zone_list": ["main"]
+  }
+}

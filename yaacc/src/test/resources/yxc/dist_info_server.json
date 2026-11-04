@@ -1,0 +1,11 @@
+{
+  "response_code": 0,
+  "group_id": "0123456789ABCDEF0123456789ABCDEF",
+  "group_name": "Test group",
+  "role": "server",
+  "server_zone": "main",
+  "client_list": [
+    {"ip_address": "192.0.2.12"},
+    {"ip_address": "192.0.2.13"}
+  ]
+}

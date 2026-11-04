@@ -61,6 +61,13 @@ public class ReceiverListFragment extends Fragment implements
         }
     };
 
+    // power, input and group of the receivers that support groups
+    private final YxcRowFeed groupFeed = new YxcRowFeed(udn -> {
+        if (bDeviceAdapter != null) {
+            bDeviceAdapter.onGroupStateChanged(udn);
+        }
+    });
+
     @Override
     public void onResume() {
         super.onResume();
@@ -76,6 +83,7 @@ public class ReceiverListFragment extends Fragment implements
         // Start monitoring when fragment visible
         if (upnpClient != null) {
             RendererStatusMonitor.getShared().subscribe(statusListener, upnpClient.getDevicesProvidingAvTransportService());
+            groupFeed.start(upnpClient.getDevicesProvidingAvTransportService());
             // Re-sort after a short delay to allow status updates to arrive
             if (bDeviceAdapter != null) {
                 new Handler(Looper.getMainLooper()).postDelayed(() -> {
@@ -99,6 +107,7 @@ public class ReceiverListFragment extends Fragment implements
         super.onPause();
         // Stop monitoring when fragment not visible
         RendererStatusMonitor.getShared().unsubscribe(statusListener);
+        groupFeed.stop();
         stopLocalDevicePolling();
         if (bDeviceAdapter != null) {
             bDeviceAdapter.stopLiveVolume();
@@ -183,6 +192,9 @@ public class ReceiverListFragment extends Fragment implements
                         }
                     } else {
                         bDeviceAdapter.setDevices(receiverDevices);
+                    }
+                    if (isResumed()) {
+                        groupFeed.start(receiverDevices); // a receiver that came while the tab is shown is watched too
                     }
                 }
             });

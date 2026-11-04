@@ -1,0 +1,20 @@
+{
+  "response_code": 0,
+  "power": "standby",
+  "sleep": 0,
+  "volume": 27,
+  "mute": false,
+  "max_volume": 60,
+  "input": "tuner",
+  "distribution_enable": true,
+  "equalizer": {
+    "mode": "manual",
+    "low": 0,
+    "mid": 0,
+    "high": 0
+  },
+  "link_control": "stability",
+  "link_audio_delay": "audio_sync_on",
+  "link_audio_quality": "compressed",
+  "disable_flags": 0
+}

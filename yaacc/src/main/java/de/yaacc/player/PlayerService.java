@@ -334,6 +334,8 @@ public class PlayerService extends MediaSessionService {
         if (items.isEmpty()) {
             return resultList;
         }
+        // a client of a group plays what its server plays: the send goes to the server (see YxcPlaybackRedirect)
+        devices = YxcPlayTargets.resolve(upnpClient, devices);
         boolean video = false;
         boolean image = false;
         boolean music = false;
@@ -370,6 +372,8 @@ public class PlayerService extends MediaSessionService {
     public List<Player> createQueuePlayers(UpnpClient upnpClient, PickedQueue.Result queue,
                                            java.util.Collection<Device<?, ?, ?>> devices) {
         List<Player> resultList = new ArrayList<>();
+        // a client of a group plays what its server plays: the send goes to the server (see YxcPlaybackRedirect)
+        devices = YxcPlayTargets.resolve(upnpClient, devices);
         createQueuePlayers(upnpClient, queue.audio(), false, false, true, devices, resultList);
         createQueuePlayers(upnpClient, queue.video(), true, false, false, devices, resultList);
         createQueuePlayers(upnpClient, queue.image(), false, true, false, devices, resultList);

@@ -1,0 +1,13 @@
+{
+  "response_code": 0,
+  "input": "net_radio",
+  "playback": "play",
+  "repeat": "off",
+  "shuffle": "off",
+  "play_time": 12,
+  "total_time": 240,
+  "artist": "Test Artist",
+  "album": "Test Album",
+  "track": "Test Track",
+  "albumart_url": "/art/test.jpg"
+}
