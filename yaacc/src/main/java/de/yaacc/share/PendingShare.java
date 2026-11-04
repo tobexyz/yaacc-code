@@ -75,6 +75,14 @@ public final class PendingShare {
             this.mimeType = mimeType;
         }
 
+        /**
+         * A file of a picked queue (not offered through the intake): the caller has validated the
+         * uri and the type, the name is cleaned here.
+         */
+        public static Data forFile(String uri, String displayName, String mimeType) {
+            return new Data(Kind.FILE, uri, DisplayName.clean(displayName), mimeType == null ? "" : mimeType);
+        }
+
         /** @return whether this is a file or a link, never null */
         public Kind getKind() {
             return kind;

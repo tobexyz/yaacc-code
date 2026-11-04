@@ -175,4 +175,48 @@ public class ShareRegistryEvictionTest {
         assertEquals(0, b.closes.get());
         assertEquals("the registry does not close a target it refused", 0, refused.closes.get());
     }
+
+    @Test
+    public void hasRoomWhileBelowTheMaximum() {
+        assertTrue(registry.hasRoom());
+        register(new Source());
+        assertTrue(registry.hasRoom());
+    }
+
+    @Test
+    public void aFullRegistryOfRunningEntriesHasNoRoom() {
+        register(new Source());
+        register(new Source());
+        assertFalse(registry.hasRoom());
+    }
+
+    @Test
+    public void aFullRegistryWithAReleasedEntryHasRoomBecauseItCanBeEvicted() {
+        String key = register(new Source());
+        register(new Source());
+        assertFalse(registry.hasRoom());
+        registry.release(key);
+        assertTrue(registry.hasRoom());
+    }
+
+    @Test
+    public void aFullRegistryWithAnExpiredEntryHasRoom() {
+        register(new Source());
+        register(new Source());
+        now += ABSOLUTE;
+        assertTrue(registry.hasRoom());
+    }
+
+    @Test
+    public void lookingForRoomChangesNothing() {
+        Source released = new Source();
+        String key = register(released);
+        register(new Source());
+        registry.release(key);
+        assertTrue(registry.hasRoom());
+        assertTrue(registry.hasRoom());
+        assertNotNull(registry.lookup(key));
+        assertEquals(0, released.closes.get());
+        assertEquals(2, registry.size());
+    }
 }

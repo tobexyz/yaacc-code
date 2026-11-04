@@ -64,6 +64,7 @@ public class ServerListFragment extends Fragment implements
     private RecyclerView contentList;
     private BrowseDeviceAdapter bDeviceAdapter;
     private StreamingPermissionHelper streamingPermissionHelper;
+    private LocalPickController localPick;
     private ShutdownTimerController shutdownTimerController;
     private ShutdownTimerController.Display shutdownTimerDisplay;
     // true when the host shows the timer in its toolbar: top-level layout, no timer rows
@@ -86,6 +87,7 @@ public class ServerListFragment extends Fragment implements
     @SuppressLint("NotifyDataSetChanged")
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        localPick = new LocalPickController(this);
         streamingPermissionHelper = new StreamingPermissionHelper(requireContext(), () -> {
             if (bDeviceAdapter != null) {
                 bDeviceAdapter.notifyDataSetChanged();
@@ -154,7 +156,9 @@ public class ServerListFragment extends Fragment implements
                             requestScreenCapturePermission();
                         });
                     }
-                    deviceList.setAdapter(bDeviceAdapter);
+                    // the card "Play from this device" comes directly after the last server
+                    deviceList.setAdapter(new androidx.recyclerview.widget.ConcatAdapter(bDeviceAdapter,
+                            new PickCardAdapter(localPick::pickFiles, localPick::pickFolder)));
                 } else {
                     bDeviceAdapter.setDevices(new LinkedList<>(upnpClient.getDevicesProvidingContentDirectoryService()));
                 }

@@ -219,4 +219,16 @@
     <string name="yxc_setting_link_control">链接控制</string>
     <string name="yxc_setting_link_audio_delay">链接音频延迟</string>
     <string name="yxc_setting_link_audio_quality">链接音频质量</string>
+
+    <string name="pick_description">播放此设备上的内容</string>
+    <string name="pick_files_description">播放此设备上的文件</string>
+    <string name="pick_folder_description">播放此设备上的文件夹</string>
+    <string name="pick_nothing_to_play">未找到音频、视频或图片文件。</string>
+    <string name="pick_skipped_not_media">已跳过（非音频、视频或图片）：%1$d</string>
+    <string name="pick_skipped_over_cap">已播放文件：%1$d，已略过：%2$d</string>
+    <string name="pick_folder_failed">无法读取该文件夹。</string>
+    <string name="pick_picker_failed">无法打开文件选择器。</string>
+    <string name="pick_skipped_unread">部分文件无法读取。</string>
+    <string name="pick_play_failed">无法播放所选文件。</string>
+    <string name="pick_title_files">文件：%1$d</string>
 </resources>

@@ -23,13 +23,17 @@ import java.util.regex.Pattern;
  * Removes share keys from text that is about to be logged. A proxy URL contains the key of the
  * share ({@code /proxy/<key>} or {@code /proxy/<deviceId>/<key>}); everything after
  * {@code /proxy/} (any letter case, slashes possibly percent-encoded) up to the next blank, quote or
- * angle bracket is replaced. Plain Java.
+ * angle bracket is replaced. A {@code content:} uri (a picked document) keeps only its authority:
+ * the path of a document is its name. Plain Java.
  */
 public final class ShareLogRedactor {
 
     // case-insensitive, and also the percent-encoded form of the slashes (%2F)
     private static final Pattern PROXY_PATH =
             Pattern.compile("(?i)(?:/|%2f)proxy(?:/|%2f)[^\\s\"'<>]*");
+
+    // a picked document: its path and name sit in the uri, only the authority is kept
+    private static final Pattern CONTENT_URI = Pattern.compile("(?i)content://([^/\\s\"'<>]*)[^\\s\"'<>]*");
 
     private ShareLogRedactor() {
     }
@@ -39,6 +43,7 @@ public final class ShareLogRedactor {
         if (text == null) {
             return text;
         }
-        return PROXY_PATH.matcher(text).replaceAll("/proxy/[redacted]");
+        String withoutKeys = PROXY_PATH.matcher(text).replaceAll("/proxy/[redacted]");
+        return CONTENT_URI.matcher(withoutKeys).replaceAll("content://$1/[redacted]");
     }
 }
