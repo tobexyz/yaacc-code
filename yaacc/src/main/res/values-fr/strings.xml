@@ -179,4 +179,12 @@
     <string name="repeat_one">Répéter un titre</string>
     <string name="shuffle_off">Lecture aléatoire désactivée</string>
     <string name="shuffle_on">Lecture aléatoire activée</string>
+    <!-- state of a device that speaks the YXC protocol, shown in the receiver row -->
+    <string name="yxc_state_on">Allumé</string>
+    <string name="yxc_state_standby">En veille</string>
+    <string name="yxc_state_unreachable">Injoignable</string>
+    <string name="yxc_group_linked_with">Lié à %1$s</string>
+    <string name="yxc_group_linked">Lié</string>
+    <string name="yxc_group_leader_of">Groupe %1$s</string>
+    <string name="yxc_group_leader">Chef de groupe</string>
 </resources>

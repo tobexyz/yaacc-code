@@ -294,6 +294,14 @@ final class DeviceSheetAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
         }
     }
 
+    /** The power, input or group of a device with group support changed: rebinds that row's status part. */
+    void onGroupStateChanged(String udn) {
+        int position = receiverPosition(udn);
+        if (position != RecyclerView.NO_POSITION) {
+            notifyItemChanged(position, ReceiverRowBinder.PAYLOAD_STATUS);
+        }
+    }
+
     /**
      * Polled while the sheet is open: the local device has no
      * {@code RendererStatusMonitor} feed (same as the Receiver tab's 2 s

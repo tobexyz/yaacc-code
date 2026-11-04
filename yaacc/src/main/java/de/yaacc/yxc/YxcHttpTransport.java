@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
+import java.util.concurrent.ScheduledFuture;
 import java.net.Proxy;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -59,6 +60,7 @@ public final class YxcHttpTransport implements YxcTransport {
     private final int eventPort;
     private final int connectTimeoutMillis;
     private final int readTimeoutMillis;
+    private final long totalMillis;
 
     /** @param eventPort the UDP port events should be pushed to, 0 for none */
     public YxcHttpTransport(String host, int eventPort) {
@@ -66,6 +68,10 @@ public final class YxcHttpTransport implements YxcTransport {
     }
 
     public YxcHttpTransport(String host, int port, int eventPort, int connectTimeoutMillis, int readTimeoutMillis) {
+        this(host, port, eventPort, connectTimeoutMillis, readTimeoutMillis, YxcWatchdog.DEFAULT_TOTAL_MILLIS);
+    }
+
+    YxcHttpTransport(String host, int port, int eventPort, int connectTimeoutMillis, int readTimeoutMillis, long totalMillis) {
         if (port < 1 || port > 65535) {
             throw new IllegalArgumentException("port out of range: " + port);
         }
@@ -79,6 +85,7 @@ public final class YxcHttpTransport implements YxcTransport {
         this.eventPort = eventPort;
         this.connectTimeoutMillis = connectTimeoutMillis;
         this.readTimeoutMillis = readTimeoutMillis;
+        this.totalMillis = totalMillis;
     }
 
     private static String authority(String host, int port) {
@@ -119,6 +126,7 @@ public final class YxcHttpTransport implements YxcTransport {
             throw new IllegalArgumentException("not a relative control path");
         }
         HttpURLConnection connection = (HttpURLConnection) new URL(baseUrl + path).openConnection(Proxy.NO_PROXY);
+        ScheduledFuture<?> watchdog = YxcWatchdog.arm(connection, totalMillis); // headers and body count too
         try {
             connection.setRequestMethod(method);
             connection.setInstanceFollowRedirects(false);
@@ -143,18 +151,22 @@ public final class YxcHttpTransport implements YxcTransport {
                 throw new YxcHttpStatusException(status);
             }
             try (InputStream in = connection.getInputStream()) {
-                return readBounded(in);
+                return readBounded(in, System.nanoTime() + totalMillis * 1_000_000L);
             }
         } finally {
+            watchdog.cancel(false);
             connection.disconnect();
         }
     }
 
-    private static String readBounded(InputStream in) throws IOException {
+    static String readBounded(InputStream in, long deadlineNanos) throws IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         byte[] buffer = new byte[4096];
         int read;
         while ((read = in.read(buffer)) != -1) {
+            if (System.nanoTime() - deadlineNanos > 0) {
+                throw new IOException("answer takes too long");
+            }
             if (out.size() + read > MAX_BODY_BYTES) {
                 throw new IOException("answer larger than " + MAX_BODY_BYTES + " bytes");
             }

@@ -170,6 +170,13 @@ public class YxcEventParserTest {
     }
 
     @Test
+    public void fewBracketsInsideAStringAreHarmless() {
+        YxcEvent event = parser.parse("{\"main\":{\"input\":\"[{[{ a track [{\"}}");
+
+        assertTrue(event.isParsable());
+    }
+
+    @Test
     public void anOversizedDatagramIsUnparsable() {
         StringBuilder big = new StringBuilder("{\"main\":{\"input\":\"");
         for (int i = 0; i <= YxcEventParser.MAX_LENGTH; i++) {
@@ -319,5 +326,116 @@ public class YxcEventParserTest {
         assertTrue(event.getNetUsb().isPlayInfoUpdated());
         assertNull(event.getNetUsb().getPlayTime());
         assertFalse(event.getNetUsb().isPlayQueueUpdated());
+    }
+
+    @Test
+    public void bracketsHiddenInSingleQuotedStringsDoNotHideTheDepth() {
+        // org.json reads 'single quoted' strings; a guard that follows only double quotes would see depth 1
+        String text = "{'a':'\"','b':" + new String(new char[100]).replace('\0', '[') + new String(new char[100]).replace('\0', ']') + ",'c':'\"'}";
+
+        assertFalse(parser.parse(text).isParsable());
+    }
+
+    @Test
+    public void aHugeNestingIsUnparsableAndDoesNotCrash() {
+        String text = new String(new char[4000]).replace('\0', '[');
+
+        assertFalse(parser.parse(text).isParsable());
+        assertFalse(parser.parse("{\"a\":" + text).isParsable());
+    }
+
+    @Test
+    public void closingBracketsInsideStringsDoNotHideTheRealDepth() {
+        String closers = new String(new char[200]).replace('\0', ']');
+        String text = "{\"a\":\"" + closers + "\",\"b\":" + new String(new char[100]).replace('\0', '[')
+                + new String(new char[100]).replace('\0', ']') + "}";
+
+        assertFalse(parser.parse(text).isParsable());
+    }
+
+    // ---- events of a group client (device c, captured while it was linked, unlinked and linked again)
+
+    @Test
+    public void aClientSendsVolumeAndMuteLikeAnyDevice() {
+        assertEquals(Integer.valueOf(26), real("c_event_volume.json").getZones().get("main").getVolume());
+        assertEquals(Boolean.TRUE, real("c_event_mute_on.json").getZones().get("main").getMute());
+        assertEquals(Boolean.FALSE, real("c_event_mute_off.json").getZones().get("main").getMute());
+        assertEquals("00000000000C", real("c_event_volume.json").getDeviceId());
+    }
+
+    @Test
+    public void aClientThatLeavesTheGroupSendsOneDatagramWithTheNewInputAndAllFlags() {
+        YxcEvent event = real("c_event_unlink_input_tuner.json");
+
+        assertEquals("tuner", event.getZones().get("main").getInput());
+        assertTrue(event.getZones().get("main").isStatusUpdated());
+        assertTrue(event.isDistInfoUpdated());
+        assertTrue(event.getNetUsb().isPlayInfoUpdated());
+        assertTrue(event.getNetUsb().isPlayQueueUpdated());
+        assertTrue(event.hasBlock("system"));
+    }
+
+    @Test
+    public void aClientThatJoinsAGroupSendsTheLinkInputTheSameWay() {
+        YxcEvent event = real("c_event_link_input_mc_link.json");
+
+        assertEquals("mc_link", event.getZones().get("main").getInput());
+        assertTrue(event.isDistInfoUpdated());
+    }
+
+    @Test
+    public void aTunerEventIsAFlagOnTheTunerBlockOnly() {
+        YxcEvent event = real("c_event_tuner_play_info_updated.json");
+
+        assertTrue(event.isTunerPlayInfoUpdated());
+        assertTrue(event.getZones().isEmpty());
+        assertNull(event.getNetUsb());
+    }
+
+    @Test
+    public void thePowerEventOfAClientCanCarryTheAccountFlag() {
+        YxcEvent event = real("c_event_power_on_account.json");
+
+        assertEquals("on", event.getZones().get("main").getPower());
+        assertTrue(event.getNetUsb().isAccountUpdated());
+        assertEquals("standby", real("c_event_power_standby.json").getZones().get("main").getPower());
+    }
+
+    @Test
+    public void everyInputChangeOfADeviceCarriesTheInputAndTheStatusFlag() {
+        String[][] inputs = {{"c_event_input_net_radio.json", "net_radio"}, {"c_event_input_bluetooth.json", "bluetooth"},
+                {"c_event_input_cd.json", "cd"}, {"c_event_input_tuner.json", "tuner"}};
+        for (String[] input : inputs) {
+            YxcEvent event = real(input[0]);
+
+            assertEquals(input[1], event.getZones().get("main").getInput());
+            assertTrue(input[0], event.getZones().get("main").isStatusUpdated());
+        }
+    }
+
+    @Test
+    public void thePlayTimeOfAnUnlinkedDeviceStartsAtZeroWithThePlayFlag() {
+        YxcEvent event = real("c_event_play_time_start.json");
+
+        assertEquals(Integer.valueOf(0), event.getNetUsb().getPlayTime());
+        assertTrue(event.getNetUsb().isPlayInfoUpdated());
+    }
+
+    @Test
+    public void aGroupChangeCanComeWithoutAnInputAndWithoutTheQueueFlag() {
+        YxcEvent event = real("c_event_group_flags.json");
+
+        assertTrue(event.isDistInfoUpdated());
+        assertTrue(event.getNetUsb().isPlayInfoUpdated());
+        assertFalse(event.getNetUsb().isPlayQueueUpdated());
+        assertNull(event.getZones().get("main").getInput());
+    }
+
+    @Test
+    public void thePowerOnEventCanComeAlone() {
+        YxcEvent event = real("c_event_power_on.json");
+
+        assertEquals("on", event.getZones().get("main").getPower());
+        assertNull(event.getNetUsb());
     }
 }

@@ -1,4 +1,4 @@
-# Tasks: MusicCast support (#307) - DRAFT, nothing started
+# Tasks: MusicCast support (#307) - slices 1, 1b and 2 done, group link (Group 3) next
 
 Plan: `.claude/specs/2026-11-02-issue307-musiccast/requirements.md` and `design.md`.
 Rules: tests first for the pure parts; all new strings in values + de/es/fr/nl/pt/zh; license headers with a closing ` */`; no brand names in class / package names (`de.yaacc.yxc`); commits carry `(#307)`; verify with `ANDROID_HOME=/root/android-sdk ./gradlew --offline --rerun-tasks :yaacc:cleanTestDebugUnitTest :yaacc:assembleDebug :yaacc:testDebugUnitTest :yaacc:lintDebug`.
@@ -15,11 +15,11 @@ Rules: tests first for the pure parts; all new strings in values + de/es/fr/nl/p
 - [x] Experiment on real devices: does the server's volume propagate to linked clients? (decision 7) | result: NO, not through the API (see design.md); yaacc propagates relatively
 
 ## Group 2: Client, model, discovery, events (P1, read only)
-- [ ] `YxcClient` (HTTP/JSON calls as methods, immutable result objects), tests with a fake YXC server on loopback (Host = localhost, see RangedResponseOverHttpTest) | `yaacc/src/main/java/de/yaacc/yxc/`
-- [ ] `YxcDiscovery`: fetch the UPnP description of each renderer once, detect the control URL, cache per UDN; never talk to addresses that did not come from our own discovery
-- [ ] `YxcModel` (device, zone status, features, group info) + parsing of the fixtures
-- [ ] `YxcEvents`: UDP listener with lifetime rules (start / stop), applies events to the model, polling fallback; tests with a test socket
-- [ ] Show MusicCast status (power, input, group role) in the receiver row of a supported device
+- [x] `YxcClient` (HTTP/JSON calls as methods, immutable result objects), tests with a fake YXC server on loopback (Host = localhost, see RangedResponseOverHttpTest) | `yaacc/src/main/java/de/yaacc/yxc/`
+- [x] `YxcDiscovery` (done: `YxcDiscovery`, `YxcHttpDescriptionFetcher`, `YxcEndpoint`): fetch the UPnP description of each renderer once, detect the control URL, cache per UDN; never talk to addresses that did not come from our own discovery
+- [x] `YxcModel` (done as `YxcDeviceState` + the parsed answers) (device, zone status, features, group info) + parsing of the fixtures
+- [x] `YxcEvents` (done: `YxcEventListener`, `YxcEventPlan`, `YxcMonitor`): UDP listener with lifetime rules (start / stop), applies events to the model, polling fallback; tests with a test socket
+- [x] Show MusicCast status (power, input, group role) in the receiver row (done: `YxcRowText`, `YxcRowFeed`, `yxc_text` in the row; strings in 7 languages) of a supported device
   - **Accept (group)**: with the fixtures the model and the row show the same state as the device; the sheet follows events from the fake server.
 
 ## Group 3: Link and unlink (P2, option A)

@@ -62,3 +62,6 @@
 3. **Picker title:** the exact wording and the translations for the "plays via <server>" hint; the receiver sheet row for a client in option A (badge text).
 4. **Event listener lifetime:** start the UDP listener when the sheet or a player of a supported device is shown, stop after a delay when nothing needs it (battery); the polling interval as the fallback.
 5. **Fixtures:** which captured answers are committed (scrubbed) and how large the set should be.
+
+## Trust rule for events (security review, slice 2)
+Events arrive by UDP and the sender address can be forged on the LAN. They are used for display only. Every later slice that **acts** (link, unlink, volume steps for a group, redirects) must read the device first (`getDistributionInfo`, `getStatus`) and decide on that answer, never on the last event. Answers of a device are untrusted too: depth, size and time of every read are bounded (`YxcJson.parseObject`, `YxcHttpTransport`), names shown in the UI are cleaned (`YxcRowText.clean`).

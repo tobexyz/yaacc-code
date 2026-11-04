@@ -62,12 +62,12 @@ public final class YxcEventParser {
     }
 
     public YxcEvent parse(String text) {
-        if (text == null || text.length() > MAX_LENGTH || nestingDepth(text) > MAX_DEPTH) {
+        if (text == null || text.length() > MAX_LENGTH) {
             return YxcEvent.unparsable();
         }
         JSONObject json;
         try {
-            json = new JSONObject(text);
+            json = YxcJson.parseObject(text, MAX_DEPTH);
         } catch (JSONException | RuntimeException e) {
             return YxcEvent.unparsable();
         }
@@ -122,30 +122,5 @@ public final class YxcEventParser {
         if (block != null) {
             blocks.add(name);
         }
-    }
-
-    /** Maximum nesting of brackets outside of strings. */
-    private static int nestingDepth(String text) {
-        int depth = 0;
-        int max = 0;
-        boolean inString = false;
-        for (int i = 0; i < text.length(); i++) {
-            char c = text.charAt(i);
-            if (inString) {
-                if (c == '\\') {
-                    i++;
-                } else if (c == '"') {
-                    inString = false;
-                }
-            } else if (c == '"') {
-                inString = true;
-            } else if (c == '{' || c == '[') {
-                depth++;
-                max = Math.max(max, depth);
-            } else if (c == '}' || c == ']') {
-                depth--;
-            }
-        }
-        return max;
     }
 }
