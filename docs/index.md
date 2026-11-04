@@ -17,6 +17,7 @@ layout: default
 * Control multiple media renderer
 * Allow download files to the device
 * Share a link (http or https) or one audio, video or image file from another app to YAACC and play it on the receivers you pick, see [Sharing to YAACC](#sharing-to-yaacc)
+* Pick files or a folder of your device and play them on the receivers you pick without serving them constantly, see [Playing files from this device](#playing-files-from-this-device)
 * Use your device as an proxy if your media renderer can't process https media URLs
 * Download files to the device for offline access
 * A Shutdown timer stops the running players and the app after a given time
@@ -398,9 +399,11 @@ items are accepted:
   an address of this phone) or to a link-local address (`169.254.x.x`, `fe80::`)
   are not played; in the new layout the message "Could not play the shared link."
   appears.
-* **One audio, video or image file.** Only a single file is accepted, and the
-  sending app must allow YAACC to read it. Several files, other file types and
-  `file:` shares are ignored.
+* **One audio, video or image file.** Only a single file is accepted from the
+  share menu, and the sending app must allow YAACC to read it. Several files,
+  other file types and `file:` shares are ignored. To play several files or a
+  folder, pick them in YAACC itself, see
+  [Playing files from this device](#playing-files-from-this-device).
 
 What happens next depends on the layout:
 
@@ -431,7 +434,7 @@ while. If the file cannot be opened, the message "Could not play the shared
 file." appears; "Another shared file is still being processed. Try again in a
 moment." means the previous share has not finished.
 
-A shared item is available to the receivers while a player is playing it and for
+A shared item (not files picked in YAACC, see below) is available to the receivers while a player is playing it and for
 10 minutes after that player ended (renderers may still buffer or seek), but at
 most 6 hours. Up to 8 shares can be active at once; if more are tried, "Too many
 active shares. Try again in a moment." appears. Quitting YAACC ends all shares.
@@ -442,6 +445,49 @@ settings: the built-in HTTP server runs whenever the app runs, whatever the
 The address a receiver is given contains a random key. It is kept in memory only
 and is never written to the settings. Who may use it is decided by the setting
 [restrict the media proxy to the chosen receivers](settings/) (on by default).
+
+## Playing files from this device
+
+To play files or a folder of your phone on receivers without serving them
+constantly, use the card "Play from this device" (with the phone icon) directly
+below the servers in the server list. Tapping the card (or pressing the centre key of a D-pad on it) opens the file picker; the card also has two icon buttons:
+
+* The **file** button opens the system file picker; pick one or
+  more audio, video or image files.
+* The **folder** button opens the system folder picker; the files
+  directly inside the folder are used, sub folders are not. On Android 11 and
+  later the system does not let you pick the root of the internal storage or the
+  `Download` folder; pick a folder like `Music` or `Movies` instead.
+
+Then the "Play on…" list opens (see [Choosing receivers](#choosing-receivers-new-layout);
+in the classic layout the receivers selected on the receiver tab are ticked) and
+"OK" starts the playback on exactly the ticked receivers. There is nothing to
+browse: YAACC does not list the content of your phone, and the local server does
+not have to run.
+
+* Only audio, video and image files are played; other files are skipped. A
+  folder is played in name order (numbers in numeric order: `track2` before
+  `track10`), at most 500 files in all; a message says when files were skipped or
+  could not be read.
+* Audio, video and images go to their own players, which start together on each
+  chosen receiver: a folder with songs, a video and photos starts the music
+  player, the video player and the image show at the same time. A receiver that
+  cannot play a kind fails for that player only.
+* This phone plays audio and images straight from the files you picked. For any
+  other receiver (and for video on this phone) a file is offered on the network
+  only while it is the file being played: it gets its own random address when its
+  turn comes and the address stops working as soon as the player moves on, stops
+  or is closed. Only the receiver that plays it may fetch it. A queue needs one
+  such address per player at a time (kinds times receivers), and the active ones
+  are limited to 8 in all, see [Sharing to YAACC](#sharing-to-yaacc).
+* If a file cannot be opened any more (moved, provider gone) it is skipped; after
+  three in a row the player stops and says so.
+* The access the system gives YAACC to the picked files lasts until the device
+  restarts. You can edit the playlist (remove, move) while it plays.
+* The length of a file is read when its turn comes, so receivers can show it and
+  the next file starts after it. If it cannot be read (the provider is slow or
+  the file has no length) the receiver decides when a file has ended.
+* Videos on this phone open in the video app.
 
 ## Media proxy
 
