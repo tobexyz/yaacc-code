@@ -159,4 +159,19 @@ public class YxcDistributionInfoTest {
         assertFalse(YxcDistributionInfo.isNullGroupId("00000000000000000000000000000001"));
         assertEquals(32, YxcDistributionInfo.NULL_GROUP_ID.length());
     }
+
+    @Test
+    public void aHugeClientListIsCutAndLongAddressesAreSkipped() throws Exception {
+        StringBuilder list = new StringBuilder();
+        for (int i = 0; i < 200; i++) {
+            list.append(i == 0 ? "" : ",").append("{\"ip_address\":\"192.0.2.").append(i).append("\"}");
+        }
+        list.append(",{\"ip_address\":\"").append(new String(new char[500]).replace('\0', 'x')).append("\"}");
+        String json = "{\"response_code\":0,\"group_id\":\"00000000000000000000000000000001\",\"role\":\"server\",\"client_list\":["
+                + list + "]}";
+
+        YxcDistributionInfo info = new YxcClient(new RecordingTransport().answer("dist/getDistributionInfo", json)).getDistributionInfo();
+
+        assertEquals(YxcDistributionInfo.MAX_CLIENTS, info.getClients().size());
+    }
 }

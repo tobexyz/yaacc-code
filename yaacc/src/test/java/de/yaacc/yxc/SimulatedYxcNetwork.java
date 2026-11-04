@@ -144,6 +144,11 @@ final class SimulatedYxcNetwork {
         Integer clientMax = 9;
         /** If set, the answer of {@code system/getFeatures} as is. */
         String featuresJson;
+        /**
+         * Like the real devices: a client that left (group id zeros) keeps the role "client" for as long as its input is
+         * the link input; it turns "none" when the input is set to something else.
+         */
+        boolean linkInputKeepsClientRole;
 
         Device(String ip) {
             this.ip = ip;
@@ -173,7 +178,13 @@ final class SimulatedYxcNetwork {
         }
 
         String role() {
-            return server ? "server" : client ? "client" : NOT_LINKED_ROLE_WORD;
+            if (server) {
+                return "server";
+            }
+            if (client || (linkInputKeepsClientRole && YxcZoneFeatures.GROUP_INPUT_ID.equals(input))) {
+                return "client";
+            }
+            return NOT_LINKED_ROLE_WORD;
         }
 
         @Override

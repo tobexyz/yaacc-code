@@ -58,6 +58,11 @@ public final class YxcEventListener implements YxcEventSource {
         return socket.getLocalPort();
     }
 
+    /** @return whether the socket is still open and the thread receives */
+    boolean isOpen() {
+        return !closed && !socket.isClosed();
+    }
+
     @Override
     public void close() {
         closed = true;

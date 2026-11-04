@@ -32,6 +32,7 @@ Playing on several receivers in yaacc today sends the same URL to each one, so t
 ## Non-Goals
 - No MusicCast cloud, no streaming-service logins, no network / Wi-Fi / firmware setup of the device, no clock / alarm.
 - No MusicCast support for devices that do not announce the YXC control URL.
+- No initial connect: yaacc does not add a device to the network or to the manufacturer's app, and does not remove one. It works with devices that are already set up; linking and unlinking only form and dissolve groups (the device stays known to the manufacturer's app).
 
 ## Success Metrics
 - On the owner's real devices: link two devices in the sheet, play a track, both play in sync; unlink; the sheet follows changes made with the MusicCast app (events).

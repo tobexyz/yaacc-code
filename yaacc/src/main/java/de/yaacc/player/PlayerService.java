@@ -327,6 +327,8 @@ public class PlayerService extends MediaSessionService {
         if (items.isEmpty()) {
             return resultList;
         }
+        // a client of a group plays what its server plays: the send goes to the server (see YxcPlaybackRedirect)
+        devices = YxcPlayTargets.resolve(upnpClient, devices);
         boolean video = false;
         boolean image = false;
         boolean music = false;

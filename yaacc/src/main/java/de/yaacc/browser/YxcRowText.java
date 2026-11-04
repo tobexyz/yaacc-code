@@ -19,11 +19,13 @@
 package de.yaacc.browser;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 
 import de.yaacc.yxc.YxcDeviceState;
 import de.yaacc.yxc.YxcDistributionInfo;
+import de.yaacc.yxc.YxcNames;
 
 /**
  * The line a receiver row shows for a device with group support: power, input and group. Pure; the words come in
@@ -43,9 +45,11 @@ final class YxcRowText {
 
         String linked();
 
-        String groupOf(String group);
+        String groupWith(String names);
 
         String groupLeader();
+
+        String noGroupOnLinkInput();
     }
 
     private static final String SEPARATOR = " · ";
@@ -53,8 +57,17 @@ final class YxcRowText {
     private YxcRowText() {
     }
 
-    /** @return the line, or {@code null} when there is nothing to show (no state yet) */
+    /** @return the line, or {@code null} when there is nothing to show (no state yet); the group members are not named */
     static String describe(YxcDeviceState state, Words words) {
+        return describe(state, words, null, Collections.<String>emptyList());
+    }
+
+    /**
+     * @param serverName  the name of the receiver that serves this client's group, {@code null} if it is not known
+     * @param clientNames the names of the receivers a server serves, empty if none is known
+     * @return the line, or {@code null} when there is nothing to show (no state yet)
+     */
+    static String describe(YxcDeviceState state, Words words, String serverName, List<String> clientNames) {
         if (state == null || (!state.isReachable() && state.getRole() == YxcDistributionInfo.Role.UNKNOWN)) {
             return null;
         }
@@ -70,20 +83,32 @@ final class YxcRowText {
                 }
             }
         }
-        String group = groupPart(state, words);
+        String group = groupPart(state, words, serverName, clientNames);
         if (group != null) {
             parts.add(group);
         }
         return parts.isEmpty() ? null : String.join(SEPARATOR, parts);
     }
 
-    private static String groupPart(YxcDeviceState state, Words words) {
-        String name = clean(state.getGroupName());
+    private static String groupPart(YxcDeviceState state, Words words, String serverName, List<String> clientNames) {
         switch (state.getRole()) {
-            case CLIENT:
-                return name == null ? words.linked() : words.linkedWith(name);
-            case SERVER:
-                return name == null ? words.groupLeader() : words.groupOf(name);
+            case CLIENT: {
+                if (state.isStuckClient()) {
+                    return words.noGroupOnLinkInput();
+                }
+                String server = clean(serverName);
+                return server == null ? words.linked() : words.linkedWith(server);
+            }
+            case SERVER: {
+                List<String> names = new ArrayList<>();
+                for (String name : clientNames) {
+                    String cleaned = clean(name);
+                    if (cleaned != null) {
+                        names.add(cleaned);
+                    }
+                }
+                return names.isEmpty() ? words.groupLeader() : words.groupWith(String.join(", ", names));
+            }
             default:
                 return null;
         }
@@ -104,32 +129,10 @@ final class YxcRowText {
     }
 
     /** The longest name shown; a device can send much more. */
-    static final int MAX_NAME_CHARS = 48;
+    static final int MAX_NAME_CHARS = YxcNames.MAX_NAME_CHARS;
 
-    /**
-     * A name from the device made fit for one line of text: control and format characters (line breaks, bidi
-     * overrides) are dropped, the length is capped. {@code null} when nothing is left.
-     */
+    /** A name from the device made fit for one line of text, {@code null} when nothing is left. */
     static String clean(String raw) {
-        if (raw == null) {
-            return null;
-        }
-        StringBuilder out = new StringBuilder();
-        for (int i = 0; i < raw.length() && out.length() <= MAX_NAME_CHARS; ) {
-            int cp = raw.codePointAt(i);
-            i += Character.charCount(cp);
-            int type = Character.getType(cp);
-            if (type == Character.CONTROL || type == Character.FORMAT || type == Character.LINE_SEPARATOR
-                    || type == Character.PARAGRAPH_SEPARATOR || type == Character.UNASSIGNED
-                    || type == Character.PRIVATE_USE || type == Character.SURROGATE) {
-                continue;
-            }
-            out.appendCodePoint(cp);
-        }
-        String text = out.toString().trim();
-        if (text.isEmpty()) {
-            return null;
-        }
-        return text.length() > MAX_NAME_CHARS ? text.substring(0, MAX_NAME_CHARS) + "\u2026" : text;
+        return YxcNames.clean(raw);
     }
 }

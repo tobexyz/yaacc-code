@@ -87,6 +87,21 @@ public final class YxcClient {
         get(checkedZone(zone) + "/setPower?power=" + (on ? "on" : "standby"));
     }
 
+    /**
+     * Sets the volume of a zone to a value of the device's own scale ({@code 0} to the {@code max_volume} of the status).
+     * The devices of a group keep their own volumes, so this changes only this device.
+     */
+    public void setVolume(String zone, int volume) throws YxcException {
+        if (volume < 0) {
+            throw new IllegalArgumentException("volume < 0");
+        }
+        get(checkedZone(zone) + "/setVolume?volume=" + volume);
+    }
+
+    public void setMute(String zone, boolean muted) throws YxcException {
+        get(checkedZone(zone) + "/setMute?enable=" + muted);
+    }
+
     /** @param mode the mode word, empty for none (the open-source clients send the parameter empty) */
     public void setInput(String zone, String inputId, String mode) throws YxcException {
         get(checkedZone(zone) + "/setInput?input=" + encode(inputId) + "&mode=" + encode(mode == null ? "" : mode));

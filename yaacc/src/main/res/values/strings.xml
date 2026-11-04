@@ -188,6 +188,22 @@
     <string name="yxc_state_unreachable">Not reachable</string>
     <string name="yxc_group_linked_with">Linked with %1$s</string>
     <string name="yxc_group_linked">Linked</string>
-    <string name="yxc_group_leader_of">Group %1$s</string>
+    <string name="yxc_group_with">Group with %1$s</string>
+    <string name="yxc_group_stuck">No group, still on the link input</string>
     <string name="yxc_group_leader">Group leader</string>
+    <string name="yxc_action_link">Link devices</string>
+    <string name="yxc_action_edit_group">Edit group</string>
+    <string name="yxc_busy">Changing the group …</string>
+    <string name="yxc_link_none">No other device available</string>
+    <string name="yxc_picker_in_other_group">%1$s (in another group)</string>
+    <string name="yxc_picker_not_reachable">%1$s (not reachable)</string>
+    <string name="yxc_error_validate">This change is not possible. A device may be in another group.</string>
+    <string name="yxc_error_unreachable">%1$s does not answer.</string>
+    <string name="yxc_error_restore">%1$s left the group but could not be switched back to its input.</string>
+    <string name="yxc_error_failed">Changing the group failed at %1$s. Please try again.</string>
+    <string name="yxc_play_redirected">%1$s is linked with %2$s. Playing on %2$s.</string>
+    <string name="yxc_play_refused">%1$s is part of a group whose server is not known. Play on the server of the group instead.</string>
+    <string name="yxc_pick_plays_via">plays via %1$s</string>
+    <string name="yxc_picker_end_hint">Uncheck all devices to end the group.</string>
+    <string name="yxc_group_volume">Group volume</string>
 </resources>

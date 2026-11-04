@@ -88,6 +88,16 @@ public final class YxcHttpTransport implements YxcTransport {
         this.totalMillis = totalMillis;
     }
 
+    /** Whether the host is a name or address this transport accepts (no scope id, no port, no odd characters). */
+    static boolean isUsableHost(String host) {
+        try {
+            authority(host, DEFAULT_PORT);
+            return true;
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+    }
+
     private static String authority(String host, int port) {
         if (host == null) {
             throw new IllegalArgumentException("host is null");

@@ -262,7 +262,7 @@ public final class YxcGroupService {
             return closeGroup(server, info, present);
         }
         for (YxcGroupMember client : present) {
-            leaveQuietly(client);
+            leaveIfMember(client, info.getGroupId());
         }
         List<String> ips = ips(present);
         String zone = zoneOf(server, info);
@@ -281,7 +281,7 @@ public final class YxcGroupService {
     private YxcGroupResult closeGroup(YxcGroupMember server, YxcDistributionInfo info, List<YxcGroupMember> knownMembers) {
         for (YxcGroupMember member : knownMembers) {
             if (info.getClients().contains(member.getIp())) {
-                leaveQuietly(member);
+                leaveIfMember(member, info.getGroupId());
             }
         }
         runWithRetry(YxcGroupResult.Step.CLOSE_GROUP, server.getIp(),
@@ -304,6 +304,23 @@ public final class YxcGroupService {
         runWithRetry(YxcGroupResult.Step.LEAVE_GROUP, member.getIp(),
                 () -> member.getClient().clearClientInfo(),
                 () -> member.getClient().getDistributionInfo().isNullGroup());
+    }
+
+    /**
+     * A server lists its clients, but a list is only a claim: the client leaves only if it reports this group's id
+     * itself (a hostile or confused server must not take a device out of another group). A client that can not be read
+     * is left to the server side.
+     */
+    private void leaveIfMember(YxcGroupMember member, String groupId) {
+        try {
+            YxcDistributionInfo own = member.getClient().getDistributionInfo();
+            if (!sameId(groupId, own.getGroupId())) {
+                return;
+            }
+        } catch (YxcException unreachable) {
+            // not readable: the leave below is tried anyway, the server side removes it in any case
+        }
+        leaveQuietly(member);
     }
 
     /** For a client that may be gone: the server side decides whether the membership ends. */

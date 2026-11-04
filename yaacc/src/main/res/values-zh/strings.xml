@@ -185,6 +185,22 @@
     <string name="yxc_state_unreachable">无法连接</string>
     <string name="yxc_group_linked_with">已与 %1$s 链接</string>
     <string name="yxc_group_linked">已链接</string>
-    <string name="yxc_group_leader_of">群组 %1$s</string>
+    <string name="yxc_group_with">与 %1$s 组成群组</string>
+    <string name="yxc_group_stuck">无群组，仍在链接输入</string>
     <string name="yxc_group_leader">群组主设备</string>
+    <string name="yxc_action_link">链接设备</string>
+    <string name="yxc_action_edit_group">编辑群组</string>
+    <string name="yxc_busy">正在更改群组…</string>
+    <string name="yxc_link_none">没有其他可用设备</string>
+    <string name="yxc_picker_in_other_group">%1$s（在其他群组中）</string>
+    <string name="yxc_picker_not_reachable">%1$s（无法连接）</string>
+    <string name="yxc_error_validate">无法进行此更改。某个设备可能在其他群组中。</string>
+    <string name="yxc_error_unreachable">%1$s 无响应。</string>
+    <string name="yxc_error_restore">%1$s 已退出群组，但无法切回其输入。</string>
+    <string name="yxc_error_failed">更改群组在 %1$s 失败。请重试。</string>
+    <string name="yxc_play_redirected">%1$s 已与 %2$s 链接，将在 %2$s 上播放。</string>
+    <string name="yxc_play_refused">%1$s 属于一个服务器未知的群组。请改在该群组的服务器上播放。</string>
+    <string name="yxc_pick_plays_via">通过 %1$s 播放</string>
+    <string name="yxc_picker_end_hint">取消勾选所有设备即可解散群组。</string>
+    <string name="yxc_group_volume">群组音量</string>
 </resources>

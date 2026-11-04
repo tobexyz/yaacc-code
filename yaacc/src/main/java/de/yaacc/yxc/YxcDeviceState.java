@@ -18,6 +18,9 @@
  */
 package de.yaacc.yxc;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -32,7 +35,7 @@ public final class YxcDeviceState {
     public static final String MAIN_ZONE = "main";
 
     private static final YxcDeviceState UNKNOWN = new YxcDeviceState(false, null, null, null, null, null, null,
-            YxcDistributionInfo.Role.UNKNOWN, null, 0, null, null, null);
+            YxcDistributionInfo.Role.UNKNOWN, null, null, Collections.<String>emptyList(), null, null, null);
 
     private final boolean reachable;
     private final String power;
@@ -43,13 +46,14 @@ public final class YxcDeviceState {
     private final Boolean mute;
     private final YxcDistributionInfo.Role role;
     private final String groupName;
-    private final int clientCount;
+    private final String groupId;
+    private final List<String> clients;
     private final String playback;
     private final String artist;
     private final String track;
 
     private YxcDeviceState(boolean reachable, String power, String input, String inputText, Integer volume, Integer maxVolume,
-                           Boolean mute, YxcDistributionInfo.Role role, String groupName, int clientCount,
+                           Boolean mute, YxcDistributionInfo.Role role, String groupName, String groupId, List<String> clients,
                            String playback, String artist, String track) {
         this.reachable = reachable;
         this.power = power;
@@ -60,7 +64,8 @@ public final class YxcDeviceState {
         this.mute = mute;
         this.role = role;
         this.groupName = groupName;
-        this.clientCount = clientCount;
+        this.groupId = groupId;
+        this.clients = clients;
         this.playback = playback;
         this.artist = artist;
         this.track = track;
@@ -73,26 +78,27 @@ public final class YxcDeviceState {
 
     /** The device did not answer; what it said before is dropped except the group, which is kept for the row. */
     public YxcDeviceState unreachable() {
-        return new YxcDeviceState(false, null, null, null, null, null, null, role, groupName, clientCount, null, null, null);
+        return new YxcDeviceState(false, null, null, null, null, null, null, role, groupName, groupId, clients, null, null, null);
     }
 
     public YxcDeviceState withZone(YxcZoneStatus status) {
         return new YxcDeviceState(true, status.getPower(), status.getInput(), status.getInputText(), status.getVolume(),
-                status.getMaxVolume(), status.getMute(), role, groupName, clientCount, playback, artist, track);
+                status.getMaxVolume(), status.getMute(), role, groupName, groupId, clients, playback, artist, track);
     }
 
     public YxcDeviceState withDistribution(YxcDistributionInfo info) {
         return new YxcDeviceState(true, power, input, inputText, volume, maxVolume, mute, info.getRole(),
-                info.isNullGroup() ? null : info.getGroupName(), info.getClientEntries().size(), playback, artist, track);
+                info.isNullGroup() ? null : info.getGroupName(), info.isNullGroup() ? null : info.getGroupId(),
+                Collections.unmodifiableList(new ArrayList<>(info.getClients())), playback, artist, track);
     }
 
     /** @param info the play info, or {@code null} when the device has none (the row then shows no title) */
     public YxcDeviceState withPlayInfo(YxcPlayInfo info) {
         if (info == null) {
-            return new YxcDeviceState(reachable, power, input, inputText, volume, maxVolume, mute, role, groupName, clientCount,
+            return new YxcDeviceState(reachable, power, input, inputText, volume, maxVolume, mute, role, groupName, groupId, clients,
                     null, null, null);
         }
-        return new YxcDeviceState(true, power, input, inputText, volume, maxVolume, mute, role, groupName, clientCount,
+        return new YxcDeviceState(true, power, input, inputText, volume, maxVolume, mute, role, groupName, groupId, clients,
                 info.getPlayback(), info.getArtist(), info.getTrack());
     }
 
@@ -112,7 +118,7 @@ public final class YxcDeviceState {
                 block.getVolume() != null ? block.getVolume() : volume,
                 maxVolume,
                 block.getMute() != null ? block.getMute() : mute,
-                role, groupName, clientCount, playback, artist, track);
+                role, groupName, groupId, clients, playback, artist, track);
     }
 
     public boolean isReachable() {
@@ -153,6 +159,14 @@ public final class YxcDeviceState {
         return mute;
     }
 
+    /**
+     * True for a device that left its group but still reports the client role: the group id is zeros and the input is
+     * the link input. It stays so until the input is set to something else (docs/tech.md), so it needs a "leave".
+     */
+    public boolean isStuckClient() {
+        return role == YxcDistributionInfo.Role.CLIENT && groupId == null;
+    }
+
     public YxcDistributionInfo.Role getRole() {
         return role;
     }
@@ -164,7 +178,23 @@ public final class YxcDeviceState {
 
     /** @return the number of clients of a server, 0 for other roles */
     public int getClientCount() {
-        return clientCount;
+        return role == YxcDistributionInfo.Role.SERVER ? clients.size() : 0;
+    }
+
+    /**
+     * @return the id of the group the device is in, {@code null} when it is in none. Used to find the other members;
+     * it is not shown.
+     */
+    public String getGroupId() {
+        return groupId;
+    }
+
+    /**
+     * @return the addresses a server lists as its clients (empty for any other role: a client's own list says
+     * nothing useful, see docs/tech.md)
+     */
+    public List<String> getClientAddresses() {
+        return role == YxcDistributionInfo.Role.SERVER ? clients : Collections.<String>emptyList();
     }
 
     /** @return {@code play}, {@code pause}, {@code stop} (the words of the device) or {@code null} */
@@ -187,7 +217,8 @@ public final class YxcDeviceState {
     public boolean sameForRow(YxcDeviceState other) {
         return other != null && reachable == other.reachable && Objects.equals(power, other.power)
                 && Objects.equals(input, other.input) && Objects.equals(inputText, other.inputText)
-                && role == other.role && Objects.equals(groupName, other.groupName);
+                && role == other.role && Objects.equals(groupName, other.groupName)
+                && Objects.equals(groupId, other.groupId) && getClientAddresses().equals(other.getClientAddresses());
     }
 
     @Override
@@ -199,7 +230,7 @@ public final class YxcDeviceState {
             return false;
         }
         YxcDeviceState other = (YxcDeviceState) o;
-        return reachable == other.reachable && clientCount == other.clientCount
+        return reachable == other.reachable && clients.equals(other.clients) && Objects.equals(groupId, other.groupId)
                 && Objects.equals(power, other.power) && Objects.equals(input, other.input)
                 && Objects.equals(inputText, other.inputText)
                 && Objects.equals(volume, other.volume) && Objects.equals(maxVolume, other.maxVolume)
@@ -210,7 +241,7 @@ public final class YxcDeviceState {
 
     @Override
     public int hashCode() {
-        return Objects.hash(reachable, power, input, inputText, volume, maxVolume, mute, role, groupName, clientCount,
+        return Objects.hash(reachable, power, input, inputText, volume, maxVolume, mute, role, groupName, groupId, clients,
                 playback, artist, track);
     }
 

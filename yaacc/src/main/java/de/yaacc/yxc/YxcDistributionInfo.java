@@ -38,6 +38,9 @@ import java.util.Locale;
  */
 public final class YxcDistributionInfo {
     /** The group id of a device that is in no group: 32 zeros. */
+    /** The most clients taken from an answer (the devices allow 9 to 19). */
+    static final int MAX_CLIENTS = 64;
+    static final int MAX_ADDRESS_CHARS = 64;
     public static final String NULL_GROUP_ID = "00000000000000000000000000000000";
 
     public enum Role {NONE, SERVER, CLIENT, UNKNOWN}
@@ -62,8 +65,11 @@ public final class YxcDistributionInfo {
         List<YxcDistributionClient> entries = new ArrayList<>();
         List<String> ips = new ArrayList<>();
         for (JSONObject entry : YxcJson.objects(json, "client_list")) {
+            if (entries.size() >= MAX_CLIENTS) {
+                break; // a device lists a handful; the rest of a huge answer is not stored
+            }
             YxcDistributionClient client = YxcDistributionClient.fromJson(entry);
-            if (client != null) {
+            if (client != null && client.getIpAddress() != null && client.getIpAddress().length() <= MAX_ADDRESS_CHARS) {
                 entries.add(client);
                 ips.add(client.getIpAddress());
             }

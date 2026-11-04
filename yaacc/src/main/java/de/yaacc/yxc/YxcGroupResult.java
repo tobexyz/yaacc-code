@@ -43,7 +43,9 @@ public final class YxcGroupResult {
         EXTEND_SERVER,
         /** The server removes clients. */
         REDUCE_SERVER,
-        RENAME
+        RENAME,
+        /** A client that left was put back on its earlier input. */
+        RESTORE_INPUT
     }
 
     private final Outcome outcome;
@@ -65,7 +67,7 @@ public final class YxcGroupResult {
         return new YxcGroupResult(Outcome.SUCCESS, null, null, null, groupId);
     }
 
-    static YxcGroupResult failed(Step step, String deviceIp, String detail) {
+    public static YxcGroupResult failed(Step step, String deviceIp, String detail) {
         return new YxcGroupResult(Outcome.FAILED, step, deviceIp, detail, null);
     }
 

@@ -185,6 +185,22 @@
     <string name="yxc_state_unreachable">Niet bereikbaar</string>
     <string name="yxc_group_linked_with">Gekoppeld aan %1$s</string>
     <string name="yxc_group_linked">Gekoppeld</string>
-    <string name="yxc_group_leader_of">Groep %1$s</string>
+    <string name="yxc_group_with">Groep met %1$s</string>
+    <string name="yxc_group_stuck">Geen groep, nog op de linkingang</string>
     <string name="yxc_group_leader">Groepsleider</string>
+    <string name="yxc_action_link">Apparaten koppelen</string>
+    <string name="yxc_action_edit_group">Groep bewerken</string>
+    <string name="yxc_busy">Groep wordt gewijzigd …</string>
+    <string name="yxc_link_none">Geen ander apparaat beschikbaar</string>
+    <string name="yxc_picker_in_other_group">%1$s (in een andere groep)</string>
+    <string name="yxc_picker_not_reachable">%1$s (niet bereikbaar)</string>
+    <string name="yxc_error_validate">Deze wijziging is niet mogelijk. Een apparaat zit mogelijk in een andere groep.</string>
+    <string name="yxc_error_unreachable">%1$s antwoordt niet.</string>
+    <string name="yxc_error_restore">%1$s heeft de groep verlaten, maar kon niet naar zijn ingang terugschakelen.</string>
+    <string name="yxc_error_failed">Het wijzigen van de groep is mislukt bij %1$s. Probeer het opnieuw.</string>
+    <string name="yxc_play_redirected">%1$s is gekoppeld aan %2$s. Afspelen op %2$s.</string>
+    <string name="yxc_play_refused">%1$s hoort bij een groep waarvan de server niet bekend is. Speel af op de server van de groep.</string>
+    <string name="yxc_pick_plays_via">speelt via %1$s</string>
+    <string name="yxc_picker_end_hint">Vink alle apparaten uit om de groep op te heffen.</string>
+    <string name="yxc_group_volume">Groepsvolume</string>
 </resources>

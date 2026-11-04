@@ -434,7 +434,10 @@ final class DeviceSheetAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
             // untrusted LAN name: cleaned, plain setText
             String name = MiniPlayerPresenter.cleanText(entry.device == null || entry.device.getDetails() == null
                     ? null : entry.device.getDetails().getFriendlyName());
-            box.setText(name.isEmpty() ? entry.deviceId : name);
+            String label = name.isEmpty() ? entry.deviceId : name;
+            String via = entry.deviceId == null ? null : rowBinder.playsViaServerName(entry.deviceId);
+            // a linked client plays what its server plays: the send goes to the server, the picker says so
+            box.setText(via == null ? label : label + "\n" + box.getContext().getString(R.string.yxc_pick_plays_via, via));
             box.setChecked(picked.contains(entry.deviceId));
             requestFocusIfFirst(position, box);
         } else if (holder instanceof ReceiverHolder) {

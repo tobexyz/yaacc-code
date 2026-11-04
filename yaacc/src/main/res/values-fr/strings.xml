@@ -185,6 +185,22 @@
     <string name="yxc_state_unreachable">Injoignable</string>
     <string name="yxc_group_linked_with">Lié à %1$s</string>
     <string name="yxc_group_linked">Lié</string>
-    <string name="yxc_group_leader_of">Groupe %1$s</string>
+    <string name="yxc_group_with">Groupe avec %1$s</string>
+    <string name="yxc_group_stuck">Sans groupe, encore sur l\'entrée de liaison</string>
     <string name="yxc_group_leader">Chef de groupe</string>
+    <string name="yxc_action_link">Lier les appareils</string>
+    <string name="yxc_action_edit_group">Modifier le groupe</string>
+    <string name="yxc_busy">Modification du groupe …</string>
+    <string name="yxc_link_none">Aucun autre appareil disponible</string>
+    <string name="yxc_picker_in_other_group">%1$s (dans un autre groupe)</string>
+    <string name="yxc_picker_not_reachable">%1$s (injoignable)</string>
+    <string name="yxc_error_validate">Ce changement est impossible. Un appareil est peut-être dans un autre groupe.</string>
+    <string name="yxc_error_unreachable">%1$s ne répond pas.</string>
+    <string name="yxc_error_restore">%1$s a quitté le groupe, mais n\'a pas pu revenir à son entrée.</string>
+    <string name="yxc_error_failed">Le changement du groupe a échoué sur %1$s. Veuillez réessayer.</string>
+    <string name="yxc_play_redirected">%1$s est lié à %2$s. Lecture sur %2$s.</string>
+    <string name="yxc_play_refused">%1$s fait partie d\'un groupe dont le serveur est inconnu. Lancez la lecture sur le serveur du groupe.</string>
+    <string name="yxc_pick_plays_via">joue sur %1$s</string>
+    <string name="yxc_picker_end_hint">Décochez tous les appareils pour dissoudre le groupe.</string>
+    <string name="yxc_group_volume">Volume du groupe</string>
 </resources>
