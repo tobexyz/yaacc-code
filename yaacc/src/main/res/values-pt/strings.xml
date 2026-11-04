@@ -179,4 +179,16 @@
     <string name="repeat_one">Repetir um</string>
     <string name="shuffle_off">Aleatório desativado</string>
     <string name="shuffle_on">Aleatório ativado</string>
+
+    <string name="pick_description">Reproduzir deste dispositivo</string>
+    <string name="pick_files_description">Reproduzir ficheiros deste dispositivo</string>
+    <string name="pick_folder_description">Reproduzir uma pasta deste dispositivo</string>
+    <string name="pick_nothing_to_play">Não foram encontrados ficheiros de áudio, vídeo ou imagem.</string>
+    <string name="pick_skipped_not_media">Ignorados (nem áudio, nem vídeo, nem imagem): %1$d</string>
+    <string name="pick_skipped_over_cap">Ficheiros reproduzidos: %1$d, deixados de fora: %2$d</string>
+    <string name="pick_folder_failed">Não foi possível ler a pasta.</string>
+    <string name="pick_picker_failed">Não foi possível abrir o seletor de ficheiros.</string>
+    <string name="pick_skipped_unread">Alguns ficheiros não puderam ser lidos.</string>
+    <string name="pick_play_failed">Não foi possível reproduzir os ficheiros escolhidos.</string>
+    <string name="pick_title_files">Ficheiros: %1$d</string>
 </resources>

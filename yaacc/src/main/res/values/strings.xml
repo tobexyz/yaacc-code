@@ -182,4 +182,16 @@
     <string name="repeat_one">Repeat one</string>
     <string name="shuffle_off">Shuffle off</string>
     <string name="shuffle_on">Shuffle on</string>
+
+    <string name="pick_description">Play from this device</string>
+    <string name="pick_files_description">Play files from this device</string>
+    <string name="pick_folder_description">Play a folder from this device</string>
+    <string name="pick_nothing_to_play">No audio, video or image files found.</string>
+    <string name="pick_skipped_not_media">Skipped (not audio, video or image): %1$d</string>
+    <string name="pick_skipped_over_cap">Files played: %1$d, left out: %2$d</string>
+    <string name="pick_folder_failed">The folder could not be read.</string>
+    <string name="pick_picker_failed">The file picker could not be opened.</string>
+    <string name="pick_skipped_unread">Some files could not be read.</string>
+    <string name="pick_play_failed">Could not play the picked files.</string>
+    <string name="pick_title_files">Files: %1$d</string>
 </resources>
