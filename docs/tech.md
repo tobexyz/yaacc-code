@@ -2526,6 +2526,185 @@ carries a scope after `%`; `ProxyAccessPolicy.normalize` strips it. The glue sta
 
 - Tapping a non-video item (or "play all") queues the loaded siblings of the item's folder. SAF folders mix images, videos and audio, the media store folders do not. A mixed queue chooses the multi content player, which starts every item with `ACTION_VIEW` and shows the app chooser. `SameMediaKind.of` therefore narrows the queue to the kind (`image`, `audio`, `video` of the first resource's content format) of the tapped item before it is rotated to start there (`ContentListFragment.playAllChildsOfParentFrom` and the server re-browse fallback). A target without a known kind keeps the whole queue.
 
+## Issue #294: ranged answers of large local files never ended
+
+Reported by maitelorf with the analysis and the proposed fix (end the stream in the same `produceData()` call as the last write).
+A request such as `Range: bytes=100000000-100499999` for a local file above 50 MB (or a range above 50 MB) got a body that was shorter
+than `Content-Length` by the part still in the 8 KB buffer, and the connection stayed open until the client timed out (VLC reads the
+end of an MP4 first, so such files failed first).
+
+### What HttpCore 5.3.6 does (read from the bytecode, `javap -p -c` on `httpcore5-5.3.6.jar`; the jar has no sources)
+
+- `AbstractHttp1StreamDuplexer#onOutput`: per output event it calls `produceOutput()` once (which ends in
+  `AsyncServerExchangeHandler.produce(channel)` -> `AsyncEntityProducer.produce(channel)`, also when `available()` is 0), then
+  `isOutputReady()` (offsets 105 and 109). When that is false and the output buffer is empty it clears `OP_WRITE` (offset 158). Nothing
+  asks for output again by itself.
+- `ServerHttp1StreamHandler#isOutputReady` is `exchangeHandler.available() > 0` while the response is in the body state (offset 40).
+- `AbstractBinAsyncEntityProducer#available`: `availableData()` while the state is ACTIVE, else the number of bytes in its internal buffer.
+- `AbstractBinAsyncEntityProducer#produce`: calls `produceData(channel)` exactly once (only in ACTIVE); then, in FLUSHING, flushes the buffer
+  and, when it is empty, sets END_STREAM and ends the stream.
+- The channel handed to `produceData`: `endStream()` -> `streamEnd`: ACTIVE -> FLUSHING, flush, and if the buffer is empty END_STREAM and
+  `endStream()` on the real channel; else the next `produce()` flushes the rest (`available()` is then the buffered byte count).
+- `write(ByteBuffer)` -> `writeData`: a chunk of at most the fragment size (8192 here) goes into the internal buffer and is flushed only when
+  the buffer is full; the call takes the chunk whole or returns 0 when the buffer cannot make room after a partial flush. The return value
+  has to be honored.
+
+### Cause
+
+`createStreamingEntityProducer` returned `availableData() = 0` as soon as `bytesRead >= rangeLength`. The call that wrote the last chunk did
+not end the stream, so `produceData()` was never called again: a partial last chunk stayed in the internal buffer (the client got a multiple
+of 8192 bytes) and `endStream()` never ran (a range whose length is a multiple of 8192 arrived complete but never ended). Reproduced in
+`RangedFileEntityProducerTest` against the unchanged logic: `expected.length=500000 actual.length=499712` (61 * 8192) for the reporter's
+range, `stream ended for bytes=8192-24575` for a multiple of 8192, `actual.length=0` for a range below one chunk, and, with a client that takes
+1000 bytes per write, `actual.length=24384 ... first differed at element [8192]` (a chunk that `write()` did not take was dropped).
+
+### Fix
+
+- `RangedStreamEntityProducer` (new, package-private): a body of `length` bytes from byte `start` of a stream. It ends the stream in the
+  `produceData()` call that writes the last byte; `availableData()` is 8192 until then and does not ask the stream; a chunk the channel did not
+  take is kept and offered first on the next call; the stream is opened by the first `produceData()`, `skip()` is repeated (falling back to
+  `read()`) until `start` is reached, and the stream is closed at the end, on a failed read or write, in `failed()` and in `releaseResources()`.
+  A stream that ends early fails the response instead of ending it with less than the announced length. `isRepeatable()` is false.
+- `RangedFileEntityProducer` (new): the same over a `FileInputStream` of a local file; first used for files above 50 MB (or a range above
+  50 MB), since the follow-up below for every ranged request of a local file.
+- `RangeWindow` (new): which bytes one `Range` entry selects. `bytes=0-0` is the first byte (an end of 0 used to mean "no end"), an end beyond
+  the file is clipped, a suffix longer than the file is the whole file, a range that selects nothing (start at or beyond the size, end below start,
+  suffix 0, empty file) has length 0 and the body ends at once (before: a negative length). The `Content-Range` header of the handler uses it,
+  so it names the bytes that are sent (before: the end was not clipped and a suffix range was announced as the whole file).
+- `SafContentHolder#getEntityProducer` (SAF documents, with and without range) uses `RangedStreamEntityProducer` and `RangeWindow`. Before, the
+  skip to the start used `skip()` once (it may skip less), `bytes=0-0` served the whole document, and a start beyond the end served the whole
+  document.
+- The `DocumentFile` branch of `ContentHolder#getEntityProducer` without a range reported `input.available()` as available data. That is 0 at
+  the end of a file and for providers that buffer nothing, so by the rule above the last read that ends the stream never happens; it now
+  reports 8192 while the stream is open (as the external URL producer does).
+
+### Verification
+
+`RangedFileEntityProducerTest`, `RangedStreamEntityProducerTest` and `RangeWindowTest` drive the producers the way HttpCore does: one
+`produce()` for the first output event, then `produce()` while `available() > 0`; the body is compared byte for byte and the stream must be ended.
+Cases: the reporter's range in a sparse 120 MB file, a range at the end of the file, a length that is a multiple of 8192 and one that is not,
+below one chunk, the whole file, `bytes=0-0`, an end beyond the file, suffix ranges, a start at or beyond the end, an empty file, a client that
+takes 1000 bytes per write, streams with short reads / short skips / `available() == 0`, and that the input is closed after the body, after a
+failed read or write, and by `failed()` and `releaseResources()`.
+
+### Not covered / left
+
+- Not run on a device or with VLC. The real `DataStreamChannel` was not exercised (the tests use a fake channel with the semantics above).
+- `ContentHolder#readRangeFormFile` (files up to 50 MB, in memory) and the status 206 for every range request: done in the follow-up below.
+- The external URL producer and the `DocumentFile` branch of `ContentHolder` ignore the return value of `write()`, so under back pressure
+  (a client that reads slowly) a chunk can be dropped as shown above. The external URL producer ends its stream correctly (it reads until
+  the origin signals the end, `availableData()` is 8192 while open). Both could use `RangedStreamEntityProducer`.
+
+### Follow-up: 416 and the ranges of files up to 50 MB
+
+#### What `getContentLength()` returns (the status needs the FULL size)
+
+Read for every `ContentHolder` subclass in `YaaccUpnpServerContentHttpHandler`; it is the size of the whole resource, never the length of a range:
+
+| Holder | `getContentLength()` | Note |
+|---|---|---|
+| `ContentHolder`, `byte[]` content (thumbnail, default icon) | `content.length` | |
+| `ContentHolder`, local file path (media store, album art file) | `file.length()` | 0 for an empty file |
+| `ContentHolder`, `http(s)` link | `Content-Length` of a HEAD request to the origin (5 s timeouts), else -1 | one request per call, so the handler asks once (see the plan) |
+| `ContentHolder`, `content:` URI (not a file) | `DocumentFile.fromSingleUri(...).length()`, -1 on an exception | a provider that does not know the size reports 0 |
+| `SafContentHolder` | now `max(0, documentFile.length())` of the document the producer reads (before: a second `fromSingleUri` lookup) | status, `Content-Range` and body come from one size; 0 = unknown size of the provider, a range then gets 416 (before: 206 with an empty body) |
+| `LiveStreamContentHolder` | -1; its `ranges` are always empty | ranges are not supported: answer 200 (before: 206 without `Content-Range` and the whole live stream) |
+| `ByteArrayContentHolder`, `FileContentHolder` | never constructed (dead code) | |
+
+#### `RangeResponsePlan` (plain JVM, `RangeResponsePlanTest`)
+
+`RangeResponsePlan.of(ranges, size)` decides status, `Content-Range` and the window; `ContentHolder#getRangePlan()` computes it once per request from `getContentLength()`
+(so the log line, the status line and the body use one size, and an external link is asked once instead of twice or three times). `handle()` calls `plan.applyTo(responseBuilder)`
+for every holder and sets the entity only if `plan.hasBody()`.
+
+| Request | Size | Answer |
+|---|---|---|
+| no usable `Range` | known or unknown | 200, no `Content-Range`, whole resource |
+| range | unknown (< 0, external link without length) | 206 without `Content-Range`, the range is passed on to the origin (as before) |
+| satisfiable range | known | 206, `Content-Range: bytes first-last/size` of the `RangeWindow` (end clipped, suffix = tail), body = exactly that window |
+| start >= size, `-0`, last < first, any range of an empty resource | known | 416, `Content-Range: bytes */size`, NO entity (`Content-Length: 0`), the resource is not opened |
+
+HEAD gets the same status and headers (HttpCore sends `Content-Length` of the entity and no body; checked over a real server in `RangedResponseOverHttpTest`).
+`Accept-Ranges: bytes` and the DLNA headers are set on every answer of a found resource, a 416 included.
+
+#### Decisions
+
+- **Unit other than `bytes`, unparsable header, a number beyond `long`, header over 1024 characters**: ignored, answer 200. `HttpRange.parseRangeHeader` throws a `RuntimeException`
+  for all of them (also `NumberFormatException`; it matches `bytes=` case-sensitively and does not accept a space after a comma), which used to leave `handle()` with an exception.
+  `RangeResponsePlan.parseHeader` catches it. RFC 9110 14.2 allows ignoring any `Range` header; an unknown unit must be ignored.
+- **Several ranges**: the first one is served as 206 (as before), the others are ignored; no `multipart/byteranges`. If the FIRST one is not satisfiable the answer is 416 even if a later
+  one would be (RFC 9110 14.1.2 would serve that one; not worth a second code path). An external link gets only the first range upstream now (before: all, and an origin may answer multipart).
+- **Last position below the first (`bytes=10-5`)**: 416 (RFC 9110 14.1.1 calls it invalid and lets a server ignore or reject it). `ByteRangeResolver` (shares) ignores it and answers 200.
+- **`If-Range`**: not supported, ignored (the range is served).
+- **Size 0**: an empty resource has no satisfiable range: 416 `bytes */0`. A SAF provider that reports 0 for an unknown size therefore also gets 416.
+- **416 body**: empty (the task asked for no producer; `ProxyShareResponder` sends a short HTML text).
+- **Live streams** answer 200 to a range request (they used to answer 206 without `Content-Range`).
+
+#### Small files
+
+`readRangeFormFile` and the 50 MB branch are removed: every ranged request of a local file uses `RangedFileEntityProducer` with the window of the plan (the file is read in 8 KB steps, no
+heap for the body). Reasons: one behavior for all sizes, less code, no `OutOfMemoryError` risk for a range of up to 50 MB. A body of a normal range is byte for byte what the old code sent where it was
+correct (`SmallFileRangeCompatTest` has a copy of the old code and compares open ranges, suffix ranges up to the file length, an end beyond the file, the whole file); the differences are the old bugs:
+
+| Request (file of 100000 bytes) | Old in-memory body | Now |
+|---|---|---|
+| `bytes=100-199` | 99 bytes under `Content-Range: bytes 100-199/100000` | 100 bytes |
+| `bytes=0-0` | the whole file | 1 byte |
+| `bytes=200000-` | `NegativeArraySizeException` | 416 |
+| `bytes=-900000` (suffix longer than the file) | `IOException` (negative seek) | 206, the whole file |
+| a short `RandomAccessFile.read` | a body padded with zeros | the stream producer reads until the window is full |
+
+Also removed: the 206 text "DocumentFile range requests not implemented" for a `content:` URI (a ranged request now streams the window of the document like `SafContentHolder`) and the full-body answer
+of an in-memory resource (thumbnail) to a range request: it now sends the slice under the `Content-Range` it announces. The file without a range is still `AsyncEntityProducers.create(file)`.
+
+#### Other users of the ranges list
+
+`lookupContent`, `lookupAlbumArt`, `lookupThumbnail` and `lookupSafContent` only pass the list on; all of them reach the plan through `ContentHolder`. `ProxyShareResponder` (shares) uses `ByteRangeResolver`, which already
+answers 200/206/416 with `Content-Range: bytes */size`, `Accept-Ranges` and a short HTML body, and never throws on a header: its 416 handling is the model for the status and header. Not changed.
+Differences kept on purpose: the content handler serves the first of several ranges (the resolver answers 200), treats `last < first` as 416 (the resolver ignores the header), and an unknown size is 206 without
+`Content-Range` in both. `RangeResponsePlan` duplicates the resolver's decision on `HttpRange` objects; unifying both would change those cases for one of the two users and was left.
+
+#### Verification
+
+`RangeResponsePlanTest` (status table, garbage headers), `SmallFileRangeCompatTest` (old vs new body, in-memory slice, live holder), `RangedResponseOverHttpTest` (a real HttpCore 5.3.6 server on the loopback interface built like the
+one of `YaaccUpnpServerService`, raw socket client, the real `ContentHolder`, a 300 kB and a sparse 120 MB file: status line, `Content-Range`, `Content-Length`, body bytes, 416 with and without HEAD, garbage headers, HEAD with a range).
+Not covered by a test: the part of `handle()` before the lookup (path, preferences, MediaStore) and after it, `SafContentHolder` and the `content:` branch (need a device), an external link.
+
+#### curl checks (device; `N-5000` etc. stand for the computed number; `<url>` of a local file below 50 MB (S) and above 50 MB (B); `-i` shows the head, `-s -o /dev/null -w '%{http_code} %{size_download}\n'` the size)
+
+| Request | S (size N) and B (size N) |
+|---|---|
+| `curl -i <url>` | `200 OK`, no `Content-Range`, `Content-Length: N`, N bytes |
+| `curl -i -H 'Range: bytes=0-0' <url>` | `206 Partial Content`, `Content-Range: bytes 0-0/N`, `Content-Length: 1`, 1 byte (same for S and B) |
+| `-H 'Range: bytes=0-99'` | `206`, `bytes 0-99/N`, 100 bytes |
+| `-H 'Range: bytes=100000-100499'` | `206`, `bytes 100000-100499/N`, 500 bytes, connection ends at once |
+| `-H 'Range: bytes=N-5000-'` (open end) | `206`, `bytes N-5000-(N-1)/N`, 5000 bytes |
+| `-H 'Range: bytes=-500'` | `206`, `bytes N-500-(N-1)/N`, 500 bytes |
+| `-H 'Range: bytes=-99999999999'` (suffix > file) | `206`, `bytes 0-(N-1)/N`, N bytes |
+| `-H 'Range: bytes=N-100-N+999999'` (end beyond) | `206`, `bytes N-100-(N-1)/N`, 100 bytes |
+| `-H 'Range: bytes=0-9,20-29'` | `206`, `bytes 0-9/N`, 10 bytes |
+| `-H 'Range: bytes=N-'` or `bytes=N+1000-` | `416 Requested Range Not Satisfiable`, `Content-Range: bytes */N`, `Content-Length: 0`, no body |
+| `-H 'Range: bytes=-0'`, `bytes=10-5` | `416`, `bytes */N`, no body |
+| `-H 'Range: bytes=abc'`, `items=0-5`, `bytes=0-5,x`, `garbage` | `200 OK`, no `Content-Range`, N bytes |
+| `curl -I -H 'Range: bytes=100-199' <url>` (HEAD) | `206`, `bytes 100-199/N`, `Content-Length: 100`, no body |
+| `curl -I -H 'Range: bytes=N-' <url>` (HEAD) | `416`, `bytes */N`, `Content-Length: 0` |
+| `curl -I <url>` (HEAD) | `200`, `Content-Length: N`, no `Content-Range` |
+
+### The `Date` header of the HTTP server (found while testing #294)
+
+A `curl -I` against a phone with the German language showed `Date: So., 01 Nov. 2026 17:55:36 GMT+00:00`. Two causes:
+- **httpcore5 5.3.6** (`HttpDateGenerator`, read with `javap`) builds its formatter with `DateTimeFormatterBuilder.appendPattern("EEE, dd MMM yyyy HH:mm:ss zzz").toFormatter()`,
+  which uses the **default locale** of the device: day and month names in the device language, the zone name as the platform writes it (on Android `GMT+00:00`). RFC 9110 wants the
+  English IMF-fixdate `Sun, 01 Nov 2026 17:55:36 GMT`. Reproduced on the JVM with the default locale `de_DE` (`ServerDateHeaderTest`).
+- **`YaaccUpnpServerProtocolRequestHandler`** (the answers of the UPnP protocol: SOAP, GENA) set `Date` to `System.currentTimeMillis()` as a plain number (`Date: 1793555736000`), and the
+  library keeps a header that is already there. It uses `HttpDates.now()` now.
+
+Fix: `HttpDates.imfFixdate` (fixed English pattern, `Locale.US`, UTC, literal `GMT`, two digit day) and `ServerHttpProcessor`, set with `H2ServerBootstrap.setHttpProcessor`: it adds the `Date`
+before the library's interceptor would. Pitfall found by the loopback test: `setHttpProcessor` gives ONE processor to both protocols, while the default is `HttpProcessors.server()` for HTTP/1.1 and
+`H2Processors.server()` for HTTP/2 (`H2ServerBootstrap.create`, bytecode); the HTTP/2 chain on an HTTP/1.1 connection ends in an empty answer. `ServerHttpProcessor` therefore holds both chains
+(`customServer(null)` = the default ones, same `Server` header) and picks by the protocol version in the context (set by `ServerHttp1StreamHandler` / `ServerH2StreamHandler`).
+Not verified without a device: HTTP/2 on a real connection (the unit test sets the version in the context), and the Android formatting of the old header (read from the report, not reproduced).
+
 ## Play mode (repeat and shuffle per player)
 
 Repeat and shuffle belong to the player, not to the settings. The settings `settings_replay_playlist_chkbx` (default true) and
@@ -3318,3 +3497,24 @@ Implemented in `de.yaacc.yxc` (own code, no library code copied):
 
 - **Volume of a device with group support (2026-11-02):** the generic UPnP volume control of such a device did not change the volume while it was in a group (owner's observation). `UpnpClient.getVolume/setVolume/getMute/setMute/hasActionGet*(device)` therefore go through `YxcVolumeAccess` for devices the monitor knows as YXC devices: the slider's percentage maps onto the device's own scale `0..max_volume` (from `getStatus`), writes are `main/setVolume?volume=<n>` and `main/setMute?enable=<bool>`, the latest value of a device wins while a write is on its way, reads are the zone status. Each device keeps its own volume (the group volume slider of Group 4 comes on top of this).
 - **Group volume (2026-11-02):** a slider on the row of a group server (shown when it serves at least one resolved client) shows the **average** of the members' volumes in percent of each device's own scale (from the states the monitor keeps live) and, while dragged, moves every member by the same number of percentage points from where it was when the drag began, clamped to 0..100 per device (`YxcGroupVolume`); each member is written through `YxcVolumeAccess` (latest value wins). Dragging back restores each member's own level. About 1.5 s after the drag the row is rebound so the slider shows the real average. The slider is refreshed with the row's rebinds (power, input, group changes, end of a drag), not on every volume event.
+
+## Pick and play (#305): platform facts (verified 2026-11-03)
+
+Spec: `.claude/specs/2026-11-03-issue305-pick-and-play/`. Facts below were checked against the pinned versions (androidx.activity 1.8.0 and media3 1.11.1 from the Gradle cache, platform docs for the rest). Nothing here is measured on a device yet.
+
+- **Contracts** (`androidx.activity.result.contract.ActivityResultContracts`, activity 1.8.0, `javap`): `OpenMultipleDocuments` is `ActivityResultContract<String[], List<Uri>>` (input: the MIME type filters), `OpenDocumentTree` is `ActivityResultContract<Uri, Uri>` (input: optional initial uri, result: the tree uri). The app does not use the Activity Result API anywhere yet; existing code uses `startActivityForResult` (`ServerListFragment`, `YaaccUpnpServerControlActivity` for `ACTION_OPEN_DOCUMENT_TREE`). Either is fine; the plan uses the contracts through the fragment because the buttons live in the server list fragment (to be checked in the implementation).
+- **Grant lifetime** (source: https://developer.android.com/training/data-storage/shared/documents-files, "Persist permissions"): the grant of a picked file or tree "lasts until the user's device restarts" unless `takePersistableUriPermission` is called. It belongs to the app, not to the activity that received the result, so a rotation does not end it. This lowers the main risk of the spec; the persistable permission stays as a fallback only. The URIs below a picked tree are reached through the tree (`DocumentsContract.buildDocumentUriUsingTree`, `buildChildDocumentsUriUsingTree`), which the tree grant covers.
+- **Access restrictions** (same page): on Android 11 and later `ACTION_OPEN_DOCUMENT_TREE` cannot grant the root of the internal storage, the root of reliable SD volumes and `Download`; single files cannot be picked in `Android/data` and `Android/obb`. The folder button therefore works for sub folders such as `Music`, `Movies`, `DCIM`; picking single files has no such restriction for `Download` files.
+- **Listing a folder:** `DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, DocumentsContract.getTreeDocumentId(treeUri))` for the folder itself; a query on that uri returns one row per child with `Document.COLUMN_DOCUMENT_ID`, `COLUMN_DISPLAY_NAME`, `COLUMN_MIME_TYPE`, `COLUMN_SIZE` (size may be null); a child is a directory when its mime type is `Document.MIME_TYPE_DIR`. The platform guide warns that iterating a large directory can be slow: the plan caps the rows read (500 media files, plus a cap on rows seen) and bounds the call with the existing provider gate.
+- **ExoPlayer and `content://`:** `androidx.media3.datasource.DefaultDataSource` (media3 1.11.1) routes the `content` scheme to `ContentDataSource` (class present, `content`/`getContentDataSource` strings in `DefaultDataSource`). A picked `content:` URI can therefore be given to the local ExoPlayer directly while the grant is held. To be confirmed on a device (providers differ in seeking support).
+- **Documents guide statement on virtual files:** with `CATEGORY_OPENABLE` virtual files are hidden; the plan uses the contracts' default (`CATEGORY_OPENABLE` for `OpenMultipleDocuments`), so only real files appear.
+
+
+### As built (2026-11-03, reviewed: general review cycle 3 PASS, security review cycle 2 PASS)
+
+- **Flow:** `ServerListFragment` (the card "Play from this device" with a phone icon and two buttons, `PickCardAdapter` in a `ConcatAdapter` directly after the servers) -> `LocalPickController` (`OpenMultipleDocuments` / `OpenDocumentTree` launchers, a static single worker thread) -> `PickedQueue.build` (up to three queues by type, name order, 500 files in all) -> `BrowserHost.pickReceivers` (the same picker, `GuardedPickedAction` and `ActionFlight` as browse actions) -> on confirm `UpnpClient.initializeQueuePlayers` -> `PlayerService.createQueuePlayers` (one player per kind and receiver, every player with its own items) -> `play()` for each.
+- **Checks of what a provider says** (untrusted): `SharedContentPolicy.isAcceptableUri` and `OwnProviders.isOwnAuthority` for every picked uri and the tree; type through `SharedContentPolicy.chooseMimeType`, name through `DisplayName.clean`; picked files probed one bounded call each (`ProviderProbe`, `BoundedCall` with its own gate, 3 s per call, 20 s for all, at most 1000 uris); a folder is one bounded query (15 s, at most 5000 rows, `FolderListing.Row.capped`: id over 1024 chars dropped, name cut at 1024, type over 255 chars dropped); child uris are built on the checked tree uri (`buildDocumentUriUsingTree`), so a provider cannot redirect.
+- **Shares:** `QueueShareWindow` + `Lease` per player, items found by identity; `QueueShareBinder` creates a share when `AbstractPlayer.loadItem(int)` loads an item (one at a time over all players, `BIND_LOCK`; `ShareRegistry.hasRoom` is checked before a file is opened; `ShareService.prepareFor` with the receiver's addresses resolved once at the confirm) and `registry.remove` + `unclaimed.released` removes it when the player moves on (`drop` on stop, `close` on destroy; neither waits for a bind in progress). This phone's audio and image players use the picked `content:` uri directly (`QueueItems.direct`). Queue items start with duration -1 (no next-item timer); when the share of an audio or video file is created `ContentDuration` reads its length with `MediaMetadataRetriever` (one bounded call per provider, 3 s, 1..24 h believed) and the item and its DIDL resource carry it, so a receiver shows the length and the player's timer starts the next item.
+- **Invariants:** SI-1..SI-4, SI-11, SI-13, SI-14, SI-17, SI-18 hold as before (no `ShareLimits` change, no new component, permission or dependency). SI-12: the pick path has its own provider pool and gate (`pick-provider`), so "one call in flight per provider" holds per pool. SI-16: notices are fixed resource texts with numbers; `ShareLogRedactor` reduces a `content:` uri to its authority (the image viewer logs the uri of an image it cannot load). Exception: DEBUG lines of the players print the item title, which for a picked file is its cleaned name (the default log level is ERROR).
+- **Known limitations:** a queue uses one registry slot per player (kinds times receivers, up to 8) and can use all slots; a `application/octet-stream` file of a folder is not played (no guessing from the extension); every failed share toasts (a queue of many missing files shows many); `stop()` and `pause()` are ignored while a share is being created (up to 20 s to open, 5 minutes for a copy); `LocalImagePlayer.setItems` puts all picked uris in one intent extra (a very long list of long uris could exceed the binder limit); a duration that cannot be read leaves the item at -1 (no timer; the receiver's transport state decides); `MediaMetadataRetriever` parses the picked file in native code (a file the user picked, bounded in time, not logged).
+- **Not verified on a device:** the grant of the picked uris during a long background playback and after the app is moved to the background; ExoPlayer reading the picked `content:` uris directly (seeking depends on the provider); the video app on this phone with a share; a mixed folder on two receivers.

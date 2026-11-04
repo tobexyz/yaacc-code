@@ -219,4 +219,16 @@
     <string name="yxc_setting_link_control">Control del enlace</string>
     <string name="yxc_setting_link_audio_delay">Retardo de audio del enlace</string>
     <string name="yxc_setting_link_audio_quality">Calidad de audio del enlace</string>
+
+    <string name="pick_description">Reproducir desde este dispositivo</string>
+    <string name="pick_files_description">Reproducir archivos de este dispositivo</string>
+    <string name="pick_folder_description">Reproducir una carpeta de este dispositivo</string>
+    <string name="pick_nothing_to_play">No se encontraron archivos de audio, vídeo o imagen.</string>
+    <string name="pick_skipped_not_media">Omitidos (ni audio, ni vídeo, ni imagen): %1$d</string>
+    <string name="pick_skipped_over_cap">Archivos reproducidos: %1$d, omitidos: %2$d</string>
+    <string name="pick_folder_failed">No se pudo leer la carpeta.</string>
+    <string name="pick_picker_failed">No se pudo abrir el selector de archivos.</string>
+    <string name="pick_skipped_unread">No se pudieron leer algunos archivos.</string>
+    <string name="pick_play_failed">No se pudieron reproducir los archivos elegidos.</string>
+    <string name="pick_title_files">Archivos: %1$d</string>
 </resources>

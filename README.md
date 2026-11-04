@@ -46,6 +46,7 @@ in order to play media from your device on any UPnP renderer in your network.
 * Yamaha MusicCast devices: link them into a group, group volume, device settings (see the documentation)
 * Allow download files to the device
 * Share a link or one audio, video or image file from another app and play it on the receivers you pick
+* Pick files or a folder of your device and play them on the receivers you pick, each file is offered on the network only while it plays
 * Use your device as an proxy if your media renderer can't process https media URLs
 * Battery optimized with smart WiFi lock and foreground service management
 

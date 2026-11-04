@@ -48,6 +48,13 @@ import java.util.concurrent.ConcurrentHashMap;
 import de.yaacc.R;
 import de.yaacc.Yaacc;
 import de.yaacc.browser.BrowserLauncher;
+import de.yaacc.share.ContentDuration;
+import de.yaacc.share.PickedQueue;
+import de.yaacc.share.QueueItems;
+import de.yaacc.share.QueueShareBinder;
+import de.yaacc.share.QueueShareWindow;
+import de.yaacc.share.ShareAddressResolver;
+import de.yaacc.share.ShareService;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.util.NotificationId;
 import de.yaacc.util.YaaccLogger;
@@ -353,6 +360,83 @@ public class PlayerService extends MediaSessionService {
             }
         }
         return resultList;
+    }
+
+    /**
+     * Creates the players of a picked queue: for each non-empty type (audio, video, image) one player
+     * per receiver, every player with its own items. This phone plays audio and images straight from
+     * the picked {@code content:} uris; every other player gets placeholder items whose files are
+     * shared just in time (current and next item) for exactly its receiver and released again.
+     * The players are not started.
+     */
+    public List<Player> createQueuePlayers(UpnpClient upnpClient, PickedQueue.Result queue,
+                                           java.util.Collection<Device<?, ?, ?>> devices) {
+        List<Player> resultList = new ArrayList<>();
+        // a client of a group plays what its server plays: the send goes to the server (see YxcPlaybackRedirect)
+        devices = YxcPlayTargets.resolve(upnpClient, devices);
+        createQueuePlayers(upnpClient, queue.audio(), false, false, true, devices, resultList);
+        createQueuePlayers(upnpClient, queue.video(), true, false, false, devices, resultList);
+        createQueuePlayers(upnpClient, queue.image(), false, true, false, devices, resultList);
+        return resultList;
+    }
+
+    private void createQueuePlayers(UpnpClient upnpClient, List<PickedQueue.Entry> entries, boolean video,
+                                    boolean image, boolean music, java.util.Collection<Device<?, ?, ?>> devices,
+                                    List<Player> resultList) {
+        if (entries.isEmpty()) {
+            return;
+        }
+        for (Device<?, ?, ?> device : devices) {
+            String deviceId = device.getIdentity().getUdn().getIdentifierString();
+            boolean local = UpnpClient.LOCAL_UID.equals(deviceId);
+            // this phone reads its own audio and images with the grant of the app, no share needed
+            boolean direct = local && !video;
+            QueueItems.Built built = direct ? QueueItems.direct(entries) : QueueItems.placeholders(entries);
+            if (built.items().isEmpty()) {
+                continue;
+            }
+            Player player = createPlayer(upnpClient, device, video, image, music);
+            if (player == null) {
+                continue;
+            }
+            if (!direct && player instanceof AbstractPlayer) {
+                // what the share allows is decided now, at the confirm, not at every later bind
+                java.util.Set<String> addresses = ShareAddressResolver.resolve(upnpClient,
+                        getApplicationContext(), java.util.Collections.singleton(deviceId));
+                ShareService shareService = new ShareService(getApplicationContext(), upnpClient);
+                QueueShareWindow window = new QueueShareWindow(built.items(),
+                        new QueueShareBinder(built.entries(), built.items(), addresses,
+                                shareService::prepareFor, queueShareKeys(),
+                                entry -> ContentDuration.read(getApplicationContext(), entry.getUri(),
+                                        entry.getMimeType())));
+                ((AbstractPlayer) player).setShareLease(window.newLease());
+            }
+            addPlayer(player);
+            player.setItems(built.items().toArray(new PlayableItem[0]));
+            resultList.add(player);
+        }
+    }
+
+    /** The key bookkeeping of the app's registries for the shares of a queue. */
+    private QueueShareBinder.Keys queueShareKeys() {
+        Yaacc yaacc = (Yaacc) getApplicationContext();
+        return new QueueShareBinder.Keys() {
+            @Override
+            public boolean hasRoom() {
+                return yaacc.getShareRegistry().hasRoom();
+            }
+
+            @Override
+            public void claimed(String key) {
+                yaacc.getUnclaimedShares().claimed(key);
+            }
+
+            @Override
+            public void remove(String key) {
+                yaacc.getShareRegistry().remove(key);
+                yaacc.getUnclaimedShares().released(key);
+            }
+        };
     }
 
     /**

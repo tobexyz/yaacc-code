@@ -390,6 +390,25 @@ public final class ShareRegistry {
         return evicted;
     }
 
+    /**
+     * A cheap look before a file is opened: whether {@link #registerOrEvict} would find a slot
+     * (a free one, an expired one or a released one that can be evicted). Nothing is changed.
+     */
+    public boolean hasRoom() {
+        synchronized (lock) {
+            if (slots.size() < maxActive) {
+                return true;
+            }
+            long now = nowMillis.getAsLong();
+            for (Slot slot : slots.values()) {
+                if (slot.released || isExpired(slot, now)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+    }
+
     /** Removes and closes every entry that has expired. @return how many were removed */
     public int expire() {
         List<Object> toClose = new ArrayList<>();
