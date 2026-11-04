@@ -1,96 +1,36 @@
-# Review: pick and play (#305)
+# Review: pick and play (#305), summary
+
+Condensed on 2026-11-04: the verdict of every cycle and the blocking findings in one or two lines each. The full texts of the
+cycles are in the git history of this file (the commit before the cleanup). Suggestions that were not taken stay listed in `decisions.md` or in the last cycle below.
 
 ## Cycle 1 — 2026-11-03
-Reviewing: Groups 1-4 (commits e76b5edf..a81b21a0, `git diff 410165bd..HEAD -- yaacc/src`)
 
-Verified: `ANDROID_HOME=/root/android-sdk ./gradlew --offline :yaacc:testDebugUnitTest :yaacc:lintDebug` is BUILD SUCCESSFUL, 2425 tests, 0 failures, 0 errors, 0 skipped; lint reports "No issues found". License headers present on all 11 new Java files, commits carry `(#305)`, no non-ASCII outside the translated strings, all 7 languages have the 10 `pick_*` strings, fr apostrophes escaped, notices are fixed resource texts with numbers only, logs carry only fixed texts and simple class names.
+Verdict: FAIL
 
-### Critical
-- [AbstractPlayer.java:845-860, QueueShareBinder.java:72-97, QueueShareWindow.java:81] The lease, the window and the binder address items by LIST POSITION (`index`), but the player's list is editable and extendable after `setItems`. The playlist UI calls `AbstractPlayer.removeItem` / `moveInPlayOrder` (items behind the current one; `PlaylistItemAdapter:219,249`), and `UpnpClient.addToPlaylist` calls `addItems` on EVERY player of the chosen receiver (`UpnpClient:1826`). After a remove or move, position `i` of the player is a different `PlayableItem` than `built.items().get(i)` / `entries.get(i)` of the binder: the binder shares the wrong file (or the removed one), writes the proxy URL onto an object that is no longer in the player, and the player's item keeps the `yaacc-pending:<n>` placeholder URL, so the receiver is sent an unfetchable URL. An item appended by add-to-playlist has `index >= itemCount`, `acquire` returns false, `shareBindFailed` is set and the (perfectly playable) item is skipped as "unshared". Fix: key the window/lease/binder by item identity (e.g. an ordinal stored on the placeholder `PlayableItem`, or a `PlayableItem -> Entry` map; AbstractPlayer maps `items.get(position)` to that key), and apply the lease only to items that are queue placeholders; add tests for remove, move and addItems on a leased player.
-- [AbstractPlayerShareLeaseTest.java (whole file), tasks.md Group 3 Accept] The acceptance criteria of Group 3 are not all tested, and these are critical paths of the success metrics ("after the last file none is left", "a failed share is skipped"): (a) `stop()` / end of list / `onDestroy()` releasing all shares (`closeShares`, AbstractPlayer:441, 1265) has no test; (b) `skipUnsharedItem` and the consecutive-failure counter (AbstractPlayer:829-837, 378-379) have no test: neither the skip to the next item, nor the stop after `items.size()` failures, nor the counter reset on a successful load, nor the repeat modes (OFF / ALL / ONE); (c) "shuffle and repeat all" (explicitly listed in tasks.md) is not covered; the test sets `loadItem(int)` directly and never goes through `play()` / `next()` / `onItemEnded()`. Add these tests (the existing `TestPlayer` is enough; drive `play()`/`onItemEnded()` with a synchronous executor or call the package-private pieces).
+Critical:
+- [AbstractPlayer.java:845-860, QueueShareBinder.java:72-97, QueueShareWindow.java:81] The lease, the window and the binder address items by LIST POSITION (`index`), but the player's list is editable and extendable after `setItems`. …
+- [AbstractPlayerShareLeaseTest.java (whole file), tasks.md Group 3 Accept] The acceptance criteria of Group 3 are not all tested, and these are critical paths of the success metrics ("after the last file none is left", "a failed sh …
 
-### Warning
-- [QueueShareWindow.java / PlayerService.java:397-402, ShareService.java:128-145, AbstractPlayer.java:829-837] One window per PLAYER (not per queue as in design.md section 3) means the number of shares is 2 x players (types x receivers), against the registry limit of 8 that is shared with every other share. One speaker plus this phone with music, video and photos already needs 8; a second speaker or an unrelated intake share exceeds it. A player whose `bind` fails then runs through ALL its items in a tight loop (`skipUnsharedItem` -> `onItemEnded` -> `play`), and every attempt goes through `ShareService.prepare`, which first OPENS the provider file (or copies a non-seekable one into the cache) and only then finds the registry full, plus a "registry full" toast, twice per item (current and next): up to 1000 toasts and 500 provider opens/copies for a 500 file queue, and with repeat ONE the same failing item is retried `items.size()` times. Fix: treat "registry full" as transient (do not skip through the list; stop or wait and say so once), check the free slots before opening the provider file or before creating that many players, and document the capacity limit (or share the registry slot budget in one queue-wide window).
-- [AbstractPlayer.java:1263-1265, QueueShareWindow.java:144-170] `onDestroy()` (called on the main thread by `PlayerService.shutdown(player)` / `exit()`) calls `closeShares()` -> `Lease.close()`, which is `synchronized` on the same monitor that `Lease.moveTo` holds on the Timer thread while `binder.bind` opens the provider file (up to `PROVIDER_OPEN_TIMEOUT_MILLIS` 20 s plus the 3 s server wait). The main thread can therefore block up to ~23 s (ANR) behind a loading item. Fix: do not hold the lease/window monitor across `bind` (bind outside the lock and publish under it), or move `closeShares()` of `onDestroy` to the worker/Timer; also `Lease` has no closed state, so a `moveTo` that starts after `close()` binds a new share for a destroyed player (use `window.releaseAll()` / a lease `closed` flag; `releaseAll` is dead code in production today).
-- [PlayerService.java:397-402 (via QueueShareBinder -> ShareService.prepare:128-135)] The allowed addresses are resolved by `ShareAddressResolver.resolve` at EVERY bind, i.e. up to hours after the confirm, from the registry's current idea of the device. design.md section 2 and SI-4 ("allowed set is built from the ids captured at confirm") say the addresses come from the ids at confirm and are not recomputed. A receiver that re-announces under another address, or that left the registry (resolve gives an empty set, which denies everything: the share is registered but unusable and the item just stalls), changes what a later share allows. Fix: resolve the addresses once in `createQueuePlayers` (worker, at confirm) and hand the fixed set to the binder / a `prepare` overload; or record the deviation in decisions.md and have it covered by the security review.
-- [LocalPickController.java:289-311, 317-332] `done` and the after-start hook are not run on every path: (a) if `WORKER.execute` is rejected, `onFailure` is `done` only: the stored receiver selection that `setReceiverDeviceIds(receiverIds)` changed at line 293 is neither cleared nor restored and the user gets no notice; (b) `player.play()` in the loop (line 301) is not guarded: a `RuntimeException` skips the remaining players and, thrown in a `Handler.post`, crashes the app (`finally` still ends the flight and runs the hook). `ShareIntentHandler.playLink` catches `RuntimeException` and starts every player; do the same, and call the hook in the rejected-worker path. The `done`-once behaviour of `start()` has no test at all (the class is Android-bound): extract the sequencing (hook, worker, main, finally) into a small testable unit with the existing test-seam style (`ShareIntentHandler` package-private constructors) and test: players empty, worker throws, worker rejected, play throws, hook throws.
-- [LocalPickController.java:142-147, FolderListing.java:83] `FolderListing.Result.isTruncated()` is never read. A folder with more than `MAX_ROWS` (5000) rows silently loses everything after row 5000 (media files after the cut are never queued) and the user gets no notice, against owner decision 5 ("a notice says when files were left out") and design.md section 1. Likewise `probe` drops files after its 20 s budget (line 177-179) and files whose provider call failed (line 186-189) without counting them. Fix: surface the truncation (and dropped probes) in the existing fixed "left out" notice, with numbers only.
-
-### Suggestion
-- [decisions.md missing] tasks.md Group 3 says the local-receiver choice and fallbacks are "documented in decisions.md"; the file does not exist. Decisions that differ from design.md and should be logged: one window per player instead of per queue, per-receiver address sets, separate `PlayableItem`s per player, direct `content:` URIs for this phone's audio/images (no change was needed in LocalMediaSessionPlayer / LocalImagePlayer / MultiContentPlayer, although the task is marked [x]), unknown duration -1.
-- [AbstractPlayer.java:829-837] The consecutive-failure counter is not reset when the list ends and `stop()` is called from `advance` (only on a successful load or at the limit); reset it in `stop()`/`setItems`.
-- [QueueShareBinder.java:92-96] The released item keeps its stale proxy URL (design.md section 3 says the URL is cleared on release); clear it back to the placeholder so a replay cannot send a dead URL to a receiver.
-- [PlayableItem.java:36-40, QueueShareBinder.java:93-95] `setItem`/`setUri` are written on the Timer thread and read by the UI and notification threads with plain fields; make the fields volatile or marshal the write.
-- [PlayerService.java:384-396] If every `SharedItemFactory.create` fails (`built.items().isEmpty()`), the player already created by `createPlayer` is dropped without `onDestroy`; destroy it or check before creating it.
-- [PickedQueue.java:55-58] A file whose provider type is `application/octet-stream` (some `.flac`, `.opus`, `.mkv`) is counted as "not media" and skipped; consider the file extension (`MimeTypeMap`) as a fallback for the picker path.
-- [LocalImagePlayer.java:221-230] The image viewer gets up to 500 URIs in one intent extra (about 100 KB of parcel); fine today, but keep it in mind if the cap grows.
-- [tests] `QueueShareWindowTest.twoLeasesOnDifferentIndexesShareOneBindingPerIndex` tests a shared window that production code does not use (one window per player); add a test of the real wiring (`createQueuePlayers` with fakes) once it is testable.
-
-### Tests
-- [x] All tests passing (2425 tests, 0 failures, `:yaacc:testDebugUnitTest`; `:yaacc:lintDebug` clean)
-- [ ] Coverage adequate for the change (pure parts PickedQueue, FolderListing, QueueShareWindow, QueueShareBinder are well covered; the AbstractPlayer hook lacks stop/destroy, skip/counter, repeat/shuffle and playlist-edit tests; LocalPickController.start and PlayerService.createQueuePlayers have none)
-
-### Verdict: FAIL
+Warning:
+- [QueueShareWindow.java / PlayerService.java:397-402, ShareService.java:128-145, AbstractPlayer.java:829-837] One window per PLAYER (not per queue as in design.md section 3) means the number of shares is 2 x players (types x receiv …
+- [AbstractPlayer.java:1263-1265, QueueShareWindow.java:144-170] `onDestroy()` (called on the main thread by `PlayerService.shutdown(player)` / `exit()`) calls `closeShares()` -> `Lease.close()`, which is `synchronized` on the same …
+- [PlayerService.java:397-402 (via QueueShareBinder -> ShareService.prepare:128-135)] The allowed addresses are resolved by `ShareAddressResolver.resolve` at EVERY bind, i.e. …
+- [LocalPickController.java:289-311, 317-332] `done` and the after-start hook are not run on every path: (a) if `WORKER.execute` is rejected, `onFailure` is `done` only: the stored receiver selection that `setReceiverDeviceIds(recei …
+- [LocalPickController.java:142-147, FolderListing.java:83] `FolderListing.Result.isTruncated()` is never read. …
 
 ## Cycle 2 — 2026-11-03
-Reviewing: fixes of cycle 1 (`git diff a81b21a0..HEAD -- yaacc/src .claude/specs`, HEAD 1a885bdd)
 
-Verified: `ANDROID_HOME=/root/android-sdk ./gradlew --offline :yaacc:testDebugUnitTest :yaacc:lintDebug` is BUILD SUCCESSFUL, 2438 tests, 0 failures, 0 errors, 0 skipped; lint 0 issues. `pick_skipped_unread` present in all 7 languages, fr apostrophe escaped.
+Verdict: FAIL
 
-Cycle 1 status:
-- Critical "positions instead of items": FIXED. `QueueShareWindow` maps the queue items by identity (`IdentityHashMap`, final field, read-only after the constructor), `AbstractPlayer.loadItem` uses `moveToItems(items.get(i), null)`, an item of no queue needs no share and drops what the lease held. Tests: remove, move, addItems, identity.
-- Critical "missing player tests": FIXED for stop (release and reuse), closeShares (final), skip and go on, failure limit with repeat OFF / ALL / ONE (attempts stay at 3, no loop), playlist edits. Not covered: `onDestroy()` itself (only `closeShares()`; the comment says why), counter reset after a success, shuffle with a lease (identity makes it irrelevant) - Suggestions.
-- Warning capacity / tight loop: FIXED. One share per player (decisions.md), `hasRoom` check before any file is opened, limit of 3 failures in a row, one toast, stop.
-- Warning onDestroy blocking / no closed state: FIXED. Bind runs outside every lock, `Lease.close()` takes only `heldMonitor` and never waits for a bind, a closed lease releases a share that arrives late (test with a latch). Lock order checked: `moveMonitor` -> (`heldMonitor` briefly, never held while calling the window) / window monitor; `close()`/`drop()` take `heldMonitor` only, then the window monitor without `heldMonitor`; no cycle. `wait()` releases the window monitor, every state change that a waiter waits for (`binding.remove`, `releaseAll`) is followed by `notifyAll` under the same monitor: no lost wake-up.
-- Warning addresses at every bind: FIXED (`ShareAddressResolver.resolve` once per player in `createQueuePlayers` on the worker, `ShareService.prepareFor`).
-- Warning LocalPickController: FIXED for the finish runnable on every path (rejected worker, empty players, throwing `play()`), per-player try/catch, unread / truncated notice. No unit test of `start()` (Android-bound), see Suggestion.
-- Warning truncation notice: FIXED (`isTruncated()` and dropped probes feed `pick_skipped_unread`).
-
-### Critical
-- none
-
-### Warning
-- [AbstractPlayer.java:379-382, 839-850, 1286-1288; QueueShareWindow.java Lease.moveTo / close] A lease that was CLOSED (player destroyed while an item is being bound, e.g. the user removes the player during a provider copy of up to 5 minutes, or at `exit()`) makes `moveToItems` return false, so `loadItem` sets `shareBindFailed` and `play()` calls `skipUnsharedItem()`: it counts a "failure", calls `onItemEnded()` -> `advance` -> `play` up to `min(3, items.size())` times (`onDestroy` clears `items` right after `closeShares`, so usually at once `consecutiveBindFailures >= items.size()`), then shows the toast "Could not play the picked files" and calls `stop()` on a destroyed player. The user who just closed the player gets a false error and a stop/playback-state/PROPERTY_STOPPED on a dead player. `stop()` in `onDestroy` does not prevent it because `stop()` is ignored while a command (the bind) runs. Fix: a destroyed player must not treat a closed lease as a failed share, e.g. `Lease.isClosed()` (or a `destroyed` flag set in `closeShares()`), and `skipUnsharedItem()` / the `play()` branch return silently when it is set; add a test (close the lease while `bind` is blocked in a play(), assert no toast/stop/further attempts).
-- [ShareRegistry.java:393-409, ShareRegistryTest / ShareRegistryEvictionTest] New public `ShareRegistry.hasRoom()` (security-relevant registry, three branches: free slot, released or expired slot, full) has no test; only a fake `hasRoom` is used in `QueueShareBinderTest`. It must stay consistent with `register` / `evictOldestReleased` (a `true` that `registerOrEvict` then refuses only costs one file open, but a `false` that would have succeeded stops the queue). Add tests next to the eviction tests: below max true; full with only running entries false; full with a released entry true; full with an expired entry true; nothing changed by the call.
-
-### Suggestion
-- [QueueShareWindow.java acquire wait loop, `late` branch, `releaseAll`, `isBound`, `activeCount`] In production there is one window per player and one lease per window, and `moveMonitor` serializes moves, so two concurrent `acquire` on the same index (the `wait()` path), `releaseAll` and the window-level `late` release are unreachable, and untested (the latch test goes through the lease's own `closedLease` path). Either remove the unused concurrency (smaller, nothing to get wrong) or add tests (two threads on one index with success and with a failing first bind; `releaseAll` during a bind).
-- [QueueShareWindow.java Lease.drop vs moveTo] `drop()` is not under `moveMonitor`, so a `drop()` that overlaps a `moveTo` in flight leaves the share that arrives afterwards held after the stop. Not reachable today (`stop()` is ignored while a command runs, and both run on the command timer), but the class comment promises a reusable lease; either take `moveMonitor` in `drop()` (it would wait for a bind, which is what `close()` must not do) or document the assumption.
-- [LocalPickController.java:316-340] A rejected worker (`onFailure`) now restores the selection and ends the flight but shows no notice; add `toast(R.string.pick_play_failed)`. The start sequencing (hook, worker, main, finally) still has no unit test (cycle 1 asked for a testable unit with a seam).
-- [PlayerService.java:391-410] When `ShareAddressResolver.resolve` gives an empty set (receiver left the registry between pick and confirm) the player is created and every share is registered with an empty allowed set, so the receiver is refused (403) and the item stalls without a message; skip such a player with the notice. Also (unchanged from cycle 1) a player whose `built.items()` is empty is dropped without `onDestroy`.
-- [AbstractPlayer.java:839-850] Up to two files that fail to bind are skipped silently before the stop notice (the first skipped file has no notice at all); consider a count in the final notice.
-- [design.md section 3] Still describes one window per queue shared by all players, `acquire(getNextItemIndex())` prefetch and "2 x players"; decisions.md has the real design (one window per player, current item only). Bring section 3 in line.
-- [AbstractPlayerShareLeaseTest] `destroyingReleasesTheShareForGood` calls `closeShares()` instead of `onDestroy()`; the counter reset after a success has no test. `runIntoFailures` uses `Thread.sleep(600)` for a negative assertion: no flake risk in the pass direction (it can only miss a bug), the positive waits use a 5 s deadline poll.
-
-### Tests
-- [x] All tests passing (2438 tests, 0 failures, `:yaacc:testDebugUnitTest`; `:yaacc:lintDebug` 0 issues)
-- [ ] Coverage adequate for the change (missing: `ShareRegistry.hasRoom`, closed lease during a running play)
-
-### Verdict: FAIL
+Warning:
+- [AbstractPlayer.java:379-382, 839-850, 1286-1288; QueueShareWindow.java Lease.moveTo / close] A lease that was CLOSED (player destroyed while an item is being bound, e.g. …
+- [ShareRegistry.java:393-409, ShareRegistryTest / ShareRegistryEvictionTest] New public `ShareRegistry.hasRoom()` (security-relevant registry, three branches: free slot, released or expired slot, full) has no test; …
 
 ## Cycle 3 — 2026-11-03
-Reviewing: fixes of cycle 2 (`git diff 1a885bdd..HEAD`, HEAD e0474799)
 
-Verified: `ANDROID_HOME=/root/android-sdk ./gradlew --offline :yaacc:testDebugUnitTest :yaacc:lintDebug` is BUILD SUCCESSFUL, 2444 tests (2438 + 6 new), 0 failures, 0 errors, 0 skipped; lint clean.
+Verdict: PASS
 
-Cycle 2 status:
-- Warning "closed lease counted as failed share": FIXED. `Lease.isClosed()` (under `heldMonitor`) and `AbstractPlayer.loadItem(int)` now set `shareBindFailed = !shareLease.isClosed()` AFTER the move, so the race is covered: a lease closed between the `isClosed()` pre-check and `moveToItems` (closed check in `moveTo`) or during a bind (`keep == false`, share released, `ok = false`) returns false, the re-read of `isClosed()` is true, `shareBindFailed` stays false, `play()` just ends the command (the only reader of `shareBindFailed` is `play()` line 380). `shareBindFailed = false` is also reset on success. The test `aPlayerThatWasDestroyedIsNotReportedAsAFailureOfItsItems` is meaningful: with the old code four failing items would run `skipUnsharedItem` -> `stop()` -> `stopItem` and the new `stopped` counter would be above 0.
-- Warning "ShareRegistry.hasRoom untested": FIXED. Five tests in `ShareRegistryEvictionTest` (below max, full of running entries, released entry, expired entry, no side effects) cover all three branches and the "changes nothing" property.
-- design.md section 3 matches the built design (one window and lease per player, current item only, hasRoom, drop/close).
-
-### Critical
-- none
-
-### Warning
-- none
-
-### Suggestion
-- [AbstractPlayer.java:876-885 / play():380] Residual and very narrow: a real bind failure followed by `close()` in the few instructions before `play()` reads `shareBindFailed` still reaches `skipUnsharedItem()` on a destroyed player (false toast and `stop()`). Could be closed by testing `shareLease.isClosed()` in `skipUnsharedItem()` too.
-- [AbstractPlayerShareLeaseTest] The new test closes the lease before `play()`; the in-flight case (lease closed while `bind` is blocked inside `loadItem`) is covered only at window level (latch test), not through the player. Optional.
-- Suggestions of cycle 2 remain open (unreachable concurrency in `QueueShareWindow`, `Lease.drop` vs `moveTo`, notice on a rejected worker in `LocalPickController`, empty allowed address set in `PlayerService`, silent skips before the stop notice, `onDestroy` and counter-reset tests).
-
-### Tests
-- [x] All tests passing (2444 tests, 0 failures, `:yaacc:testDebugUnitTest`; `:yaacc:lintDebug` clean)
-- [x] Coverage adequate for the change
-
-### Verdict: PASS
+Suggestions left open:
+- [AbstractPlayer.java:876-885 / play():380] Residual and very narrow: a real bind failure followed by `close()` in the few instructions before `play()` reads `shareBindFailed` still reaches `skipUnsharedItem()` on a destroyed playe …
+- [AbstractPlayerShareLeaseTest] The new test closes the lease before `play()`; the in-flight case (lease closed while `bind` is blocked inside `loadItem`) is covered only at window level (latch test), not through the player. …
+- Suggestions of cycle 2 remain open (unreachable concurrency in `QueueShareWindow`, `Lease.drop` vs `moveTo`, notice on a rejected worker in `LocalPickController`, empty allowed address set in `PlayerService`, silent skips before t …
