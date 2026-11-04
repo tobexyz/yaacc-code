@@ -1,1 +1,1 @@
-2026-10-23-unified-device-sheet
+2026-11-03-issue305-pick-and-play

@@ -97,7 +97,7 @@ public class YaaccContentDirectoryBrowseCountTest {
         SharedPreferences preferences = mock(SharedPreferences.class); // the test content switch is off
         try (MockedStatic<PreferenceManager> preferenceManager = Mockito.mockStatic(PreferenceManager.class)) {
             preferenceManager.when(() -> PreferenceManager.getDefaultSharedPreferences(any())).thenReturn(preferences);
-            return new YaaccContentDirectory(mock(Context.class)) {
+            return new YaaccContentDirectory(mock(Context.class), 0) {
                 @Override
                 ContentBrowser findBrowserFor(String objectID) {
                     return browser;

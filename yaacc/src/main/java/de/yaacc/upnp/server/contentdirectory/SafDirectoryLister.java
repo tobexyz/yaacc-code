@@ -50,8 +50,8 @@ public final class SafDirectoryLister {
 
     /** A cached listing is reused for this long; a later request lists the folder again. */
     static final long LISTING_TTL_MILLIS = 30_000L;
-    /** Listings kept at the same time. */
-    static final int MAX_CACHED_FOLDERS = 8;
+    /** Listings kept at the same time: at least the folders the change check keeps listing ({@link SafChangeMonitor#MAX_WATCHED_FOLDERS}). */
+    static final int MAX_CACHED_FOLDERS = 16;
     /** Sum of the cached folders' entries - bounds the memory (about 200 bytes per entry). */
     static final long MAX_CACHED_ENTRIES = 100_000L;
     /** A request waits at most this long for another request's listing of the same folder. */
@@ -87,6 +87,17 @@ public final class SafDirectoryLister {
         return CACHE.get(folderUri, () -> load(context.getApplicationContext(), folderUri));
     }
 
+    /**
+     * Lists the folder from the provider now even if its cached listing is still valid, and keeps the new listing
+     * in the cache (the change check of {@link SafChangeRunner}: a Browse after a SystemUpdateID bump gets what the
+     * check saw). A failed listing is returned but does not replace the cached one.
+     *
+     * @throws Exception only if waiting for another request's listing timed out or was interrupted
+     */
+    public static SafListingCache.Result<SafDirectory> refresh(Context context, String folderUri) throws Exception {
+        return CACHE.refresh(folderUri, () -> load(context.getApplicationContext(), folderUri));
+    }
+
     /** Forgets all cached listings - after a permission change or when the user clears the SAF cache. */
     public static void clearCache() {
         CACHE.clear();
@@ -105,9 +116,13 @@ public final class SafDirectoryLister {
      * the listing already holds: read permission on the uri and a provider mime type that is not empty.
      */
     public static boolean canRead(Context context, Uri documentUri, String mimeType) {
+        return hasReadPermission(context, documentUri) && !TextUtils.isEmpty(mimeType);
+    }
+
+    /** Read permission on a document uri: one Binder call to the system server (use {@link SafReadAccess} for many children of a folder). */
+    static boolean hasReadPermission(Context context, Uri documentUri) {
         return context.checkCallingOrSelfUriPermission(documentUri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                == PackageManager.PERMISSION_GRANTED
-                && !TextUtils.isEmpty(mimeType);
+                == PackageManager.PERMISSION_GRANTED;
     }
 
     /**

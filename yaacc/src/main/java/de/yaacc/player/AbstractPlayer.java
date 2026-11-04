@@ -56,6 +56,7 @@ import java.util.TimerTask;
 
 import de.yaacc.R;
 import de.yaacc.Yaacc;
+import de.yaacc.share.QueueShareWindow;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.util.ThemeHelper;
 import de.yaacc.util.YaaccLogger;
@@ -82,6 +83,15 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
     private boolean paused;
     private Object loadedItem = null;
     private int currentLoadedIndex = -1;
+    /**
+     * The shares of a picked queue (current and next item) this player holds; null for every other
+     * player. Set by the PlayerService before the items are set.
+     */
+    private QueueShareWindow.Lease shareLease;
+    private boolean shareBindFailed;
+    private int consecutiveBindFailures;
+    /** After this many items in a row that cannot be shared the player stops (and says so once). */
+    static final int MAX_CONSECUTIVE_BIND_FAILURES = 3;
     private Bitmap icon = null;
     private MediaSessionCompat mediaSession;
     // The repeat and shuffle mode of this player: starts with the settings, then belongs to the player.
@@ -367,6 +377,9 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
                     if (item == null) {
                         // Item not ready yet, stop processing
                         setProcessingCommand(false);
+                        if (shareBindFailed) {
+                            skipUnsharedItem();
+                        }
                         return;
                     }
                 }
@@ -427,6 +440,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
                 if (!items.isEmpty()) {
                     stopItem(items.get(currentIndex));
                 }
+                dropShares();
                 setPlaying(false);
                 paused = false;
                 updatePlaybackState(PlaybackStateCompat.STATE_STOPPED);
@@ -793,12 +807,83 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
     }
 
 
+    /**
+     * Makes this player hold the shares of a picked queue just in time: from now on loading an item
+     * binds the share of that item and of the next one and releases what the player left behind.
+     * Call before {@link #setItems}; null (the default) leaves the items as they are.
+     */
+    public void setShareLease(QueueShareWindow.Lease lease) {
+        this.shareLease = lease;
+    }
+
+    /** Releases the shares this player holds (the queue ended or was stopped); it can start again. */
+    private void dropShares() {
+        QueueShareWindow.Lease lease = shareLease;
+        consecutiveBindFailures = 0;
+        if (lease != null) {
+            lease.drop();
+        }
+    }
+
+    /** The player is gone: releases the shares for good. Never waits for a share that is being created. */
+    void closeShares() {
+        QueueShareWindow.Lease lease = shareLease;
+        if (lease != null) {
+            lease.close();
+        }
+    }
+
+    /**
+     * The share of the current item could not be created (file gone, registry full): go on with the
+     * next item; when every item of the list failed one after the other, stop.
+     */
+    private void skipUnsharedItem() {
+        consecutiveBindFailures++;
+        if (consecutiveBindFailures >= MAX_CONSECUTIVE_BIND_FAILURES || consecutiveBindFailures >= items.size()) {
+            // a registry that is full or a provider that is gone: do not run through the whole list
+            consecutiveBindFailures = 0;
+            toastOnMainThread(R.string.pick_play_failed);
+            stop();
+        } else {
+            onItemEnded();
+        }
+    }
+
+    private void toastOnMainThread(int textRes) {
+        try {
+            Context context = getContext();
+            if (context != null) {
+                new android.os.Handler(android.os.Looper.getMainLooper()).post(
+                        () -> Toast.makeText(context.getApplicationContext(), textRes, Toast.LENGTH_LONG).show());
+            }
+        } catch (RuntimeException e) {
+            YaaccLogger.w(getClass().getName(), "Could not show a message (" + e.getClass().getSimpleName() + ")");
+        }
+    }
+
     protected Object loadItem(int toLoadIndex) {
         if (toLoadIndex == currentLoadedIndex && loadedItem != null) {
             YaaccLogger.d(getClass().getName(), "returning already loaded item");
             return loadedItem;
         }
         if (toLoadIndex >= 0 && toLoadIndex <= items.size()) {
+            if (shareLease != null && toLoadIndex < items.size()) {
+                // a picked queue: the file of this item is shared only now, found by the item itself
+                // (the playlist may have been edited: positions say nothing about the queue)
+                boolean shared = !shareLease.isClosed() && shareLease.moveToItems(items.get(toLoadIndex), null);
+                if (!shared) {
+                    // a player that was destroyed meanwhile is no failure of the item: nothing to skip or report
+                    shareBindFailed = !shareLease.isClosed();
+                    if (shareBindFailed) {
+                        YaaccLogger.w(getClass().getName(), "The share of an item could not be created");
+                    }
+                    currentLoadedIndex = -1;
+                    loadedItem = null;
+                    return null;
+                }
+                shareBindFailed = false;
+                consecutiveBindFailures = 0;
+            }
             YaaccLogger.d(getClass().getName(), "loaded item");
             currentLoadedIndex = toLoadIndex;
 
@@ -1205,6 +1290,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
     @Override
     public void onDestroy() {
         stop();
+        closeShares();
         cancelNotification();
         items.clear();
 

@@ -309,6 +309,127 @@ public class SafListingCacheTest {
         assertFalse(cache.get("folder", loader("fresh")).fromCache);
     }
 
+    // --- refresh: the change check lists a folder again and keeps the result
+
+    @Test
+    public void refreshListsAgainWhileTheCachedListingIsStillValidAndReplacesIt() throws Exception {
+        SafListingCache<List<String>> cache = cache(8, 1000, 30_000);
+        cache.get("folder", loader("a"));
+        now.addAndGet(1_000);
+
+        SafListingCache.Result<List<String>> refreshed = cache.refresh("folder", loader("a", "new"));
+
+        assertFalse(refreshed.fromCache);
+        assertEquals(2, loads.get());
+        // a request now gets the refreshed listing without a third load
+        SafListingCache.Result<List<String>> request = cache.get("folder", loader("must not load"));
+        assertTrue(request.fromCache);
+        assertSame(refreshed.value, request.value);
+        assertEquals(1, cache.size());
+    }
+
+    @Test
+    public void refreshRestartsTheTtlOfTheListing() throws Exception {
+        SafListingCache<List<String>> cache = cache(8, 1000, 30_000);
+        cache.get("folder", loader("a"));
+        now.addAndGet(29_000);
+        cache.refresh("folder", loader("a"));
+
+        now.addAndGet(29_000); // 58 s after the first load, 29 s after the refresh
+
+        assertTrue(cache.get("folder", loader("must not load")).fromCache);
+        assertEquals(2, loads.get());
+    }
+
+    @Test
+    public void refreshOfAFolderThatIsNotCachedKeepsTheListing() throws Exception {
+        SafListingCache<List<String>> cache = cache(8, 1000, 30_000);
+
+        cache.refresh("folder", loader("a"));
+
+        assertEquals(1, cache.size());
+        assertTrue(cache.get("folder", loader("must not load")).fromCache);
+    }
+
+    @Test
+    public void aFailedRefreshLeavesTheCachedListingAlone() throws Exception {
+        SafListingCache<List<String>> cache = cache(8, 1000, 30_000);
+        SafListingCache.Result<List<String>> first = cache.get("folder", loader("a"));
+
+        SafListingCache.Result<List<String>> failed = cache.refresh("folder", loader("failed"));
+        assertEquals("failed", failed.value.get(0));
+        assertThrows(IOException.class, () -> cache.refresh("folder", () -> {
+            throw new IOException("provider gone");
+        }));
+
+        assertSame(first.value, cache.get("folder", loader("must not load")).value);
+        assertEquals(2, loads.get()); // the first get and the failed listing; the throwing loader never counted
+    }
+
+    @Test
+    public void refreshAwaitsAListingThatAnotherRequestJustLoads() throws Exception {
+        SafListingCache<List<String>> cache = cache(8, 1000, 30_000);
+        CountDownLatch loading = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        AtomicReference<SafListingCache.Result<List<String>>> owner = new AtomicReference<>();
+        Thread ownerThread = new Thread(() -> {
+            try {
+                owner.set(cache.get("folder", () -> {
+                    loading.countDown();
+                    release.await(10, TimeUnit.SECONDS);
+                    return new ArrayList<>(List.of("a"));
+                }));
+            } catch (Exception e) {
+                throw new IllegalStateException(e);
+            }
+        });
+        ownerThread.start();
+        assertTrue(loading.await(10, TimeUnit.SECONDS));
+        AtomicReference<SafListingCache.Result<List<String>>> refreshed = new AtomicReference<>();
+        Thread refresher = new Thread(() -> {
+            try {
+                refreshed.set(cache.refresh("folder", loader("second load")));
+            } catch (Exception e) {
+                throw new IllegalStateException(e);
+            }
+        });
+        refresher.start();
+        awaitWaiting(refresher);
+
+        release.countDown();
+        ownerThread.join(10_000);
+        refresher.join(10_000);
+
+        assertEquals(0, loads.get()); // the refresh used the other request's listing
+        assertTrue(refreshed.get().fromCache);
+        assertSame(owner.get().value, refreshed.get().value);
+    }
+
+    @Test
+    public void aRefreshThatIsOverrunByAClearDoesNotPutItsListingBack() throws Exception {
+        SafListingCache<List<String>> cache = cache(8, 1000, 30_000);
+
+        SafListingCache.Result<List<String>> result = cache.refresh("folder", () -> {
+            cache.clear(); // the permission of the tree was given up while listing
+            return new ArrayList<>(List.of("stale"));
+        });
+
+        assertEquals("stale", result.value.get(0));
+        assertEquals(0, cache.size());
+    }
+
+    @Test
+    public void refreshedListingsAreBoundedLikeAnyOther() throws Exception {
+        SafListingCache<List<String>> cache = cache(2, 1000, 30_000);
+
+        cache.refresh("a", loader("1"));
+        cache.refresh("b", loader("1"));
+        cache.refresh("c", loader("1"));
+
+        assertEquals(2, cache.size());
+        assertTrue(cache.get("c", loader("must not load")).fromCache);
+    }
+
     private static void awaitWaiting(Thread thread) throws InterruptedException {
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
         while (thread.getState() != Thread.State.TIMED_WAITING && thread.getState() != Thread.State.WAITING

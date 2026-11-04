@@ -179,4 +179,16 @@
     <string name="repeat_one">Titel wiederholen</string>
     <string name="shuffle_off">Zufallswiedergabe aus</string>
     <string name="shuffle_on">Zufallswiedergabe ein</string>
+
+    <string name="pick_description">Von diesem Gerät abspielen</string>
+    <string name="pick_files_description">Dateien von diesem Gerät abspielen</string>
+    <string name="pick_folder_description">Ordner von diesem Gerät abspielen</string>
+    <string name="pick_nothing_to_play">Keine Audio-, Video- oder Bilddateien gefunden.</string>
+    <string name="pick_skipped_not_media">Übersprungen (weder Audio noch Video noch Bild): %1$d</string>
+    <string name="pick_skipped_over_cap">Abgespielte Dateien: %1$d, ausgelassen: %2$d</string>
+    <string name="pick_folder_failed">Der Ordner konnte nicht gelesen werden.</string>
+    <string name="pick_picker_failed">Die Dateiauswahl konnte nicht geöffnet werden.</string>
+    <string name="pick_skipped_unread">Einige Dateien konnten nicht gelesen werden.</string>
+    <string name="pick_play_failed">Die gewählten Dateien konnten nicht abgespielt werden.</string>
+    <string name="pick_title_files">Dateien: %1$d</string>
 </resources>
