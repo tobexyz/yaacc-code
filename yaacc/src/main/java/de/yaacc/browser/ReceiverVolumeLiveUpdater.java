@@ -38,6 +38,7 @@ import de.yaacc.upnp.callback.renderingcontrol.GetMute;
 import de.yaacc.upnp.callback.renderingcontrol.GetVolume;
 import de.yaacc.upnp.server.http.HttpRequestSender;
 import de.yaacc.upnp.server.renderingcontrol.SystemVolume;
+import de.yaacc.yxc.YxcVolumeAccess;
 import de.yaacc.util.YaaccLogger;
 
 /**
@@ -51,6 +52,8 @@ import de.yaacc.util.YaaccLogger;
  *   Assistant) tells {@link SystemVolume}'s listener, which shows it at once; the hardware keys are only
  *   broadcast while a controller is subscribed, so every tick reads the stream again (an
  *   {@code AudioManager} call).</li>
+ *   <li><b>Devices with group support</b>: read through their own interface ({@link YxcVolumeAccess}), the same one that
+ *   writes the volume; the UPnP actions of a member of a group do not follow its volume.</li>
  *   <li><b>Other receivers</b>: {@code GetVolume} / {@code GetMute} as plain SOAP actions, not events (a
  *   callback address is often unreachable, for example behind a proxy). One request per receiver at a
  *   time, off the main thread on a small pool so one slow receiver does not hold up the others, and a
@@ -173,14 +176,24 @@ final class ReceiverVolumeLiveUpdater {
         boolean wantMute = binder.supportsMuteControl(device);
         ExecutorService pool = readers;
         pool.execute(() -> {
-            Reading reading = read(device, wantVolume, wantMute);
+            Reading reading = read(id, device, wantVolume, wantMute);
             handler.post(() -> onRead(id, startedAt, readGeneration, reading));
         });
     }
 
     /** Runs on a pool thread: the two actions one after the other, so a receiver gets one request at a time. */
-    private Reading read(Device<?, ?, ?> device, boolean wantVolume, boolean wantMute) {
+    private Reading read(String id, Device<?, ?, ?> device, boolean wantVolume, boolean wantMute) {
         Reading reading = new Reading();
+        YxcVolumeAccess yxc = YxcVolumeAccess.getShared();
+        if (yxc.handles(id)) {
+            // a device with group support: its own interface, as for writing; the UPnP RenderingControl of a device that
+            // is a member of a group does not follow its volume, so reading it put a wrong value back on the slider
+            int percent = yxc.readPercent(id);
+            reading.volume = percent < 0 ? null : percent;
+            reading.mute = yxc.readMute(id);
+            reading.succeeded = reading.volume != null || reading.mute != null;
+            return reading;
+        }
         HttpRequestSender sender = upnpClient.getHttpRequestSender();
         Service<?, ?> renderingControl = device.findService(new UDAServiceId("RenderingControl"));
         if (sender == null || renderingControl == null) {
