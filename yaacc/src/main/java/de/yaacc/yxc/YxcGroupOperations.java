@@ -337,9 +337,8 @@ public final class YxcGroupOperations {
             if (target == null) {
                 target = environment.lastPlainInput(udn);
             }
-            if (target == null) {
-                target = firstPlainInput(member);
-            }
+            // A source that was never seen is not guessed: the first input of a device can be a streaming service, and the
+            // owner's native app puts a client back on the source it played. The device is left on the link input and the row says so.
             if (target == null || !INPUT_ID.matcher(target).matches()) {
                 return YxcGroupResult.success(null); // nothing, or nothing that looks like an input id of a device
             }
@@ -349,19 +348,6 @@ public final class YxcGroupOperations {
         } catch (YxcException e) {
             return YxcGroupResult.failed(YxcGroupResult.Step.RESTORE_INPUT, member.getIp(), e.getMessage());
         }
-    }
-
-    private static String firstPlainInput(YxcGroupMember member) throws YxcException {
-        YxcZoneFeatures zone = member.getClient().getFeatures().getZone(member.getZone());
-        if (zone == null) {
-            return null;
-        }
-        for (String id : zone.getInputIds()) {
-            if (!YxcZoneFeatures.GROUP_INPUT_ID.equalsIgnoreCase(id)) {
-                return id;
-            }
-        }
-        return null;
     }
 
     /** A read that failed; carried out of the lambdas as an unchecked exception and turned into a result. */

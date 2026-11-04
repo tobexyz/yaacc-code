@@ -315,7 +315,7 @@ public class YxcGroupOperationsTest {
     // ---- the input to go back to
 
     @Test
-    public void withoutAnyMemoryTheFirstPlainInputOfTheDeviceIsUsed() {
+    public void withoutAnyMemoryNoInputIsGuessedEvenWhenTheDeviceListsSome() {
         c1.featuresJson = "{\"response_code\":0,\"zone\":[{\"id\":\"main\",\"input_list\":[\"mc_link\",\"optical\",\"tuner\"]}],"
                 + "\"distribution\":{\"version\":2.0,\"compatible_client\":[2],\"client_max\":9,\"server_zone_list\":[\"main\"]}}";
         c1.input = YxcZoneFeatures.GROUP_INPUT_ID;
@@ -323,8 +323,7 @@ public class YxcGroupOperationsTest {
         YxcGroupResult result = operations.leave(C1);
 
         assertTrue(result.toString(), result.isSuccess());
-        assertEquals("optical", c1.input);
-        assertEquals("none", c1.role());
+        assertEquals("a streaming service or any first input of the list is never picked", YxcZoneFeatures.GROUP_INPUT_ID, c1.input);
     }
 
     @Test

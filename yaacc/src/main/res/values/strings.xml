@@ -206,4 +206,20 @@
     <string name="yxc_pick_plays_via">plays via %1$s</string>
     <string name="yxc_picker_end_hint">Uncheck all devices to end the group.</string>
     <string name="yxc_group_volume">Group volume</string>
+    <string name="yxc_action_settings">Device settings</string>
+    <string name="yxc_setting_power">Power</string>
+    <string name="yxc_setting_input">Input</string>
+    <string name="yxc_setting_sound_program">Sound program</string>
+    <string name="yxc_settings_loading">Loading …</string>
+    <string name="yxc_settings_failed">The settings could not be read or changed.</string>
+    <string name="yxc_setting_sleep">Sleep timer</string>
+    <string name="yxc_sleep_off">Off</string>
+    <string name="yxc_sleep_minutes">%1$d min</string>
+    <string name="yxc_setting_equalizer">Equalizer</string>
+    <string name="yxc_setting_eq_low">Low</string>
+    <string name="yxc_setting_eq_mid">Mid</string>
+    <string name="yxc_setting_eq_high">High</string>
+    <string name="yxc_setting_link_control">Link control</string>
+    <string name="yxc_setting_link_audio_delay">Link audio delay</string>
+    <string name="yxc_setting_link_audio_quality">Link audio quality</string>
 </resources>

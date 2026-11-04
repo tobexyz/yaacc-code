@@ -203,4 +203,20 @@
     <string name="yxc_pick_plays_via">通过 %1$s 播放</string>
     <string name="yxc_picker_end_hint">取消勾选所有设备即可解散群组。</string>
     <string name="yxc_group_volume">群组音量</string>
+    <string name="yxc_action_settings">设备设置</string>
+    <string name="yxc_setting_power">电源</string>
+    <string name="yxc_setting_input">输入</string>
+    <string name="yxc_setting_sound_program">音效模式</string>
+    <string name="yxc_settings_loading">正在加载…</string>
+    <string name="yxc_settings_failed">无法读取或更改设置。</string>
+    <string name="yxc_setting_sleep">睡眠定时</string>
+    <string name="yxc_sleep_off">关闭</string>
+    <string name="yxc_sleep_minutes">%1$d 分钟</string>
+    <string name="yxc_setting_equalizer">均衡器</string>
+    <string name="yxc_setting_eq_low">低音</string>
+    <string name="yxc_setting_eq_mid">中音</string>
+    <string name="yxc_setting_eq_high">高音</string>
+    <string name="yxc_setting_link_control">链接控制</string>
+    <string name="yxc_setting_link_audio_delay">链接音频延迟</string>
+    <string name="yxc_setting_link_audio_quality">链接音频质量</string>
 </resources>

@@ -43,11 +43,18 @@ Rules: tests first for the pure parts; all new strings in values + de/es/fr/nl/p
 - [ ] Virtual receiver "Group <name>" (precedent: `UpnpClient.LocalDummyDevice`): receiver id resolution (`getDevice`, `setReceiverDeviceIds`, `ShareAddressResolver`, mini player), playback to the server, members shown inside
 - [x] Group volume per decision 7 (done on the server row of a group: `YxcGroupVolume`, slider in the row; the row's own sliders use `YxcVolumeAccess`): a second "group volume" slider on the server's row (the device does not propagate by itself), relative change applied to every member, clamped per device; tests with the simulated network
 
-## Group 5: Settings per device (P4)
-- [ ] Settings screen built from `getFeatures`: power, volume, mute, input, sound program, switches (pure direct, enhancer, ...), numbers (equalizer, subwoofer, dialogue level, ...), link control (audio delay / quality); only what the device reports
-- [ ] Playback controls / repeat / shuffle of network sources where the device reports them
+## Group 5: Settings per device (P4) - spec of slice 4 in design.md; owner decisions 2026-11-03
+- [x] 5.1 Client calls, `YxcNameText`, pure `YxcSettings` + `YxcSettingsWriter` for step 1 (power, input, sound program) | `yaacc/src/main/java/de/yaacc/yxc/`, tests with the captured features / status of devices a, b, c
+  - **Accept**: only what the device reports is offered; `mc_link` is not offered as an input; a change outside the options is refused before anything is sent.
+  - **Verify**: `YxcSettingsTest`, `YxcSettingsTest (the writer is tested there)`, `YxcClientTest` pass.
+- [x] 5.2 Settings sheet (code done; the run on the owner's devices is still to do) and the icon in the row, strings in 7 languages (step 1) | `yaacc/src/main/java/de/yaacc/browser/`, `res/`
+  - **Accept**: on the owner's devices: switch power, change input (cd, tuner, hdmi ...), change the sound program; the sheet shows what the device did.
+- [x] 5.3 Step 2: equalizer (mode, low / mid / high) and sleep timer | model, writer, sheet, strings
+- [x] 5.4 Step 3: link control, audio delay, audio quality | model, writer, sheet, strings
+- [x] 5.5 Review gate: reviewer PASS (cycle 2), security-reviewer PASS (cycle 2).
+- [ ] (later, not asked now) Playback controls / repeat / shuffle of network sources where the device reports them
 
 ## Group 6: Documentation update
-- [ ] README / docs: user description with the trademark notice, `docs/tech.md` final, CHANGELOG
+- [x] README / docs: user description with the trademark notice, `docs/tech.md` final, CHANGELOG
   - **Accept**: no stale references; the notice from requirements.md is in place.
   - **Verify**: `grep -r 'TODO\|FIXME\|PLACEHOLDER' README.md docs/ || true` shows nothing plan-related.

@@ -3137,28 +3137,21 @@ clock and alarm are in the libraries (AMC: `configure_alarm`), but none of the d
 
 ### 8. Open points / what could not be verified
 
-Only testable on real devices (the owner's):
-1. Does changing the server's volume change the clients' volume? Does the client's own `setVolume` work while linked? (Decides the
-   group-volume design, decision 7.)
-2. Life time of an event registration, and whether the device sends the datagrams to the source IP of the HTTP request (assumed).
-   Also whether the phone receives them (Wi-Fi power save, firewall).
-3. ~~The exact JSON of `getDistributionInfo` in the states none / server / client~~ Answered for none and server on three real devices
-   (2026-11-02, section 9). **Still open: the answer of a device that is a client** (its role word, its group id, whether it names
-   its server).
-4. ~~Whether `getFeatures` has a `distribution` block~~ Answered: yes, with `client_max` (section 9).
-5. The effect and the required value of `num` in `startDistribution` (0 for the first group?).
-6. Whether `response_code` 5 or 6 appears when a group call is rejected, and the HTTP status of errors (the libraries ignore both).
-7. After unlinking: which input a former client has, and whether it stops playing. When a client's input is changed in the vendor app:
-   does the server still list it?
-8. Behavior of UPnP AVTransport on the server while grouped, on a client, and the User-Agent effect (section 5). Also whether
-   `SetAVTransportURI` to a client is accepted or ignored.
-9. ~~Whether the UPnP `serialNumber` equals `system_id`, and how to map a UDN to a YXC device~~ Answered on the owner's devices
-   (2026-11-02, section 2 and 9).
-10. Which of the two forms of `getNameText` (`id=None` vs no parameter) the devices prefer; whether the content type of the POST
-    body matters; whether the device description's control URL element always has the fixed value (seen once:
-    `/YamahaExtendedControl/v1/`).
+Status after the implementation (2026-11-03). Answered on the owner's real devices:
+1. ~~Does the server's volume reach the clients?~~ No, in neither direction; `setVolume` of a client works while linked (section 7, 11). yaacc propagates the group volume itself.
+3. ~~`getDistributionInfo` of a client~~ Answered (section 9, 10).
+4. ~~`getFeatures` `distribution` block~~ Answered: yes, with `client_max` (section 9).
+5. ~~`num` of `startDistribution`~~ Answered: the parameter is required, 0 for a new group (section 9).
+6. ~~Error answers of group calls~~ Answered: the devices validate very little; only `setClientInfo` on a working server is refused with code 5 (section 10).
+7. ~~After unlinking~~ Answered: a client keeps the role `client` and the input `mc_link` until another input is set (section 9, 10). **Still open:** how the manufacturer's app puts a client back on its last source (owner's experiment: stop the server side only, wait, read the client).
+9. ~~Mapping a UDN to a YXC device~~ Answered (section 2 and 9).
+
+Not answered (nothing in yaacc depends on them; the app does not use them):
+2. Life time of an event registration beyond the 30 s renewal, and delivery to a phone behind Wi-Fi power save or client isolation (yaacc falls back to the 30 s read).
+8. Behavior of UPnP AVTransport on a client, and the User-Agent effect (section 5). yaacc sends to the group server only.
+10. Which form of `getNameText` the devices prefer: yaacc uses the form without `id` and tolerates a failure; the real answer was not captured (the test fixture `yxc/nameText.json` is invented).
 11. Stereo pair and `main_sync` handling: `stereo_pair` is a known function name but nothing in the sources uses it.
-12. Content and privacy of `getLocationInfo` (never used by the sources).
+12. Content and privacy of `getLocationInfo` (never used).
 
 Not covered in these sources: Bluetooth, alarm details, network setup, firmware update, the cloud services; and no information on
 rate limits of the device.
@@ -3297,7 +3290,7 @@ that applies events, polling, any UI, strings and manifest entries. **Still need
   - **`num` is required:** `startDistribution` without it answers `response_code` 4. `num=0` and `num=1` were both accepted for a new group with the same result (nothing visible differs); the app sends the number of clients before the call (0 for a new group), as the open-source clients do.
   - **Without `startDistribution` the server stays `role: "none"`** with group id zeros (its `client_list` already names the client) while the client is in the group: the group exists only after the start call.
   - **Group names:** the server's name is generated from the room names ("<room> + 1 Raum", localized by the device); the client's `group_name` is "(Linked) " plus **its own** room name, not the server's. The client's answer does not name the server, and its `client_list` lists itself. A row that says "linked with ..." therefore has to find the server by the group id (the device that reports `role: "server"` with the same group id), not from the client's `group_name`.
-  - **Unlink with the calls above** (client `setClientInfo` empty, server `stopDistribution`, server `setServerInfo` empty): both group ids are zeros at once (0 to 3 s). **The client then keeps `role: "client"` for as long as its input is `mc_link`; it turns `none` only after the input is set to something else** (measured twice on two clients: after the explicit clear, minutes later, still `client` with zero ids; one `setInput?input=tuner` and the next read says `none`). The first reading of this as a delay was wrong. The client's `group_name` stays "(Linked) <own room name>" with group id zeros, so the name only means something while the group id is not zero. The manufacturer's app moves a client back to its earlier input (leave datagram in section 10); yaacc must do the same: remember the last input that was not `mc_link` and set it after the leave (fallback: the first input of `getFeatures` that is not `mc_link`).
+  - **Unlink with the calls above** (client `setClientInfo` empty, server `stopDistribution`, server `setServerInfo` empty): both group ids are zeros at once (0 to 3 s). **The client then keeps `role: "client"` for as long as its input is `mc_link`; it turns `none` only after the input is set to something else** (measured twice on two clients: after the explicit clear, minutes later, still `client` with zero ids; one `setInput?input=tuner` and the next read says `none`). The first reading of this as a delay was wrong. The client's `group_name` stays "(Linked) <own room name>" with group id zeros, so the name only means something while the group id is not zero. The manufacturer's app moves a client back to its earlier input (leave datagram in section 10); yaacc remembers the last input that was not `mc_link` and sets it after the leave (no fallback: when no earlier source was ever seen the device is left on the link input, because the first input of `getFeatures` can be a streaming service; owner's report 2026-11-03: the device landed on Napster, while the native app puts it back on its last source - how the native app does that is to be found out, see the experiment in the notes of #307).
 - **Error probes on real devices (2026-11-02, `ERRORS=1`, a second client, three variants):** the devices **validate very little**; a `response_code` 0 does not mean the call made sense.
   - `setClientInfo` sent to a **working server** is refused with `response_code` 5; sent to a device whose group was never started (role `none`) it is accepted.
   - `setServerInfo` sent to a **client** is accepted (code 0) and changes the client's `client_list` (it then lists the server's address) while it stays a client; the answer of a client's own `client_list` is therefore not a reliable source for anything.
@@ -3310,7 +3303,7 @@ that applies events, polling, any UI, strings and manifest entries. **Still need
 - **Local firewall:** the datagrams arrive at the network card of the owner's computer; an earlier listener run saw none with the computer's firewall (`ufw`) active and one while a client was asked. The event listener of the app runs on the phone, where no such firewall exists, but a device that is not reachable by unicast from the phone (client isolation of the access point) would receive no events: keep polling as the fallback.
 
 
-## 11. YXC slice 2 in yaacc: state, monitor and the receiver row (#307)
+## 11. YXC slices 2 to 4 in yaacc: state, groups, volume and settings (#307)
 
 Implemented in `de.yaacc.yxc` (own code, no library code copied):
 - `YxcDiscovery` fetches the UPnP description of each renderer once (`YxcHttpDescriptionFetcher`: http only, no redirects, no proxy, size and time bounded) and keeps the verdict per UDN; the endpoint host is always the host of the registry's description URL, a document can only add its port when it names the same host.
@@ -3318,7 +3311,10 @@ Implemented in `de.yaacc.yxc` (own code, no library code copied):
 - Trust: the sender address is checked before a datagram is parsed (only watched devices), then the `device_id`. Events are display-only; actions must read the device first.
 - Limits: JSON depth (`YxcJson.parseObject`, quote-aware scan + `StackOverflowError` handler), 15 s per HTTP exchange (`YxcWatchdog`), 1 MB body, 64 devices.
 - UI: `YxcRowFeed` (main-thread, coalesced) -> `ReceiverRowBinder.bindGroupState` -> `YxcRowText` ("On · Net radio · Linked with <group>"); names from the device are cleaned and capped. Listeners hear only of changes the row shows.
-- Not measured yet: the events of a linked client, an input change, `startDistribution num`, error answers (see the capture list in section 10).
+- The events of a linked client, an input change, `startDistribution num` and the error answers were measured afterwards (section 10 and the notes below).
+
+- **Groups (slice 3):** `YxcGroupOperations` forms, extends, reduces and dissolves a group from the picker's selection after fresh reads of every device involved (refusals: a device in another group, a client of someone else, a device that does not answer); `YxcGroupService.leaveIfMember` clears a client with `setClientInfo` empty, a server with `stopDistribution` + `setServerInfo` empty. A group server is found by `YxcGroupDirectory.serverOf`: exactly one device that claims the group id and lists the client, otherwise unknown (no guess). `YxcPlaybackRedirect` + `YxcPlayTargets` (in `PlayerService.createPlayerFor`, never on the main thread) replace a client by its server. After a leave the former input comes from the pre-join read, else from the monitor's last non-link input; with neither the device is left on the link input.
+- **Settings (slice 4):** `YxcSettings` builds the sheet's items only from `getFeatures`/`getStatus` of the device (power, input, sound program, sleep timer, equalizer bands within the reported range, link control, link audio delay, link audio quality) with caps on options and band steps; `YxcSettingsWriter` sends one change at a time through `YxcClient`; text from the device is cleaned (`YxcNames.clean`). Not built: tone control, surround, subwoofer, dialogue level, pure direct, enhancer, renaming of groups or inputs, playback controls of the device's own sources, a virtual group device.
 
 - **Volume of a device with group support (2026-11-02):** the generic UPnP volume control of such a device did not change the volume while it was in a group (owner's observation). `UpnpClient.getVolume/setVolume/getMute/setMute/hasActionGet*(device)` therefore go through `YxcVolumeAccess` for devices the monitor knows as YXC devices: the slider's percentage maps onto the device's own scale `0..max_volume` (from `getStatus`), writes are `main/setVolume?volume=<n>` and `main/setMute?enable=<bool>`, the latest value of a device wins while a write is on its way, reads are the zone status. Each device keeps its own volume (the group volume slider of Group 4 comes on top of this).
 - **Group volume (2026-11-02):** a slider on the row of a group server (shown when it serves at least one resolved client) shows the **average** of the members' volumes in percent of each device's own scale (from the states the monitor keeps live) and, while dragged, moves every member by the same number of percentage points from where it was when the drag began, clamped to 0..100 per device (`YxcGroupVolume`); each member is written through `YxcVolumeAccess` (latest value wins). Dragging back restores each member's own level. About 1.5 s after the drag the row is rebound so the slider shows the real average. The slider is refreshed with the row's rebinds (power, input, group changes, end of a drag), not on every volume event.

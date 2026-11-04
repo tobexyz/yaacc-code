@@ -73,7 +73,7 @@ Owner decisions: (1) the actions live on the receiver row (action "Link devices"
 ### What the real devices taught (docs/tech.md, section 11)
 - `startDistribution` needs `num` (0 for a new group, clients before the call otherwise); no group exists before it; the server is `building` for a few seconds, then `working`.
 - The devices validate almost nothing: wrong group ids, `setServerInfo` on a client, `num=99` are all answered with code 0. The only refusal seen: `setClientInfo` on a working server (code 5). So **every decision is made on reads** before the call, and the result is judged on reads after it (`YxcGroupService` does this already).
-- A leaving client keeps `role: "client"` (zero group id) as long as its input is `mc_link`; the role turns `none` only when the input is set to something else. So a leave is: clear the client info (group id zeros) **and** set the input back. yaacc remembers the last input that was not `mc_link` (seen in the states, also for groups made with the manufacturer's app); fallback: the first non-link input of the device's features. A device with role `client`, zero group id and input `mc_link` is a *stuck* client: the row says so and offers "Leave group", which sets the input.
+- A leaving client keeps `role: "client"` (zero group id) as long as its input is `mc_link`; the role turns `none` only when the input is set to something else. So a leave is: clear the client info (group id zeros) **and** set the input back. yaacc remembers the last input that was not `mc_link` (seen in the states, also for groups made with the manufacturer's app); no fallback (a guess such as the first input of the list landed on a streaming service on the owner's device): without a known source the device stays on the link input and the row says so. A device with role `client`, zero group id and input `mc_link` is a *stuck* client: the row says so and offers "Leave group", which sets the input.
 - A client's `group_name` is "(Linked) <own name>", its `client_list` lists itself or the server: neither is used for display. The server of a client is found by the **group id** (the watched device that is `server` with the same id).
 
 ### Parts
@@ -93,3 +93,22 @@ Owner decisions: (1) the actions live on the receiver row (action "Link devices"
 The row has **one toggle button with an icon** instead of separate buttons: "Link devices" (link icon) while the device serves nobody, "Unlink group" (broken-link icon, checked) while it serves a group, and **disabled while the device is a client of another device**. There is **no "Leave group"**: a group is changed from its server only; unlinking the server lets every client leave. A client that left but still sits on the link input is in no group, so its toggle offers "Link devices". Extending or shrinking a group in place is not offered any more (unlink and link again); `YxcGroupOperations.applySelection/leave` still support it and stay tested.
 
 Second change (2026-11-02): the toggle of a device that **serves a group** does not unlink at once. It opens the same picker with the current clients checked; unchecking some removes them (`applySelection` reduces and puts them back on their inputs), unchecking all ends the group (the picker says so). So extending and reducing a group in place is back, through the one picker; the accessible name of the serving state is "Edit group".
+
+
+## Slice 4: settings per device (Group 5; owner decisions 2026-11-03)
+Entry: a second icon button ("tune") next to the link toggle in the row of a MusicCast device that answers; it opens a bottom sheet in the style of the pickers. Steps (one commit each, tests first for the pure parts):
+1. **Power, input, sound program.** Power as a switch; input as a choice from the zone's `input_list` (cd, tuner, hdmi, aux, bluetooth, net_radio, streaming inputs ... whatever the device lists), without `mc_link` (the group input is set by linking and leaving); sound program as a choice from `sound_program_list`. Names of inputs and programs from `system/getNameText` (`{id, text}` lists) when the device answers, else the id made readable.
+2. **Equalizer and sleep timer.** Equalizer mode (`equalizer_mode_list`) and low / mid / high from the `equalizer` range of `getFeatures` (the three captured devices report -10..10, step 1); sleep timer off / 30 / 60 / 90 / 120 minutes (`sleep` in the zone's `func_list`).
+3. **Link settings.** `link_control_list`, `link_audio_delay_list`, `link_audio_quality_list`, only where the device lists them (the captured devices differ: one has no audio quality).
+Not in this slice: playback controls of network sources (the row's play / pause / stop stay), tone control, surround, dialogue level, subwoofer, switches like pure direct and enhancer (the captured devices do not list them; they can follow the same model).
+
+### Parts
+- `YxcClient`: `getNameText()`, `setSoundProgram`, `setSleep`, `setEqualizer`, `setLinkControl`, `setLinkAudioDelay`, `setLinkAudioQuality` (arguments validated before anything is sent).
+- `YxcNameText` (pure): the `{id, text}` lists of `system/getNameText`.
+- `YxcSettings` (pure): from the zone's features, the zone status and the names it builds the list of items **only for what the device reports** (a function missing in `func_list`, an empty option list, a missing range: no item). Item kinds: switch, choice (options with value and label), number (min, max, step, current).
+- `YxcSettingsWriter` (pure over a `YxcClient`): applies one change after checking it against the item (value is one of the options, number inside the range and `(value - min) % step == 0`).
+- `YxcSettingsSheet` (Android): loads features, status and names on a worker, shows switch / choice rows / sliders, applies a change on a worker and then reads the status again so the sheet shows what the device really did; results after the sheet was closed are dropped.
+- Everything the device says (names, option words) is cleaned and shown as plain text; writes go only to the watched device the sheet was opened for (endpoint from the monitor).
+
+### Open until captured on the owner's devices
+`system/getNameText` (the library calls it once with and once without a parameter; yaacc sends none and falls back to readable ids), the effect of `setSleep` values, the equalizer call with `mode=manual` and the three bands in one request.
