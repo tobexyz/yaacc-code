@@ -12,7 +12,7 @@ Rules: tests first for the pure parts; all new strings in values + de/es/fr/nl/p
   - **Accept**: `getDeviceInfo`, `getFeatures`, `getStatus`, `getDistributionInfo` (unlinked, server, client), and a few UDP events, with MAC / serial / names / IPs replaced.
   - **Verify**: a grep for MAC / IP patterns finds nothing.
   - **Constraints**: owner's devices are the source; no model names in file names.
-- [ ] Experiment on real devices: does the server's volume propagate to linked clients? (decision 7) | notes in `docs/tech.md`
+- [x] Experiment on real devices: does the server's volume propagate to linked clients? (decision 7) | result: NO, not through the API (see design.md); yaacc propagates relatively
 
 ## Group 2: Client, model, discovery, events (P1, read only)
 - [ ] `YxcClient` (HTTP/JSON calls as methods, immutable result objects), tests with a fake YXC server on loopback (Host = localhost, see RangedResponseOverHttpTest) | `yaacc/src/main/java/de/yaacc/yxc/`
@@ -30,7 +30,7 @@ Rules: tests first for the pure parts; all new strings in values + de/es/fr/nl/p
 
 ## Group 4: Group as virtual device (P3, option B)
 - [ ] Virtual receiver "Group <name>" (precedent: `UpnpClient.LocalDummyDevice`): receiver id resolution (`getDevice`, `setReceiverDeviceIds`, `ShareAddressResolver`, mini player), playback to the server, members shown inside
-- [ ] Group volume per decision 7 (propagate; second slider only if needed)
+- [ ] Group volume per decision 7: a second "group volume" slider on the server's row (the device does not propagate by itself), relative change applied to every member, clamped per device; tests with the simulated network
 
 ## Group 5: Settings per device (P4)
 - [ ] Settings screen built from `getFeatures`: power, volume, mute, input, sound program, switches (pure direct, enhancer, ...), numbers (equalizer, subwoofer, dialogue level, ...), link control (audio delay / quality); only what the device reports

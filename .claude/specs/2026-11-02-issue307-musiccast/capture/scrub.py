@@ -10,7 +10,8 @@ import json, re, sys, pathlib
 SECRET_KEYS = {
     "device_id", "system_id", "serial_number", "serial", "network_name", "name", "ssid", "key", "password", "pin",
     "wired_mac_address", "wireless_lan_mac_address", "wireless_direct_mac_address", "bluetooth_mac_address", "mac_address",
-    "ip_address", "ipv4_address", "location_id", "account_name", "user_name", "group_name", "text", "friendly_name",
+    "location_id", "account_name", "user_name", "group_name", "text", "friendly_name",
+    "model_name", "netmodule_checksum",
 }
 KEEP_KEYS = set()  # add keys here that are named like a secret key but carry no personal data
 MAC = re.compile(r"\b[0-9A-Fa-f]{2}(?:[:\-][0-9A-Fa-f]{2}){5}\b")
@@ -30,7 +31,8 @@ def mapped(table, key, fmt):
 def scrub_text(s):
     s = MAC.sub(lambda m: mapped(macs, m.group(0).lower(), lambda n: "00:00:5e:00:53:%02x" % n), s)
     s = UUID.sub(lambda m: mapped(uuids, m.group(0).lower(), lambda n: "00000000-0000-0000-0000-%012d" % n), s)
-    s = HEX32.sub(lambda m: mapped(hexes, m.group(0).lower(), lambda n: "%032x" % n), s)
+    # the all-zero group id means "no group" and is no personal data: keep it
+    s = HEX32.sub(lambda m: m.group(0) if set(m.group(0)) == {"0"} else mapped(hexes, m.group(0).lower(), lambda n: "%032x" % n), s)
     s = IPV4.sub(lambda m: mapped(ips, m.group(0), lambda n: "192.0.2.%d" % n), s)
     return s
 
@@ -60,7 +62,7 @@ def main():
             p.write_text(json.dumps(scrub_json(data), indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
         elif p.suffix == ".xml":
             text = scrub_text(p.read_text(encoding="utf-8"))
-            text = re.sub(r"(<(?:friendlyName|serialNumber|UDN|yamaha:X_URLBase|presentationURL)>)[^<]*(</)", r"\1scrubbed\2", text)
+            text = re.sub(r"(<(?:friendlyName|serialNumber|modelName|modelNumber|UDN|yamaha:X_URLBase|presentationURL)>)[^<]*(</)", r"\1scrubbed\2", text)
             p.write_text(text, encoding="utf-8")
         else:
             continue

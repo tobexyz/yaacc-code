@@ -1,0 +1,8 @@
+{
+  "response_code": 0,
+  "power": "standby",
+  "sleep": 0,
+  "volume": 15,
+  "mute": true,
+  "input": "optical"
+}

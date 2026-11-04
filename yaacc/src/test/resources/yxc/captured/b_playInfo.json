@@ -1,0 +1,20 @@
+{
+  "response_code": 0,
+  "input": "net_radio",
+  "play_queue_type": "system",
+  "playback": "stop",
+  "repeat": "off",
+  "shuffle": "off",
+  "play_time": 0,
+  "total_time": 0,
+  "artist": "Test Radio One (City/English)",
+  "album": "",
+  "track": "Test Radio One - example.org/one",
+  "albumart_url": "",
+  "albumart_id": 5961,
+  "usb_devicetype": "unknown",
+  "auto_stopped": false,
+  "attribute": 16785411,
+  "repeat_available": [],
+  "shuffle_available": []
+}

@@ -1,0 +1,320 @@
+{
+  "response_code": 0,
+  "system": {
+    "func_list": [
+      "wired_lan",
+      "wireless_lan",
+      "network_standby",
+      "bluetooth_tx_setting",
+      "bluetooth_tx_connectivity_type",
+      "auto_power_standby",
+      "dimmer",
+      "airplay",
+      "disklavier_settings",
+      "background_download",
+      "remote_info",
+      "network_reboot",
+      "system_reboot",
+      "analytics",
+      "terms_of_use"
+    ],
+    "zone_num": 1,
+    "input_list": [
+      {
+        "id": "napster",
+        "distribution_enable": true,
+        "rename_enable": false,
+        "account_enable": true,
+        "play_info_type": "netusb"
+      },
+      {
+        "id": "spotify",
+        "distribution_enable": true,
+        "rename_enable": false,
+        "account_enable": false,
+        "play_info_type": "netusb"
+      },
+      {
+        "id": "qobuz",
+        "distribution_enable": true,
+        "rename_enable": false,
+        "account_enable": true,
+        "play_info_type": "netusb"
+      },
+      {
+        "id": "tidal",
+        "distribution_enable": true,
+        "rename_enable": false,
+        "account_enable": true,
+        "play_info_type": "netusb"
+      },
+      {
+        "id": "deezer",
+        "distribution_enable": true,
+        "rename_enable": false,
+        "account_enable": true,
+        "play_info_type": "netusb"
+      },
+      {
+        "id": "amazon_music",
+        "distribution_enable": true,
+        "rename_enable": false,
+        "account_enable": true,
+        "play_info_type": "netusb"
+      },
+      {
+        "id": "airplay",
+        "distribution_enable": false,
+        "rename_enable": false,
+        "account_enable": false,
+        "play_info_type": "netusb"
+      },
+      {
+        "id": "mc_link",
+        "distribution_enable": false,
+        "rename_enable": true,
+        "account_enable": false,
+        "play_info_type": "netusb"
+      },
+      {
+        "id": "server",
+        "distribution_enable": true,
+        "rename_enable": true,
+        "account_enable": false,
+        "play_info_type": "netusb"
+      },
+      {
+        "id": "net_radio",
+        "distribution_enable": true,
+        "rename_enable": true,
+        "account_enable": false,
+        "play_info_type": "netusb"
+      },
+      {
+        "id": "bluetooth",
+        "distribution_enable": true,
+        "rename_enable": false,
+        "account_enable": false,
+        "play_info_type": "netusb"
+      },
+      {
+        "id": "usb",
+        "distribution_enable": true,
+        "rename_enable": true,
+        "account_enable": false,
+        "play_info_type": "netusb"
+      },
+      {
+        "id": "tuner",
+        "distribution_enable": true,
+        "rename_enable": true,
+        "account_enable": false,
+        "play_info_type": "tuner"
+      },
+      {
+        "id": "cd",
+        "distribution_enable": true,
+        "rename_enable": true,
+        "account_enable": false,
+        "play_info_type": "cd"
+      },
+      {
+        "id": "aux",
+        "distribution_enable": true,
+        "rename_enable": true,
+        "account_enable": false,
+        "play_info_type": "none"
+      }
+    ],
+    "range_step": [
+      {
+        "id": "dimmer",
+        "min": -1,
+        "max": 9,
+        "step": 1
+      }
+    ],
+    "bluetooth": {
+      "update_cancelable": true,
+      "tx_connectivity_type_max": 3
+    }
+  },
+  "zone": [
+    {
+      "id": "main",
+      "func_list": [
+        "power",
+        "sleep",
+        "volume",
+        "mute",
+        "sound_program",
+        "equalizer",
+        "signal_info",
+        "prepare_input_change",
+        "link_control",
+        "link_audio_delay"
+      ],
+      "input_list": [
+        "napster",
+        "spotify",
+        "qobuz",
+        "tidal",
+        "deezer",
+        "amazon_music",
+        "airplay",
+        "mc_link",
+        "server",
+        "net_radio",
+        "bluetooth",
+        "usb",
+        "tuner",
+        "cd",
+        "aux"
+      ],
+      "sound_program_list": [
+        "standard",
+        "bass_booster"
+      ],
+      "equalizer_mode_list": [
+        "manual"
+      ],
+      "link_control_list": [
+        "speed",
+        "standard",
+        "stability"
+      ],
+      "link_audio_delay_list": [
+        "audio_sync_on",
+        "balanced",
+        "audio_sync_off"
+      ],
+      "range_step": [
+        {
+          "id": "volume",
+          "min": 0,
+          "max": 60,
+          "step": 1
+        },
+        {
+          "id": "equalizer",
+          "min": -10,
+          "max": 10,
+          "step": 1
+        }
+      ]
+    }
+  ],
+  "tuner": {
+    "func_list": [
+      "fm",
+      "rds",
+      "dab"
+    ],
+    "range_step": [
+      {
+        "id": "fm",
+        "min": 87500,
+        "max": 108000,
+        "step": 50
+      }
+    ],
+    "preset": {
+      "type": "separate",
+      "num": 40
+    }
+  },
+  "netusb": {
+    "func_list": [
+      "recent_info",
+      "play_queue",
+      "mc_playlist",
+      "streaming_service_use",
+      "previous_force"
+    ],
+    "preset": {
+      "num": 40
+    },
+    "recent_info": {
+      "num": 40
+    },
+    "play_queue": {
+      "size": 200
+    },
+    "mc_playlist": {
+      "size": 200,
+      "num": 5
+    },
+    "net_radio_type": "airable",
+    "tidal": {
+      "mode": "airable"
+    },
+    "qobuz": {
+      "login_type": "oauth"
+    }
+  },
+  "distribution": {
+    "version": 2.0,
+    "compatible_client": [
+      2
+    ],
+    "client_max": 19,
+    "server_zone_list": [
+      "main"
+    ]
+  },
+  "clock": {
+    "func_list": [
+      "date_and_time",
+      "snooze",
+      "multi_alarm",
+      "stop_alarm"
+    ],
+    "range_step": [
+      {
+        "id": "alarm_volume",
+        "min": 5,
+        "max": 60,
+        "step": 1
+      },
+      {
+        "id": "alarm_fade",
+        "min": 60,
+        "max": 180,
+        "step": 60
+      },
+      {
+        "id": "alarm_ringing",
+        "min": 30,
+        "max": 120,
+        "step": 30
+      }
+    ],
+    "alarm_fade_type_num": 1,
+    "alarm_input_list": [
+      "none",
+      "cd",
+      "tuner",
+      "usb",
+      "server",
+      "net_radio",
+      "napster",
+      "spotify",
+      "qobuz",
+      "tidal",
+      "deezer",
+      "amazon_music"
+    ],
+    "alarm_preset_list": [
+      "netusb",
+      "fm",
+      "dab",
+      "cd"
+    ],
+    "multi_alarm_num": 5
+  },
+  "cd": {
+    "func_list": [
+      "toc"
+    ]
+  }
+}

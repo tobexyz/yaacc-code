@@ -1,0 +1,10 @@
+{
+  "response_code": 0,
+  "group_id": "00000000000000000000000000000000",
+  "group_name": "scrubbed-group_name",
+  "role": "none",
+  "server_zone": "main",
+  "client_list": [],
+  "build_disable": [],
+  "audio_dropout": false
+}

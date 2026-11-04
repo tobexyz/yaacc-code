@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root xmlns="urn:schemas-upnp-org:device-1-0" xmlns:yamaha="urn:schemas-yamaha-com:device-1-0">
+  <specVersion><major>1</major><minor>0</minor></specVersion>
+  <device>
+    <deviceType>urn:schemas-upnp-org:device:MediaRenderer:1</deviceType>
+    <friendlyName>Invented Old Room</friendlyName>
+    <serialNumber>0000000E</serialNumber>
+    <UDN>uuid:9ab0c000-f668-11de-9976-00000000000e</UDN>
+  </device>
+  <yamaha:X_device>
+    <yamaha:X_URLBase>192.0.2.51:80</yamaha:X_URLBase>
+    <yamaha:X_serviceList>
+      <yamaha:X_service>
+        <yamaha:X_specType>urn:schemas-yamaha-com:service:X_YamahaRemoteControl:1</yamaha:X_specType>
+        <yamaha:X_controlURL>/YamahaRemoteControl/ctrl</yamaha:X_controlURL>
+      </yamaha:X_service>
+    </yamaha:X_serviceList>
+  </yamaha:X_device>
+</root>
