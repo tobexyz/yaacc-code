@@ -84,3 +84,7 @@ After the build has finished the debug apk is located in
 ## Documentation
 
 <https://tobexyz.github.io/yaacc-code>
+
+## Trademarks
+
+Android and Android TV are trademarks of Google LLC. UPnP and DLNA are trademarks or certification marks of their respective owners; YAACC is not UPnP or DLNA certified. Home Assistant, VLC, Kodi, BubbleUPnP, Windows and the other product and company names mentioned in this documentation are trademarks or registered trademarks of their respective owners and are used only to identify compatible products. YAACC is an independent project and is not affiliated with, authorized or endorsed by any of them.
