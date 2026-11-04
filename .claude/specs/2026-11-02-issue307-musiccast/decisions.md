@@ -15,3 +15,8 @@
 **Context**: Review of slice 5 (cycle 1): while yaacc plays or has paused a track on a MusicCast device the zone input is the server input, which counts as a network source; row play / pause / stop and the previous / next / repeat / shuffle icons would then act on the device's own queue.
 **Decision**: "yaacc owns the device" = the primary player on it plays or is paused. In that case the row's buttons stay with the UPnP transport and no source icons are shown (`YxcSourceControls.rowMapsToOwnSource`, `available(state, yaaccActive)`, tested). A stopped or finished player does not count. Real station names were replaced by invented ones in docs/tech.md and the fixture `b_playInfo.json`.
 **Rationale**: a press must not leave yaacc's queue and the device out of step; the icons for the device's own source return as soon as yaacc has stopped.
+
+## 2026-11-04 — Live volume reads of a group device go through its own interface
+**Context**: Owner (four linked devices): after lowering the volume of a client the slider jumped to 50 % again and could hardly be adjusted. `ReceiverVolumeLiveUpdater` (2 s poll) read every receiver through the UPnP RenderingControl; a member of a group does not follow its volume there. Writes and the one-time read already used `YxcVolumeAccess`.
+**Decision**: the live updater asks `YxcVolumeAccess` for a device it handles (volume and mute), the UPnP actions stay for every other receiver.
+**Rationale**: one source of truth for write and read; the existing refresh plan still drops reads while the user touches the slider.
