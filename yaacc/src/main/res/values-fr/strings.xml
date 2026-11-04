@@ -179,4 +179,16 @@
     <string name="repeat_one">Répéter un titre</string>
     <string name="shuffle_off">Lecture aléatoire désactivée</string>
     <string name="shuffle_on">Lecture aléatoire activée</string>
+
+    <string name="pick_description">Lire depuis cet appareil</string>
+    <string name="pick_files_description">Lire des fichiers de cet appareil</string>
+    <string name="pick_folder_description">Lire un dossier de cet appareil</string>
+    <string name="pick_nothing_to_play">Aucun fichier audio, vidéo ou image trouvé.</string>
+    <string name="pick_skipped_not_media">Ignorés (ni audio, ni vidéo, ni image) : %1$d</string>
+    <string name="pick_skipped_over_cap">Fichiers lus : %1$d, ignorés : %2$d</string>
+    <string name="pick_folder_failed">Le dossier n\'a pas pu être lu.</string>
+    <string name="pick_picker_failed">Le sélecteur de fichiers n\'a pas pu être ouvert.</string>
+    <string name="pick_skipped_unread">Certains fichiers n\'ont pas pu être lus.</string>
+    <string name="pick_play_failed">Les fichiers choisis n\'ont pas pu être lus.</string>
+    <string name="pick_title_files">Fichiers : %1$d</string>
 </resources>
