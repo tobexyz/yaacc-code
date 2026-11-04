@@ -294,6 +294,14 @@ final class DeviceSheetAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
         }
     }
 
+    /** The power, input or group of a device with group support changed: rebinds that row's status part. */
+    void onGroupStateChanged(String udn) {
+        int position = receiverPosition(udn);
+        if (position != RecyclerView.NO_POSITION) {
+            notifyItemChanged(position, ReceiverRowBinder.PAYLOAD_STATUS);
+        }
+    }
+
     /**
      * Polled while the sheet is open: the local device has no
      * {@code RendererStatusMonitor} feed (same as the Receiver tab's 2 s
@@ -426,7 +434,10 @@ final class DeviceSheetAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
             // untrusted LAN name: cleaned, plain setText
             String name = MiniPlayerPresenter.cleanText(entry.device == null || entry.device.getDetails() == null
                     ? null : entry.device.getDetails().getFriendlyName());
-            box.setText(name.isEmpty() ? entry.deviceId : name);
+            String label = name.isEmpty() ? entry.deviceId : name;
+            String via = entry.deviceId == null ? null : rowBinder.playsViaServerName(entry.deviceId);
+            // a linked client plays what its server plays: the send goes to the server, the picker says so
+            box.setText(via == null ? label : label + "\n" + box.getContext().getString(R.string.yxc_pick_plays_via, via));
             box.setChecked(picked.contains(entry.deviceId));
             requestFocusIfFirst(position, box);
         } else if (holder instanceof ReceiverHolder) {

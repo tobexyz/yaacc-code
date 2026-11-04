@@ -1,0 +1,279 @@
+{
+  "response_code": 0,
+  "system": {
+    "func_list": [
+      "wired_lan",
+      "wireless_lan",
+      "wireless_direct",
+      "network_standby",
+      "auto_power_standby",
+      "bluetooth_tx_setting",
+      "dimmer",
+      "airplay",
+      "network_reboot"
+    ],
+    "zone_num": 1,
+    "input_list": [
+      {
+        "id": "napster",
+        "distribution_enable": true,
+        "rename_enable": false,
+        "account_enable": true,
+        "play_info_type": "netusb"
+      },
+      {
+        "id": "spotify",
+        "distribution_enable": true,
+        "rename_enable": false,
+        "account_enable": false,
+        "play_info_type": "netusb"
+      },
+      {
+        "id": "juke",
+        "distribution_enable": true,
+        "rename_enable": false,
+        "account_enable": true,
+        "play_info_type": "netusb"
+      },
+      {
+        "id": "qobuz",
+        "distribution_enable": true,
+        "rename_enable": false,
+        "account_enable": true,
+        "play_info_type": "netusb"
+      },
+      {
+        "id": "tidal",
+        "distribution_enable": true,
+        "rename_enable": false,
+        "account_enable": true,
+        "play_info_type": "netusb"
+      },
+      {
+        "id": "deezer",
+        "distribution_enable": true,
+        "rename_enable": false,
+        "account_enable": true,
+        "play_info_type": "netusb"
+      },
+      {
+        "id": "airplay",
+        "distribution_enable": false,
+        "rename_enable": false,
+        "account_enable": false,
+        "play_info_type": "netusb"
+      },
+      {
+        "id": "mc_link",
+        "distribution_enable": false,
+        "rename_enable": true,
+        "account_enable": false,
+        "play_info_type": "netusb"
+      },
+      {
+        "id": "server",
+        "distribution_enable": true,
+        "rename_enable": true,
+        "account_enable": false,
+        "play_info_type": "netusb"
+      },
+      {
+        "id": "net_radio",
+        "distribution_enable": true,
+        "rename_enable": true,
+        "account_enable": false,
+        "play_info_type": "netusb"
+      },
+      {
+        "id": "bluetooth",
+        "distribution_enable": true,
+        "rename_enable": false,
+        "account_enable": false,
+        "play_info_type": "netusb"
+      },
+      {
+        "id": "tuner",
+        "distribution_enable": true,
+        "rename_enable": true,
+        "account_enable": false,
+        "play_info_type": "tuner"
+      }
+    ],
+    "range_step": [
+      {
+        "id": "dimmer",
+        "min": -1,
+        "max": 2,
+        "step": 1
+      }
+    ]
+  },
+  "zone": [
+    {
+      "id": "main",
+      "func_list": [
+        "power",
+        "sleep",
+        "volume",
+        "mute",
+        "equalizer",
+        "signal_info",
+        "prepare_input_change",
+        "link_control",
+        "link_audio_delay",
+        "link_audio_quality"
+      ],
+      "input_list": [
+        "napster",
+        "spotify",
+        "juke",
+        "qobuz",
+        "tidal",
+        "deezer",
+        "airplay",
+        "mc_link",
+        "server",
+        "net_radio",
+        "bluetooth",
+        "tuner"
+      ],
+      "equalizer_mode_list": [
+        "manual"
+      ],
+      "link_control_list": [
+        "speed",
+        "standard",
+        "stability"
+      ],
+      "link_audio_delay_list": [
+        "audio_sync_on",
+        "audio_sync_off"
+      ],
+      "link_audio_quality_list": [
+        "compressed",
+        "uncompressed"
+      ],
+      "range_step": [
+        {
+          "id": "volume",
+          "min": 0,
+          "max": 60,
+          "step": 1
+        },
+        {
+          "id": "equalizer",
+          "min": -10,
+          "max": 10,
+          "step": 1
+        }
+      ]
+    }
+  ],
+  "tuner": {
+    "func_list": [
+      "fm",
+      "dab",
+      "fm_auto_preset",
+      "dab_initial_scan",
+      "dab_tune_aid"
+    ],
+    "range_step": [
+      {
+        "id": "fm",
+        "min": 87500,
+        "max": 108000,
+        "step": 50
+      }
+    ],
+    "preset": {
+      "type": "separate",
+      "num": 30
+    }
+  },
+  "netusb": {
+    "func_list": [
+      "recent_info",
+      "play_queue",
+      "mc_playlist",
+      "streaming_service_use"
+    ],
+    "preset": {
+      "num": 40
+    },
+    "recent_info": {
+      "num": 40
+    },
+    "play_queue": {
+      "size": 200
+    },
+    "mc_playlist": {
+      "size": 200,
+      "num": 5
+    },
+    "net_radio_type": "airable",
+    "pandora": {
+      "sort_option_list": [
+        "date",
+        "alphabet"
+      ]
+    },
+    "siriusxm": {
+      "api_type": "everest"
+    }
+  },
+  "distribution": {
+    "version": 2.0,
+    "compatible_client": [
+      2
+    ],
+    "client_max": 9,
+    "server_zone_list": [
+      "main"
+    ]
+  },
+  "clock": {
+    "func_list": [
+      "date_and_time",
+      "alarm",
+      "format"
+    ],
+    "range_step": [
+      {
+        "id": "alarm_volume",
+        "min": 5,
+        "max": 60,
+        "step": 1
+      },
+      {
+        "id": "alarm_fade",
+        "min": 180,
+        "max": 180,
+        "step": 1
+      }
+    ],
+    "alarm_fade_type_num": 1,
+    "alarm_mode_list": [
+      "oneday"
+    ],
+    "alarm_input_list": [
+      "none",
+      "tuner",
+      "server",
+      "net_radio",
+      "napster",
+      "spotify",
+      "juke",
+      "qobuz",
+      "tidal",
+      "deezer"
+    ],
+    "alarm_preset_list": [
+      "netusb",
+      "fm",
+      "dab"
+    ]
+  },
+  "ccs": {
+    "supported": true
+  }
+}

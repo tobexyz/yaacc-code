@@ -31,25 +31,30 @@
         style="@style/Widget.App.CardView.List"
         android:id="@+id/item_container"
         android:layout_width="match_parent"
-        android:layout_height="180dp"
+        android:layout_height="wrap_content"
         app:cardUseCompatPadding="true"
         app:contentPadding="12dp">
 
-        <FrameLayout
+        <!-- The card is as high as the content column. The album art is laid over the same area by anchoring it to
+             the column (a FrameLayout would let the picture's own size make the card tall). -->
+        <RelativeLayout
             android:layout_width="match_parent"
-            android:layout_height="match_parent">
+            android:layout_height="wrap_content">
 
             <ImageView
                 android:id="@+id/browseReceiverDeviceItemAlbumArt"
                 android:layout_width="match_parent"
-                android:layout_height="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_alignTop="@+id/yxc_row_content"
+                android:layout_alignBottom="@+id/yxc_row_content"
                 android:scaleType="centerCrop"
                 android:alpha="0.3"
                 android:contentDescription="@string/album_art" />
 
             <LinearLayout
+                android:id="@+id/yxc_row_content"
                 android:layout_width="match_parent"
-                android:layout_height="match_parent"
+                android:layout_height="wrap_content"
                 android:orientation="vertical">
 
                 <!-- Device name row with status badge -->
@@ -106,11 +111,172 @@
                 android:ellipsize="end"
                 android:visibility="gone" />
             
-            <!-- Spacer to push controls to bottom -->
+            <!-- State of a device with group support (power, input, group) -->
+            <TextView
+                android:id="@+id/yxc_text"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="56dp"
+                android:layout_marginTop="2dp"
+                android:textSize="12sp"
+                android:textColor="?attr/colorOnSurfaceVariant"
+                android:maxLines="3"
+                android:ellipsize="end"
+                android:visibility="gone" />
+
+            <!-- Controls of the device's own source (network source, tuner): previous / next (or seek), repeat, shuffle -->
+            <LinearLayout
+                android:id="@+id/yxc_source"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="52dp"
+                android:orientation="horizontal"
+                android:visibility="gone">
+
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/yxc_src_prev"
+                    android:layout_width="48dp"
+                    android:layout_height="40dp"
+                    android:scaleType="center"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:src="@drawable/ic_baseline_skip_previous_32"
+                    android:contentDescription="@string/yxc_source_previous"
+                    android:visibility="gone" />
+
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/yxc_src_next"
+                    android:layout_width="48dp"
+                    android:layout_height="40dp"
+                    android:scaleType="center"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:src="@drawable/ic_baseline_skip_next_32"
+                    android:contentDescription="@string/yxc_source_next"
+                    android:visibility="gone" />
+
+                <!-- The band of the tuner: both names visible, the selected one is the band that plays -->
+                <com.google.android.material.button.MaterialButtonToggleGroup
+                    android:id="@+id/yxc_src_band"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_vertical"
+                    android:layout_marginStart="8dp"
+                    android:layout_marginEnd="8dp"
+                    app:selectionRequired="true"
+                    app:singleSelection="true"
+                    android:visibility="gone">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/yxc_src_band_fm"
+                        style="?attr/materialButtonOutlinedStyle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="36dp"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:minWidth="56dp"
+                        android:contentDescription="@string/yxc_source_switch_fm"
+                        android:text="@string/yxc_band_fm"
+                        android:textColor="?attr/colorOnSurface" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/yxc_src_band_dab"
+                        style="?attr/materialButtonOutlinedStyle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="36dp"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:minWidth="56dp"
+                        android:contentDescription="@string/yxc_source_switch_dab"
+                        android:text="@string/yxc_band_dab"
+                        android:textColor="?attr/colorOnSurface" />
+                </com.google.android.material.button.MaterialButtonToggleGroup>
+
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/yxc_src_repeat"
+                    android:layout_width="48dp"
+                    android:layout_height="40dp"
+                    android:scaleType="center"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:src="@drawable/ic_baseline_repeat_32"
+                    android:contentDescription="@string/yxc_source_repeat"
+                    android:visibility="gone" />
+
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/yxc_src_shuffle"
+                    android:layout_width="48dp"
+                    android:layout_height="40dp"
+                    android:scaleType="center"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:src="@drawable/ic_baseline_shuffle_32"
+                    android:contentDescription="@string/yxc_source_shuffle"
+                    android:visibility="gone" />
+            </LinearLayout>
+
+            <!-- Group toggle of a device that supports groups: link devices / unlink the group -->
+            <LinearLayout
+                android:id="@+id/yxc_actions"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="52dp"
+                android:orientation="horizontal"
+                android:visibility="gone">
+
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/yxc_btn_link"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:src="@drawable/ic_yxc_link"
+                    android:scaleType="center"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="@string/yxc_action_link" />
+
+                <!-- Settings of the device (power, input, sound program ...) -->
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/yxc_btn_settings"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:src="@drawable/ic_yxc_settings"
+                    android:scaleType="center"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="@string/yxc_action_settings"
+                    android:visibility="gone" />
+
+                <!-- Presets and recently played stations of the device -->
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/yxc_btn_presets"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:src="@drawable/ic_yxc_presets"
+                    android:scaleType="center"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="@string/yxc_action_presets"
+                    android:visibility="gone" />
+
+                <!-- Group volume: the average of the members, moves every member by the same number of points -->
+                <SeekBar
+                    android:id="@+id/yxc_group_volume"
+                    android:layout_width="0dp"
+                    android:layout_height="48dp"
+                    android:layout_weight="1"
+                    android:layout_gravity="center_vertical"
+                    android:max="100"
+                    android:contentDescription="@string/yxc_group_volume"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/yxc_group_volume_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="48dp"
+                    android:minWidth="48dp"
+                    android:gravity="center_vertical|end"
+                    android:textSize="12sp"
+                    android:textColor="?attr/colorOnSurfaceVariant"
+                    android:visibility="gone" />
+            </LinearLayout>
+
+            <!-- Space between the information and the controls; the card is as high as its content -->
             <View
                 android:layout_width="match_parent"
-                android:layout_height="0dp"
-                android:layout_weight="1" />
+                android:layout_height="8dp" />
 
             <!-- Playback controls -->
             <LinearLayout
@@ -170,6 +336,6 @@
                     android:textSize="12sp" />
             </LinearLayout>
             </LinearLayout>
-        </FrameLayout>
+        </RelativeLayout>
     </com.google.android.material.card.MaterialCardView>
 </LinearLayout>

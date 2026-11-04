@@ -75,7 +75,7 @@
     <string name="title_activity_avtransport_player">YAACC remote player</string>
     <string name="title_activity_multi_content_player">YAACC default player</string>
     <string name="can_not_start_activity">"Can not start app! Reason: "</string>
-    <string name="app_descrip">Bring your UPnP devices in your local network together with android!  <a href="https://www.yaacc.de">www.yaacc.de</a>  YAACC is developed under GPLv3. Feel free to use and share it without any warranty. Licence details are documented at (www.gnu.org/licenses/gpl-3.0)  Further licences are: The UPnP implementation is based on Cling (https://github.com/4thline/cling) Material design icons and symbols are used (https://github.com/google/material-design-icons) . Android is a trademark of Google Inc (developer.android.com/about/index.html )</string>
+    <string name="app_descrip">Bring your UPnP devices in your local network together with android!  <a href="https://www.yaacc.de">www.yaacc.de</a>  YAACC is developed under GPLv3. Feel free to use and share it without any warranty. Licence details are documented at (www.gnu.org/licenses/gpl-3.0)  Further licences are: The UPnP implementation is based on Cling (https://github.com/4thline/cling) Material design icons and symbols are used (https://github.com/google/material-design-icons) . Android is a trademark of Google LLC (developer.android.com/about/index.html )</string>
     <string name="title_activity_yaacc_upnp_server_control">YAACC UPnP server control</string>
     <string name="yaacc_upnp_server_stop_server">stop server</string>
     <string name="yaacc_upnp_server_start_server">start server</string>
@@ -182,6 +182,71 @@
     <string name="repeat_one">Repeat one</string>
     <string name="shuffle_off">Shuffle off</string>
     <string name="shuffle_on">Shuffle on</string>
+    <!-- state of a device that speaks the YXC protocol, shown in the receiver row -->
+    <string name="yxc_state_on">On</string>
+    <string name="yxc_state_standby">Standby</string>
+    <string name="yxc_state_unreachable">Not reachable</string>
+    <string name="yxc_group_linked_with">Linked with %1$s</string>
+    <string name="yxc_group_linked">Linked</string>
+    <string name="yxc_group_with">Group with %1$s</string>
+    <string name="yxc_group_stuck">No group, still on the link input</string>
+    <string name="yxc_group_leader">Group leader</string>
+    <string name="yxc_action_link">Link devices</string>
+    <string name="yxc_action_edit_group">Edit group</string>
+    <string name="yxc_busy">Changing the group …</string>
+    <string name="yxc_link_none">No other device available</string>
+    <string name="yxc_picker_in_other_group">%1$s (in another group)</string>
+    <string name="yxc_picker_not_reachable">%1$s (not reachable)</string>
+    <string name="yxc_error_validate">This change is not possible. A device may be in another group.</string>
+    <string name="yxc_error_unreachable">%1$s does not answer.</string>
+    <string name="yxc_error_restore">%1$s left the group but could not be switched back to its input.</string>
+    <string name="yxc_error_failed">Changing the group failed at %1$s. Please try again.</string>
+    <string name="yxc_play_redirected">%1$s is linked with %2$s. Playing on %2$s.</string>
+    <string name="yxc_play_refused">%1$s is part of a group whose server is not known. Play on the server of the group instead.</string>
+    <string name="yxc_pick_plays_via">plays via %1$s</string>
+    <string name="yxc_picker_end_hint">Uncheck all devices to end the group.</string>
+    <string name="yxc_group_volume">Group volume</string>
+    <string name="yxc_source_repeat">Repeat</string>
+    <string name="yxc_source_shuffle">Shuffle</string>
+    <string name="yxc_source_previous">Previous</string>
+    <string name="yxc_source_next">Next</string>
+    <string name="yxc_source_service_previous">Previous station</string>
+    <string name="yxc_source_service_next">Next station</string>
+    <string name="yxc_source_switch_fm">Switch to FM</string>
+    <string name="yxc_source_switch_dab">Switch to DAB</string>
+    <string name="yxc_band_fm" translatable="false">FM</string>
+    <string name="yxc_band_dab" translatable="false">DAB</string>
+    <string name="yxc_source_step_down">Frequency down (hold to scan)</string>
+    <string name="yxc_source_step_up">Frequency up (hold to scan)</string>
+    <string name="yxc_source_cancel_scan">Stop the scan</string>
+    <string name="yxc_action_presets">Presets and recently played</string>
+    <string name="yxc_presets_recent">Recently played</string>
+    <string name="yxc_presets_net">Presets</string>
+    <string name="yxc_presets_fm">FM presets</string>
+    <string name="yxc_presets_dab">DAB presets</string>
+    <string name="yxc_presets_empty">No presets or recently played stations on this device.</string>
+    <string name="yxc_presets_failed">The presets could not be read.</string>
+    <string name="yxc_presets_changed">The list has changed. Please choose again.</string>
+    <string name="yxc_presets_recall_failed">Switching failed.</string>
+    <string name="yxc_action_settings">Device settings</string>
+    <string name="yxc_setting_power">Power</string>
+    <string name="yxc_setting_input">Input</string>
+    <string name="yxc_setting_sound_program">Sound program</string>
+    <string name="yxc_settings_loading">Loading …</string>
+    <string name="yxc_settings_failed">The settings could not be read or changed.</string>
+    <string name="yxc_setting_sleep">Sleep timer</string>
+    <string name="yxc_sleep_off">Off</string>
+    <string name="yxc_sleep_minutes">%1$d min</string>
+    <string name="yxc_setting_equalizer">Equalizer</string>
+    <string name="yxc_setting_eq_low">Low</string>
+    <string name="yxc_setting_eq_mid">Mid</string>
+    <string name="yxc_setting_eq_high">High</string>
+    <string name="yxc_setting_dimmer">Display brightness</string>
+    <string name="yxc_setting_dimmer_auto">Auto</string>
+    <string name="yxc_setting_auto_power_standby">Automatic standby</string>
+    <string name="yxc_setting_link_control">Link control</string>
+    <string name="yxc_setting_link_audio_delay">Link audio delay</string>
+    <string name="yxc_setting_link_audio_quality">Link audio quality</string>
 
     <string name="pick_description">Play from this device</string>
     <string name="pick_files_description">Play files from this device</string>

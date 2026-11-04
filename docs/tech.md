@@ -2938,6 +2938,565 @@ it accepts the initial event and an event right behind it - they are sent from t
 
 - **Unreachable event receivers.** `SendingEvent` reports each delivery to its `DeliveryListener`; the subscription (`ReceivingSubscribe.EventSendingSubscription`) counts failed deliveries in a row in `EventDeliveryHealth` and, at the third, removes itself from the registry and ends (`CancelReason.EXPIRED`), with one warning line `Event delivery to [...] failed 3 times in a row, dropping subscription ...`. A delivery that succeeds resets the count. A control point whose callback address is not routable from the phone (e.g. Home Assistant behind a proxy or in a container network without a callback URL override) therefore costs three connect timeouts, not one per event; when it renews, it gets 412 and subscribes again.
 
+## YXC (the API of Yamaha MusicCast devices): behavior notes from open-source libraries (issue #307)
+
+**Read this first.** These are our own notes about behavior that was read from the code of three open-source projects. They are not
+Yamaha's documentation and nothing here comes from a Yamaha document. Firmware and models may behave differently; every point marked
+"not verified" has to be checked on the owner's devices. "YXC" is the protocol abbreviation; "Yamaha" and "MusicCast" are trademarks of
+Yamaha Corporation and are used here only to say which devices are meant. Identifiers that are part of the protocol (URL paths, JSON
+keys, header names, enum values) are written as they appear on the wire. No code or text of the sources is copied.
+
+Sources (downloaded 2026-11-02 into the session scratchpad, not into the repository):
+
+| Tag | Project | Version read | License |
+|---|---|---|---|
+| `AMC` | `aiomusiccast`, github.com/vigonotion/aiomusiccast (Python, asyncio) | branch `main`; the files compared are identical to tag `0.15.0`, the version the Home Assistant integration requires | MIT (copyright 2021 Tom Schneider) |
+| `PYA` | `pyamaha`, github.com/rsc-dev/pyamaha (Python, `requests` / `aiohttp`) | branch `master`, file header says version 0.3 | MIT (copyright 2017 Radoslaw Matusiak) |
+| `HA` | Home Assistant core, `homeassistant/components/yamaha_musiccast` (the integration named `yamaha_musiccast`) | branch `dev` | Apache-2.0 |
+
+`AMC: pyamaha.py` is an adapted copy of `PYA` (its first line says so); where both agree they are cited together, where they differ the
+difference is named. Citation form: `tag: file (function or class)`. `HA` files are in the component folder above.
+`AMC: musiccast_device.py` is the class `MusicCastDevice` unless another name is given.
+
+### 1. Transport
+
+- **Base URL.** `http://<device-ip>/YamahaExtendedControl/v1/<area>/<method>`; plain HTTP on the default port, no login, no TLS, no
+  authentication header (AMC: pyamaha.py (class `System`, `Zone`, `Dist`, `NetUSB`: the `URI` tables); PYA: `pyamaha/__init__.py`
+  (same classes)). The UPnP description of the device is on another port (HA falls back to `:49154/MediaRenderer/desc.xml` if SSDP did
+  not tell it; HA: `__init__.py` (`get_upnp_desc`)), so the YXC port is not the UPnP port.
+- **Areas** (first path segment): `system`, `netusb`, `tuner`, `cd`, `clock`, `dist` (the group, called "link"), and one segment per
+  zone. The zone is selected by that segment: `main`, `zone2`, `zone3`, `zone4` (AMC: pyamaha.py (`ZONES`, `Zone.URI`); the library
+  asserts the zone name is one of these four). Which zones exist comes from `getFeatures` (`zone[].id`, section 4); HA creates one
+  player per reported zone and treats `main` as the default zone (AMC: musiccast_device.py (`fetch`); HA: `media_player.py`
+  (`async_setup_entry`), `const.py` (`DEFAULT_ZONE`)).
+- **GET or POST.** Reads and almost all setters are `GET` with query parameters; booleans are the lowercase words `true` / `false`
+  (AMC: pyamaha.py (`_bool_to_str`)). The calls that send a JSON body by `POST` are the group calls `dist/setServerInfo`,
+  `dist/setClientInfo`, `dist/setGroupName`, plus `system/setNameText`, the network setup calls, `netusb/setSearchString` and
+  `clock/setAlarmSettings` (AMC: pyamaha.py (`Dist.set_*`, `System.set_name_text`, `NetUSB.set_search_string`, `Clock.set_alarm_settings`:
+  these return a pair of URL and body, all others return a URL)). The body is the JSON text of an object; both libraries pass it as a
+  string and set no content type of their own (AMC: pyamaha.py (`AsyncDevice.post`); PYA: `Device.post`). Whether the devices insist on
+  a content type is not known; the libraries work without one.
+- **Response envelope.** A JSON object whose first key is `response_code` (a number) and whose other keys are the data of the call,
+  side by side in the same object (PYA: README.md (CLI example of `getDeviceInfo`); AMC reads fields directly from the top level, e.g. `power`, `group_id`; AMC: musiccast_device.py
+  (`_fetch_zone`, `_fetch_distribution_data`)). Setters presumably return the object with the code only; the libraries never parse setter answers (not verified).
+- **`response_code` meanings** (both libraries carry the same table and use it for nothing else; AMC: pyamaha.py (`RESPONSE_CODE`),
+  PYA: `pyamaha/__init__.py`): 0 ok; 1 device still initializing; 2 internal error; 3 invalid request (method unknown or not applicable);
+  4 invalid parameter (range, characters); 5 guarded (cannot be set in the current state); 6 timeout; 99 firmware update running;
+  100 to 112 are for the streaming-service accounts (access error, other error, wrong user or password, expired / disconnected /
+  limit-reached / invalid account, server maintenance, license error, read-only mode, station limit, access denied). **Neither AMC nor
+  HA ever evaluates `response_code` or the HTTP status** (`grep` of all downloaded files: the only users of the number are the table and
+  one comment about a service-account call). They detect failures only through transport exceptions and by re-reading the state
+  (section 5). yaacc should evaluate the code itself: especially 5 (guarded) and 6 (timeout) after a group call.
+- **Timeouts and retries.** GET requests carry a total timeout of 5 seconds (AMC: pyamaha.py (`AsyncDevice.get`)); POST has no timeout
+  of its own (the session default applies). PYA has no timeout at all. There is no retry in the transport: a client error or timeout
+  becomes a `MusicCastConnectionException` (AMC: pyamaha.py (`AsyncDevice.request`, `request_json`)). Retries exist only in the group
+  calls (section 5), where each sequence is repeated once.
+- **Cookies.** HA creates its HTTP session with a dummy cookie jar, i.e. cookies are not kept (HA: `__init__.py` (`async_setup_entry`),
+  `config_flow.py`); the API does not need them.
+- **Other transport detail.** `getNameText` is called by AMC with the id argument `None`, which the library renders literally into the
+  URL as `?id=None` and still reads `zone_list`, `input_list` and `sound_program_list` from the answer (AMC: musiccast_device.py
+  (`fetch`), pyamaha.py (`System.get_name_text`)). The intended form is without the parameter ("all"); the literal form evidently
+  works. Not verified which of the two a device prefers.
+
+### 2. Discovery
+
+- **Marker in the UPnP description.** The device description XML (the document at the SSDP `LOCATION`) contains an element in a Yamaha
+  namespace named `X_yxcControlURL` whose text is `/YamahaExtendedControl/v1/`. The library tests for the exact string
+  `<yamaha:X_yxcControlURL>/YamahaExtendedControl/v1/</yamaha:X_yxcControlURL>` in the downloaded text (AMC: musiccast_device.py
+  (`check_yamaha_ssdp`)); HA aborts the flow with the reason "control URL missing" otherwise (HA: `config_flow.py`
+  (`async_step_ssdp`), `strings.json`). Consequences: the check is a plain string search, so a different namespace prefix would not
+  match; our implementation should parse the XML and accept the element in any prefix whose namespace URI is the same. The namespace
+  URI is not named in the libraries (not verified). **Verified on one real description (2026-11-02, see section 9):** the marker sits inside
+  `<yamaha:X_device>` / `<yamaha:X_serviceList>` / `<yamaha:X_service>`, next to `X_specType`
+  (`urn:schemas-yamaha-com:service:X_YamahaExtendedControl:1`) and `X_yxcVersion`; the namespace URI is `urn:schemas-yamaha-com:device-1-0`.
+- **Control URL.** The libraries never use the element's value to build requests: they always use the fixed prefix
+  `http://<ip>/YamahaExtendedControl/v1/` with `<ip>` = the host of the description URL (HA: `config_flow.py` (`async_step_ssdp`,
+  `urlparse(...).hostname`); AMC: pyamaha.py (`AsyncDevice`)). So the port is 80. If the element ever carried another path or port,
+  neither library would follow it.
+- **What else identifies the device.**
+  - SSDP-triggered flow: HA's manifest asks for the SSDP manufacturer text `Yamaha Corporation` (HA: `manifest.json`), then confirms
+    with the marker above. The unique id is the UPnP serial number; the title is the UPnP `friendlyName` (HA: `config_flow.py`
+    (`async_step_ssdp`)).
+  - Manual flow (host typed in): `getDeviceInfo` must contain `system_id`; that value is the unique id, absent means "not a
+    MusicCast device" (HA: `config_flow.py` (`_async_get_serial_number`); AMC: musiccast_device.py (`get_device_info`)). Whether the UPnP
+    serial and `system_id` are the same string is not checked anywhere in the libraries (verified equal on the owner's devices, 2026-11-02).
+  - `getDeviceInfo` also gives `device_id` (used as the base of all entity ids, `<device_id>_<zone>`), `model_name`, `system_version`
+    and `api_version` (a number, compared with 1.19 and 1.17 in the code) (AMC: musiccast_device.py (`fetch`); HA: `entity.py`
+    (`MusicCastDeviceEntity.device_id`)).
+  - Names: `getNetworkStatus.network_name` is the name HA gives the player; `getNameText` gives the per-zone, per-input and
+    per-sound-program display texts (the user can rename them) (HA: `media_player.py` (`async_setup_entry`); AMC: `fetch`).
+- **Same-device mapping UPnP to YXC.** Both live on the same IP. yaacc's registry already has the description URL of each remote
+  device; the host of that URL is the YXC host. No library maps the UPnP UDN to a YXC device id. **Verified on the owner's devices
+  (2026-11-02):** the last 12 hex digits of the UDN (lower case) are the `device_id` of `getDeviceInfo` (upper case), and the
+  `serialNumber` of the description is the `system_id`.
+- **UPnP control URL of AVTransport.** For playing a URL AMC reads the description, takes the service whose id contains `AVT`, and
+  uses its `serviceType` and `controlURL` on `http://<ip>:<description port>` (AMC: pyamaha.py (`AsyncDevice.dlna_avt_request`)).
+
+### 3. Events (UDP push)
+
+- **Registration.** There is no separate subscribe call. Any YXC request that carries the two headers `X-AppName: MusicCast/1.0` and
+  `X-AppPort: <udp-port>` makes the device send events to that UDP port of the requester. AMC binds one UDP socket on all addresses
+  with an OS-chosen port, then adds both headers to every later GET and POST, then sends one `getDeviceInfo` to register at once
+  (AMC: pyamaha.py (`AsyncDevice.enable_polling`, `get`, `post`)); PYA does the same with a thread and a socket (PYA:
+  `pyamaha/__init__.py` (`BaseDevice._init_socket`)). The libraries do not name the device-side source of the datagrams; they read
+  from the socket and ignore the sender address (AMC: `MusicCastUdpProtocol.datagram_received`).
+- **How long it lasts, renewals.** Neither library states a lifetime and neither has a renewal timer. AMC relies on the fact that
+  every request repeats the headers; in Home Assistant a refresh of the whole state every 60 seconds (see "When no event arrives" below) plus every
+  command re-sends them. **Lifetime of a registration: not stated in the sources, not verified.** yaacc should send the headers on every
+  call and issue a harmless call (for example `getDeviceInfo`) on a timer shorter than any plausible lifetime until the owner's
+  devices give a number.
+- **Port.** The port is the ephemeral port of the client's own socket; there is no fixed port. One socket serves one device object in
+  both libraries (one per device); a single socket for all devices should also work, because the port is only a number in the header (our inference, not verified).
+- **Datagram format.** One UTF-8 JSON object per datagram. PYA reads at most 1024 bytes per datagram (PYA: `_socket_worker`); AMC
+  has no limit. Datagrams that are not valid UTF-8 or JSON are logged and then handed on as `None`, which makes AMC re-read the whole
+  state (AMC: pyamaha.py (`datagram_received`), musiccast_device.py (`handle`)). Code reading shows that after that re-read the
+  handler would iterate over `None` and raise; whether this is harmless is not verified.
+- **Top-level keys the libraries react to** (AMC: musiccast_device.py (`handle`)); every other key is ignored:
+
+| Key | Content read | Reaction |
+|---|---|---|
+| `main`, `zone2`, `zone3`, `zone4` | `volume`, `power`, `mute`, `input` applied directly; flags `status_updated`, `play_info_updated` | flag set: `GET <zone>/getStatus` for that zone |
+| `netusb` | `play_time` (seconds) is stored with the arrival time; flags `play_info_updated`, `preset_info_updated` | `GET netusb/getPlayInfo`, `GET netusb/getPresetInfo` |
+| `tuner` | flag `play_info_updated` | `GET tuner/getPlayInfo` |
+| `dist` | flag `dist_info_updated` | `GET dist/getDistributionInfo` |
+| `clock` | flag `settings_updated` | `GET clock/getSettings` |
+| `system` | flag `func_status_updated` | `GET system/getFuncStatus` |
+
+  Notes: values such as the volume, the power state (`on` / `standby`), the mute flag and the input id arrive in the event itself
+  (no follow-up needed); everything else of a zone (sound program, switches, sleep, ...) needs the `getStatus` call. A zone block with
+  a new `input` that is, or was, `mc_link` also fires the group callbacks, so a group change made on the device is noticed from the
+  zone event too (AMC: `_update_input`). The play position moves by itself between `play_time` events; HA computes it from the stored
+  time of arrival (HA: `media_player.py` (`media_position_updated_at`)). Fields of the events that the libraries do not read (for
+  example a device id at the top level, other `system` flags) are not described here.
+- **When no event arrives.** HA's update coordinator refreshes the full state every 60 seconds (HA: `coordinator.py`
+  (`SCAN_INTERVAL`, `_async_update_data`)); the refresh is `fetch()` and sends, in this order: `getNameText`, `netusb/getPlayInfo` and
+  `netusb/getPresetInfo` (only if `getFeatures` lists `netusb` functions), `tuner/getPlayInfo` (if the tuner block exists),
+  `dist/getDistributionInfo`, the clock settings (only when alarm functions exist), `<zone>/getStatus` for every zone and
+  `system/getFuncStatus`. `getDeviceInfo`, `getNetworkStatus` and `getFeatures` are read once per object and never again (AMC:
+  `fetch`). A failed refresh marks the entities unavailable; the integration code adds no back-off (HA: `coordinator.py`). During a group change the
+  library waits up to one second, checking every 0.1 s, for the expected state to appear through events, and re-reads only
+  `getDistributionInfo` when it does not (section 5). **Failure mode:** the group checks also compare the input of the zone
+  (`mc_link`), which is updated only by events or `getStatus`, so without working events a join that needs the input check can fail and be
+  retried (reading of `check_group_data`; not verified on a device).
+
+### 4. Read calls
+
+Structure of the answers as the libraries read them (keys not read by the libraries are not described; capture them on a device).
+
+- **`system/getDeviceInfo`**: `device_id`, `system_id`, `model_name`, `system_version`, `api_version` (AMC: `fetch`; HA:
+  `config_flow.py`). `api_version` and `system_version` are JSON numbers; PYA's README shows an answer that also has `destination`,
+  `operation_mode`, `netmodule_version`, `netmodule_checksum`, `update_error_code` (PYA: README.md, CLI example). Not personal in itself, but `system_id` and `device_id` identify a physical unit.
+- **`system/getFeatures`** (read once; AMC: `fetch`):
+  - `system`: `func_list` (list of device-level function names, e.g. `party_mode`, `speaker_a`, `speaker_b`, `dimmer`; the names the
+    libraries know are in AMC: const.py (`DEVICE_FUNC_LIST_TO_FEATURE_MAPPING`)), `range_step` (list of `{id, min, max, step}`; `id`
+    `dimmer` is used), `input_list` (list of objects with at least `id`, `distribution_enable`, `play_info_type`; the last two are used
+    to choose a "safe" input after leaving a group).
+  - `zone`: a list, one object per zone: `id`; `func_list` (function names per zone; known ones in AMC: const.py
+    (`ZONE_FUNC_LIST_TO_FEATURE_MAPPING`), e.g. `power`, `volume`, `mute`, `sound_program`, `equalizer`, `tone_control`, `pure_direct`,
+    `link_control`); `input_list` (list of input **ids**, strings); `sound_program_list` (ids); `range_step` (`{id, min, max, step}`, ids
+    used: `volume`, `equalizer`, `tone_control`, `dialogue_level`, `dialogue_lift`, `dts_dialogue_control`, `subwoofer_volume`);
+    choice lists `tone_control_mode_list`, `equalizer_mode_list` (both default to just `manual` when absent), `surr_decoder_type_list`,
+    `link_control_list`, `link_audio_delay_list`, `link_audio_quality_list`.
+  - `netusb` (read as: the block exists and has a non-empty `func_list`), `tuner` (block exists), `clock` (`func_list`,
+    `alarm_mode_list`, `alarm_preset_list`, `alarm_input_list`, `range_step` with `alarm_volume` and `alarm_fade`).
+  - **Not read by any library:** a `distribution` block (client limit, compatible versions, `server_zone_list`). The only trace is a
+    comment saying that the zones allowed as group server are in `server_zone_list` of `getFeatures` (AMC: pyamaha.py
+    (`Dist.set_server_info` comment)). One comment says up to 9 client addresses can be given in one `setServerInfo` call.
+    **Verified on three real devices (2026-11-02):** the block exists on all three: `version` (2.0), `compatible_client` (`[2]`),
+    `client_max` (**9 on one device, 19 on the other two**, so 9 is not a protocol constant), `server_zone_list` (`["main"]`, the
+    comment was right) and, on one device, `mc_surround` (an object; content not interpreted).
+  - Unknown function names are only logged ("not known to the library"), never an error (AMC: `fetch`). yaacc must behave the same.
+- **`<zone>/getStatus`** (AMC: `_fetch_zone`): `power`, `volume`, `mute`, `input`, `sound_program`, `sleep`, `party_enable` (device
+  level, but delivered inside the zone answer; AMC stores it from whichever zone was read last, so a zone without it overwrites it with
+  nothing: a quirk to avoid), and, if the zone supports them: `extra_bass`, `bass_extension`, `subwoofer_volume`, `adaptive_drc`,
+  `enhancer`, `pure_direct`, `clear_voice`, `surround_3d`, `surr_decoder_type`, `dialogue_level`, `dialogue_lift`,
+  `dts_dialogue_control`, `link_audio_delay`, `link_audio_quality`, `link_control`; objects `equalizer` (`mode`, `low`, `mid`, `high`)
+  and `tone_control` (`mode`, `bass`, `treble`).
+- **`system/getFuncStatus`**: `speaker_a`, `speaker_b`, `dimmer` (current value); readable only for functions the device lists in the
+  system `func_list` (AMC: `_fetch_func_status`; the comment is in pyamaha.py (`System.get_func_status`)).
+- **`system/getNetworkStatus`**: the libraries read `network_name` and `mac_address` (an object; HA uses its values as the device's
+  MAC list) (AMC: `fetch`; HA: `__init__.py`). **Personal data:** the MAC addresses and the network name (it is usually a
+  household label). The call has more fields (IP and Wi-Fi settings) that the libraries ignore; treat the whole answer as personal and
+  never put it into fixtures or logs.
+- **`system/getLocationInfo`**: only defined in the libraries, **never called** by AMC or HA (AMC: pyamaha.py
+  (`System.get_location_info`)); its content is unknown from these sources. Room / location info may be personal; not verified.
+- **`dist/getDistributionInfo`**: see section 5.
+- **`system/getNameText`**: `zone_list`, `input_list`, `sound_program_list`, each a list of `{id, text}`. HA shows the input text as the
+  source name and adds the id in brackets when the text equals another input's id or is not unique (HA: `media_player.py`
+  (`source_mapping`)). Sound programs are shown by id; their texts are read but HA does not show them.
+- **`netusb/getPlayInfo`**: `input` (the id of the network input currently selected, compared with the zone's input to know whether the
+  zone plays network content), `playback` (`play` / `pause` / `stop`), `repeat`, `shuffle`, `artist`, `album`, `track`,
+  `albumart_url` (a path on the device: HA prepends `http://<ip>`), `total_time`, `play_time` (seconds) (AMC: `_fetch_netusb`,
+  `media_image_url`). `netusb/getPresetInfo` gives `preset_info`, a list of `{input, text}` (entries with input `unknown` are empty
+  slots) (AMC: `_fetch_netusb_presets`).
+- **Tuner** (`tuner/getPlayInfo`: `band`, `fm.freq`, `am.freq`, `rds.radio_text_a/b`, `dab.service_label`, `dab.dls`) is not
+  relevant for yaacc.
+
+What yaacc would use the calls for:
+
+| Call | yaacc use |
+|---|---|
+| `system/getDeviceInfo` | confirm a YXC device, get `device_id`, `model_name`, `api_version` (feature gating, e.g. >= 1.17 for volume up / down) |
+| `system/getFeatures` | zones, inputs, sound programs, ranges, which settings exist; once per device, cached |
+| `<zone>/getStatus` | power, volume, mute, input, sound program, switches / numbers of the settings screen |
+| `system/getFuncStatus` | speaker A / B, display brightness (device-level settings) |
+| `system/getNetworkStatus` | not needed; skip (personal data) |
+| `system/getLocationInfo` | not needed; skip |
+| `dist/getDistributionInfo` | role, group id, group name, client list: the basis of the link UI |
+| `system/getNameText` | display names of zones, inputs (shown instead of raw ids) |
+| `netusb/getPlayInfo` | only to show what a device plays by itself; yaacc plays through UPnP, so optional |
+
+### 5. Groups ("link")
+
+Terms: **server** = the device that gets the music and distributes it; **client** = a device that plays what the server distributes.
+Group id: 32 hex digits. "No group" is 32 zeros (AMC: const.py (`NULL_GROUP`); HA: `const.py`).
+
+- **Who creates the id, and its format.** The controller. HA creates 128 random bits as 32 hex digits and writes them in uppercase; if
+  the chosen server is already a server it reuses its current id (HA: `media_player.py` (`async_join_players`); HA: `homeassistant/util/uuid.py`
+  (`random_uuid_hex`) is the generator, fetched for this check). The device does not hand out ids.
+- **What the three states look like.** The libraries read from `getDistributionInfo`: `group_id`, `group_name`, `role`,
+  `server_zone`, and `client_list` (list of objects of which only `ip_address` is read) (AMC: `_fetch_distribution_data`). They compare
+  `role` only with `server` and `client`; **the value for "no group" is never named** in the code (the group id of 32 zeros is the
+  test for "no group"). **Verified on three real devices (2026-11-02):** a device in no group reports `"role": "none"`, a group id of 32
+  zeros, an empty `client_list` and a made-up `group_name` (`(Linked) <room>`: never use it for logic); a server reports
+  `"role": "server"`, `"status": "working"` and `client_list` entries `{ip_address, data_type: "base"}`; a device that can be in a surround
+  set adds an `mc_surround` object with its own `role` / `status` (`none`). The answer of a **client** is not captured yet. A client is
+  recognizable from the zone status: `input` `mc_link`, `input_text` `MC Link`, `distribution_enable` false (a server keeps its own
+  input and has `distribution_enable` true). For a client no server address is read: the libraries do not find the server from a client's answer. HA finds
+  it by matching: a server entity whose `client_list` contains the client's IP **and** whose `group_id` equals the client's, and the
+  client's zone input is `mc_link` (HA: `media_player.py` (`is_part_of_group`, `group_server`)). A reduced answer (keys missing for
+  a device that is not a server) is tolerated by the code (`get` with defaults). Exact JSON for the three states: to be captured
+  (task "Capture answers", Group 1).
+- **Calls.** All on the device they name. `ip` always means the IP of the **other** device(s) as the controller sees it.
+  - Server: `POST dist/setServerInfo` with `{group_id, zone, type: "add" | "remove", client_list: [ip, ...]}`; here `zone` is a string.
+    With `{group_id: ""}` alone the device stops being a server and the group id returns to zeros.
+  - Client: `POST dist/setClientInfo` with `{group_id, zone: [zone], server_ip_address}`; here `zone` is a **list** (this is how the code
+    sends it, AMC: pyamaha.py (`Dist.set_client_info`) and musiccast_device.py (`mc_client_join`)). With `{group_id: ""}` alone the
+    device leaves its group. A comment in both libraries says a device that is currently a server refuses `setClientInfo`; the server
+    role must be cancelled first and `getDistributionInfo` must show a role other than `server` before the client call.
+  - `GET dist/startDistribution?num=<n>` starts (or restarts) the distribution on a server; `GET dist/stopDistribution` stops it.
+  - `POST dist/setGroupName` with `{name}`: UTF-8, up to 128 bytes, kept in volatile memory, empty means the default name. Defined in
+    the libraries but **never called** by AMC or HA; the group name is only read back (AMC: pyamaha.py (`Dist.set_group_name`),
+    `_fetch_distribution_data`). The effect of renaming is therefore not verified.
+  - `<zone>/setInput?input=mc_link&mode=` on the client selects the link input (the libraries send the empty `mode=` too).
+- **Link (create a group or add the first clients)**, as HA runs it for "server S, clients C1..Cn" (HA: `media_player.py`
+  (`async_join_players`, `async_client_join`); AMC: `mc_client_join`, `mc_server_group_extend`):
+  1. Power S on if it is off.
+  2. If S is not a server but one of its zones is, that group is closed first; if S itself is a client it leaves its group first
+     (see "A client that is itself a server").
+  3. Choose the group id (reuse or new).
+  4. For each client: power it on if needed; if it is a server, close that group first; if it is a client of another group, leave it first;
+     then `POST setClientInfo {group_id, zone:[zone], server_ip_address: S}` followed by `setInput mc_link`.
+     Wait until the client reports the group id and the input `mc_link`.
+  5. Server side, once for all successfully joined clients: `POST setServerInfo {group_id, zone, type: "add", client_list}` then
+     `GET startDistribution?num=<n>`. Wait until all clients are in the server's `client_list`, the group id is as chosen, the role is
+     `server` and `server_zone` is the chosen zone.
+  Order matters: clients first, then the server call that lists them, then start. A single `setServerInfo` can add several clients
+  at once.
+- **Extend** an existing group: the same steps with the server's current group id; only the new clients go through step 4 and 5.
+- **Reduce** (one client leaves): the client first runs `POST setClientInfo {group_id: ""}` and waits for zeros; then the server runs
+  `POST setServerInfo {group_id: <current>, zone, type: "remove", client_list:[ip]}`, waits until the client is gone from its list and, if
+  clients remain, calls `startDistribution?num=<n>` again. If no client remains HA closes the group (AMC: `mc_client_unjoin`,
+  `mc_server_group_reduce`; HA: `async_client_leave_group`, `async_check_client_list`).
+- **Unlink the whole group** (server side): HA lets every client leave as above, then the server runs `GET stopDistribution`, then
+  `POST setServerInfo {group_id: ""}` and waits for zeros (AMC: `mc_server_group_close`; HA: `async_server_close_group`).
+- **`num`.** HA passes the number of clients that all known servers currently list, **computed before the call**; for the very first
+  group it is therefore 0 (reading of `get_distribution_num`, not run). The library comment calls it the distribution number "on the
+  current network". What the device does with it is not known (not verified; the owner's devices can show whether 0 works, which
+  would simplify the call).
+- **Expected-state checks, waits, retries.** Every group method holds one lock per device, performs its calls, then waits up to
+  1 second (polling every 0.1 s) until all expected conditions hold; the data it checks is filled by events (`dist_info_updated` ->
+  `getDistributionInfo`, zone `input`). On timeout it logs a warning, re-reads only `getDistributionInfo` and checks again. If the
+  conditions still do not hold, the **whole method runs once more**; on the second failure it raises a group exception (AMC:
+  `check_group_data`, `wait_for_data_update`, and the `retry=True` parameter of each method). HA retries a failed client join once more
+  on top of that (HA: `async_join_players`). Expected conditions: extend = clients present, group id, role server, server zone; reduce =
+  clients absent; close / unjoin = group id zeros; join = group id and input `mc_link`; zone join / leave (below) = input or power state.
+- **Zones on one device.** A device can be client with one zone and server with another; the library and HA contain several special
+  cases. (1) A zone of the **same device** as the server joins the server's `main` zone by selecting the input `main_sync`; this works
+  only for the main zone as server, otherwise HA raises an error. (2) If the device is already a client of the same group through
+  another zone, the zone joins by selecting `mc_link` only (no group calls). (3) Leaving a zone that uses `main_sync`, or one of several
+  zones using `mc_link`, does not unjoin the device: AMC selects a "safe" input (the first input of `getFeatures` `system.input_list`
+  that has `distribution_enable`, is not a link input, is allowed in that zone and is not the network input if another zone already
+  uses it) and powers the zone off (AMC: `zone_join`, `zone_unjoin`, `get_save_inputs`).
+- **A client that is itself a server.** HA closes that group first (every one of its clients leaves, then `stopDistribution` +
+  `setServerInfo ""`), because the device refuses the client call while it is a server (HA: `async_client_join`). Likewise a chosen
+  server that is a client first leaves its group with the forced form (`setClientInfo ""`), because a device cannot be both (HA:
+  `async_join_players`).
+- **Group changes made outside the library.** When a zone's input leaves `mc_link` (for example the user picks another source in the
+  vendor app) HA's callback removes that device from the server's client list (`setServerInfo ... remove`), and closes the group if only
+  the server is left (HA: `media_player.py` (`update_all_mc_entities`, `async_check_client_list`); AMC: `_update_input`). This suggests
+  that the device does not always drop such a client on its own; not verified.
+- **Which devices can be linked (HA).** HA accepts every MusicCast player entity of the installation as a member and sets the
+  grouping feature on all of them without looking at `getFeatures` (HA: `media_player.py` (`MUSIC_PLAYER_BASE_SUPPORT`,
+  `get_all_mc_entities`)). So the libraries do not tell which devices cannot link; check for the `mc_link` input in the zone's
+  `input_list` and the `distribution_enable` flags (see section 4) as a gate in yaacc (not verified that these suffice).
+- **Group and playback.** Playing is done on the server. HA's client entities take the cover art from their server (HA: `media_image_url`).
+  When HA starts a URL on a device it first selects the input `server` with `mode=autoplay_disabled`, then sends UPnP AVTransport
+  `Stop`, `SetAVTransportURI` (with DIDL metadata) and `Play` (AMC: `play_url_media`). A code comment says the AVTransport requests carry a
+  User-Agent copied from the vendor's iOS app because otherwise the main zone switches itself to the `server` input on `Play`
+  (AMC: pyamaha.py (`dlna_avt_request`)). **This affects yaacc directly** (we send AVTransport to the same devices); effect to be
+  tested.
+
+### 6. Settings the HA integration exposes
+
+HA registers four platforms: `media_player`, `number`, `select`, `switch` (HA: `__init__.py` (`PLATFORMS`)). Nothing is hard-coded per
+model: AMC turns every entry of the `func_list` of the device and of each zone into a feature flag (unknown names only logged), and a
+table maps a flag to a "capability" (number, option or switch) built from `getFeatures` data; HA creates an entity per capability
+(AMC: musiccast_device.py (`fetch`, `build_capabilities`), capability_registry.py; HA: `number.py`, `select.py`, `switch.py`
+(`async_setup_entry`), `entity.py`). The entity exists only if the function is listed. Weak spot: the registry reads the range of
+`volume`, `equalizer`, ... from `range_step` by id without a guard, so a device that lists the function but not its range would
+break; yaacc should check both.
+
+**Media player** (one per zone; HA: `media_player.py`; AMC: musiccast_device.py):
+
+| Feature | YXC call (zone prefix `<zone>/` where it applies) | Notes |
+|---|---|---|
+| power on / off | `setPower?power=on` / `standby` | needs `power` in zone `func_list` |
+| volume set / step | `setVolume?volume=<n>&step=1`, `setVolume?volume=up|down[&step=n]` | needs `volume`; see section 7 |
+| mute | `setMute?enable=true|false` | needs `mute` |
+| source (input) | `setInput?input=<id>&mode=` | choices = zone `input_list`; texts from `getNameText` |
+| sound mode | `setSoundProgram?program=<id>` | choices = zone `sound_program_list` |
+| play / pause / stop | `netusb/setPlayback?playback=play|pause|stop` | only when the zone's input is the network input |
+| previous / next | `netusb/setPlayback?playback=previous|next`; tuner: `tuner/setFreq?band=..&tuning=auto_down|auto_up&num=0` or DAB `setDabService?dir=` | |
+| repeat | api >= 1.19: `netusb/setRepeat?mode=off|one|all`; older: `netusb/toggleRepeat` (emulation compares the cached state) | |
+| shuffle | api >= 1.19: `netusb/setShuffle?mode=on|off`; older: `netusb/toggleShuffle` | `shuffle` also has `songs` / `albums` values per a comment |
+| presets | `netusb/recallPreset?zone=<z>&num=<n>`, `netusb/storePreset?num=<n>` | list from `netusb/getPresetInfo` |
+| play URL | see section 5 (input `server`, UPnP AVTransport) | |
+| browse | `netusb/getListInfo?input=..&index=..&size=8&lang=en&list_id=main`, `netusb/setListControl?list_id=main&type=select|play|return&index=..&zone=..` | not needed |
+| group join / unjoin | section 5 | |
+
+State shown: `on` + network input and `playback` = `pause` -> paused, `stop` -> idle, any other `on` state -> playing (HA: `state`).
+
+**Switch** (`?enable=true|false`; all `BinarySetter`; the key to read from `getStatus` in brackets):
+`setBassExtension` (`bass_extension`), `setExtraBass` (`extra_bass`), `setEnhancer` (`enhancer`), `setPureDirect` (`pure_direct`),
+`setAdaptiveDrc` (`adaptive_drc`), `setClearVoice` (`clear_voice`), `set3dSurround` (`surround_3d`), all under `<zone>/`; device level
+`system/setSpeakerA` and `setSpeakerB` (`getFuncStatus.speaker_a/b`) and `system/setPartyMode` (`party_enable`). Each exists if the
+matching name is in the zone or system `func_list`.
+
+**Number** (value range from the zone's `range_step` entry with the id in brackets; HA sets min, max and step from it; AMC checks that
+a value is within the range **and** a multiple of the step before sending):
+`setEqualizer?low|mid|high=` (`equalizer`), `setToneControl?bass|treble=` (`tone_control`), `setDialogueLevel?value=`
+(`dialogue_level`), `setDialogueLift?value=` (`dialogue_lift`), `setDtsDialogueControl?num=` (`dts_dialogue_control`; marked
+undocumented in the library), `setSubwooferVolume?volume=` (`subwoofer_volume`). Note: AMC's range check uses `value % step`, which
+treats a range that does not start at a multiple of the step wrongly; yaacc should check `(value - min) % step`.
+
+**Select** (the option list comes from the device where one is named in brackets; AMC lowercases the options and replaces spaces by
+underscores for display and maps back to the original value before sending, so the raw value is sent):
+`setEqualizer?mode=` (`equalizer_mode_list`), `setToneControl?mode=` (`tone_control_mode_list`), `setSurroundDecoderType?type=`
+(`surr_decoder_type_list`), `setLinkControl?control=` (`link_control_list`), `setLinkAudioDelay?delay=` (`link_audio_delay_list`),
+`setLinkAudioQuality?mode=` (`link_audio_quality_list`), `setSleep?sleep=` (fixed list 0, 30, 60, 90, 120 minutes; AMC rounds a value up
+to a multiple of 30), and device level `system/setDimmer?value=` (range from the system `range_step` id `dimmer`; the value -1 means
+automatic). Value names seen in the HA translations (normalized spelling): link control `standard`, `stability`, `speed`; link audio
+delay `balanced`, `lip_sync`, `audio_sync` (and `audio_sync_on` / `audio_sync_off`); link audio quality `compressed`, `uncompressed`
+(HA: `strings.json`). A comment in the library says the audio delay setting has no effect while link control is the stability-oriented
+mode. These three are the "link control (audio delay / quality)" items of the plan.
+
+**Known but not exposed by HA:** `setDirect`, `setBalance`, signal info, speaker pattern, HDMI out, `prepareInputChange`,
+clock and alarm are in the libraries (AMC: `configure_alarm`), but none of the downloaded HA platform files uses them.
+
+### 7. Volume
+
+- **Unit.** The volume is an integer in the zone's own scale: `getFeatures` -> zone -> `range_step` -> entry `id` `volume` gives `min`,
+  `max`, `step` (AMC: `fetch`). The same number is read in `getStatus.volume` and set with `setVolume`. AMC/HA map the 0..1 slider
+  linearly onto `[min, max]`, rounding to an integer and **ignoring `step`** (AMC: `set_volume_level`; HA: `volume_level`). The scale
+  is not percent and differs per model (the defaults 0..100 in the data class apply only to a zone without the volume function).
+- **dB.** The libraries map a zone function named `actual_volume` to a feature flag, but nothing uses it: **no dB value is read or
+  written** by AMC or HA (AMC: const.py (`ZONE_FUNC_LIST_TO_FEATURE_MAPPING`); `grep` for usages). Whether `getStatus` carries a dB
+  value is not known from these sources (not verified).
+- **Step.** `setVolume?volume=up` or `down`, optionally with `&step=<n>`; without a step the device uses its smallest step. The
+  comment ties this to API version 1.17 or later. HA's volume up / down buttons send no step (AMC: `volume_up`, `volume_down`;
+  PYA/AMC: pyamaha.py (`Zone.set_volume`)). For an absolute value AMC also sends `&step=1`, which the comment says matters only for up /
+  down.
+- **Mute.** `setMute?enable=true|false`; the state is `mute` in `getStatus` and in the zone event (AMC: `mute_volume`, `handle`).
+- **Linked devices.** HA has **no group-volume logic**: every zone keeps its own volume entity and slider; nothing sets the clients when
+  the server's volume changes, and nothing reads a group volume (HA: `media_player.py`, whole file). The libraries map the
+  device function names `party_volume`, `party_mute` and `party_mode`; only `party_mode` is used (a switch on `system/setPartyMode`),
+  the other two are not (AMC: const.py; capability_registry.py). **Whether a server's volume propagates to the clients is not answered by the sources; measured on three real devices 2026-11-02: it does not (a `setVolume` on the server leaves a linked client unchanged and the other way round), the manufacturer's own app propagates by itself**;
+  it has to be tried (section 8). Because the client keeps its own volume entity in HA, a user can set client volumes independently.
+
+### 8. Open points / what could not be verified
+
+Status after the implementation (2026-11-03). Answered on the owner's real devices:
+1. ~~Does the server's volume reach the clients?~~ No, in neither direction; `setVolume` of a client works while linked (section 7, 11). yaacc propagates the group volume itself.
+3. ~~`getDistributionInfo` of a client~~ Answered (section 9, 10).
+4. ~~`getFeatures` `distribution` block~~ Answered: yes, with `client_max` (section 9).
+5. ~~`num` of `startDistribution`~~ Answered: the parameter is required, 0 for a new group (section 9).
+6. ~~Error answers of group calls~~ Answered: the devices validate very little; only `setClientInfo` on a working server is refused with code 5 (section 10).
+7. ~~After unlinking~~ Answered: a client keeps the role `client` and the input `mc_link` until another input is set (section 9, 10). **Experiment 2026-11-04 (owner, two devices):** stopping only the server side (`stopDistribution` -> `{"response_code":0}`, then `setServerInfo {"group_id":""}` -> `{"response_code":0}`) leaves the client unchanged: `main/getStatus` still `input: mc_link`, `getDistributionInfo` still `role: client`, the **old group id**, a made-up `group_name` `(Linked) <room>` and a `client_list` naming the client itself (`data_type: base`). So the device does not leave on its own and does not return to its earlier source; the client has to be cleared (`setClientInfo {"group_id":""}`) and the input set by the controller. yaacc already clears every client first and then the server (section 5), and puts the input back itself (pre-join input, else the monitor's last plain input, no guessing). **Still open:** whether the manufacturer's app remembers the last source on the device or in the app (owner to compare after a clean unlink from that app).
+9. ~~Mapping a UDN to a YXC device~~ Answered (section 2 and 9).
+
+Not answered (nothing in yaacc depends on them; the app does not use them):
+2. Life time of an event registration beyond the 30 s renewal, and delivery to a phone behind Wi-Fi power save or client isolation (yaacc falls back to the 30 s read).
+8. Behavior of UPnP AVTransport on a client, and the User-Agent effect (section 5). yaacc sends to the group server only.
+10. Which form of `getNameText` the devices prefer: yaacc uses the form without `id` and tolerates a failure; the real answer was not captured (the test fixture `yxc/nameText.json` is invented).
+11. Stereo pair and `main_sync` handling: `stereo_pair` is a known function name but nothing in the sources uses it.
+12. Content and privacy of `getLocationInfo` (never used).
+
+Not covered in these sources: Bluetooth, alarm details, network setup, firmware update, the cloud services; and no information on
+rate limits of the device.
+
+### 9. yaacc implementation (issue #307, slices 1 and 1b)
+
+Slice 1 is the pure-JVM core in the package `de.yaacc.yxc` (`yaacc/src/main/java/de/yaacc/yxc/`): no Android classes except the platform
+`org.json`, no discovery, no UDP listener, no UI, no strings, no manifest change. The package and the classes use the protocol
+abbreviation; the brand names appear only in comments that say which devices are meant.
+
+**Classes.**
+
+| Class | Role |
+|---|---|
+| `YxcTransport` / `YxcHttpTransport` | `get(path)` / `post(path, json)` returning the body text. The HTTP version uses `HttpURLConnection` against `http://<host>[:port]/YamahaExtendedControl/v1/`, connect timeout 3 s, read timeout 5 s, no redirects, no proxy, answers capped at 1 MiB. It talks only to the address it was constructed with (the caller takes it from our own discovery); host and path are validated so that no other address can be reached through a path. `X-AppName: MusicCast/1.0` and `X-AppPort: <port>` are sent on every call only when an event port is configured. A non-2xx status is a `YxcHttpStatusException`. A POST body is sent as `text/plain; charset=utf-8` (what the libraries' HTTP clients end up sending; not verified that the devices care). |
+| `YxcClient` / `YxcClientListAction` | The calls: `getDeviceInfo`, `getFeatures`, `getZoneStatus`, `getFuncStatus`, `getDistributionInfo`, `getPlayInfo`, `setPower`, `setInput`, and the group calls `setServerInfo` (zone as a string), `setClientInfo` (zone as a list), the two "clear" forms, `startDistribution`, `stopDistribution`, `setGroupName`. Arguments are validated before anything is sent (zone id, 32 hex digit group id, 1 to 64 client addresses per call as a sanity bound - the limit of a device is its `client_max`, checked by the group service -, group name at most 128 bytes). |
+| `YxcException` | Every failure of a call: transport error, HTTP status, an answer that is not a JSON object with a numeric `response_code`, or a `response_code` other than 0. Carries the call name (path without query), the code and the HTTP status. The body of an answer is never put into a message (it may carry household names). |
+| `YxcDeviceInfo`, `YxcFeatures` (+ `YxcZoneFeatures`, `YxcSystemInput`, `YxcRange`, `YxcDistributionFeatures`), `YxcZoneStatus` (+ `YxcEqualizer`), `YxcFuncStatus`, `YxcPlayInfo`, `YxcDistributionInfo` (+ `YxcDistributionClient`) | Immutable values read tolerantly: a missing key, a JSON null or a value of the wrong type reads as absent; unknown keys and function names are ignored. `YxcFeatures` keeps per zone the function names, input ids, sound program ids, the ranges of the numeric controls (`YxcRange.accepts` counts from the minimum) and every `*_list` option list; nothing is derived from a model name. `YxcDistributionInfo` keeps the role word as sent and a `Role` (`NONE`, `SERVER`, `CLIENT`, `UNKNOWN`); the word `none` is `NONE` (slice 1b; verified), and `NONE` is still derived from the null group id plus an empty client list when the word is absent or unknown. `YxcDeviceInfo.toString()` leaves the ids out. |
+| `YxcEvent` / `YxcEventParser` | A UDP datagram becomes the zone blocks (`power`, `volume`, `mute`, `input`, the two update flags), the `netusb` block (`play_time` and its flags) and the update flags of `tuner`, `dist`, `clock` and `system`; unknown keys are dropped. Garbage (not UTF-8, not a JSON object, over 16 KiB, nested deeper than 16) gives `YxcEvent.unparsable()`; the parser never throws. |
+| `YxcDescriptionParser` / `YxcDescriptionInfo` | Slice 1b: the UPnP device description to the YXC service (control URL, version, host and port of `X_URLBase`, UDN, serial number, friendly name); `null` when the device has no `X_yxcControlURL` service. See "Slice 1b" below. |
+| `YxcGroupService` (+ `YxcGroupMember`, `YxcGroupResult`, `YxcSleeper`) | `link`, `extend`, `reduce`, `unlink`, `rename` in the call order of section 5. The number of clients is limited by `distribution.client_max` of the server's own `getFeatures` (9 only when the block or the key is missing); the clients it already has count. Waiting is polling of `getDistributionInfo` (and the zone input for a client) every 100 ms for up to 1 s with an injected `YxcSleeper`; a step that did not reach its state is repeated once. A new group id is 32 uppercase hex digits from an injected `Random`. Expected failures are a `YxcGroupResult` (`SUCCESS`, `FAILED`, `TIMEOUT`, with the step and the address of the device): nothing is thrown for an unreachable device, a refusal or a late device. |
+
+**Where the checks differ from the libraries.**
+- `response_code` and the HTTP status are checked on every call (sections 1 and 8 point 6: the libraries ignore both). A refusal such as
+  code 5 ("guarded") is a failed step with the call name in the detail text.
+- The libraries wait for events; slice 1 has no listener, so the same expected states are polled.
+- All devices of a request are read before anything is changed, so an unreachable client or server changes nothing. If a step fails
+  after clients were set up, the clients set up by this call are taken back (`setClientInfo ""`, best effort); a client that had to
+  leave another group first is not put back, and the old server may still list it (a client's answer does not name its server).
+- `reduce` and `unlink` still go on when a client cannot be reached (the server removes it). When a server is closed, a refused
+  `stopDistribution` is not a failure, because the retry would otherwise fail on a device that already stopped; clearing the server
+  role is what is checked. `reduce` to nobody and `unlink` of a server both end the group; `unlink` of a device in no group is a
+  success without any change call.
+- Power is switched on (not awaited) for a server and for each client that is not on.
+- `startDistribution(num)` gets the number of clients the server listed before the call (0 for a new group); the meaning of the
+  number is not known (section 5, `num`).
+
+**Fixtures** (`yaacc/src/test/resources/yxc/`, loaded by `YxcFixtures`). Hand-written, modeled on the keys of sections 3 to 5, with invented
+neutral values: ids like `TESTDEVICE01`, addresses from the documentation range `192.0.2.0/24`, group ids like `0123456789ABCDEF...`, file
+names without model names. Since slice 1b the "not linked" sample uses the real word `none`. The scrubbed answers of three real devices
+(a, b, c; `captured/`, see its `README.md`; scrubbed with `.claude/specs/2026-11-02-issue307-musiccast/capture/scrub.py`) are fixtures too
+and are read by `YxcCapturedDevicesTest`, `YxcDistributionInfoTest`, `YxcGroupServiceTest` and `YxcDescriptionParserTest`. The scrub
+replaced every 32-digit id by a numbered one, so `b_distInfo_none.json` and `c_distInfo_none.json` carry a group id ending in `2`
+where the device sent zeros: only the role word is reliable in those two files. A unit test
+(`OrgJsonAvailableTest`) fails if the Android stub of `org.json` instead of the real one is on the test classpath (the app sets
+`unitTests.returnDefaultValues = true`, which would silently return nulls); the JVM tests get the real one from
+`testImplementation 'org.json:json:20250517'`, production code uses the platform's `org.json`.
+
+**Tests.** `YxcHttpTransportTest` and `YxcClientLoopbackTest` run against a real HttpCore server on the loopback address with the
+canonical host name `localhost` (`LoopbackYxcServer`; the transport then has to address it as `localhost`, otherwise the server answers
+421); `YxcGroupServiceTest` runs against `SimulatedYxcNetwork`, a few in-memory devices that implement the group calls (a device that
+serves refuses the client call, a client is needed for `mc_link`), can be unreachable, can fail or refuse a call, answer late (virtual
+time, nothing sleeps) or never.
+
+**Slice 1b: aligned with three real devices.** Verified on three real devices (a, b, c) of the owner on 2026-11-02 ("verified" below means
+that; the captures are in `yaacc/src/test/resources/yxc/captured/`). What changed in the code:
+
+| Item | Before (slice 1) | Now |
+|---|---|---|
+| Role word of a device in no group | unknown; `NONE` only from the null group id; the fixture used an invented word | the word is `none`; `YxcDistributionInfo` maps it (case-insensitive) and still derives `NONE` from the null group id; `status` and `client_list[].data_type` are kept (`getStatus()`, `getClientEntries()`); the `mc_surround` object is noted (`hasMcSurround()`, `getMcSurroundRole()`); `group_name` is only carried |
+| `getFeatures.distribution` | `server_zone_list` read from a comment; client limit unknown | `YxcDistributionFeatures` (`version`, `compatible_client`, `client_max`, `server_zone_list`, presence of `mc_surround`) via `YxcFeatures.getDistribution()`; `getServerZones()` reads it |
+| Number of clients | fixed 9 per call (a comment of a library) | `client_max` of the server's features (9 on device a, 19 on b and c): a request is refused (step `VALIDATE`, nothing changed) when existing + new clients exceed it; fallback 9 only if the block or the key is missing. `YxcClient.MAX_CLIENTS_PER_CALL` became `MAX_CLIENT_ADDRESSES` = 64, a sanity bound only |
+| Is a device a client | group info only | group info stays the authority for membership; `YxcZoneStatus.isLinkInput()` (`input` is `mc_link`) is used for the expected state after a join and to decide that a member only needs the input back (no second `setClientInfo`) |
+| Fields | a few | status: `sleep`, `max_volume`, `input_text`, `distribution_enable`, `equalizer` (`mode`, `low`, `mid`, `high`), `link_control`, `link_audio_delay`, `link_audio_quality`, `disable_flags`; features: `account_enable` and `rename_enable` of the inputs, typed getters for the equalizer / link option lists; play info: `attribute`, `repeat_available`, `shuffle_available`; func status: `auto_power_standby` |
+| Discovery facts | notes only | `YxcDescriptionParser` (below) |
+
+Verified facts from the three devices (besides those in sections 2, 4 and 5):
+- `getFeatures`: the zone entry has an `input_list` of ids (as the model assumed) and `range_step` with `volume` 0..60 step 1 and `equalizer`
+  -10..10; the device-wide `system.input_list` has objects with `id`, `distribution_enable`, `rename_enable`, `account_enable`,
+  `play_info_type` (`netusb`, `tuner`, `cd`, `none`); `mc_link` and `airplay` are not distributable, `mc_link` can be renamed;
+  `sound_program_list` exists on two devices, `link_audio_quality_list` on one, `link_audio_delay_list` has 2 or 3 words
+  (`balanced` on the newer devices); the dimmer range differs per device (-1..2, 0..2, -1..9).
+- `getStatus`: `max_volume` 60, `disable_flags` 0, `equalizer` as an object; `input_text` and `sound_program` are absent on the oldest device,
+  `link_audio_quality` on two. A server in standby keeps its input.
+- `getPlayInfo`: `repeat_available` / `shuffle_available` can be empty lists although `repeat` / `shuffle` have a value; `attribute` is a
+  number (fits an int, read as a long); a stopped device reported `play_time` -60000 (unit and meaning not known; the earlier
+  assumption "seconds" is unconfirmed).
+- `getDeviceInfo`: `system_version` and `api_version` are JSON numbers (a trailing zero is lost: 2.10 would read as 2.1), `device_id` is
+  upper case, `system_id` is the UPnP serial number; the oldest device has no `serial_number`, `category_code` or `analytics_info`.
+- `getFuncStatus`: `auto_power_standby`, `dimmer` (-1 is automatic on the devices that allow it).
+
+**Discovery facts (code only, `YxcDescriptionParser`; the next slice uses it).** The YXC service of the UPnP description is the
+`<X_service>` inside `<X_device>` (namespace `urn:schemas-yamaha-com:device-1-0`) that has an `<X_yxcControlURL>` (a path; seen once:
+`/YamahaExtendedControl/v1/`); `X_specType` is `urn:schemas-yamaha-com:service:X_YamahaExtendedControl:1`, `X_yxcVersion` the version text
+(padded with blanks on the device, trimmed), `X_URLBase` the `host:port` of the device. The control URL base is `http://` + `X_URLBase` +
+control URL. A device that also lists the old `X_YamahaRemoteControl` service (its control URL is in `<X_controlURL>`) is still found by the
+YXC element; a device with only the old service, or no Yamaha block, is "not a YXC device" (`null`). Identity: the last 12 hex digits of
+the UDN equal `device_id` (case-insensitive) and the description's `serialNumber` equals `system_id`; both are checked by
+`YxcDescriptionInfo.matchesDeviceId` / `matchesSystemId`. The old-plus-new variant was **not** captured: its test file is invented in the
+style of the real one (`description_old_and_new_service.xml`).
+
+Choice of the XML parser: `org.xmlpull.v1.XmlPullParser` through `XmlPullParserFactory`, not namespace-aware (names are compared by their
+local part, so any prefix or an undeclared one works). It exists on Android (the app's UPnP code uses it) and the unit tests have
+`xmlpull` / `kxml2` as test dependencies, so the same class runs on the JVM and on the phone. `android.util.Xml.newPullParser()` returns null
+in the unit tests (`returnDefaultValues`); `javax.xml.parsers` exists on both, but (from memory, not checked) the Android implementation
+supports only a few `setFeature` names, so the hardening could not be tested the same way on the JVM and on the phone. Safety: a document with `<!DOCTYPE` or `<!ENTITY` is refused before
+parsing (so no entity or external resource can be declared) and the parser is told not to process a declaration; the text is capped at
+256 Ki characters, nesting at 32, each value at 256 characters; the control URL must be a plain absolute path (no scheme, `..`, query);
+`X_URLBase` must be `host[:port]`. Malformed input gives `null`, never an exception. Not verified on a phone: how the platform parser
+treats an undefined entity (the JVM test shows that kxml2 refuses the document).
+
+**Not in slices 1 and 1b:** discovery itself (SSDP / registry integration and the HTTP fetch of the description; the transport still has the
+fixed control path and takes host and port, the parser's `getHost()` / `getPort()` fit that), the UDP listener and its lifetime, the model
+that applies events, polling, any UI, strings and manifest entries. **Still needs a device (open points of section 8):**
+- the answer of `getDistributionInfo` on a **client** (role word, group id, whether it names its server); the slice treats `client` as the
+  word and `isLinkInput()` as a hint only;
+- UDP events: a first listen test received nothing, which is not conclusive (registration headers, Wi-Fi, port, firewall not ruled out);
+- the effect and the required value of `num` in `startDistribution`; whether one `setServerInfo` call may carry up to `client_max` (19)
+  addresses (the old 9-per-call comment may have come from devices with `client_max` 9);
+- the content type of the POST body; the error answers (`response_code` of a rejected group call, HTTP status of errors); whether a refused
+  `stopDistribution` really happens; whether the group id is returned in the case we send it;
+- whether the server's volume reaches the clients: the owner saw server 27 -> 31 while the client went 24 -> 38, but the sequence of the
+  owner's own changes is unknown, so this is not conclusive.
+
+### 10. UDP events measured on a real device (2026-11-02, issue #307)
+
+- **Registration works as the libraries do it:** one request with the headers `X-AppName: MusicCast/1.0` and `X-AppPort: <port>` is enough. The device then sends unicast UDP datagrams to the **address the request came from** and the **port named in the header**; the source port of the datagrams is chosen by the device (44204 in the capture) and is not 41100.
+- **Format of the first events seen:** while the device played a network source, one datagram per second, 55 bytes: `{"netusb":{"play_time":140},"device_id":"<device id>"}`. So `play_time` counts **seconds** (140, 141, 142 ... one per second) and every event carries the **device id at the top level** (the `device_id` of `getDeviceInfo`, the last 12 hex digits of the UPnP UDN). `YxcEvent.getDeviceId()` reads it.
+- **Other traffic of the device** that is not an event: multicast datagrams to 239.255.255.250 port 51200 (560 bytes, about every 2 s) and the usual SSDP on 1900. Ignored.
+- **Change events (captured 2026-11-02 while the owner moved the volume slider and pressed mute in the manufacturer's app):** the zone block holds only what changed: `{"main":{"volume":29},"device_id":"..."}` (49 bytes), `{"main":{"mute":true},...}`, `{"main":{"volume":35,"mute":false},...}`, and blocks can share one datagram (`{"main":{"mute":true},"netusb":{"play_time":149},...}`). While a slider is dragged the device sends **many volume events in a few hundred milliseconds** (29, 31, 33, 38, 39, then 38, 35, 34, 32, 31 within about 1.5 s; some with the same timestamp). UDP does not guarantee order, so the receiver should apply the last event it saw and re-read `getStatus` once after the events have been quiet for about a second. There was no `status_updated` flag in these events.
+- **Group and track events (captured 2026-11-02):** an **unlink** produced `{"dist":{"dist_info_updated":true},"device_id":"..."}` twice, 70 to 200 ms apart in two measurements (a flag only: read `dist/getDistributionInfo`). A **track change** produced a burst of five datagrams in about 1.5 s: `{"main":{"signal_info_updated":true},"netusb":{"play_time":0,"play_info_updated":true,"play_queue":{"updated":true}},...}`, then variants with only `play_info_updated`, only `signal_info_updated` or `play_queue.updated`; `play_time` restarts at 0 (it also jumped back by a few seconds once). Apply the flags as "read again": for a burst, read `netusb/getPlayInfo` **once**, about half a second after the last flag.
+- **Power on (captured 2026-11-02):** right before `{"main":{"power":"on"}}` a datagram with `main.signal_info_updated` and `netusb.account_updated`, `play_time` 0, `play_info_updated`, `play_queue.updated` arrives; the play flags then repeat from about 2.5 s to 5 s after the power event (also with `signal_info_updated` alone). Do not treat these as playback: wait for the power event and the debounce. A `play_time` second and `dist_info_updated` can be in one datagram, and `dist_info_updated` can come once or twice (about 200 ms apart), also during the 1 s play_time ticks of a playing group.
+- **Power off (captured 2026-11-02):** a single datagram `{"main":{"power":"standby"},...}`, no other event around it.
+- **Pause and play (captured 2026-11-02):** pause (19:18:52) and play (19:18:59) each gave one datagram `{"main":{"signal_info_updated":true},"netusb":{"play_info_updated":true}}`, the same for both, so the new state must be read with `getPlayInfo`. After the play a `signal_info_updated` alone followed 2 s later. The `play_time` ticks (1 per second) stop while paused (last 179) and go on from the same position (180 about 3.5 s after the play event); no `play_time` event is sent while paused, so a silent `play_time` is not an error.
+- **Unlink again (second measurement):** two `dist_info_updated` 70 ms apart, the first inside the `play_time` datagram, the `play_time` ticks go on. Link and unlink do not differ in the event.
+- **Link (captured 2026-11-02, server side):** linking gave one `{"dist":{"dist_info_updated":true}}` (about 0.5 s after a `play_time` tick), then the normal `play_time` ticks went on without a gap or a play/input flag. So a link and an unlink both look like the plain `dist_info_updated` already in the fixtures; read `dist/getDistributionInfo` to know what happened.
+- **Events of a group client (captured 2026-11-02, device c while linked, then unlinked, powered off and on, linked again):**
+  - A client sends **no `play_time` ticks while it is linked** (none in about three minutes while the server ticks every second); once it plays a source of its own (net radio) it sends `play_time: 0` with the play flag at the start. Volume and mute changes arrive as the same `main.volume` / `main.mute` events (one per step, 0.3 to 1 s apart).
+  - **Leaving the group** is one datagram with everything: `system.bluetooth_info_updated`, `main` with the new `input` (here `tuner`) plus `status_updated` and `signal_info_updated`, `netusb` `play_info_updated` plus `play_queue.updated`, and `dist.dist_info_updated`; **joining** is the same with `input: "mc_link"`. So the input arrives with the event and the zone, group and play info are read afterwards (`YxcEventPlan` asks for all three).
+  - `dist_info_updated` also comes alone, once or twice about 1 to 4 s apart, around such changes.
+  - A **tuner** source floods `tuner.play_info_updated` (about 60 datagrams in 20 s, up to 3 a second, also after power on). Nothing is read for it. `system.bluetooth_info_updated` and `netusb.account_updated` alone are noise as well.
+  - **Power:** `main.power: "standby"` alone; on the way up first a wake-up datagram (`bluetooth_info_updated`, `tuner.play_info_updated`, `account_updated`), then `main.power: "on"` together with `account_updated`.
+- **Input changes of an unlinked device (captured 2026-11-02, tuner, net radio, bluetooth, cd, tuner):** every change is `main.input: "<id>"` plus `status_updated: true`; for net radio, bluetooth and cd it comes with `system.bluetooth_info_updated`, `netusb.play_info_updated` and `play_queue.updated`, for the tuner alone it is only the input and `status_updated`. A second datagram (`signal_info_updated` with the play flags) follows 0.2 to 1 s later, and the net-radio start adds `play_time: 0`. Power on can be the single event `{"main":{"power":"on"}}`, with `account_updated` about 80 ms later. The event carries the input id but no display name, so the row shows the readable id until the zone is read (`YxcDeviceState.withEvent` drops the old name).
+- **Link test on real devices (2026-11-02, `capture/link_test.sh`, server and client of two different devices, both in no group at the start):**
+  - `setClientInfo` + `setInput mc_link` on the client, `setServerInfo` (type `add`) + `startDistribution?num=<n>` on the server: all `response_code` 0; the client reached the group id and `mc_link` within about 1 s; the server then reports `role: "server"`, `status: "working"`, the client in `client_list`.
+  - **`num` is required:** `startDistribution` without it answers `response_code` 4. `num=0` and `num=1` were both accepted for a new group with the same result (nothing visible differs); the app sends the number of clients before the call (0 for a new group), as the open-source clients do.
+  - **Without `startDistribution` the server stays `role: "none"`** with group id zeros (its `client_list` already names the client) while the client is in the group: the group exists only after the start call.
+  - **Group names:** the server's name is generated from the room names ("<room> + 1 Raum", localized by the device); the client's `group_name` is "(Linked) " plus **its own** room name, not the server's. The client's answer does not name the server, and its `client_list` lists itself. A row that says "linked with ..." therefore has to find the server by the group id (the device that reports `role: "server"` with the same group id), not from the client's `group_name`.
+  - **Unlink with the calls above** (client `setClientInfo` empty, server `stopDistribution`, server `setServerInfo` empty): both group ids are zeros at once (0 to 3 s). **The client then keeps `role: "client"` for as long as its input is `mc_link`; it turns `none` only after the input is set to something else** (measured twice on two clients: after the explicit clear, minutes later, still `client` with zero ids; one `setInput?input=tuner` and the next read says `none`). The first reading of this as a delay was wrong. The client's `group_name` stays "(Linked) <own room name>" with group id zeros, so the name only means something while the group id is not zero. The manufacturer's app moves a client back to its earlier input (leave datagram in section 10); yaacc remembers the last input that was not `mc_link` and sets it after the leave (no fallback: when no earlier source was ever seen the device is left on the link input, because the first input of `getFeatures` can be a streaming service; owner's report 2026-11-03: the device landed on Napster, while the native app puts it back on its last source - how the native app does that is to be found out, see the experiment in the notes of #307).
+- **Error probes on real devices (2026-11-02, `ERRORS=1`, a second client, three variants):** the devices **validate very little**; a `response_code` 0 does not mean the call made sense.
+  - `setClientInfo` sent to a **working server** is refused with `response_code` 5; sent to a device whose group was never started (role `none`) it is accepted.
+  - `setServerInfo` sent to a **client** is accepted (code 0) and changes the client's `client_list` (it then lists the server's address) while it stays a client; the answer of a client's own `client_list` is therefore not a reliable source for anything.
+  - `setServerInfo` with **another group id** on a working server is accepted: the server takes the new id while its client keeps the old one, `status` stays `working`, and the group is silently broken. `startDistribution?num=99` is accepted as well.
+  - A server that never got `startDistribution` and then received a `setServerInfo` with a group id became `role: "server"`, `status: "working"` on its own.
+  - A server's `status` reads **`building`** about 3 s after `startDistribution` in one run and `working` in another; wait for `working`.
+  - **Rules for yaacc that follow:** read the role and group ids of every device before each call and decide on those answers; never send `setServerInfo` with a group id other than the one the server reports; never send a group call to a device that is in another role; leave a client with `setClientInfo` empty, a server with `stopDistribution` + `setServerInfo` empty, and a device that ended up as the wrong role with the matching clear call; a group is ready only when the server is `working`, the clients report the id and the input `mc_link`.
+  - **Aftermath of the probes:** the client stayed `role: "client"` with zero ids and input `mc_link` until the owner set the input back by hand (then `none`).
+- **Not yet captured:** the user-agent quirk test.
+- **Local firewall:** the datagrams arrive at the network card of the owner's computer; an earlier listener run saw none with the computer's firewall (`ufw`) active and one while a client was asked. The event listener of the app runs on the phone, where no such firewall exists, but a device that is not reachable by unicast from the phone (client isolation of the access point) would receive no events: keep polling as the fallback.
+
+
+## 11. YXC slices 2 to 4 in yaacc: state, groups, volume and settings (#307)
+
+Implemented in `de.yaacc.yxc` (own code, no library code copied):
+- `YxcDiscovery` fetches the UPnP description of each renderer once (`YxcHttpDescriptionFetcher`: http only, no redirects, no proxy, size and time bounded) and keeps the verdict per UDN; the endpoint host is always the host of the registry's description URL, a document can only add its port when it names the same host.
+- `YxcMonitor` keeps a `YxcDeviceState` per device. Lifetime: event source and polling run while a screen subscribes and 30 s after the last unsubscribe; every 30 s a complete read is made (this also renews the event registration, every request carries `X-AppName`/`X-AppPort`). Events: values (power, volume, mute, input) are applied directly, flags ask for a read after 500 ms of quiet (`YxcEventPlan`: play info, zone status, distribution info; a group event reads the zone too, because a client's input follows the link).
+- Trust: the sender address is checked before a datagram is parsed (only watched devices), then the `device_id`. Events are display-only; actions must read the device first.
+- Limits: JSON depth (`YxcJson.parseObject`, quote-aware scan + `StackOverflowError` handler), 15 s per HTTP exchange (`YxcWatchdog`), 1 MB body, 64 devices.
+- UI: `YxcRowFeed` (main-thread, coalesced) -> `ReceiverRowBinder.bindGroupState` -> `YxcRowText` ("On · Net radio · Linked with <group>"); names from the device are cleaned and capped. Listeners hear only of changes the row shows.
+- The events of a linked client, an input change, `startDistribution num` and the error answers were measured afterwards (section 10 and the notes below).
+
+- **Groups (slice 3):** `YxcGroupOperations` forms, extends, reduces and dissolves a group from the picker's selection after fresh reads of every device involved (refusals: a device in another group, a client of someone else, a device that does not answer); `YxcGroupService.leaveIfMember` clears a client with `setClientInfo` empty, a server with `stopDistribution` + `setServerInfo` empty. A group server is found by `YxcGroupDirectory.serverOf`: exactly one device that claims the group id and lists the client, otherwise unknown (no guess). `YxcPlaybackRedirect` + `YxcPlayTargets` (in `PlayerService.createPlayerFor`, never on the main thread) replace a client by its server. After a leave the former input comes from the pre-join read, else from the monitor's last non-link input; with neither the device is left on the link input.
+- **Settings (slice 4):** `YxcSettings` builds the sheet's items only from `getFeatures`/`getStatus` of the device (power, input, sound program, sleep timer, equalizer bands within the reported range, link control, link audio delay, link audio quality) with caps on options and band steps; `YxcSettingsWriter` sends one change at a time through `YxcClient`; text from the device is cleaned (`YxcNames.clean`). Not built: tone control, surround, subwoofer, dialogue level, pure direct, enhancer, renaming of groups or inputs, playback controls of the device's own sources, a virtual group device.
+
+- **Volume of a device with group support (2026-11-02):** the generic UPnP volume control of such a device did not change the volume while it was in a group (owner's observation). `UpnpClient.getVolume/setVolume/getMute/setMute/hasActionGet*(device)` therefore go through `YxcVolumeAccess` for devices the monitor knows as YXC devices: the slider's percentage maps onto the device's own scale `0..max_volume` (from `getStatus`), writes are `main/setVolume?volume=<n>` and `main/setMute?enable=<bool>`, the latest value of a device wins while a write is on its way, reads are the zone status. Each device keeps its own volume (the group volume slider of Group 4 comes on top of this).
+- **Group volume (2026-11-02):** a slider on the row of a group server (shown when it serves at least one resolved client) shows the **average** of the members' volumes in percent of each device's own scale (from the states the monitor keeps live) and, while dragged, moves every member by the same number of percentage points from where it was when the drag began, clamped to 0..100 per device (`YxcGroupVolume`); each member is written through `YxcVolumeAccess` (latest value wins). Dragging back restores each member's own level. About 1.5 s after the drag the row is rebound so the slider shows the real average. The slider is refreshed with the row's rebinds (power, input, group changes, end of a drag), not on every volume event.
 
 ## Pick and play (#305): platform facts (verified 2026-11-03)
 
@@ -2959,3 +3518,37 @@ Spec: `.claude/specs/2026-11-03-issue305-pick-and-play/`. Facts below were check
 - **Invariants:** SI-1..SI-4, SI-11, SI-13, SI-14, SI-17, SI-18 hold as before (no `ShareLimits` change, no new component, permission or dependency). SI-12: the pick path has its own provider pool and gate (`pick-provider`), so "one call in flight per provider" holds per pool. SI-16: notices are fixed resource texts with numbers; `ShareLogRedactor` reduces a `content:` uri to its authority (the image viewer logs the uri of an image it cannot load). Exception: DEBUG lines of the players print the item title, which for a picked file is its cleaned name (the default log level is ERROR).
 - **Known limitations:** a queue uses one registry slot per player (kinds times receivers, up to 8) and can use all slots; a `application/octet-stream` file of a folder is not played (no guessing from the extension); every failed share toasts (a queue of many missing files shows many); `stop()` and `pause()` are ignored while a share is being created (up to 20 s to open, 5 minutes for a copy); `LocalImagePlayer.setItems` puts all picked uris in one intent extra (a very long list of long uris could exceed the binder limit); a duration that cannot be read leaves the item at -1 (no timer; the receiver's transport state decides); `MediaMetadataRetriever` parses the picked file in native code (a file the user picked, bounded in time, not logged).
 - **Not verified on a device:** the grant of the picked uris during a long background playback and after the app is moved to the background; ExoPlayer reading the picked `content:` uris directly (seeking depends on the provider); the video app on this phone with a share; a mixed folder on two receivers.
+
+
+## 12. Net sources, presets and tuner: real answers of a device (2026-11-04, slice 5 step 0)
+
+Measured with `capture.sh` and `source_test.sh` on one device that has a tuner (FM and DAB) and the network source block (the same type as device c). Station names and titles in the fixtures (`c_playInfo_net_radio*.json`, `c_tunerPlayInfo_*.json`, `c_presetInfo_net_empty.json`, `c_tunerPresetInfo_*.json`) are invented; the structure is as the device sent it.
+
+- **Which play info belongs to the zone:** `netusb/getPlayInfo` and `tuner/getPlayInfo` both answer at any time, also for the source that is **not** selected (the tuner answer while net radio plays, the net answer while the tuner plays, last values kept). What to show is decided by the zone's input and the `play_info_type` of that input in `getFeatures` (`netusb`, `tuner`, `cd`, `none`; `net_radio`, `spotify`, ... are `netusb`, `tuner` is `tuner`, `aux` is `none`).
+- **Net radio play info:** `input` `net_radio`, `playback` `play` / `stop`, `repeat` / `shuffle` `off`, `total_time` 0 (live stream; `play_time` counts up), **the station name is in `artist`** ("Name (City/Language)"), `album` empty, **the stream title is in `track`**, `albumart_url` a path on the device, `repeat_available` and `shuffle_available` **empty**, `attribute` 16785411.
+- **`attribute` is a bit mask of what the source can do** (matches all four play infos seen: net radio 16785411 = bits 0, 1, 13, 24; Spotify 16777503 = bits 0-4, 8, 24; a media server 83886591 = bits 0-8, 24, 26): bit 0 play, bit 1 stop, bit 2 pause, bit 3 previous, bit 4 next, bits 5 to 7 shuffle related (only the server has them and a `shuffle_available`), bit 8 repeat (set exactly when `repeat_available` is not empty). **Evidence on the net radio source, which has only bits 0 and 1:** `setPlayback` `pause`, `next` and `previous` are answered with `response_code` 0 and **do nothing** (`playback` stays `play`, `track` and station stay), `play` after `stop` and `stop` work (`playback` `stop`, `play_time` 0). So yaacc offers a control only when its bit is set (the meaning of the bits is a reading of these captures, not documented).
+- **Repeat and shuffle:** `setRepeat?mode=one|all|off` and `setShuffle?mode=on|off` answer `response_code` 4 on a source that lists no options; nothing changes. Offered only when `repeat_available` / `shuffle_available` list the value.
+- **Net presets:** `netusb/getPresetInfo`: `preset_info` is a list of 40 `{input, text}` (position = preset number, empty slot = `input` `unknown`, `text` empty) and `func_list` `["clear", "move"]`; this device had no net presets (all empty). `recallPreset?zone=main&num=1` on an **empty slot is answered with 0 and does nothing**; `num=999` is answered with 4. So the device does not refuse an empty slot: yaacc recalls only a slot that the list it just read shows as not empty.
+- **Tuner play info:** `band` (`fm` / `dab`), `auto_scan` (true while a seek runs), `fm` {`preset` (0 = none), `freq` in kHz (87550 = 87.55 MHz), `tuned`, `audio_mode`}, `rds` {`program_type`, `program_service` (can start with a blank), `radio_text_a`, `radio_text_b` (end with `_`)}, `dab` {`preset`, `id`, `status`, `freq`, `service_label` (padded with blanks to 16), `dls`, `ensemble_label`, `ch_label`, `bit_rate`, `quality`, ...}. The `dab` and `rds` blocks keep old values while the other band is selected.
+- **Tuner presets:** `tuner/getPresetInfo?band=fm|dab` (the band is required): `preset_info` list of 40 `{band, number, hd_program, text}` (empty slot = `band` `unknown`); `number` is the frequency in kHz for FM and the service id for DAB; **position = preset number** (recall of 1 gave the first entry in both bands); `text` is padded with blanks. `tuner/recallPreset?zone=main&band=fm|dab&num=<n>` is answered with 0; recalling a DAB preset switches the band to `dab` while the zone input stays `tuner`.
+- **Seek:** `tuner/setFreq?band=fm&tuning=auto_up|auto_down&num=0` is answered with 0 and **starts a scan**: `auto_scan` true, `fm.tuned` false, `fm.freq` moves in steps of 50 kHz on its own (87550 to 87600, then after `auto_down` to 107500, 106750, 106000 over the next seconds) until a station is found. The scan is not stopped by the app; it is shown as "scanning". `setFreq` with `band=dab` is answered with 4.
+- **DAB service next / previous (measured with the band `dab`):** `tuner/setDabService?dir=next|previous` is answered with 0 and **switches the service**: `dab.service_label` changed to the next / previous service of the list ("TEST 1" to "TEST 2" and back (invented names)), `dab.dls` became empty (the new service sends its own text a moment later) and `dab.preset` went to 0 (no preset any more; `dab.id` kept its old value, so the service label, not the id, shows the current service). While the band was `fm` the same call is answered with 2 (refused). `tuner/setFreq` with `band=dab` is answered with 4 in both cases (DAB has no frequency seek). A DAB preset recall (`recallPreset?zone=main&band=dab&num=1`) sets `dab.preset` to 1 and the service of that entry.
+- **Rules for yaacc that follow:** text from the play info is cleaned and capped (names are padded with blanks); the now playing text of a network source is the station (`artist`) and, if it differs, the stream title (`track`); of the tuner the FM frequency (`87.55 MHz`) with the RDS service / text, or the DAB service label with the `dls`; the preset lists are read right before they are shown and before a recall; a control is shown only if its attribute bit (and for repeat / shuffle the option list) allows it; seek is "scan up / down" with a scanning state and no repeated taps.
+- **Tuner calls need the tuner input (measured 2026-11-04):** with the zone input `net_radio` selected, `tuner/setFreq?band=fm&tuning=auto_up|auto_down&num=0` and `tuner/setDabService?dir=next` were answered with 0 / 2 and changed **nothing** (`auto_scan` false, frequency unchanged; the DAB call answered 2 as in FM). Seek, DAB service and similar controls are therefore offered only while the zone input is the tuner (`play_info_type` `tuner`). A `tuner/recallPreset?zone=main&band=fm&num=2` was answered with 0 and set `fm.preset` 2 and `fm.freq` 88700 in the tuner play info while the input stayed `net_radio` in the data we have; whether the recall also switches the zone to the tuner is **open** (the status after the recall was not printed). FM preset list with two entries: `number` is the frequency in kHz (87550, 88700), `text` is padded with blanks (" TEST 1", "  TEST 2"), position = preset number.
+- **Net radio favorites are not in `netusb/getPresetInfo` on this device (owner, 2026-11-04):** the list stays empty (40 x `unknown`) although two favorites are saved in the manufacturer's app. With `net_radio_type` `airable` the favorites live in the Airable service of the account, reached by browsing (`netusb/getListInfo`), not in the 40 preset slots. The device also lists `recent_info` (40 entries) in its `netusb` features: a "recently played" list may be the usable shortcut (open, to be captured: `netusb/getRecentInfo`, `netusb/recallRecentItem`).
+- **Recently played (`netusb/getRecentInfo`, measured 2026-11-04):** `recent_info` is a list of 40 entries `{input, text, albumart_url, play_count, attribute}`, most recent first, empty slots `input` `unknown`. It holds the **network radio stations** (`input` `net_radio`, `text` "Name (City/Language)") **and every track the device played from a UPnP server** (`input` `server`, `text` "Title-(file name)", `albumart_url` an address on the LAN, `attribute` 30), also tracks that yaacc sent. Some texts start with blanks or " - ". Fixture `c_recentInfo.json` has the structure with invented content. **`netusb/recallRecentItem?zone=main&num=<n>` works (measured 2026-11-04):** answered with 0; the zone input changed from `tuner` to `net_radio` by itself and the station of entry 1 played (`artist` = its name, `track` = the stream title, `playback` `play`, `attribute` 16785411). So a recall of a recent entry switches the input; the number is the position in the list (1-based).
+- **Does a tuner preset recall switch the input? (still open):** the test was started with the tuner already selected, so it did not answer. The row will not rely on it: before a tuner preset is recalled the zone input is set to the tuner if it is not (a call the app already makes), then the preset is recalled.
+- **As built, step 7.1 (now playing line):** `YxcTunerInfo` (`tuner/getPlayInfo`), `YxcNowPlaying` (pure) and a second line in the row text (`YxcRowText`). The monitor reads the tuner play info together with the play info, only while the zone input is the tuner; the state holds the `YxcPlayInfo` and the `YxcTunerInfo`. The line is shown for the network source whose own `input` equals the zone input and whose `playback` is `play` or `pause`, and for the tuner (FM: `FM 87.55 MHz` with a trailing ellipsis while scanning, the RDS service and radio text; DAB: service label and dynamic label); nothing for a stopped source, standby, the link input or another source's old info. **A flag of the tuner is still not a reason to read** (it floods, section 10): the tuner line is refreshed with the input change, the power change and the 30 s read, and will be after our own tuner actions (step 7.2).
+- **As built, step 7.2 (source controls):** `YxcSourceControls` (pure) decides what the source offers from the play info: the bits of `attribute` (play, stop, pause, previous, next; without a bit field only play, pause and stop), repeat / shuffle when the `*_available` lists are not empty, FM seek on the FM band, DAB service next / previous on the DAB band, nothing for standby, the link input or an input that is not the one the play info talks about. `YxcSourceActions` reads the zone status and the play info right before every control and sends it only if that fresh answer offers it (`NOT_AVAILABLE` otherwise; nothing is decided on an event or on the row's state). The calls are `netusb/setPlayback`, `setRepeat`, `setShuffle`, `tuner/setFreq?band=fm&tuning=auto_up|auto_down&num=0` and `tuner/setDabService?dir=next|previous` (arguments checked in `YxcClient`). On the row: icons for previous / next (or seek down / up on the FM band, previous / next station on DAB), repeat and shuffle only where offered; **while the device plays a source of its own and no yaacc player is playing on it, the row's play / pause / stop act on that source** (`netusb/setPlayback`) and the ones the source does not offer (pause on a net radio) are shown disabled; while yaacc plays on the device they stay UPnP. `YxcSourceController` serialises the calls per device (one in flight, taps within 300 ms dropped) and asks the monitor to read the device again right after and 1.5 s later (a seek scans for a while; the events of the tuner are not used).
+- **Switching the tuner band (measured 2026-11-04):** `tuner/setBand?band=fm|dab` is answered with 0 and switches the band at once: the play info then says `band` `dab` (and `fm.tuned` false) or `fm` again; the zone input stays `tuner`; the last FM station is kept (`fm.freq`) and the DAB service too. The row offers it as a small "FM" / "DAB" button (it shows the band it switches to) next to the seek icons, only while the tuner is on the other band and `system/getFeatures` lists both (`tuner.func_list` with `fm` and `dab`). **As built:** `YxcSourceCapabilities` (bands, `tuner.preset.num`, `netusb.preset.num`, `recent_info`; at most 100 presets) is read once per device with the first full read and kept in the state; `YxcSourceControls` has `BAND_FM` / `BAND_DAB`; `YxcSourceActions` gets the capabilities along (a band switch is never sent without them).
+- **FM step, scan and cancel (measured 2026-11-04, like the manufacturer's app: short tap steps, long tap scans):** `tuner/setFreq?band=fm&tuning=up|down&num=0` moves `fm.freq` by exactly one step (50 kHz: 103600, 103650, 103700, back to 103650) and, called while the tuner is on DAB, also switches it to FM; `tuning=auto_up|auto_down` scans by itself and stops on a station (the scan wraps around the band: 103650 up to 87600); **`tuning=cancel` stops a running scan** (`auto_scan` false, tuned to the frequency reached). **As built:** on the FM band the two seek icons step on a short tap (`STEP_UP` / `STEP_DOWN`) and scan on a long tap (`SEEK_UP` / `SEEK_DOWN`); while `auto_scan` is true a short tap stops the scan (`CANCEL_SCAN`). DAB keeps next / previous service on a tap.
+- **Following a scan (owner's test, 2026-11-04):** the tuner's play info events are not used (they flood), so after a long tap the row would have stayed on the first frequency with "..." until the next 30 s read. `YxcSourceController` now reads the play info (`YxcMonitor.refreshPlayInfoNow`, no zone or group read) once a second while `auto_scan` is true, at most 60 times, after a scan started. The band is shown as a two-part switch "FM | DAB" (both names, the playing band selected); a tap on the other name switches (`BAND_FM` / `BAND_DAB`).
+- **As built, step 7.3 (presets):** `YxcPresets` (pure) turns the three list shapes into entries: the network presets (`netusb/getPresetInfo`: non-empty slots, position = number), the recently played list (`netusb/getRecentInfo`: radio and streaming entries only, not `server` tracks; the number is the position in the device's own list) and the tuner presets per band (`tuner/getPresetInfo?band=fm|dab`: slots of that band; FM shows the frequency as a second text). Names are cleaned and capped, at most 100 slots of a list are looked at. `YxcPresetActions.load` reads the lists the device's capabilities name (`system/getFeatures`: preset counts, `recent_info`, bands); `YxcPresetActions.recall` reads the list again right before and recalls only if the entry is still there at the same position with the same name (`netusb/recallPreset`, `netusb/recallRecentItem`, `tuner/recallPreset`); a tuner preset first sets the zone input to the tuner when it is on another input. A star icon on the row of a switched-on device that lists presets opens `YxcPresetsSheet` (bottom sheet: Recently played, Presets, FM presets, DAB presets; one tap recalls and closes the sheet; the row follows by two reads).
+
+- **As built, review of slice 5 (2026-11-04): who owns the device.** While yaacc plays on a device the zone input is the server input, which counts as a network source. So the row's play / pause / stop and the source icons act on the device's own source only when no yaacc player on it plays or is paused (`YxcSourceControls.rowMapsToOwnSource(state, yaaccActive)`, `available(state, yaaccActive)`; `ReceiverRowBinder.yaaccActive`); otherwise the UPnP transport keeps the buttons and the icons are hidden. A stopped player does not count. The presets star is still offered while yaacc plays (open suggestion of the security review: a recall changes the input).
+
+### 12b. Device-level settings (slice 5, step 7.4; measured 2026-11-04)
+
+- **Measured on a device that lists `dimmer` and `auto_power_standby`:** `system/getFuncStatus` answers `{"auto_power_standby":true,"dimmer":-1}`; `system/setDimmer?value=1` and `system/setAutoPowerStandby?enable=false` are answered with 0 and the next `getFuncStatus` shows the new values (`dimmer` 1, `auto_power_standby` false); `setDimmer?value=-1` and `enable=true` put them back. The ranges come from the system `range_step` entry `dimmer`: -1..2 (device a), 0..2 (b), -1..9 (c); -1 is the automatic mode where the range reaches it. `network_standby` is listed in the system functions of all three devices but `getFuncStatus` does not report it, so it is not offered.
+- **As built:** the settings sheet gets two more items from `YxcSettings.build(..., YxcFeatures system, YxcFuncStatus funcStatus)`: **display brightness** (a slider over the range of the device, `-1` shown as "Auto") and **automatic standby** (a switch), each only when the system function list names it and the function status reports a value; `YxcSettingsWriter.setDimmer` checks the value against the range and the step before `system/setDimmer` is sent. **Not built:** the zone-level extras (tone control, dialogue level and lift, subwoofer volume, surround decoder, pure direct, enhancer, bass extension, extra bass, adaptive DRC, clear voice, 3D surround): none of the three devices lists one, so they could only be tested with invented data. They can follow the same model when a device that lists them is at hand.
+

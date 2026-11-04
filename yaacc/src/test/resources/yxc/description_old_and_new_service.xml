@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root xmlns="urn:schemas-upnp-org:device-1-0" xmlns:yamaha="urn:schemas-yamaha-com:device-1-0">
+  <specVersion><major>1</major><minor>0</minor></specVersion>
+  <device>
+    <deviceType>urn:schemas-upnp-org:device:MediaRenderer:1</deviceType>
+    <friendlyName>Invented Room</friendlyName>
+    <manufacturer>Example Corporation</manufacturer>
+    <modelName>TEST-MODEL-D</modelName>
+    <serialNumber>0000000D</serialNumber>
+    <UDN>uuid:9ab0c000-f668-11de-9976-00000000000D</UDN>
+    <serviceList>
+      <service>
+        <serviceType>urn:schemas-upnp-org:service:AVTransport:1</serviceType>
+        <serviceId>urn:upnp-org:serviceId:AVTransport</serviceId>
+        <SCPDURL>/AVTransport/desc.xml</SCPDURL>
+        <controlURL>/AVTransport/ctrl</controlURL>
+        <eventSubURL>/AVTransport/event</eventSubURL>
+      </service>
+    </serviceList>
+    <deviceList>
+      <device>
+        <deviceType>urn:schemas-upnp-org:device:Embedded:1</deviceType>
+        <friendlyName>Embedded Thing</friendlyName>
+        <serialNumber>EMBEDDED-1</serialNumber>
+        <UDN>uuid:11111111-2222-3333-4444-555555555555</UDN>
+      </device>
+    </deviceList>
+  </device>
+  <yamaha:X_device>
+    <yamaha:X_URLBase>192.0.2.50:49154</yamaha:X_URLBase>
+    <yamaha:X_serviceList>
+      <yamaha:X_service>
+        <yamaha:X_specType>urn:schemas-yamaha-com:service:X_YamahaRemoteControl:1</yamaha:X_specType>
+        <yamaha:X_controlURL>/YamahaRemoteControl/ctrl</yamaha:X_controlURL>
+        <yamaha:X_unitDescURL>/YamahaRemoteControl/desc.xml</yamaha:X_unitDescURL>
+      </yamaha:X_service>
+      <yamaha:X_service>
+        <yamaha:X_specType>urn:schemas-yamaha-com:service:X_YamahaExtendedControl:1</yamaha:X_specType>
+        <yamaha:X_yxcControlURL>/YamahaExtendedControl/v1/</yamaha:X_yxcControlURL>
+        <yamaha:X_yxcVersion>2.00</yamaha:X_yxcVersion>
+      </yamaha:X_service>
+    </yamaha:X_serviceList>
+  </yamaha:X_device>
+</root>

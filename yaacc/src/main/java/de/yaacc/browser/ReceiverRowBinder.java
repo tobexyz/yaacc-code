@@ -32,6 +32,7 @@ import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.SeekBar;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.OptIn;
@@ -48,6 +49,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -60,6 +62,18 @@ import de.yaacc.upnp.callback.avtransport.Play;
 import de.yaacc.upnp.callback.avtransport.Stop;
 import de.yaacc.upnp.server.http.HttpRequestSender;
 import de.yaacc.util.ThemeHelper;
+import de.yaacc.yxc.YxcDeviceState;
+import de.yaacc.yxc.YxcDeviceSnapshot;
+import de.yaacc.yxc.YxcDistributionInfo;
+import de.yaacc.yxc.YxcGroupDirectory;
+import de.yaacc.yxc.YxcGroupDrag;
+import de.yaacc.yxc.YxcGroupMessages;
+import de.yaacc.yxc.YxcGroupResult;
+import de.yaacc.yxc.YxcGroupVolume;
+import de.yaacc.yxc.YxcVolumeAccess;
+import de.yaacc.yxc.YxcLinkCandidates;
+import de.yaacc.yxc.YxcMonitor;
+import de.yaacc.yxc.YxcSourceControls;
 import de.yaacc.util.YaaccLogger;
 import de.yaacc.util.image.IconDownloadTask;
 
@@ -97,6 +111,21 @@ final class ReceiverRowBinder {
         final TextView name;
         final TextView statusBadge;
         final TextView statusText;
+        final TextView yxcText;
+        final View yxcActions;
+        final View yxcSource;
+        final ImageButton yxcSrcPrev;
+        final ImageButton yxcSrcNext;
+        final ImageButton yxcSrcRepeat;
+        final com.google.android.material.button.MaterialButtonToggleGroup yxcSrcBand;
+        final android.widget.Button yxcSrcBandFm;
+        final android.widget.Button yxcSrcBandDab;
+        final ImageButton yxcSrcShuffle;
+        final ImageButton yxcToggle;
+        final ImageButton yxcSettings;
+        final ImageButton yxcPresets;
+        final SeekBar yxcGroupVolume;
+        final TextView yxcGroupVolumeText;
         final TextView volumeText;
         final CheckBox checkBox;
         final CheckBox mute;
@@ -112,6 +141,21 @@ final class ReceiverRowBinder {
             name = itemView.findViewById(R.id.browseReceiverDeviceItemName);
             statusBadge = itemView.findViewById(R.id.status_badge);
             statusText = itemView.findViewById(R.id.status_text);
+            yxcText = itemView.findViewById(R.id.yxc_text);
+            yxcActions = itemView.findViewById(R.id.yxc_actions);
+            yxcSource = itemView.findViewById(R.id.yxc_source);
+            yxcSrcPrev = itemView.findViewById(R.id.yxc_src_prev);
+            yxcSrcNext = itemView.findViewById(R.id.yxc_src_next);
+            yxcSrcRepeat = itemView.findViewById(R.id.yxc_src_repeat);
+            yxcSrcBand = itemView.findViewById(R.id.yxc_src_band);
+            yxcSrcBandFm = itemView.findViewById(R.id.yxc_src_band_fm);
+            yxcSrcBandDab = itemView.findViewById(R.id.yxc_src_band_dab);
+            yxcSrcShuffle = itemView.findViewById(R.id.yxc_src_shuffle);
+            yxcToggle = itemView.findViewById(R.id.yxc_btn_link);
+            yxcSettings = itemView.findViewById(R.id.yxc_btn_settings);
+            yxcPresets = itemView.findViewById(R.id.yxc_btn_presets);
+            yxcGroupVolume = itemView.findViewById(R.id.yxc_group_volume);
+            yxcGroupVolumeText = itemView.findViewById(R.id.yxc_group_volume_text);
             volumeText = itemView.findViewById(R.id.volume_text);
             checkBox = itemView.findViewById(R.id.browseReceiverDeviceItemCheckbox);
             mute = itemView.findViewById(R.id.browseReceiverDeviceItemMute);
@@ -246,6 +290,8 @@ final class ReceiverRowBinder {
      */
     void bindStatus(RowViews holder, Device<?, ?, ?> device) {
         String deviceId = device.getIdentity().getUdn().getIdentifierString();
+        bindGroupState(holder, deviceId);
+        bindSourceControls(holder, device, deviceId);
         Player player = primaryPlayer(device);
         RendererStatus status = statusMap.get(device);
         if (status != null) {
@@ -405,6 +451,494 @@ final class ReceiverRowBinder {
     }
 
     /**
+     * Shows power, input and group of a device with group support, from {@link YxcMonitor}; hidden for every
+     * other receiver (the monitor knows no state for them).
+     */
+    private void bindGroupState(RowViews holder, String udn) {
+        if (holder.yxcText == null) {
+            return;
+        }
+        YxcMonitor monitor = YxcMonitor.getShared();
+        YxcDeviceState state = monitor.getState(udn);
+        String serverName = null;
+        List<String> clientNames = new ArrayList<>();
+        if (state != null) {
+            YxcGroupDirectory directory = new YxcGroupDirectory(monitor.snapshot());
+            String server = directory.serverOf(udn);
+            serverName = server == null ? null : friendlyName(server);
+            for (String client : directory.clientsOf(udn)) {
+                clientNames.add(friendlyName(client));
+            }
+        }
+        YxcGroupController controller = YxcGroupController.getShared();
+        boolean busy = controller.isBusy(udn);
+        String text = busy ? context.getString(R.string.yxc_busy)
+                : YxcRowText.describe(state, yxcWords, serverName, clientNames);
+        if (text == null) {
+            holder.yxcText.setVisibility(View.GONE);
+        } else {
+            holder.yxcText.setText(text);
+            holder.yxcText.setVisibility(View.VISIBLE);
+        }
+        bindGroupActions(holder, udn, busy ? null : state);
+    }
+
+    /**
+     * The controls of the device's own source (network source, tuner): previous / next (or seek, or the DAB service),
+     * repeat and shuffle, only what the source offers (see {@link YxcSourceControls}). While the device plays a source of
+     * its own and yaacc plays nothing on it, the row's play / pause / stop work on that source, and the ones it does
+     * not offer are shown disabled.
+     */
+    private void bindSourceControls(RowViews holder, Device<?, ?, ?> device, String udn) {
+        if (holder.yxcSource == null) {
+            return;
+        }
+        YxcDeviceState state = YxcMonitor.getShared().getState(udn);
+        boolean yaaccActive = yaaccActive(device);
+        Set<YxcSourceControls.Control> offered = YxcSourceControls.available(state, yaaccActive);
+        boolean scanning = offered.contains(YxcSourceControls.Control.CANCEL_SCAN);
+        // FM: a short tap steps the frequency (or stops a scan that runs), a long tap scans; the other sources: a tap
+        YxcSourceControls.Control previous = scanning ? YxcSourceControls.Control.CANCEL_SCAN : firstOffered(offered,
+                YxcSourceControls.Control.PREVIOUS, YxcSourceControls.Control.STEP_DOWN,
+                YxcSourceControls.Control.SERVICE_PREVIOUS);
+        YxcSourceControls.Control next = scanning ? YxcSourceControls.Control.CANCEL_SCAN : firstOffered(offered,
+                YxcSourceControls.Control.NEXT, YxcSourceControls.Control.STEP_UP,
+                YxcSourceControls.Control.SERVICE_NEXT);
+        bindSourceButton(holder.yxcSrcPrev, udn, previous, previous == null ? 0 : sourceDescription(previous, false),
+                offered.contains(YxcSourceControls.Control.SEEK_DOWN) ? YxcSourceControls.Control.SEEK_DOWN : null);
+        bindSourceButton(holder.yxcSrcNext, udn, next, next == null ? 0 : sourceDescription(next, true),
+                offered.contains(YxcSourceControls.Control.SEEK_UP) ? YxcSourceControls.Control.SEEK_UP : null);
+        // the tuner band: both names, the one that plays is selected; a tap on the other one switches
+        boolean toDab = offered.contains(YxcSourceControls.Control.BAND_DAB);
+        boolean toFm = offered.contains(YxcSourceControls.Control.BAND_FM);
+        boolean band = toDab || toFm;
+        if (!band) {
+            holder.yxcSrcBand.setVisibility(View.GONE);
+            holder.yxcSrcBandFm.setOnClickListener(null);
+            holder.yxcSrcBandDab.setOnClickListener(null);
+        } else {
+            holder.yxcSrcBand.check(toDab ? R.id.yxc_src_band_fm : R.id.yxc_src_band_dab);
+            holder.yxcSrcBandFm.setOnClickListener(v -> {
+                if (toFm) {
+                    YxcSourceController.getShared().perform(udn, YxcSourceControls.Control.BAND_FM);
+                }
+            });
+            holder.yxcSrcBandDab.setOnClickListener(v -> {
+                if (toDab) {
+                    YxcSourceController.getShared().perform(udn, YxcSourceControls.Control.BAND_DAB);
+                }
+            });
+            holder.yxcSrcBand.setVisibility(View.VISIBLE);
+        }
+        boolean repeat = offered.contains(YxcSourceControls.Control.REPEAT);
+        boolean shuffle = offered.contains(YxcSourceControls.Control.SHUFFLE);
+        String repeatMode = state == null || state.getPlayInfo() == null ? null : state.getPlayInfo().getRepeat();
+        String shuffleMode = state == null || state.getPlayInfo() == null ? null : state.getPlayInfo().getShuffle();
+        holder.yxcSrcRepeat.setImageResource("one".equals(repeatMode) ? R.drawable.ic_baseline_repeat_one_32
+                : R.drawable.ic_baseline_repeat_32);
+        bindSourceButton(holder.yxcSrcRepeat, udn, repeat ? YxcSourceControls.Control.REPEAT : null, R.string.yxc_source_repeat, null);
+        holder.yxcSrcRepeat.setAlpha(repeat && repeatMode != null && !"off".equals(repeatMode) ? 1f : 0.5f);
+        bindSourceButton(holder.yxcSrcShuffle, udn, shuffle ? YxcSourceControls.Control.SHUFFLE : null, R.string.yxc_source_shuffle, null);
+        holder.yxcSrcShuffle.setAlpha(shuffle && shuffleMode != null && !"off".equals(shuffleMode) ? 1f : 0.5f);
+        boolean any = previous != null || next != null || band || repeat || shuffle;
+        holder.yxcSource.setVisibility(any ? View.VISIBLE : View.GONE);
+        // the row's own buttons: shown as what they will do
+        boolean mapped = YxcSourceControls.rowMapsToOwnSource(state, yaaccActive);
+        holder.btnPlay.setEnabled(!mapped || offered.contains(YxcSourceControls.Control.PLAY));
+        holder.btnPause.setEnabled(!mapped || offered.contains(YxcSourceControls.Control.PAUSE));
+        holder.btnStop.setEnabled(!mapped || offered.contains(YxcSourceControls.Control.STOP));
+        holder.btnPlay.setAlpha(holder.btnPlay.isEnabled() ? 1f : 0.4f);
+        holder.btnPause.setAlpha(holder.btnPause.isEnabled() ? 1f : 0.4f);
+        holder.btnStop.setAlpha(holder.btnStop.isEnabled() ? 1f : 0.4f);
+    }
+
+    /**
+     * @param longPress the control a long tap starts (the FM scan), {@code null} for none
+     */
+    private void bindSourceButton(ImageButton button, String udn, YxcSourceControls.Control control, int description,
+                                  YxcSourceControls.Control longPress) {
+        if (control == null) {
+            button.setVisibility(View.GONE);
+            button.setOnClickListener(null);
+            button.setOnLongClickListener(null);
+            button.setLongClickable(false);
+            return;
+        }
+        button.setVisibility(View.VISIBLE);
+        if (description != 0) {
+            button.setContentDescription(context.getString(description));
+        }
+        button.setOnClickListener(v -> YxcSourceController.getShared().perform(udn, control));
+        if (longPress == null) {
+            button.setOnLongClickListener(null);
+            button.setLongClickable(false);
+        } else {
+            button.setOnLongClickListener(v -> {
+                YxcSourceController.getShared().perform(udn, longPress);
+                return true;
+            });
+        }
+    }
+
+    private static YxcSourceControls.Control firstOffered(Set<YxcSourceControls.Control> offered,
+                                                          YxcSourceControls.Control... candidates) {
+        for (YxcSourceControls.Control candidate : candidates) {
+            if (offered.contains(candidate)) {
+                return candidate;
+            }
+        }
+        return null;
+    }
+
+    private static int sourceDescription(YxcSourceControls.Control control, boolean up) {
+        switch (control) {
+            case CANCEL_SCAN:
+                return R.string.yxc_source_cancel_scan;
+            case STEP_DOWN:
+                return R.string.yxc_source_step_down;
+            case STEP_UP:
+                return R.string.yxc_source_step_up;
+            case SERVICE_PREVIOUS:
+                return R.string.yxc_source_service_previous;
+            case SERVICE_NEXT:
+                return R.string.yxc_source_service_next;
+            case NEXT:
+                return R.string.yxc_source_next;
+            default:
+                return up ? R.string.yxc_source_next : R.string.yxc_source_previous;
+        }
+    }
+
+    /** yaacc has a player on the device that plays or is paused: the device then plays what yaacc sent. */
+    private boolean yaaccActive(Device<?, ?, ?> device) {
+        Player player = primaryPlayer(device);
+        return player != null && (player.isPlaying() || player.isPaused());
+    }
+
+    /**
+     * The one toggle of a device that supports groups: the link icon (always the same: the row text says whether
+     * the device serves a group), disabled while it is a client of another device. Both open the picker (a server's
+     * clients are checked; unchecking some removes them, unchecking all ends the group). The group is changed from the
+     * server only, so a client has no way to leave on its own.
+     */
+    private void bindGroupActions(RowViews holder, String udn, YxcDeviceState state) {
+        if (holder.yxcActions == null || holder.yxcToggle == null) {
+            return;
+        }
+        Set<YxcLinkCandidates.Action> actions = YxcLinkCandidates.actionsFor(state);
+        boolean link = actions.contains(YxcLinkCandidates.Action.LINK_DEVICES);
+        boolean unlink = actions.contains(YxcLinkCandidates.Action.UNLINK_GROUP);
+        boolean blocked = actions.contains(YxcLinkCandidates.Action.LINK_UNAVAILABLE);
+        ImageButton toggle = holder.yxcToggle;
+        boolean settingsAvailable = state != null && state.isReachable(); // the settings do not depend on the group
+        holder.yxcActions.setVisibility(link || unlink || blocked || settingsAvailable ? View.VISIBLE : View.GONE);
+        toggle.setVisibility(link || unlink || blocked ? View.VISIBLE : View.GONE);
+        toggle.setContentDescription(context.getString(unlink ? R.string.yxc_action_edit_group : R.string.yxc_action_link));
+        toggle.setEnabled(!blocked);
+        toggle.setAlpha(blocked ? 0.4f : 1f);
+        toggle.setOnClickListener(v -> {
+            if (link || unlink) {
+                showLinkDialog(udn); // for a server too: the clients can be unchecked one by one, all of them ends the group
+            }
+        });
+        bindSettingsButton(holder, udn, state);
+        bindPresetsButton(holder, udn, state);
+        bindGroupVolume(holder, udn, unlink);
+    }
+
+    // the open settings sheet, so that a second tap does not open another one
+    private android.app.Dialog settingsDialog;
+
+    // the open presets sheet, so that a second tap does not open another one
+    private android.app.Dialog presetsDialog;
+
+    /** The star: shown for a device that lists presets or recently played stations; it opens the presets sheet. */
+    private void bindPresetsButton(RowViews holder, String udn, YxcDeviceState state) {
+        if (holder.yxcPresets == null) {
+            return;
+        }
+        de.yaacc.yxc.YxcSourceCapabilities caps = state == null ? null : state.getCapabilities();
+        boolean available = state != null && state.isReachable() && state.isPowerOn() && caps != null
+                && (caps.getNetPresets() > 0 || caps.hasRecent() || caps.getTunerPresets() > 0);
+        holder.yxcPresets.setVisibility(available ? View.VISIBLE : View.GONE);
+        holder.yxcPresets.setOnClickListener(available ? v -> {
+            if (presetsDialog != null && presetsDialog.isShowing()) {
+                return;
+            }
+            presetsDialog = YxcPresetsSheet.show(context, udn, YxcRowText.clean(friendlyName(udn)));
+        } : null);
+    }
+
+    /** The settings icon: shown for a device with group support that answers; it opens the settings sheet. */
+    private void bindSettingsButton(RowViews holder, String udn, YxcDeviceState state) {
+        if (holder.yxcSettings == null) {
+            return;
+        }
+        boolean available = state != null && state.isReachable();
+        holder.yxcSettings.setVisibility(available ? View.VISIBLE : View.GONE);
+        holder.yxcSettings.setOnClickListener(available ? v -> {
+            if (settingsDialog != null && settingsDialog.isShowing()) {
+                return;
+            }
+            settingsDialog = YxcSettingsSheet.show(context, udn, YxcRowText.clean(friendlyName(udn)));
+        } : null);
+    }
+
+    // The drag of each server's group volume slider, by UDN. It lives here and not in the listener: the row is rebound
+    // while the finger is down, and the new listener must go on with the drag it did not see begin.
+    private final Map<String, YxcGroupDrag> groupDrags = new HashMap<>();
+    // Starts the reads of a drag (one at a time); the reads themselves run on the pool below.
+    private final ExecutorService groupVolumeStarter = Executors.newSingleThreadExecutor(runnable -> {
+        Thread thread = new Thread(runnable, "yxc-group-volume-start");
+        thread.setDaemon(true);
+        return thread;
+    });
+    // Reads the members' start levels side by side; one member that does not answer holds nobody up.
+    private final ExecutorService groupVolumeReaders = Executors.newFixedThreadPool(4, runnable -> {
+        Thread thread = new Thread(runnable, "yxc-group-volume");
+        thread.setDaemon(true);
+        return thread;
+    });
+
+    /**
+     * The group volume of a server with clients: the slider shows the average of the members' volumes (from the states
+     * the monitor keeps live); while it is dragged every member moves by the same number of points from where it was when
+     * the drag began ({@link YxcGroupVolume}), each through its own interface. A little later the row is rebound so the
+     * slider shows the real average again.
+     */
+    private void bindGroupVolume(RowViews holder, String serverUdn, boolean serves) {
+        if (holder.yxcGroupVolume == null || holder.yxcGroupVolumeText == null) {
+            return;
+        }
+        SeekBar slider = holder.yxcGroupVolume;
+        TextView text = holder.yxcGroupVolumeText;
+        YxcGroupDrag running = groupDrags.get(serverUdn);
+        if (running != null && running.isActive()) {
+            return; // a finger is on the slider: neither its position nor its listener is touched
+        }
+        YxcMonitor monitor = YxcMonitor.getShared();
+        YxcGroupDirectory directory = serves ? new YxcGroupDirectory(monitor.snapshot()) : null;
+        List<String> members = directory == null ? new ArrayList<String>() : directory.membersOf(serverUdn);
+        if (members.size() < 2) {
+            slider.setVisibility(View.GONE);
+            text.setVisibility(View.GONE);
+            slider.setOnSeekBarChangeListener(null);
+            return;
+        }
+        YxcGroupDrag drag = running != null ? running : new YxcGroupDrag();
+        groupDrags.put(serverUdn, drag); // only a device with a group has a drag
+        slider.setVisibility(View.VISIBLE);
+        text.setVisibility(View.VISIBLE);
+        int average = YxcGroupVolume.average(YxcGroupVolume.levels(snapshotsOf(directory, members)));
+        slider.setEnabled(average >= 0);
+        if (average >= 0) {
+            slider.setProgress(average);
+            text.setText(average + "%");
+        }
+        slider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {
+                seekBar.getParent().requestDisallowInterceptTouchEvent(true);
+                final int dragId = drag.begin(seekBar.getProgress());
+                // the start levels come from the devices (a forged event must not decide what a drag sends)
+                final List<String> memberUdns = new YxcGroupDirectory(YxcMonitor.getShared().snapshot()).membersOf(serverUdn);
+                final YxcVolumeAccess access = YxcVolumeAccess.getShared();
+                try {
+                    groupVolumeStarter.execute(() -> {
+                        Map<String, Integer> read = YxcGroupVolume.readLevels(memberUdns, access::readPercent,
+                                groupVolumeReaders, GROUP_VOLUME_READ_MILLIS);
+                        sendGroupLevels(drag.levelsArrived(dragId, read));
+                    });
+                } catch (java.util.concurrent.RejectedExecutionException shutDown) {
+                    // the host is gone (see shutdown()): nothing is sent
+                }
+            }
+
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                if (!fromUser) {
+                    return;
+                }
+                text.setText(progress + "%");
+                sendGroupLevels(drag.moved(progress));
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+                seekBar.getParent().requestDisallowInterceptTouchEvent(false);
+                drag.end();
+                // the devices report their new volumes by events; then the slider shows the real average again
+                YxcGroupController.getShared().requestRebind(java.util.Collections.singleton(serverUdn), 1500);
+            }
+        });
+    }
+
+    private static final long GROUP_VOLUME_READ_MILLIS = 4000L;
+
+    /** Sends each member its level; each write returns at once. {@code null}: nothing to send yet. */
+    private static void sendGroupLevels(Map<String, Integer> levels) {
+        if (levels == null) {
+            return;
+        }
+        YxcVolumeAccess access = YxcVolumeAccess.getShared();
+        for (Map.Entry<String, Integer> target : levels.entrySet()) {
+            access.setPercent(target.getKey(), target.getValue());
+        }
+    }
+
+    private static List<YxcDeviceSnapshot> snapshotsOf(YxcGroupDirectory directory, List<String> udns) {
+        List<YxcDeviceSnapshot> result = new ArrayList<>();
+        for (String udn : udns) {
+            YxcDeviceSnapshot snapshot = directory.get(udn);
+            if (snapshot != null) {
+                result.add(snapshot);
+            }
+        }
+        return result;
+    }
+
+    // the open picker, so that a second tap on the button does not open another one
+    private android.app.Dialog linkDialog;
+
+    /**
+     * The picker of the devices a server can take as clients, in the look of the receiver picker. Devices in another
+     * group or not reachable are listed disabled with the reason; a member among them stays in the group.
+     */
+    private void showLinkDialog(String serverUdn) {
+        if (linkDialog != null && linkDialog.isShowing()) {
+            return;
+        }
+        YxcGroupDirectory directory = new YxcGroupDirectory(YxcMonitor.getShared().snapshot());
+        List<YxcLinkCandidates.Candidate> lines = YxcLinkCandidates.forServer(serverUdn, directory);
+        List<YxcLinkSheet.Row> rows = new ArrayList<>();
+        for (YxcLinkCandidates.Candidate line : lines) {
+            String name = displayName(directory, line.getUdn());
+            String text = name;
+            if (!line.isSelectable()) {
+                int reason = line.getDisabledBecause() == YxcLinkCandidates.Reason.IN_OTHER_GROUP
+                        ? R.string.yxc_picker_in_other_group : R.string.yxc_picker_not_reachable;
+                text = context.getString(reason, name);
+            }
+            rows.add(new YxcLinkSheet.Row(line.getUdn(), text, line.isSelected(), line.isToggleable()));
+        }
+        linkDialog = YxcLinkSheet.show(context, displayName(directory, serverUdn), rows,
+                selection -> YxcGroupController.getShared().applySelection(serverUdn, selection, this::showFailure));
+    }
+
+    /** A failed operation is told with one short message that names the device to blame; a success needs no message (the row changes). */
+    private void showFailure(YxcGroupResult result) {
+        YxcGroupMessages.Kind kind = YxcGroupMessages.kindOf(result);
+        if (kind == null) {
+            return;
+        }
+        String device = deviceNameAt(result.getDeviceIp());
+        String message;
+        switch (kind) {
+            case NOT_POSSIBLE:
+                message = context.getString(R.string.yxc_error_validate);
+                break;
+            case UNREACHABLE:
+                message = context.getString(R.string.yxc_error_unreachable, device);
+                break;
+            case INPUT_NOT_RESTORED:
+                message = context.getString(R.string.yxc_error_restore, device);
+                break;
+            default:
+                message = context.getString(R.string.yxc_error_failed, device);
+                break;
+        }
+        Toast.makeText(context, message, Toast.LENGTH_LONG).show();
+    }
+
+    /** The receiver's name for an address of a watched device, else the address itself (or a dash when there is none). */
+    private String deviceNameAt(String address) {
+        if (address == null) {
+            return "-";
+        }
+        for (YxcDeviceSnapshot device : YxcMonitor.getShared().snapshot()) {
+            if (device.getHost().equalsIgnoreCase(address)) {
+                String name = YxcRowText.clean(friendlyName(device.getUdn()));
+                return name == null ? address : name;
+            }
+        }
+        return address;
+    }
+
+    private String displayName(YxcGroupDirectory directory, String udn) {
+        String name = YxcRowText.clean(friendlyName(udn));
+        if (name != null) {
+            return name;
+        }
+        YxcDeviceSnapshot snapshot = directory.get(udn);
+        return snapshot == null ? udn : snapshot.getHost();
+    }
+
+    /**
+     * @return the name of the server a send to this receiver would go to, when it is a linked client whose server is
+     * known (the receiver picker says "plays via ..."), else {@code null}
+     */
+    String playsViaServerName(String udn) {
+        YxcMonitor monitor = YxcMonitor.getShared();
+        YxcDeviceState state = monitor.getState(udn);
+        if (state == null || state.getRole() != YxcDistributionInfo.Role.CLIENT || state.isStuckClient()) {
+            return null;
+        }
+        String server = new YxcGroupDirectory(monitor.snapshot()).serverOf(udn);
+        return server == null ? null : YxcRowText.clean(friendlyName(server));
+    }
+
+    /** The name the receiver announces, {@code null} if the registry does not know it (the row then uses the generic words). */
+    private String friendlyName(String udn) {
+        Device<?, ?, ?> device = upnpClient.getDevice(udn);
+        if (device == null || device.getDetails() == null) {
+            return null;
+        }
+        return device.getDetails().getFriendlyName();
+    }
+
+    private final YxcRowText.Words yxcWords = new YxcRowText.Words() {
+        @Override
+        public String on() {
+            return context.getString(R.string.yxc_state_on);
+        }
+
+        @Override
+        public String standby() {
+            return context.getString(R.string.yxc_state_standby);
+        }
+
+        @Override
+        public String notReachable() {
+            return context.getString(R.string.yxc_state_unreachable);
+        }
+
+        @Override
+        public String linkedWith(String group) {
+            return context.getString(R.string.yxc_group_linked_with, group);
+        }
+
+        @Override
+        public String linked() {
+            return context.getString(R.string.yxc_group_linked);
+        }
+
+        @Override
+        public String noGroupOnLinkInput() {
+            return context.getString(R.string.yxc_group_stuck);
+        }
+
+        @Override
+        public String groupWith(String names) {
+            return context.getString(R.string.yxc_group_with, names);
+        }
+
+        @Override
+        public String groupLeader() {
+            return context.getString(R.string.yxc_group_leader);
+        }
+    };
+
+    /**
      * Stores a status from {@code RendererStatusMonitor} (or the local poll).
      *
      * @return true if the device's playing state changed, so the caller re-sorts
@@ -481,6 +1015,19 @@ final class ReceiverRowBinder {
      */
     void shutdown() {
         executorService.shutdown();
+        // the group volume pools too: a sheet that is created and destroyed repeatedly must not leave threads behind
+        groupVolumeStarter.shutdownNow();
+        groupVolumeReaders.shutdownNow();
+        // an open sheet or picker would keep the activity alive
+        if (presetsDialog != null && presetsDialog.isShowing()) {
+            presetsDialog.dismiss();
+        }
+        if (settingsDialog != null && settingsDialog.isShowing()) {
+            settingsDialog.dismiss();
+        }
+        if (linkDialog != null && linkDialog.isShowing()) {
+            linkDialog.dismiss();
+        }
     }
 
     /**
@@ -535,6 +1082,19 @@ final class ReceiverRowBinder {
     }
 
     private void executeAction(Device<?, ?, ?> device, String action) {
+        // a device that plays a source of its own (net radio, tuner) and nothing from yaacc: the buttons act on that source
+        if (!isLocalDevice(device)) {
+            String udn = device.getIdentity().getUdn().getIdentifierString();
+            YxcDeviceState state = YxcMonitor.getShared().getState(udn);
+            if (YxcSourceControls.rowMapsToOwnSource(state, yaaccActive(device))) {
+                YxcSourceControls.Control control = ACTION_PLAY.equals(action) ? YxcSourceControls.Control.PLAY
+                        : ACTION_PAUSE.equals(action) ? YxcSourceControls.Control.PAUSE : YxcSourceControls.Control.STOP;
+                if (YxcSourceControls.available(state).contains(control)) {
+                    YxcSourceController.getShared().perform(udn, control);
+                }
+                return; // never the UPnP call: the source would not do what the button says
+            }
+        }
         // Handle local device differently
         if (isLocalDevice(device)) {
             Player player = primaryPlayer(device);

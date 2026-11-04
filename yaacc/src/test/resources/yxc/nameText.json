@@ -1,0 +1,10 @@
+{
+  "response_code": 0,
+  "zone_list": [{"id": "main", "text": "Test Room"}],
+  "input_list": [
+    {"id": "tuner", "text": "FM Radio"},
+    {"id": "cd", "text": "CD Player"},
+    {"id": "net_radio", "text": "Net Radio‮"}
+  ],
+  "sound_program_list": [{"id": "bass_booster", "text": "Bass+"}]
+}

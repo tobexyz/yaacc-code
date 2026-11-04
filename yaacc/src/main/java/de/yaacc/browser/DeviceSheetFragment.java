@@ -151,6 +151,13 @@ public class DeviceSheetFragment extends BottomSheetDialogFragment {
         }
     };
 
+    // power, input and group of the receivers that support groups
+    private final YxcRowFeed groupFeed = new YxcRowFeed(udn -> {
+        if (adapter != null) {
+            adapter.onGroupStateChanged(udn);
+        }
+    });
+
     // An inner class, so it references this fragment; it is unregistered in
     // onStop (and onDestroyView as a backstop), so PlayerService never keeps
     // a stopped or dead sheet alive.
@@ -457,6 +464,7 @@ public class DeviceSheetFragment extends BottomSheetDialogFragment {
         }
         listFresh = false;
         RendererStatusMonitor.getShared().subscribe(statusListener, upnpClient.getDevicesProvidingAvTransportService());
+        groupFeed.start(upnpClient.getDevicesProvidingAvTransportService());
         upnpClient.addPlayerListChangeListener(playerListListener);
         adapter.startLiveVolume();
         handler.postDelayed(localPoller, LOCAL_POLL_INTERVAL_MS);
@@ -472,6 +480,7 @@ public class DeviceSheetFragment extends BottomSheetDialogFragment {
             adapter.stopLiveVolume();
         }
         RendererStatusMonitor.getShared().unsubscribe(statusListener);
+        groupFeed.stop();
         if (upnpClient != null) {
             upnpClient.removePlayerListChangeListener(playerListListener);
         }

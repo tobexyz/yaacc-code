@@ -1460,6 +1460,11 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     }
 
     public boolean getMute(Device<?, ?, ?> device) {
+        if (device != null && !(device instanceof LocalDevice) && !(device instanceof LocalDummyDevice)
+                && yxcVolume().handles(udnOf(device))) {
+            Boolean muted = yxcVolume().readMute(udnOf(device));
+            return muted != null && muted;
+        }
         if (device == null) {
             return false;
         }
@@ -1520,7 +1525,21 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         return actionState.result != null && (Boolean) actionState.result;
     }
 
+    /** Volume and mute of the devices that speak the group protocol go through their own interface (the UPnP controls do not work in a group). */
+    private static de.yaacc.yxc.YxcVolumeAccess yxcVolume() {
+        return de.yaacc.yxc.YxcVolumeAccess.getShared();
+    }
+
+    private static String udnOf(Device<?, ?, ?> device) {
+        return device.getIdentity() == null || device.getIdentity().getUdn() == null
+                ? null : device.getIdentity().getUdn().getIdentifierString();
+    }
+
     public boolean hasActionGetMute(Device<?, ?, ?> device) {
+        if (device != null && !(device instanceof LocalDevice) && !(device instanceof LocalDummyDevice)
+                && yxcVolume().handles(udnOf(device))) {
+            return true; // a device with group support: its own interface is used
+        }
         if (device instanceof LocalDevice || device instanceof UpnpClient.LocalDummyDevice) {
             return true;
         }
@@ -1540,6 +1559,11 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     }
 
     public void setMute(Device<?, ?, ?> device, boolean mute) {
+        if (device != null && !(device instanceof LocalDevice) && !(device instanceof LocalDummyDevice)
+                && yxcVolume().handles(udnOf(device))) {
+            yxcVolume().setMute(udnOf(device), mute);
+            return;
+        }
         if (device == null) {
             return;
         }
@@ -1591,6 +1615,10 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     }
 
     public int getVolume(Device<?, ?, ?> device) {
+        if (device != null && !(device instanceof LocalDevice) && !(device instanceof LocalDummyDevice)
+                && yxcVolume().handles(udnOf(device))) {
+            return Math.max(0, yxcVolume().readPercent(udnOf(device)));
+        }
         if (device == null) {
             return 0;
         }
@@ -1654,6 +1682,10 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     }
 
     public boolean hasActionGetVolume(Device<?, ?, ?> device) {
+        if (device != null && !(device instanceof LocalDevice) && !(device instanceof LocalDummyDevice)
+                && yxcVolume().handles(udnOf(device))) {
+            return true; // a device with group support: its own interface is used
+        }
         if (device instanceof LocalDevice || device instanceof UpnpClient.LocalDummyDevice) {
             return true;
         }
@@ -1672,6 +1704,11 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     }
 
     public void setVolume(Device<?, ?, ?> device, int volume) {
+        if (device != null && !(device instanceof LocalDevice) && !(device instanceof LocalDummyDevice)
+                && yxcVolume().handles(udnOf(device))) {
+            yxcVolume().setPercent(udnOf(device), volume);
+            return;
+        }
         if (device == null) {
             return;
         }
