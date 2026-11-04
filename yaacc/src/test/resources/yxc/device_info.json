@@ -1,0 +1,12 @@
+{
+  "response_code": 0,
+  "model_name": "TestModel-A",
+  "destination": "XX",
+  "device_id": "TESTDEVICE01",
+  "system_id": "TEST0001",
+  "system_version": 2.01,
+  "api_version": 1.19,
+  "netmodule_version": "0100",
+  "operation_mode": "normal",
+  "update_error_code": "00000000"
+}

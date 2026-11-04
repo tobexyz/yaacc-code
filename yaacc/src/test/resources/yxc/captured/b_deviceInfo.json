@@ -1,0 +1,20 @@
+{
+  "response_code": 0,
+  "model_name": "TEST-MODEL-B",
+  "destination": "G",
+  "device_id": "00000000000B",
+  "system_id": "0000000B",
+  "system_version": 2.12,
+  "api_version": 2.17,
+  "netmodule_generation": 2,
+  "netmodule_version": "2403    ",
+  "netmodule_checksum": "00000000",
+  "serial_number": "SERIAL-B",
+  "category_code": 6,
+  "operation_mode": "normal",
+  "update_error_code": "00000000",
+  "update_data_type": 0,
+  "analytics_info": {
+    "uuid": "00000000-0000-0000-0000-000000000001"
+  }
+}

@@ -1,0 +1,1 @@
+{"main": {"volume": 20, "play_info_updated": true}, "zone2": {"power": "standby", "mute": true, "input": "mc_link"}, "netusb": {"preset_info_updated": true}, "tuner": {"play_info_updated": false}, "dist": {"dist_info_updated": true}, "clock": {"settings_updated": true}, "system": {"func_status_updated": true}, "invented_future_block": {"x": 1}, "device_id": "TESTDEVICE01"}

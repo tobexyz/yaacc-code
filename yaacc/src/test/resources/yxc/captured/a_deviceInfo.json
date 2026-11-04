@@ -1,0 +1,14 @@
+{
+  "response_code": 0,
+  "model_name": "TEST-MODEL-A",
+  "destination": "BG",
+  "device_id": "00000000000A",
+  "system_id": "0000000A",
+  "system_version": 2.16,
+  "api_version": 2.08,
+  "netmodule_generation": 1,
+  "netmodule_version": "1925    ",
+  "netmodule_checksum": "00000000",
+  "operation_mode": "normal",
+  "update_error_code": "00000000"
+}

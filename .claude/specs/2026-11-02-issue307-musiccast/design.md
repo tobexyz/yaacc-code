@@ -58,7 +58,7 @@
 
 ## Still open
 1. **Volume semantics details:** when the group slider propagates, is it an absolute value for every member (simple, but loses their different levels) or a relative change (keeps the offsets; needs care at 0 and 100)? Proposal: relative, with a clamp.
-2. **Does the system propagate the server's volume to linked clients?** Find out on real devices in P1 (the answer decides whether a second slider is needed).
+2. ~~Does the system propagate the server's volume to linked clients?~~ **Answered 2026-11-02 on real devices: no.** `setVolume` on the server (31 -> 34) left the client at 28; `setVolume` on the client (28 -> 31) left the server at 31. The manufacturer's app moved both together, so it sends the volume to each member itself. yaacc does the same: a group volume slider on the server's row applies a relative change to every member (clamped to each device's `range_step` of `volume`, 0 to `max_volume`).
 3. **Picker title:** the exact wording and the translations for the "plays via <server>" hint; the receiver sheet row for a client in option A (badge text).
 4. **Event listener lifetime:** start the UDP listener when the sheet or a player of a supported device is shown, stop after a delay when nothing needs it (battery); the polling interval as the fallback.
 5. **Fixtures:** which captured answers are committed (scrubbed) and how large the set should be.

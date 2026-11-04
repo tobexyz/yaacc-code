@@ -1,0 +1,21 @@
+{
+  "response_code": 0,
+  "power": "on",
+  "sleep": 0,
+  "volume": 38,
+  "mute": false,
+  "max_volume": 60,
+  "input": "mc_link",
+  "input_text": "MC Link",
+  "distribution_enable": false,
+  "sound_program": "bass_booster",
+  "equalizer": {
+    "mode": "manual",
+    "low": 0,
+    "mid": 0,
+    "high": 0
+  },
+  "link_control": "standard",
+  "link_audio_delay": "balanced",
+  "disable_flags": 0
+}

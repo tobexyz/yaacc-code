@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root xmlns="urn:schemas-upnp-org:device-1-0">
+  <specVersion><major>1</major><minor>0</minor></specVersion>
+  <device>
+    <deviceType>urn:schemas-upnp-org:device:MediaRenderer:1</deviceType>
+    <friendlyName>Some Renderer</friendlyName>
+    <manufacturer>Example Corporation</manufacturer>
+    <modelName>Renderer 1</modelName>
+    <serialNumber>RENDERER-1</serialNumber>
+    <UDN>uuid:aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee</UDN>
+    <serviceList>
+      <service>
+        <serviceType>urn:schemas-upnp-org:service:AVTransport:1</serviceType>
+        <serviceId>urn:upnp-org:serviceId:AVTransport</serviceId>
+        <SCPDURL>/AVTransport/desc.xml</SCPDURL>
+        <controlURL>/AVTransport/ctrl</controlURL>
+        <eventSubURL>/AVTransport/event</eventSubURL>
+      </service>
+    </serviceList>
+  </device>
+</root>
