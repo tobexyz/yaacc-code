@@ -111,6 +111,10 @@ public final class YxcDiscovery {
         if (host.startsWith("[") && host.endsWith("]")) {
             host = host.substring(1, host.length() - 1);
         }
+        if (!YxcHttpTransport.isUsableHost(host)) {
+            // for example a scoped IPv6 address: the control calls could not be made, so the device is not used
+            return new Entry(descriptorUrl, null, 0);
+        }
         YxcDescriptionInfo info = YxcDescriptionParser.parse(fetcher.fetch(descriptorUrl));
         if (info == null) {
             return new Entry(descriptorUrl, null, 0);

@@ -21,6 +21,7 @@ package de.yaacc.yxc;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -60,6 +61,8 @@ public final class YxcMonitor {
     public static final long STOP_DELAY_MILLIS = 30_000L;
     public static final long POLL_INTERVAL_MILLIS = 30_000L;
     public static final long DEBOUNCE_MILLIS = 500L;
+    /** The time a send gives the reads that decide where it goes ({@link #prepareNow}, {@link #refreshGroupInfoNow}). */
+    public static final long DEFAULT_NOW_BUDGET_MILLIS = 5_000L;
     /** The most devices watched; a household has a handful. */
     static final int MAX_DEVICES = 64;
 
@@ -87,6 +90,7 @@ public final class YxcMonitor {
         YxcEndpoint endpoint;
         YxcClient client;
         YxcDeviceState state = YxcDeviceState.unknown();
+        String lastPlainInput; // the last input that was not the link input, for putting a client back after it left
         final Set<YxcEventPlan.Refresh> pending = EnumSet.noneOf(YxcEventPlan.Refresh.class);
         Cancellable debounce;
         boolean reading;
@@ -213,6 +217,159 @@ public final class YxcMonitor {
         return device == null || device.endpoint == null ? null : device.state;
     }
 
+    /**
+     * @return the watched devices that speak the protocol and were read at least once, with their last states; the
+     * view the group logic works on
+     */
+    public synchronized List<YxcDeviceSnapshot> snapshot() {
+        List<YxcDeviceSnapshot> result = new ArrayList<>();
+        for (Watched device : watched.values()) {
+            if (device.endpoint != null) {
+                result.add(new YxcDeviceSnapshot(device.udn, device.endpoint.getHost(), device.state));
+            }
+        }
+        return result;
+    }
+
+    /**
+     * @return a client for a watched device that speaks the protocol, {@code null} for any other. It sends no event port,
+     * so it does not change what the device pushes to the monitor.
+     */
+    public YxcClient newClient(String udn) {
+        YxcEndpoint endpoint;
+        synchronized (this) {
+            Watched device = watched.get(udn);
+            endpoint = device == null ? null : device.endpoint;
+        }
+        if (endpoint == null) {
+            return null;
+        }
+        try {
+            return new YxcClient(transports.create(endpoint, 0));
+        } catch (RuntimeException e) {
+            return null; // an endpoint the transport refuses is not used
+        }
+    }
+
+    /** @return the endpoint of a watched device that speaks the protocol, {@code null} for any other */
+    public synchronized YxcEndpoint getEndpoint(String udn) {
+        Watched device = watched.get(udn);
+        return device == null ? null : device.endpoint;
+    }
+
+    /**
+     * Reads the group information of the given devices now, on the calling thread, whether the monitor runs or not.
+     * For the moment a send is decided: the last state of a device may be older than the last change of the group.
+     * Devices that are not watched or do not speak the protocol are skipped; one that does not answer is marked
+     * unreachable. Blocks for at most the time of the transport's timeouts per device.
+     */
+    public void refreshGroupInfoNow(Collection<String> udns) {
+        refreshGroupInfoNow(udns, DEFAULT_NOW_BUDGET_MILLIS);
+    }
+
+    /**
+     * Like {@link #refreshGroupInfoNow(Collection)}, but no device is started on once the budget is used up (one that
+     * is under way finishes within the transport's own limits). A send must not wait minutes for slow devices.
+     */
+    public void refreshGroupInfoNow(Collection<String> udns, long budgetMillis) {
+        long end = System.nanoTime() + budgetMillis * 1_000_000L;
+        for (String udn : udns) {
+            if (System.nanoTime() - end > 0) {
+                return;
+            }
+            YxcEndpoint endpoint;
+            synchronized (this) {
+                Watched device = watched.get(udn);
+                endpoint = device == null ? null : device.endpoint;
+            }
+            if (endpoint == null) {
+                continue;
+            }
+            YxcClient client = newClient(udn);
+            if (client == null) {
+                continue;
+            }
+            Read result = read(client, EnumSet.of(YxcEventPlan.Refresh.DIST_INFO));
+            Notification notification = null;
+            synchronized (this) {
+                Watched device = watched.get(udn);
+                if (device == null) {
+                    continue;
+                }
+                YxcDeviceState updated = result.applyTo(device.state);
+                if (!updated.equals(device.state)) {
+                    notification = updated.sameForRow(device.state) ? null : new Notification(device.udn, updated);
+                    device.state = updated;
+                }
+            }
+            fire(notification);
+        }
+    }
+
+    /**
+     * Makes sure the given devices are watched and, for the ones not looked at yet, finds out on the calling thread
+     * whether they speak the protocol. For a send that is decided before any screen has subscribed (the selection of
+     * receivers is stored, the monitor starts empty). Does not start polling or the event source. Blocks for the
+     * time of the description fetches (bounded; a verdict is remembered).
+     *
+     * @param devices UDN to the URL the registry fetched its description from
+     */
+    public void prepareNow(Map<String, String> devices) {
+        prepareNow(devices, DEFAULT_NOW_BUDGET_MILLIS);
+    }
+
+    /** Like {@link #prepareNow(Map)}; no device is looked at once the budget is used up. */
+    public void prepareNow(Map<String, String> devices, long budgetMillis) {
+        long end = System.nanoTime() + budgetMillis * 1_000_000L;
+        for (Map.Entry<String, String> device : devices.entrySet()) {
+            if (System.nanoTime() - end > 0) {
+                return;
+            }
+            if (device.getKey() == null || device.getValue() == null) {
+                continue;
+            }
+            synchronized (this) {
+                Watched known = watched.get(device.getKey());
+                if (known == null) {
+                    if (watched.size() >= MAX_DEVICES) {
+                        continue;
+                    }
+                    known = new Watched(device.getKey(), device.getValue());
+                    watched.put(device.getKey(), known);
+                } else if (!known.descriptorUrl.equals(device.getValue())) {
+                    known.descriptorUrl = device.getValue();
+                    known.endpoint = null;
+                    known.client = null;
+                }
+                if (known.endpoint != null) {
+                    continue;
+                }
+            }
+            YxcEndpoint endpoint = discovery.find(device.getKey(), device.getValue());
+            synchronized (this) {
+                Watched known = watched.get(device.getKey());
+                if (endpoint != null && known != null && known.endpoint == null
+                        && known.descriptorUrl.equals(device.getValue())) {
+                    known.endpoint = endpoint;
+                    known.client = null;
+                }
+            }
+        }
+    }
+
+    private static void rememberPlainInput(Watched device) {
+        String input = device.state.getInput();
+        if (input != null && !device.state.isLinkInput()) {
+            device.lastPlainInput = input;
+        }
+    }
+
+    /** @return the last input of the device that was not the link input, {@code null} if it was never seen */
+    public synchronized String getLastPlainInput(String udn) {
+        Watched device = watched.get(udn);
+        return device == null ? null : device.lastPlainInput;
+    }
+
     /** @return whether the events are being received right now (for tests and diagnostics) */
     public synchronized boolean isActive() {
         return active;
@@ -315,6 +472,7 @@ public final class YxcMonitor {
                 // listeners hear of what the row shows; volume and mute only move the stored state
                 notification = applied.sameForRow(device.state) ? null : new Notification(device.udn, applied);
                 device.state = applied;
+                rememberPlainInput(device);
             }
             Set<YxcEventPlan.Refresh> refreshes = YxcEventPlan.refreshesFor(event);
             if (!refreshes.isEmpty()) {
@@ -442,6 +600,7 @@ public final class YxcMonitor {
                 if (!updated.equals(device.state)) {
                     notification = updated.sameForRow(device.state) ? null : new Notification(device.udn, updated);
                     device.state = updated;
+                    rememberPlainInput(device);
                 }
                 again = !device.pending.isEmpty(); // asked for more while reading
                 if (!again) {

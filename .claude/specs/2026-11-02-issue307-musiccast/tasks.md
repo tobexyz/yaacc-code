@@ -22,15 +22,26 @@ Rules: tests first for the pure parts; all new strings in values + de/es/fr/nl/p
 - [x] Show MusicCast status (power, input, group role) in the receiver row (done: `YxcRowText`, `YxcRowFeed`, `yxc_text` in the row; strings in 7 languages) of a supported device
   - **Accept (group)**: with the fixtures the model and the row show the same state as the device; the sheet follows events from the fake server.
 
-## Group 3: Link and unlink (P2, option A)
-- [ ] `YxcGroupService`: link / extend / reduce / unlink / rename with the expected-state checks and retry, tests with the fake server including failure and timeout cases
-- [ ] Sheet UI: "Link devices" action on a supported device (choose the clients), "Linked with <server>" marker on members, "Unlink"; strings in all languages
-- [ ] Play on a linked client: redirect to the server with a hint; extended title in the receiver picker; tests for the redirect rule (pure)
-  - **Accept (group)**: on the owner's devices link two, play, both in sync, unlink; interruption of playback is accepted.
+## Group 3: Link and unlink (P2, option A) - spec of slice 3 in design.md; owner decisions 2026-11-02
+- [x] 3.1 Group id in `YxcDeviceState`; pure `YxcGroupDirectory` (server of a client, clients of a server, by group id and addresses) | `yaacc/src/main/java/de/yaacc/yxc/`, tests with the captured fixtures (`a_distInfo_server_pair`, `c_distInfo_client`, event fixtures)
+  - **Accept**: a client resolves its server and a server its clients from states of two watched devices; unresolved members give the generic text; the row text of a client no longer uses the client's own group name.
+  - **Verify**: `YxcGroupDirectoryTest`, `YxcRowTextTest` pass.
+- [x] 3.2 Pure `YxcLinkCandidates` (picker content and the disabled reasons) | `yaacc/src/main/java/de/yaacc/yxc/`
+  - **Accept**: devices in another group are disabled with a reason; members of the current group are pre-selected; `client_max` is respected; unreachable or non-group devices are not offered.
+  - **Verify**: `YxcLinkCandidatesTest` pass.
+- [x] 3.3 `YxcGroupOperations`: members from endpoints, run on a worker, remember and restore the previous input, busy marking, complete read afterwards | `yaacc/src/main/java/de/yaacc/yxc/`, tests with `SimulatedYxcNetwork`
+  - **Accept**: link, extend, reduce, unlink as in the service tests plus: input restored after a leave, busy state set and cleared (also after a failure), late role is no failure, group id of a working server is never replaced.
+  - **Verify**: `YxcGroupOperationsTest` pass.
+- [x] 3.4 UI (code done; the run on the owner's devices is still to do): "Link devices" picker, "Unlink" / "Leave group", busy state in the row, failure message; strings in 7 languages | `yaacc/src/main/java/de/yaacc/browser/`, `res/`
+  - **Accept**: on the owner's devices: link two, play on the server, both in sync; extend by a third; reduce; unlink; the sheet follows (events) and the client is back on its earlier input.
+  - **Verify**: build, tests, lint; owner's run.
+- [x] 3.5 Playback rule: send to a linked client goes to its server with a hint; picker title "plays via <server>" | pure rule + tests, `PickTitle`/receiver code
+  - **Accept**: tests for the redirect rule (resolved, unresolved, server itself, unlinked); the hint is shown.
+- [x] 3.6 Review gate: reviewer PASS (cycle 2, before the UI rework), security-reviewer PASS (cycle 2, covers the whole slice incl. volume and group volume). The general review of the later code (icon toggle, link sheet, volume access, group volume) found one Critical and several Warnings in cycle 1 and one Warning in cycle 2; all are fixed.
 
 ## Group 4: Group as virtual device (P3, option B)
 - [ ] Virtual receiver "Group <name>" (precedent: `UpnpClient.LocalDummyDevice`): receiver id resolution (`getDevice`, `setReceiverDeviceIds`, `ShareAddressResolver`, mini player), playback to the server, members shown inside
-- [ ] Group volume per decision 7: a second "group volume" slider on the server's row (the device does not propagate by itself), relative change applied to every member, clamped per device; tests with the simulated network
+- [x] Group volume per decision 7 (done on the server row of a group: `YxcGroupVolume`, slider in the row; the row's own sliders use `YxcVolumeAccess`): a second "group volume" slider on the server's row (the device does not propagate by itself), relative change applied to every member, clamped per device; tests with the simulated network
 
 ## Group 5: Settings per device (P4)
 - [ ] Settings screen built from `getFeatures`: power, volume, mute, input, sound program, switches (pure direct, enhancer, ...), numbers (equalizer, subwoofer, dialogue level, ...), link control (audio delay / quality); only what the device reports

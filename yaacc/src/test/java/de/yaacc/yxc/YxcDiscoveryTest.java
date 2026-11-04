@@ -21,6 +21,7 @@ package de.yaacc.yxc;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
@@ -167,5 +168,15 @@ public class YxcDiscoveryTest {
             }
         }
         assertNotNull(YxcHttpDescriptionFetcher.checkedUrl(URL));
+    }
+
+    @Test
+    public void aScopedIpv6HostIsNotUsedAndNothingIsFetched() {
+        Fetcher fetcher = new Fetcher();
+
+        YxcEndpoint endpoint = discovery(fetcher).find(UDN, "http://[fe80::1%25eth0]:49154/desc.xml");
+
+        assertNull(endpoint);
+        assertTrue(fetcher.fetched.isEmpty());
     }
 }

@@ -65,3 +65,31 @@
 
 ## Trust rule for events (security review, slice 2)
 Events arrive by UDP and the sender address can be forged on the LAN. They are used for display only. Every later slice that **acts** (link, unlink, volume steps for a group, redirects) must read the device first (`getDistributionInfo`, `getStatus`) and decide on that answer, never on the last event. Answers of a device are untrusted too: depth, size and time of every read are bounded (`YxcJson.parseObject`, `YxcHttpTransport`), names shown in the UI are cleaned (`YxcRowText.clean`).
+
+
+## Slice 3: link, extend, reduce and unlink in the sheet (owner decisions 2026-11-02)
+Owner decisions: (1) the actions live on the receiver row (action "Link devices" with a picker, "Unlink"/"Leave group"); (2) the server is the device where "Link devices" is started, the picked devices become its clients; a device that is in another group is shown disabled with a hint, never dissolved silently; (3) playing on a linked client goes to its server with a hint, the receiver picker shows "plays via <server>"; interruptions of playback by linking are accepted; (4) scope is link, extend, reduce, unlink; renaming a group waits. Out of scope: initial connect (adding or removing a device in the manufacturer's app), stereo pairs / surround groups, zones other than `main`.
+
+### What the real devices taught (docs/tech.md, section 11)
+- `startDistribution` needs `num` (0 for a new group, clients before the call otherwise); no group exists before it; the server is `building` for a few seconds, then `working`.
+- The devices validate almost nothing: wrong group ids, `setServerInfo` on a client, `num=99` are all answered with code 0. The only refusal seen: `setClientInfo` on a working server (code 5). So **every decision is made on reads** before the call, and the result is judged on reads after it (`YxcGroupService` does this already).
+- A leaving client keeps `role: "client"` (zero group id) as long as its input is `mc_link`; the role turns `none` only when the input is set to something else. So a leave is: clear the client info (group id zeros) **and** set the input back. yaacc remembers the last input that was not `mc_link` (seen in the states, also for groups made with the manufacturer's app); fallback: the first non-link input of the device's features. A device with role `client`, zero group id and input `mc_link` is a *stuck* client: the row says so and offers "Leave group", which sets the input.
+- A client's `group_name` is "(Linked) <own name>", its `client_list` lists itself or the server: neither is used for display. The server of a client is found by the **group id** (the watched device that is `server` with the same id).
+
+### Parts
+1. `YxcDeviceState` gets the group id (not shown, used to match members). Pure `YxcGroupDirectory` (built from the states and endpoints the monitor has): for a client the server's UDN, for a server the clients' UDNs (matched by the group id, and by the addresses of its `client_list` where they are known), so the row can say "Linked with <server name>" / "Group with <client names>" with the friendly names of the receivers; unresolved members fall back to the generic words. This also replaces the client text of slice 2, which showed the client's own "(Linked) ..." name.
+2. Pure `YxcLinkCandidates`: which devices the picker offers for a server row: reachable, powered or powerable, supports the group calls (`getFeatures` distribution, `client_max` not exceeded), not the server itself; devices in another group are listed disabled with the reason; members of the current group are pre-selected (extend/reduce = change the selection).
+3. `YxcGroupOperations` (Android-free orchestration): makes `YxcGroupMember`s from the monitor's endpoints (never from user input), runs `YxcGroupService.link/extend/reduce/unlink` on a worker, remembers the input from before a join and restores it after a leave, marks the devices busy (the row shows "Linking ..."), and asks the monitor for a complete read of every involved device afterwards. Tests with `SimulatedYxcNetwork` (including late roles, a device that does not answer, refusal code 5).
+4. UI: row action "Link devices" (picker dialog with checkboxes, disabled entries with the reason) and "Unlink" (server row: dissolves the group; client row: leaves it); progress as busy state in the row; failures as a message that names the step and the device (`YxcGroupResult`). All strings in values + de/es/fr/nl/pt/zh, no brand names in code.
+5. Playback rule (pure, tested): a send to a linked client is redirected to its server (known from the directory); the user sees a hint ("plays via <server>"); the receiver picker shows the extended title. If the server cannot be resolved, the send is refused with a message instead of going to the client.
+
+### Risks
+- The behavior on the owner's devices differs from the simulation in timing; the real run (link two, play, unlink) is the acceptance test.
+- Linking interrupts playback on the clients (accepted).
+- Events of the manufacturer's app arrive during our operation: the busy state suppresses re-reads of the involved devices until the operation ends, then one complete read.
+
+
+### Owner change after the first run on the devices (2026-11-02)
+The row has **one toggle button with an icon** instead of separate buttons: "Link devices" (link icon) while the device serves nobody, "Unlink group" (broken-link icon, checked) while it serves a group, and **disabled while the device is a client of another device**. There is **no "Leave group"**: a group is changed from its server only; unlinking the server lets every client leave. A client that left but still sits on the link input is in no group, so its toggle offers "Link devices". Extending or shrinking a group in place is not offered any more (unlink and link again); `YxcGroupOperations.applySelection/leave` still support it and stay tested.
+
+Second change (2026-11-02): the toggle of a device that **serves a group** does not unlink at once. It opens the same picker with the current clients checked; unchecking some removes them (`applySelection` reduces and puts them back on their inputs), unchecking all ends the group (the picker says so). So extending and reducing a group in place is back, through the one picker; the accessible name of the serving state is "Edit group".

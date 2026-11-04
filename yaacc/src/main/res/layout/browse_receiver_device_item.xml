@@ -31,25 +31,30 @@
         style="@style/Widget.App.CardView.List"
         android:id="@+id/item_container"
         android:layout_width="match_parent"
-        android:layout_height="180dp"
+        android:layout_height="wrap_content"
         app:cardUseCompatPadding="true"
         app:contentPadding="12dp">
 
-        <FrameLayout
+        <!-- The card is as high as the content column. The album art is laid over the same area by anchoring it to
+             the column (a FrameLayout would let the picture's own size make the card tall). -->
+        <RelativeLayout
             android:layout_width="match_parent"
-            android:layout_height="match_parent">
+            android:layout_height="wrap_content">
 
             <ImageView
                 android:id="@+id/browseReceiverDeviceItemAlbumArt"
                 android:layout_width="match_parent"
-                android:layout_height="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_alignTop="@+id/yxc_row_content"
+                android:layout_alignBottom="@+id/yxc_row_content"
                 android:scaleType="centerCrop"
                 android:alpha="0.3"
                 android:contentDescription="@string/album_art" />
 
             <LinearLayout
+                android:id="@+id/yxc_row_content"
                 android:layout_width="match_parent"
-                android:layout_height="match_parent"
+                android:layout_height="wrap_content"
                 android:orientation="vertical">
 
                 <!-- Device name row with status badge -->
@@ -119,11 +124,50 @@
                 android:ellipsize="end"
                 android:visibility="gone" />
 
-            <!-- Spacer to push controls to bottom -->
+            <!-- Group toggle of a device that supports groups: link devices / unlink the group -->
+            <LinearLayout
+                android:id="@+id/yxc_actions"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="52dp"
+                android:orientation="horizontal"
+                android:visibility="gone">
+
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/yxc_btn_link"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:src="@drawable/ic_yxc_link"
+                    android:scaleType="center"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="@string/yxc_action_link" />
+
+                <!-- Group volume: the average of the members, moves every member by the same number of points -->
+                <SeekBar
+                    android:id="@+id/yxc_group_volume"
+                    android:layout_width="0dp"
+                    android:layout_height="48dp"
+                    android:layout_weight="1"
+                    android:layout_gravity="center_vertical"
+                    android:max="100"
+                    android:contentDescription="@string/yxc_group_volume"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/yxc_group_volume_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="48dp"
+                    android:minWidth="48dp"
+                    android:gravity="center_vertical|end"
+                    android:textSize="12sp"
+                    android:textColor="?attr/colorOnSurfaceVariant"
+                    android:visibility="gone" />
+            </LinearLayout>
+
+            <!-- Space between the information and the controls; the card is as high as its content -->
             <View
                 android:layout_width="match_parent"
-                android:layout_height="0dp"
-                android:layout_weight="1" />
+                android:layout_height="8dp" />
 
             <!-- Playback controls -->
             <LinearLayout
@@ -183,6 +227,6 @@
                     android:textSize="12sp" />
             </LinearLayout>
             </LinearLayout>
-        </FrameLayout>
+        </RelativeLayout>
     </com.google.android.material.card.MaterialCardView>
 </LinearLayout>

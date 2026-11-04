@@ -42,7 +42,7 @@ import de.yaacc.yxc.YxcMonitor;
  * and stops it when it goes; the monitor itself keeps its event source for a while after the last stop, so
  * switching between the Receiver tab and the sheet does not reopen it.
  */
-final class YxcRowFeed implements YxcMonitor.Listener {
+final class YxcRowFeed implements YxcMonitor.Listener, YxcGroupController.BusyListener {
 
     /** The screen's side: rebind the row of this device (UDN as the row binder uses it). */
     interface Rows {
@@ -61,11 +61,13 @@ final class YxcRowFeed implements YxcMonitor.Listener {
 
     void start(Collection<Device<?, ?, ?>> devices) {
         running = true;
+        YxcGroupController.getShared().addBusyListener(this);
         YxcMonitor.getShared().subscribe(this, descriptorUrls(devices));
     }
 
     void stop() {
         running = false;
+        YxcGroupController.getShared().removeBusyListener(this);
         YxcMonitor.getShared().unsubscribe(this);
     }
 
@@ -79,6 +81,17 @@ final class YxcRowFeed implements YxcMonitor.Listener {
             }
         }
         handler.post(this::drain);
+    }
+
+    /** Devices became busy or free: their rows change (called on the main thread). */
+    @Override
+    public void onBusyChanged(java.util.Set<String> changedUdns) {
+        if (!running) {
+            return;
+        }
+        for (String udn : changedUdns) {
+            rows.onGroupStateChanged(udn);
+        }
     }
 
     private void drain() {

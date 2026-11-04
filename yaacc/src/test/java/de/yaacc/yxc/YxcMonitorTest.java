@@ -771,4 +771,103 @@ public class YxcMonitorTest {
         assertEquals(2, device.count("dist/getDistributionInfo"));
         assertEquals(2, device.count("netusb/getPlayInfo"));
     }
+
+    @Test
+    public void theGroupInfoCanBeReadNowEvenWhileTheMonitorIsStopped() {
+        FakeDevice device = yxcDevice();
+        monitor.subscribe(listener, watch(YXC_UDN, YXC_URL));
+        monitor.unsubscribe(listener);
+        clock.advance(YxcMonitor.STOP_DELAY_MILLIS);
+        assertFalse(monitor.isActive());
+        assertEquals(YxcDistributionInfo.Role.CLIENT, monitor.getState(YXC_UDN).getRole());
+        device.dist = YxcFixtures.read("captured/c_distInfo_none.json");
+        int statusCalls = device.count("main/getStatus");
+
+        monitor.refreshGroupInfoNow(java.util.Arrays.asList(YXC_UDN, OTHER_UDN, "uuid:unknown"));
+
+        assertEquals(YxcDistributionInfo.Role.NONE, monitor.getState(YXC_UDN).getRole());
+        assertEquals("only the group is read", statusCalls, device.count("main/getStatus"));
+    }
+
+    @Test
+    public void aDeviceThatDoesNotAnswerTheGroupReadIsMarkedUnreachable() {
+        FakeDevice device = yxcDevice();
+        monitor.subscribe(listener, watch(YXC_UDN, YXC_URL));
+        device.unreachable = true;
+
+        monitor.refreshGroupInfoNow(java.util.Collections.singletonList(YXC_UDN));
+
+        assertFalse(monitor.getState(YXC_UDN).isReachable());
+    }
+
+    @Test
+    public void theLastPlainInputIsRememberedAndNotReplacedByTheLinkInput() throws Exception {
+        FakeDevice device = yxcDevice();
+        device.status = YxcFixtures.read("captured/a_status_unlinked.json").replace("standby", "on"); // input tuner
+        monitor.subscribe(listener, watch(YXC_UDN, YXC_URL));
+        assertEquals("tuner", monitor.getLastPlainInput(YXC_UDN));
+
+        sources.get(0).emit("192.0.2.7", "{\"main\":{\"input\":\"mc_link\"},\"device_id\":\"00000000000c\"}");
+        assertEquals("tuner", monitor.getLastPlainInput(YXC_UDN));
+        sources.get(0).emit("192.0.2.7", "{\"main\":{\"input\":\"net_radio\"},\"device_id\":\"00000000000c\"}");
+
+        assertEquals("net_radio", monitor.getLastPlainInput(YXC_UDN));
+        assertNull(monitor.getLastPlainInput("uuid:unknown"));
+    }
+
+    @Test
+    public void theSnapshotHoldsOnlyDevicesThatSpeakTheProtocol() {
+        yxcDevice();
+
+        monitor.subscribe(listener, watch(YXC_UDN, YXC_URL, OTHER_UDN, OTHER_URL));
+
+        assertEquals(1, monitor.snapshot().size());
+        assertEquals(YXC_UDN, monitor.snapshot().get(0).getUdn());
+        assertEquals("192.0.2.7", monitor.snapshot().get(0).getHost());
+        assertNotNull(monitor.getEndpoint(YXC_UDN));
+        assertNull(monitor.getEndpoint(OTHER_UDN));
+    }
+
+    @Test
+    public void devicesCanBePreparedWithoutStartingTheMonitor() {
+        FakeDevice device = yxcDevice();
+
+        monitor.prepareNow(watch(YXC_UDN, YXC_URL, OTHER_UDN, OTHER_URL));
+
+        assertFalse(monitor.isActive());
+        assertTrue("no event source was opened", sources.isEmpty());
+        assertEquals(1, monitor.snapshot().size());
+        assertEquals(YxcDistributionInfo.Role.UNKNOWN, monitor.snapshot().get(0).getState().getRole());
+        assertTrue("nothing was read from the device yet", device.calls.isEmpty());
+
+        monitor.refreshGroupInfoNow(java.util.Collections.singletonList(YXC_UDN));
+
+        assertEquals(YxcDistributionInfo.Role.CLIENT, monitor.getState(YXC_UDN).getRole());
+        assertEquals(1, device.calls.size());
+        monitor.prepareNow(watch(YXC_UDN, YXC_URL));
+        assertEquals("the verdict is remembered", 2, fetches.size());
+    }
+
+    @Test
+    public void theReadsForASendStopWhenTheBudgetIsUsedUp() {
+        FakeDevice device = yxcDevice();
+        monitor.prepareNow(watch(YXC_UDN, YXC_URL), 5000);
+        device.calls.clear();
+
+        monitor.refreshGroupInfoNow(java.util.Collections.singletonList(YXC_UDN), 0);
+
+        assertTrue("no budget, no read", device.calls.isEmpty());
+        monitor.prepareNow(watch(OTHER_UDN, OTHER_URL), 0);
+        assertEquals("no budget, no fetch of the other description", 1, fetches.size());
+    }
+
+    @Test
+    public void aTransportThatCanNotBeMadeGivesNoClientAndNoCrash() {
+        yxcDevice();
+        monitor.subscribe(listener, watch(YXC_UDN, YXC_URL));
+        transportFails = true;
+
+        assertNull(monitor.newClient(YXC_UDN));
+        monitor.refreshGroupInfoNow(java.util.Collections.singletonList(YXC_UDN)); // no exception
+    }
 }

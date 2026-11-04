@@ -52,12 +52,16 @@ public class YxcRowTextTest {
             return "Linked";
         }
 
-        public String groupOf(String group) {
-            return "Group " + group;
+        public String groupWith(String names) {
+            return "Group with " + names;
         }
 
         public String groupLeader() {
             return "Group leader";
+        }
+
+        public String noGroupOnLinkInput() {
+            return "No group, link input";
         }
     };
 
@@ -122,13 +126,15 @@ public class YxcRowTextTest {
     @Test
     public void aClientShowsTheGroupInsteadOfTheLinkInput() throws Exception {
         assertEquals("On · Linked with Kitchen",
-                YxcRowText.describe(state(status("on", "mc_link", "MC Link"), CLIENT), WORDS));
+                YxcRowText.describe(state(status("on", "mc_link", "MC Link"), CLIENT), WORDS, "Kitchen",
+                        java.util.Collections.<String>emptyList()));
     }
 
     @Test
-    public void aServerShowsItsGroup() throws Exception {
-        assertEquals("On · Server · Group Living room".replace("Server · ", "Optical · "),
-                YxcRowText.describe(state(status("on", "optical", null), SERVER), WORDS).replace("Optical", "Optical"));
+    public void aServerShowsTheNamesOfItsClients() throws Exception {
+        assertEquals("On · Optical · Group with Living room, Bedroom",
+                YxcRowText.describe(state(status("on", "optical", null), SERVER), WORDS, null,
+                        java.util.Arrays.asList("Living room", "Bedroom", null)));
     }
 
     @Test
@@ -141,7 +147,8 @@ public class YxcRowTextTest {
     public void anUnreachableDeviceKeepsItsGroup() throws Exception {
         YxcDeviceState gone = state(status("on", "mc_link", null), CLIENT).unreachable();
 
-        assertEquals("Not reachable · Linked with Kitchen", YxcRowText.describe(gone, WORDS));
+        assertEquals("Not reachable · Linked with Kitchen",
+                YxcRowText.describe(gone, WORDS, "Kitchen", java.util.Collections.<String>emptyList()));
     }
 
     @Test
@@ -169,5 +176,27 @@ public class YxcRowTextTest {
         String longName = new String(new char[500]).replace('\0', 'x');
         assertEquals(YxcRowText.MAX_NAME_CHARS + 1, YxcRowText.clean(longName).length());
         assertEquals('\u2026', YxcRowText.clean(longName).charAt(YxcRowText.MAX_NAME_CHARS));
+    }
+
+    @Test
+    public void aClientWhoseServerIsNotKnownShowsOnlyThatItIsLinked() throws Exception {
+        assertEquals("On \u00b7 Linked", YxcRowText.describe(state(status("on", "mc_link", null), CLIENT), WORDS));
+    }
+
+    @Test
+    public void theOwnGroupNameOfAClientIsNeverShown() throws Exception {
+        String line = YxcRowText.describe(state(status("on", "mc_link", null), CLIENT), WORDS);
+
+        assertEquals(false, line.contains("Kitchen"));
+    }
+
+    private static final String CLIENT_LEFT = "{\"response_code\":0,\"group_id\":\"00000000000000000000000000000000\",\"group_name\":\"(Linked) x\",\"role\":\"client\",\"client_list\":[]}";
+
+    @Test
+    public void aClientThatLeftButStaysOnTheLinkInputIsSaidSo() throws Exception {
+        YxcDeviceState stuck = state(status("on", "mc_link", null), CLIENT_LEFT);
+
+        org.junit.Assert.assertTrue(stuck.isStuckClient());
+        assertEquals("On · No group, link input", YxcRowText.describe(stuck, WORDS, "Kitchen", java.util.Collections.<String>emptyList()));
     }
 }

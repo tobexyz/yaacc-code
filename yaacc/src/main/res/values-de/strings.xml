@@ -185,6 +185,22 @@
     <string name="yxc_state_unreachable">Nicht erreichbar</string>
     <string name="yxc_group_linked_with">Verbunden mit %1$s</string>
     <string name="yxc_group_linked">Verbunden</string>
-    <string name="yxc_group_leader_of">Gruppe %1$s</string>
+    <string name="yxc_group_with">Gruppe mit %1$s</string>
+    <string name="yxc_group_stuck">Keine Gruppe, noch am Link-Eingang</string>
     <string name="yxc_group_leader">Gruppenleiter</string>
+    <string name="yxc_action_link">Geräte verbinden</string>
+    <string name="yxc_action_edit_group">Gruppe bearbeiten</string>
+    <string name="yxc_busy">Gruppe wird geändert …</string>
+    <string name="yxc_link_none">Kein anderes Gerät verfügbar</string>
+    <string name="yxc_picker_in_other_group">%1$s (in anderer Gruppe)</string>
+    <string name="yxc_picker_not_reachable">%1$s (nicht erreichbar)</string>
+    <string name="yxc_error_validate">Diese Änderung ist nicht möglich. Ein Gerät ist möglicherweise in einer anderen Gruppe.</string>
+    <string name="yxc_error_unreachable">%1$s antwortet nicht.</string>
+    <string name="yxc_error_restore">%1$s hat die Gruppe verlassen, konnte aber nicht auf seinen Eingang zurückgeschaltet werden.</string>
+    <string name="yxc_error_failed">Das Ändern der Gruppe ist bei %1$s fehlgeschlagen. Bitte erneut versuchen.</string>
+    <string name="yxc_play_redirected">%1$s ist mit %2$s verbunden. Wiedergabe auf %2$s.</string>
+    <string name="yxc_play_refused">%1$s gehört zu einer Gruppe, deren Server nicht bekannt ist. Bitte auf dem Server der Gruppe wiedergeben.</string>
+    <string name="yxc_pick_plays_via">spielt über %1$s</string>
+    <string name="yxc_picker_end_hint">Alle Geräte abwählen, um die Gruppe aufzulösen.</string>
+    <string name="yxc_group_volume">Gruppenlautstärke</string>
 </resources>

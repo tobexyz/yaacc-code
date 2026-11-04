@@ -185,6 +185,22 @@
     <string name="yxc_state_unreachable">Inacessível</string>
     <string name="yxc_group_linked_with">Ligado a %1$s</string>
     <string name="yxc_group_linked">Ligado</string>
-    <string name="yxc_group_leader_of">Grupo %1$s</string>
+    <string name="yxc_group_with">Grupo com %1$s</string>
+    <string name="yxc_group_stuck">Sem grupo, ainda na entrada de ligação</string>
     <string name="yxc_group_leader">Líder do grupo</string>
+    <string name="yxc_action_link">Ligar dispositivos</string>
+    <string name="yxc_action_edit_group">Editar grupo</string>
+    <string name="yxc_busy">A alterar o grupo …</string>
+    <string name="yxc_link_none">Nenhum outro dispositivo disponível</string>
+    <string name="yxc_picker_in_other_group">%1$s (noutro grupo)</string>
+    <string name="yxc_picker_not_reachable">%1$s (inacessível)</string>
+    <string name="yxc_error_validate">Esta alteração não é possível. Um dispositivo pode estar noutro grupo.</string>
+    <string name="yxc_error_unreachable">%1$s não responde.</string>
+    <string name="yxc_error_restore">%1$s saiu do grupo, mas não foi possível voltar à sua entrada.</string>
+    <string name="yxc_error_failed">A alteração do grupo falhou em %1$s. Tente novamente.</string>
+    <string name="yxc_play_redirected">%1$s está ligado a %2$s. A reproduzir em %2$s.</string>
+    <string name="yxc_play_refused">%1$s faz parte de um grupo cujo servidor não é conhecido. Reproduza no servidor do grupo.</string>
+    <string name="yxc_pick_plays_via">reproduz em %1$s</string>
+    <string name="yxc_picker_end_hint">Desmarque todos os dispositivos para desfazer o grupo.</string>
+    <string name="yxc_group_volume">Volume do grupo</string>
 </resources>
