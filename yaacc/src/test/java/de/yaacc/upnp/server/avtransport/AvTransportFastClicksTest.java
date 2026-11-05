@@ -111,6 +111,17 @@ public class AvTransportFastClicksTest {
     }
 
     @Test
+    public void seekWhilePlayingMovesThePlayersAndKeepsPlaying() {
+        RendererHarness h = playing();
+        Player player = h.players.get(0);
+
+        ok("seek", h, h.soap("Seek", "InstanceID", "0", "Unit", "REL_TIME", "Target", "00:01:05"));
+
+        assertEquals("PLAYING", transportState(h));
+        verify(player).seekTo(65_000L);
+    }
+
+    @Test
     public void seekWithATargetThatCannotBeReadWhilePausedChangesNothing() {
         RendererHarness h = playing();
         Player player = h.players.get(0);
@@ -147,7 +158,7 @@ public class AvTransportFastClicksTest {
     }
 
     @Test
-    public void thePossibleActionsOfThePausedStateAreAllAnswered() {
+    public void pausePlayPauseStopFollowEachOtherWithoutAnError() {
         RendererHarness h = playing();
         ok("pause", h, h.pause());
 
