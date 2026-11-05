@@ -26,6 +26,7 @@ import org.fourthline.cling.support.avtransport.impl.state.PausedPlay;
 import org.fourthline.cling.support.avtransport.lastchange.AVTransportVariable;
 import org.fourthline.cling.support.model.MediaInfo;
 import org.fourthline.cling.support.model.PositionInfo;
+import org.fourthline.cling.support.model.SeekMode;
 
 import java.net.URI;
 import java.util.List;
@@ -94,6 +95,46 @@ public class AvTransportMediaRendererPaused extends PausedPlay<AvTransport> impl
         }
         YaaccLogger.d(this.getClass().getName(), "AVT player ended: transport -> STOPPED");
         return AvTransportMediaRendererStopped.class;
+    }
+
+    /**
+     * A second Pause (Home Assistant has one play / pause button; clicked fast, the second click meets the paused renderer):
+     * the renderer is paused already, so it stays where it is instead of answering UPnP error 701. Cling's {@code PausedPlay}
+     * does not declare {@code pause()}: the state machine looks a signal up by its name on the current state.
+     */
+    public Class<? extends AbstractState<?>> pause() {
+        YaaccLogger.d(this.getClass().getName(), "pause: paused already");
+        return null;
+    }
+
+    /** Listed as a possible action: the players move to the position and the pause stays. */
+    public Class<? extends AbstractState<?>> seek(SeekMode unit, String target) {
+        YaaccLogger.d(this.getClass().getName(), "seek");
+        if (SeekMode.REL_TIME.equals(unit)) {
+            Long millisecondsFromStart = SeekTarget.millis(target);
+            if (millisecondsFromStart == null) {
+                YaaccLogger.d(getClass().getName(), "unable to parse target time string");
+            } else {
+                for (Player player : upnpClient.getCurrentPlayers(getTransport())) {
+                    if (player != null) {
+                        player.seekTo(millisecondsFromStart);
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    /** Listed as a possible action; as while playing, the renderer does not change the item by itself. */
+    public Class<? extends AbstractState<?>> next() {
+        YaaccLogger.d(this.getClass().getName(), "next");
+        return null;
+    }
+
+    /** Listed as a possible action; as while playing, the renderer does not change the item by itself. */
+    public Class<? extends AbstractState<?>> previous() {
+        YaaccLogger.d(this.getClass().getName(), "previous");
+        return null;
     }
 
     /* (non-Javadoc)
