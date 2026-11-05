@@ -20,13 +20,24 @@ package de.yaacc.upnp.server.avtransport;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 
+import org.junit.After;
 import org.junit.Test;
+
+import java.util.TimeZone;
 
 /** The REL_TIME target of a Seek. Plain JVM. */
 public class SeekTargetTest {
 
+    private final TimeZone defaultZone = TimeZone.getDefault();
+
+    @After
+    public void restoreTheTimeZone() {
+        TimeZone.setDefault(defaultZone);
+    }
+
     @Test
     public void aTimeCodeIsReadAsMillisecondsFromTheStartIndependentOfTheTimeZone() {
+        TimeZone.setDefault(TimeZone.getTimeZone("Asia/Kolkata")); // not GMT, with a half hour offset
         assertEquals(Long.valueOf(0L), SeekTarget.millis("00:00:00"));
         assertEquals(Long.valueOf(20_000L), SeekTarget.millis("00:00:20"));
         assertEquals(Long.valueOf(65_000L), SeekTarget.millis("00:01:05"));
