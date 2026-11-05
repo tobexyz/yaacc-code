@@ -34,3 +34,26 @@ Threat model: the renderer is an unauthenticated UPnP AVTransport service; every
 
 ### Verdict: FAIL
 One Warning (input validation of the Seek `Target` in the new `SeekTarget` helper: negative / huge values and the unbounded, quadratic parse that holds the transport's lock). No Critical findings. The Pause / Next / Previous / no-op part of the change is clean. After the `SeekTarget` hardening and its tests, this should PASS in cycle 2.
+
+## Cycle 2 - 2026-11-05
+Reviewing: commit 5379522d (strict `SeekTarget`, new `SeekTargetTest` cases, docs/tech.md). Only `SeekTarget.java`, `SeekTargetTest.java`, `docs/tech.md` and this file changed since cycle 1; no manifest, build or dependency change.
+
+### Critical
+- none
+
+### Warning
+- none (the cycle 1 Warning is fixed, verified below)
+
+### Suggestion
+- [SeekTarget.java] Behaviour change worth knowing, not a defect: single-digit minutes / seconds (`0:0:5`) and a fraction with a trailing dot (`00:00:20.`) are now ignored; the old lenient parser took them. UPnP `REL_TIME` requires `MM:SS` with two digits, so conforming control points are not affected. The result is capped at 9999:59:59.999 (35 999 999 999 ms), so a seek beyond the media length is left to the players (ExoPlayer clamps / ends), as for any valid time code.
+- Unchanged and out of scope, as agreed: the unbounded UPnP request body size (the coordinator reports it to the owner).
+
+### Verified
+- Format: `matches()` on `(\d{1,4}):([0-5]\d):([0-5]\d)(?:\.(\d{1,3}))?` anchors the whole text, so trailing text, leading / trailing blanks and a trailing newline are refused (`00:00:20\n` -> null, measured). `\d` is ASCII only (no `UNICODE_CHARACTER_CLASS`): an Arabic-Indic digit is refused (measured), so `Long.parseLong` never sees a non-ASCII digit and cannot throw `NumberFormatException` (groups are 1-4 / 2 / 2 / 1-3 ASCII digits).
+- Sign, size and leniency: `-5:00:00`, `+1:00:00`, `00:00:-9999`, `99:99:99`, `00:60:00`, `99999:00:00`, `4294967296:00:00` all -> null (test cases plus my own run of the class on a JVM).
+- Backtracking / CPU: the pattern has no nested or ambiguous quantifier (every group is separated by a literal and has a fixed small bound), so matching is linear; input is additionally cut at 32 characters before the matcher is created. Measured: 600 000 adversarial calls (32-character digit runs, near-misses) took 182 ms in total; a 100 000 character text returns null at the length check without being scanned.
+- Range: the largest accepted value is `((9999*60+59)*60+59)*1000+999` = 35 999 999 999 ms, about 3.6e10, computed in `long` (all operands are `long`, `Long.MAX_VALUE / 3.6e6` is about 2.56e12 hours, so no overflow). The value is never negative (digits only, no sign), so `player.seekTo` cannot receive a negative or overflowing number from the Seek action, via Playing or Paused. `null` target still gives 0 and `HH:MM:SS` of the earlier tests gives the same values as before (the time zone is no longer involved).
+- Callers: Paused and Playing still treat `null` as "ignore the seek" (debug line only, no text logged); the diff of the callers is unchanged from cycle 1.
+- Tests: `SeekTargetTest` now covers fractions, the 9999 h maximum, the hostile list above and the 100 000 character case with a time bound; the time zone is still restored in `@After`.
+
+### Verdict: PASS
