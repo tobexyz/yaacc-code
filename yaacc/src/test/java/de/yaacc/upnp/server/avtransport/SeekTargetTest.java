@@ -45,6 +45,37 @@ public class SeekTargetTest {
     }
 
     @Test
+    public void aFractionOfASecondIsKept() {
+        assertEquals(Long.valueOf(20_500L), SeekTarget.millis("00:00:20.5"));
+        assertEquals(Long.valueOf(20_050L), SeekTarget.millis("00:00:20.05"));
+        assertEquals(Long.valueOf(20_123L), SeekTarget.millis("00:00:20.123"));
+        assertEquals(Long.valueOf(36_000_000L), SeekTarget.millis("10:00:00"));
+        assertEquals(Long.valueOf(9999L * 3_600_000L), SeekTarget.millis("9999:00:00"));
+    }
+
+    @Test
+    public void numbersOutOfRangeSignsAndTrailingTextAreNotAPosition() {
+        for (String hostile : new String[]{"-5:00:00", "00:00:-9999", "+1:00:00", "99:99:99", "00:60:00", "00:00:60",
+                "00:00:20junk", " 00:00:20", "00:00:20 ", "99999999999:00:00", "4294967296:00:00", "00:00:20.1234",
+                "0:0:5", "00:00", "::", "00:00:20\n"}) {
+            assertNull(hostile, SeekTarget.millis(hostile));
+        }
+    }
+
+    @Test
+    public void aVeryLongTextIsRefusedWithoutBeingParsed() {
+        StringBuilder digits = new StringBuilder();
+        for (int i = 0; i < 100_000; i++) {
+            digits.append('9');
+        }
+        long start = System.nanoTime();
+        assertNull(SeekTarget.millis(digits.toString()));
+        assertNull(SeekTarget.millis(digits + ":00:00"));
+        assertNull(SeekTarget.millis("0".repeat(SeekTarget.MAX_LENGTH + 1)));
+        assertEquals("a long text is refused at once", true, (System.nanoTime() - start) < 1_000_000_000L);
+    }
+
+    @Test
     public void noTargetMeansTheStart() {
         assertEquals(Long.valueOf(0L), SeekTarget.millis(null));
     }
@@ -54,5 +85,6 @@ public class SeekTargetTest {
         assertNull(SeekTarget.millis("soon"));
         assertNull(SeekTarget.millis(""));
         assertNull(SeekTarget.millis("20"));
+        assertNull(SeekTarget.millis("12:30"));
     }
 }
