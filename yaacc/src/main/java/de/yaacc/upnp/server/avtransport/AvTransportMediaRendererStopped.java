@@ -104,6 +104,16 @@ public class AvTransportMediaRendererStopped extends Stopped<AvTransport> implem
         return AvTransportMediaRendererStopped.class;
     }
 
+    /**
+     * Pause when nothing plays (a controller whose cached state is behind, for example after the item ended): the renderer
+     * stays where it is instead of answering UPnP error 701. Cling does not declare {@code pause()} on this state: the
+     * state machine looks a signal up by its name on the current state.
+     */
+    public Class<? extends AbstractState<?>> pause() {
+        YaaccLogger.d(this.getClass().getName(), "pause: nothing plays");
+        return null;
+    }
+
     /*
      * (non-Javadoc)
      *

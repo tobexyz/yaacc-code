@@ -33,10 +33,7 @@ import android.os.Handler;
 import android.os.Looper;
 
 import java.net.URI;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
 import java.util.List;
-import java.util.TimeZone;
 
 import de.yaacc.player.Player;
 import de.yaacc.upnp.UpnpClient;
@@ -227,17 +224,15 @@ public class AvTransportMediaRendererPlaying extends Playing<AvTransport> implem
     public Class<? extends AbstractState<?>> seek(SeekMode unit, String target) {
         YaaccLogger.d(this.getClass().getName(), "seek");
         if (SeekMode.REL_TIME.equals(unit)) {
-            SimpleDateFormat dateFormat = new SimpleDateFormat("HH:mm:ss");
-            dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
-            try {
-                Long millisecondsFromStart = (target != null && dateFormat.parse(target) != null) ? dateFormat.parse(target).getTime() : 0L;
+            Long millisecondsFromStart = SeekTarget.millis(target);
+            if (millisecondsFromStart == null) {
+                YaaccLogger.d(getClass().getName(), "unable to parse target time string");
+            } else {
                 for (Player player : players) {
                     if (player != null) {
                         player.seekTo(millisecondsFromStart);
                     }
                 }
-            } catch (ParseException pex) {
-                YaaccLogger.d(getClass().getName(), "unable to parse target time string", pex);
             }
         }
         return null;
