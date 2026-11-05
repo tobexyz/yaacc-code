@@ -30,3 +30,27 @@ Reviewing: commit eaf0a9e9 (Paused / Stopped / NoMediaPresent `pause()`, Paused 
 
 ### Verdict: FAIL
 Two Warnings, both small: the doc count "6 of 7" (is 7 of 7) and the missing test for the shared `SeekTarget` / Playing seek path. No Critical findings; the production change itself is correct.
+
+## Cycle 2 - 2026-11-05
+Reviewing: commit e36a7e8f (fixes for the two cycle 1 Warnings)
+
+### Critical
+- none
+
+### Warning
+- none
+
+### Suggestion
+- "No new events" stays unasserted. Accepted: the claim is carried by the no-transition path (a `null` return runs neither `onExit` nor `onEntry`; Cling's handler is read and verified in cycle 1), and `times(1)` on `player.pause()` proves that path for Paused. An event-count assertion would depend on the asynchronous event pacing and could be flaky, so leaving it out is the right trade-off. Not blocking.
+- [SeekTargetTest] `aTimeCodeIsReadAsMillisecondsFromTheStartIndependentOfTheTimeZone` does not change the JVM default time zone, so it only guards the GMT line when the test JVM is not already on GMT/UTC. Setting `TimeZone.setDefault` (restored in `@After`) to e.g. `America/Los_Angeles` would make the name true on every machine. Not blocking.
+
+### Verified
+- Cycle 1 Warning 1: `docs/tech.md` now says "`AvTransportFastClicksTest` (all 7 failed before), `SeekTargetTest`" - matches the measurement.
+- Cycle 1 Warning 2: `SeekTargetTest` (3 tests) covers `00:00:00`, `00:00:20`, `00:01:05`, `01:00:00`, `null` -> 0, and `soon` / empty / `20` -> null. New `seekWhilePlayingMovesThePlayersAndKeepsPlaying` goes through the real SOAP path and checks `seekTo(65_000L)` and state PLAYING, so the refactored Playing path is covered. The renamed `pausePlayPauseStopFollowEachOtherWithoutAnError` now matches what it does.
+- Only test files and docs changed in e36a7e8f; production code is unchanged since cycle 1. Working tree clean, nothing uncommitted.
+
+### Tests
+- [x] All tests passing (`:yaacc:assembleDebug :yaacc:testDebugUnitTest :yaacc:lintDebug` EXIT 0; 2969 tests, 0 failures, 0 errors, 0 skipped; `AvTransportFastClicksTest` 8/8, `SeekTargetTest` 3/3; lint issues: 0)
+- [x] Coverage adequate for the change
+
+### Verdict: PASS
