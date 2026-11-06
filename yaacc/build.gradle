@@ -18,7 +18,7 @@ dependencies {
     testImplementation 'net.sf.kxml:kxml2:2.3.0'
     // a real org.json for the JVM unit tests: the Android stubs return null/defaults (unitTests.returnDefaultValues),
     // production code uses the org.json of the platform
-    testImplementation 'org.json:json:20250517'
+    testImplementation 'org.json:json:20260814'
     implementation 'jakarta.enterprise:jakarta.enterprise.cdi-api:5.0.0'
     implementation 'com.google.android.material:material:1.14.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.2.2'
