@@ -164,6 +164,24 @@ public final class OhRendererCore {
         return services;
     }
 
+    /** For tests: how many service managers listen to the service ("playlist", "info", "time", "volume", "product"). */
+    int listenerCount(String service) {
+        switch (service) {
+            case "playlist":
+                return playlist.listenerCount();
+            case "product":
+                return product.listenerCount();
+            case "info":
+                return info.listenerCount();
+            case "time":
+                return time.listenerCount();
+            case "volume":
+                return volume.listenerCount();
+            default:
+                throw new IllegalArgumentException(service);
+        }
+    }
+
     /** For tests: the current value of a state variable of the service ("playlist", "info", "time", "volume", "product"). */
     String stateValue(String service, String variable) {
         switch (service) {

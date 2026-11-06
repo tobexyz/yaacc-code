@@ -131,16 +131,53 @@ public class OpenHomeRendererTest {
         }
     }
 
+    /** Everything runs at once on the calling thread, so a test sees the result of a command right away. */
+    private static final class InlineThreads implements OpenHomeRenderer.Threads {
+        @Override
+        public void work(Runnable work) {
+            work.run();
+        }
+
+        @Override
+        public void runLater(Runnable runnable, long delayMillis) {
+            runnable.run();
+        }
+
+        @Override
+        public Runnable every(Runnable work, long periodMillis) {
+            return () -> {
+            };
+        }
+
+        @Override
+        public <T> T onPlayer(java.util.concurrent.Callable<T> call) {
+            try {
+                return call.call();
+            } catch (RuntimeException e) {
+                throw e;
+            } catch (Exception e) {
+                throw new IllegalStateException(e);
+            }
+        }
+
+        @Override
+        public void close() {
+        }
+    }
+
     private final List<FakePlayer> created = new ArrayList<>();
     private int volumePercent = 40;
     private boolean muted;
     private OpenHomeRenderer renderer;
     private Context context;
 
+    private OpenHomeRenderer.Host host;
+    private OpenHomeRenderer.Volume volume;
+
     @Before
     public void setUp() {
         context = mock(Context.class);
-        OpenHomeRenderer.Host host = new OpenHomeRenderer.Host() {
+        host = new OpenHomeRenderer.Host() {
             @Override
             public AbstractPlayer createPlayer(List<PlayableItem> items) {
                 UpnpClient client = mock(UpnpClient.class);
@@ -163,7 +200,7 @@ public class OpenHomeRendererTest {
                 return item;
             }
         };
-        OpenHomeRenderer.Volume volume = new OpenHomeRenderer.Volume() {
+        volume = new OpenHomeRenderer.Volume() {
             @Override
             public int percent() {
                 return volumePercent;
@@ -184,7 +221,11 @@ public class OpenHomeRendererTest {
                 muted = mute;
             }
         };
-        renderer = new OpenHomeRenderer(host, volume, (runnable, delay) -> runnable.run(),
+        renderer = newRenderer(new InlineThreads());
+    }
+
+    private OpenHomeRenderer newRenderer(OpenHomeRenderer.Threads threads) {
+        return new OpenHomeRenderer(host, volume, threads,
                 new OhRendererCore.Details("m", "https://example.org", "model", "room", "name"), "http-get:*:audio/mpeg:*");
     }
 
@@ -442,6 +483,106 @@ public class OpenHomeRendererTest {
         assertEquals("Stopped", playlist("TransportState"));
         assertEquals("0", playlist("Id"));
         assertNull(renderer.playerForTest());
+    }
+
+    // ---- queue edits that arrive in any order, twice, or while a play starts
+
+    @Test
+    public void notificationsInTheWrongOrderStillGiveThePlayerTheOrderOfTheQueue() {
+        long a = add(0, "http://h/a.mp3");
+        renderer.play();
+        OhQueue queue = renderer.core().queue();
+        long x = queue.insert(a, "http://h/x.mp3", "");
+        long y = queue.insert(a, "http://h/y.mp3", "");
+
+        renderer.trackInserted(queue.indexOf(x), queue.read(x)); // the later edit is reported first, and the earlier one after it
+        renderer.trackInserted(queue.indexOf(y), queue.read(y));
+
+        assertEquals(Arrays.asList("http://h/a.mp3", "http://h/y.mp3", "http://h/x.mp3"), titles(player()));
+    }
+
+    @Test
+    public void aTrackThatIsAlreadyInThePlayerIsNotInsertedASecondTime() {
+        OhQueue queue = renderer.core().queue();
+        long a = queue.insert(0, "http://h/a.mp3", "");
+        renderer.play(); // creates the player from the queue, which already has a
+
+        renderer.trackInserted(0, queue.read(a)); // the notification of the same insert arrives now
+        renderer.trackInserted(0, queue.read(a));
+
+        assertEquals(Arrays.asList("http://h/a.mp3"), titles(player()));
+    }
+
+    @Test
+    public void parallelInsertsLeaveThePlayerInTheOrderOfTheQueue() throws Exception {
+        java.util.concurrent.ExecutorService worker = java.util.concurrent.Executors.newSingleThreadExecutor();
+        OpenHomeRenderer threaded = newRenderer(new OpenHomeRenderer.Threads() {
+            @Override
+            public void work(Runnable work) {
+                worker.execute(work);
+            }
+
+            @Override
+            public void runLater(Runnable runnable, long delayMillis) {
+                worker.execute(runnable);
+            }
+
+            @Override
+            public Runnable every(Runnable work, long periodMillis) {
+                return () -> {
+                };
+            }
+
+            @Override
+            public <T> T onPlayer(java.util.concurrent.Callable<T> call) {
+                try {
+                    return call.call();
+                } catch (RuntimeException e) {
+                    throw e;
+                } catch (Exception e) {
+                    throw new IllegalStateException(e);
+                }
+            }
+
+            @Override
+            public void close() {
+                worker.shutdown();
+            }
+        });
+        OhQueue queue = threaded.core().queue();
+        long first = queue.insert(0, "http://h/0.mp3", "");
+        threaded.trackInserted(0, queue.read(first));
+        threaded.play();
+
+        java.util.concurrent.ExecutorService clients = java.util.concurrent.Executors.newFixedThreadPool(8);
+        java.util.concurrent.CountDownLatch go = new java.util.concurrent.CountDownLatch(1);
+        List<java.util.concurrent.Future<?>> done = new ArrayList<>();
+        for (int i = 1; i <= 40; i++) {
+            final String uri = "http://h/" + i + ".mp3";
+            final long after = i % 3 == 0 ? 0 : first;
+            done.add(clients.submit(() -> {
+                go.await();
+                long id = queue.insert(after, uri, "");
+                threaded.trackInserted(queue.indexOf(id), queue.read(id));
+                return null;
+            }));
+        }
+        go.countDown();
+        for (java.util.concurrent.Future<?> f : done) {
+            f.get(10, java.util.concurrent.TimeUnit.SECONDS);
+        }
+        clients.shutdown();
+        java.util.concurrent.CountDownLatch drained = new java.util.concurrent.CountDownLatch(1);
+        worker.execute(drained::countDown);
+        assertEquals(true, drained.await(10, java.util.concurrent.TimeUnit.SECONDS));
+
+        List<String> expected = new ArrayList<>();
+        for (OhQueue.Entry entry : queue.snapshot()) {
+            expected.add(entry.getUri());
+        }
+        assertEquals(41, expected.size());
+        assertEquals(expected, titles((FakePlayer) threaded.playerForTest()));
+        worker.shutdown();
     }
 
     // ---- modes and volume

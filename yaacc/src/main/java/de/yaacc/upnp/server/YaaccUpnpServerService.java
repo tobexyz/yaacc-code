@@ -102,6 +102,7 @@ import de.yaacc.upnp.server.media.CombinedCaptureService;
 import de.yaacc.upnp.server.media.MediaProjectionHelper;
 import de.yaacc.upnp.server.media.ScreenCastCaptureService;
 import de.yaacc.upnp.server.media.SystemAudioCaptureService;
+import de.yaacc.upnp.server.openhome.AndroidOhThreads;
 import de.yaacc.upnp.server.openhome.AndroidOpenHomeHost;
 import de.yaacc.upnp.server.openhome.OhRendererCore;
 import de.yaacc.upnp.server.openhome.OpenHomeRenderer;
@@ -368,14 +369,14 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
 
         safChangeRunner.stop();
         contentDirectoryChanged.shutdown();
-        if (openHomeRenderer != null) {
-            openHomeRenderer.shutdown();
-            openHomeRenderer = null;
-        }
 
         if (localDevice != null) {
             registry.removeDevice(localDevice);
             localDevice = null;
+        }
+        if (openHomeRenderer != null) {
+            openHomeRenderer.shutdown();
+            openHomeRenderer = null;
         }
 
         networkDeviceListener.disable();
@@ -1002,7 +1003,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
             if (openHomeRenderer == null) {
                 AndroidOpenHomeHost host = new AndroidOpenHomeHost(getApplicationContext(), client);
                 String name = getLocalServerName();
-                openHomeRenderer = new OpenHomeRenderer(host, host, OpenHomeRenderer.newDelayer(),
+                openHomeRenderer = new OpenHomeRenderer(host, host, new AndroidOhThreads(),
                         new OhRendererCore.Details("yaacc.de", "https://www.yaacc.de", "YAACC", name, name),
                         OPENHOME_PROTOCOL_INFO);
                 openHomeRenderer.start();

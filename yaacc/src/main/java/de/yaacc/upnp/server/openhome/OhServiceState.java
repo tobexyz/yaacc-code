@@ -37,6 +37,11 @@ public final class OhServiceState {
         }
     }
 
+    /** For tests: how many listeners (service managers) hold on to this state. */
+    int listenerCount() {
+        return propertyChangeSupport.getPropertyChangeListeners().length;
+    }
+
     /** The manager looks for this getter. */
     public PropertyChangeSupport getPropertyChangeSupport() {
         return propertyChangeSupport;

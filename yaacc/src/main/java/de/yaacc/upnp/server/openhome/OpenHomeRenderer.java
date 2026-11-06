@@ -18,36 +18,40 @@
 package de.yaacc.upnp.server.openhome;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
+import java.util.Set;
+import java.util.concurrent.Callable;
 
 import de.yaacc.openhome.OhQueue;
 import de.yaacc.openhome.OhTransportState;
 import de.yaacc.player.AbstractPlayer;
 import de.yaacc.player.PlayMode;
 import de.yaacc.player.PlayableItem;
-import de.yaacc.player.Player;
 import de.yaacc.util.YaaccLogger;
 
 /**
  * Plays the OpenHome queue of the renderer on this device and reports what the player does back to the OpenHome services.
  * <p>
- * The queue ({@link OhRendererCore#queue()}) is the truth: the player holds the same tracks in the same order, created from the
- * queue when somebody plays, and kept in step by {@link AbstractPlayer#insertItems} and {@link AbstractPlayer#removeItem}.
- * What the player does on its own (a track ends, the user pauses in the notification) is found by {@link #refresh()}, which
- * runs about once a second while the renderer is started.
+ * The queue ({@link OhRendererCore#queue()}) is the truth. The player holds the same tracks in the same order, created from the
+ * queue when somebody plays. {@link #sync()} compares the two and makes the player's list match (it removes what is gone from the
+ * queue and inserts what is new), so it does not matter in which order concurrent edits arrive and an edit that reaches the
+ * renderer twice does nothing the second time. What the player does on its own (a track ends, the user pauses in the
+ * notification) is found by {@link #refresh()}, which runs about once a second while the renderer is started.
  * <p>
- * The part that needs Android (creating the music player, turning a DIDL text into a playable item, the system volume) is
- * behind {@link Host} and {@link Volume}, so the logic runs in plain JVM tests.
+ * Threads: everything the renderer does runs one after the other on one worker thread ({@link Threads}); the commands of the
+ * control points only hand their work over and return. The player (ExoPlayer insists on it) is only touched on its own thread, the
+ * worker waits for it, never the other way round.
+ * <p>
+ * The part that needs Android (creating the music player, turning a DIDL text into a playable item, the system volume, the
+ * threads) is behind {@link Host}, {@link Volume} and {@link Threads}, so the logic runs in plain JVM tests.
  */
 public final class OpenHomeRenderer implements OhPlayback {
 
     /** The app side of the renderer. */
     public interface Host {
-        /** Creates a music player on this device that holds the items (in this order) and is not started. */
+        /** Creates a music player on this device that holds the items (in this order) and is not started. Called on the worker. */
         AbstractPlayer createPlayer(List<PlayableItem> items);
 
         /** @return false once the player was shut down by somebody else */
@@ -68,29 +72,56 @@ public final class OpenHomeRenderer implements OhPlayback {
         void setMuted(boolean muted);
     }
 
+    /** The threads of the renderer. */
+    public interface Threads extends OhRendererCore.Delayer {
+        /** Runs the work on the worker thread, after what was handed over before. Returns at once. */
+        void work(Runnable work);
+
+        /** Runs the work on the worker thread again and again; the result stops it. */
+        Runnable every(Runnable work, long periodMillis);
+
+        /** Runs the call on the player's thread and waits for it. A failure is thrown as a runtime exception. */
+        <T> T onPlayer(Callable<T> call);
+
+        /** Runs what is queued, then ends the worker. */
+        void close();
+    }
+
+    /** What the player says about itself, read in one go on the player's thread. */
+    private static final class PlayerState {
+        boolean playing;
+        boolean paused;
+        int index;
+        long positionMillis;
+        String durationText;
+        long itemDurationMillis;
+        PlayMode mode;
+    }
+
     private static final long POLL_MILLIS = 1000;
 
     private final Host host;
     private final Volume volume;
+    private final Threads threads;
     private final OhRendererCore core;
-    private final Object lock = new Object();
 
+    // all of this is only touched on the worker
     private AbstractPlayer player;
+    /** The ids of the tracks the player holds, in its order. */
+    private final List<Long> playerIds = new ArrayList<>();
     private boolean repeat;
     private boolean shuffle;
     private PlayMode lastKnownMode;
     /** The track the next play starts with when there is no player, 0 for the first one. */
     private long startId;
     private long reportedId = Long.MIN_VALUE;
+    private Runnable stopPolling;
 
-    private ScheduledExecutorService executor;
-    private ScheduledFuture<?> poll;
-
-    public OpenHomeRenderer(Host host, Volume volume, OhRendererCore.Delayer delayer, OhRendererCore.Details details,
-                            String protocolInfo) {
+    public OpenHomeRenderer(Host host, Volume volume, Threads threads, OhRendererCore.Details details, String protocolInfo) {
         this.host = host;
         this.volume = volume;
-        this.core = new OhRendererCore(this, delayer, details, protocolInfo);
+        this.threads = threads;
+        this.core = new OhRendererCore(this, threads, details, protocolInfo);
     }
 
     public OhRendererCore core() {
@@ -100,244 +131,395 @@ public final class OpenHomeRenderer implements OhPlayback {
     // ---- life cycle
 
     /** Starts the once-a-second look at the player. */
-    public synchronized void start() {
-        if (executor != null) {
-            return;
-        }
-        executor = Executors.newSingleThreadScheduledExecutor(runnable -> {
-            Thread thread = new Thread(runnable, "openhome-renderer");
-            thread.setDaemon(true);
-            return thread;
+    public void start() {
+        threads.work(() -> {
+            if (stopPolling == null) {
+                stopPolling = threads.every(this::refreshNow, POLL_MILLIS);
+                refreshNow();
+            }
         });
-        poll = executor.scheduleWithFixedDelay(this::refreshSafely, POLL_MILLIS, POLL_MILLIS, TimeUnit.MILLISECONDS);
-        refreshSafely();
     }
 
-    /** Stops the look at the player and the player itself. */
-    public synchronized void shutdown() {
-        if (poll != null) {
-            poll.cancel(false);
-            poll = null;
-        }
-        if (executor != null) {
-            executor.shutdownNow();
-            executor = null;
-        }
-        discardPlayer(true);
-    }
-
-    /** A delayer for {@link OhRendererCore} that runs on its own daemon thread. */
-    public static OhRendererCore.Delayer newDelayer() {
-        final ScheduledExecutorService timer = Executors.newSingleThreadScheduledExecutor(runnable -> {
-            Thread thread = new Thread(runnable, "openhome-delayer");
-            thread.setDaemon(true);
-            return thread;
+    /** Ends the look at the player and the player itself. */
+    public void shutdown() {
+        threads.work(() -> {
+            if (stopPolling != null) {
+                stopPolling.run();
+                stopPolling = null;
+            }
+            discardPlayer();
         });
-        return (runnable, delayMillis) -> timer.schedule(runnable, delayMillis, TimeUnit.MILLISECONDS);
+        threads.close();
     }
 
-    private void refreshSafely() {
-        try {
-            refresh();
-        } catch (RuntimeException e) {
-            YaaccLogger.w(getClass().getName(), "OpenHome renderer refresh failed", e);
-        }
-    }
-
-    // ---- what the controller asks for (OhPlayback)
+    // ---- what the controller asks for (OhPlayback): hand over to the worker, return
 
     @Override
     public void play() {
-        synchronized (lock) {
+        threads.work(() -> {
+            sync();
             AbstractPlayer current = alivePlayer();
             if (current == null) {
                 startFrom(startId);
-            } else if (!current.isPlaying() || current.isPaused()) {
-                current.play();
+            } else {
+                PlayerState state = read(current);
+                if (!state.playing || state.paused) {
+                    onPlayer(current::play);
+                }
             }
-        }
-        refreshSafely();
+            refreshNow();
+        });
     }
 
     @Override
     public void pause() {
-        synchronized (lock) {
+        threads.work(() -> {
             AbstractPlayer current = alivePlayer();
-            if (current != null && current.isPlaying() && !current.isPaused()) {
-                current.pause();
+            if (current != null) {
+                PlayerState state = read(current);
+                if (state.playing && !state.paused) {
+                    onPlayer(current::pause);
+                }
             }
-        }
-        refreshSafely();
+            refreshNow();
+        });
     }
 
     @Override
     public void stop() {
-        synchronized (lock) {
+        threads.work(() -> {
             AbstractPlayer current = alivePlayer();
             if (current != null) {
-                current.stop();
+                onPlayer(current::stop);
             }
             startId = 0;
-        }
-        refreshSafely();
+            refreshNow();
+        });
     }
 
     @Override
     public void next() {
-        synchronized (lock) {
+        threads.work(() -> {
             AbstractPlayer current = alivePlayer();
             if (current != null) {
-                current.next();
+                onPlayer(current::next);
             }
-        }
-        refreshSafely();
+            refreshNow();
+        });
     }
 
     @Override
     public void previous() {
-        synchronized (lock) {
+        threads.work(() -> {
             AbstractPlayer current = alivePlayer();
             if (current != null) {
-                current.previous();
+                onPlayer(current::previous);
             }
-        }
-        refreshSafely();
+            refreshNow();
+        });
     }
 
     @Override
     public void setRepeat(boolean repeat) {
-        synchronized (lock) {
+        threads.work(() -> {
             this.repeat = repeat;
             applyMode();
-        }
+        });
     }
 
     @Override
     public void setShuffle(boolean shuffle) {
-        synchronized (lock) {
+        threads.work(() -> {
             this.shuffle = shuffle;
             applyMode();
-        }
+        });
     }
 
     @Override
     public void seekSecondAbsolute(long second) {
-        synchronized (lock) {
+        threads.work(() -> {
             AbstractPlayer current = alivePlayer();
             if (current != null) {
-                current.seekTo(Math.max(0, second) * 1000L);
+                onPlayer(() -> current.seekTo(Math.max(0, second) * 1000L));
             }
-        }
+        });
     }
 
     @Override
     public void seekSecondRelative(int seconds) {
-        synchronized (lock) {
+        threads.work(() -> {
             AbstractPlayer current = alivePlayer();
             if (current != null) {
-                current.seekTo(Math.max(0, current.getCurrentPosition() + seconds * 1000L));
+                long target = Math.max(0, read(current).positionMillis + seconds * 1000L);
+                onPlayer(() -> current.seekTo(target));
             }
-        }
+        });
     }
 
     @Override
     public void seekToTrack(long id) {
-        synchronized (lock) {
-            AbstractPlayer current = alivePlayer();
-            int index = core.queue().indexOf(id);
-            if (index < 0) {
+        threads.work(() -> {
+            sync();
+            if (core.queue().indexOf(id) < 0) {
                 return;
             }
+            AbstractPlayer current = alivePlayer();
             if (current == null) {
                 startFrom(id);
             } else {
-                current.playItemAt(index);
+                int index = playerIds.indexOf(id);
+                if (index >= 0) {
+                    onPlayer(() -> current.playItemAt(index));
+                }
             }
-        }
-        refreshSafely();
+            refreshNow();
+        });
     }
 
     @Override
     public void trackInserted(int index, OhQueue.Entry entry) {
-        synchronized (lock) {
-            AbstractPlayer current = alivePlayer();
-            if (current != null) {
-                List<PlayableItem> items = new ArrayList<>();
-                items.add(host.toPlayableItem(entry.getUri(), entry.getMetadata()));
-                current.insertItems(index, items);
-            }
-        }
+        threads.work(() -> {
+            sync();
+            refreshNow();
+        });
     }
 
     @Override
     public void trackDeleted(int index, long id) {
-        synchronized (lock) {
-            AbstractPlayer current = alivePlayer();
+        threads.work(() -> {
             if (id == startId) {
+                // where a new play starts when there is no player: the track that took the place of the deleted one
                 startId = index < core.queue().size() ? core.queue().idAt(index) : 0;
             }
-            if (current != null && !current.removeItem(index, true)) {
-                // the track that plays is gone: the next one is where a new play starts
-                long next = index < core.queue().size() ? core.queue().idAt(index) : 0;
-                discardPlayer(true);
-                startId = next;
-            }
-        }
-        refreshSafely();
+            sync();
+            refreshNow();
+        });
     }
 
     @Override
     public void queueCleared() {
-        synchronized (lock) {
-            discardPlayer(true);
-            startId = 0;
-        }
-        refreshSafely();
+        threads.work(() -> {
+            sync();
+            refreshNow();
+        });
     }
 
     @Override
     public void setVolume(int percent) {
-        volume.setPercent(Math.max(0, Math.min(100, percent)));
-        refreshSafely();
+        threads.work(() -> {
+            volume.setPercent(Math.max(0, Math.min(100, percent)));
+            refreshNow();
+        });
     }
 
     @Override
     public void setMute(boolean mute) {
-        volume.setMuted(mute);
-        refreshSafely();
+        threads.work(() -> {
+            volume.setMuted(mute);
+            refreshNow();
+        });
+    }
+
+    // ---- queue and player
+
+    /**
+     * Makes the player's list match the queue: removes the tracks that are not in the queue any more and inserts the new ones at
+     * their place. The track that plays can not be removed: the player ends then and the next play starts with the track behind it.
+     */
+    private void sync() {
+        AbstractPlayer current = alivePlayer();
+        if (current == null) {
+            return;
+        }
+        List<OhQueue.Entry> wanted = core.queue().snapshot();
+        if (wanted.isEmpty()) {
+            discardPlayer();
+            startId = 0;
+            return;
+        }
+        Set<Long> wantedIds = new HashSet<>();
+        for (OhQueue.Entry entry : wanted) {
+            wantedIds.add(entry.getId());
+        }
+        for (int i = playerIds.size() - 1; i >= 0; i--) {
+            if (wantedIds.contains(playerIds.get(i))) {
+                continue;
+            }
+            final int index = i;
+            if (onPlayer(() -> current.removeItem(index, true))) {
+                playerIds.remove(i);
+            } else {
+                long next = 0;
+                for (int j = i + 1; j < playerIds.size(); j++) {
+                    if (wantedIds.contains(playerIds.get(j))) {
+                        next = playerIds.get(j);
+                        break;
+                    }
+                }
+                discardPlayer();
+                startId = next;
+                return;
+            }
+        }
+        for (int i = 0; i < wanted.size(); i++) {
+            OhQueue.Entry entry = wanted.get(i);
+            if (i < playerIds.size() && playerIds.get(i) == entry.getId()) {
+                continue;
+            }
+            final int index = i;
+            final PlayableItem item = host.toPlayableItem(entry.getUri(), entry.getMetadata());
+            onPlayer(() -> {
+                current.insertItems(index, Collections.singletonList(item));
+                return null;
+            });
+            playerIds.add(i, entry.getId());
+        }
+    }
+
+    /** Creates the player with the whole queue and starts it with the track (the first one for 0 or an unknown id). */
+    private void startFrom(long id) {
+        List<OhQueue.Entry> entries = core.queue().snapshot();
+        if (entries.isEmpty()) {
+            return;
+        }
+        List<PlayableItem> items = new ArrayList<>(entries.size());
+        List<Long> ids = new ArrayList<>(entries.size());
+        for (OhQueue.Entry entry : entries) {
+            items.add(host.toPlayableItem(entry.getUri(), entry.getMetadata()));
+            ids.add(entry.getId());
+        }
+        AbstractPlayer created = host.createPlayer(items);
+        if (created == null) {
+            YaaccLogger.w(getClass().getName(), "no player for the OpenHome queue");
+            return;
+        }
+        player = created;
+        playerIds.clear();
+        playerIds.addAll(ids);
+        reportedId = Long.MIN_VALUE;
+        lastKnownMode = null;
+        applyMode();
+        int index = id == 0 ? -1 : ids.indexOf(id);
+        if (index < 0) {
+            onPlayer(created::play);
+        } else {
+            onPlayer(() -> created.playItemAt(index));
+        }
+        startId = 0;
+    }
+
+    private AbstractPlayer alivePlayer() {
+        if (player != null && !host.isAlive(player)) {
+            player = null;
+            playerIds.clear();
+            reportedId = Long.MIN_VALUE;
+        }
+        return player;
+    }
+
+    private void discardPlayer() {
+        AbstractPlayer old = player;
+        player = null;
+        playerIds.clear();
+        reportedId = Long.MIN_VALUE;
+        if (old != null && host.isAlive(old)) {
+            try {
+                onPlayer(old::exit);
+            } catch (RuntimeException e) {
+                YaaccLogger.w(getClass().getName(), "OpenHome player did not shut down cleanly", e);
+            }
+        }
+    }
+
+    private void applyMode() {
+        AbstractPlayer current = player;
+        if (current == null) {
+            return;
+        }
+        PlayMode mode = PlayMode.of(repeat ? PlayMode.RepeatMode.ALL : PlayMode.RepeatMode.OFF, shuffle);
+        lastKnownMode = mode;
+        onPlayer(() -> current.setPlayMode(mode));
+    }
+
+    /** The user changed repeat or shuffle at the player: the controllers are told. */
+    private void adoptPlayMode(PlayMode mode) {
+        if (mode != null && !mode.equals(lastKnownMode)) {
+            lastKnownMode = mode;
+            repeat = mode.getRepeat() != PlayMode.RepeatMode.OFF;
+            shuffle = mode.isShuffle();
+        }
+        core.setRepeat(repeat);
+        core.setShuffle(shuffle);
+    }
+
+    // ---- the player's thread
+
+    private <T> T onPlayer(Callable<T> call) {
+        return threads.onPlayer(call);
+    }
+
+    private void onPlayer(Runnable call) {
+        threads.onPlayer(() -> {
+            call.run();
+            return null;
+        });
+    }
+
+    private PlayerState read(AbstractPlayer current) {
+        return onPlayer(() -> {
+            PlayerState state = new PlayerState();
+            state.playing = current.isPlaying();
+            state.paused = current.isPaused();
+            state.index = current.getCurrentItemIndex();
+            state.positionMillis = current.getCurrentPosition();
+            state.durationText = current.getDuration();
+            List<PlayableItem> items = current.getItems();
+            state.itemDurationMillis = state.index >= 0 && state.index < items.size() ? items.get(state.index).getDuration() : 0;
+            state.mode = current.getPlayMode();
+            return state;
+        });
     }
 
     // ---- what the player does
 
-    /** Reports the state of the player to the OpenHome services. Called about once a second, and after every command. */
+    /** Reports the state of the player to the OpenHome services: called by the poll and after every command (on the worker). */
     public void refresh() {
-        synchronized (lock) {
-            AbstractPlayer current = alivePlayer();
+        threads.work(this::refreshNow);
+    }
+
+    private void refreshNow() {
+        try {
             reportVolume();
+            AbstractPlayer current = alivePlayer();
             if (current == null) {
                 core.setTransportState(OhTransportState.STOPPED);
                 core.setCurrentId(core.queue().size() == 0 ? 0 : startId);
-                if (core.queue().size() == 0) {
-                    reportedId = Long.MIN_VALUE;
-                }
                 return;
             }
-            adoptPlayMode(current);
-            boolean active = current.isPlaying() || current.isPaused();
-            if (!active) {
+            PlayerState state = read(current);
+            adoptPlayMode(state.mode);
+            if (!state.playing && !state.paused) {
                 core.setTransportState(OhTransportState.STOPPED);
                 return;
             }
-            long id = core.queue().idAt(current.getCurrentItemIndex());
-            if (id != reportedId) {
-                reportedId = id;
-                OhQueue.Entry entry = core.queue().read(id);
-                core.setCurrentId(id);
-                core.setTrack(entry.getUri(), entry.getMetadata(), durationSeconds(current));
+            long id = state.index >= 0 && state.index < playerIds.size() ? playerIds.get(state.index) : 0;
+            long duration = durationSeconds(state);
+            if (id != reportedId && id != 0) {
+                try {
+                    OhQueue.Entry entry = core.queue().read(id);
+                    reportedId = id;
+                    core.setCurrentId(id);
+                    core.setTrack(entry.getUri(), entry.getMetadata(), duration);
+                } catch (RuntimeException e) {
+                    // the track was deleted a moment ago; the next sync takes care of it
+                    YaaccLogger.d(getClass().getName(), "current OpenHome track not in the queue any more");
+                }
             }
-            core.setDuration(durationSeconds(current));
-            core.setSeconds(Math.max(0, current.getCurrentPosition()) / 1000L);
-            core.setTransportState(current.isPaused() ? OhTransportState.PAUSED : OhTransportState.PLAYING);
+            core.setDuration(duration);
+            core.setSeconds(Math.max(0, state.positionMillis) / 1000L);
+            core.setTransportState(state.paused ? OhTransportState.PAUSED : OhTransportState.PLAYING);
+        } catch (RuntimeException e) {
+            YaaccLogger.w(getClass().getName(), "OpenHome renderer refresh failed", e);
         }
     }
 
@@ -346,17 +528,12 @@ public final class OpenHomeRenderer implements OhPlayback {
         core.setMuted(volume.muted());
     }
 
-    private static long durationSeconds(Player player) {
-        long fromText = parseSeconds(player.getDuration());
+    private static long durationSeconds(PlayerState state) {
+        long fromText = parseSeconds(state.durationText);
         if (fromText > 0) {
             return fromText;
         }
-        List<PlayableItem> items = player.getItems();
-        int index = player.getCurrentItemIndex();
-        if (index >= 0 && index < items.size() && items.get(index).getDuration() > 0) {
-            return items.get(index).getDuration() / 1000L;
-        }
-        return 0;
+        return state.itemDurationMillis > 0 ? state.itemDurationMillis / 1000L : 0;
     }
 
     /** "H:MM:SS" or "MM:SS" (the player's text) as seconds, 0 for anything else. */
@@ -383,88 +560,8 @@ public final class OpenHomeRenderer implements OhPlayback {
         return seconds;
     }
 
-    // ---- the player
-
-    private AbstractPlayer alivePlayer() {
-        if (player != null && !host.isAlive(player)) {
-            player = null;
-            reportedId = Long.MIN_VALUE;
-        }
-        return player;
-    }
-
-    /** Creates the player with the whole queue and starts it with the track (the first one for 0 or an unknown id). */
-    private void startFrom(long id) {
-        List<OhQueue.Entry> entries = core.queue().snapshot();
-        if (entries.isEmpty()) {
-            return;
-        }
-        List<PlayableItem> items = new ArrayList<>(entries.size());
-        for (OhQueue.Entry entry : entries) {
-            items.add(host.toPlayableItem(entry.getUri(), entry.getMetadata()));
-        }
-        AbstractPlayer created = host.createPlayer(items);
-        if (created == null) {
-            YaaccLogger.w(getClass().getName(), "no player for the OpenHome queue");
-            return;
-        }
-        player = created;
-        reportedId = Long.MIN_VALUE;
-        lastKnownMode = null;
-        applyMode();
-        int index = id == 0 ? -1 : core.queue().indexOf(id);
-        if (index < 0) {
-            created.play();
-        } else {
-            created.playItemAt(index);
-        }
-        startId = 0;
-    }
-
-    private void discardPlayer(boolean stopIt) {
-        AbstractPlayer old = player;
-        player = null;
-        reportedId = Long.MIN_VALUE;
-        if (old != null && host.isAlive(old)) {
-            try {
-                if (stopIt) {
-                    old.exit();
-                }
-            } catch (RuntimeException e) {
-                YaaccLogger.w(getClass().getName(), "OpenHome player did not shut down cleanly", e);
-            }
-        }
-    }
-
-    private void applyMode() {
-        AbstractPlayer current = player;
-        if (current == null) {
-            return;
-        }
-        PlayMode mode = PlayMode.of(repeat ? PlayMode.RepeatMode.ALL : PlayMode.RepeatMode.OFF, shuffle);
-        lastKnownMode = mode;
-        current.setPlayMode(mode);
-    }
-
-    /** The user changed repeat or shuffle at the player: the controllers are told. */
-    private void adoptPlayMode(AbstractPlayer current) {
-        PlayMode mode = current.getPlayMode();
-        if (mode == null || mode.equals(lastKnownMode)) {
-            core.setRepeat(repeat);
-            core.setShuffle(shuffle);
-            return;
-        }
-        lastKnownMode = mode;
-        repeat = mode.getRepeat() != PlayMode.RepeatMode.OFF;
-        shuffle = mode.isShuffle();
-        core.setRepeat(repeat);
-        core.setShuffle(shuffle);
-    }
-
-    /** For tests: the player the queue plays on, null if there is none. */
+    /** For tests (on the worker, or with threads that run inline): the player the queue plays on, null if there is none. */
     AbstractPlayer playerForTest() {
-        synchronized (lock) {
-            return player;
-        }
+        return player;
     }
 }

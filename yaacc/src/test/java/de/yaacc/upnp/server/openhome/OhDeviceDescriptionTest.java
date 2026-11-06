@@ -78,12 +78,24 @@ public class OhDeviceDescriptionTest {
     @Test
     public void buildingTheServicesAgainDoesNotKeepTheOldOnesListening() throws Exception {
         OhRendererCore core = core();
-        core.buildServices(1000);
-        core.buildServices(1000);
+        String[] names = {"playlist", "info", "time", "volume", "product"};
 
-        // would fire into the services that are gone
-        core.setTransportState(de.yaacc.openhome.OhTransportState.PLAYING);
+        for (LocalService<?> service : core.buildServices(1000)) {
+            service.getManager().getPropertyChangeSupport(); // starts the manager: it listens to the state from now on
+        }
+        for (String name : names) {
+            assertEquals(name, 1, core.listenerCount(name));
+        }
 
-        assertEquals("Playing", core.stateValue("playlist", "TransportState"));
+        List<LocalService<?>> rebuilt = core.buildServices(1000);
+        for (String name : names) {
+            assertEquals(name + " old manager dropped", 0, core.listenerCount(name));
+        }
+        for (LocalService<?> service : rebuilt) {
+            service.getManager().getPropertyChangeSupport();
+        }
+        for (String name : names) {
+            assertEquals(name + " only the new manager", 1, core.listenerCount(name));
+        }
     }
 }

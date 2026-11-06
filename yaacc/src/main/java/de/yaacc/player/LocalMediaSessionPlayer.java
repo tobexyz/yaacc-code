@@ -449,7 +449,7 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
         int sizeBefore = getItems().size() - inserted.size();
         new Handler(Looper.getMainLooper()).post(() -> {
             ExoPlayer player = exoPlayer;
-            if (player != null && player.getMediaItemCount() == sizeBefore) {
+            if (player != null && ExoPlaylistSync.canInsert(player.getMediaItemCount(), sizeBefore)) {
                 List<MediaItem> mediaItems = new java.util.ArrayList<>();
                 for (PlayableItem item : inserted) {
                     mediaItems.add(toMediaItem(item));

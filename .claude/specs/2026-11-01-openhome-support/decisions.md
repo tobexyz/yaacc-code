@@ -20,3 +20,9 @@
   ohPipeline `TrackDatabase::Insert`). The `IdArray` is the track ids as big-endian 32 bit numbers one after the other (base64 in the XML,
   id 0 means "none"); `ReadList` answers `<TrackList><Entry><Id/><Uri/><Metadata/></Entry>...</TrackList>`, XML escaped. ohPipeline delays
   the `IdArray` event with a timer; so will the renderer (a burst of inserts is one event).
+
+## 2026-11-06 — renderer threads and queue/player sync (review cycle 1)
+**Context**: the review found player reads on the wrong thread (media3 throws off the main thread) and non-atomic queue and player edits.
+**Decision**: the renderer does all its work on one serial worker thread (`OpenHomeRenderer.Threads`); commands from control points only hand work over. The player is only touched on the main thread (the worker waits for it, never the reverse; `createPlayer` runs on the worker because it waits for the player service). The player's list follows the queue by reconciling (`sync()`: remove what the queue lost, insert what is new) instead of applying index based edits, so concurrent, reordered or repeated notifications are harmless.
+**Decision**: deleting the track that plays ends the player (it is shut down); the next `Play` creates a new one starting with the track behind the deleted one. Not verified against ohPipeline (?) — to check with a real device.
+**Rationale**: ExoPlayer rules, simple and robust; a rare edit does not justify keeping a half-consistent player.
