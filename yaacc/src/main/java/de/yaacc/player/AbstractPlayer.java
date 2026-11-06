@@ -73,16 +73,16 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
     // copy on write: a player whose list lives on a device replaces it from its own thread while the screen reads it
     private volatile List<PlayableItem> items = new CopyOnWriteArrayList<>();
     private final UpnpClient upnpClient;
-    private int previousIndex = 0;
-    private int currentIndex = 0;
+    private volatile int previousIndex = 0;
+    private volatile int currentIndex = 0;
     private Timer execTimer;
     private PendingIntent alarmIntent;
-    private boolean isPlaying = false;
+    private volatile boolean isPlaying = false;
     private boolean isProcessingCommand = false;
     private PlayerService playerService;
     private String name;
     private String shortName;
-    private boolean paused;
+    private volatile boolean paused;
     private Object loadedItem = null;
     private int currentLoadedIndex = -1;
     /**
@@ -783,7 +783,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
     /**
      * For a player whose playlist and playback live on a device (OpenHome): takes over what the device reports. The list, the index of
      * the item that plays and the state are replaced as they are, the screen and the notification are told what changed. Nothing is
-     * started or stopped. Call it from the player's own thread only.
+     * started or stopped. Call it from one thread only (the player's worker); the state it sets is volatile for the screen.
      *
      * @param deviceItems the playlist of the device; the same objects for the same tracks as before keep the list "unchanged"
      * @param index       the index of the current item (clamped to the list)

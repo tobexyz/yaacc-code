@@ -316,4 +316,89 @@ public class OhRemoteTest {
 
         assertEquals(Arrays.asList("http://h/ok.mp3"), uris(odd.queue()));
     }
+
+    private static OhRemote hostileDevice(java.util.function.BiFunction<String, java.util.Map<String, String>, java.util.Map<String, String>> answers,
+                                          List<String> log) {
+        return new OhRemote((service, action, args) -> {
+            log.add(action);
+            return answers.apply(action, args);
+        }, millis -> {
+        });
+    }
+
+    @Test
+    public void aDeeplyNestedAnswerIsHarmless() throws Exception {
+        StringBuilder xml = new StringBuilder("<TrackList><Entry><Id>1</Id><Uri>http://h/a.mp3</Uri><Metadata>");
+        for (int i = 0; i < 100_000; i++) {
+            xml.append("<a>");
+        }
+        xml.append("</Metadata></Entry></TrackList>");
+        OhRemote remote = hostileDevice((action, args) -> action.equals("IdArray")
+                ? java.util.Collections.singletonMap("Array", de.yaacc.openhome.OhIds.encodeIdArray(Arrays.asList(1L)))
+                : java.util.Collections.singletonMap("TrackList", xml.toString()), new ArrayList<>());
+
+        remote.queue(); // must not throw an Error
+    }
+
+    @Test
+    public void aDeviceWithThousandsOfIdsIsCutOff() throws Exception {
+        List<Long> many = new ArrayList<>();
+        for (long i = 1; i <= 10_000; i++) {
+            many.add(i);
+        }
+        List<String> log = new ArrayList<>();
+        OhRemote remote = hostileDevice((action, args) -> action.equals("IdArray")
+                ? java.util.Collections.singletonMap("Array", de.yaacc.openhome.OhIds.encodeIdArray(many))
+                : java.util.Collections.singletonMap("TrackList", "<TrackList/>"), log);
+
+        remote.queue();
+
+        long reads = log.stream().filter("ReadList"::equals).count();
+        assertTrue("reads " + reads, reads <= 20);
+    }
+
+    @Test
+    public void idsTheDeviceDoesNotGiveAreNotAskedForAgainAndUnaskedEntriesAreIgnored() throws Exception {
+        List<String> log = new ArrayList<>();
+        OhRemote remote = hostileDevice((action, args) -> action.equals("IdArray")
+                ? java.util.Collections.singletonMap("Array", de.yaacc.openhome.OhIds.encodeIdArray(Arrays.asList(1L, 2L)))
+                : java.util.Collections.singletonMap("TrackList", "<TrackList><Entry><Id>1</Id><Uri>http://h/1.mp3</Uri><Metadata/></Entry>"
+                + "<Entry><Id>99</Id><Uri>http://h/unasked.mp3</Uri><Metadata/></Entry></TrackList>"), log);
+
+        assertEquals(Arrays.asList("http://h/1.mp3"), uris(remote.queue()));
+        remote.queue();
+        remote.queue();
+
+        assertEquals(1, log.stream().filter("ReadList"::equals).count()); // id 2 is not asked for again
+    }
+
+    @Test
+    public void anOversizedEntryIsDropped() throws Exception {
+        String huge = "m".repeat(de.yaacc.openhome.OhQueue.MAX_METADATA_LENGTH + 1);
+        OhRemote remote = hostileDevice((action, args) -> action.equals("IdArray")
+                ? java.util.Collections.singletonMap("Array", de.yaacc.openhome.OhIds.encodeIdArray(Arrays.asList(1L, 2L)))
+                : java.util.Collections.singletonMap("TrackList", "<TrackList><Entry><Id>1</Id><Uri>http://h/1.mp3</Uri><Metadata>" + huge
+                + "</Metadata></Entry><Entry><Id>2</Id><Uri>http://h/2.mp3</Uri><Metadata/></Entry></TrackList>"), new ArrayList<>());
+
+        assertEquals(Arrays.asList("http://h/2.mp3"), uris(remote.queue()));
+    }
+
+    @Test
+    public void positionsBeyondAnyRealValueAreClamped() throws Exception {
+        core.setTrack("http://h/a.mp3", "", 1);
+        OhRemote remote = hostileDevice((action, args) -> {
+            if (action.equals("Time")) {
+                java.util.Map<String, String> time = new java.util.HashMap<>();
+                time.put("Seconds", "4000000000");
+                time.put("Duration", "4000000000");
+                return time;
+            }
+            return java.util.Collections.singletonMap("Value", "0");
+        }, new ArrayList<>());
+
+        OhRemote.State state = remote.readState();
+
+        assertTrue(state.seconds * 1000L > 0);
+        assertTrue(state.durationSeconds <= 8_640_000L);
+    }
 }

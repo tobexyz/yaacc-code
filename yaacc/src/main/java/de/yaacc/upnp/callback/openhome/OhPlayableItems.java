@@ -24,6 +24,7 @@ import org.fourthline.cling.support.contentdirectory.DIDLParser;
 import org.fourthline.cling.support.model.DIDLContent;
 import org.fourthline.cling.support.model.item.Item;
 
+import de.yaacc.openhome.OhQueue;
 import de.yaacc.openhome.OhUriPolicy;
 import de.yaacc.player.PlayableItem;
 import de.yaacc.util.YaaccLogger;
@@ -39,7 +40,7 @@ public final class OhPlayableItems {
     public static PlayableItem fromTrack(String uri, String metadata, int defaultDurationMillis) {
         PlayableItem item = null;
         try {
-            if (metadata != null && !metadata.isEmpty()) {
+            if (metadata != null && !metadata.isEmpty() && metadata.length() <= OhQueue.MAX_METADATA_LENGTH) {
                 DIDLContent content = new DIDLParser().parse(metadata);
                 if (!content.getItems().isEmpty()) {
                     item = new PlayableItem(content.getItems().get(0), defaultDurationMillis);

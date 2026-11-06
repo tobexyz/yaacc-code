@@ -110,7 +110,7 @@ public final class ClingOhControl implements OhControl {
             }
         }.run();
         if (failure[0] != null || invocation.getFailure() != null) {
-            YaaccLogger.d(getClass().getName(), "OpenHome action " + serviceName + "." + actionName + " failed: " + failure[0]);
+            YaaccLogger.d(getClass().getName(), "OpenHome action " + serviceName + "." + actionName + " failed: " + clean(failure[0]));
             throw new OhControlException(code[0], failure[0] == null ? "action failed" : failure[0]);
         }
         Map<String, String> out = new HashMap<>();
@@ -118,5 +118,14 @@ public final class ClingOhControl implements OhControl {
             out.put(value.getArgument().getName(), value.getDatatype().getString(value.getValue()));
         }
         return out;
+    }
+
+    /** The text of a fault comes from the device: shortened, without control characters, before it is logged. */
+    private static String clean(String text) {
+        if (text == null) {
+            return "";
+        }
+        String shortened = text.length() > 200 ? text.substring(0, 200) : text;
+        return shortened.replaceAll("\\p{Cntrl}", " ");
     }
 }

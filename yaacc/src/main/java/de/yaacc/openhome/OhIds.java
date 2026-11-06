@@ -60,6 +60,10 @@ public final class OhIds {
         if (base64 == null || base64.isEmpty()) {
             return new ArrayList<>();
         }
+        // base64 is 4 characters for 3 bytes: text that long can not be a list of at most MAX_LIST ids, whatever it decodes to
+        if (base64.length() > (long) MAX_LIST * 4 * 2 + 64) {
+            throw new IllegalArgumentException("id array is too long");
+        }
         byte[] bytes;
         try {
             bytes = Base64.getMimeDecoder().decode(base64.trim());

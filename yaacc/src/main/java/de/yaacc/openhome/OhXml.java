@@ -34,7 +34,7 @@ import javax.xml.parsers.DocumentBuilderFactory;
 /** Reads the small XML texts a device sends (source list, track list). The text comes from the network: no DTDs, size limit. */
 final class OhXml {
     /** The most characters of an XML text that is read. */
-    static final int MAX_LENGTH = 4 * 1024 * 1024;
+    static final int MAX_LENGTH = 2 * 1024 * 1024;
 
     private OhXml() {
     }
@@ -76,8 +76,23 @@ final class OhXml {
         return result;
     }
 
+    /**
+     * The text of the first child element of that name: only its own text nodes, not the text of elements inside it (the text of
+     * a hostile answer may be nested thousands of levels deep, and reading it recursively would overflow the stack).
+     */
     static String text(Element parent, String name) {
         List<Element> found = children(parent, name);
-        return found.isEmpty() ? "" : found.get(0).getTextContent().trim();
+        if (found.isEmpty()) {
+            return "";
+        }
+        StringBuilder text = new StringBuilder();
+        NodeList nodes = found.get(0).getChildNodes();
+        for (int i = 0; i < nodes.getLength(); i++) {
+            Node node = nodes.item(i);
+            if (node.getNodeType() == Node.TEXT_NODE || node.getNodeType() == Node.CDATA_SECTION_NODE) {
+                text.append(node.getNodeValue());
+            }
+        }
+        return text.toString().trim();
     }
 }

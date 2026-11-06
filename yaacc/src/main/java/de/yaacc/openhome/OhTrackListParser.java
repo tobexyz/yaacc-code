@@ -29,22 +29,35 @@ public final class OhTrackListParser {
     private OhTrackListParser() {
     }
 
-    /** Entries with an id that is not a valid id are left out. */
-    public static List<OhQueue.Entry> parse(String trackListXml) {
+    /**
+     * Reads the entries the caller asked for. Entries with an id that is not a valid id or was not asked for, with an address that is
+     * empty or longer than {@link OhQueue#MAX_URI_LENGTH} and with metadata longer than {@link OhQueue#MAX_METADATA_LENGTH} are left
+     * out, and so is everything after as many entries as were asked for.
+     *
+     * @param wanted the ids that were asked for
+     */
+    public static List<OhQueue.Entry> parse(String trackListXml, java.util.Set<Long> wanted) {
         Document document = OhXml.parse(trackListXml);
         if (document == null || !"TrackList".equals(document.getDocumentElement().getTagName())) {
             return Collections.emptyList();
         }
         List<OhQueue.Entry> entries = new ArrayList<>();
+        java.util.Set<Long> seen = new java.util.HashSet<>();
         for (Element entry : OhXml.children(document.getDocumentElement(), "Entry")) {
+            if (entries.size() >= wanted.size()) {
+                break;
+            }
             long id;
             try {
                 id = Long.parseLong(OhXml.text(entry, "Id"));
             } catch (NumberFormatException e) {
                 continue;
             }
-            if (OhIds.isId(id)) {
-                entries.add(new OhQueue.Entry(id, OhXml.text(entry, "Uri"), OhXml.text(entry, "Metadata")));
+            String uri = OhXml.text(entry, "Uri");
+            String metadata = OhXml.text(entry, "Metadata");
+            if (OhIds.isId(id) && wanted.contains(id) && seen.add(id) && !uri.isEmpty()
+                    && uri.length() <= OhQueue.MAX_URI_LENGTH && metadata.length() <= OhQueue.MAX_METADATA_LENGTH) {
+                entries.add(new OhQueue.Entry(id, uri, metadata));
             }
         }
         return entries;

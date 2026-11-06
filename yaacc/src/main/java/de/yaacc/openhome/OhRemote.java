@@ -37,6 +37,10 @@ public final class OhRemote {
 
     /** How many tracks one {@code ReadList} asks for. */
     static final int READ_BATCH = 50;
+    /** The most tracks of a device's queue the app takes in. */
+    static final int MAX_TRACKS = OhQueue.DEFAULT_TRACKS_MAX;
+    /** The most characters of addresses and metadata the app keeps of a device's queue. */
+    static final long MAX_CACHE_LENGTH = OhQueue.MAX_TOTAL_LENGTH;
     private static final int WAKE_ATTEMPTS = 20;
     private static final long WAKE_PAUSE_MILLIS = 500;
 
@@ -73,6 +77,8 @@ public final class OhRemote {
     private final OhControl control;
     private final Sleeper sleeper;
     private final Map<Long, OhQueue.Entry> known = new HashMap<>();
+    private final java.util.Set<Long> unavailable = new java.util.HashSet<>();
+    private long cachedLength;
     private long volumeMax = -1;
 
     public OhRemote(OhControl control) {
@@ -96,6 +102,11 @@ public final class OhRemote {
     private static String get(Map<String, String> map, String name) {
         String value = map.get(name);
         return value == null ? "" : value;
+    }
+
+    /** A position or duration beyond 100 days is no real value: it would only overflow when turned into milliseconds. */
+    private static long clampSeconds(long seconds) {
+        return Math.max(0, Math.min(seconds, 8_640_000L));
     }
 
     private static long number(String text, long fallback) {
@@ -141,28 +152,49 @@ public final class OhRemote {
         return (int) Math.min(Integer.MAX_VALUE, number(get(call(PLAYLIST, "TracksMax"), "Value"), OhQueue.DEFAULT_TRACKS_MAX));
     }
 
-    /** @return the ids of the queue in play order */
+    /** @return the ids of the queue in play order; a device with more tracks than the apps takes in is cut off */
     public List<Long> idArray() throws OhControlException {
-        return OhIds.decodeIdArray(get(call(PLAYLIST, "IdArray"), "Array"));
+        List<Long> ids;
+        try {
+            ids = OhIds.decodeIdArray(get(call(PLAYLIST, "IdArray"), "Array"));
+        } catch (IllegalArgumentException e) {
+            throw new OhControlException(OhError.INVALID_ARGS, "the device sent an id array that is not valid");
+        }
+        return ids.size() > MAX_TRACKS ? new ArrayList<>(ids.subList(0, MAX_TRACKS)) : ids;
     }
 
     /** The tracks of the queue; only the ones not seen before are read from the device. */
     public List<OhQueue.Entry> queue() throws OhControlException {
         List<Long> ids = idArray();
+        java.util.Set<Long> wantedNow = new java.util.LinkedHashSet<>(ids);
         List<Long> missing = new ArrayList<>();
-        for (Long id : ids) {
-            if (!known.containsKey(id)) {
+        for (Long id : wantedNow) {
+            if (!known.containsKey(id) && !unavailable.contains(id)) {
                 missing.add(id);
             }
         }
         for (int from = 0; from < missing.size(); from += READ_BATCH) {
             List<Long> batch = missing.subList(from, Math.min(missing.size(), from + READ_BATCH));
             String xml = get(call(PLAYLIST, "ReadList", "IdList", OhIds.formatIdList(batch)), "TrackList");
-            for (OhQueue.Entry entry : OhTrackListParser.parse(xml)) {
-                known.put(entry.getId(), entry);
+            java.util.Set<Long> asked = new java.util.HashSet<>(batch);
+            for (OhQueue.Entry entry : OhTrackListParser.parse(xml, asked)) {
+                if (cachedLength + length(entry) <= MAX_CACHE_LENGTH) {
+                    known.put(entry.getId(), entry);
+                    cachedLength += length(entry);
+                }
+                asked.remove(entry.getId());
+            }
+            // ids the device did not (or could not) give are not asked for again until they leave the queue
+            unavailable.addAll(asked);
+        }
+        for (java.util.Iterator<Long> it = known.keySet().iterator(); it.hasNext(); ) {
+            Long id = it.next();
+            if (!wantedNow.contains(id)) {
+                cachedLength -= length(known.get(id));
+                it.remove();
             }
         }
-        known.keySet().retainAll(new java.util.HashSet<>(ids));
+        unavailable.retainAll(wantedNow);
         List<OhQueue.Entry> result = new ArrayList<>(ids.size());
         for (Long id : ids) {
             OhQueue.Entry entry = known.get(id);
@@ -174,6 +206,10 @@ public final class OhRemote {
         return result;
     }
 
+    private static long length(OhQueue.Entry entry) {
+        return (long) entry.getUri().length() + entry.getMetadata().length();
+    }
+
     /** @return the id of the new track */
     public long insert(long afterId, Track track) throws OhControlException {
         long id = number(get(call(PLAYLIST, "Insert", "AfterId", String.valueOf(afterId), "Uri", track.uri, "Metadata",
@@ -181,7 +217,11 @@ public final class OhRemote {
         if (!OhIds.isId(id)) {
             throw new OhControlException(OhError.INVALID_ARGS, "the device gave no id for the new track");
         }
-        known.put(id, new OhQueue.Entry(id, track.uri, track.metadata));
+        OhQueue.Entry added = new OhQueue.Entry(id, track.uri, track.metadata);
+        if (cachedLength + length(added) <= MAX_CACHE_LENGTH) {
+            known.put(id, added);
+            cachedLength += length(added);
+        }
         return id;
     }
 
@@ -210,12 +250,17 @@ public final class OhRemote {
 
     public void deleteId(long id) throws OhControlException {
         call(PLAYLIST, "DeleteId", "Value", String.valueOf(id));
-        known.remove(id);
+        OhQueue.Entry gone = known.remove(id);
+        if (gone != null) {
+            cachedLength -= length(gone);
+        }
     }
 
     public void deleteAll() throws OhControlException {
         call(PLAYLIST, "DeleteAll");
         known.clear();
+        unavailable.clear();
+        cachedLength = 0;
     }
 
     // ---- transport
@@ -292,8 +337,8 @@ public final class OhRemote {
         state.shuffle = OhSources.parseBoolean(get(call(PLAYLIST, "Shuffle"), "Value"), false);
         try {
             Map<String, String> time = call(TIME, "Time");
-            state.seconds = number(get(time, "Seconds"), 0);
-            state.durationSeconds = number(get(time, "Duration"), 0);
+            state.seconds = clampSeconds(number(get(time, "Seconds"), 0));
+            state.durationSeconds = clampSeconds(number(get(time, "Duration"), 0));
             Map<String, String> track = call(INFO, "Track");
             state.uri = get(track, "Uri");
             state.metadata = get(track, "Metadata");

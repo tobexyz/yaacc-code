@@ -79,6 +79,7 @@ public class OpenHomePlayer extends AbstractPlayer {
     private volatile long stateTakenAt = System.currentTimeMillis();
     private volatile boolean unreachable;
     private ScheduledFuture<?> poll;
+    private final java.util.concurrent.atomic.AtomicBoolean pollPending = new java.util.concurrent.atomic.AtomicBoolean();
 
     public OpenHomePlayer(UpnpClient upnpClient, Device<?, ?, ?> receiverDevice, String name, String shortName) {
         super(upnpClient);
@@ -86,7 +87,18 @@ public class OpenHomePlayer extends AbstractPlayer {
         this.deviceId = receiverDevice.getIdentity().getUdn().getIdentifierString();
         setName(name);
         setShortName(shortName);
-        poll = timer.scheduleWithFixedDelay(() -> post(this::refresh), POLL_SECONDS, POLL_SECONDS, TimeUnit.SECONDS);
+        poll = timer.scheduleWithFixedDelay(() -> {
+            // a slow device must not pile up polls behind the one that is still running
+            if (pollPending.compareAndSet(false, true)) {
+                post(() -> {
+                    try {
+                        refresh();
+                    } finally {
+                        pollPending.set(false);
+                    }
+                });
+            }
+        }, POLL_SECONDS, POLL_SECONDS, TimeUnit.SECONDS);
     }
 
     // ---- the worker
