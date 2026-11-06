@@ -27,9 +27,9 @@ Gate: `ANDROID_HOME=/root/android-sdk ./gradlew --offline :yaacc:assembleDebug :
 - [ ] 4.3 Review gate; AVTransport renderer tests stay green
 
 ## Group 5: Controller, basics
-- [ ] 5.1 Action and subscription callbacks, `OpenHomeClient`, state model | `upnp/callback/openhome/`, `de.yaacc.openhome`
-- [ ] 5.2 `OpenHomePlayer`: source and standby, queue operations, transport, position | `player/`
-- [ ] 5.3 Discovery, choice in `PlayerService.createPlayer`, per-device protocol choice
+- [x] 5.1 Action and subscription callbacks, `OpenHomeClient`, state model | `upnp/callback/openhome/`, `de.yaacc.openhome`
+- [x] 5.2 `OpenHomePlayer`: source and standby, queue operations, transport, position | `player/`
+- [x] 5.3 Discovery, choice in `PlayerService.createPlayer`, per-device protocol choice
 - [ ] 5.4 Review gate
 
 ## Group 6: Controller, the rest
@@ -39,3 +39,7 @@ Gate: `ANDROID_HOME=/root/android-sdk ./gradlew --offline :yaacc:assembleDebug :
 ## Group 7: Documentation and real devices
 - [ ] 7.1 docs/index.md, tech.md as built, CHANGELOG, strings in 7 languages
 - [ ] 7.2 Tests against real devices (owner / tester), captures as fixtures
+
+## Status 2026-11-06
+- Done: renderer (groups 2-4; review PASS, security review cycle 1 fixed), controller basics (5.1-5.3: `OhRemote`, `ClingOhControl`, `OpenHomePlayer`, default OpenHome for audio, per-device switch by long tap on the device name).
+- Open: poll with GENA subscriptions instead of ~9 SOAP calls / 2 s, 6.1 (mini player and row use the mirrored state already; playlist dialog edits = delete only, no move), gates 5.4 / 6.2, docs (7.1), tests with real devices (7.2).

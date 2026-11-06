@@ -277,8 +277,35 @@ final class ReceiverRowBinder {
 
         // Set device name (always shown)
         holder.name.setText(device.getDetails().getFriendlyName());
+        bindProtocolChoice(holder, device);
 
         bindStatus(holder, device);
+    }
+
+    /**
+     * A device that offers OpenHome and AVTransport: a long tap on its name lets the user choose how the app plays on it.
+     * OpenHome is the default (the device keeps the playlist); the choice is kept per device.
+     */
+    private void bindProtocolChoice(RowViews holder, Device<?, ?, ?> device) {
+        if (!de.yaacc.player.OpenHomeChoice.offersOpenHome(device)) {
+            holder.name.setOnLongClickListener(null);
+            holder.name.setLongClickable(false);
+            return;
+        }
+        holder.name.setOnLongClickListener(v -> {
+            String udn = device.getIdentity().getUdn().getIdentifierString();
+            int checked = de.yaacc.player.OpenHomeChoice.choseAvTransport(context, udn) ? 1 : 0;
+            String[] choices = {context.getString(R.string.openhome_protocol_openhome),
+                    context.getString(R.string.openhome_protocol_avtransport)};
+            new androidx.appcompat.app.AlertDialog.Builder(context)
+                    .setTitle(R.string.openhome_protocol_title)
+                    .setSingleChoiceItems(choices, checked, (dialog, which) -> {
+                        de.yaacc.player.OpenHomeChoice.setUseAvTransport(context, udn, which == 1);
+                        dialog.dismiss();
+                    })
+                    .show();
+            return true;
+        });
     }
 
     /**

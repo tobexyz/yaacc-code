@@ -254,4 +254,7 @@
     <string name="pick_skipped_unread">Sommige bestanden konden niet worden gelezen.</string>
     <string name="pick_play_failed">De gekozen bestanden konden niet worden afgespeeld.</string>
     <string name="pick_title_files">Bestanden: %1$d</string>
+    <string name="openhome_protocol_title">Afspeelprotocol</string>
+    <string name="openhome_protocol_openhome">OpenHome (het apparaat beheert de afspeellijst)</string>
+    <string name="openhome_protocol_avtransport">AVTransport (de app beheert de afspeellijst)</string>
 </resources>

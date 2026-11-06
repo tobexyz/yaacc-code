@@ -254,4 +254,7 @@
     <string name="pick_skipped_unread">Alguns ficheiros não puderam ser lidos.</string>
     <string name="pick_play_failed">Não foi possível reproduzir os ficheiros escolhidos.</string>
     <string name="pick_title_files">Ficheiros: %1$d</string>
+    <string name="openhome_protocol_title">Protocolo de reprodução</string>
+    <string name="openhome_protocol_openhome">OpenHome (o dispositivo mantém a lista de reprodução)</string>
+    <string name="openhome_protocol_avtransport">AVTransport (a aplicação mantém a lista de reprodução)</string>
 </resources>

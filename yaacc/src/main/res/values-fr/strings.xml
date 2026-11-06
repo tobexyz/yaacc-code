@@ -254,4 +254,7 @@
     <string name="pick_skipped_unread">Certains fichiers n\'ont pas pu être lus.</string>
     <string name="pick_play_failed">Les fichiers choisis n\'ont pas pu être lus.</string>
     <string name="pick_title_files">Fichiers : %1$d</string>
+    <string name="openhome_protocol_title">Protocole de lecture</string>
+    <string name="openhome_protocol_openhome">OpenHome (l\'appareil gère la liste de lecture)</string>
+    <string name="openhome_protocol_avtransport">AVTransport (l\'application gère la liste de lecture)</string>
 </resources>

@@ -259,4 +259,7 @@
     <string name="pick_skipped_unread">Some files could not be read.</string>
     <string name="pick_play_failed">Could not play the picked files.</string>
     <string name="pick_title_files">Files: %1$d</string>
+    <string name="openhome_protocol_title">Playback protocol</string>
+    <string name="openhome_protocol_openhome">OpenHome (the device keeps the playlist)</string>
+    <string name="openhome_protocol_avtransport">AVTransport (the app keeps the playlist)</string>
 </resources>
