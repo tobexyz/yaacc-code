@@ -455,4 +455,52 @@ public class OhRemoteTest {
 
         assertEquals(0, small.append(Arrays.asList(track("a"), track("b"))).size());
     }
+
+    @Test
+    public void theSourcesOfTheDeviceCanBeListedAndSelected() throws Exception {
+        List<OhSources.Source> sources = remote.sources();
+
+        assertEquals(1, sources.size());
+        assertEquals("Playlist", sources.get(0).name);
+        assertEquals(0, remote.currentSourceIndex());
+        remote.selectSource(0);
+        assertEquals("0", core.stateValue("product", "SourceIndex"));
+    }
+
+    @Test
+    public void selectingASourceWakesTheDeviceFirst() throws Exception {
+        List<String> log = new ArrayList<>();
+        int[] standby = {0};
+        OhRemote sleepy = new OhRemote((service, action, args) -> {
+            log.add(action);
+            return java.util.Collections.singletonMap("Value", action.equals("Standby") ? (standby[0]++ < 2 ? "1" : "0") : "0");
+        }, millis -> log.add("sleep"));
+
+        sleepy.selectSource(2);
+
+        assertTrue(log.indexOf("SetStandby") < log.indexOf("SetSourceIndex"));
+        assertTrue(log.contains("sleep"));
+    }
+
+    @Test
+    public void aDeviceWithHundredsOfSourcesIsCutOff() throws Exception {
+        StringBuilder xml = new StringBuilder("<SourceList>");
+        for (int i = 0; i < 500; i++) {
+            xml.append("<Source><Name>s").append(i).append("</Name><Type>Radio</Type><Visible>true</Visible></Source>");
+        }
+        xml.append("</SourceList>");
+
+        assertEquals(OhSources.MAX_SOURCES, OhSources.parse(xml.toString()).size());
+    }
+
+    @Test
+    public void theAppPicksTheSourceByItsPositionNotByName() throws Exception {
+        String xml = "<SourceList><Source><Name>Radio</Name><Type>Radio</Type><Visible>true</Visible></Source>"
+                + "<Source><Name>Mine</Name><Type>Playlist</Type><Visible>false</Visible></Source></SourceList>";
+
+        List<OhSources.Source> sources = OhSources.parse(xml);
+
+        assertEquals(1, OhSources.findPlaylist(sources).index);
+        assertEquals(false, sources.get(1).visible);
+    }
 }

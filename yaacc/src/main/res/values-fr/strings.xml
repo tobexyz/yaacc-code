@@ -257,4 +257,7 @@
     <string name="openhome_protocol_title">Protocole de lecture</string>
     <string name="openhome_protocol_openhome">OpenHome (l\'appareil gère la liste de lecture)</string>
     <string name="openhome_protocol_avtransport">AVTransport (l\'application gère la liste de lecture)</string>
+    <string name="openhome_source_title">Source</string>
+    <string name="openhome_source_failed">Les sources de l\'appareil n\'ont pas pu être lues ou changées.</string>
+    <string name="openhome_source_none">L\'appareil n\'indique aucune source.</string>
 </resources>

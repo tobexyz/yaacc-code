@@ -257,4 +257,7 @@
     <string name="openhome_protocol_title">播放协议</string>
     <string name="openhome_protocol_openhome">OpenHome（由设备保存播放列表）</string>
     <string name="openhome_protocol_avtransport">AVTransport（由应用保存播放列表）</string>
+    <string name="openhome_source_title">音源</string>
+    <string name="openhome_source_failed">无法读取或切换设备的音源。</string>
+    <string name="openhome_source_none">设备没有列出任何音源。</string>
 </resources>

@@ -125,6 +125,18 @@ public final class OhRemote {
      * @throws OhControlException when the device has no playlist source or does not answer
      */
     public void prepare() throws OhControlException {
+        wake();
+        OhSources.Source playlist = OhSources.findPlaylist(OhSources.parse(get(call(PRODUCT, "SourceXml"), "Value")));
+        if (playlist == null) {
+            throw new OhControlException(OhError.INVALID_ARGS, "the device has no playlist source");
+        }
+        if (number(get(call(PRODUCT, "SourceIndex"), "Value"), -1) != playlist.index) {
+            call(PRODUCT, "SetSourceIndex", "Value", String.valueOf(playlist.index));
+        }
+    }
+
+    /** Wakes the device from standby and waits (a few seconds) for one that wakes slowly. */
+    private void wake() throws OhControlException {
         try {
             if (OhSources.parseBoolean(get(call(PRODUCT, "Standby"), "Value"), false)) {
                 call(PRODUCT, "SetStandby", "Value", "false");
@@ -137,13 +149,24 @@ public final class OhRemote {
             Thread.currentThread().interrupt();
             throw new OhControlException("interrupted while the device wakes up", e);
         }
-        OhSources.Source playlist = OhSources.findPlaylist(OhSources.parse(get(call(PRODUCT, "SourceXml"), "Value")));
-        if (playlist == null) {
-            throw new OhControlException(OhError.INVALID_ARGS, "the device has no playlist source");
-        }
-        if (number(get(call(PRODUCT, "SourceIndex"), "Value"), -1) != playlist.index) {
-            call(PRODUCT, "SetSourceIndex", "Value", String.valueOf(playlist.index));
-        }
+    }
+
+    // ---- the sources of the device
+
+    /** @return the sources of the device in the order of its list (the position is the index to select it with) */
+    public List<OhSources.Source> sources() throws OhControlException {
+        return OhSources.parse(get(call(PRODUCT, "SourceXml"), "Value"));
+    }
+
+    /** @return the index of the source the device is on, -1 if it does not say */
+    public int currentSourceIndex() throws OhControlException {
+        return (int) number(get(call(PRODUCT, "SourceIndex"), "Value"), -1);
+    }
+
+    /** Switches the device to the source (a device in standby is woken up first). */
+    public void selectSource(int index) throws OhControlException {
+        wake();
+        call(PRODUCT, "SetSourceIndex", "Value", String.valueOf(index));
     }
 
     // ---- the queue

@@ -257,4 +257,7 @@
     <string name="openhome_protocol_title">Protocolo de reprodução</string>
     <string name="openhome_protocol_openhome">OpenHome (o dispositivo mantém a lista de reprodução)</string>
     <string name="openhome_protocol_avtransport">AVTransport (a aplicação mantém a lista de reprodução)</string>
+    <string name="openhome_source_title">Fonte</string>
+    <string name="openhome_source_failed">Não foi possível ler ou mudar as fontes do dispositivo.</string>
+    <string name="openhome_source_none">O dispositivo não indica nenhuma fonte.</string>
 </resources>

@@ -27,6 +27,8 @@ import java.util.Locale;
 
 /** The sources of a device, read from the {@code SourceXml} of its product service. */
 public final class OhSources {
+    /** The most sources that are read from a device. */
+    public static final int MAX_SOURCES = 64;
 
     /** One source: its position in the list is the index to select it with. */
     public static final class Source {
@@ -56,6 +58,9 @@ public final class OhSources {
         }
         List<Source> sources = new ArrayList<>();
         for (Element source : OhXml.children(document.getDocumentElement(), "Source")) {
+            if (sources.size() >= MAX_SOURCES) {
+                break;
+            }
             sources.add(new Source(sources.size(), OhXml.text(source, "Name"), OhXml.text(source, "Type"),
                     parseBoolean(OhXml.text(source, "Visible"), true), OhXml.text(source, "SystemName")));
         }

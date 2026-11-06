@@ -283,8 +283,8 @@ final class ReceiverRowBinder {
     }
 
     /**
-     * A device that offers OpenHome and AVTransport: a long tap on its name lets the user choose how the app plays on it.
-     * OpenHome is the default (the device keeps the playlist); the choice is kept per device.
+     * A device that offers OpenHome: a long tap on its name opens a small menu, to choose how the app plays on it (OpenHome, the
+     * default, or AVTransport; kept per device) and to switch its source (playlist, radio, inputs).
      */
     private void bindProtocolChoice(RowViews holder, Device<?, ?, ?> device) {
         if (!de.yaacc.player.OpenHomeChoice.offersOpenHome(device)) {
@@ -293,19 +293,33 @@ final class ReceiverRowBinder {
             return;
         }
         holder.name.setOnLongClickListener(v -> {
-            String udn = device.getIdentity().getUdn().getIdentifierString();
-            int checked = de.yaacc.player.OpenHomeChoice.choseAvTransport(context, udn) ? 1 : 0;
-            String[] choices = {context.getString(R.string.openhome_protocol_openhome),
-                    context.getString(R.string.openhome_protocol_avtransport)};
+            String[] actions = {context.getString(R.string.openhome_protocol_title), context.getString(R.string.openhome_source_title)};
             new androidx.appcompat.app.AlertDialog.Builder(context)
-                    .setTitle(R.string.openhome_protocol_title)
-                    .setSingleChoiceItems(choices, checked, (dialog, which) -> {
-                        de.yaacc.player.OpenHomeChoice.setUseAvTransport(context, udn, which == 1);
-                        dialog.dismiss();
+                    .setTitle(device.getDetails().getFriendlyName())
+                    .setItems(actions, (dialog, which) -> {
+                        if (which == 0) {
+                            showProtocolChoice(device);
+                        } else {
+                            OpenHomeSourceDialog.show(context, upnpClient, device);
+                        }
                     })
                     .show();
             return true;
         });
+    }
+
+    private void showProtocolChoice(Device<?, ?, ?> device) {
+        String udn = device.getIdentity().getUdn().getIdentifierString();
+        int checked = de.yaacc.player.OpenHomeChoice.choseAvTransport(context, udn) ? 1 : 0;
+        String[] choices = {context.getString(R.string.openhome_protocol_openhome),
+                context.getString(R.string.openhome_protocol_avtransport)};
+        new androidx.appcompat.app.AlertDialog.Builder(context)
+                .setTitle(R.string.openhome_protocol_title)
+                .setSingleChoiceItems(choices, checked, (dialog, which) -> {
+                    de.yaacc.player.OpenHomeChoice.setUseAvTransport(context, udn, which == 1);
+                    dialog.dismiss();
+                })
+                .show();
     }
 
     /**

@@ -257,4 +257,7 @@
     <string name="openhome_protocol_title">Wiedergabeprotokoll</string>
     <string name="openhome_protocol_openhome">OpenHome (das Gerät verwaltet die Wiedergabeliste)</string>
     <string name="openhome_protocol_avtransport">AVTransport (die App verwaltet die Wiedergabeliste)</string>
+    <string name="openhome_source_title">Quelle</string>
+    <string name="openhome_source_failed">Die Quellen des Geräts konnten nicht gelesen oder umgeschaltet werden.</string>
+    <string name="openhome_source_none">Das Gerät meldet keine Quellen.</string>
 </resources>

@@ -257,4 +257,7 @@
     <string name="openhome_protocol_title">Afspeelprotocol</string>
     <string name="openhome_protocol_openhome">OpenHome (het apparaat beheert de afspeellijst)</string>
     <string name="openhome_protocol_avtransport">AVTransport (de app beheert de afspeellijst)</string>
+    <string name="openhome_source_title">Bron</string>
+    <string name="openhome_source_failed">De bronnen van het apparaat konden niet worden gelezen of omgeschakeld.</string>
+    <string name="openhome_source_none">Het apparaat meldt geen bronnen.</string>
 </resources>
