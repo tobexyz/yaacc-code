@@ -6,6 +6,17 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    ignore:
+      # Apache HttpComponents stay on 5.3.x: from 5.4 on, httpclient5 and httpcore5 call hidden
+      # JDK APIs (jdk.net) when their classes load, which Android blocks, so the app crashes
+      # with NoSuchMethodError on real devices. See the comment at the dependencies in
+      # yaacc/build.gradle (5.3.x patch updates are still proposed).
+      - dependency-name: "org.apache.httpcomponents.client5:httpclient5"
+        versions: [">= 5.4.0"]
+      - dependency-name: "org.apache.httpcomponents.core5:httpcore5"
+        versions: [">= 5.4.0"]
+      - dependency-name: "org.apache.httpcomponents.core5:httpcore5-h2"
+        versions: [">= 5.4.0"]
 
   # Actions used in .github/workflows/*.yml
   - package-ecosystem: "github-actions"
