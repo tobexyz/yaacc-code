@@ -982,6 +982,22 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     }
 
     /**
+     * Creates a player on this device for the items (the OpenHome renderer's queue); not started.
+     *
+     * @return the player, null if the player service is not there
+     */
+    public Player initializeLocalPlayer(List<PlayableItem> items) {
+        if (playerService == null && !startService()) {
+            return null;
+        }
+        if (!waitForPlayerServiceComeUp()) {
+            return null;
+        }
+        List<Player> players = playerService.createPlayerForLocalDevice(this, items);
+        return players.isEmpty() ? null : players.get(0);
+    }
+
+    /**
      * Returns all current player instances
      *
      * @return the player

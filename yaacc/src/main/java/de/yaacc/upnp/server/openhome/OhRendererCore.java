@@ -151,6 +151,10 @@ public final class OhRendererCore {
 
     /** The five services, ready to be added to the renderer device. */
     public List<LocalService<?>> buildServices(int lockTimeoutMillis) throws ValidationException {
+        // the device is built again now and then (network changes); the old services must not hold on to the states
+        for (OhServiceState state : new OhServiceState[]{product, playlist, info, time, volume}) {
+            state.clearListeners();
+        }
         List<LocalService<?>> services = new ArrayList<>();
         services.add(OhLocalService.build(OhServiceDefs.product(), product, productHandlers(), lockTimeoutMillis));
         services.add(OhLocalService.build(OhServiceDefs.playlist(), playlist, playlistHandlers(), lockTimeoutMillis));

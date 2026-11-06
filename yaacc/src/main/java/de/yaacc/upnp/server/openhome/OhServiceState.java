@@ -30,6 +30,13 @@ public final class OhServiceState {
     private final PropertyChangeSupport propertyChangeSupport = new PropertyChangeSupport(this);
     private final Map<String, String> values = new LinkedHashMap<>();
 
+    /** Drops the listeners of earlier service managers: the services are built again when the device is. */
+    public void clearListeners() {
+        for (java.beans.PropertyChangeListener listener : propertyChangeSupport.getPropertyChangeListeners()) {
+            propertyChangeSupport.removePropertyChangeListener(listener);
+        }
+    }
+
     /** The manager looks for this getter. */
     public PropertyChangeSupport getPropertyChangeSupport() {
         return propertyChangeSupport;

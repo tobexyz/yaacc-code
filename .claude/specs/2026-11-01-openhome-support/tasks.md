@@ -18,12 +18,12 @@ Gate: `ANDROID_HOME=/root/android-sdk ./gradlew --offline :yaacc:assembleDebug :
 ## Group 3: Renderer, the Cling services
 - [ ] 3.1 Playlist, Info, Time, Volume, Product services (annotated Cling services, evented variables, delayed `IdArray` event) | `yaacc/src/main/java/de/yaacc/upnp/server/openhome/`
   - **Accept**: every action and state variable of the fixtures exists with the same name, direction and type (test over the real description); SOAP round trips through the service harness; events sent.
-- [ ] 3.2 Register the services on the renderer device (`createMediaRendererServices`), device description check | `YaaccUpnpServerService`
+- [x] 3.2 Register the services on the renderer device (`createMediaRendererServices`), device description check | `YaaccUpnpServerService`
 - [ ] 3.3 Review gate
 
 ## Group 4: Renderer, the coordinator and the player
-- [ ] 4.1 `AbstractPlayer.insertItems`, `playItemAt`, `PlayOrder.insert`, `LocalMediaSessionPlayer` overrides | `player/`
-- [ ] 4.2 `OpenHomeRenderer` (queue <-> player, ids, events, repeat / shuffle, volume, time) | `upnp/server/openhome/`
+- [x] 4.1 `AbstractPlayer.insertItems`, `playItemAt`, `PlayOrder.insert`, `LocalMediaSessionPlayer` overrides | `player/`
+- [x] 4.2 `OpenHomeRenderer` (queue <-> player, ids, events, repeat / shuffle, volume, time) | `upnp/server/openhome/`
 - [ ] 4.3 Review gate; AVTransport renderer tests stay green
 
 ## Group 5: Controller, basics

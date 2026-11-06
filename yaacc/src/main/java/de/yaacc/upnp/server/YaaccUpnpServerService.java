@@ -102,6 +102,9 @@ import de.yaacc.upnp.server.media.CombinedCaptureService;
 import de.yaacc.upnp.server.media.MediaProjectionHelper;
 import de.yaacc.upnp.server.media.ScreenCastCaptureService;
 import de.yaacc.upnp.server.media.SystemAudioCaptureService;
+import de.yaacc.upnp.server.openhome.AndroidOpenHomeHost;
+import de.yaacc.upnp.server.openhome.OhRendererCore;
+import de.yaacc.upnp.server.openhome.OpenHomeRenderer;
 import de.yaacc.upnp.server.renderingcontrol.RenderingControlServiceManager;
 import de.yaacc.upnp.server.renderingcontrol.YaaccAudioRenderingControlService;
 import de.yaacc.util.InterfaceResolutionHelper;
@@ -126,6 +129,9 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
     public static final String PROXY_PATH = "proxy";
     public static final String SAF_PATH = "saf";
     public static final int LOCK_TIMEOUT = 5000;
+
+    /** The OpenHome renderer; created with the first device, lives as long as this service. */
+    private OpenHomeRenderer openHomeRenderer;
 
     public static int PORT = 49157;
     public static ServiceType[] EXCLUSIVE_SERVER_TYPES = new ServiceType[]{
@@ -362,6 +368,10 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
 
         safChangeRunner.stop();
         contentDirectoryChanged.shutdown();
+        if (openHomeRenderer != null) {
+            openHomeRenderer.shutdown();
+            openHomeRenderer = null;
+        }
 
         if (localDevice != null) {
             registry.removeDevice(localDevice);
@@ -973,7 +983,36 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         List<LocalService<?>> services = new ArrayList<>();
         services.add(createAVTransportService());
         services.add(createRenderingControl());
+        services.addAll(createOpenHomeServices());
         return services.toArray(new LocalService[]{});
+    }
+
+    /** What the OpenHome control points are told the renderer can play. */
+    private static final String OPENHOME_PROTOCOL_INFO = "http-get:*:audio/mpeg:*,http-get:*:audio/mp4:*,"
+            + "http-get:*:audio/aac:*,http-get:*:audio/flac:*,http-get:*:audio/x-flac:*,http-get:*:audio/ogg:*,"
+            + "http-get:*:audio/wav:*,http-get:*:audio/x-wav:*,http-get:*:audio/L16:*";
+
+    /**
+     * The OpenHome services (Product, Playlist, Info, Time, Volume) next to AVTransport and RenderingControl. The renderer behind them
+     * lives as long as this service, so the queue survives a rebuild of the device; the services are built again.
+     */
+    private List<LocalService<?>> createOpenHomeServices() {
+        try {
+            UpnpClient client = ((Yaacc) getApplicationContext()).getUpnpClient();
+            if (openHomeRenderer == null) {
+                AndroidOpenHomeHost host = new AndroidOpenHomeHost(getApplicationContext(), client);
+                String name = getLocalServerName();
+                openHomeRenderer = new OpenHomeRenderer(host, host, OpenHomeRenderer.newDelayer(),
+                        new OhRendererCore.Details("yaacc.de", "https://www.yaacc.de", "YAACC", name, name),
+                        OPENHOME_PROTOCOL_INFO);
+                openHomeRenderer.start();
+            }
+            return openHomeRenderer.core().buildServices(LOCK_TIMEOUT);
+        } catch (ValidationException | RuntimeException e) {
+            // OpenHome is an addition: without it the renderer still works with AVTransport
+            YaaccLogger.e(getClass().getName(), "OpenHome services not available", e);
+            return new ArrayList<>();
+        }
     }
 
     /**
