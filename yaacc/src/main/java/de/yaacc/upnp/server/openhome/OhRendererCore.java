@@ -160,6 +160,24 @@ public final class OhRendererCore {
         return services;
     }
 
+    /** For tests: the current value of a state variable of the service ("playlist", "info", "time", "volume", "product"). */
+    String stateValue(String service, String variable) {
+        switch (service) {
+            case "playlist":
+                return playlist.get(variable);
+            case "info":
+                return info.get(variable);
+            case "time":
+                return time.get(variable);
+            case "volume":
+                return volume.get(variable);
+            case "product":
+                return product.get(variable);
+            default:
+                throw new IllegalArgumentException(service);
+        }
+    }
+
     // ---- what the player reports
 
     public void setTransportState(OhTransportState state) {

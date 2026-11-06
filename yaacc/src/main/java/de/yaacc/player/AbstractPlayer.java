@@ -577,12 +577,26 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
 
     @Override
     public boolean removeItem(int itemIndex) {
+        return removeItem(itemIndex, false);
+    }
+
+    /**
+     * Removes an item. The playlist screen only removes what still lies ahead; the OpenHome queue may drop what has been played
+     * as well ({@code alsoPlayed}), but never the item that plays now.
+     *
+     * @return false (and nothing changed) if the item is not in the list or is locked
+     */
+    public boolean removeItem(int itemIndex, boolean alsoPlayed) {
         if (itemIndex < 0 || itemIndex >= items.size()) {
             return false;
         }
         playOrder.fit(items.size(), currentIndex);
         int position = playOrder.positionOf(itemIndex);
-        if (position < 0 || isPlaylistPositionLocked(position)) {
+        if (position < 0) {
+            return false;
+        }
+        boolean locked = alsoPlayed ? isActive() && itemIndex == currentIndex : isPlaylistPositionLocked(position);
+        if (locked) {
             return false;
         }
         boolean active = isActive();
