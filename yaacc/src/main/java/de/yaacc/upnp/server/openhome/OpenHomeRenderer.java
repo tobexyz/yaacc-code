@@ -327,16 +327,26 @@ public final class OpenHomeRenderer implements OhPlayback {
      * their place. The track that plays can not be removed: the player ends then and the next play starts with the track behind it.
      */
     private void sync() {
-        AbstractPlayer current = alivePlayer();
-        if (current == null) {
-            return;
-        }
         List<OhQueue.Entry> wanted = core.queue().snapshot();
         if (wanted.isEmpty()) {
             discardPlayer();
             startId = 0;
             return;
         }
+        AbstractPlayer current = alivePlayer();
+        if (current == null) {
+            return;
+        }
+        try {
+            reconcile(current, wanted);
+        } catch (RuntimeException e) {
+            // a player call failed or timed out: what the player holds is not known any more, so it starts again from the queue
+            YaaccLogger.w(getClass().getName(), "OpenHome player and queue could not be matched, the player is started again", e);
+            discardPlayer();
+        }
+    }
+
+    private void reconcile(AbstractPlayer current, List<OhQueue.Entry> wanted) {
         Set<Long> wantedIds = new HashSet<>();
         for (OhQueue.Entry entry : wanted) {
             wantedIds.add(entry.getId());

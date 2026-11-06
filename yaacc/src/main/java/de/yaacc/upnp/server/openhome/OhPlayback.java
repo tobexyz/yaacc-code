@@ -24,6 +24,8 @@ import de.yaacc.openhome.OhQueue;
  * control point's request; an implementation hands the work to the player's own thread.
  */
 public interface OhPlayback {
+    // Called on the threads of the control points' requests: an implementation hands the work over and returns (see OpenHomeRenderer).
+
     void play();
 
     void pause();

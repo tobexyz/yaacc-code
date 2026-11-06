@@ -21,14 +21,11 @@ import android.os.Handler;
 import android.os.Looper;
 
 import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
-import java.util.concurrent.FutureTask;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 import de.yaacc.util.YaaccLogger;
 
@@ -84,25 +81,16 @@ public final class AndroidOhThreads implements OpenHomeRenderer.Threads {
 
     @Override
     public <T> T onPlayer(Callable<T> call) {
-        try {
-            if (Looper.myLooper() == Looper.getMainLooper()) {
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            try {
                 return call.call();
+            } catch (RuntimeException e) {
+                throw e;
+            } catch (Exception e) {
+                throw new IllegalStateException("player call failed", e);
             }
-            FutureTask<T> task = new FutureTask<>(call);
-            main.post(task);
-            return task.get(PLAYER_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-        } catch (ExecutionException e) {
-            throw new IllegalStateException("player call failed", e.getCause());
-        } catch (TimeoutException e) {
-            throw new IllegalStateException("player call timed out", e);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException("player call interrupted", e);
-        } catch (RuntimeException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new IllegalStateException("player call failed", e);
         }
+        return OhCall.runAndWait(main::post, call, PLAYER_TIMEOUT_SECONDS);
     }
 
     @Override

@@ -133,3 +133,93 @@ questions; full gate run: `ANDROID_HOME=/root/android-sdk ./gradlew :yaacc:testD
   concurrency test for queue/player sync, a real assertion for the rebuild/listener clearing, and the ExoPlayer insert decision.
 
 ### Verdict: FAIL
+
+## Cycle 2 — 2026-11-06
+Reviewing: fix commit 9247cde3 (single worker thread `OpenHomeRenderer.Threads` / `AndroidOhThreads`, player only through `onPlayer`, `sync()`
+reconciliation, `ExoPlaylistSync.canInsert`, listener-count test, parallel-insert test, decisions.md entry).
+
+Method: cycle 1 findings re-checked against the new code; `OpenHomeRenderer`, `AndroidOhThreads`, `AbstractPlayer.insertItems/removeItem/play/stop/exit`,
+`PlayerService.createPlayerForLocalDevice/shutdown`, `UpnpClient.initializeLocalPlayer/waitForPlayerServiceComeUp`, `OhRendererCore` action handlers and
+`YaaccUpnpServerService.onDestroy` read; full gate run: `ANDROID_HOME=/root/android-sdk ./gradlew :yaacc:testDebugUnitTest :yaacc:lintDebug`.
+
+### Cycle 1 findings
+- Critical (player read on the wrong thread): RESOLVED. Every player call (reads in `read()`, commands, `removeItem`, `insertItems`, `setPlayMode`,
+  `exit`) goes through `Threads.onPlayer`, which runs on the main looper and waits; the exceptions are `host.createPlayer` (worker, as before; the
+  ExoPlayer itself is still built on the main looper by `LocalMediaSessionPlayer`) and `host.isAlive` (a map lookup). The player list is now edited on the
+  same thread as the `Handler` runnables that iterate it, so the ConcurrentModificationException risk is gone.
+- Warning (non-atomic queue/player edit, parallel inserts, Play racing Insert, failure after `queue.insert`): RESOLVED. One serial worker, `sync()`
+  compares ids and is idempotent; a late, doubled or reordered notification is harmless; `trackInserted` no longer takes an index.
+- Warning (plain ArrayList edited from Cling threads): RESOLVED (see above).
+- Warning (test that tested nothing): RESOLVED. `OhDeviceDescriptionTest` counts the listeners of each state before and after the rebuild.
+- Warning (untested insert decision): RESOLVED. `ExoPlaylistSync.canInsert` + test (0/0, equal, smaller, larger).
+- Deadlock analysis: no cycle found. The worker waits for the main thread (5 s, `FutureTask`); nothing on the main thread waits for the worker
+  (`OpenHomeRenderer` public methods only `work(...)`; `shutdown()` is `work` + `executor.shutdown()`, both non-blocking, so `onDestroy` is safe); Cling
+  action threads only enqueue. `createPlayer` busy-waits for the player service on the worker, whose bind callback arrives on the main thread, which the
+  worker is not blocking. `OhRendererCore` fires GENA events from the worker; the Cling manager lock is never held by anyone who waits for the worker.
+  After `removeDevice` a late action is dropped (`RejectedExecutionException` caught); `STPE.shutdown()` keeps queued one-shot tasks and cancels the
+  periodic poll, so the queued `discardPlayer` still runs.
+
+### Critical
+- none
+
+### Warning
+- [AndroidOhThreads.java:86-106] On `TimeoutException` (or interrupt) the posted `FutureTask` is not cancelled. The main thread runs it later, but the
+  worker has already thrown, so `OpenHomeRenderer` did not update its bookkeeping: e.g. `sync()` -> `insertItems` times out, `playerIds.add(i, id)` is
+  skipped, the insert still happens on the main thread afterwards, and the next `sync()` inserts the same track a second time (player list longer than the
+  queue, wrong track for an Id). Same for `removeItem` (player list loses a track the renderer still counts) and for `startFrom` (`player` set, mode/play
+  not). A main thread stalled for more than 5 s is rare, but this is exactly the case the timeout is there for. Fix: `task.cancel(false)` before
+  throwing (a task that has not started never runs; one that is running cannot be undone, so also let `sync()` rebuild `playerIds` from the player
+  (`read(current).items`) after an `onPlayer` failure, or discard the player on any failure in `sync()`).
+- [OpenHomeRenderer.java:329-337, 299-305, 412-418, 496] A stale `startId` survives `DeleteAll` when there is no player: `sync()` returns at once for
+  `alivePlayer() == null`, before the `wanted.isEmpty()` branch that resets `startId`. Sequence: playing track P is deleted (player discarded,
+  `startId` = next track N), then `DeleteAll`, then `Insert` of a new track: `refreshNow` reports `setCurrentId(startId)` = N, an id that is not in the
+  queue, to every subscriber (and the `Id` of `Info`/`Playlist` is wrong until the next `Play`). `trackDeleted` has no equivalent problem because it fixes
+  `startId` itself. Fix: `queueCleared()` sets `startId = 0` itself (before `sync()`), and add a test: delete the playing track, `DeleteAll`, insert, assert
+  `core.stateValue("playlist","Id")` is 0 or the new track.
+- [OpenHomeRendererTest.java, OpenHomeRenderer.Threads] The thread-affinity requirement of the cycle 1 Critical is not tested: `InlineThreads.onPlayer` and
+  the one in the parallel test just call the lambda, and `FakePlayer` accepts any thread, so a new player call that bypasses `onPlayer` (the exact
+  regression) would stay green. `AndroidOhThreads` (main thread inline, timeout, exception wrapping, shutdown semantics) has no test either. Fix: a
+  `Threads` double with a designated "player thread" (single-thread executor, `onPlayer` submits and waits) and a `FakePlayer` that records/throws when
+  called from another thread, then run play, pause, next, seek, insert, delete, DeleteAll, mode changes, shutdown and the poll through it. If a unit
+  test for `AndroidOhThreads` needs Robolectric and the project has none, extract the "run on thread X and wait with timeout/cancel" part so it takes an
+  `Executor`, and test that.
+
+### Suggestion
+- [OpenHomeRenderer.java:288-297] `trackDeleted(index, id)`: `index` is read in the Cling thread by `queue.indexOf(id)` and the delete is a second
+  step, and `idAt(index)` is read later on the worker with another `size()` check in between. With parallel edits the "track behind the deleted one" can be
+  the wrong one, and `idAt` can throw (then the whole task, including `sync()`, is skipped until the next notification). Compute the successor id
+  inside `OhQueue.delete` (return it) and pass that.
+- [OpenHomeRenderer.java:380-409, 170] `startFrom` calls the asynchronous `play()` and `refreshNow()` right after, which reports `Stopped` for up to one poll
+  before `Playing` (a visible flap on every Play). Skip the stopped report while a start is in flight, or poll again shortly after a command.
+- [OpenHomeRenderer.java:134-141] The 1 Hz poll and its thread run for the whole service life even when idle (cycle 1 suggestion, still open); the system
+  volume is read every tick.
+- [OpenHomeRenderer.java:272] `seekToTrack` / `playItemAt` ignored while `isProcessingCommand()` (cycle 1 suggestion, still open): the control point got
+  success.
+- [OhPlayback.java:22-24] The Javadoc says the core calls "on the thread of the control point's request" and the implementation hands over to the
+  player's thread; now it hands over to the renderer's worker (which hands over to the player's thread). Update the wording.
+- [OpenHomeRenderer.java:133-153] `AndroidOhThreads` is created before `start()`; if `createOpenHomeServices` fails after the renderer was created, its
+  worker thread is never closed. Low impact (one idle daemon thread stays).
+- Still open from cycle 1 and not blocking: URI normalisation (`OhUriPolicy`), strict base64 (`OhIds`), the product name captured once, the shared music
+  player slot (`createMusicPlayer` shuts down any existing player) not in decisions.md, `toPlayableItem` untested, `discardPlayer(boolean)` parameter
+  (now removed, good).
+
+### What was checked and is fine
+- `sync()` walk-through: delete several tracks (descending removal keeps the indexes valid), delete the playing track of an active player
+  (`removeItem(i, true)` false -> player discarded, `startId` = first still wanted id behind it, including when later tracks were removed first), delete the
+  current track of a stopped player (removed, `currentIndex` recomputed by `startIndex()`), insert before/after/at the current track of an active or stopped
+  player (`insertItems` shifts `currentIndex` and `previousIndex` only when `hadItems && at <= currentIndex`, `playerIds` insert at the same index),
+  DeleteAll with a player (discarded), identical ids twice (no-op). After the removals `playerIds` is a subsequence of the queue, so the one-pass insert
+  loop is correct. Comparisons are on primitive `long`/`Long.equals` (no reference compare).
+- `playItemAt` after `startFrom`; `stop()` then `Play` continues with the player's own start index; `Seek*` use the reconciled `playerIds`.
+- Poll task: guarded (`guarded(...)` in `AndroidOhThreads`, `refreshNow` catches RuntimeException), started once (`stopPolling` check on the worker),
+  cancelled in `shutdown()`; `scheduleWithFixedDelay` cannot pile up while the worker is blocked in `createPlayer`.
+- Shutdown order in `YaaccUpnpServerService.onDestroy`: device removed first, then the renderer; late actions are dropped; `discardPlayer` failures are caught.
+- No new dependency, no secrets, no new log of user data (only fixed texts).
+
+### Tests
+- [x] All tests passing: `:yaacc:testDebugUnitTest` 3064 tests, 0 failures, 0 errors, 0 skipped; `:yaacc:lintDebug` 0 issues
+  (`grep -c "<issue " yaacc/build/reports/lint-results-debug.xml` = 0). BUILD SUCCESSFUL.
+- [ ] Coverage adequate for the change: not yet. Missing: thread-affinity test (player touched only on the player thread), `AndroidOhThreads` behaviour
+  (timeout/cancel), delete-playing-track + DeleteAll + insert (stale `startId`).
+
+### Verdict: FAIL

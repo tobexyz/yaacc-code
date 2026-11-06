@@ -1012,6 +1012,10 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         } catch (ValidationException | RuntimeException e) {
             // OpenHome is an addition: without it the renderer still works with AVTransport
             YaaccLogger.e(getClass().getName(), "OpenHome services not available", e);
+            if (openHomeRenderer != null) {
+                openHomeRenderer.shutdown();
+                openHomeRenderer = null;
+            }
             return new ArrayList<>();
         }
     }

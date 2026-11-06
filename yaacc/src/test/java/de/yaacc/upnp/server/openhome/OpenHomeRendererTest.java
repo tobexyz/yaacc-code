@@ -49,6 +49,69 @@ public class OpenHomeRendererTest {
         final List<String> calls = new ArrayList<>();
         long position;
         boolean alive = true;
+        /** When set, every call must come from this thread (the player's thread). */
+        volatile Thread requiredThread;
+
+        private void check() {
+            Thread required = requiredThread;
+            if (required != null && Thread.currentThread() != required) {
+                throw new IllegalStateException("player used on " + Thread.currentThread().getName());
+            }
+        }
+
+        @Override
+        public boolean isPlaying() {
+            check();
+            return super.isPlaying();
+        }
+
+        @Override
+        public boolean isPaused() {
+            check();
+            return super.isPaused();
+        }
+
+        @Override
+        public int getCurrentItemIndex() {
+            check();
+            return super.getCurrentItemIndex();
+        }
+
+        @Override
+        public List<PlayableItem> getItems() {
+            check();
+            return super.getItems();
+        }
+
+        @Override
+        public PlayMode getPlayMode() {
+            check();
+            return super.getPlayMode();
+        }
+
+        @Override
+        public void setPlayMode(PlayMode mode) {
+            check();
+            super.setPlayMode(mode);
+        }
+
+        @Override
+        public void insertItems(int index, List<PlayableItem> playableItems) {
+            check();
+            super.insertItems(index, playableItems);
+        }
+
+        @Override
+        public boolean removeItem(int itemIndex, boolean alsoPlayed) {
+            check();
+            return super.removeItem(itemIndex, alsoPlayed);
+        }
+
+        @Override
+        public void playItemAt(int index) {
+            check();
+            super.playItemAt(index);
+        }
 
         FakePlayer(UpnpClient client) {
             super(client);
@@ -57,6 +120,12 @@ public class OpenHomeRendererTest {
         @Override
         protected PlayMode readDefaultPlayMode() {
             return PlayMode.of(PlayMode.RepeatMode.OFF, false);
+        }
+
+        @Override
+        public String getDuration() {
+            check();
+            return "";
         }
 
         @Override
@@ -83,17 +152,20 @@ public class OpenHomeRendererTest {
 
         @Override
         public long getCurrentPosition() {
+            check();
             return position;
         }
 
         @Override
         public void seekTo(long millisecondsFromStart) {
+            check();
             calls.add("seek " + millisecondsFromStart);
             position = millisecondsFromStart;
         }
 
         @Override
         public void play() {
+            check();
             calls.add("play");
             setPaused(false);
             setPlaying(true);
@@ -101,12 +173,14 @@ public class OpenHomeRendererTest {
 
         @Override
         public void pause() {
+            check();
             calls.add("pause");
             setPaused(true);
         }
 
         @Override
         public void stop() {
+            check();
             calls.add("stop");
             setPaused(false);
             setPlaying(false);
@@ -114,18 +188,21 @@ public class OpenHomeRendererTest {
 
         @Override
         public void exit() {
+            check();
             calls.add("exit");
             alive = false;
         }
 
         @Override
         public void next() {
+            check();
             calls.add("next");
             setCurrentIndex(Math.min(getCurrentItemIndex() + 1, getItems().size() - 1));
         }
 
         @Override
         public void previous() {
+            check();
             calls.add("previous");
             setCurrentIndex(Math.max(getCurrentItemIndex() - 1, 0));
         }
@@ -583,6 +660,107 @@ public class OpenHomeRendererTest {
         assertEquals(41, expected.size());
         assertEquals(expected, titles((FakePlayer) threaded.playerForTest()));
         worker.shutdown();
+    }
+
+    @Test
+    public void aDeleteAllOfADeletedPlayingTrackLeavesNoStaleStartTrack() {
+        long a = add(0, "http://h/a.mp3");
+        renderer.play();
+        renderer.core().queue().delete(a);
+        renderer.trackDeleted(0, a); // no player any more, nothing left to start with
+
+        renderer.core().queue().deleteAll();
+        renderer.queueCleared();
+        long b = add(0, "http://h/b.mp3");
+
+        assertEquals("Stopped", playlist("TransportState"));
+        renderer.play();
+        assertEquals(String.valueOf(b), playlist("Id"));
+    }
+
+    @Test
+    public void thePlayerIsOnlyTouchedOnItsOwnThread() throws Exception {
+        java.util.concurrent.ExecutorService worker = java.util.concurrent.Executors.newSingleThreadExecutor(r -> new Thread(r, "test-worker"));
+        java.util.concurrent.ExecutorService playerThread = java.util.concurrent.Executors.newSingleThreadExecutor(r -> new Thread(r, "test-player"));
+        Thread playerOwner = playerThread.submit(Thread::currentThread).get();
+        List<Throwable> failures = new java.util.concurrent.CopyOnWriteArrayList<>();
+        OpenHomeRenderer.Host plain = host;
+        host = new OpenHomeRenderer.Host() {
+            @Override
+            public AbstractPlayer createPlayer(List<PlayableItem> items) {
+                FakePlayer fake = (FakePlayer) plain.createPlayer(items);
+                fake.requiredThread = playerOwner; // from now on only the player's thread may use it
+                return fake;
+            }
+
+            @Override
+            public boolean isAlive(AbstractPlayer p) {
+                return plain.isAlive(p);
+            }
+
+            @Override
+            public PlayableItem toPlayableItem(String uri, String metadata) {
+                return plain.toPlayableItem(uri, metadata);
+            }
+        };
+        OpenHomeRenderer checked = newRenderer(new OpenHomeRenderer.Threads() {
+            @Override
+            public void work(Runnable work) {
+                worker.execute(() -> {
+                    try {
+                        work.run();
+                    } catch (Throwable t) {
+                        failures.add(t);
+                    }
+                });
+            }
+
+            @Override
+            public void runLater(Runnable runnable, long delayMillis) {
+                work(runnable);
+            }
+
+            @Override
+            public Runnable every(Runnable work, long periodMillis) {
+                return () -> {
+                };
+            }
+
+            @Override
+            public <T> T onPlayer(java.util.concurrent.Callable<T> call) {
+                return OhCall.runAndWait(playerThread, call, 5);
+            }
+
+            @Override
+            public void close() {
+            }
+        });
+        OhQueue q = checked.core().queue();
+        long first = q.insert(0, "http://h/1.mp3", "");
+        checked.trackInserted(0, q.read(first));
+        checked.play();
+        long second = q.insert(first, "http://h/2.mp3", "");
+        checked.trackInserted(1, q.read(second));
+        checked.setRepeat(true);
+        checked.setShuffle(true);
+        checked.seekSecondAbsolute(10);
+        checked.seekSecondRelative(5);
+        checked.next();
+        checked.pause();
+        checked.refresh();
+        q.delete(first);
+        checked.trackDeleted(0, first);
+        q.deleteAll();
+        checked.queueCleared();
+        checked.refresh();
+        java.util.concurrent.CountDownLatch drained = new java.util.concurrent.CountDownLatch(1);
+        worker.execute(drained::countDown);
+        assertEquals(true, drained.await(10, java.util.concurrent.TimeUnit.SECONDS));
+        worker.shutdown();
+        playerThread.shutdown();
+
+        assertEquals(new ArrayList<Throwable>(), failures);
+        assertEquals(1, created.size());
     }
 
     // ---- modes and volume
