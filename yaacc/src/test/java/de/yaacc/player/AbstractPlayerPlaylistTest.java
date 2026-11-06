@@ -104,6 +104,11 @@ public class AbstractPlayerPlaylistTest {
         protected void onPlayOrderMoved() {
             hooks.add("order");
         }
+
+        @Override
+        protected void onItemsInserted(int index, List<PlayableItem> inserted) {
+            hooks.add("inserted " + index + "x" + inserted.size());
+        }
     }
 
     private UpnpClient upnpClient() {
@@ -399,5 +404,89 @@ public class AbstractPlayerPlaylistTest {
         player.setPlayMode(player.getPlayMode().withShuffle(true));
 
         assertTrue(events.contains(Player.PROPERTY_PLAY_MODE));
+    }
+
+    // --- items put into the middle (OpenHome queue)
+
+    private static List<PlayableItem> newItems(String... titles) {
+        List<PlayableItem> items = new ArrayList<>();
+        for (String title : titles) {
+            PlayableItem item = new PlayableItem();
+            item.setTitle(title);
+            items.add(item);
+        }
+        return items;
+    }
+
+    @Test
+    public void insertedItemsTakeTheirPlaceInTheListAndTheEngineIsTold() {
+        TestPlayer player = player(3);
+
+        player.insertItems(1, newItems("a", "b"));
+
+        assertEquals(Arrays.asList("item 0", "a", "b", "item 1", "item 2"), titles(player));
+        assertEquals(Arrays.asList("item 0", "a", "b", "item 1", "item 2"), shown(player));
+        assertEquals(Arrays.asList("inserted 1x2"), hooks);
+        assertEquals(Arrays.asList(Player.PROPERTY_PLAYLIST), events);
+    }
+
+    @Test
+    public void itemsInsertedBeforeTheCurrentItemKeepTheCurrentItem() {
+        TestPlayer player = player(4);
+        player.playItemAt(2);
+        assertEquals("item 2", player.getItems().get(player.getCurrentItemIndex()).getTitle());
+
+        player.insertItems(0, newItems("a", "b", "c"));
+
+        assertEquals("item 2", player.getItems().get(player.getCurrentItemIndex()).getTitle());
+    }
+
+    @Test
+    public void itemsInsertedBehindTheCurrentItemLeaveItsIndex() {
+        TestPlayer player = player(4);
+        player.playItemAt(1);
+
+        player.insertItems(3, newItems("a"));
+
+        assertEquals(1, player.getCurrentItemIndex());
+        assertEquals("item 1", player.getItems().get(1).getTitle());
+    }
+
+    @Test
+    public void insertAtAPlaceOutsideTheListIsClampedAndNothingToInsertChangesNothing() {
+        TestPlayer player = player(2);
+
+        player.insertItems(99, newItems("a"));
+        player.insertItems(-5, newItems("b"));
+        player.insertItems(1, new ArrayList<>());
+        player.insertItems(1, null);
+
+        assertEquals(Arrays.asList("b", "item 0", "item 1", "a"), titles(player));
+    }
+
+    @Test
+    public void insertWithShuffleKeepsTheCurrentItemFirstAndEveryItemOnce() {
+        startMode = PlayMode.of(RepeatMode.ALL, true);
+        TestPlayer player = player(4);
+        player.setPlaying(true);
+        String current = player.getItems().get(player.getCurrentItemIndex()).getTitle();
+
+        player.insertItems(2, newItems("a", "b"));
+
+        assertEquals(6, player.getPlayOrder().length);
+        assertEquals(6, new java.util.HashSet<>(shown(player)).size());
+        assertEquals(current, shown(player).get(0));
+    }
+
+    @Test
+    public void playItemAtSelectsTheItemAndIgnoresAnIndexOutsideTheList() {
+        TestPlayer player = player(3);
+
+        player.playItemAt(2);
+        assertEquals(2, player.getCurrentItemIndex());
+
+        player.playItemAt(7);
+        player.playItemAt(-1);
+        assertEquals(2, player.getCurrentItemIndex());
     }
 }
