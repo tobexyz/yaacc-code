@@ -37,7 +37,7 @@ Gate: `ANDROID_HOME=/root/android-sdk ./gradlew --offline :yaacc:assembleDebug :
 - [ ] 6.2 Review gate
 
 ## Group 7: Documentation and real devices
-- [ ] 7.1 docs/index.md, tech.md as built, CHANGELOG, strings in 7 languages
+- [x] 7.1 docs/index.md, tech.md as built, CHANGELOG, strings in 7 languages
 - [ ] 7.2 Tests against real devices (owner / tester), captures as fixtures
 
 ## Status 2026-11-06
