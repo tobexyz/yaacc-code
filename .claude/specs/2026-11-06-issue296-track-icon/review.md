@@ -55,3 +55,40 @@ Checked and found correct
 
 ### Verdict: FAIL
 Two Warnings (cacheable generic icon also on error/disabled paths; handler behaviour untested). No Critical findings; build, tests and lint are green.
+
+## Cycle 2 - 2026-11-06
+Reviewing: commit 137080da (fixes for the two cycle 1 Warnings)
+
+Verified: `:yaacc:assembleDebug :yaacc:testDebugUnitTest :yaacc:lintDebug` -> BUILD SUCCESSFUL; 2966 unit tests, 0 failures, 0 errors, 0 skipped
+(`AlbumArtFallbackTest` 6/6 ran, none skipped by the `assumeTrue`); lint `<issue ` count 0.
+
+Cycle 1 findings
+- W1 (cache only the real "no cover" answer): fixed. `genericMusicIcon(ranges, cacheable)` sets `cacheSeconds` only when `cacheable && generic` (the real PNG was read). `cacheable == true` only at
+  `ALBUM_ART == null` (<= P) and the `loadThumbnail` `IOException` (>= Q). The initial `result` (disabled server, missing id, <= P `cursor == null`, an unknown album with no row, the Q+ file-write failure)
+  is non-cacheable, and so is the app-logo stand-in. No picture at all returns null -> 404 (handle() null path; the <= P loop can overwrite `result` with null, harmless). Memo/race behaviour unchanged.
+- W2 (tests): fixed for the <= P branch; the >= Q branch stays reviewed-only (SDK_INT is 0 on the JVM) and is stated in the test Javadoc and docs/tech.md - accepted, the Q+ change is two lines
+  (`return genericMusicIcon(ranges, true)`) that I read and found correct.
+- Suggestions: unused `BitmapFactory` import and the fully qualified `InputStream` are gone; the docs now say a non-numeric id cannot reach the code over HTTP. (Line 878 empty-holder case: now returns null/404.)
+
+Mutation check (scratch copy outside the repo, production code of the repo untouched): replacing `if (cacheable && generic)` by `if (true)` (the cycle 1 behaviour) makes
+`aDisabledServerOrAMissingIdGetsTheIconButNotACacheHeader` and `anUnknownAlbumGetsTheIconButNotACacheHeader` FAIL (2 of 6); the cover test and the no-cover test pass as they should. So the
+tests do fail without the fix.
+
+### Critical
+- none
+
+### Warning
+- none
+
+### Suggestion
+- [AlbumArtFallbackTest.java whenThePictureCannotBeReadTheAnswerIsNeverCacheable] On the JVM the stand-in (`getDefaultIcon()`) is null, so the test only exercises the "no picture -> null" path; the `generic` flag
+  (a readable logo stand-in must not be cacheable) is not really pinned: dropping `&& generic` would still pass. A test with a mocked drawable path is awkward; acceptable, or drop `generic` from the
+  condition by restructuring so the stand-in never gets `cacheable == true`.
+- [AlbumArtFallbackTest.java theIconIsReadOnceAndIsNotTheAppLogo] The name promises "not the app logo" but the assertion is only `length != 0`; rename (e.g. `theIconIsReadOnce`) or compare with the logo bytes.
+- [docs/tech.md] The one-line entry is now very long; consider splitting it into sub-bullets.
+
+### Tests
+- [x] All tests passing (2966, 0 failures; lint 0 issues; assembleDebug OK)
+- [x] Coverage adequate for the change (<= P branch and the cache decision covered and shown to fail without the fix; >= Q branch reviewed only, documented)
+
+### Verdict: PASS
