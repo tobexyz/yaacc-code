@@ -446,6 +446,8 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
             return;
         if (getPlayer() instanceof AVTransportPlayer && ((AVTransportPlayer) getPlayer()).getDevice() != null) {
             ((TextView) findViewById(R.id.avtransportPlayerActivityDeviceName)).setText(((AVTransportPlayer) getPlayer()).getDevice().getDetails().getFriendlyName());
+        } else if (getPlayer() instanceof OpenHomePlayer && ((OpenHomePlayer) getPlayer()).getDeviceName() != null) {
+            ((TextView) findViewById(R.id.avtransportPlayerActivityDeviceName)).setText(((OpenHomePlayer) getPlayer()).getDeviceName());
         }
         TextView current = findViewById(R.id.avtransportPlayerActivityCurrentItem);
         current.setText(getPlayer().getCurrentItemTitle());

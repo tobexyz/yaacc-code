@@ -17,6 +17,10 @@
  */
 package de.yaacc.player;
 
+import android.app.PendingIntent;
+import android.content.Intent;
+import android.net.Uri;
+
 import org.fourthline.cling.model.meta.Device;
 
 import java.util.ArrayList;
@@ -448,6 +452,25 @@ public class OpenHomePlayer extends AbstractPlayer {
     @Override
     protected int getNotificationId() {
         return notificationId;
+    }
+
+    /**
+     * Opens the player screen (the one of the AVTransport player: it shows and controls any player with its playlist, volume,
+     * repeat and shuffle). Used by the notification, the receiver rows and the mini player.
+     */
+    @Override
+    public PendingIntent getNotificationIntent() {
+        Intent notificationIntent = new Intent(getContext(), AVTransportPlayerActivity.class);
+        // makes the intents of different players differ, so each keeps its own player id
+        notificationIntent.setData(Uri.parse("http://0.0.0.0/" + getId() + ""));
+        notificationIntent.putExtra(PLAYER_ID, getId());
+        return PendingIntent.getActivity(getContext(), 0, notificationIntent,
+                PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_CANCEL_CURRENT);
+    }
+
+    /** The name of the device this player plays on, for the player screen. */
+    public String getDeviceName() {
+        return device.getDetails() == null ? null : device.getDetails().getFriendlyName();
     }
 
     // The device plays: the player does not load or start items itself.
