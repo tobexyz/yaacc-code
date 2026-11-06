@@ -29,3 +29,27 @@ Reviewing: `git diff develop..HEAD` (3 commits: handler change, 2 test classes, 
 
 ### Verdict: FAIL
 One Warning (pre-existing, but it contradicts the stated "no cache growth" property for albums with a cover and is a one-line fix): derive the cache file name from the parsed `long id` (and/or reject non-canonical ids). Zero Critical. Everything specific to the new generic-icon and Cache-Control behaviour is sound.
+
+## Cycle 2 - 2026-11-06
+Reviewing: commit 0875ae00 (canonical album id) on top of cycle 1
+
+### Critical
+- none
+
+### Warning
+- none (the cycle 1 Warning is fixed)
+
+### Suggestion
+- [YaaccUpnpServerContentHttpHandler.java:577-582] A non-canonical spelling (`007`, `+7`) is answered 200 with the generic icon (non-cacheable), although doService's looser `Long.parseLong` gate lets it through. A 404/403 would be more honest to a client and would cost nothing; low value, not blocking.
+- [YaaccUpnpServerContentHttpHandler.java:~640] The cover file is still rewritten on every request without a lock. Concurrent requests for the same album write the same single file name, so there is no growth, but a reader can see a truncated JPEG (pre-existing, availability/integrity glitch only). Writing to a temp file and renaming, or skipping the write when the file exists, would remove it.
+- A test that asserts the cache file name (`albumart<id>.jpg`) on the Android 10+ branch is still not possible with SDK_INT 0 unit tests; the helper test plus the "no cursor interaction" test cover the guard.
+
+### Verification
+- `canonicalAlbumId` (line 861): rejects null, empty, length > 19, then `Long.parseLong`, requires `id >= 0` and `Long.toString(id).equals(text)`. Equality with the canonical print makes only the plain ASCII decimal spelling possible: no sign (`-0` parses to 0 but prints `0`, so it is rejected), no leading zeros, no Unicode digits (Arabic-Indic and full-width digits parse but print as ASCII, so they fail the equality), no blanks (parseLong throws). Overflow (`9223372036854775808`, 20+ digits) throws and gives null. `Long.MAX_VALUE` (19 chars) is accepted in its single spelling. The guard sits before the preference-dependent query/file code and before any cursor or ContentResolver use; the generic result it returns is the non-cacheable one.
+- `albumId` is reassigned to `canonicalId.toString()` before both SDK branches, so the Android 9 selection argument and the Android 10+ file name `albumart<id>.jpg` use the canonical text only (the Android 10+ branch uses `long id = canonicalId`). Path traversal remains impossible (digits only).
+- One cache file per album: file name is a pure function of the canonical id, so each album maps to exactly one name. Ids with no cover or no album make `loadThumbnail` throw and write nothing, so file count is bounded by the number of albums with a cover (device-owned data, not attacker-controlled). Very large ids (up to `Long.MAX_VALUE`) are only one name each and, if the album does not exist, no file. Concurrent requests overwrite the same name (see Suggestion for the integrity glitch); no extra files, no temp files are created.
+- Tests: `onlyTheCanonicalSpellingOfAnIdIsAnAlbumId` (7, 0, Long.MAX_VALUE accepted; null, "", 007, +7, -7, -0, blanks, 7.0, Arabic-Indic, full-width, abc, overflow, ../7, 7/../8, 23 zeros rejected) and `anotherSpellingOfAnIdGetsTheIconWithoutAnyLookupOrCacheHeader` (`verifyNoInteractions(cursor)`, `cacheSeconds == 0`). Mock and memo hygiene unchanged from cycle 1. Gate result (2968 tests, 0 failures, lint 0) as reported by the coordinator; not re-run by me.
+- docs/tech.md now states that on Android 10 and later an unknown album id gets the cacheable generic icon (cycle 1 Suggestion addressed).
+- Manifest, Gradle files and dependencies still untouched by this commit.
+
+### Verdict: PASS
