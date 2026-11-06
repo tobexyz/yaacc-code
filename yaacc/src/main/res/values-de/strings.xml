@@ -260,4 +260,5 @@
     <string name="openhome_source_title">Quelle</string>
     <string name="openhome_source_failed">Die Quellen des Geräts konnten nicht gelesen oder umgeschaltet werden.</string>
     <string name="openhome_source_none">Das Gerät meldet keine Quellen.</string>
+    <string name="openhome_action_settings">OpenHome-Einstellungen</string>
 </resources>

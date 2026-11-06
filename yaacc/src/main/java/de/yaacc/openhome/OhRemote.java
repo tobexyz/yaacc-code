@@ -158,6 +158,16 @@ public final class OhRemote {
         return OhSources.parse(get(call(PRODUCT, "SourceXml"), "Value"));
     }
 
+    /** @return true if the device is in standby (a device that does not say is taken as awake) */
+    public boolean standby() throws OhControlException {
+        return OhSources.parseBoolean(get(call(PRODUCT, "Standby"), "Value"), false);
+    }
+
+    /** Puts the device into standby or wakes it (without waiting for it, see {@link #selectSource} for that). */
+    public void setStandby(boolean standby) throws OhControlException {
+        call(PRODUCT, "SetStandby", "Value", String.valueOf(standby));
+    }
+
     /** @return the index of the source the device is on, -1 if it does not say */
     public int currentSourceIndex() throws OhControlException {
         return (int) number(get(call(PRODUCT, "SourceIndex"), "Value"), -1);

@@ -26,15 +26,15 @@ import java.util.List;
 import de.yaacc.openhome.OhSources;
 
 /** The list a user sees when switching the source of an OpenHome device: hidden sources are left out, names are cleaned. */
-public class OpenHomeSourceDialogTest {
+public class OpenHomeSettingsSheetTest {
 
-    private static List<OpenHomeSourceDialog.Choice> choices(String xml) {
-        return OpenHomeSourceDialog.choices(OhSources.parse(xml));
+    private static List<OpenHomeSettingsSheet.Choice> choices(String xml) {
+        return OpenHomeSettingsSheet.choices(OhSources.parse(xml));
     }
 
     @Test
     public void hiddenSourcesAreLeftOutAndTheIndexIsThePositionInTheDevicesList() {
-        List<OpenHomeSourceDialog.Choice> choices = choices("<SourceList>"
+        List<OpenHomeSettingsSheet.Choice> choices = choices("<SourceList>"
                 + "<Source><Name>Playlist</Name><Type>Playlist</Type><Visible>true</Visible></Source>"
                 + "<Source><Name>Hidden</Name><Type>Radio</Type><Visible>false</Visible></Source>"
                 + "<Source><Name>Radio</Name><Type>Radio</Type><Visible>true</Visible></Source></SourceList>");
@@ -48,7 +48,7 @@ public class OpenHomeSourceDialogTest {
 
     @Test
     public void aSourceWithoutNameIsShownByItsTypeOrItsNumber() {
-        List<OpenHomeSourceDialog.Choice> choices = choices("<SourceList>"
+        List<OpenHomeSettingsSheet.Choice> choices = choices("<SourceList>"
                 + "<Source><Name></Name><Type>Radio</Type><Visible>true</Visible></Source>"
                 + "<Source><Name></Name><Type></Type><Visible>true</Visible></Source></SourceList>");
 
@@ -63,7 +63,7 @@ public class OpenHomeSourceDialogTest {
             name.append('x');
         }
 
-        List<OpenHomeSourceDialog.Choice> choices = choices("<SourceList><Source><Name>" + name
+        List<OpenHomeSettingsSheet.Choice> choices = choices("<SourceList><Source><Name>" + name
                 + "</Name><Type>Radio</Type><Visible>true</Visible></Source></SourceList>");
 
         assertEquals(60, choices.get(0).label.length());

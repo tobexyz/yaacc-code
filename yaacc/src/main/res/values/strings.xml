@@ -265,4 +265,5 @@
     <string name="openhome_source_title">Source</string>
     <string name="openhome_source_failed">The sources of the device could not be read or switched.</string>
     <string name="openhome_source_none">The device lists no sources.</string>
+    <string name="openhome_action_settings">OpenHome settings</string>
 </resources>

@@ -260,4 +260,5 @@
     <string name="openhome_source_title">Fuente</string>
     <string name="openhome_source_failed">No se pudieron leer ni cambiar las fuentes del dispositivo.</string>
     <string name="openhome_source_none">El dispositivo no indica ninguna fuente.</string>
+    <string name="openhome_action_settings">Ajustes de OpenHome</string>
 </resources>

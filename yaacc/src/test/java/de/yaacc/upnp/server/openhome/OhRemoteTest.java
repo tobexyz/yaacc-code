@@ -503,4 +503,14 @@ public class OhRemoteTest {
         assertEquals(1, OhSources.findPlaylist(sources).index);
         assertEquals(false, sources.get(1).visible);
     }
+
+    @Test
+    public void standbyCanBeReadAndSet() throws Exception {
+        assertEquals(false, remote.standby());
+
+        remote.setStandby(true);
+        remote.setStandby(false);
+
+        assertEquals(false, remote.standby());
+    }
 }

@@ -260,4 +260,5 @@
     <string name="openhome_source_title">Bron</string>
     <string name="openhome_source_failed">De bronnen van het apparaat konden niet worden gelezen of omgeschakeld.</string>
     <string name="openhome_source_none">Het apparaat meldt geen bronnen.</string>
+    <string name="openhome_action_settings">OpenHome-instellingen</string>
 </resources>

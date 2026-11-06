@@ -113,6 +113,8 @@ final class ReceiverRowBinder {
         final TextView statusText;
         final TextView yxcText;
         final View yxcActions;
+        final View ohActions;
+        final ImageButton ohSettings;
         final View yxcSource;
         final ImageButton yxcSrcPrev;
         final ImageButton yxcSrcNext;
@@ -143,6 +145,8 @@ final class ReceiverRowBinder {
             statusText = itemView.findViewById(R.id.status_text);
             yxcText = itemView.findViewById(R.id.yxc_text);
             yxcActions = itemView.findViewById(R.id.yxc_actions);
+            ohActions = itemView.findViewById(R.id.oh_actions);
+            ohSettings = itemView.findViewById(R.id.oh_btn_settings);
             yxcSource = itemView.findViewById(R.id.yxc_source);
             yxcSrcPrev = itemView.findViewById(R.id.yxc_src_prev);
             yxcSrcNext = itemView.findViewById(R.id.yxc_src_next);
@@ -282,44 +286,25 @@ final class ReceiverRowBinder {
         bindStatus(holder, device);
     }
 
+    // the open OpenHome settings sheet, so that a second tap does not open another one
+    private android.app.Dialog openHomeDialog;
+
     /**
-     * A device that offers OpenHome: a long tap on its name opens a small menu, to choose how the app plays on it (OpenHome, the
-     * default, or AVTransport; kept per device) and to switch its source (playlist, radio, inputs).
+     * A device that offers OpenHome gets a settings icon (like a MusicCast device); it opens the sheet with the power, the source
+     * and the playback protocol (OpenHome, the default, or AVTransport; kept per device).
      */
     private void bindProtocolChoice(RowViews holder, Device<?, ?, ?> device) {
-        if (!de.yaacc.player.OpenHomeChoice.offersOpenHome(device)) {
-            holder.name.setOnLongClickListener(null);
-            holder.name.setLongClickable(false);
+        if (holder.ohActions == null || holder.ohSettings == null) {
             return;
         }
-        holder.name.setOnLongClickListener(v -> {
-            String[] actions = {context.getString(R.string.openhome_protocol_title), context.getString(R.string.openhome_source_title)};
-            new androidx.appcompat.app.AlertDialog.Builder(context)
-                    .setTitle(device.getDetails().getFriendlyName())
-                    .setItems(actions, (dialog, which) -> {
-                        if (which == 0) {
-                            showProtocolChoice(device);
-                        } else {
-                            OpenHomeSourceDialog.show(context, upnpClient, device);
-                        }
-                    })
-                    .show();
-            return true;
-        });
-    }
-
-    private void showProtocolChoice(Device<?, ?, ?> device) {
-        String udn = device.getIdentity().getUdn().getIdentifierString();
-        int checked = de.yaacc.player.OpenHomeChoice.choseAvTransport(context, udn) ? 1 : 0;
-        String[] choices = {context.getString(R.string.openhome_protocol_openhome),
-                context.getString(R.string.openhome_protocol_avtransport)};
-        new androidx.appcompat.app.AlertDialog.Builder(context)
-                .setTitle(R.string.openhome_protocol_title)
-                .setSingleChoiceItems(choices, checked, (dialog, which) -> {
-                    de.yaacc.player.OpenHomeChoice.setUseAvTransport(context, udn, which == 1);
-                    dialog.dismiss();
-                })
-                .show();
+        boolean offered = de.yaacc.player.OpenHomeChoice.offersOpenHome(device);
+        holder.ohActions.setVisibility(offered ? View.VISIBLE : View.GONE);
+        holder.ohSettings.setOnClickListener(offered ? v -> {
+            if (openHomeDialog != null && openHomeDialog.isShowing()) {
+                return;
+            }
+            openHomeDialog = OpenHomeSettingsSheet.show(context, upnpClient, device);
+        } : null);
     }
 
     /**
