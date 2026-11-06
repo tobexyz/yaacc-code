@@ -428,4 +428,31 @@ public class OhRemoteTest {
         assertTrue(state.seconds * 1000L > 0);
         assertTrue(state.durationSeconds <= 8_640_000L);
     }
+
+    @Test
+    public void moreTracksThanTheQueueTakesAreLeftOut() throws Exception {
+        List<OhRemote.Track> tracks = new ArrayList<>();
+        for (int i = 0; i < OhRemote.MAX_TRACKS + 20; i++) {
+            tracks.add(new OhRemote.Track("http://h/" + i, ""));
+        }
+
+        List<Long> ids = remote.replace(tracks);
+
+        assertEquals(OhRemote.MAX_TRACKS, ids.size());
+        assertEquals(OhRemote.MAX_TRACKS, remote.idArray().size());
+        assertEquals(0, remote.append(Arrays.asList(track("x"))).size()); // full: nothing more goes in, and no error
+    }
+
+    @Test
+    public void aDeviceThatIsFullBeforeTheLimitStopsTheAppendQuietly() throws Exception {
+        OhRemote small = new OhRemote((service, action, args) -> {
+            if (action.equals("Insert")) {
+                throw new OhControlException(OhError.PLAYLIST_FULL, "full");
+            }
+            return java.util.Collections.singletonMap("Array", "");
+        }, millis -> {
+        });
+
+        assertEquals(0, small.append(Arrays.asList(track("a"), track("b"))).size());
+    }
 }

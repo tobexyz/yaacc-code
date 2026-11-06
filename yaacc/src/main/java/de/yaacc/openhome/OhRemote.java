@@ -38,7 +38,7 @@ public final class OhRemote {
     /** How many tracks one {@code ReadList} asks for. */
     static final int READ_BATCH = 50;
     /** The most tracks of a device's queue the app takes in. */
-    static final int MAX_TRACKS = OhQueue.DEFAULT_TRACKS_MAX;
+    public static final int MAX_TRACKS = OhQueue.DEFAULT_TRACKS_MAX;
     /** The most characters of addresses and metadata the app keeps of a device's queue. */
     static final long MAX_CACHE_LENGTH = OhQueue.MAX_TOTAL_LENGTH;
     private static final int WAKE_ATTEMPTS = 20;
@@ -230,24 +230,39 @@ public final class OhRemote {
         return id;
     }
 
-    /** Puts the tracks at the end of the queue, one after the other. @return their ids */
+    /**
+     * Puts the tracks at the end of the queue, one after the other. The queue holds at most {@link #MAX_TRACKS} tracks: what does
+     * not fit is left out (as is everything after a track the device refuses because it is full).
+     *
+     * @return the ids of the tracks that were put in
+     */
     public List<Long> append(List<Track> tracks) throws OhControlException {
         List<Long> ids = idArray();
         long after = ids.isEmpty() ? 0 : ids.get(ids.size() - 1);
-        return insertAfter(after, tracks);
+        return insertAfter(after, tracks, MAX_TRACKS - ids.size());
     }
 
-    /** Empties the queue and puts the tracks in. @return their ids */
+    /** Empties the queue and puts the tracks in, at most {@link #MAX_TRACKS} of them. @return their ids */
     public List<Long> replace(List<Track> tracks) throws OhControlException {
         deleteAll();
-        return insertAfter(0, tracks);
+        return insertAfter(0, tracks, MAX_TRACKS);
     }
 
-    private List<Long> insertAfter(long afterId, List<Track> tracks) throws OhControlException {
-        List<Long> ids = new ArrayList<>(tracks.size());
+    private List<Long> insertAfter(long afterId, List<Track> tracks, int room) throws OhControlException {
+        List<Long> ids = new ArrayList<>(Math.min(tracks.size(), Math.max(0, room)));
         long after = afterId;
         for (Track track : tracks) {
-            after = insert(after, track);
+            if (ids.size() >= room) {
+                break;
+            }
+            try {
+                after = insert(after, track);
+            } catch (OhControlException e) {
+                if (e.getCode() == OhError.PLAYLIST_FULL) {
+                    break; // the device is full: the rest does not fit
+                }
+                throw e;
+            }
             ids.add(after);
         }
         return ids;
