@@ -220,3 +220,52 @@ OpenHome for audio on such a device) answers every call. Its answers are untrust
 - [ ] No test covers a deeply nested answer, a device with 10,000 ids, an oversized entry or an unrequested entry (`OhRemoteTest.hostileTrackListsAreIgnored` covers a DOCTYPE only).
 
 ### Verdict: FAIL
+
+## Cycle 3 — 2026-11-06
+Reviewing: commit f901bd41 (fixes for the two cycle 2 Warnings and the cycle 2 Suggestions), OpenHome controller side.
+
+### Critical
+- none
+
+### Warning
+- [OhXml.java:46-58 `parse`, OhTrackListParser.java:40, OhSources.java:53] **Cycle 2 Warning 1 (a deeply nested answer) is not resolved on the real
+  runtime.** The fix removes the recursive `getTextContent()`, but the DOM is still built by `DocumentBuilderFactory.newInstance()`, and on Android that
+  is `org.apache.harmony.xml.parsers.DocumentBuilderImpl`, whose `parse(KXmlParser, DocumentImpl, Node, int)` calls itself for every child element
+  ("Recursive descent", lines 296 and 322 in the AOSP libcore source, checked in the LineageOS mirror `lineage-20.0`; there is no depth check). The JDK parser used by the unit
+  tests builds the DOM iteratively, so the tests cannot show it. A nested answer needs 7 bytes per level (`<a></a>`), so the 2 MiB limit allows about 290,000 levels, and a few
+  thousand levels fit in 20 KB and are enough for the 1 MB stack of a non-main Android thread (this is derived from the source, not run on a device). `StackOverflowError` is an `Error`: `OhXml.parse` catches
+  `Exception` only, `OpenHomePlayer.refresh`/`command` catch `RuntimeException` only, the `openhome-player` thread has no uncaught handler, so the default Android handler ends the app process.
+  Reachable with one `ReadList` (or `SourceXml`) answer from any device that claims OpenHome; the app crash is the same effect as in cycle 2.
+  Fix (do both, the first is the real one): (1) before building the DOM reject text whose element nesting is deeper than the formats need (a track list is 3 levels, a source list 3;
+  a limit of 16-32 and a simple counter over `<`, `</` and `/>` is enough, no parser involved), (2) catch `StackOverflowError` in `OhXml.parse` and return null. Test: a *well-formed* 100,000-level document
+  (the existing `aDeeplyNestedAnswerIsHarmless` closes none of its `<a>` tags, so the JDK parser rejects it as malformed and the test passes without proving anything) and one just over the depth limit,
+  asserting `OhXml.parse` returns null whatever parser runs. Probe on the JDK: a well-formed 290,000-level, 2 MB answer parses and `text()` is fine (the part that was fixed works).
+- [OhRemote.java:179-188 `queue`, OpenHomePlayer.java:166-172 `refresh`] **Cycle 2 Warning 2 is fixed for memory, not for traffic.** Memory is bounded: ids cut to 1000, only asked-for entries,
+  Uri <= 4096, Metadata <= 16384, 2 MiB per answer, the cache stops at 4 M characters. But an entry that does not fit the 4 M budget is neither cached nor put in `unavailable`
+  (`asked.remove(entry.getId())` runs in both cases), so it is asked for again on every poll; and because `OpenHomePlayer.ids` holds only the cached ids, `newIds.equals(ids)` is false for ever and `queue()` runs on
+  every poll. Probe (fake `OhControl`, 1000 ids, each entry 4096 + 16000 characters, which the limits allow): 199 entries cached, then **17 `ReadList` calls per poll, about 16 MB
+  per 2 s poll, for ever**, and the single worker is busy all the time so user commands wait behind it. A hostile device gets a sustained download out of the phone (mobile data, battery);
+  a real library with about 1000 tracks and more than 4 KB of DIDL per track hits the same loop without any attack. Fix: add the ids that were read but not cached to `unavailable` too (or stop reading
+  once `cachedLength` has reached the limit), and compare in `refresh` with the ids the device reported rather than with the ids that could be shown. Test: the 1000-entry device above, three `queue()` calls, assert `ReadList` calls on call 2 and 3 are 0.
+
+### Suggestion
+- [ClingOhControl.java:111-113, OpenHomePlayer.java:126] The fault text is only cleaned for the debug log; `new OhControlException(code, failure[0])` still carries the raw device text and
+  `OpenHomePlayer.command` logs `e.getMessage()` at warn level, so the cycle 2 log forging/length remark is half done. Call `clean(...)` where the exception is built.
+- [OhRemote.java:219-225 `insert`] When the device returns an id that is already in `known`, `known.put` replaces the entry but `cachedLength` is only increased; repeated answers inflate the counter until
+  the cache accepts nothing and the traffic loop of Warning 2 starts by itself. Subtract the replaced entry (or skip `put` for a known id).
+- [OhRemote.java:159-164] A queue of more than 1000 tracks is cut to the first 1000 without a message to the user; the player then shows a shorter queue than the device plays. Not a security matter, worth a log line.
+- Carried over from cycle 2, unchanged and not rated: `HttpRequestSender.createResponse` reads a response without a size limit or overall deadline (the limits above only apply after it has been read); the mirrored items keep
+  the device's `Uri` without `OhUriPolicy.isAcceptable` (nothing fetches them today); queue share lease for `OpenHomePlayer` to be noted in decisions.md.
+
+### What was checked and is fine
+- `OhXml.text` reads own text nodes only (JDK probe: 290,000 levels, 2 MB, one entry, no error); `parse` still refuses DOCTYPE/ENTITY and text over 2 MiB.
+- `OhIds.decodeIdArray` checks the length before decoding (limit 80,064 characters); invalid arrays become `OhControlException(INVALID_ARGS)`; `idArray()` cuts to 1000; duplicates collapse in `wantedNow`.
+- `OhTrackListParser.parse(xml, wanted)`: unrequested, duplicate, empty-Uri, over-long Uri/Metadata entries are dropped, the loop stops at `wanted.size()` accepted entries; the DOM cost of rejected entries is bounded by the 2 MiB.
+- Cache budget accounting is correct for `queue`, `deleteId`, `deleteAll`; `unavailable` is bounded by `retainAll(wantedNow)`; `clampSeconds` (0..8,640,000) keeps `* 1000L` far from overflow and all users are `long`.
+- `OpenHomePlayer` poll coalescing (`AtomicBoolean`, reset in `finally`) stops the pile-up of lambdas; `AbstractPlayer` index/state fields are volatile; `OhPlayableItems` skips DIDL parsing over 16 Ki characters.
+
+### Tests
+- [x] `ANDROID_HOME=/root/android-sdk ./gradlew :yaacc:testDebugUnitTest :yaacc:lintDebug`: BUILD SUCCESSFUL; 3112 tests, 0 failures, 0 errors, 0 skipped; lint 0 issues.
+- [ ] No test would fail on the two Warnings above (the nesting test uses an unclosed document; no test polls an over-budget queue more than once).
+
+### Verdict: FAIL

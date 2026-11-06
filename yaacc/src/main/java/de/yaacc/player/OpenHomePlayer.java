@@ -72,6 +72,7 @@ public class OpenHomePlayer extends AbstractPlayer {
     private boolean ready;
     private int failures;
     private List<Long> ids = new ArrayList<>();
+    private List<Long> deviceIds = new ArrayList<>();
     private final Map<Long, PlayableItem> itemsById = new HashMap<>();
 
     // read by the screen
@@ -163,8 +164,10 @@ public class OpenHomePlayer extends AbstractPlayer {
         try {
             List<Long> newIds = remote.idArray();
             List<OhQueue.Entry> entries = null;
-            if (!newIds.equals(ids)) {
+            // compared with what the device reported last time, not with what could be shown (tracks the app did not take in)
+            if (!newIds.equals(deviceIds)) {
                 entries = remote.queue();
+                deviceIds = newIds;
             }
             OhRemote.State newState = remote.readState();
             failures = 0;

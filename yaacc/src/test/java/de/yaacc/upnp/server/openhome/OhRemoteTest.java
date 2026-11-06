@@ -332,12 +332,39 @@ public class OhRemoteTest {
         for (int i = 0; i < 100_000; i++) {
             xml.append("<a>");
         }
+        for (int i = 0; i < 100_000; i++) {
+            xml.append("</a>");
+        }
         xml.append("</Metadata></Entry></TrackList>");
         OhRemote remote = hostileDevice((action, args) -> action.equals("IdArray")
                 ? java.util.Collections.singletonMap("Array", de.yaacc.openhome.OhIds.encodeIdArray(Arrays.asList(1L)))
                 : java.util.Collections.singletonMap("TrackList", xml.toString()), new ArrayList<>());
 
-        remote.queue(); // must not throw an Error
+        assertEquals(0, remote.queue().size()); // refused as a whole, and no Error
+    }
+
+    @Test
+    public void entriesThatDoNotFitTheCacheAreNotReadAgainOnEveryPoll() throws Exception {
+        List<Long> ids = new ArrayList<>();
+        StringBuilder list = new StringBuilder("<TrackList>");
+        String meta = "m".repeat(16000);
+        for (long i = 1; i <= 1000; i++) {
+            ids.add(i);
+            list.append("<Entry><Id>").append(i).append("</Id><Uri>http://h/").append(i).append("</Uri><Metadata>").append(meta)
+                    .append("</Metadata></Entry>");
+        }
+        list.append("</TrackList>");
+        List<String> log = new ArrayList<>();
+        OhRemote remote = hostileDevice((action, args) -> action.equals("IdArray")
+                ? java.util.Collections.singletonMap("Array", de.yaacc.openhome.OhIds.encodeIdArray(ids))
+                : java.util.Collections.singletonMap("TrackList", list.toString()), log);
+
+        remote.queue();
+        long first = log.stream().filter("ReadList"::equals).count();
+        remote.queue();
+        remote.queue();
+
+        assertEquals(first, log.stream().filter("ReadList"::equals).count());
     }
 
     @Test

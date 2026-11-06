@@ -181,8 +181,9 @@ public final class OhRemote {
                 if (cachedLength + length(entry) <= MAX_CACHE_LENGTH) {
                     known.put(entry.getId(), entry);
                     cachedLength += length(entry);
+                    asked.remove(entry.getId());
                 }
-                asked.remove(entry.getId());
+                // an entry that does not fit the budget stays in "asked": it is not read again either
             }
             // ids the device did not (or could not) give are not asked for again until they leave the queue
             unavailable.addAll(asked);
@@ -218,6 +219,10 @@ public final class OhRemote {
             throw new OhControlException(OhError.INVALID_ARGS, "the device gave no id for the new track");
         }
         OhQueue.Entry added = new OhQueue.Entry(id, track.uri, track.metadata);
+        OhQueue.Entry replaced = known.remove(id);
+        if (replaced != null) {
+            cachedLength -= length(replaced);
+        }
         if (cachedLength + length(added) <= MAX_CACHE_LENGTH) {
             known.put(id, added);
             cachedLength += length(added);

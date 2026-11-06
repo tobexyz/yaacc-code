@@ -111,7 +111,7 @@ public final class ClingOhControl implements OhControl {
         }.run();
         if (failure[0] != null || invocation.getFailure() != null) {
             YaaccLogger.d(getClass().getName(), "OpenHome action " + serviceName + "." + actionName + " failed: " + clean(failure[0]));
-            throw new OhControlException(code[0], failure[0] == null ? "action failed" : failure[0]);
+            throw new OhControlException(code[0], failure[0] == null ? "action failed" : clean(failure[0]));
         }
         Map<String, String> out = new HashMap<>();
         for (ActionArgumentValue<?> value : invocation.getOutput()) {

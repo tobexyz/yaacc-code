@@ -29,3 +29,7 @@
 
 ## 2026-11-06 — security review cycle 1 fixes
 **Decision**: `ReadList` reads each id once, looks at no more text than `max` ids can take up, and answers at most 1 MiB; the queue has a total budget of 4 000 000 characters (error 801) and metadata at most 16 KiB per track; the renderer forces an audio MIME type whatever the metadata say. Loopback / link-local host filtering for track addresses is **not** done: a LAN device that can reach the renderer can already make it fetch any http(s) address with AVTransport; revisit if the real-device tests show a need.
+
+## 2026-11-06 — security review cycle 3 (cap reached)
+**Context**: security review cycle 3 failed with two warnings (nesting depth on Android's recursive DOM parser; endless re-reads when entries do not fit the cache budget). Three cycles are the limit of the workflow.
+**Decision**: both were fixed after the cycle (nesting counted on the text before parsing, max 16 levels, `StackOverflowError` caught; entries that do not fit the budget count as unavailable, the poll compares the ids the device reported) with tests (`OhXmlTest`, `OhRemoteTest`), but **not re-reviewed**: the owner decides whether another cycle is wanted.

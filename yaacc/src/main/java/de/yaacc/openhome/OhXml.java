@@ -35,6 +35,8 @@ import javax.xml.parsers.DocumentBuilderFactory;
 final class OhXml {
     /** The most characters of an XML text that is read. */
     static final int MAX_LENGTH = 2 * 1024 * 1024;
+    /** The texts read here are three levels deep; some parsers (Android's) use the stack for every level. */
+    static final int MAX_DEPTH = 16;
 
     private OhXml() {
     }
@@ -45,7 +47,7 @@ final class OhXml {
             return null;
         }
         String lower = xml.toLowerCase(Locale.ROOT);
-        if (lower.contains("<!doctype") || lower.contains("<!entity")) {
+        if (lower.contains("<!doctype") || lower.contains("<!entity") || tooDeep(xml, MAX_DEPTH)) {
             return null;
         }
         try {
@@ -59,9 +61,67 @@ final class OhXml {
             }
             DocumentBuilder builder = factory.newDocumentBuilder();
             return builder.parse(new InputSource(new StringReader(xml)));
-        } catch (Exception e) {
+        } catch (Exception | StackOverflowError e) {
             return null;
         }
+    }
+
+    /**
+     * Whether elements are nested deeper than {@code max}. Counted on the text before a parser sees it, because a parser that
+     * builds the document recursively would run out of stack on a hostile answer. Comments, processing instructions and CDATA
+     * sections are skipped; text that is not well formed is the parser's business.
+     */
+    static boolean tooDeep(String xml, int max) {
+        int depth = 0;
+        int i = 0;
+        int length = xml.length();
+        while (i < length) {
+            int open = xml.indexOf('<', i);
+            if (open < 0) {
+                return false;
+            }
+            if (xml.startsWith("<!--", open)) {
+                int end = xml.indexOf("-->", open + 4);
+                i = end < 0 ? length : end + 3;
+            } else if (xml.startsWith("<![CDATA[", open)) {
+                int end = xml.indexOf("]]>", open + 9);
+                i = end < 0 ? length : end + 3;
+            } else if (xml.startsWith("<?", open)) {
+                int end = xml.indexOf("?>", open + 2);
+                i = end < 0 ? length : end + 2;
+            } else {
+                // a tag: ends at the first '>' outside quotes
+                char quote = 0;
+                int end = open + 1;
+                for (; end < length; end++) {
+                    char c = xml.charAt(end);
+                    if (quote != 0) {
+                        if (c == quote) {
+                            quote = 0;
+                        }
+                    } else if (c == '"' || c == '\'') {
+                        quote = c;
+                    } else if (c == '>') {
+                        break;
+                    }
+                }
+                if (end >= length) {
+                    return false;
+                }
+                boolean closing = open + 1 < length && xml.charAt(open + 1) == '/';
+                boolean selfClosing = xml.charAt(end - 1) == '/';
+                if (closing) {
+                    depth--;
+                } else if (!selfClosing) {
+                    depth++;
+                    if (depth > max) {
+                        return true;
+                    }
+                }
+                i = end + 1;
+            }
+        }
+        return false;
     }
 
     static List<Element> children(Element parent, String name) {
