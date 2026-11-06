@@ -18,11 +18,14 @@
 package de.yaacc.player;
 
 import android.app.PendingIntent;
+import android.graphics.Bitmap;
 import android.content.Intent;
 import android.net.Uri;
 
 import org.fourthline.cling.model.meta.Device;
+import org.fourthline.cling.support.model.DIDLObject;
 
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -35,15 +38,19 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 import de.yaacc.R;
+import de.yaacc.Yaacc;
 import de.yaacc.openhome.OhControl;
 import de.yaacc.openhome.OhControlException;
 import de.yaacc.openhome.OhQueue;
 import de.yaacc.openhome.OhRemote;
 import de.yaacc.openhome.OhTransportState;
+import de.yaacc.openhome.OhUriPolicy;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.callback.openhome.ClingOhControl;
 import de.yaacc.upnp.callback.openhome.OhPlayableItems;
 import de.yaacc.util.YaaccLogger;
+import de.yaacc.util.image.IconDownloadCacheHandler;
+import de.yaacc.util.image.ImageDownloader;
 
 /**
  * Plays on an OpenHome device and lets the device own the playlist: the queue of the device is the playlist this player shows and
@@ -466,6 +473,50 @@ public class OpenHomePlayer extends AbstractPlayer {
         notificationIntent.putExtra(PLAYER_ID, getId());
         return PendingIntent.getActivity(getContext(), 0, notificationIntent,
                 PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_CANCEL_CURRENT);
+    }
+
+    // ---- the album art of the track the device plays (the address is in the DIDL-Lite text of the queue entry)
+
+    /**
+     * The album art of the current track: the {@code albumArtURI} of its metadata. The address comes from the device, so only
+     * http and https addresses are used.
+     */
+    @Override
+    public URI getAlbumArt() {
+        List<PlayableItem> list = getItems();
+        int index = getCurrentItemIndex();
+        if (index < 0 || index >= list.size() || list.get(index) == null || list.get(index).getItem() == null) {
+            return null;
+        }
+        DIDLObject.Property<URI> property = list.get(index).getItem().getFirstProperty(DIDLObject.Property.UPNP.ALBUM_ART_URI.class);
+        URI uri = property == null ? null : property.getValue();
+        return uri != null && OhUriPolicy.isAcceptable(uri.toString()) ? uri : null;
+    }
+
+    /** The notification shows the album art when it is in the cache; it is fetched for the next update when it is not. */
+    @Override
+    public Bitmap getIcon() {
+        URI albumArt = getAlbumArt();
+        if (albumArt != null) {
+            final android.net.Uri artUri = android.net.Uri.parse(albumArt.toString());
+            IconDownloadCacheHandler cache = IconDownloadCacheHandler.getInstance();
+            Bitmap bitmap = cache.getBitmap(artUri, 512, 512);
+            if (bitmap != null) {
+                return bitmap;
+            }
+            ((Yaacc) getContext().getApplicationContext()).getContentLoadExecutor().execute(() -> {
+                try {
+                    Bitmap loaded = new ImageDownloader().retrieveImageWithCertainSize(artUri, 512, 512);
+                    if (loaded != null) {
+                        cache.addBitmap(artUri, 512, 512, loaded);
+                        updateMetadataInternal();
+                    }
+                } catch (RuntimeException e) {
+                    YaaccLogger.w(getClass().getName(), "OpenHome album art not loaded", e);
+                }
+            });
+        }
+        return super.getIcon();
     }
 
     /** The name of the device this player plays on, for the player screen. */

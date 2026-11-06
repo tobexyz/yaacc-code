@@ -19,6 +19,7 @@ package de.yaacc.player;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -243,5 +244,49 @@ public class OpenHomePlayerTest {
         player.pause();
 
         await(() -> "01:02:03".equals(player.getDuration()));
+    }
+
+    private static String didl(String artUri) {
+        return "<DIDL-Lite xmlns=\"urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" "
+                + "xmlns:upnp=\"urn:schemas-upnp-org:metadata-1-0/upnp/\"><item id=\"1\" parentID=\"0\" restricted=\"1\">"
+                + "<dc:title>Title</dc:title><upnp:class>object.item.audioItem.musicTrack</upnp:class>"
+                + "<upnp:albumArtURI>" + artUri + "</upnp:albumArtURI></item></DIDL-Lite>";
+    }
+
+    @Test
+    public void theAlbumArtIsTheOneOfTheMetadataOfTheCurrentTrack() throws Exception {
+        long a = core.queue().insert(0, "http://h/a.mp3", didl("http://h/art-a.jpg"));
+        long b = core.queue().insert(a, "http://h/b.mp3", didl("https://h/art-b.jpg"));
+        core.setTransportState(OhTransportState.PLAYING);
+        core.setCurrentId(a);
+        player.pause();
+        await(() -> player.getItems().size() == 2 && player.getAlbumArt() != null);
+        assertEquals("http://h/art-a.jpg", player.getAlbumArt().toString());
+
+        core.setCurrentId(b);
+        player.pause();
+
+        await(() -> player.getAlbumArt() != null && player.getAlbumArt().toString().equals("https://h/art-b.jpg"));
+    }
+
+    @Test
+    public void anAlbumArtAddressThatIsNotHttpIsNotUsed() throws Exception {
+        long a = core.queue().insert(0, "http://h/a.mp3", didl("file:///data/secret.jpg"));
+        core.setCurrentId(a);
+
+        player.pause();
+
+        await(() -> player.getItems().size() == 1);
+        assertNull(player.getAlbumArt());
+    }
+
+    @Test
+    public void aTrackWithoutMetadataHasNoAlbumArt() throws Exception {
+        core.queue().insert(0, "http://h/a.mp3", "");
+
+        player.pause();
+
+        await(() -> player.getItems().size() == 1);
+        assertNull(player.getAlbumArt());
     }
 }
