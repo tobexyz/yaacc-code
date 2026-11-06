@@ -263,6 +263,10 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
             responseBuilder.setHeader("transferMode.dlna.org", "Streaming");
             responseBuilder.setHeader("contentFeatures.dlna.org", "DLNA.ORG_OP=01;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=01700000000000000000000000000000");
 
+            if (contentHolder.cacheSeconds > 0) {
+                responseBuilder.setHeader(HttpHeaders.CACHE_CONTROL, "public, max-age=" + contentHolder.cacheSeconds);
+            }
+
             // Add MJPEG-specific headers for Kodi compatibility
             if (contentHolder instanceof LiveStreamContentHolder && ((LiveStreamContentHolder) contentHolder).isVideo) {
                 responseBuilder.setHeader(HttpHeaders.CACHE_CONTROL, "no-cache, no-store, must-revalidate");
@@ -562,8 +566,7 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
      */
     private ContentHolder lookupAlbumArt(String albumId, List<HttpRange> ranges) {
 
-        ContentHolder result = new ContentHolder(MimeType.valueOf("image/png"),
-                getDefaultIcon(), ranges, context);
+        ContentHolder result = genericMusicIcon(ranges);
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(getContext());
         if (!preferences.getBoolean(getContext().getString(R.string.settings_local_server_chkbx), false)) {
             return result;
@@ -606,20 +609,7 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
                             result = new ContentHolder(mimeType, dataUri, ranges, context);
                         } else {
                             YaaccLogger.d(getClass().getName(), "Album art not found in media store. Fallback to default");
-                            Bitmap bitmap = BitmapFactory.decodeResource(context.getResources(),
-                                    R.drawable.yaacc192_32);
-
-                            try {
-                                File art = new File(context.getCacheDir(), "albumart" + albumId + ".jpg");
-                                art.createNewFile();
-                                FileOutputStream fos = new FileOutputStream(art);
-                                bitmap.compress(Bitmap.CompressFormat.JPEG, 90, fos);
-                                fos.flush();
-                                fos.close();
-                                result = new ContentHolder(mimeType, art.getAbsolutePath(), ranges, context);
-                            } catch (IOException e) {
-                                YaaccLogger.e(getClass().getName(), "Error loading album art from file", e);
-                            }
+                            result = genericMusicIcon(ranges);
                         }
                         cursor.moveToNext();
                     }
@@ -628,17 +618,21 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
                 }
             }
         } else {
-            Uri albumArtUri = ContentUris.withAppendedId(MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI,
-                    Long.parseLong(albumId));
-            MimeType mimeType = MimeType.valueOf("image/jpeg");
-            YaaccLogger.d(getClass().getName(), "Content found: " + mimeType
-                    + " Uri: " + albumArtUri);
+            long id;
+            try {
+                id = Long.parseLong(albumId);
+            } catch (NumberFormatException nfe) {
+                YaaccLogger.d(getClass().getName(), "Album id is no number, generic icon");
+                return result;
+            }
+            Uri albumArtUri = ContentUris.withAppendedId(MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI, id);
+            YaaccLogger.d(getClass().getName(), "Album art lookup Uri: " + albumArtUri);
             Bitmap bitmap;
             try {
                 bitmap = context.getContentResolver().loadThumbnail(albumArtUri, new Size(1024, 1024), null);
             } catch (IOException io) {
-                YaaccLogger.d(getClass().getName(), "Album art not found in media store. Fallback to default");
-                bitmap = BitmapFactory.decodeResource(context.getResources(), R.drawable.yaacc192_32);
+                YaaccLogger.d(getClass().getName(), "Album art not found in media store. Fallback to the generic music icon");
+                return result;
             }
             try {
                 File art = new File(context.getCacheDir(), "albumart" + albumId + ".jpg");
@@ -647,7 +641,7 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
                 bitmap.compress(Bitmap.CompressFormat.JPEG, 90, fos);
                 fos.flush();
                 fos.close();
-                result = new ContentHolder(mimeType, art.getAbsolutePath(), ranges, context);
+                result = new ContentHolder(MimeType.valueOf("image/jpeg"), art.getAbsolutePath(), ranges, context);
             } catch (IOException e) {
                 YaaccLogger.e(getClass().getName(), "Error loading album art from file", e);
             }
@@ -858,6 +852,37 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
         }
     }
 
+    /** How long a control point may keep the generic music icon (the picture never changes). */
+    static final long GENERIC_ICON_CACHE_SECONDS = 24 * 60 * 60;
+    private static volatile byte[] genericMusicIconBytes;
+
+    /**
+     * The cover of a music track whose album has none: a fixed, small PNG of the music note glyph the app uses for audio items
+     * ({@code res/raw/album_art_music_generic.png}), not the app logo. It is read once, not rendered, and no file is written
+     * per album; the answer may be cached by the control point ({@link ContentHolder#cacheSeconds}).
+     */
+    private ContentHolder genericMusicIcon(List<HttpRange> ranges) {
+        byte[] bytes = genericMusicIconBytes;
+        if (bytes == null) {
+            try (java.io.InputStream in = getContext().getResources().openRawResource(R.raw.album_art_music_generic);
+                 ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+                byte[] buffer = new byte[4096];
+                int read;
+                while ((read = in.read(buffer)) > 0) {
+                    out.write(buffer, 0, read);
+                }
+                bytes = out.toByteArray();
+                genericMusicIconBytes = bytes;
+            } catch (IOException | RuntimeException e) {
+                YaaccLogger.w(getClass().getName(), "The generic music icon could not be read, the app icon is used", e);
+                bytes = getDefaultIcon();
+            }
+        }
+        ContentHolder holder = new ContentHolder(MimeType.valueOf("image/png"), bytes, ranges, context);
+        holder.cacheSeconds = GENERIC_ICON_CACHE_SECONDS;
+        return holder;
+    }
+
     private byte[] getDefaultIcon() {
         Drawable drawable = ResourcesCompat.getDrawable(getContext().getResources(),
                 R.drawable.yaacc192_32, getContext().getTheme());
@@ -881,6 +906,8 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
         protected final Context context;
         protected List<HttpRange> ranges;
         private RangeResponsePlan rangePlan;
+        /** &gt; 0: the answer may be cached by the client for that many seconds (a picture that never changes). */
+        long cacheSeconds;
 
         public ContentHolder(MimeType mimeType, String uri, List<HttpRange> ranges, Context context) {
             this.uri = uri;
