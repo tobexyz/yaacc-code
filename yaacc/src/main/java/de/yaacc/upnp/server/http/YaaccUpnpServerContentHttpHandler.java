@@ -574,6 +574,14 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
         if (albumId == null) {
             return result;
         }
+        Long canonicalId = canonicalAlbumId(albumId);
+        if (canonicalId == null) {
+            // not the spelling of an id of the media store: the same album could be asked for in endless spellings (007, +7),
+            // and each spelling would get a cover file of its own in the cache directory
+            YaaccLogger.d(getClass().getName(), "Album id is not canonical, generic icon");
+            return result;
+        }
+        albumId = canonicalId.toString();
         if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
             YaaccLogger.d(getClass().getName(), "System media store lookup album: "
                     + albumId);
@@ -618,13 +626,7 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
                 }
             }
         } else {
-            long id;
-            try {
-                id = Long.parseLong(albumId);
-            } catch (NumberFormatException nfe) {
-                YaaccLogger.d(getClass().getName(), "Album id is no number, generic icon");
-                return result;
-            }
+            long id = canonicalId;
             Uri albumArtUri = ContentUris.withAppendedId(MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI, id);
             YaaccLogger.d(getClass().getName(), "Album art lookup Uri: " + albumArtUri);
             Bitmap bitmap;
@@ -849,6 +851,22 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
             }
             YaaccLogger.e(getClass().getName(), "DocumentFile is null, doesn't exist, or is a directory");
             return super.getEntityProducer();
+        }
+    }
+
+    /**
+     * @return the id if the text is exactly the decimal spelling of a non-negative number (no sign, no leading zeros, no
+     * non-ASCII digits, no blanks), else {@code null}
+     */
+    static Long canonicalAlbumId(String text) {
+        if (text == null || text.isEmpty() || text.length() > 19) {
+            return null;
+        }
+        try {
+            long id = Long.parseLong(text);
+            return id >= 0 && Long.toString(id).equals(text) ? id : null;
+        } catch (NumberFormatException e) {
+            return null;
         }
     }
 

@@ -162,6 +162,30 @@ public class AlbumArtFallbackTest {
     }
 
     @Test
+    public void onlyTheCanonicalSpellingOfAnIdIsAnAlbumId() {
+        assertEquals(Long.valueOf(7), YaaccUpnpServerContentHttpHandler.canonicalAlbumId("7"));
+        assertEquals(Long.valueOf(0), YaaccUpnpServerContentHttpHandler.canonicalAlbumId("0"));
+        assertEquals(Long.valueOf(Long.MAX_VALUE), YaaccUpnpServerContentHttpHandler.canonicalAlbumId("9223372036854775807"));
+        for (String other : new String[]{null, "", "007", "+7", "-7", "-0", " 7", "7 ", "7.0", "\u0667", "\uff17", "abc", "9223372036854775808",
+                "../7", "7/../8", "00000000000000000000007"}) {
+            assertNull("'" + other + "'", YaaccUpnpServerContentHttpHandler.canonicalAlbumId(other));
+        }
+    }
+
+    @Test
+    public void anotherSpellingOfAnIdGetsTheIconWithoutAnyLookupOrCacheHeader() {
+        oneAlbumRow("/never/used.png");
+
+        for (String spelling : new String[]{"007", "+7", "\u0667"}) {
+            ContentHolder holder = lookup(spelling);
+
+            assertArrayEquals(spelling, ICON, holder.content);
+            assertEquals(spelling, 0, holder.cacheSeconds);
+        }
+        org.mockito.Mockito.verifyNoInteractions(cursor);
+    }
+
+    @Test
     public void theIconIsReadOnceAndIsNotTheAppLogo() {
         oneAlbumRow(null);
         ContentHolder first = lookup("7");
