@@ -333,6 +333,10 @@ public class MusicPlayerActivity extends AppCompatActivity implements ServiceCon
             albumArtView.setImageTintList(null);
             ImageDownloadTask imageDownloadTask = new ImageDownloadTask(albumArtView);
             imageDownloadTask.executeOnExecutor(((Yaacc) getApplicationContext()).getContentLoadExecutor(), Uri.parse(albumArtUri.toString()));
+        } else if (getPlayer().getIcon() != null) {
+            // no art address (a controller that sends none): the cover embedded in the file, when the player has read it
+            albumArtView.setImageTintList(null);
+            albumArtView.setImageBitmap(getPlayer().getIcon());
         } else {
             albumArtView.setImageDrawable(ThemeHelper.tintDrawable(albumArtView.getDrawable(), getTheme()));
         }

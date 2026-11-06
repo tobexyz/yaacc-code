@@ -28,6 +28,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import de.yaacc.openhome.OhError;
+import de.yaacc.openhome.OhEscape;
 import de.yaacc.openhome.OhIds;
 import de.yaacc.openhome.OhQueue;
 import de.yaacc.openhome.OhSourceXml;
@@ -79,6 +80,10 @@ public final class OhRendererCore {
     private final OhServiceState info = new OhServiceState();
     private final OhServiceState time = new OhServiceState();
     private final OhServiceState volume = new OhServiceState();
+    private final OhServiceState radio = new OhServiceState();
+    /** The id of the channel set with {@code Radio.SetChannel} (0 for none) and a counter that changes with it. */
+    private volatile long radioId;
+    private final java.util.concurrent.atomic.AtomicLong radioToken = new java.util.concurrent.atomic.AtomicLong(1);
     private final OhPlayback playback;
     private final Delayer delayer;
     private final AtomicBoolean idArrayPending = new AtomicBoolean();
@@ -117,6 +122,13 @@ public final class OhRendererCore {
         volume.init("BalanceMax", "0");
         volume.init("FadeMax", "0");
         volume.init("UnityGain", "false");
+        radio.init("Uri", "");
+        radio.init("Metadata", "");
+        radio.init("TransportState", OhTransportState.STOPPED.value());
+        radio.init("Id", "0");
+        radio.init("IdArray", "");
+        radio.init("ChannelsMax", "1");
+        radio.init("ProtocolInfo", protocolInfo);
     }
 
     private void initProduct(Details d) {
@@ -149,10 +161,10 @@ public final class OhRendererCore {
         return queue;
     }
 
-    /** The five services, ready to be added to the renderer device. */
+    /** The six services, ready to be added to the renderer device. */
     public List<LocalService<?>> buildServices(int lockTimeoutMillis) throws ValidationException {
         // the device is built again now and then (network changes); the old services must not hold on to the states
-        for (OhServiceState state : new OhServiceState[]{product, playlist, info, time, volume}) {
+        for (OhServiceState state : new OhServiceState[]{product, playlist, info, time, volume, radio}) {
             state.clearListeners();
         }
         List<LocalService<?>> services = new ArrayList<>();
@@ -161,6 +173,7 @@ public final class OhRendererCore {
         services.add(OhLocalService.build(OhServiceDefs.info(), info, new HashMap<String, OhActionHandler>(), lockTimeoutMillis));
         services.add(OhLocalService.build(OhServiceDefs.time(), time, new HashMap<String, OhActionHandler>(), lockTimeoutMillis));
         services.add(OhLocalService.build(OhServiceDefs.volume(), volume, volumeHandlers(), lockTimeoutMillis));
+        services.add(OhLocalService.build(OhServiceDefs.radio(), radio, radioHandlers(), lockTimeoutMillis));
         return services;
     }
 
@@ -177,6 +190,8 @@ public final class OhRendererCore {
                 return time.listenerCount();
             case "volume":
                 return volume.listenerCount();
+            case "radio":
+                return radio.listenerCount();
             default:
                 throw new IllegalArgumentException(service);
         }
@@ -195,6 +210,8 @@ public final class OhRendererCore {
                 return volume.get(variable);
             case "product":
                 return product.get(variable);
+            case "radio":
+                return radio.get(variable);
             default:
                 throw new IllegalArgumentException(service);
         }
@@ -204,6 +221,7 @@ public final class OhRendererCore {
 
     public void setTransportState(OhTransportState state) {
         playlist.set("TransportState", state.value());
+        radio.set("TransportState", state.value());
     }
 
     /** The id of the track that plays (0 for none). */
@@ -301,6 +319,7 @@ public final class OhRendererCore {
     private Map<String, OhActionHandler> playlistHandlers() {
         Map<String, OhActionHandler> h = new HashMap<>();
         h.put("Play", in -> {
+            wake();
             playback.play();
             return null;
         });
@@ -351,6 +370,7 @@ public final class OhRendererCore {
         h.put("SeekId", in -> {
             long id = number(in.get("Value"));
             queue.read(id); // 800 if it is not in the queue
+            wake();
             playback.seekToTrack(id);
             return null;
         });
@@ -359,7 +379,9 @@ public final class OhRendererCore {
             if (index < 0 || index > Integer.MAX_VALUE) {
                 throw OhError.indexNotFound();
             }
-            playback.seekToTrack(queue.idAt((int) index)); // 802 if there is no track
+            long id = queue.idAt((int) index); // 802 if there is no track
+            wake();
+            playback.seekToTrack(id);
             return null;
         });
         h.put("Read", in -> {
@@ -406,10 +428,107 @@ public final class OhRendererCore {
         return h;
     }
 
+    /**
+     * The Radio service is a facade for controllers that start one stream with it (Home Assistant's {@code play_media}):
+     * {@code SetChannel} replaces the queue with that one track, {@code Play} plays it. The transport actions are those of the
+     * playlist. Product offers no radio source, so controllers that browse the sources do not see it.
+     */
+    private Map<String, OhActionHandler> radioHandlers() {
+        Map<String, OhActionHandler> h = new HashMap<>();
+        h.put("Play", in -> {
+            wake();
+            playback.play();
+            return null;
+        });
+        h.put("Pause", in -> {
+            playback.pause();
+            return null;
+        });
+        h.put("Stop", in -> {
+            playback.stop();
+            return null;
+        });
+        h.put("SeekSecondAbsolute", in -> {
+            long second = number(in.get("Value"));
+            if (second < 0) {
+                throw OhError.seekFailure();
+            }
+            playback.seekSecondAbsolute(second);
+            return null;
+        });
+        h.put("SeekSecondRelative", in -> {
+            long seconds = number(in.get("Value"));
+            if (seconds < Integer.MIN_VALUE || seconds > Integer.MAX_VALUE) {
+                throw OhError.seekFailure();
+            }
+            playback.seekSecondRelative((int) seconds);
+            return null;
+        });
+        h.put("SetChannel", in -> {
+            String uri = in.get("Uri");
+            String metadata = in.get("Metadata") == null ? "" : in.get("Metadata");
+            if (!OhUriPolicy.isAcceptable(uri) || metadata.length() > OhQueue.MAX_METADATA_LENGTH) {
+                throw OhError.invalid("channel"); // checked before anything is replaced
+            }
+            queue.deleteAll();
+            long id = queue.insert(0, uri, metadata);
+            queueEdited();
+            playback.queueCleared();
+            playback.trackInserted(0, queue.read(id));
+            radioId = id;
+            radioToken.incrementAndGet();
+            Map<String, String> changes = new LinkedHashMap<>();
+            changes.put("Uri", uri);
+            changes.put("Metadata", metadata);
+            changes.put("Id", String.valueOf(id));
+            changes.put("IdArray", OhIds.encodeIdArray(java.util.Collections.singletonList(id)));
+            radio.setAll(changes);
+            return null;
+        });
+        h.put("SetId", in -> {
+            if (number(in.get("Value")) != radioId || radioId == 0) {
+                throw OhError.idNotFound();
+            }
+            return null; // there is only the one channel
+        });
+        h.put("Read", in -> {
+            if (number(in.get("Id")) != radioId || radioId == 0) {
+                throw OhError.idNotFound();
+            }
+            return one("Metadata", radio.get("Metadata"));
+        });
+        h.put("ReadList", in -> {
+            StringBuilder xml = new StringBuilder("<ChannelList>");
+            for (long id : OhIds.parseIdList(in.get("IdList"), READ_LIST_MAX)) {
+                if (id == radioId && radioId != 0) {
+                    xml.append("<Entry><Id>").append(id).append("</Id><Metadata>").append(OhEscape.xml(radio.get("Metadata")))
+                            .append("</Metadata></Entry>");
+                }
+            }
+            return one("ChannelList", xml.append("</ChannelList>").toString());
+        });
+        h.put("IdArray", in -> {
+            Map<String, String> out = new HashMap<>();
+            out.put("Token", String.valueOf(radioToken.get()));
+            out.put("Array", radio.get("IdArray"));
+            return out;
+        });
+        h.put("IdArrayChanged", in -> one("Value", String.valueOf(number(in.get("Token")) != radioToken.get())));
+        return h;
+    }
+
     private Map<String, OhActionHandler> productHandlers() {
         Map<String, OhActionHandler> h = new HashMap<>();
-        // the phone is the device and always awake: the request is accepted and changes nothing
-        h.put("SetStandby", in -> null);
+        // standby of a phone is an app state, not a power state: playback stops (the queue stays) and the device says it is in
+        // standby until somebody wakes it or plays
+        h.put("SetStandby", in -> {
+            boolean standby = bool(in.get("Value"));
+            if (standby) {
+                playback.stop();
+            }
+            product.set("Standby", String.valueOf(standby));
+            return null;
+        });
         h.put("SetSourceIndex", in -> {
             if (number(in.get("Value")) != 0) {
                 throw OhError.invalid("source");
@@ -436,6 +555,11 @@ public final class OhRendererCore {
             return out;
         });
         return h;
+    }
+
+    /** Playing, or choosing a track to play, wakes a device that is in standby (as devices do). */
+    private void wake() {
+        product.set("Standby", "false");
     }
 
     private static void requirePlaylistSource(String name) {

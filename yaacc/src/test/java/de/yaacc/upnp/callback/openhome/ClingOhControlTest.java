@@ -97,4 +97,27 @@ public class ClingOhControlTest {
 
         assertNull(ClingOhControl.findService(device, "Playlist"));
     }
+
+    @Test
+    public void aRendererInsideAnotherDeviceFindsTheOpenHomeServicesOfTheRoot() {
+        Device<?, ?, ?> root = mock(Device.class);
+        doReturn(new Service[]{service("av-openhome-org", "Playlist", 1), service("av-openhome-org", "Product", 2)})
+                .when(root).getServices();
+        Device<?, ?, ?> embedded = mock(Device.class);
+        doReturn(new Service[]{service("schemas-upnp-org", "AVTransport", 1)}).when(embedded).getServices();
+        doReturn(root).when(embedded).getRoot();
+        doReturn(root).when(root).getRoot();
+
+        assertTrue(ClingOhControl.offersPlaylist(embedded));
+        assertTrue(ClingOhControl.offersPlaylist(root));
+    }
+
+    @Test
+    public void aDeviceWithoutRootIsStillHandled() {
+        Device<?, ?, ?> device = mock(Device.class);
+        doReturn(new Service[0]).when(device).getServices();
+        doReturn(null).when(device).getRoot();
+
+        assertFalse(ClingOhControl.offersPlaylist(device));
+    }
 }

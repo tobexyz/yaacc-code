@@ -683,6 +683,8 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
                 List<LocalService<?>> serverServices = new ArrayList<>();
                 serverServices.addAll(Arrays.asList(createCoreServices()));
                 serverServices.addAll(Arrays.asList(createMediaServerServices()));
+                // OpenHome controllers (Home Assistant among them) only look at the services of the root device
+                serverServices.addAll(createOpenHomeServices());
 
                 LocalDevice serverDevice = new LocalDevice(
                         identity,
@@ -702,6 +704,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
                 }
                 if (serverEnabled && rendererEnabled) {
                     services.addAll(Arrays.asList(createMediaRendererServices()));
+                    services.addAll(createOpenHomeServices());
                 }
 
                 UDADeviceType deviceType;
@@ -984,7 +987,6 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         List<LocalService<?>> services = new ArrayList<>();
         services.add(createAVTransportService());
         services.add(createRenderingControl());
-        services.addAll(createOpenHomeServices());
         return services.toArray(new LocalService[]{});
     }
 

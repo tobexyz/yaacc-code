@@ -509,6 +509,7 @@ public class OhRemoteTest {
         assertEquals(false, remote.standby());
 
         remote.setStandby(true);
+        assertEquals(true, remote.standby());
         remote.setStandby(false);
 
         assertEquals(false, remote.standby());

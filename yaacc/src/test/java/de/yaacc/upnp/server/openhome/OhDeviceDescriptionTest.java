@@ -55,7 +55,7 @@ public class OhDeviceDescriptionTest {
     public void theDeviceDescriptionListsTheOpenHomeServices() throws Exception {
         String xml = new UDA10DeviceDescriptorBinderImpl().generate(device(core()), new RemoteClientInfo(), new Namespace());
 
-        String[][] expected = {{"Product", "2"}, {"Playlist", "1"}, {"Info", "1"}, {"Time", "1"}, {"Volume", "2"}};
+        String[][] expected = {{"Product", "2"}, {"Playlist", "1"}, {"Info", "1"}, {"Time", "1"}, {"Volume", "2"}, {"Radio", "1"}};
         for (String[] service : expected) {
             assertTrue(service[0] + " type in\n" + xml,
                     xml.contains("<serviceType>urn:av-openhome-org:service:" + service[0] + ":" + service[1] + "</serviceType>"));
@@ -67,7 +67,7 @@ public class OhDeviceDescriptionTest {
     @Test
     public void everyServiceHasADescriptionWithItsActions() throws Exception {
         LocalDevice device = device(core());
-        assertEquals(5, device.getServices().length);
+        assertEquals(6, device.getServices().length);
         for (LocalService<?> service : device.getServices()) {
             String scpd = new UDA10ServiceDescriptorBinderImpl().generate(service);
             assertTrue(service.getServiceType() + " has actions", scpd.contains("<actionList>"));
@@ -78,7 +78,7 @@ public class OhDeviceDescriptionTest {
     @Test
     public void buildingTheServicesAgainDoesNotKeepTheOldOnesListening() throws Exception {
         OhRendererCore core = core();
-        String[] names = {"playlist", "info", "time", "volume", "product"};
+        String[] names = {"playlist", "info", "time", "volume", "product", "radio"};
 
         for (LocalService<?> service : core.buildServices(1000)) {
             service.getManager().getPropertyChangeSupport(); // starts the manager: it listens to the state from now on
