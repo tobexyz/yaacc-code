@@ -223,3 +223,45 @@ Method: cycle 1 findings re-checked against the new code; `OpenHomeRenderer`, `A
   (timeout/cancel), delete-playing-track + DeleteAll + insert (stale `startId`).
 
 ### Verdict: FAIL
+
+## Cycle 3 — 2026-11-06
+Reviewing: Group fixes for cycle 2 (commit 22db10c3)
+
+### Cycle 2 Warnings
+1. Late player calls / failed player call in `sync()`: resolved.
+   - `OhCall.runAndWait` (new, plain JVM) cancels the `FutureTask` on timeout, interrupt (interrupt flag restored) and on a failing `execute`; an
+     `ExecutionException` is wrapped with the cause. `AndroidOhThreads.onPlayer` uses it for the non-main case; the main-thread case runs inline.
+   - `OpenHomeRenderer.sync()` wraps `reconcile()` in `try/catch (RuntimeException)` and calls `discardPlayer()`, so a call that was running and could not be
+     undone (cancel(false)) no longer leaves `playerIds` out of step: the next Play rebuilds the player from the queue. `discardPlayer()` itself catches a
+     failing `exit`.
+   - `OhCallTest` covers result, failure (cause preserved) and "timed out call is cancelled and never runs when the thread gets free".
+2. Stale `startId` after DeleteAll without a player: resolved. `sync()` now checks the empty queue first (discard + `startId = 0`) before the
+   `alivePlayer() == null` return. Test `aDeleteAllOfADeletedPlayingTrackLeavesNoStaleStartTrack` follows the reported sequence and asserts the new track
+   id after Play.
+3. Thread affinity not tested: resolved. `FakePlayer` throws when used off `requiredThread`; `thePlayerIsOnlyTouchedOnItsOwnThread` runs the renderer with a
+   separate worker and player thread through `OhCall.runAndWait` and drives play, insert, repeat/shuffle, seeks, next, pause, refresh, delete, DeleteAll.
+   Also: the renderer is shut down when `createOpenHomeServices` fails (cycle 2 suggestion), and the `OhPlayback` Javadoc was updated.
+
+### Critical
+- none
+
+### Warning
+- none
+
+### Suggestion
+- [OpenHomeRendererTest.java thePlayerIsOnlyTouchedOnItsOwnThread] A violation is thrown, but `refreshNow()` (catch RuntimeException) and the new `sync()` catch
+  swallow it, so a player call that bypasses `onPlayer` inside `read`/`refreshNow` would stay green; the test also asserts no player state. Let
+  `FakePlayer.check()` also add the thread name to a `violations` list and assert it is empty (and assert e.g. the final `Stopped` state / the recorded calls).
+  Violations from the command lambdas (play, pause, next, seek, applyMode, startFrom) do reach `failures` and are caught today.
+- [OpenHomeRenderer.java startFrom] A failure after `player = created` (e.g. `applyMode` or `play` timing out) is not recovered; it is only repaired by the next
+  `sync()`. Could discard the player in a catch like `sync()` does. Not blocking.
+- After the recovery in `sync()` the next Play starts at `startId` (0 = first track), not at the track that played. Acceptable for a rare failure path.
+- Still open and not blocking (earlier cycles): `trackDeleted` index/successor race, Stopped flap right after Play, 1 Hz poll while idle, `seekToTrack`
+  ignored while processing, URI normalisation, strict base64, shared music player slot not in decisions.md.
+
+### Tests
+- [x] All tests passing: `ANDROID_HOME=/root/android-sdk ./gradlew :yaacc:testDebugUnitTest :yaacc:lintDebug` BUILD SUCCESSFUL; OhCallTest 3/3,
+  OpenHomeRendererTest 28/28, no failures/errors; lint 0 issues (`grep -c "<issue " yaacc/build/reports/lint-results-debug.xml` = 0).
+- [x] Coverage adequate for the change (cancel on timeout, stale start id, thread affinity on the command paths; `AndroidOhThreads` is a thin Android wrapper over the tested `OhCall`).
+
+### Verdict: PASS
