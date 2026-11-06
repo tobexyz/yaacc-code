@@ -55,7 +55,15 @@ public final class ClingOhControl implements OhControl {
             return null;
         }
         Service<?, ?> best = null;
-        for (Service<?, ?> service : device.getServices()) {
+        // Cling answers null (not an empty array) for a device without services, like the local device or one that is still loading
+        Service<?, ?>[] services = device.getServices();
+        if (services == null) {
+            return null;
+        }
+        for (Service<?, ?> service : services) {
+            if (service == null || service.getServiceType() == null) {
+                continue;
+            }
             if (NAMESPACE.equals(service.getServiceType().getNamespace()) && name.equals(service.getServiceType().getType())
                     && (best == null || service.getServiceType().getVersion() > best.getServiceType().getVersion())) {
                 best = service;

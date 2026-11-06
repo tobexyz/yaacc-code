@@ -44,11 +44,16 @@ public final class OpenHomeChoice {
         if (device == null) {
             return false;
         }
-        return decide(ClingOhControl.offersPlaylist(device), choseAvTransport(context, udn(device)), audioOnly);
+        return decide(offersOpenHome(device), choseAvTransport(context, udn(device)), audioOnly);
     }
 
     public static boolean offersOpenHome(Device<?, ?, ?> device) {
-        return ClingOhControl.offersPlaylist(device);
+        try {
+            return ClingOhControl.offersPlaylist(device);
+        } catch (RuntimeException e) {
+            // called while a list row is built: whatever is odd about a device, the list must still show
+            return false;
+        }
     }
 
     public static boolean choseAvTransport(Context context, String udn) {
