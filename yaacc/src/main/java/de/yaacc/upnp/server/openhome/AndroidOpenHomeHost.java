@@ -83,10 +83,11 @@ public final class AndroidOpenHomeHost implements OpenHomeRenderer.Host, OpenHom
         }
         // the address of the queue is the truth, whatever the metadata say
         item.setUri(android.net.Uri.parse(uri));
-        if (item.getMimeType() == null || item.getMimeType().isEmpty()) {
+        // the renderer plays audio: whatever the metadata claim, a video or image type must not start another kind of player
+        if (item.getMimeType() == null || !item.getMimeType().startsWith("audio/")) {
             String extension = MimeTypeMap.getFileExtensionFromUrl(uri);
             String mimeType = extension == null ? null : MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension);
-            item.setMimeType(mimeType == null ? DEFAULT_MIME_TYPE : mimeType);
+            item.setMimeType(mimeType != null && mimeType.startsWith("audio/") ? mimeType : DEFAULT_MIME_TYPE);
         }
         return item;
     }

@@ -35,7 +35,9 @@ import java.util.Map;
 public final class OhQueue {
     public static final int DEFAULT_TRACKS_MAX = 1000;
     public static final int MAX_URI_LENGTH = 4096;
-    public static final int MAX_METADATA_LENGTH = 65536;
+    public static final int MAX_METADATA_LENGTH = 16384;
+    /** The most characters of all addresses and metadata together: the queue lives in the memory of the phone. */
+    public static final int MAX_TOTAL_LENGTH = 4_000_000;
 
     /** One track of the queue. */
     public static final class Entry {
@@ -66,6 +68,7 @@ public final class OhQueue {
     private final List<Entry> entries = new ArrayList<>();
     private final Map<Long, Entry> byId = new HashMap<>();
     private long lastId;
+    private long totalLength;
     private long token = 1;
 
     public OhQueue(int tracksMax) {
@@ -111,9 +114,10 @@ public final class OhQueue {
             }
             index++;
         }
-        if (entries.size() >= tracksMax) {
+        if (entries.size() >= tracksMax || totalLength + uri.length() + meta.length() > MAX_TOTAL_LENGTH) {
             throw OhError.playlistFull();
         }
+        totalLength += uri.length() + meta.length();
         Entry entry = new Entry(nextId(), uri, meta);
         entries.add(index, entry);
         byId.put(entry.getId(), entry);
@@ -135,6 +139,7 @@ public final class OhQueue {
             throw OhError.idNotFound();
         }
         entries.remove(entry);
+        totalLength -= entry.getUri().length() + entry.getMetadata().length();
         token++;
     }
 
@@ -142,6 +147,7 @@ public final class OhQueue {
         if (!entries.isEmpty()) {
             entries.clear();
             byId.clear();
+            totalLength = 0;
             token++;
         }
     }

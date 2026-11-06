@@ -26,3 +26,10 @@
 **Decision**: the renderer does all its work on one serial worker thread (`OpenHomeRenderer.Threads`); commands from control points only hand work over. The player is only touched on the main thread (the worker waits for it, never the reverse; `createPlayer` runs on the worker because it waits for the player service). The player's list follows the queue by reconciling (`sync()`: remove what the queue lost, insert what is new) instead of applying index based edits, so concurrent, reordered or repeated notifications are harmless.
 **Decision**: deleting the track that plays ends the player (it is shut down); the next `Play` creates a new one starting with the track behind the deleted one. Not verified against ohPipeline (?) — to check with a real device.
 **Rationale**: ExoPlayer rules, simple and robust; a rare edit does not justify keeping a half-consistent player.
+
+## 2026-11-06 — security review cycle 1 fixes
+**Decision**: `ReadList` reads each id once, looks at no more text than `max` ids can take up, and answers at most 1 MiB; the queue has a total budget of 4 000 000 characters (error 801) and metadata at most 16 KiB per track; the renderer forces an audio MIME type whatever the metadata say. Loopback / link-local host filtering for track addresses is **not** done: a LAN device that can reach the renderer can already make it fetch any http(s) address with AVTransport; revisit if the real-device tests show a need.
+
+## 2026-11-06 — security review cycle 3 (cap reached)
+**Context**: security review cycle 3 failed with two warnings (nesting depth on Android's recursive DOM parser; endless re-reads when entries do not fit the cache budget). Three cycles are the limit of the workflow.
+**Decision**: both were fixed after the cycle (nesting counted on the text before parsing, max 16 levels, `StackOverflowError` caught; entries that do not fit the budget count as unavailable, the poll compares the ids the device reported) with tests (`OhXmlTest`, `OhRemoteTest`), but **not re-reviewed**: the owner decides whether another cycle is wanted.

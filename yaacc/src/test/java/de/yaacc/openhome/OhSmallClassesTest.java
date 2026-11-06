@@ -94,4 +94,19 @@ public class OhSmallClassesTest {
         }
         assertFalse(OhUriPolicy.isAcceptable("http://192.0.2.1/" + new String(new char[5000]).replace('\0', 'a')));
     }
+
+    @Test
+    public void aTrackListAnswerHasASizeLimit() {
+        OhQueue queue = new OhQueue(100);
+        for (int i = 0; i < 50; i++) {
+            queue.insert(0, "http://h/" + i, "m".repeat(1000));
+        }
+
+        String xml = OhTrackList.toXml(queue.snapshot(), 10_000);
+
+        assertTrue(xml.length() <= 10_000 + "</TrackList>".length());
+        assertTrue(xml.endsWith("</TrackList>"));
+        assertTrue(xml.contains("<Entry>"));
+        assertTrue(xml.length() < OhTrackList.toXml(queue.snapshot()).length());
+    }
 }

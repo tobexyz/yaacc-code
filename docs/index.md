@@ -16,6 +16,7 @@ layout: default
 * UPnP/DLNA Controller - control media renderer in the network
 * Control multiple media renderer
 * Link Yamaha MusicCast devices into a group, set the group volume, control their own sources (now playing, tuner, presets) and change device settings, see [MusicCast devices](#musiccast-devices)
+* Play music on OpenHome devices, which keep the playlist themselves, and let OpenHome control points play on YAACC, see [OpenHome](#openhome)
 * Allow download files to the device
 * Share a link (http or https) or one audio, video or image file from another app to YAACC and play it on the receivers you pick, see [Sharing to YAACC](#sharing-to-yaacc)
 * Pick files or a folder of your device and play them on the receivers you pick without serving them constantly, see [Playing files from this device](#playing-files-from-this-device)
@@ -399,7 +400,7 @@ The settings button on the row opens a sheet with what the device reports as cha
 * Updates reach the app as UDP messages from the device to the phone. If the Wi-Fi isolates devices from each other, or the phone's Wi-Fi is in power save, they may not arrive; the row is then updated by the 30 second read.
 * YAACC talks to a device only at the address it announced in your network, and shows everything a device sends as plain text.
 
-Yamaha and MusicCast are trademarks or registered trademarks of Yamaha Corporation. YAACC is an independent project and is not affiliated with, authorized or endorsed by Yamaha.
+Yamaha and MusicCast are trademarks or registered trademarks of Yamaha Corporation. OpenHome is the name of an open specification for networked music players and is used only to describe compatibility. YAACC is an independent project and is not affiliated with, authorized or endorsed by Yamaha.
 
 ## Media server
 
@@ -594,6 +595,16 @@ duration picker, and confirming a duration above 0 starts the timer.
 ![browse_servers](./screenshots/5.1.x/browse_servers.png){:height="30%" width="30%"}
 
 ![shutdown_timer](./screenshots/5.1.x/shutdown_timer.png){:height="30%" width="30%"}
+
+## OpenHome
+
+OpenHome is an extension of UPnP for music players. Its devices keep the playlist themselves, so the playlist survives when the app is closed and other apps can control the same device. YAACC supports it in both directions. Nothing has to be switched on; the only choice you can make is described below.
+
+**YAACC as the controller.** When a receiver offers the OpenHome Playlist and Product services, YAACC plays music on it with OpenHome: the playlist of the player screen is the playlist of the device (what you add is added to the device, what you delete is deleted on the device, what another app adds shows up here within a few seconds), and play, pause, next, previous, seek, volume, mute, repeat and shuffle go to the device. A device in standby is woken up, and its source is switched to the playlist. A playlist on an OpenHome device holds at most 1000 tracks; tracks beyond that are left out. Videos and images, and devices without these services, are played with AVTransport as before. Repeat one does not exist in OpenHome and shows as repeat all. Tracks must have an http or https address; files of this phone that are not served to the network are not sent to an OpenHome device yet. The row of an OpenHome device has a settings icon, like a MusicCast device; it opens a sheet with *Power* (standby; the device is woken up when you play on it), *Source* (to switch the device to another of its sources, for example its radio or an input; YAACC only switches the source and does not control it, and playing from YAACC switches the device back to its playlist) and *Playback protocol* (to play on the device with AVTransport although it offers OpenHome; the choice is kept for that device).
+
+**YAACC as the renderer.** The local renderer (*Settings* > local server > receiver) also offers the OpenHome services Product, Playlist, Info, Time and Volume next to AVTransport and RenderingControl. An OpenHome control point sees the app as a music player named like the app, with one source "Playlist" and a queue of at most 1000 tracks; the tracks are played by the music player of the app. Control points that do not know OpenHome ignore the services and work as before. Like the AVTransport renderer, it can be used by every device in the network.
+
+Not supported yet: playing radio, Songcast or other sources from YAACC (the source can be switched, see above), moving tracks in the playlist of a device, and playing files of this phone on an OpenHome device.
 
 ## Trademarks
 

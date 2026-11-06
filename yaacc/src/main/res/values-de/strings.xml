@@ -254,4 +254,11 @@
     <string name="pick_skipped_unread">Einige Dateien konnten nicht gelesen werden.</string>
     <string name="pick_play_failed">Die gewählten Dateien konnten nicht abgespielt werden.</string>
     <string name="pick_title_files">Dateien: %1$d</string>
+    <string name="openhome_protocol_title">Wiedergabeprotokoll</string>
+    <string name="openhome_protocol_openhome">OpenHome (das Gerät verwaltet die Wiedergabeliste)</string>
+    <string name="openhome_protocol_avtransport">AVTransport (die App verwaltet die Wiedergabeliste)</string>
+    <string name="openhome_source_title">Quelle</string>
+    <string name="openhome_source_failed">Die Quellen des Geräts konnten nicht gelesen oder umgeschaltet werden.</string>
+    <string name="openhome_source_none">Das Gerät meldet keine Quellen.</string>
+    <string name="openhome_action_settings">OpenHome-Einstellungen</string>
 </resources>

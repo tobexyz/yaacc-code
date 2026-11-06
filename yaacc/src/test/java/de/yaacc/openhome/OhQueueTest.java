@@ -197,4 +197,35 @@ public class OhQueueTest {
         }
         assertEquals(2, other.size());
     }
+
+    @Test
+    public void allTracksTogetherHaveABudgetAndDeletingGivesItBack() {
+        OhQueue queue = new OhQueue(1000);
+        String big = "x".repeat(OhQueue.MAX_METADATA_LENGTH);
+        int fit = (OhQueue.MAX_TOTAL_LENGTH - 100) / (OhQueue.MAX_METADATA_LENGTH + 1);
+        long first = 0;
+        for (int i = 0; i < fit; i++) {
+            long id = queue.insert(0, "u", big);
+            if (i == 0) {
+                first = id;
+            }
+        }
+        try {
+            queue.insert(0, "u", big);
+            org.junit.Assert.fail();
+        } catch (OhError e) {
+            assertEquals(OhError.PLAYLIST_FULL, e.getCode());
+        }
+
+        queue.delete(first);
+
+        queue.insert(0, "u", big); // room again
+        queue.deleteAll();
+        queue.insert(0, "u", big);
+    }
+
+    @Test
+    public void metadataOfARealTrackFits() {
+        assertEquals(true, OhQueue.MAX_METADATA_LENGTH >= 8 * 1024);
+    }
 }

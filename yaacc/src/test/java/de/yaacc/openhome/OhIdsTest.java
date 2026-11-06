@@ -101,4 +101,19 @@ public class OhIdsTest {
         assertEquals(Arrays.asList(1L, 2L), OhIds.parseIdList("1 2 3 4", 2));
         assertEquals("1 22 333", OhIds.formatIdList(Arrays.asList(1L, 22L, 333L)));
     }
+
+    @Test
+    public void idsAskedForTwiceAreReadOnce() {
+        assertEquals(Arrays.asList(1L, 2L), OhIds.parseIdList("1 2 1 2 1", 100));
+    }
+
+    @Test
+    public void aHugeListIsNotLookedAtBeyondWhatMaxIdsCanTakeUp() {
+        StringBuilder text = new StringBuilder();
+        for (int i = 0; i < 200_000; i++) {
+            text.append("7 ");
+        }
+        assertEquals(Arrays.asList(7L), OhIds.parseIdList(text.toString(), 5));
+        assertEquals(Arrays.asList(1L, 2L, 3L), OhIds.parseIdList("1 2 3 " + text, 3));
+    }
 }

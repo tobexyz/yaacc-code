@@ -60,6 +60,10 @@ public final class OhIds {
         if (base64 == null || base64.isEmpty()) {
             return new ArrayList<>();
         }
+        // base64 is 4 characters for 3 bytes: text that long can not be a list of at most MAX_LIST ids, whatever it decodes to
+        if (base64.length() > (long) MAX_LIST * 4 * 2 + 64) {
+            throw new IllegalArgumentException("id array is too long");
+        }
         byte[] bytes;
         try {
             bytes = Base64.getMimeDecoder().decode(base64.trim());
@@ -93,7 +97,10 @@ public final class OhIds {
         if (text == null) {
             return ids;
         }
-        for (String part : text.split(" ")) {
+        // an id has at most 10 digits: more text than max ids can take up is never looked at
+        String list = text.length() > (long) max * 11 + 11 ? text.substring(0, max * 11 + 11) : text;
+        java.util.Set<Long> seen = new java.util.HashSet<>();
+        for (String part : list.split(" ")) {
             if (part.isEmpty() || part.length() > 10) {
                 continue;
             }
@@ -108,7 +115,8 @@ public final class OhIds {
                 continue;
             }
             long id = Long.parseLong(part);
-            if (isId(id)) {
+            // an id twice asks for the same track twice: once is enough
+            if (isId(id) && seen.add(id)) {
                 ids.add(id);
                 if (ids.size() >= max) {
                     break;

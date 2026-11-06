@@ -47,6 +47,7 @@ import java.beans.PropertyChangeListener;
 import java.beans.PropertyChangeSupport;
 import java.net.URI;
 import java.util.ArrayList;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
@@ -69,18 +70,19 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
     public static final String PLAYER_ID = "PlayerId";
     public static final String PROPERTY_ITEM = "item";
     private final PropertyChangeSupport pcs = new PropertyChangeSupport(this);
-    private final List<PlayableItem> items = new ArrayList<>();
+    // copy on write: a player whose list lives on a device replaces it from its own thread while the screen reads it
+    private volatile List<PlayableItem> items = new CopyOnWriteArrayList<>();
     private final UpnpClient upnpClient;
-    private int previousIndex = 0;
-    private int currentIndex = 0;
+    private volatile int previousIndex = 0;
+    private volatile int currentIndex = 0;
     private Timer execTimer;
     private PendingIntent alarmIntent;
-    private boolean isPlaying = false;
+    private volatile boolean isPlaying = false;
     private boolean isProcessingCommand = false;
     private PlayerService playerService;
     private String name;
     private String shortName;
-    private boolean paused;
+    private volatile boolean paused;
     private Object loadedItem = null;
     private int currentLoadedIndex = -1;
     /**
@@ -779,6 +781,45 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
     }
 
     /**
+     * For a player whose playlist and playback live on a device (OpenHome): takes over what the device reports. The list, the index of
+     * the item that plays and the state are replaced as they are, the screen and the notification are told what changed. Nothing is
+     * started or stopped. Call it from one thread only (the player's worker); the state it sets is volatile for the screen.
+     *
+     * @param deviceItems the playlist of the device; the same objects for the same tracks as before keep the list "unchanged"
+     * @param index       the index of the current item (clamped to the list)
+     */
+    protected final void adoptDeviceState(List<PlayableItem> deviceItems, int index, boolean nowPlaying, boolean nowPaused) {
+        boolean listChanged = deviceItems.size() != items.size();
+        for (int i = 0; !listChanged && i < deviceItems.size(); i++) {
+            listChanged = deviceItems.get(i) != items.get(i);
+        }
+        int newIndex = deviceItems.isEmpty() ? 0 : Math.max(0, Math.min(index, deviceItems.size() - 1));
+        boolean indexChanged = newIndex != currentIndex;
+        boolean stateChanged = nowPlaying != isPlaying || nowPaused != paused;
+        PlayableItem oldItem = currentIndex >= 0 && currentIndex < items.size() ? items.get(currentIndex) : null;
+        if (listChanged) {
+            items = new CopyOnWriteArrayList<>(deviceItems);
+            playOrder.reset(items.size(), newIndex, false);
+        }
+        previousIndex = currentIndex;
+        currentIndex = newIndex;
+        paused = nowPaused;
+        setPlaying(nowPlaying);
+        if (listChanged) {
+            firePropertyChange(PROPERTY_PLAYLIST, null, null);
+        }
+        if (indexChanged && !items.isEmpty()) {
+            firePropertyChange(PROPERTY_ITEM, oldItem, items.get(newIndex));
+        }
+        if (listChanged || indexChanged || stateChanged) {
+            updatePlaybackState(nowPlaying ? PlaybackStateCompat.STATE_PLAYING
+                    : nowPaused ? PlaybackStateCompat.STATE_PAUSED : PlaybackStateCompat.STATE_STOPPED);
+            updateMetadata();
+            showNotification();
+        }
+    }
+
+    /**
      * Puts items into the middle of the playlist (the OpenHome renderer's queue): the item that plays keeps playing, the play
      * order places the new items (behind the current one with shuffle), an engine that holds the list too is told.
      *
@@ -804,7 +845,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
         // the indexes behind the insert point moved, so the cached loaded item is not the one of its index any more
         currentLoadedIndex = -1;
         loadedItem = null;
-        onItemsInserted(at, new java.util.ArrayList<>(playableItems));
+        onItemsInserted(at, new ArrayList<>(playableItems));
         firePropertyChange(PROPERTY_PLAYLIST, null, null);
     }
 
