@@ -10,13 +10,13 @@ Gate: `ANDROID_HOME=/root/android-sdk ./gradlew --offline :yaacc:assembleDebug :
 - [x] 1.3 Capture tools for a real device or the YAACC renderer | `capture/`
 
 ## Group 2: Renderer, the pure model
-- [ ] 2.1 `OhIds`, `OhQueue` (+ errors), `OhTransportState`, `OhVolume`, `OhSourceXml`, `OhTrackList`, `OhEscape` | `yaacc/src/main/java/de/yaacc/openhome/`
+- [x] 2.1 `OhIds`, `OhQueue` (+ errors), `OhTransportState`, `OhVolume`, `OhSourceXml`, `OhTrackList`, `OhEscape` | `yaacc/src/main/java/de/yaacc/openhome/`
   - **Accept**: tests green: ids never reused, insert after id / at start / full / unknown id, delete, delete all, id array codec round trip and hostile text, read list XML escaped, volume mapping bounds, source XML.
   - **Verify**: `./gradlew --offline :yaacc:testDebugUnitTest --tests 'de.yaacc.openhome.*'`
 - [ ] 2.2 Review gate: reviewer PASS, then security-reviewer PASS
 
 ## Group 3: Renderer, the Cling services
-- [ ] 3.1 Playlist, Info, Time, Volume, Product services (annotated Cling services, evented variables, delayed `IdArray` event) | `yaacc/src/main/java/de/yaacc/upnp/server/openhome/`
+- [x] 3.1 Playlist, Info, Time, Volume, Product services (annotated Cling services, evented variables, delayed `IdArray` event) | `yaacc/src/main/java/de/yaacc/upnp/server/openhome/`
   - **Accept**: every action and state variable of the fixtures exists with the same name, direction and type (test over the real description); SOAP round trips through the service harness; events sent.
 - [x] 3.2 Register the services on the renderer device (`createMediaRendererServices`), device description check | `YaaccUpnpServerService`
 - [ ] 3.3 Review gate
