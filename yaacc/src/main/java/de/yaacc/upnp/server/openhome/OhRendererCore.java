@@ -288,6 +288,9 @@ public final class OhRendererCore {
     }
 
     private static long number(String text) {
+        if (text == null) {
+            throw OhError.invalid("missing value");
+        }
         try {
             return Long.parseLong(text.trim());
         } catch (NumberFormatException e) {

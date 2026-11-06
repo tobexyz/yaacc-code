@@ -24,11 +24,23 @@ public final class OhTrackList {
     private OhTrackList() {
     }
 
+    /** The most characters of a track list answer. */
+    public static final int MAX_LENGTH = 1024 * 1024;
+
     public static String toXml(List<OhQueue.Entry> entries) {
+        return toXml(entries, MAX_LENGTH);
+    }
+
+    /** Entries that would take the text over {@code maxLength} characters (before XML escaping of the whole text) are left out. */
+    public static String toXml(List<OhQueue.Entry> entries, int maxLength) {
         StringBuilder xml = new StringBuilder("<TrackList>");
         for (OhQueue.Entry entry : entries) {
-            xml.append("<Entry><Id>").append(entry.getId()).append("</Id><Uri>").append(OhEscape.xml(entry.getUri()))
-                    .append("</Uri><Metadata>").append(OhEscape.xml(entry.getMetadata())).append("</Metadata></Entry>");
+            String one = "<Entry><Id>" + entry.getId() + "</Id><Uri>" + OhEscape.xml(entry.getUri()) + "</Uri><Metadata>"
+                    + OhEscape.xml(entry.getMetadata()) + "</Metadata></Entry>";
+            if (xml.length() + one.length() > maxLength) {
+                break;
+            }
+            xml.append(one);
         }
         return xml.append("</TrackList>").toString();
     }

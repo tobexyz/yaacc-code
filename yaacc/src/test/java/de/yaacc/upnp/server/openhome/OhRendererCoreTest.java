@@ -391,4 +391,21 @@ public class OhRendererCoreTest {
         assertEquals("1", value(times, "TrackCount"));
         assertEquals("215", value(info.soap("Details"), "Duration"));
     }
+
+    @Test
+    public void aReadListOfTheSameIdManyTimesDoesNotMultiplyTheAnswer() throws Exception {
+        String big = "&".repeat(16384);
+        StreamResponseMessage inserted = playlist.soap("Insert", "AfterId", "0", "Uri", "http://h/a.mp3", "Metadata", big);
+        assertTrue(ServiceHarness.succeeded(inserted));
+        long id = core.queue().snapshot().get(0).getId();
+        StringBuilder ids = new StringBuilder();
+        for (int i = 0; i < 1000; i++) {
+            ids.append(id).append(' ');
+        }
+
+        StreamResponseMessage answer = playlist.soap("ReadList", "IdList", ids.toString());
+
+        assertTrue(ServiceHarness.succeeded(answer));
+        assertTrue("answer " + answer.getBodyString().length(), answer.getBodyString().length() < 400_000);
+    }
 }

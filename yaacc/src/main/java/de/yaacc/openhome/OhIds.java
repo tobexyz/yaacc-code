@@ -93,7 +93,10 @@ public final class OhIds {
         if (text == null) {
             return ids;
         }
-        for (String part : text.split(" ")) {
+        // an id has at most 10 digits: more text than max ids can take up is never looked at
+        String list = text.length() > (long) max * 11 + 11 ? text.substring(0, max * 11 + 11) : text;
+        java.util.Set<Long> seen = new java.util.HashSet<>();
+        for (String part : list.split(" ")) {
             if (part.isEmpty() || part.length() > 10) {
                 continue;
             }
@@ -108,7 +111,8 @@ public final class OhIds {
                 continue;
             }
             long id = Long.parseLong(part);
-            if (isId(id)) {
+            // an id twice asks for the same track twice: once is enough
+            if (isId(id) && seen.add(id)) {
                 ids.add(id);
                 if (ids.size() >= max) {
                     break;
