@@ -329,14 +329,12 @@ public class OhRendererCoreTest {
     // ---- product, info, time, volume
 
     @Test
-    public void theProductHasOneSourceTheStartedPlaylistAndAcceptsStandbyRequests() {
+    public void theProductHasOneSourceTheStartedPlaylist() {
         String xml = value(product.soap("SourceXml"), "Value");
         assertTrue(xml, xml.contains("&lt;SystemName&gt;Playlist&lt;/SystemName&gt;"));
         assertEquals("1", value(product.soap("SourceCount"), "Value"));
         assertEquals("0", value(product.soap("Standby"), "Value"));
 
-        assertTrue(ServiceHarness.succeeded(product.soap("SetStandby", "Value", "1")));
-        assertEquals("0", value(product.soap("Standby"), "Value"));
         assertTrue(ServiceHarness.succeeded(product.soap("SetSourceIndex", "Value", "0")));
         assertTrue(ServiceHarness.succeeded(product.soap("SetSourceBySystemName", "Value", "Playlist")));
         assertTrue(ServiceHarness.succeeded(product.soap("SetSourceIndexByName", "Value", "Playlist")));
@@ -407,5 +405,54 @@ public class OhRendererCoreTest {
 
         assertTrue(ServiceHarness.succeeded(answer));
         assertTrue("answer " + answer.getBodyString().length(), answer.getBodyString().length() < 400_000);
+    }
+
+    @Test
+    public void standbyStopsThePlaybackKeepsTheQueueAndIsReported() {
+        assertTrue(ServiceHarness.succeeded(playlist.soap("Insert", "AfterId", "0", "Uri", "http://h/a.mp3", "Metadata", "")));
+        playback.calls.clear();
+
+        assertTrue(ServiceHarness.succeeded(product.soap("SetStandby", "Value", "1")));
+
+        assertEquals("1", value(product.soap("Standby"), "Value"));
+        assertTrue(playback.calls.contains("stop"));
+        assertEquals(1, core.queue().size());
+    }
+
+    @Test
+    public void awakeStaysAwakeWithoutStoppingAnything() {
+        playback.calls.clear();
+
+        assertTrue(ServiceHarness.succeeded(product.soap("SetStandby", "Value", "0")));
+
+        assertEquals("0", value(product.soap("Standby"), "Value"));
+        assertFalse(playback.calls.contains("stop"));
+    }
+
+    @Test
+    public void playAndSeekingWakeADeviceInStandby() {
+        assertTrue(ServiceHarness.succeeded(playlist.soap("Insert", "AfterId", "0", "Uri", "http://h/a.mp3", "Metadata", "")));
+        long id = core.queue().snapshot().get(0).getId();
+
+        product.soap("SetStandby", "Value", "1");
+        assertTrue(ServiceHarness.succeeded(playlist.soap("Play")));
+        assertEquals("0", value(product.soap("Standby"), "Value"));
+
+        product.soap("SetStandby", "Value", "1");
+        assertTrue(ServiceHarness.succeeded(playlist.soap("SeekId", "Value", String.valueOf(id))));
+        assertEquals("0", value(product.soap("Standby"), "Value"));
+
+        product.soap("SetStandby", "Value", "1");
+        assertTrue(ServiceHarness.succeeded(playlist.soap("SeekIndex", "Value", "0")));
+        assertEquals("0", value(product.soap("Standby"), "Value"));
+    }
+
+    @Test
+    public void aFailedSeekDoesNotWakeTheDevice() {
+        product.soap("SetStandby", "Value", "1");
+
+        assertFault(800, playlist.soap("SeekId", "Value", "4711"));
+
+        assertEquals("1", value(product.soap("Standby"), "Value"));
     }
 }

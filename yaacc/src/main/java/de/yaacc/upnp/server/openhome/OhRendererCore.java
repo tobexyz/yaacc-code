@@ -301,6 +301,7 @@ public final class OhRendererCore {
     private Map<String, OhActionHandler> playlistHandlers() {
         Map<String, OhActionHandler> h = new HashMap<>();
         h.put("Play", in -> {
+            wake();
             playback.play();
             return null;
         });
@@ -351,6 +352,7 @@ public final class OhRendererCore {
         h.put("SeekId", in -> {
             long id = number(in.get("Value"));
             queue.read(id); // 800 if it is not in the queue
+            wake();
             playback.seekToTrack(id);
             return null;
         });
@@ -359,7 +361,9 @@ public final class OhRendererCore {
             if (index < 0 || index > Integer.MAX_VALUE) {
                 throw OhError.indexNotFound();
             }
-            playback.seekToTrack(queue.idAt((int) index)); // 802 if there is no track
+            long id = queue.idAt((int) index); // 802 if there is no track
+            wake();
+            playback.seekToTrack(id);
             return null;
         });
         h.put("Read", in -> {
@@ -408,8 +412,16 @@ public final class OhRendererCore {
 
     private Map<String, OhActionHandler> productHandlers() {
         Map<String, OhActionHandler> h = new HashMap<>();
-        // the phone is the device and always awake: the request is accepted and changes nothing
-        h.put("SetStandby", in -> null);
+        // standby of a phone is an app state, not a power state: playback stops (the queue stays) and the device says it is in
+        // standby until somebody wakes it or plays
+        h.put("SetStandby", in -> {
+            boolean standby = bool(in.get("Value"));
+            if (standby) {
+                playback.stop();
+            }
+            product.set("Standby", String.valueOf(standby));
+            return null;
+        });
         h.put("SetSourceIndex", in -> {
             if (number(in.get("Value")) != 0) {
                 throw OhError.invalid("source");
@@ -436,6 +448,11 @@ public final class OhRendererCore {
             return out;
         });
         return h;
+    }
+
+    /** Playing, or choosing a track to play, wakes a device that is in standby (as devices do). */
+    private void wake() {
+        product.set("Standby", "false");
     }
 
     private static void requirePlaylistSource(String name) {
