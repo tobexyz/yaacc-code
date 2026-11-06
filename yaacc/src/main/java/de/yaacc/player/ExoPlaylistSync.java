@@ -35,4 +35,14 @@ final class ExoPlaylistSync {
     static boolean canAppend(int exoMediaItemCount, int listSizeBefore) {
         return exoMediaItemCount > 0 && exoMediaItemCount == listSizeBefore;
     }
+
+    /**
+     * Items put into the middle of the list reach ExoPlayer under the same condition as appended ones.
+     *
+     * @param exoMediaItemCount the number of media items ExoPlayer holds now
+     * @param listSizeBefore    the size of the player's list before the items were inserted
+     */
+    static boolean canInsert(int exoMediaItemCount, int listSizeBefore) {
+        return canAppend(exoMediaItemCount, listSizeBefore);
+    }
 }

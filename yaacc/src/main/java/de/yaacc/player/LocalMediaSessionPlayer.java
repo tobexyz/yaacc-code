@@ -439,6 +439,29 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
         });
     }
 
+    /**
+     * Items put into the middle of the list reach ExoPlayer at their place; the item that plays keeps playing. With shuffle our play
+     * order, which places the new items behind the current one, is installed again.
+     */
+    @Override
+    protected void onItemsInserted(int index, List<PlayableItem> inserted) {
+        int[] order = getPlayMode().isShuffle() ? getPlayOrder() : null;
+        int sizeBefore = getItems().size() - inserted.size();
+        new Handler(Looper.getMainLooper()).post(() -> {
+            ExoPlayer player = exoPlayer;
+            if (player != null && ExoPlaylistSync.canInsert(player.getMediaItemCount(), sizeBefore)) {
+                List<MediaItem> mediaItems = new java.util.ArrayList<>();
+                for (PlayableItem item : inserted) {
+                    mediaItems.add(toMediaItem(item));
+                }
+                player.addMediaItems(index, mediaItems);
+                applyPlayMode(player, order);
+                refreshNextItemIndex();
+                YaaccLogger.d(getClass().getName(), "Inserted " + inserted.size() + " items into ExoPlayer at " + index);
+            }
+        });
+    }
+
     @Override
     protected void onPlayModeChanged(PlayMode oldMode, PlayMode newMode) {
         // The order is only handed over when shuffle was switched: it starts with the current item then
