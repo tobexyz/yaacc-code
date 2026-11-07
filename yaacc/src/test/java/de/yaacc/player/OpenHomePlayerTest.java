@@ -422,4 +422,55 @@ public class OpenHomePlayerTest {
         assertFalse(player.removeItem(0)); // the device has this one
         assertEquals(4, player.getItems().size());
     }
+
+    @Test
+    public void aTrackCanBeDraggedToAnotherPlaceOfTheDevicesPlaylist() throws Exception {
+        long a = core.queue().insert(0, "http://h/a.mp3", "");
+        long b = core.queue().insert(a, "http://h/b.mp3", "");
+        core.queue().insert(b, "http://h/c.mp3", "");
+        player.pause();
+        await(() -> player.getItems().size() == 3);
+
+        assertTrue(player.moveInPlayOrder(2, 0));
+
+        assertEquals("http://h/c.mp3", player.getItems().get(0).getTitle()); // shown at once
+        await(() -> core.queue().snapshot().get(0).getUri().equals("http://h/c.mp3"));
+        assertEquals("http://h/a.mp3", core.queue().snapshot().get(1).getUri());
+        await(() -> player.getItems().size() == 3 && player.getItems().get(0).getTitle().equals("http://h/c.mp3"));
+    }
+
+    @Test
+    public void theTrackThatPlaysIsNotMoved() throws Exception {
+        long a = core.queue().insert(0, "http://h/a.mp3", "");
+        core.queue().insert(a, "http://h/b.mp3", "");
+        core.setTransportState(OhTransportState.PLAYING);
+        core.setCurrentId(a);
+        player.pause();
+        await(() -> player.getItems().size() == 2 && player.isPlaying());
+
+        assertFalse(player.moveInPlayOrder(0, 1));
+    }
+
+    @Test
+    public void positionsOutsideTheListAreNotMoved() throws Exception {
+        core.queue().insert(0, "http://h/a.mp3", "");
+        player.pause();
+        await(() -> player.getItems().size() == 1);
+
+        assertFalse(player.moveInPlayOrder(0, 5));
+        assertFalse(player.moveInPlayOrder(-1, 0));
+        assertFalse(player.moveInPlayOrder(0, 0));
+    }
+
+    @Test
+    public void pickedFilesThatTheDeviceDoesNotHaveYetCanBeReordered() throws Exception {
+        player.setItems(pickFiles(5, true));
+        await(() -> player.getItems().size() == 5);
+
+        assertFalse(player.moveInPlayOrder(3, 0)); // the device has the first two
+        assertTrue(player.moveInPlayOrder(4, 2));
+
+        assertEquals("file4", player.getItems().get(2).getTitle());
+        await(() -> player.getItems().size() == 5 && player.getItems().get(2).getTitle().equals("file4"));
+    }
 }

@@ -301,6 +301,35 @@ public final class OhRemote {
         return ids;
     }
 
+    /**
+     * Puts a track at another place of the queue: behind the track {@code afterId} (0 for the start). A device with Playlist
+     * version 2 has an action for it; with version 1 the track is inserted at the new place and the old entry is deleted, which
+     * gives it a new id (a track that plays is better left alone then).
+     *
+     * @return the id of the track after the move
+     */
+    public long moveTrack(long id, long afterId) throws OhControlException {
+        if (id == afterId) {
+            return id;
+        }
+        try {
+            call(PLAYLIST, "Move", "Value", OhIds.encodeIdArray(Collections.singletonList(id)), "AfterId", String.valueOf(afterId));
+            return id;
+        } catch (OhControlException e) {
+            if (e.getCode() != 401) {
+                throw e; // the device has the action and refused
+            }
+        }
+        OhQueue.Entry entry = known.get(id);
+        if (entry == null) {
+            Map<String, String> read = call(PLAYLIST, "Read", "Id", String.valueOf(id));
+            entry = new OhQueue.Entry(id, get(read, "Uri"), get(read, "Metadata"));
+        }
+        long newId = insert(afterId, new Track(entry.getUri(), entry.getMetadata()));
+        deleteId(id);
+        return newId;
+    }
+
     public void deleteId(long id) throws OhControlException {
         call(PLAYLIST, "DeleteId", "Value", String.valueOf(id));
         OhQueue.Entry gone = known.remove(id);

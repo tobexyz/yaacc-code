@@ -788,7 +788,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
      * @param deviceItems the playlist of the device; the same objects for the same tracks as before keep the list "unchanged"
      * @param index       the index of the current item (clamped to the list)
      */
-    protected final void adoptDeviceState(List<PlayableItem> deviceItems, int index, boolean nowPlaying, boolean nowPaused) {
+    protected final synchronized void adoptDeviceState(List<PlayableItem> deviceItems, int index, boolean nowPlaying, boolean nowPaused) {
         boolean listChanged = deviceItems.size() != items.size();
         for (int i = 0; !listChanged && i < deviceItems.size(); i++) {
             listChanged = deviceItems.get(i) != items.get(i);

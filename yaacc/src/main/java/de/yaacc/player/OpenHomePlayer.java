@@ -169,7 +169,7 @@ public class OpenHomePlayer extends AbstractPlayer {
 
     /** Reads the queue and the state of the device and hands them to the screen. */
     private void refresh() {
-        if (remote == null) {
+        if (remote == null || pendingEdits.get() > 0) {
             return;
         }
         try {
@@ -514,10 +514,48 @@ public class OpenHomePlayer extends AbstractPlayer {
         return fileQueueActive && position < fileSentForScreen;
     }
 
-    /** Moving needs OpenHome Playlist version 2 or later and is not offered. */
+    // edits of the order that the screen shows already and the worker has not done yet: the poll leaves the list alone meanwhile
+    private final java.util.concurrent.atomic.AtomicInteger pendingEdits = new java.util.concurrent.atomic.AtomicInteger();
+
+    /**
+     * Moves a track of the playlist (what a drag in the list does). The list shows the new order at once, the device is told on
+     * the worker. The track that plays, and in a picked queue the files the device has, stay where they are.
+     */
     @Override
     public boolean moveInPlayOrder(int fromPosition, int toPosition) {
-        return false;
+        List<PlayableItem> list = new ArrayList<>(getItems());
+        if (fromPosition == toPosition || fromPosition < 0 || toPosition < 0 || fromPosition >= list.size()
+                || toPosition >= list.size()) {
+            return false;
+        }
+        if (fileQueueActive) {
+            if (fromPosition < fileSentForScreen || toPosition < fileSentForScreen) {
+                return false; // the device has these files
+            }
+        } else if (fromPosition == getCurrentItemIndex() && (isPlaying() || isPaused())) {
+            return false; // a track that plays is not moved
+        }
+        PlayableItem playing = getCurrentItemIndex() < list.size() ? list.get(getCurrentItemIndex()) : null;
+        list.add(toPosition, list.remove(fromPosition));
+        pendingEdits.incrementAndGet();
+        adoptDeviceState(list, Math.max(0, list.indexOf(playing)), isPlaying(), isPaused());
+        command("move track", () -> {
+            try {
+                if (fileQueue != null) {
+                    fileQueue.add(toPosition, fileQueue.remove(fromPosition));
+                    return;
+                }
+                List<Long> current = new ArrayList<>(ids);
+                if (fromPosition >= current.size() || toPosition >= current.size()) {
+                    return;
+                }
+                long id = current.remove(fromPosition);
+                remote.moveTrack(id, toPosition == 0 ? 0 : current.get(toPosition - 1));
+            } finally {
+                pendingEdits.decrementAndGet();
+            }
+        });
+        return true;
     }
 
     @Override
