@@ -143,6 +143,26 @@ public final class OhQueue {
         token++;
     }
 
+    /**
+     * Moves a track to the place behind another one; the id stays.
+     *
+     * @param afterId the track it follows, {@link OhIds#NONE} for the start of the queue
+     * @throws OhError 800 if one of the ids is not in the queue
+     */
+    public synchronized void move(long id, long afterId) {
+        Entry entry = byId.get(id);
+        if (entry == null || (afterId != OhIds.NONE && !byId.containsKey(afterId))) {
+            throw OhError.idNotFound();
+        }
+        if (id == afterId) {
+            return;
+        }
+        entries.remove(entry);
+        int index = afterId == OhIds.NONE ? 0 : indexOf(afterId) + 1;
+        entries.add(index, entry);
+        token++;
+    }
+
     public synchronized void deleteAll() {
         if (!entries.isEmpty()) {
             entries.clear();

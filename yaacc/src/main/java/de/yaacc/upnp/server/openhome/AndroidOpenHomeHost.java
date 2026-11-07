@@ -62,6 +62,16 @@ public final class AndroidOpenHomeHost implements OpenHomeRenderer.Host, OpenHom
     }
 
     @Override
+    public String queueUriOf(PlayableItem item) {
+        return de.yaacc.upnp.callback.openhome.OhPlayableItems.isSendable(item) ? item.getUri().toString() : null;
+    }
+
+    @Override
+    public String queueMetadataOf(PlayableItem item) {
+        return de.yaacc.upnp.callback.openhome.OhPlayableItems.metadataOf(item);
+    }
+
+    @Override
     public PlayableItem toPlayableItem(String uri, String metadata) {
         PlayableItem item = null;
         try {

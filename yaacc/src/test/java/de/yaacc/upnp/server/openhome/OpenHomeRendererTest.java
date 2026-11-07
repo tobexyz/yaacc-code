@@ -31,8 +31,10 @@ import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
+import de.yaacc.openhome.OhIds;
 import de.yaacc.openhome.OhQueue;
 import de.yaacc.player.AbstractPlayer;
 import de.yaacc.player.PlayMode;
@@ -276,6 +278,17 @@ public class OpenHomeRendererTest {
                 item.setTitle(uri);
                 return item;
             }
+
+            @Override
+            public String queueUriOf(PlayableItem item) {
+                String title = item.getTitle();
+                return title != null && title.startsWith("http") ? title : null;
+            }
+
+            @Override
+            public String queueMetadataOf(PlayableItem item) {
+                return "<meta " + item.getTitle() + "/>";
+            }
         };
         volume = new OpenHomeRenderer.Volume() {
             @Override
@@ -375,6 +388,108 @@ public class OpenHomeRendererTest {
         renderer.seekToTrack(4711);
 
         assertEquals(0, created.size());
+    }
+
+
+    // ---- edits at the player of this device (the playlist of the local music player)
+
+    private static PlayableItem trackTitled(String title) {
+        PlayableItem item = new PlayableItem();
+        item.setTitle(title);
+        return item;
+    }
+
+    private List<String> queueUris() {
+        List<String> uris = new ArrayList<>();
+        for (OhQueue.Entry entry : renderer.core().queue().snapshot()) {
+            uris.add(entry.getUri());
+        }
+        return uris;
+    }
+
+    @Test
+    public void aTrackDeletedAtThePlayerLeavesTheQueueAndTheControlPointsAreTold() {
+        long a = add(0, "http://h/a.mp3");
+        long b = add(a, "http://h/b.mp3");
+        add(b, "http://h/c.mp3");
+        renderer.play();
+
+        assertEquals(true, player().removeItem(2));
+        renderer.refresh();
+
+        assertEquals(Arrays.asList("http://h/a.mp3", "http://h/b.mp3"), queueUris());
+        assertEquals(OhIds.encodeIdArray(Arrays.asList(a, b)), playlist("IdArray"));
+        // a later sync does not bring the track back
+        renderer.seekToTrack(b);
+        assertEquals(Arrays.asList("http://h/a.mp3", "http://h/b.mp3"), titles(player()));
+        assertEquals(Arrays.asList("http://h/a.mp3", "http://h/b.mp3"), queueUris());
+    }
+
+    @Test
+    public void aTrackMovedAtThePlayerMovesInTheQueueAndKeepsItsId() {
+        long a = add(0, "http://h/a.mp3");
+        long b = add(a, "http://h/b.mp3");
+        long c = add(b, "http://h/c.mp3");
+        renderer.play();
+
+        assertEquals(true, player().moveInPlayOrder(2, 1));
+        renderer.refresh();
+
+        assertEquals(Arrays.asList(a, c, b), renderer.core().queue().idArray());
+        assertEquals(OhIds.encodeIdArray(Arrays.asList(a, c, b)), playlist("IdArray"));
+        assertEquals(Arrays.asList("http://h/a.mp3", "http://h/c.mp3", "http://h/b.mp3"), titles(player()));
+    }
+
+    @Test
+    public void aTrackAddedAtThePlayerEntersTheQueueBehindItsPredecessor() {
+        long a = add(0, "http://h/a.mp3");
+        add(a, "http://h/b.mp3");
+        renderer.play();
+
+        player().insertItems(1, Collections.singletonList(trackTitled("http://h/x.mp3")));
+        renderer.refresh();
+
+        assertEquals(Arrays.asList("http://h/a.mp3", "http://h/x.mp3", "http://h/b.mp3"), queueUris());
+        assertEquals(OhIds.encodeIdArray(renderer.core().queue().idArray()), playlist("IdArray"));
+        assertEquals(Arrays.asList("http://h/a.mp3", "http://h/x.mp3", "http://h/b.mp3"), titles(player()));
+        assertEquals("<meta http://h/x.mp3/>", renderer.core().queue().read(renderer.core().queue().idAt(1)).getMetadata());
+    }
+
+    @Test
+    public void aTrackTheQueueCanNotHoldIsTakenOutOfThePlayerAgain() {
+        long a = add(0, "http://h/a.mp3");
+        add(a, "http://h/b.mp3");
+        renderer.play();
+
+        player().addItems(Collections.singletonList(trackTitled("content://local/file")));
+        renderer.refresh();
+
+        assertEquals(Arrays.asList("http://h/a.mp3", "http://h/b.mp3"), queueUris());
+        assertEquals(Arrays.asList("http://h/a.mp3", "http://h/b.mp3"), titles(player()));
+    }
+
+    @Test
+    public void aTrackAControlPointAddedIsNotTakenForAnEditOfThePlayer() {
+        long a = add(0, "http://h/a.mp3");
+        renderer.play();
+
+        // inserted in the queue, the worker has not synced yet
+        renderer.core().queue().insert(a, "http://h/b.mp3", "");
+        renderer.refresh();
+
+        assertEquals(Arrays.asList("http://h/a.mp3", "http://h/b.mp3"), queueUris());
+    }
+
+    @Test
+    public void aTrackAControlPointDeletedIsNotBroughtBackByTheEditCheck() {
+        long a = add(0, "http://h/a.mp3");
+        long b = add(a, "http://h/b.mp3");
+        renderer.play();
+
+        renderer.core().queue().delete(b); // not synced yet
+        renderer.refresh();
+
+        assertEquals(Collections.singletonList("http://h/a.mp3"), queueUris());
     }
 
     // ---- transport
@@ -701,6 +816,16 @@ public class OpenHomeRendererTest {
             @Override
             public PlayableItem toPlayableItem(String uri, String metadata) {
                 return plain.toPlayableItem(uri, metadata);
+            }
+
+            @Override
+            public String queueUriOf(PlayableItem item) {
+                return plain.queueUriOf(item);
+            }
+
+            @Override
+            public String queueMetadataOf(PlayableItem item) {
+                return plain.queueMetadataOf(item);
             }
         };
         OpenHomeRenderer checked = newRenderer(new OpenHomeRenderer.Threads() {

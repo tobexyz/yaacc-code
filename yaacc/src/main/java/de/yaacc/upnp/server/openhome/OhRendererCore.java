@@ -293,6 +293,11 @@ public final class OhRendererCore {
         }
     }
 
+    /** The queue was changed by the player of this device (not by a control point): the control points get the new IdArray. */
+    public void queueEditedByPlayer() {
+        queueEdited();
+    }
+
     // ---- the handlers
 
     private static Map<String, String> one(String name, String value) {
