@@ -170,4 +170,9 @@ public class OhServiceDefsTest {
             assertTrue(service.getServiceType().toString().startsWith("urn:av-openhome-org:service:"));
         }
     }
+
+    @Test
+    public void radioMatchesTheOpenHomeDescription() throws Exception {
+        assertSameAs("Radio1.xml", OhServiceDefs.radio());
+    }
 }

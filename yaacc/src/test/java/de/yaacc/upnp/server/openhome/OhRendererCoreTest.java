@@ -134,6 +134,7 @@ public class OhRendererCoreTest {
     private ServiceHarness<OhServiceState> volume;
     private ServiceHarness<OhServiceState> info;
     private ServiceHarness<OhServiceState> time;
+    private ServiceHarness<OhServiceState> radio;
 
     @Before
     @SuppressWarnings("unchecked")
@@ -148,11 +149,12 @@ public class OhRendererCoreTest {
         info = new ServiceHarness<>((LocalService<OhServiceState>) services.get(2), OhServiceDefs.info().serviceType(), "Info");
         time = new ServiceHarness<>((LocalService<OhServiceState>) services.get(3), OhServiceDefs.time().serviceType(), "Time");
         volume = new ServiceHarness<>((LocalService<OhServiceState>) services.get(4), OhServiceDefs.volume().serviceType(), "Volume");
+        radio = new ServiceHarness<>((LocalService<OhServiceState>) services.get(5), OhServiceDefs.radio().serviceType(), "Radio");
     }
 
     @After
     public void tearDown() {
-        for (ServiceHarness<OhServiceState> harness : java.util.Arrays.asList(product, playlist, info, time, volume)) {
+        for (ServiceHarness<OhServiceState> harness : java.util.Arrays.asList(product, playlist, info, time, volume, radio)) {
             harness.close();
         }
     }
@@ -454,5 +456,67 @@ public class OhRendererCoreTest {
         assertFault(800, playlist.soap("SeekId", "Value", "4711"));
 
         assertEquals("1", value(product.soap("Standby"), "Value"));
+    }
+
+    // ---- radio: what Home Assistant's play_media does
+
+    @Test
+    public void setChannelReplacesTheQueueWithThatTrackAndPlayPlaysIt() {
+        insert(0, "http://h/old1.mp3");
+        insert(0, "http://h/old2.mp3");
+        playback.calls.clear();
+
+        assertTrue(ServiceHarness.succeeded(radio.soap("SetChannel", "Uri", "http://h/new.mp3", "Metadata", "<meta/>")));
+        assertTrue(ServiceHarness.succeeded(radio.soap("Play")));
+
+        assertEquals(1, core.queue().size());
+        assertEquals("http://h/new.mp3", core.queue().snapshot().get(0).getUri());
+        assertEquals("<meta/>", core.queue().snapshot().get(0).getMetadata());
+        assertEquals(java.util.Arrays.asList("cleared", "inserted 0 " + core.queue().snapshot().get(0).getId(), "play"), playback.calls);
+        assertEquals("http://h/new.mp3", value(radio.soap("Channel"), "Uri"));
+        assertEquals(String.valueOf(core.queue().snapshot().get(0).getId()), value(radio.soap("Id"), "Value"));
+    }
+
+    @Test
+    public void radioPlayWakesADeviceInStandby() {
+        product.soap("SetStandby", "Value", "1");
+
+        assertTrue(ServiceHarness.succeeded(radio.soap("Play")));
+
+        assertEquals("0", value(product.soap("Standby"), "Value"));
+        assertTrue(playback.calls.contains("play"));
+    }
+
+    @Test
+    public void aChannelThatIsNotAnHttpAddressChangesNothing() {
+        insert(0, "http://h/keep.mp3");
+        playback.calls.clear();
+
+        assertFault(402, radio.soap("SetChannel", "Uri", "file:///data/secret.mp3", "Metadata", ""));
+        assertFault(402, radio.soap("SetChannel", "Uri", "", "Metadata", ""));
+        assertFault(402, radio.soap("SetChannel", "Uri", "http://h/a.mp3", "Metadata", "x".repeat(OhQueue.MAX_METADATA_LENGTH + 1)));
+
+        assertEquals(1, core.queue().size());
+        assertEquals("http://h/keep.mp3", core.queue().snapshot().get(0).getUri());
+        assertTrue(playback.calls.isEmpty());
+    }
+
+    @Test
+    public void theRadioReportsTheTransportStateOfThePlayer() {
+        core.setTransportState(OhTransportState.PLAYING);
+
+        assertEquals("Playing", value(radio.soap("TransportState"), "Value"));
+    }
+
+    @Test
+    public void theChannelCanBeReadByItsId() {
+        radio.soap("SetChannel", "Uri", "http://h/a.mp3", "Metadata", "<m/>");
+        String id = value(radio.soap("Id"), "Value");
+
+        assertEquals("&lt;m/&gt;", value(radio.soap("Read", "Id", id), "Metadata"));
+        assertTrue(value(radio.soap("ReadList", "IdList", id + " 4711"), "ChannelList").contains("&lt;Id&gt;" + id + "&lt;/Id&gt;"));
+        assertFault(800, radio.soap("Read", "Id", "4711"));
+        assertEquals("1", value(radio.soap("ChannelsMax"), "Value"));
+        assertEquals("0", value(radio.soap("IdArrayChanged", "Token", value(radio.soap("IdArray"), "Token")), "Value"));
     }
 }

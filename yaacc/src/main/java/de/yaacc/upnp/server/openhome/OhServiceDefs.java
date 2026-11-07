@@ -86,4 +86,22 @@ public final class OhServiceDefs {
                 "Source >Index=SourceIndex <SystemName=SourceName <Type=SourceType <Name=SourceName <Visible=SourceVisible",
                 "Attributes <Value=Attributes", "SourceXmlChangeCount <Value=SourceXmlChangeCount");
     }
+
+    /**
+     * A one-channel radio. YAACC has no radio source; the service is there for controllers that start a single stream with it
+     * (Home Assistant's play_media does): the channel becomes the queue of the playlist (see {@link OhRendererCore}).
+     */
+    public static OhServiceDef radio() {
+        return new OhServiceDef("Radio", 1).vars(
+                "Uri:string*", "Metadata:string*", "TransportState:string*[Stopped|Playing|Paused|Buffering]", "Id:ui4*",
+                "IdArray:bin.base64*", "ChannelsMax:ui4*", "ProtocolInfo:string*", "Relative:i4", "Absolute:ui4",
+                "IdArrayToken:ui4", "IdArrayChanged:boolean", "IdList:string", "ChannelList:string"
+        ).actions(
+                "Play", "Pause", "Stop", "SeekSecondAbsolute >Value=Absolute", "SeekSecondRelative >Value=Relative",
+                "Channel <Uri=Uri <Metadata=Metadata", "SetChannel >Uri=Uri >Metadata=Metadata",
+                "TransportState <Value=TransportState", "Id <Value=Id", "SetId >Value=Id >Uri=Uri",
+                "Read >Id=Id <Metadata=Metadata", "ReadList >IdList=IdList <ChannelList=ChannelList",
+                "IdArray <Token=IdArrayToken <Array=IdArray", "IdArrayChanged >Token=IdArrayToken <Value=IdArrayChanged",
+                "ChannelsMax <Value=ChannelsMax", "ProtocolInfo <Value=ProtocolInfo");
+    }
 }
