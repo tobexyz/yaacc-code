@@ -1107,6 +1107,30 @@ final class ReceiverRowBinder {
         return text;
     }
 
+    /** Play, pause or stop of the playlist of an OpenHome device (on the worker thread). */
+    private void openHomeTransport(Device<?, ?, ?> device, String action) {
+        try {
+            de.yaacc.openhome.OhRemote remote = new de.yaacc.openhome.OhRemote(
+                    new de.yaacc.upnp.callback.openhome.ClingOhControl(device, upnpClient.getHttpRequestSender()));
+            switch (action) {
+                case ACTION_PLAY:
+                    remote.prepare();
+                    remote.play();
+                    break;
+                case ACTION_PAUSE:
+                    remote.pause();
+                    break;
+                case ACTION_STOP:
+                    remote.stop();
+                    break;
+                default:
+                    break;
+            }
+        } catch (de.yaacc.openhome.OhControlException | RuntimeException e) {
+            YaaccLogger.w(getClass().getName(), "OpenHome " + action + " failed: " + e.getMessage());
+        }
+    }
+
     private void executeAction(Device<?, ?, ?> device, String action) {
         // a device that plays a source of its own (net radio, tuner) and nothing from yaacc: the buttons act on that source
         if (!isLocalDevice(device)) {
@@ -1147,7 +1171,13 @@ final class ReceiverRowBinder {
         // Handle remote UPnP device: talk to its AVTransport service directly,
         // so playback started by another controller can be controlled too.
         org.fourthline.cling.model.meta.Service avTransport = device.findService(new org.fourthline.cling.model.types.UDAServiceId("AVTransport"));
-        if (avTransport == null) return;
+        if (avTransport == null) {
+            // a device that speaks OpenHome only: the buttons go to its playlist
+            if (de.yaacc.player.OpenHomeChoice.offersOpenHome(device)) {
+                executorService.execute(() -> openHomeTransport(device, action));
+            }
+            return;
+        }
 
         HttpRequestSender httpRequestSender = new HttpRequestSender();
 
@@ -1184,7 +1214,13 @@ final class ReceiverRowBinder {
      */
     boolean supportsVolumeControl(Device<?, ?, ?> device) {
         org.fourthline.cling.model.meta.Service renderingControl = device.findService(new org.fourthline.cling.model.types.UDAServiceId("RenderingControl"));
-        return renderingControl != null && renderingControl.getAction("GetVolume") != null;
+        return (renderingControl != null && renderingControl.getAction("GetVolume") != null) || hasOpenHomeVolume(device, renderingControl);
+    }
+
+    /** A device that speaks OpenHome and has no RenderingControl: volume and mute are those of its OpenHome volume service. */
+    private static boolean hasOpenHomeVolume(Device<?, ?, ?> device, org.fourthline.cling.model.meta.Service renderingControl) {
+        return renderingControl == null && de.yaacc.player.OpenHomeChoice.offersOpenHome(device)
+                && de.yaacc.upnp.callback.openhome.ClingOhControl.findService(device, "Volume") != null;
     }
 
     /**
@@ -1192,6 +1228,6 @@ final class ReceiverRowBinder {
      */
     boolean supportsMuteControl(Device<?, ?, ?> device) {
         org.fourthline.cling.model.meta.Service renderingControl = device.findService(new org.fourthline.cling.model.types.UDAServiceId("RenderingControl"));
-        return renderingControl != null && renderingControl.getAction("GetMute") != null;
+        return (renderingControl != null && renderingControl.getAction("GetMute") != null) || hasOpenHomeVolume(device, renderingControl);
     }
 }

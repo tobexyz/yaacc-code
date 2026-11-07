@@ -55,6 +55,7 @@ import de.yaacc.share.QueueShareBinder;
 import de.yaacc.share.QueueShareWindow;
 import de.yaacc.share.ShareAddressResolver;
 import de.yaacc.share.ShareService;
+import de.yaacc.upnp.OpenHomeReceivers;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.util.NotificationId;
 import de.yaacc.util.YaaccLogger;
@@ -395,6 +396,11 @@ public class PlayerService extends MediaSessionService {
             if (built.items().isEmpty()) {
                 continue;
             }
+            if (!local && OpenHomeReceivers.isOpenHomeOnly(device) && !(music && !video && !image)) {
+                // an OpenHome device plays music only, and has no AVTransport for the rest
+                notifyFilesNotSupported(upnpClient);
+                continue;
+            }
             Player player = createPlayer(upnpClient, device, video, image, music);
             if (player == null) {
                 continue;
@@ -415,6 +421,12 @@ public class PlayerService extends MediaSessionService {
             player.setItems(built.items().toArray(new PlayableItem[0]));
             resultList.add(player);
         }
+    }
+
+    private void notifyFilesNotSupported(UpnpClient upnpClient) {
+        android.content.Context context = upnpClient.getContext();
+        new android.os.Handler(android.os.Looper.getMainLooper()).post(() ->
+                android.widget.Toast.makeText(context, R.string.openhome_files_not_supported, android.widget.Toast.LENGTH_LONG).show());
     }
 
     /** The key bookkeeping of the app's registries for the shares of a queue. */

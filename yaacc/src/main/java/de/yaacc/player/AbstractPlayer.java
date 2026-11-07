@@ -788,7 +788,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
      * @param deviceItems the playlist of the device; the same objects for the same tracks as before keep the list "unchanged"
      * @param index       the index of the current item (clamped to the list)
      */
-    protected final void adoptDeviceState(List<PlayableItem> deviceItems, int index, boolean nowPlaying, boolean nowPaused) {
+    protected final synchronized void adoptDeviceState(List<PlayableItem> deviceItems, int index, boolean nowPlaying, boolean nowPaused) {
         boolean listChanged = deviceItems.size() != items.size();
         for (int i = 0; !listChanged && i < deviceItems.size(); i++) {
             listChanged = deviceItems.get(i) != items.get(i);
@@ -925,6 +925,11 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
      */
     public void setShareLease(QueueShareWindow.Lease lease) {
         this.shareLease = lease;
+    }
+
+    /** The lease of the shares of a picked queue, null for every other player. */
+    protected QueueShareWindow.Lease getShareLease() {
+        return shareLease;
     }
 
     /** Releases the shares this player holds (the queue ended or was stopped); it can start again. */

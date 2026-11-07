@@ -514,4 +514,70 @@ public class OhRemoteTest {
 
         assertEquals(false, remote.standby());
     }
+
+    @Test
+    public void theVolumeAndMuteCanBeReadAndSetOnTheirOwn() throws Exception {
+        remote.setVolumePercent(35);
+        remote.setMute(true);
+
+        assertEquals(35, remote.volumePercent());
+        assertEquals(true, remote.muted());
+    }
+
+    @Test
+    public void aTrackIsMovedByInsertingItAtTheNewPlaceWhenTheDeviceHasNoMove() throws Exception {
+        List<Long> ids = remote.replace(Arrays.asList(track("a"), track("b"), track("c")));
+
+        long moved = remote.moveTrack(ids.get(2), 0); // c to the start
+
+        assertEquals(Arrays.asList("http://h/c.mp3", "http://h/a.mp3", "http://h/b.mp3"), uris(remote.queue()));
+        assertTrue(moved != ids.get(2)); // a new id: the entry was inserted again
+        assertEquals(3, remote.idArray().size());
+    }
+
+    @Test
+    public void aTrackCanBeMovedBehindAnotherOne() throws Exception {
+        List<Long> ids = remote.replace(Arrays.asList(track("a"), track("b"), track("c")));
+
+        remote.moveTrack(ids.get(0), ids.get(1)); // a behind b
+
+        assertEquals(Arrays.asList("http://h/b.mp3", "http://h/a.mp3", "http://h/c.mp3"), uris(remote.queue()));
+    }
+
+    @Test
+    public void aDeviceWithMoveGetsTheMoveAction() throws Exception {
+        List<String> log = new ArrayList<>();
+        java.util.Map<String, String> args = new java.util.HashMap<>();
+        OhRemote withMove = new OhRemote((service, action, arguments) -> {
+            log.add(action);
+            args.putAll(arguments);
+            return java.util.Collections.emptyMap();
+        }, millis -> {
+        });
+
+        long id = withMove.moveTrack(7, 3);
+
+        assertEquals(7, id); // the same id: nothing was inserted
+        assertEquals(Arrays.asList("Move"), log);
+        assertEquals("3", args.get("AfterId"));
+        assertEquals(de.yaacc.openhome.OhIds.encodeIdArray(Arrays.asList(7L)), args.get("Value"));
+    }
+
+    @Test
+    public void aMoveThatTheDeviceRefusesIsNotRepeatedAsInsertAndDelete() throws Exception {
+        List<String> log = new ArrayList<>();
+        OhRemote refusing = new OhRemote((service, action, arguments) -> {
+            log.add(action);
+            throw new OhControlException(800, "unknown id");
+        }, millis -> {
+        });
+
+        try {
+            refusing.moveTrack(7, 3);
+            fail();
+        } catch (OhControlException e) {
+            assertEquals(800, e.getCode());
+        }
+        assertEquals(Arrays.asList("Move"), log);
+    }
 }

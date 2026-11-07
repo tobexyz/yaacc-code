@@ -102,6 +102,7 @@ import de.yaacc.upnp.server.media.CombinedCaptureService;
 import de.yaacc.upnp.server.media.MediaProjectionHelper;
 import de.yaacc.upnp.server.media.ScreenCastCaptureService;
 import de.yaacc.upnp.server.media.SystemAudioCaptureService;
+import de.yaacc.upnp.callback.openhome.ClingOhControl;
 import de.yaacc.upnp.server.openhome.AndroidOhThreads;
 import de.yaacc.upnp.server.openhome.AndroidOpenHomeHost;
 import de.yaacc.upnp.server.openhome.OhRendererCore;
@@ -140,7 +141,13 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
             new UDAServiceType("ContentDirectory"),
             new UDAServiceType("ConnectionManager"),
             new UDAServiceType("RenderingControl"),
-            new UDAServiceType("X_MS_MediaReceiverRegistrar")};
+            new UDAServiceType("X_MS_MediaReceiverRegistrar"),
+            // OpenHome: what the OpenHome player needs from a device (the other services of a device are left out)
+            new ServiceType(ClingOhControl.NAMESPACE, "Product", 1),
+            new ServiceType(ClingOhControl.NAMESPACE, "Playlist", 1),
+            new ServiceType(ClingOhControl.NAMESPACE, "Info", 1),
+            new ServiceType(ClingOhControl.NAMESPACE, "Time", 1),
+            new ServiceType(ClingOhControl.NAMESPACE, "Volume", 1)};
 
     public String locaDeviceUuid;
     protected IBinder binder = new YaaccUpnpServerServiceBinder();

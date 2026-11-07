@@ -289,4 +289,188 @@ public class OpenHomePlayerTest {
         await(() -> player.getItems().size() == 1);
         assertNull(player.getAlbumArt());
     }
+
+    // ---- files picked on this phone: shared just in time, the current file and the next one
+
+    private static android.net.Uri uri(String text) {
+        android.net.Uri uri = mock(android.net.Uri.class);
+        when(uri.toString()).thenReturn(text);
+        return uri;
+    }
+
+    private static PlayableItem placeholder(String name) {
+        PlayableItem item = new PlayableItem();
+        item.setTitle(name);
+        item.setUri(uri("pending:" + name));
+        return item;
+    }
+
+    private final List<Integer> bound = new java.util.concurrent.CopyOnWriteArrayList<>();
+    private final List<Integer> released = new java.util.concurrent.CopyOnWriteArrayList<>();
+
+    private PlayableItem[] pickFiles(int count, boolean bindWorks) {
+        PlayableItem[] items = new PlayableItem[count];
+        for (int i = 0; i < count; i++) {
+            items[i] = placeholder("file" + i);
+        }
+        List<PlayableItem> list = java.util.Arrays.asList(items);
+        de.yaacc.share.QueueShareWindow window = new de.yaacc.share.QueueShareWindow(list, index -> {
+            if (!bindWorks) {
+                return null;
+            }
+            list.get(index).setUri(uri("http://share/" + index));
+            bound.add(index);
+            return () -> released.add(index);
+        });
+        player.setShareLease(window.newLease());
+        return items;
+    }
+
+    @Test
+    public void aSinglePickedFileIsAPlaylistOfOneSharedFile() throws Exception {
+        player.setItems(pickFiles(1, true));
+
+        await(() -> core.queue().size() == 1);
+        assertEquals("http://share/0", core.queue().snapshot().get(0).getUri());
+        assertEquals(java.util.Arrays.asList(0), bound);
+    }
+
+    @Test
+    public void severalPickedFilesAreSharedAndSentTwoAtATimeAsTheDeviceMovesOn() throws Exception {
+        player.setItems(pickFiles(4, true));
+
+        await(() -> core.queue().size() == 2);
+        assertEquals("http://share/0", core.queue().snapshot().get(0).getUri());
+        assertEquals("http://share/1", core.queue().snapshot().get(1).getUri());
+
+        // the device moves on to the second file: the third is shared and given to the device, the first is released
+        core.setCurrentId(core.queue().snapshot().get(1).getId());
+        player.pause();
+        await(() -> core.queue().size() == 3);
+        assertEquals("http://share/2", core.queue().snapshot().get(2).getUri());
+        await(() -> released.contains(0));
+
+        core.setCurrentId(core.queue().snapshot().get(2).getId());
+        player.pause();
+        await(() -> core.queue().size() == 4);
+        assertEquals("http://share/3", core.queue().snapshot().get(3).getUri());
+    }
+
+    @Test
+    public void aFileThatCanNotBeSharedSendsNothingAndDoesNotCrash() throws Exception {
+        core.queue().insert(0, "http://h/old.mp3", "");
+
+        player.setItems(pickFiles(2, false));
+        player.pause(); // runs after the files
+
+        await(() -> player.getItems().size() == 1);
+        assertEquals(1, core.queue().size()); // the queue of the device stays as it was
+        assertTrue(bound.isEmpty());
+    }
+
+    @Test
+    public void theScreenShowsAllPickedFilesAlthoughTheDeviceOnlyHasTwo() throws Exception {
+        player.setItems(pickFiles(5, true));
+
+        await(() -> core.queue().size() == 2);
+        await(() -> player.getItems().size() == 5);
+        assertEquals("file4", player.getItems().get(4).getTitle());
+        assertEquals(2, core.queue().size());
+    }
+
+    @Test
+    public void aFileThatWasNotSentYetCanBePlayedByPickingIt() throws Exception {
+        player.setItems(pickFiles(5, true));
+        await(() -> player.getItems().size() == 5);
+        device.calls.clear();
+
+        player.playItemAt(3);
+
+        await(() -> core.queue().size() == 2 && core.queue().snapshot().get(0).getUri().equals("http://share/3"));
+        assertEquals("http://share/4", core.queue().snapshot().get(1).getUri());
+        await(() -> device.calls.contains("play"));
+        assertTrue(released.contains(0) || released.contains(1)); // what was shared before is released
+    }
+
+    @Test
+    public void previousSharesTheFileBeforeAgainAndStartsIt() throws Exception {
+        player.setItems(pickFiles(4, true));
+        await(() -> core.queue().size() == 2);
+        core.setCurrentId(core.queue().snapshot().get(1).getId()); // the device is at the second file
+        player.pause();
+        await(() -> core.queue().size() == 3);
+        device.calls.clear();
+
+        player.previous();
+
+        await(() -> core.queue().size() == 2 && core.queue().snapshot().get(0).getUri().equals("http://share/0"));
+        await(() -> device.calls.contains("play"));
+    }
+
+    @Test
+    public void filesTheDeviceHasAreLockedTheOthersCanBeTakenOutOfTheList() throws Exception {
+        player.setItems(pickFiles(5, true));
+        await(() -> player.getItems().size() == 5);
+
+        assertTrue(player.isPlaylistPositionLocked(0));
+        assertTrue(player.isPlaylistPositionLocked(1));
+        assertFalse(player.isPlaylistPositionLocked(2));
+
+        assertTrue(player.removeItem(3));
+        await(() -> player.getItems().size() == 4);
+        assertEquals("file4", player.getItems().get(3).getTitle());
+        assertFalse(player.removeItem(0)); // the device has this one
+        assertEquals(4, player.getItems().size());
+    }
+
+    @Test
+    public void aTrackCanBeDraggedToAnotherPlaceOfTheDevicesPlaylist() throws Exception {
+        long a = core.queue().insert(0, "http://h/a.mp3", "");
+        long b = core.queue().insert(a, "http://h/b.mp3", "");
+        core.queue().insert(b, "http://h/c.mp3", "");
+        player.pause();
+        await(() -> player.getItems().size() == 3);
+
+        assertTrue(player.moveInPlayOrder(2, 0));
+
+        assertEquals("http://h/c.mp3", player.getItems().get(0).getTitle()); // shown at once
+        await(() -> core.queue().snapshot().get(0).getUri().equals("http://h/c.mp3"));
+        assertEquals("http://h/a.mp3", core.queue().snapshot().get(1).getUri());
+        await(() -> player.getItems().size() == 3 && player.getItems().get(0).getTitle().equals("http://h/c.mp3"));
+    }
+
+    @Test
+    public void theTrackThatPlaysIsNotMoved() throws Exception {
+        long a = core.queue().insert(0, "http://h/a.mp3", "");
+        core.queue().insert(a, "http://h/b.mp3", "");
+        core.setTransportState(OhTransportState.PLAYING);
+        core.setCurrentId(a);
+        player.pause();
+        await(() -> player.getItems().size() == 2 && player.isPlaying());
+
+        assertFalse(player.moveInPlayOrder(0, 1));
+    }
+
+    @Test
+    public void positionsOutsideTheListAreNotMoved() throws Exception {
+        core.queue().insert(0, "http://h/a.mp3", "");
+        player.pause();
+        await(() -> player.getItems().size() == 1);
+
+        assertFalse(player.moveInPlayOrder(0, 5));
+        assertFalse(player.moveInPlayOrder(-1, 0));
+        assertFalse(player.moveInPlayOrder(0, 0));
+    }
+
+    @Test
+    public void pickedFilesThatTheDeviceDoesNotHaveYetCanBeReordered() throws Exception {
+        player.setItems(pickFiles(5, true));
+        await(() -> player.getItems().size() == 5);
+
+        assertFalse(player.moveInPlayOrder(3, 0)); // the device has the first two
+        assertTrue(player.moveInPlayOrder(4, 2));
+
+        assertEquals("file4", player.getItems().get(2).getTitle());
+        await(() -> player.getItems().size() == 5 && player.getItems().get(2).getTitle().equals("file4"));
+    }
 }
