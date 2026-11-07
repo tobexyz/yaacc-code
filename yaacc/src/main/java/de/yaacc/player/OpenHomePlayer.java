@@ -189,6 +189,7 @@ public class OpenHomePlayer extends AbstractPlayer {
             state = newState;
             stateTakenAt = System.currentTimeMillis();
             publish();
+            feedFiles();
         } catch (OhControlException e) {
             countFailure(e);
             if (unreachable) {
@@ -299,12 +300,91 @@ public class OpenHomePlayer extends AbstractPlayer {
 
     @Override
     public void setItems(PlayableItem... playableItems) {
-        final List<OhRemote.Track> tracks = tracks(java.util.Arrays.asList(playableItems));
+        final List<PlayableItem> list = java.util.Arrays.asList(playableItems);
+        if (getShareLease() != null && !list.isEmpty()) {
+            startFiles(new ArrayList<>(list));
+            return;
+        }
+        final List<OhRemote.Track> tracks = tracks(list);
         if (tracks.isEmpty()) {
             // nothing the device could play: its queue stays as it is
             return;
         }
         command("set playlist", () -> remote.replace(tracks));
+    }
+
+    // ---- files picked on this phone: shared with the device just in time (the current and the next file), as for AVTransport
+
+    // worker only
+    private List<PlayableItem> fileQueue;
+    private final Map<Long, Integer> fileIndexById = new HashMap<>();
+    private int fileSent;
+    private int fileCurrent = -1;
+
+    /**
+     * Puts the first two files into the queue of the device (the share of a file exists while it plays and while it is next);
+     * {@link #feedFiles} adds each following file when the device moves on.
+     */
+    private void startFiles(List<PlayableItem> files) {
+        command("set files", () -> {
+            fileQueue = files;
+            fileIndexById.clear();
+            fileCurrent = -1;
+            PlayableItem second = files.size() > 1 ? files.get(1) : null;
+            if (!getShareLease().moveToItems(files.get(0), second)) {
+                YaaccLogger.w(getClass().getName(), "The share of the first file could not be created");
+                return;
+            }
+            List<PlayableItem> toSend = new ArrayList<>();
+            toSend.add(files.get(0));
+            if (second != null) {
+                toSend.add(second);
+            }
+            List<Integer> indexes = new ArrayList<>();
+            List<OhRemote.Track> tracks = new ArrayList<>();
+            for (int i = 0; i < toSend.size(); i++) {
+                List<OhRemote.Track> one = tracks(java.util.Collections.singletonList(toSend.get(i)));
+                if (!one.isEmpty()) {
+                    tracks.add(one.get(0));
+                    indexes.add(i);
+                }
+            }
+            fileSent = toSend.size();
+            if (tracks.isEmpty()) {
+                return;
+            }
+            List<Long> ids = remote.replace(tracks);
+            for (int k = 0; k < ids.size() && k < indexes.size(); k++) {
+                fileIndexById.put(ids.get(k), indexes.get(k));
+            }
+        });
+    }
+
+    /** When the device plays another of our files: shares it and the one after it, and gives the device that next file. */
+    private void feedFiles() throws OhControlException {
+        if (fileQueue == null) {
+            return;
+        }
+        Integer current = fileIndexById.get(state.id);
+        if (current == null || current == fileCurrent) {
+            return;
+        }
+        fileCurrent = current;
+        PlayableItem next = current + 1 < fileQueue.size() ? fileQueue.get(current + 1) : null;
+        if (!getShareLease().moveToItems(fileQueue.get(current), next)) {
+            YaaccLogger.w(getClass().getName(), "The share of a file could not be created");
+            return;
+        }
+        if (next != null && fileSent <= current + 1) {
+            fileSent = current + 2;
+            List<OhRemote.Track> one = tracks(java.util.Collections.singletonList(next));
+            if (!one.isEmpty()) {
+                List<Long> ids = remote.append(one);
+                if (!ids.isEmpty()) {
+                    fileIndexById.put(ids.get(0), current + 1);
+                }
+            }
+        }
     }
 
     @Override

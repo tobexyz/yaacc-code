@@ -396,13 +396,12 @@ public class PlayerService extends MediaSessionService {
             if (built.items().isEmpty()) {
                 continue;
             }
-            if (!local && OpenHomeReceivers.isOpenHomeOnly(device)) {
-                // no AVTransport to serve the files to: not supported yet
+            if (!local && OpenHomeReceivers.isOpenHomeOnly(device) && !(music && !video && !image)) {
+                // an OpenHome device plays music only, and has no AVTransport for the rest
                 notifyFilesNotSupported(upnpClient);
                 continue;
             }
-            // files of this phone are played with AVTransport, also on a device that offers OpenHome
-            Player player = createPlayer(upnpClient, device, video, image, music, false);
+            Player player = createPlayer(upnpClient, device, video, image, music);
             if (player == null) {
                 continue;
             }
@@ -511,15 +510,6 @@ public class PlayerService extends MediaSessionService {
     @OptIn(markerClass = UnstableApi.class)
     private Player createPlayer(UpnpClient upnpClient, Device receiverDevice,
                                 boolean video, boolean image, boolean music) {
-        return createPlayer(upnpClient, receiverDevice, video, image, music, true);
-    }
-
-    /**
-     * @param allowOpenHome false for content an OpenHome device can not take: files of this phone are served to a receiver one at
-     *                      a time, and the OpenHome player sends the whole playlist with http addresses
-     */
-    private Player createPlayer(UpnpClient upnpClient, Device receiverDevice,
-                                boolean video, boolean image, boolean music, boolean allowOpenHome) {
         if (receiverDevice == null) {
             Toast toast = Toast.makeText(upnpClient.getContext(), upnpClient.getContext().getString(R.string.error_no_receiver_device_found), Toast.LENGTH_SHORT);
             toast.show();
@@ -537,7 +527,7 @@ public class PlayerService extends MediaSessionService {
             } else if (!video && !image && music) {
                 contentType = "music";
             }
-            if (allowOpenHome && OpenHomeChoice.useOpenHome(upnpClient.getContext(), receiverDevice, music && !video && !image)) {
+            if (OpenHomeChoice.useOpenHome(upnpClient.getContext(), receiverDevice, music && !video && !image)) {
                 for (Player player : getCurrentPlayersOfType(OpenHomePlayer.class)) {
                     if (((OpenHomePlayer) player).getDeviceId().equals(receiverDevice.getIdentity().getUdn().getIdentifierString())) {
                         shutdown(player);

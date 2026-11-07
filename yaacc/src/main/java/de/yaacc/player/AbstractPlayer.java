@@ -927,6 +927,11 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
         this.shareLease = lease;
     }
 
+    /** The lease of the shares of a picked queue, null for every other player. */
+    protected QueueShareWindow.Lease getShareLease() {
+        return shareLease;
+    }
+
     /** Releases the shares this player holds (the queue ended or was stopped); it can start again. */
     private void dropShares() {
         QueueShareWindow.Lease lease = shareLease;

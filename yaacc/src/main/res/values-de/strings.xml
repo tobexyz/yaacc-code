@@ -261,5 +261,5 @@
     <string name="openhome_source_failed">Die Quellen des Geräts konnten nicht gelesen oder umgeschaltet werden.</string>
     <string name="openhome_source_none">Das Gerät meldet keine Quellen.</string>
     <string name="openhome_action_settings">OpenHome-Einstellungen</string>
-    <string name="openhome_files_not_supported">Dateien dieses Telefons können auf diesem Gerät noch nicht abgespielt werden: Es spricht nur OpenHome.</string>
+    <string name="openhome_files_not_supported">Dieses Gerät spricht nur OpenHome und kann nur Musik abspielen.</string>
 </resources>

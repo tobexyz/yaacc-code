@@ -261,5 +261,5 @@
     <string name="openhome_source_failed">Não foi possível ler ou mudar as fontes do dispositivo.</string>
     <string name="openhome_source_none">O dispositivo não indica nenhuma fonte.</string>
     <string name="openhome_action_settings">Definições do OpenHome</string>
-    <string name="openhome_files_not_supported">Os ficheiros deste telemóvel ainda não podem ser reproduzidos neste dispositivo: só fala OpenHome.</string>
+    <string name="openhome_files_not_supported">Este dispositivo só fala OpenHome e só pode reproduzir música.</string>
 </resources>
