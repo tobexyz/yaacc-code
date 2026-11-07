@@ -20,10 +20,14 @@ package de.yaacc.upnp.server.openhome;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Callable;
 
+import de.yaacc.openhome.OhError;
+import de.yaacc.openhome.OhIds;
 import de.yaacc.openhome.OhQueue;
 import de.yaacc.openhome.OhTransportState;
 import de.yaacc.player.AbstractPlayer;
@@ -59,6 +63,12 @@ public final class OpenHomeRenderer implements OhPlayback {
 
         /** Never null: unreadable metadata give an item that plays the address. */
         PlayableItem toPlayableItem(String uri, String metadata);
+
+        /** @return the address of an item a control point can fetch, null if the queue cannot hold the item */
+        String queueUriOf(PlayableItem item);
+
+        /** @return the DIDL-Lite text of the item, empty if it has none */
+        String queueMetadataOf(PlayableItem item);
     }
 
     /** The system volume of the device. */
@@ -96,6 +106,8 @@ public final class OpenHomeRenderer implements OhPlayback {
         String durationText;
         long itemDurationMillis;
         PlayMode mode;
+        /** The items of the player, in its list order. */
+        List<PlayableItem> items;
     }
 
     private static final long POLL_MILLIS = 1000;
@@ -109,6 +121,8 @@ public final class OpenHomeRenderer implements OhPlayback {
     private AbstractPlayer player;
     /** The ids of the tracks the player holds, in its order. */
     private final List<Long> playerIds = new ArrayList<>();
+    /** The queue id of every item this renderer put into the player (by identity); items the user added at the player are not in. */
+    private final Map<PlayableItem, Long> idByItem = new IdentityHashMap<>();
     private boolean repeat;
     private boolean shuffle;
     private PlayMode lastKnownMode;
@@ -338,6 +352,17 @@ public final class OpenHomeRenderer implements OhPlayback {
             return;
         }
         try {
+            // what the user changed at the player comes first: reconcile works by place and must not see a list it did not make
+            adoptPlayerEdits(current, onPlayer(() -> new ArrayList<>(current.getItems())));
+            if (player == null) {
+                return;
+            }
+            wanted = core.queue().snapshot();
+            if (wanted.isEmpty()) {
+                discardPlayer();
+                startId = 0;
+                return;
+            }
             reconcile(current, wanted);
         } catch (RuntimeException e) {
             // a player call failed or timed out: what the player holds is not known any more, so it starts again from the queue
@@ -357,7 +382,9 @@ public final class OpenHomeRenderer implements OhPlayback {
             }
             final int index = i;
             if (onPlayer(() -> current.removeItem(index, true))) {
-                playerIds.remove(i);
+                // by value: the map compares the boxed ids by reference, which is wrong for ids above 127
+                long gone = playerIds.remove(i);
+                idByItem.values().removeIf(id -> id == gone);
             } else {
                 long next = 0;
                 for (int j = i + 1; j < playerIds.size(); j++) {
@@ -383,6 +410,7 @@ public final class OpenHomeRenderer implements OhPlayback {
                 return null;
             });
             playerIds.add(i, entry.getId());
+            idByItem.put(item, entry.getId());
         }
     }
 
@@ -394,9 +422,12 @@ public final class OpenHomeRenderer implements OhPlayback {
         }
         List<PlayableItem> items = new ArrayList<>(entries.size());
         List<Long> ids = new ArrayList<>(entries.size());
+        Map<PlayableItem, Long> idsByItem = new IdentityHashMap<>();
         for (OhQueue.Entry entry : entries) {
-            items.add(host.toPlayableItem(entry.getUri(), entry.getMetadata()));
+            PlayableItem item = host.toPlayableItem(entry.getUri(), entry.getMetadata());
+            items.add(item);
             ids.add(entry.getId());
+            idsByItem.put(item, entry.getId());
         }
         AbstractPlayer created = host.createPlayer(items);
         if (created == null) {
@@ -406,6 +437,8 @@ public final class OpenHomeRenderer implements OhPlayback {
         player = created;
         playerIds.clear();
         playerIds.addAll(ids);
+        idByItem.clear();
+        idByItem.putAll(idsByItem);
         reportedId = Long.MIN_VALUE;
         lastKnownMode = null;
         applyMode();
@@ -418,10 +451,125 @@ public final class OpenHomeRenderer implements OhPlayback {
         startId = 0;
     }
 
+    /**
+     * The user changed the list at the player of this device (deleted, moved or added tracks in the playlist of the music player):
+     * the queue takes over, so the control points see it and the next {@link #sync()} does not undo it. Only compares the player
+     * with what this renderer put into it, so edits of control points that are not synced yet are left alone.
+     *
+     * @return true if the player had other items than the renderer expected
+     */
+    private boolean adoptPlayerEdits(AbstractPlayer current, List<PlayableItem> items) {
+        List<Long> found = new ArrayList<>(items.size());
+        boolean unknown = false;
+        for (PlayableItem item : items) {
+            Long id = idByItem.get(item);
+            found.add(id);
+            unknown |= id == null;
+        }
+        if (!unknown && found.equals(playerIds)) {
+            return false;
+        }
+        try {
+            takeOverFromPlayer(current, items, found);
+        } catch (RuntimeException e) {
+            YaaccLogger.w(getClass().getName(), "OpenHome queue could not take over the edits of the player, the player is started again", e);
+            discardPlayer();
+        }
+        return true;
+    }
+
+    private void takeOverFromPlayer(AbstractPlayer current, List<PlayableItem> items, List<Long> found) {
+        OhQueue queue = core.queue();
+        // 1. tracks the user deleted
+        Set<Long> kept = new HashSet<>();
+        for (Long id : found) {
+            if (id != null) {
+                kept.add(id);
+            }
+        }
+        for (Long id : new ArrayList<>(playerIds)) {
+            if (!kept.contains(id)) {
+                deleteQuietly(queue, id);
+            }
+        }
+        // 2. tracks the user moved: the order of the kept tracks in the queue becomes the one of the player
+        List<Long> order = new ArrayList<>();
+        for (Long id : found) {
+            if (id != null && queue.indexOf(id) >= 0) {
+                order.add(id);
+            }
+        }
+        Set<Long> orderSet = new HashSet<>(order);
+        for (int i = 0; i < order.size(); i++) {
+            List<Long> inQueue = new ArrayList<>();
+            for (long id : queue.idArray()) {
+                if (orderSet.contains(id)) {
+                    inQueue.add(id);
+                }
+            }
+            if (inQueue.get(i).longValue() != order.get(i).longValue()) {
+                queue.move(order.get(i), i == 0 ? OhIds.NONE : order.get(i - 1));
+            }
+        }
+        // 3. tracks the user added: behind their predecessor; what the queue cannot hold leaves the player again
+        List<Integer> refused = new ArrayList<>();
+        long previous = OhIds.NONE;
+        List<Long> newIds = new ArrayList<>();
+        for (int i = 0; i < items.size(); i++) {
+            Long id = found.get(i);
+            // a known track stays known although a control point deleted it from the queue meanwhile: the sync takes it out of the player
+            if (id == null) {
+                PlayableItem item = items.get(i);
+                String uri = host.queueUriOf(item);
+                id = null;
+                if (uri != null) {
+                    try {
+                        id = queue.insert(previous, uri, host.queueMetadataOf(item));
+                        idByItem.put(item, id);
+                    } catch (OhError e) {
+                        YaaccLogger.w(getClass().getName(), "OpenHome queue refuses a track of the player: " + e.getMessage());
+                    }
+                }
+                if (id == null) {
+                    refused.add(i);
+                    continue;
+                }
+            }
+            newIds.add(id);
+            if (queue.indexOf(id) >= 0) {
+                previous = id; // a track a control point deleted meanwhile is no place to insert behind
+            }
+        }
+        for (int i = refused.size() - 1; i >= 0; i--) {
+            final int index = refused.get(i);
+            if (!onPlayer(() -> current.removeItem(index, true))) {
+                // the track that plays can not leave the player
+                discardPlayer();
+                core.queueEditedByPlayer();
+                return;
+            }
+        }
+        playerIds.clear();
+        playerIds.addAll(newIds);
+        Set<PlayableItem> inPlayer = java.util.Collections.newSetFromMap(new IdentityHashMap<>());
+        inPlayer.addAll(items);
+        idByItem.keySet().removeIf(item -> !inPlayer.contains(item));
+        core.queueEditedByPlayer();
+    }
+
+    private static void deleteQuietly(OhQueue queue, long id) {
+        try {
+            queue.delete(id);
+        } catch (OhError e) {
+            // a control point deleted it as well
+        }
+    }
+
     private AbstractPlayer alivePlayer() {
         if (player != null && !host.isAlive(player)) {
             player = null;
             playerIds.clear();
+            idByItem.clear();
             reportedId = Long.MIN_VALUE;
         }
         return player;
@@ -431,6 +579,7 @@ public final class OpenHomeRenderer implements OhPlayback {
         AbstractPlayer old = player;
         player = null;
         playerIds.clear();
+        idByItem.clear();
         reportedId = Long.MIN_VALUE;
         if (old != null && host.isAlive(old)) {
             try {
@@ -486,6 +635,7 @@ public final class OpenHomeRenderer implements OhPlayback {
             List<PlayableItem> items = current.getItems();
             state.itemDurationMillis = state.index >= 0 && state.index < items.size() ? items.get(state.index).getDuration() : 0;
             state.mode = current.getPlayMode();
+            state.items = new ArrayList<>(items);
             return state;
         });
     }
@@ -507,6 +657,13 @@ public final class OpenHomeRenderer implements OhPlayback {
                 return;
             }
             PlayerState state = read(current);
+            if (adoptPlayerEdits(current, state.items)) {
+                if (alivePlayer() == null) {
+                    refreshNow();
+                    return;
+                }
+                state = read(current);
+            }
             adoptPlayMode(state.mode);
             if (!state.playing && !state.paused) {
                 core.setTransportState(OhTransportState.STOPPED);
@@ -573,5 +730,10 @@ public final class OpenHomeRenderer implements OhPlayback {
     /** For tests (on the worker, or with threads that run inline): the player the queue plays on, null if there is none. */
     AbstractPlayer playerForTest() {
         return player;
+    }
+
+    /** For tests: how many items of the player the renderer knows the queue id of. */
+    int trackedItemsForTest() {
+        return idByItem.size();
     }
 }

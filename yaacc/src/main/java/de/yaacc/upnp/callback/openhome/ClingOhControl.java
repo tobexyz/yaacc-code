@@ -32,6 +32,7 @@ import de.yaacc.openhome.OhControl;
 import de.yaacc.openhome.OhControlException;
 import de.yaacc.upnp.callback.ActionCallback;
 import de.yaacc.upnp.server.http.HttpRequestSender;
+import de.yaacc.upnp.UpnpTransportException;
 import de.yaacc.util.YaaccLogger;
 
 /**
@@ -122,7 +123,7 @@ public final class ClingOhControl implements OhControl {
             public void failure(ActionInvocation invocation, UpnpResponse operation, String defaultMsg) {
                 failure[0] = defaultMsg == null ? "action failed" : defaultMsg;
                 if (invocation.getFailure() != null) {
-                    code[0] = invocation.getFailure().getErrorCode();
+                    code[0] = codeOf(invocation.getFailure());
                     failure[0] = invocation.getFailure().getMessage();
                 }
             }
@@ -136,6 +137,11 @@ public final class ClingOhControl implements OhControl {
             out.put(value.getArgument().getName(), value.getDatatype().getString(value.getValue()));
         }
         return out;
+    }
+
+    /** A connection that failed carries the code of "action failed", but it is no answer of the device: {@code NO_ANSWER}. */
+    static int codeOf(org.fourthline.cling.model.action.ActionException failure) {
+        return failure instanceof UpnpTransportException ? OhControlException.NO_ANSWER : failure.getErrorCode();
     }
 
     /** The text of a fault comes from the device: shortened, without control characters, before it is logged. */

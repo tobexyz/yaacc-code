@@ -269,3 +269,89 @@ Reviewing: commit f901bd41 (fixes for the two cycle 2 Warnings and the cycle 2 S
 - [ ] No test would fail on the two Warnings above (the nesting test uses an unclosed document; no test polls an over-budget queue more than once).
 
 ### Verdict: FAIL
+
+## Cycle 4 — 2026-11-08
+Reviewing: Groups 1-7 as a whole, with the fixes for the two cycle 3 Warnings (commit 1e5eef74) and everything after cycle 3 (commits f901bd41..b2adf6c3: OpenHome controller
+UI and settings sheet, reverse sync of the local player's edits into the queue, Radio facade, standby, OpenHome services on the root device, files picked on the phone,
+drag to reorder, album art, device list log). General review cycle 7 is PASS. Method: source read of the diff and of the vendored Cling classes used on the path; a probe of
+`OhXml.tooDeep`/`parse` compiled on its own with the JDK (not part of the repo, nothing in the repository was changed apart from this file); Gradle not run (orchestrator: green, 3198 tests, lint 0).
+
+Threat model as before: any LAN host can call every OpenHome action without authentication (like AVTransport today); the controller side talks to a device the user chose, which may be hostile.
+
+### Cycle 3 Warnings
+
+1. **Nesting depth / unclosed document (OhXml): FIXED for every text the OpenHome code parses.** `OhXml.parse` (OhXml.java:45-69) now counts the element depth on the text
+   before any parser sees it (`tooDeep`, OhXml.java:74, limit 16, skips comments, CDATA, processing instructions, `>` inside quoted attribute values, self-closing tags), refuses
+   DOCTYPE/ENTITY and text over 2 MiB first, and catches `StackOverflowError` as a second line. It sits in front of both users (`OhTrackListParser`, `OhSources`). Probe
+   (JDK, compiled from the current OhXml.java): well-formed 100,000 levels -> null; 16 levels -> document; 17 levels -> null; `>` in an attribute, tags inside comments/CDATA, 5,000
+   self-closing tags -> not counted; 2 MB track list -> 49 ms; 500,000 `<!--` and 300,000 `<a x="` (quote tricks) -> 22 / 47 ms, so the counter is linear and cannot be used to burn CPU.
+   Constructed attempts to under-count (stray quotes, unmatched end tags, odd comments) only lead past the first point where the Android parser itself throws, so nothing deeper is built.
+   `OhXmlTest` now has the well-formed 100,000-level case (cycle 3 asked for it). One residual that is NOT part of the OhXml fix is listed as Suggestion 1 (the SOAP envelope).
+2. **Polling an over-budget queue repeatedly (OhRemote / OpenHomePlayer): FIXED.** An entry that does not fit the 4 M budget now stays in `asked` and goes to `unavailable`
+   (OhRemote.java:213-222), `unavailable` is cut to the current ids (`retainAll`) and is cleared by `deleteAll`, so the 1000-entry device of the cycle 3 probe gets its ReadLists once and none on
+   the following `queue()` calls. `OpenHomePlayer.refresh` compares the ids the device reported with the ones it reported last time (`deviceIds`, OpenHomePlayer.java:194-196), not with the shown
+   ones, so `queue()` is not called on every poll; if `queue()` throws, `deviceIds` is not advanced and the next poll tries again (one attempt per 2 s poll, bounded). A device that changes its
+   ids on every poll still costs up to 20 ReadLists per poll; that needs the device to be hostile and only moves bytes the phone asked for, the same class as the unbounded read below (Suggestion 3).
+   The cycle 3 Suggestions are also done: `insert` subtracts a replaced entry (OhRemote.java:255-258), the fault text is cleaned where the exception is built (ClingOhControl.java:132).
+   Test: `OhRemoteTest.entriesThatDoNotFitTheCacheAreNotReadAgainOnEveryPoll` (1000 entries x 16,000 chars, ReadList count identical on call 2 and 3). No test covers the `deviceIds` comparison of the player itself (see Tests).
+
+### Critical
+- none
+
+### Warning
+- none
+
+### Suggestion
+1. [ClingOhControl.java:116 `invoke`, vendored `org/fourthline/cling/transport/impl/SOAPActionProcessorImpl.java:123-150` `readBody`] **Residual of cycle 3 Warning 1 one layer up (pre-existing, app-wide, not rated).**
+   The SOAP envelope of every action answer (and request) is built with the platform `DocumentBuilderFactory` with no depth, size or DOCTYPE limit; the full body is also logged at verbose level.
+   On Android that parser builds the DOM recursively (derived from the AOSP source as in cycle 3, not run on a device), so a hostile device can nest 10-20 KB of `<a>` inside the envelope instead of inside
+   `TrackList`; the `StackOverflowError` leaves `ClingOhControl.invoke` (`readBody` catches `Exception` only), `OpenHomePlayer.refresh`/`command` catch `RuntimeException` only, and the process ends.
+   The server side is better off: `YaaccUpnpServerProtocolRequestHandler.handle` catches `Throwable` and answers 500, so a nested request from a LAN host does not kill the renderer (request bodies are buffered
+   without a limit there, pre-existing). It is rated as not new because AVTransport/ContentDirectory/RenderingControl answers of any device go through the same code in released versions, and #301
+   adds no new parse path at this level. Cheap contained fix for #301: in `ClingOhControl.invoke` wrap `ActionCallback.run()` in `catch (StackOverflowError)` and throw `OhControlException(NO_ANSWER, ...)`;
+   proper fix for the whole app: `OhXml.tooDeep` (or a SAX pre-scan) in `SOAPActionProcessorImpl.readBody` plus `disallow-doctype-decl`.
+2. [OpenHomePlayer.java:720-742 `getIcon`, util/image/ImageDownloader.java:73-110, BitmapSampling.readAllBytes:50, AndroidOpenHomeHost.java:62-90] **Album art addresses.** Controller side is good:
+   `getAlbumArt` takes the DIDL address of the device only if `OhUriPolicy.isAcceptable` (http/https with a host, no user info), so `file:`/`content:`/`jar:` from a device are never fetched
+   (`anAlbumArtAddressThatIsNotHttpIsNotUsed`). What the fetch does with an http(s) address is the shared downloader, unchanged: `URL.getContent()` with no connect/read timeout, `readAllBytes` with no size limit
+   (an `OutOfMemoryError` is not caught by `catch (Exception)` there), and `getIcon` starts a new download on the fixed content pool (default 10 threads, also used for thumbnails) on every call while the image is not
+   cached - there is no in-flight or negative cache - so an art address that blackholes can occupy pool threads over time as the notification is rebuilt. The same pattern is in `AVTransportPlayer.getIcon`.
+   Fix in the shared code: timeouts (10 s) and a size cap (for example 8 MiB) in `getUriAsStream`/`readAllBytes`, remember failed addresses for a while. On the renderer side the `albumArtURI` of a control point's
+   DIDL is still not filtered (`toPlayableItem`; open since cycle 1, the phone shows or notifies it, nothing is sent back): apply the same `OhUriPolicy` there.
+3. [HttpRequestSender.java:184 `createResponse`] Carried over unchanged from cycle 2/3: a response is read without size limit or overall deadline, so the OpenHome limits (2 MiB per answer text, 4 M cache) apply after
+   the data is in memory. Same for the SOAP request body on the server side. Not rated (shared, pre-existing); a limit of 8-16 MiB in the shared sender and server consumer would make all the OpenHome limits effective.
+4. [UpnpClient.java:546 `logDevicesOnce`] The friendly name and device type of every device in the registry are written to the log at info level without cleaning or length limit (log forging with line
+   breaks, long strings). The default level is error, so it only matters when the user raises it. Use a cleaner like the one in `ClingOhControl.clean`/`MiniPlayerPresenter.cleanText` and cut to about 100 characters.
+5. [OpenHomeRenderer.java:503-512 `takeOverFromPlayer`] The reorder loop assumes the player's list holds each item once. An item object that appears twice in the player's list gives `inQueue.get(i)` an
+   `IndexOutOfBoundsException`; it is caught in `adoptPlayerEdits` and ends in `discardPlayer()`, so playback stops once, no exposure. Skip duplicates when building `order`. Only the local user can cause it.
+6. Carried over from cycle 2/3, unchanged: no rate limit or cap on pending tasks of the renderer worker and no cap on GENA subscribers (now six OpenHome services incl. Radio, same as the other services);
+   mirrored items of the controller keep the device's `Uri` without `OhUriPolicy` (nothing fetches or plays them; album art is gated, see 2); queue share lease for `OpenHomePlayer` to be noted in decisions.md.
+   A queue of more than 1000 tracks is shown cut to 1000 without a message.
+
+### What was checked and is fine
+- **Renderer, new surface since cycle 3.** `Radio` (OhServiceDefs.radio, OhRendererCore.radioHandlers): every input action has a handler (no path into `standard()` that writes a state variable), `SetChannel` validates
+  the address (`OhUriPolicy`, http/https, 4096) and the metadata length before it replaces anything, `SetId`/`Read`/`ReadList` only know the one channel, `ReadList` is bounded by `parseIdList(..., 1000)` and escaped by `OhEscape`;
+  `SetChannel` has the same authority as `Playlist.DeleteAll` + `Insert`, no new capability. `SetStandby(true)` only stops playback (same as `Stop`), the queue stays; `Play`/`SeekId`/`SeekIndex` wake it.
+  `OhQueue.move` checks both ids (800), keeps the id and the budget, and `id == afterId` is a no-op. Action argument validation unchanged and complete: `number()` -> 402, ranges for seek/volume, ui4 by Cling's datatypes.
+- **Exposure on the root device.** The OpenHome services are added only when the renderer is enabled (`serverEnabled && rendererEnabled`, and in the nested layout only when `rendererEnabled`), once on the root and no longer on the
+  embedded renderer (no duplicate exposure); services that fail to build leave the renderer without OpenHome instead of failing it. Nothing is offered when the renderer setting is off.
+- **Reverse sync (`adoptPlayerEdits`/`takeOverFromPlayer`, `Host.queueUriOf/queueMetadataOf`, `AndroidOpenHomeHost`).** Runs on the one renderer worker; compares the player with what the renderer put in by identity, so an unsynced
+  edit of a control point is not undone and not deleted (step 1 only deletes ids the renderer had put into the player). Items the user adds go through the same limits as a control point's `Insert`: `queueUriOf` is
+  `OhUriPolicy.isAcceptable` (items with `file:`/`content:` addresses never enter the LAN-visible queue and leave the player again), `queue.insert` enforces 4096/16384/1000/4 M and a refusal removes the item from the player;
+  a deleted track is not an insert anchor. A failure falls back to `discardPlayer()` (the player restarts from the queue), the queue is never left half-edited in a way a control point can exploit. Cost of the reorder loop
+  is O(n^2) with n <= 1000, only after an edit. Tokens/IdArray event go out once (`queueEditedByPlayer` uses the delayed, coalesced event).
+- **Controller fixes.** `ClingOhControl.codeOf` maps transport failures to `NO_ANSWER` (so the `unreachable` logic and the wake/prepare path are not fooled by a connection error, and a device cannot make a refusal look like a
+  transport error: its fault code is only used for `moveTrack`'s 401 fallback and `PLAYLIST_FULL`); `OpenHomePlayer.command` runs `always` on every path (pending-edit counter cannot get stuck, a dropped post runs it too);
+  `moveInPlayOrder` only reorders what the device reports and uses ids from the last read; `feedFiles` indexes `fileQueue` only through `fileIndexById` values the app assigned, so a device that reports any `Id` cannot
+  cause an out-of-range access and can only advance the queue of files it was given for it; files of this phone are shared just in time (current and next) and `tracks()` drops everything that is not http(s).
+- **Untrusted device data on the controller.** Source names, friendly names and fault texts shown with `setText` and `cleanText` (no HTML); `OpenHomeSettingsSheet` uses only indexes of the parsed list to switch; positions/durations clamped
+  (0..8,640,000 s); volume through `OhVolume` clamps; `idArray` decodes with a length check first and cuts to 1000; `ReadList` answers keep only asked ids, dedupe, and the limits above; the cache budget and the `unavailable` set are bounded.
+  Cover art embedded in a played file (`showEmbeddedArt`) is decoded with bounds first and sampled to 512 px on the content pool, `RuntimeException | OutOfMemoryError` caught.
+- Renderer GENA events: `Info.Uri/Metadata` and `Radio.Uri/Metadata` are bounded by the queue limits; the events carry what the control points could read with `Read` anyway.
+- Secrets: none in the diff; no new permissions, exported components or intents (`getNotificationIntent` uses the same immutable PendingIntent as before); no new dependency.
+
+### Tests
+- [x] Not run by me (instruction). Orchestrator: HEAD green, 3198 tests, lint 0. Probe of OhXml on the JDK run as described above (outside the repo).
+- [x] Both cycle 3 Warnings have a test that would fail without the fix (`OhXmlTest.textsDeeperThanTheLimitAreRefusedWithoutBuildingADocument` with a well-formed 100,000-level text; `OhRemoteTest.entriesThatDoNotFitTheCacheAreNotReadAgainOnEveryPoll`).
+- [ ] No test covers the player-level compare with `deviceIds` (a poll of a device whose queue is over the budget calls `queue()` once), a nested SOAP envelope, or a duplicated item in `takeOverFromPlayer`. Suggested, not blocking.
+
+### Verdict: PASS

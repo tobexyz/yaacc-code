@@ -265,3 +265,223 @@ Reviewing: Group fixes for cycle 2 (commit 22db10c3)
 - [x] Coverage adequate for the change (cancel on timeout, stale start id, thread affinity on the command paths; `AndroidOhThreads` is a thin Android wrapper over the tested `OhCall`).
 
 ### Verdict: PASS
+
+## Cycle 4 - Controller (groups 5-6) and reverse sync
+Reviewing: Groups 5 and 6 (controller: `OhRemote`, `ClingOhControl`, `OpenHomePlayer`, `OpenHomeChoice`, `OpenHomeReceivers`, `OpenHomeVolume`,
+`OpenHomeSettingsSheet`, receiver row, docs) and the latest change set (3603e7e2 reverse sync `adoptPlayerEdits` / `OhQueue.move`, 126670dc drag reorder).
+
+Method: spec read against the code; Cling failure path read in `SendingAction` / `UpnpTransportException` / `ActionCallback`; tests read, no Gradle run
+(the coordinator reports a green build at 3603e7e2: 3112+ tests, lint 0). Code only read, nothing modified.
+
+### Critical
+- none
+
+### Warning
+- [yaacc/src/main/java/de/yaacc/upnp/callback/openhome/ClingOhControl.java:123-132] A device that does not answer is never reported as `NO_ANSWER`. In the
+  real path `SendingAction` sets `new UpnpTransportException("Connection error or no response received")`, which is an `ActionException` with
+  `ErrorCode.ACTION_FAILED` (501), so `invocation.getFailure() != null` and `code[0]` becomes 501; `NO_ANSWER` stays only for a missing sender. Consequences:
+  `OpenHomePlayer.countFailure` (line 164) never counts, so `unreachable` is never set and `ready` is never reset (a device that went to standby or was
+  rebooted is not woken and switched to its playlist again); `OhRemote.readState` (438, 447) and `OpenHomeSettingsSheet.load` (200) treat a dead device like
+  a device that refuses an optional service. The tests (`OhRemoteTest.aDeviceThatDoesNotAnswer...`, `OpenHomePlayerTest`) use a fake `OhControl` that throws
+  `NO_ANSWER` directly, so the mapping is untested. Fix: in `failure()` map `invocation.getFailure() instanceof UpnpTransportException` (and a missing
+  response) to `NO_ANSWER`, keep the device's code otherwise; extract that mapping into a small plain-JVM method and test it.
+- [yaacc/src/main/java/de/yaacc/player/OpenHomePlayer.java:131-145, 540-557, 172] `pendingEdits` is incremented in `moveInPlayOrder` but decremented only
+  inside the job. `command()` runs `ensureReady()` before the job; when it throws (`prepare()` fails: device did not answer, no playlist source, `ready` was
+  reset after failures) the job never runs, the counter stays above 0 and `refresh()` returns at line 172 forever: the screen is frozen (no state, no
+  queue, no unreachable flag) until the player is recreated. The same happens if `post` drops the work (executor shut down). Fix: decrement outside the job
+  (wrap the whole posted runnable in try/finally, or let `command` take an `onDone` hook), and add a test with a control whose `prepare` fails.
+- [yaacc/src/main/java/de/yaacc/player/OpenHomePlayer.java:548-553] The worker computes the move from `ids`, but `ids` is only rebuilt by `refresh()`, which is
+  skipped while `pendingEdits > 0`. Two drags in quick succession (the second posted before the first job finished, so the first job's refresh is skipped)
+  make the second job use the order from before the first move: the target id (`current.get(toPosition - 1)`) and the moved id refer to the wrong tracks
+  and the device queue ends in a different order than the screen shows (the next poll then silently reverts the screen to the device order). Fix: update
+  `ids` (and `deviceIds`) in the job after a successful `moveTrack` (apply the same remove/add, and the new id for the Playlist 1 insert+delete fallback), or
+  serialize edits so the screen order is applied from `ids`. Add a two-drags test.
+- [yaacc/src/main/java/de/yaacc/player/OpenHomePlayer.java:426-441] `feedFiles` sets `fileCurrent` (426) and `fileSent` (433) before `remote.append` (436) has
+  succeeded. If the append fails (timeout, 5xx, full queue), the exception is caught in `refresh`, but the next poll sees `current == fileCurrent` and
+  returns: the next picked file is never given to the device, playback stops after the current file although the screen lists more. Fix: assign
+  `fileSent` and `fileCurrent` after the append (or reset them in a catch) so the next poll retries; test with a control that fails the first append.
+
+### Suggestion
+- [OpenHomeRenderer.java:363-402 and 448-466, reverse sync] Race between the two sync directions: `reconcile` removes and inserts by the index in
+  `playerIds`; if the user edited the list at the player less than one poll (1 s) before a control point edit triggers `sync()`, the indexes no longer match
+  the player and a wrong track is removed or inserted at the wrong place; the following `adoptPlayerEdits` then reads that as a user edit and deletes the
+  control point's track from the queue. Call `adoptPlayerEdits` at the start of `sync()` (same worker thread) before reconciling.
+- [OpenHomeRenderer.java:468-541] The Javadoc says edits of control points not synced yet are left alone, but a track a control point deleted that is still
+  in the player is treated as "added by the user" and re-inserted with a new id when a user edit happens in the same window (queue.indexOf(id) < 0 branch in
+  step 3). Skip items whose id was known (`idByItem`) but is gone from the queue, or fix the comment. Duplicate `PlayableItem` instances in the player make
+  `inQueue.get(i)` throw (caught, the player is discarded); acceptable, but a comment would help.
+- [OpenHomeRenderer.java:394-401] `reconcile` removes items from the player without removing them from `idByItem` (only `takeOverFromPlayer` and discard
+  clean it); stale `PlayableItem` references stay until the player is discarded. Remove them on `playerIds.remove(i)`.
+- [OpenHomePlayerTest.java:233] `moveIsNotOfferedAndNothingIsLocked` is stale since the drag reorder (126670dc): it only asserts on an empty list. Rename
+  ("moveOnAnEmptyListIsRefused") or fold into `positionsOutsideTheListAreNotMoved`.
+- [OpenHomePlayer.java:748-760, 131-145] `onDestroy` calls `stopWorkers()` before `super.onDestroy()`, so the `stop()` in `AbstractPlayer.onDestroy` is dropped
+  ("work dropped" log) and the device keeps playing when the player screen/notification is closed, while `AVTransportPlayer` stops the device. If that is
+  intended (the device owns the playlist) say so in decisions.md and docs; otherwise send the stop before shutting the worker down. Commands that were queued
+  before the shutdown still run and end in `publish()` -> `showNotification()` after `cancelNotification()`; a flag checked in `publish()` would avoid a
+  resurrected notification.
+- [OpenHomePlayer.java:517-541] `adoptDeviceState` is documented "call from one thread only (the player's worker)" but `moveInPlayOrder` calls it on the UI
+  thread. It is `synchronized`, so it is safe; correct the Javadoc of `AbstractPlayer.adoptDeviceState`.
+- [OpenHomePlayer.java:544-546] The `fileQueue` branch of the move job does not re-check `fileSent` on the worker (the UI check used `fileSentForScreen`); if
+  `feedFiles` advanced in between, a file the device already has can be reordered in the local list only. Re-check on the worker.
+- [UpnpClient.java getReceivers / logDevicesOnce] The device summary is built and compared on every `getReceivers()` call (called from UI code); cheap, but
+  logging friendly names at info level for every device change belongs behind debug unless the owner wants it in user logs.
+- Still open from earlier cycles (not blocking): URI normalisation, strict base64, `trackDeleted` index race, Stopped flap after Play.
+
+### What was checked and is fine
+- `OhRemote`: bounded reads (batch 50, MAX_TRACKS, cache budget, unavailable set), `append` room calculation, `insertAfter` stops on 801, `replace`/`deleteAll`
+  cache reset, `moveTrack` falls back to insert+delete only for code 401 (not for a refusal), wake loop is bounded and interruptible, volume max cached.
+- `OhXml`/`OhTrackListParser`/`OhSources`: DTD refused, size and depth limits, only own text nodes read, ids validated against the asked set.
+- `OpenHomePlayer`: one command worker, poll guarded by `pollPending` (no pile-up), `stopWorkers` cancels the poll and shuts both executors; state fields are
+  volatile for the screen; worker-only fields are touched only on the worker (`fileQueue`, `ids`, `itemsById`); http(s)-only tracks; album art restricted
+  to http(s) by `OhUriPolicy`.
+- `OpenHomeSettingsSheet`: single-thread daemon pool that times out, `shutdownNow` on dismiss, results dropped when the dialog is gone, device strings
+  cleaned and shown as plain text.
+- `OpenHomeChoice`/`OpenHomeReceivers`/`OpenHomeVolume`: audio-only rule, per-device AVTransport choice, OpenHome-only devices listed once by UDN, volume only
+  when there is no RenderingControl, all catch OhControlException and RuntimeException.
+- 3603e7e2: `OhQueue.move` keeps the id and bumps the token and rejects unknown ids (800); `adoptPlayerEdits` runs on the worker, compares by identity, discards
+  the player when it cannot take over; refused tracks are removed from the player from the highest index down; the player's items are the same instances
+  that the renderer put in (checked in `PlayerService.createPlayerForLocalDevice`).
+- Docs (`docs/index.md` OpenHome chapter, CHANGELOG): consistent with the code (1000 tracks, Move on Playlist 2 and insert+delete fallback, picked files two at
+  a time, settings sheet, reverse sync); `Playlist2.xml` fixture contains `Move`. English comments, no dead code found in the reviewed files.
+
+### Tests
+- [x] All tests passing: not re-run in this cycle (coordinator: green build at 3603e7e2, 3112+ tests, lint 0).
+- [ ] Coverage adequate for the change: no. Missing: the Cling failure mapping (`ClingOhControl.invoke`, the real unreachable path); `OpenHomePlayer` when
+  `prepare()` fails (pendingEdits), two consecutive drags, a failing append in `feedFiles`, unreachable/recover cycle, `stopWorkers`; reverse sync with
+  edit + control point edit in the same window, user edit + concurrent delete, and a refused playing track.
+
+### Verdict: FAIL
+
+## Cycle 5 - fixes of cycle 4 — 2026-11-08
+Reviewing: commit fd24389b (fixes of the 4 Warnings of cycle 4)
+
+### Critical
+- none
+
+### Warning
+- [yaacc/src/main/java/de/yaacc/upnp/server/openhome/OpenHomeRenderer.java:385] The `idByItem` clean-up added to `reconcile`
+  (`idByItem.values().remove(playerIds.remove(i))`) does nothing for ids above 127. `idByItem` is an `IdentityHashMap`, whose `values().remove(Object)`
+  compares by reference (==), and the `Long` taken out of `playerIds` is a different box than the one stored in the map (`playerIds.add(i, entry.getId())` and
+  `idByItem.put(item, entry.getId())` box separately). Checked with a 10-line program: id 5 is removed, id 1000 stays. The queue ids grow
+  with every insert, so in a real session the stale `PlayableItem` references stay until the next player take-over or discard (the suggestion of cycle 4 is
+  not really fixed, and no test covers it). Fix: remove by value, e.g. `long gone = playerIds.remove(i); idByItem.values().removeIf(v -> v == gone);`
+  (unboxed compare), or look the item up by id; add a test with an id above 127 (or assert `idByItem` indirectly).
+- [yaacc/src/test/java/de/yaacc/upnp/server/openhome/OpenHomeRendererTest.java:483-495] `anEditAtThePlayerIsTakenOverBeforeAControlPointEditIsSynced` does not
+  fail without the fix. Traced on the code before fd24389b: the player has [a,b] (c deleted at the phone), `add(0, d)` runs `reconcile` with playerIds
+  [a,b,c] and wanted [d,a,b,c]: nothing to remove, d is inserted at index 0, the other indexes still match, then `refreshNow` -> `adoptPlayerEdits` sees [d,a,b]
+  against [d,a,b,c] and deletes c. Result [d,a,b] in queue and player, the same as asserted. The case that the fix is for needs a control point
+  edit that goes by index: e.g. the user deletes a at the phone (player [b,c]) and a control point deletes b (queue [a,c], wanted ids {a,c}); old code removes
+  index 1 of the player (that is c, not b), the new code first takes over the delete of a and then removes b: expected queue and player [c]. Replace or add
+  this test so it fails on the old code.
+
+### Suggestion
+- [yaacc/src/test/java/de/yaacc/player/OpenHomePlayerTest.java:`twoQuickDragsEachCountFromTheOrderTheFirstOneMade`] The two `moveInPlayOrder` calls are
+  back to back on the test thread, so job 1 normally is not finished when the second drag is posted (this is what makes the test fail without `ids = current`:
+  the second drag would then move d after a, giving a d b c). If job 1 and its refresh happen to finish in between, the poll rebuilds `ids` and the test passes
+  without the fix. Make it deterministic: let the control block on the first `Move` (latch) until the second drag was posted.
+- [OpenHomePlayer.java:440-457] A retry of `feedFiles` after a failed `append` calls `moveToItems` again and, if the device had executed the Insert but the answer was lost
+  (timeout), appends the next file twice. Rare; acceptable, a comment would help.
+- [OpenHomePlayer.java `onDestroy`] The decision "closing the player leaves the device playing" is documented in a Javadoc only; decisions.md and the docs
+  (OpenHome chapter) do not say it, which was part of the suggestion of cycle 4. Not blocking.
+- [AbstractPlayer.java:786] The new Javadoc line is about 170 characters; wrap it like the lines around it.
+- [ClingOhControl.java:35] The new import `de.yaacc.upnp.UpnpTransportException` sits after `de.yaacc.upnp.server.http...`; keep the imports sorted.
+- Still open from earlier cycles (not blocking): reverse-sync race with a control point delete in the same window, URI normalisation, strict base64,
+  `trackDeleted` index race, Stopped flap after Play.
+
+### Checked and fine
+- `ClingOhControl.codeOf`: `SendingAction` sets `UpnpTransportException` for "Connection error or no response received", so the transport failure now
+  gives `NO_ANSWER` and `countFailure` / `unreachable` / `ready = false` work for the real path; a device fault keeps its code (501, 800). The test covers the three cases and fails on the old code (501).
+- `OpenHomePlayer.command(..., always)`: `always` runs in `finally` (also when `ensureReady` throws) and before `refresh()`, so the poll is not blocked by a
+  failed preparation; it also runs on the caller thread when the post is rejected. `aDragWhoseCommandCouldNotRunDoesNotFreezeThePlayer` fails on the old code
+  (3 failures -> `ready = false` -> `prepare()` throws -> `pendingEdits` stays at 1 -> `refresh()` returns for ever).
+- `moveInPlayOrder`: `ids` is replaced on the worker with the id returned by `OhRemote.moveTrack` (new id for the Playlist 1 insert+delete); `deviceIds` is left as it was, so the next
+  poll sees a different IdArray and rebuilds the screen from the device. The trace of the test (d a b c, then d c a b) is right.
+- `feedFiles`: `fileSent` and `fileCurrent` are set only after the append, so a failed append is tried again; `aFailedAppendOfTheNextPickedFileIsTriedAgainOnTheNextPoll` fails on the old code
+  (no retry, queue stays at 2). The path without a share (`moveToItems` false) still marks `fileCurrent`, as before.
+- `OpenHomeRenderer.sync`: `adoptPlayerEdits` first, `player == null` check, `wanted` read again, empty queue handled; no recursion (`queueEditedByPlayer` only schedules the IdArray update); exceptions go to the existing catch.
+- `AbstractPlayer.adoptDeviceState` Javadoc now matches the `synchronized` use from the screen thread. `onDestroy` comment matches the code (`stopWorkers()` before `super.onDestroy()`, the `stop()` is dropped).
+- Test rename `nothingIsLockedAndAMoveNeedsAtLeastTwoTracks` fits what it asserts.
+
+### Tests
+- [x] All tests passing: not re-run here (coordinator: `assembleDebug`, `testDebugUnitTest` 3196 tests, `lintDebug` all green at fd24389b).
+- [ ] Coverage adequate for the change: no. The renderer test for "player edit first" passes on the old code (see Warning), and the `idByItem` clean-up has no test.
+
+### Verdict: FAIL
+
+## Cycle 6 - fixes of cycle 5 — 2026-11-08
+Reviewing: commit f8b91bf7 (fixes of the 2 Warnings of cycle 5, plus the changed condition in `takeOverFromPlayer`)
+
+### Critical
+- none
+
+### Warning
+- [yaacc/src/main/java/de/yaacc/upnp/server/openhome/OpenHomeRenderer.java:539] The new condition (`id == null` only, line 521) keeps a known track in
+  `newIds` although a control point deleted it from the queue, and step 3 still sets `previous = id` for it. The next track the user added behind it
+  then calls `queue.insert(previous, ...)` with an id that is not in the queue: `OhQueue.insert` throws 800 (`idNotFound`, OhQueue.java:112-114),
+  `takeOverFromPlayer` catches it as "refused" and the new track is removed from the player again, silently. Failure scenario: player [a,K], the user adds X
+  behind K at the phone, a control point deletes K before the poll looked: `trackDeleted` -> `sync()` -> `adoptPlayerEdits` finds [a,K,X(null)]; K is no longer
+  resurrected (good), but X is inserted after the deleted K, refused, and lost (every further new track behind K is lost as well). Before f8b91bf7 K was re-inserted and X survived,
+  so the user's own edit is lost in this window now. Narrow race, but it is a data loss of a user edit and has no test. Fix: advance `previous` only while the
+  track is in the queue (`if (queue.indexOf(id) >= 0) previous = id;`, so X follows the last live predecessor), and add a test next to
+  `anEditAtThePlayerIsTakenOverBeforeAControlPointEditIsSynced` (player [a,K,X], `queue.delete(K)` then `trackDeleted`: expected queue and player [a,X]).
+
+### Suggestion
+- [OpenHomeRenderer.java:734-736] `trackedItemsForTest` is fine as a test hook; `anEditAtThePlayerIsTakenOver...` and the 130-track test both go through it/`player()`, no change needed.
+- [OpenHomePlayer.java:440-457] (open since cycle 5) A retry of `feedFiles` after a failed `append` may append a file twice if the device executed the Insert but the answer was lost. A comment would help.
+- Still open from earlier cycles (not blocking): URI normalisation, strict base64, `trackDeleted` index race, Stopped flap after Play, ohPipeline behavior for deleting the playing track not verified against a real device.
+
+### Checked and fine
+1. `idByItem` clean-up (OpenHomeRenderer.java:385-387): `long gone = playerIds.remove(i)` unboxes, `removeIf(id -> id == gone)` compares by value (`Long == long`), so ids above 127 are removed.
+   `IdentityHashMap.values().remove/removeIf` semantics: the old call compared boxes by reference; `startFrom` boxes `entry.getId()` twice (`ids.add`, `idsByItem.put`), so for id 130 the boxes differ and the old
+   code left the entry. `theRenderersKnowledgeOfTheItemsFollowsTheQueueAlsoForIdsAbove127` (130 tracks, delete id 130, `trackDeleted(129, last)`) asserts 129 tracked items; on the old code it stays 130, so it fails without the fix. The queue ids are sequential from 1 and `tracksMax` is 1000, so the setup is valid.
+2. `anEditAtThePlayerIsTakenOverBeforeAControlPointEditIsSynced`: traced both versions. New code: player [a,b,c] playing c; user removes a (player [b,c]); control point deletes b (queue [a,c]); `sync` -> `adoptPlayerEdits` deletes a (not kept), b stays known, newIds [b,c], then `reconcile` removes b by its id: queue [c], player [c]. The pre-fd24389b code (reconcile only, by place, playerIds [a,b,c], wanted {a,c}) removes player index 1 (that is c) and leaves queue [a,c] / player [b]: the assertions fail. The assertion on queue AND player makes it index-sensitive. It also fails on the cycle-5 code (b would be re-inserted with a new id: queue [b',c]), so it covers the new condition too.
+3. Condition `id == null` (regression check): a known track deleted by a control point is no longer re-inserted; the playing track deleted by a control point together with a user edit now ends in `reconcile` -> `removeItem` refused -> `discardPlayer` with `startId` = next wanted track (same path as without a user edit; before it was resurrected). Moves: step 2 filters `order` by `queue.indexOf(id) >= 0`, and `inQueue` is built from `orderSet`, so both lists have the same size and the deleted track cannot make `inQueue.get(i)` fail or call `queue.move` with an unknown id. Deletes: step 1 uses `deleteQuietly`, so an id already deleted is harmless. The order delete -> move -> insert is right (a deleted track cannot be moved, the insert anchors use the moved order). The cleanup of the stale entry is done by the `reconcile` that every control point delete triggers (`trackDeleted` / `queueCleared` -> `sync()`); `playerIds` keeps the stale id only until then. Only the `previous` anchor is wrong (see Warning).
+4. `twoQuickDragsEachCountFromTheOrderTheFirstOneMade`: the test core has no `Move` handler, so `OhRemote.moveTrack` falls back to `Insert` + `DeleteId`; the gate holds the first job at `Insert` until both drags were posted (`pendingEdits` > 0 keeps the poll from rebuilding `ids` meanwhile). The second job therefore always starts from `ids = current` of job 1; without `ids = current` it would move d behind a (a d b c) and the assertions fail. Deterministic; gate is reset in `finally`, a 5 s timeout guards a hang, `stopWorkers` is called. It uses its own player (`other`), so the shared `player` field does not interfere.
+5. decisions.md: the entry "Edits at the renderer's own player are taken over before the queue is synced" (identity compare, once a second and at the start of `sync()`, deletes/moves via `OhQueue.move`/adds http(s) only, a known deleted track never re-inserted) matches the code. The entry "Closing the OpenHome player leaves the device playing" matches `onDestroy`. No entry is needed for the `idByItem` fix.
+
+### Tests
+- [x] All tests passing: not re-run here (coordinator: `assembleDebug`, `testDebugUnitTest` 3197 tests, `lintDebug` 0 at HEAD f8b91bf7).
+- [ ] Coverage adequate for the change: almost; the new `id == null` path has the delete case but no test for a user-added track behind a track a control point deleted (the Warning).
+
+### Verdict: FAIL
+
+## Cycle 7 - fix of cycle 6 — 2026-11-08
+Reviewing: commit defd4024 (the one-line fix for the Warning of cycle 6 in `takeOverFromPlayer`, its test and the decisions.md entry); extra cycle beyond the cap of three, approved by the owner.
+
+### Critical
+- none
+
+### Warning
+- none
+
+### Suggestion
+- [OpenHomeRendererTest.java:499-511] The new test covers a deleted track in the middle of the list. The variant "the first tracks are gone too" (player [K1,K2,X], both deleted, X must end at the start of the queue) is
+  correct by the code (see 2) but has no test of its own. Optional.
+- Still open from earlier cycles (not blocking): `feedFiles` retry may append a file twice if only the answer was lost (comment wanted), URI normalisation, strict base64, `trackDeleted` index race,
+  Stopped flap after Play, ohPipeline behavior for deleting the playing track not verified against a real device.
+
+### Checked and fine
+1. Fix (OpenHomeRenderer.java:539-541): `previous` advances only if `queue.indexOf(id) >= 0`. `newIds` still gets every known id (also a deleted one), so `playerIds` keeps matching the player's items by place and the
+   `reconcile` that every control point delete triggers removes the stale entry by index. `queue.insert(previous, ...)` therefore never gets an id that is not in the queue: `previous` is either `OhIds.NONE` or
+   the id of a track that was in the queue when it was set. An id inserted in this loop is in the queue, so new tracks chain correctly (X1, X2 behind each other). The only other way to leave the queue between two
+   iterations would be a concurrent delete; `takeOverFromPlayer` runs on the worker thread like `sync`, and `OhQueue` is synchronized per call, so this cannot happen on the worker (a delete from the SOAP thread in
+   between would be refused as 800 and the track leaves the player again, as before).
+2. First tracks gone too: player [K1,K2,X] with K1, K2 deleted: step 1 deletes nothing (both kept in `found`), step 2 `order` is empty (the `indexOf >= 0` filter), step 3 leaves `previous = NONE` for K1 and K2,
+   `OhQueue.insert(NONE, ...)` inserts at index 0 (OhQueue.java:110-116), so X is the first track; `reconcile` then removes K1, K2 from the player by index. With live tracks mixed in ([K1,a,X] or [K1,X,a]) X follows the last
+   live predecessor, i.e. its place relative to the live tracks is the one the user gave it.
+3. Test `aTrackAddedAtThePlayerBehindATrackAControlPointDeletedKeepsItsPlace`: traced on both versions. Setup: queue [a,k], player [a,k], x added at the player, `queue.delete(k)`, `trackDeleted(1,k)` (`id != startId`, `sync()`).
+   New code: found [a,k,null], k stays in `newIds` but not as anchor, x is inserted behind a, `reconcile` removes k (wanted {a,x}): queue and player [a,x]. Old code: `previous = k`, `insert(k, ...)` throws 800, x is "refused" and
+   removed from the player, `reconcile` removes k: queue and player [a]; both assertions (a,x) fail. So the test fails without the fix, and it checks queue and player. `InlineThreads` make the path deterministic.
+4. Regressions: the change touches only the anchor; `newIds`, `refused`, `playerIds`, `idByItem` clean-up and `core.queueEditedByPlayer()` are as before. Cost of `indexOf` is O(n) per item with at most 1000 tracks, on the worker once per
+   changed list: fine. Unchanged paths re-read: `sync` (adopt first, `player == null`, wanted again), `reconcile` (delete by id with by-value cleanup, then insert by place; the stale id is removed before the inserts so index
+   alignment holds), `refreshNow` (adopt, rebuild on discard). The existing tests of this area (`anEditAtThePlayerIsTakenOverBeforeAControlPointEditIsSynced`, `aTrackAddedAtThePlayerEntersTheQueueBehindItsPredecessor`,
+   `aTrackTheQueueCanNotHoldIsTakenOutOfThePlayerAgain`, `aTrackAControlPointAddedIsNotTakenForAnEditOfThePlayer`) do not depend on the anchor of a deleted track.
+5. Overall controller group (5-6) and the reverse sync (cycles 4-7): the findings of cycles 4, 5 and 6 are all fixed (transport error code, `command(..., always)`, `moveInPlayOrder` ids, `feedFiles` retry, sync order
+   adopt-then-reconcile, identity compare, `idByItem` by value for ids above 127, no resurrected deleted track, anchor). No Critical or Warning is left; the remaining items are Suggestions or unverified device behavior.
+6. decisions.md: the new entry matches the code and says honestly that the fix was made after the cap.
+
+### Tests
+- [x] All tests passing: not re-run here (coordinator: `assembleDebug`, `testDebugUnitTest` 3198 tests, `lintDebug` 0 at HEAD defd4024).
+- [x] Coverage adequate for the change: yes, the new test fails on the old code.
+
+### Verdict: PASS

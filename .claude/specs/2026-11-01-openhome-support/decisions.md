@@ -33,3 +33,17 @@
 ## 2026-11-06 — security review cycle 3 (cap reached)
 **Context**: security review cycle 3 failed with two warnings (nesting depth on Android's recursive DOM parser; endless re-reads when entries do not fit the cache budget). Three cycles are the limit of the workflow.
 **Decision**: both were fixed after the cycle (nesting counted on the text before parsing, max 16 levels, `StackOverflowError` caught; entries that do not fit the budget count as unavailable, the poll compares the ids the device reported) with tests (`OhXmlTest`, `OhRemoteTest`), but **not re-reviewed**: the owner decides whether another cycle is wanted.
+
+## 2026-11-08 — Closing the OpenHome player leaves the device playing
+**Context**: Review cycle 4/5 noted that `OpenHomePlayer.onDestroy` ends the workers before the stop of the base class can be queued, so the device is not stopped.
+**Decision**: Intended. The playlist and the playback belong to the device (it keeps its queue when the app is closed); leaving the player screen ends only the screen, the poll and the notification. The user stops the device with the stop button or the receiver row.
+**Rationale**: Same as the reason for OpenHome in the first place (the playlist survives the app); an AVTransport player owned by the app stops with the app.
+
+## 2026-11-08 — Edits at the renderer's own player are taken over before the queue is synced
+**Context**: Edits in the playlist of the local music player (delete, move, add) were lost and could be undone by the next sync (user report).
+**Decision**: `OpenHomeRenderer` compares the player's items (by identity) with what it put in, once a second and at the start of every `sync()`, and applies the difference to the queue: deletes, moves (id kept via `OhQueue.move`), adds (http/https only; others leave the player again). A known track that a control point deleted meanwhile is never re-inserted.
+**Rationale**: One list must win; reconciling by place needs a list the renderer made itself.
+
+## 2026-11-08 — Last warning of review cycle 6 fixed after the cycle cap
+**Context**: Cycle 6 (third cycle of the controller group) found one Warning: in `takeOverFromPlayer` a known track deleted by a control point still served as the insert anchor, so a track the user added right behind it was refused and dropped from the player.
+**Decision**: The anchor is only advanced over tracks that are still in the queue (one line plus a test). Fixed after the cap of three cycles, so this fix has not been reviewed again; the owner decides whether another cycle is wanted.

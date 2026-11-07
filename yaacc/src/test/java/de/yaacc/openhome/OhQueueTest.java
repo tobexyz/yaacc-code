@@ -228,4 +228,36 @@ public class OhQueueTest {
     public void metadataOfARealTrackFits() {
         assertEquals(true, OhQueue.MAX_METADATA_LENGTH >= 8 * 1024);
     }
+
+    @Test
+    public void moveKeepsTheIdAndChangesTheOrderAndTheToken() {
+        OhQueue queue = new OhQueue(10);
+        long a = queue.insert(0, "a", "");
+        long b = queue.insert(a, "b", "");
+        long c = queue.insert(b, "c", "");
+        long token = queue.token();
+
+        queue.move(c, 0);
+        assertEquals(java.util.Arrays.asList(c, a, b), queue.idArray());
+        queue.move(c, b);
+        assertEquals(java.util.Arrays.asList(a, b, c), queue.idArray());
+        queue.move(a, a); // nothing to do
+        assertEquals(java.util.Arrays.asList(a, b, c), queue.idArray());
+        assertEquals(true, queue.token() > token);
+        assertEquals("a", queue.read(a).getUri());
+    }
+
+    @Test
+    public void moveWithAnUnknownIdFails() {
+        OhQueue queue = new OhQueue(10);
+        long a = queue.insert(0, "a", "");
+        for (long[] ids : new long[][]{{4711, a}, {a, 4711}}) {
+            try {
+                queue.move(ids[0], ids[1]);
+                org.junit.Assert.fail();
+            } catch (OhError e) {
+                assertEquals(OhError.ID_NOT_FOUND, e.getCode());
+            }
+        }
+    }
 }

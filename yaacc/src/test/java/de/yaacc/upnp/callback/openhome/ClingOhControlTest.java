@@ -120,4 +120,13 @@ public class ClingOhControlTest {
 
         assertFalse(ClingOhControl.offersPlaylist(device));
     }
+
+    @Test
+    public void aConnectionThatFailedIsNoAnswerButAFaultOfTheDeviceKeepsItsCode() {
+        org.junit.Assert.assertEquals(de.yaacc.openhome.OhControlException.NO_ANSWER,
+                ClingOhControl.codeOf(new de.yaacc.upnp.UpnpTransportException("no response")));
+        org.junit.Assert.assertEquals(501, ClingOhControl.codeOf(new org.fourthline.cling.model.action.ActionException(
+                org.fourthline.cling.model.types.ErrorCode.ACTION_FAILED, "the device said so")));
+        org.junit.Assert.assertEquals(800, ClingOhControl.codeOf(new org.fourthline.cling.model.action.ActionException(800, "Id not found")));
+    }
 }
