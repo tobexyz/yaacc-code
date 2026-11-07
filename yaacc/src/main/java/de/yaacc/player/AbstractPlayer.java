@@ -47,6 +47,7 @@ import java.beans.PropertyChangeListener;
 import java.beans.PropertyChangeSupport;
 import java.net.URI;
 import java.util.ArrayList;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
@@ -69,18 +70,19 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
     public static final String PLAYER_ID = "PlayerId";
     public static final String PROPERTY_ITEM = "item";
     private final PropertyChangeSupport pcs = new PropertyChangeSupport(this);
-    private final List<PlayableItem> items = new ArrayList<>();
+    // copy on write: a player whose list lives on a device replaces it from its own thread while the screen reads it
+    private volatile List<PlayableItem> items = new CopyOnWriteArrayList<>();
     private final UpnpClient upnpClient;
-    private int previousIndex = 0;
-    private int currentIndex = 0;
+    private volatile int previousIndex = 0;
+    private volatile int currentIndex = 0;
     private Timer execTimer;
     private PendingIntent alarmIntent;
-    private boolean isPlaying = false;
+    private volatile boolean isPlaying = false;
     private boolean isProcessingCommand = false;
     private PlayerService playerService;
     private String name;
     private String shortName;
-    private boolean paused;
+    private volatile boolean paused;
     private Object loadedItem = null;
     private int currentLoadedIndex = -1;
     /**
@@ -577,12 +579,26 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
 
     @Override
     public boolean removeItem(int itemIndex) {
+        return removeItem(itemIndex, false);
+    }
+
+    /**
+     * Removes an item. The playlist screen only removes what still lies ahead; the OpenHome queue may drop what has been played
+     * as well ({@code alsoPlayed}), but never the item that plays now.
+     *
+     * @return false (and nothing changed) if the item is not in the list or is locked
+     */
+    public boolean removeItem(int itemIndex, boolean alsoPlayed) {
         if (itemIndex < 0 || itemIndex >= items.size()) {
             return false;
         }
         playOrder.fit(items.size(), currentIndex);
         int position = playOrder.positionOf(itemIndex);
-        if (position < 0 || isPlaylistPositionLocked(position)) {
+        if (position < 0) {
+            return false;
+        }
+        boolean locked = alsoPlayed ? isActive() && itemIndex == currentIndex : isPlaylistPositionLocked(position);
+        if (locked) {
             return false;
         }
         boolean active = isActive();
@@ -762,6 +778,101 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
     public void addItems(List<PlayableItem> playableItems) {
         items.addAll(playableItems);
         firePropertyChange(PROPERTY_PLAYLIST, null, null);
+    }
+
+    /**
+     * For a player whose playlist and playback live on a device (OpenHome): takes over what the device reports. The list, the index of
+     * the item that plays and the state are replaced as they are, the screen and the notification are told what changed. Nothing is
+     * started or stopped. Call it from one thread only (the player's worker); the state it sets is volatile for the screen.
+     *
+     * @param deviceItems the playlist of the device; the same objects for the same tracks as before keep the list "unchanged"
+     * @param index       the index of the current item (clamped to the list)
+     */
+    protected final void adoptDeviceState(List<PlayableItem> deviceItems, int index, boolean nowPlaying, boolean nowPaused) {
+        boolean listChanged = deviceItems.size() != items.size();
+        for (int i = 0; !listChanged && i < deviceItems.size(); i++) {
+            listChanged = deviceItems.get(i) != items.get(i);
+        }
+        int newIndex = deviceItems.isEmpty() ? 0 : Math.max(0, Math.min(index, deviceItems.size() - 1));
+        boolean indexChanged = newIndex != currentIndex;
+        boolean stateChanged = nowPlaying != isPlaying || nowPaused != paused;
+        PlayableItem oldItem = currentIndex >= 0 && currentIndex < items.size() ? items.get(currentIndex) : null;
+        if (listChanged) {
+            items = new CopyOnWriteArrayList<>(deviceItems);
+            playOrder.reset(items.size(), newIndex, false);
+        }
+        previousIndex = currentIndex;
+        currentIndex = newIndex;
+        paused = nowPaused;
+        setPlaying(nowPlaying);
+        if (listChanged) {
+            firePropertyChange(PROPERTY_PLAYLIST, null, null);
+        }
+        if (indexChanged && !items.isEmpty()) {
+            firePropertyChange(PROPERTY_ITEM, oldItem, items.get(newIndex));
+        }
+        if (listChanged || indexChanged || stateChanged) {
+            updatePlaybackState(nowPlaying ? PlaybackStateCompat.STATE_PLAYING
+                    : nowPaused ? PlaybackStateCompat.STATE_PAUSED : PlaybackStateCompat.STATE_STOPPED);
+            updateMetadata();
+            showNotification();
+        }
+    }
+
+    /**
+     * Puts items into the middle of the playlist (the OpenHome renderer's queue): the item that plays keeps playing, the play
+     * order places the new items (behind the current one with shuffle), an engine that holds the list too is told.
+     *
+     * @param index         where the first new item goes; clamped to the list
+     * @param playableItems the new items
+     */
+    public void insertItems(int index, List<PlayableItem> playableItems) {
+        if (playableItems == null || playableItems.isEmpty()) {
+            return;
+        }
+        int at = Math.max(0, Math.min(index, items.size()));
+        int count = playableItems.size();
+        boolean hadItems = !items.isEmpty();
+        playOrder.fit(items.size(), currentIndex);
+        playOrder.insert(at, count, currentIndex);
+        items.addAll(at, playableItems);
+        if (hadItems && at <= currentIndex) {
+            currentIndex += count;
+        }
+        if (hadItems && at <= previousIndex) {
+            previousIndex += count;
+        }
+        // the indexes behind the insert point moved, so the cached loaded item is not the one of its index any more
+        currentLoadedIndex = -1;
+        loadedItem = null;
+        onItemsInserted(at, new ArrayList<>(playableItems));
+        firePropertyChange(PROPERTY_PLAYLIST, null, null);
+    }
+
+    /**
+     * Items were put into the list at {@code index}. For an engine that holds the list too. Called on the caller's thread, after
+     * the list and the play order changed and before the property change.
+     */
+    protected void onItemsInserted(int index, List<PlayableItem> inserted) {
+        // default: the engine plays one item at a time
+    }
+
+    /**
+     * Plays the item at the index (a playing, paused or stopped player starts it). Nothing happens for an index outside the list.
+     */
+    public void playItemAt(int index) {
+        if (index < 0 || index >= items.size()) {
+            return;
+        }
+        if (isProcessingCommand()) {
+            return;
+        }
+        paused = false;
+        previousIndex = currentIndex;
+        cancelTimer();
+        playOrder.fit(items.size(), currentIndex);
+        currentIndex = index;
+        play();
     }
 
     /**

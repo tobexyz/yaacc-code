@@ -101,11 +101,25 @@ public class ServiceHarness<T> implements AutoCloseable {
      * @param serviceName  the service as it appears in the URLs, e.g. {@code AVTransport}
      */
     public ServiceHarness(Class<T> serviceClass, String serviceType, String serviceName, ManagerFactory<T> managerFactory) {
+        this(bind(serviceClass, managerFactory), serviceType, serviceName);
+    }
+
+    private static <S> LocalService<S> bind(Class<S> serviceClass, ManagerFactory<S> managerFactory) {
+        LocalService<S> service = new AnnotationLocalServiceBinder().read(serviceClass);
+        service.setManager(managerFactory.create(service));
+        return service;
+    }
+
+    /**
+     * @param service     a service that is built already (not from annotations) with its manager set
+     * @param serviceType e.g. {@code urn:av-openhome-org:service:Playlist:1}
+     * @param serviceName the service as it appears in the URLs, e.g. {@code Playlist}
+     */
+    public ServiceHarness(LocalService<T> service, String serviceType, String serviceName) {
         this.serviceType = serviceType;
         this.control = URI.create("/upnp/dev/uuid/svc/upnp-org/" + serviceName + "/action");
         this.events = URI.create("/upnp/dev/uuid/svc/upnp-org/" + serviceName + "/event");
-        localService = new AnnotationLocalServiceBinder().read(serviceClass);
-        localService.setManager(managerFactory.create(localService));
+        localService = service;
         try {
             when(sender.send(any(OutgoingEventRequestMessage.class))).thenAnswer(invocation -> {
                 OutgoingEventRequestMessage message = invocation.getArgument(0);

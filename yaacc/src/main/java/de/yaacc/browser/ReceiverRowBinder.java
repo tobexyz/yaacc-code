@@ -113,6 +113,8 @@ final class ReceiverRowBinder {
         final TextView statusText;
         final TextView yxcText;
         final View yxcActions;
+        final View ohActions;
+        final ImageButton ohSettings;
         final View yxcSource;
         final ImageButton yxcSrcPrev;
         final ImageButton yxcSrcNext;
@@ -143,6 +145,8 @@ final class ReceiverRowBinder {
             statusText = itemView.findViewById(R.id.status_text);
             yxcText = itemView.findViewById(R.id.yxc_text);
             yxcActions = itemView.findViewById(R.id.yxc_actions);
+            ohActions = itemView.findViewById(R.id.oh_actions);
+            ohSettings = itemView.findViewById(R.id.oh_btn_settings);
             yxcSource = itemView.findViewById(R.id.yxc_source);
             yxcSrcPrev = itemView.findViewById(R.id.yxc_src_prev);
             yxcSrcNext = itemView.findViewById(R.id.yxc_src_next);
@@ -277,8 +281,30 @@ final class ReceiverRowBinder {
 
         // Set device name (always shown)
         holder.name.setText(device.getDetails().getFriendlyName());
+        bindProtocolChoice(holder, device);
 
         bindStatus(holder, device);
+    }
+
+    // the open OpenHome settings sheet, so that a second tap does not open another one
+    private android.app.Dialog openHomeDialog;
+
+    /**
+     * A device that offers OpenHome gets a settings icon (like a MusicCast device); it opens the sheet with the power, the source
+     * and the playback protocol (OpenHome, the default, or AVTransport; kept per device).
+     */
+    private void bindProtocolChoice(RowViews holder, Device<?, ?, ?> device) {
+        if (holder.ohActions == null || holder.ohSettings == null) {
+            return;
+        }
+        boolean offered = de.yaacc.player.OpenHomeChoice.offersOpenHome(device);
+        holder.ohActions.setVisibility(offered ? View.VISIBLE : View.GONE);
+        holder.ohSettings.setOnClickListener(offered ? v -> {
+            if (openHomeDialog != null && openHomeDialog.isShowing()) {
+                return;
+            }
+            openHomeDialog = OpenHomeSettingsSheet.show(context, upnpClient, device);
+        } : null);
     }
 
     /**

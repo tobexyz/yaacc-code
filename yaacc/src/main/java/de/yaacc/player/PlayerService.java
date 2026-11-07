@@ -515,6 +515,16 @@ public class PlayerService extends MediaSessionService {
             } else if (!video && !image && music) {
                 contentType = "music";
             }
+            if (OpenHomeChoice.useOpenHome(upnpClient.getContext(), receiverDevice, music && !video && !image)) {
+                for (Player player : getCurrentPlayersOfType(OpenHomePlayer.class)) {
+                    if (((OpenHomePlayer) player).getDeviceId().equals(receiverDevice.getIdentity().getUdn().getIdentifierString())) {
+                        shutdown(player);
+                    }
+                }
+                return new OpenHomePlayer(upnpClient, receiverDevice, upnpClient.getContext()
+                        .getString(R.string.playerNameAvTransport) + "-OpenHome@" + deviceName,
+                        receiverDevice.getDetails().getFriendlyName());
+            }
             for (Player player : getCurrentPlayersOfType(AVTransportPlayer.class)) {
                 if (((AVTransportPlayer) player).getDeviceId().equals(receiverDevice.getIdentity().getUdn().getIdentifierString())
                         && ((AVTransportPlayer) player).getContentType().equals(contentType)) {

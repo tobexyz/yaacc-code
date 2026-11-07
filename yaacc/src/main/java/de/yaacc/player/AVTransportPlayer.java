@@ -734,8 +734,7 @@ public class AVTransportPlayer extends AbstractPlayer {
             YaaccLogger.d(getClass().getName(), "Error while generating Didl-Item xml: " + e);
             metadata = "";
         }
-        DIDLObject.Property<URI> albumArtUriProperty = playableItem.getItem() == null ? null : playableItem.getItem().getFirstProperty(DIDLObject.Property.UPNP.ALBUM_ART_URI.class);
-        albumArtUri = (albumArtUriProperty == null) ? null : albumArtUriProperty.getValue();
+        albumArtUri = AlbumArt.of(playableItem.getItem());
 
         // Load album art and update notification
         if (albumArtUri != null) {
