@@ -49,16 +49,26 @@ public final class ClingOhControl implements OhControl {
         this.sender = sender;
     }
 
-    /** @return the service of that name (the highest version the device offers), null if it has none */
+    /**
+     * @return the service of that name (the highest version the device offers), null if it has none. A renderer inside another
+     * device (a phone that serves files and plays) offers the OpenHome services on its root device: they are looked for there too.
+     */
     public static Service<?, ?> findService(Device<?, ?, ?> device, String name) {
         if (device == null) {
             return null;
         }
-        Service<?, ?> best = null;
+        Service<?, ?> best = best(device.getServices(), name, null);
         // Cling answers null (not an empty array) for a device without services, like the local device or one that is still loading
-        Service<?, ?>[] services = device.getServices();
+        Device<?, ?, ?> root = device.getRoot();
+        if (root != null && root != device) {
+            best = best(root.getServices(), name, best);
+        }
+        return best;
+    }
+
+    private static Service<?, ?> best(Service<?, ?>[] services, String name, Service<?, ?> best) {
         if (services == null) {
-            return null;
+            return best;
         }
         for (Service<?, ?> service : services) {
             if (service == null || service.getServiceType() == null) {
