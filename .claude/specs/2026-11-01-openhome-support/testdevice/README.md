@@ -23,6 +23,19 @@ The device is found by multicast (SSDP), and the controller connects to it after
 * **Docker Desktop on Windows or macOS**: host networking does not give the containers a presence in your LAN, so the phone will
   not find the device. Run the setup in a Linux VM with a bridged network adapter, or on a Linux machine in the network.
 
+## The device is not found by the phone or Home Assistant
+
+Seen only by an app on the same machine (Upplay, for example): the traffic on the machine itself does not pass the firewall or the
+Wi-Fi, the traffic from other devices does. Check, in this order:
+
+1. **Firewall of the host**: allow SSDP and the UPnP port, e.g. `sudo ufw allow 1900/udp` and `sudo ufw allow 49152:49160/tcp`
+   (the port is in the log: `LibUPnP: Using IPV4 <ip> port 49152`), or switch the firewall off for a moment to test.
+2. **Is multicast arriving**: `sudo tcpdump -ni <interface> udp port 1900` while the receiver list is refreshed in YAACC. The
+   announcements of the device should leave, and the search of the phone should arrive. Searches that arrive without an answer:
+   firewall. No searches at all: the access point (client isolation, IGMP snooping) or the Wi-Fi power saving of the host; try a
+   cable, or `sudo iw dev <interface> set power_save off`.
+3. **Port reachable** from another machine: `nc -zv <host ip> 49152`.
+
 ## What to test with it (YAACC as the controller)
 
 * The device shows in the receiver list; its settings sheet shows power, the sources of the device and the playback protocol.
