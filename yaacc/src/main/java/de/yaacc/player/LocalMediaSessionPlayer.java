@@ -195,6 +195,8 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
             public void onMediaMetadataChanged(androidx.media3.common.MediaMetadata mediaMetadata) {
                 // the tags of the file (ID3 and the like) are read while it plays: a cover in them is shown when the
                 // controller sent no album art address
+                YaaccLogger.d(getClass().getName(), "Tags of the file: cover " + (mediaMetadata.artworkData == null
+                        ? "none" : mediaMetadata.artworkData.length + " bytes") + ", art address " + (albumArtUri == null ? "none" : "set"));
                 if (albumArtUri == null && mediaMetadata.artworkData != null) {
                     showEmbeddedArt(mediaMetadata.artworkData);
                 }
