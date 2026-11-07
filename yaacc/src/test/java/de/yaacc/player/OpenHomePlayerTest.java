@@ -367,4 +367,59 @@ public class OpenHomePlayerTest {
         assertEquals(1, core.queue().size()); // the queue of the device stays as it was
         assertTrue(bound.isEmpty());
     }
+
+    @Test
+    public void theScreenShowsAllPickedFilesAlthoughTheDeviceOnlyHasTwo() throws Exception {
+        player.setItems(pickFiles(5, true));
+
+        await(() -> core.queue().size() == 2);
+        await(() -> player.getItems().size() == 5);
+        assertEquals("file4", player.getItems().get(4).getTitle());
+        assertEquals(2, core.queue().size());
+    }
+
+    @Test
+    public void aFileThatWasNotSentYetCanBePlayedByPickingIt() throws Exception {
+        player.setItems(pickFiles(5, true));
+        await(() -> player.getItems().size() == 5);
+        device.calls.clear();
+
+        player.playItemAt(3);
+
+        await(() -> core.queue().size() == 2 && core.queue().snapshot().get(0).getUri().equals("http://share/3"));
+        assertEquals("http://share/4", core.queue().snapshot().get(1).getUri());
+        await(() -> device.calls.contains("play"));
+        assertTrue(released.contains(0) || released.contains(1)); // what was shared before is released
+    }
+
+    @Test
+    public void previousSharesTheFileBeforeAgainAndStartsIt() throws Exception {
+        player.setItems(pickFiles(4, true));
+        await(() -> core.queue().size() == 2);
+        core.setCurrentId(core.queue().snapshot().get(1).getId()); // the device is at the second file
+        player.pause();
+        await(() -> core.queue().size() == 3);
+        device.calls.clear();
+
+        player.previous();
+
+        await(() -> core.queue().size() == 2 && core.queue().snapshot().get(0).getUri().equals("http://share/0"));
+        await(() -> device.calls.contains("play"));
+    }
+
+    @Test
+    public void filesTheDeviceHasAreLockedTheOthersCanBeTakenOutOfTheList() throws Exception {
+        player.setItems(pickFiles(5, true));
+        await(() -> player.getItems().size() == 5);
+
+        assertTrue(player.isPlaylistPositionLocked(0));
+        assertTrue(player.isPlaylistPositionLocked(1));
+        assertFalse(player.isPlaylistPositionLocked(2));
+
+        assertTrue(player.removeItem(3));
+        await(() -> player.getItems().size() == 4);
+        assertEquals("file4", player.getItems().get(3).getTitle());
+        assertFalse(player.removeItem(0)); // the device has this one
+        assertEquals(4, player.getItems().size());
+    }
 }

@@ -1512,6 +1512,9 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
             Boolean muted = yxcVolume().readMute(udnOf(device));
             return muted != null && muted;
         }
+        if (OpenHomeVolume.handles(device, getRenderingControlService(device) != null)) {
+            return OpenHomeVolume.muted(device, getHttpRequestSender());
+        }
         if (device == null) {
             return false;
         }
@@ -1587,6 +1590,9 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
                 && yxcVolume().handles(udnOf(device))) {
             return true; // a device with group support: its own interface is used
         }
+        if (OpenHomeVolume.handles(device, getRenderingControlService(device) != null)) {
+            return true; // the OpenHome volume service
+        }
         if (device instanceof LocalDevice || device instanceof UpnpClient.LocalDummyDevice) {
             return true;
         }
@@ -1609,6 +1615,11 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         if (device != null && !(device instanceof LocalDevice) && !(device instanceof LocalDummyDevice)
                 && yxcVolume().handles(udnOf(device))) {
             yxcVolume().setMute(udnOf(device), mute);
+            return;
+        }
+        if (OpenHomeVolume.handles(device, getRenderingControlService(device) != null)) {
+            final HttpRequestSender sender = getHttpRequestSender();
+            executorService.execute(() -> OpenHomeVolume.setMuted(device, sender, mute));
             return;
         }
         if (device == null) {
@@ -1665,6 +1676,9 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         if (device != null && !(device instanceof LocalDevice) && !(device instanceof LocalDummyDevice)
                 && yxcVolume().handles(udnOf(device))) {
             return Math.max(0, yxcVolume().readPercent(udnOf(device)));
+        }
+        if (OpenHomeVolume.handles(device, getRenderingControlService(device) != null)) {
+            return OpenHomeVolume.percent(device, getHttpRequestSender());
         }
         if (device == null) {
             return 0;
@@ -1733,6 +1747,9 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
                 && yxcVolume().handles(udnOf(device))) {
             return true; // a device with group support: its own interface is used
         }
+        if (OpenHomeVolume.handles(device, getRenderingControlService(device) != null)) {
+            return true; // the OpenHome volume service
+        }
         if (device instanceof LocalDevice || device instanceof UpnpClient.LocalDummyDevice) {
             return true;
         }
@@ -1754,6 +1771,11 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         if (device != null && !(device instanceof LocalDevice) && !(device instanceof LocalDummyDevice)
                 && yxcVolume().handles(udnOf(device))) {
             yxcVolume().setPercent(udnOf(device), volume);
+            return;
+        }
+        if (OpenHomeVolume.handles(device, getRenderingControlService(device) != null)) {
+            final HttpRequestSender sender = getHttpRequestSender();
+            executorService.execute(() -> OpenHomeVolume.setPercent(device, sender, volume));
             return;
         }
         if (device == null) {

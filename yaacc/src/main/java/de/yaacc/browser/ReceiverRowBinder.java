@@ -1214,7 +1214,13 @@ final class ReceiverRowBinder {
      */
     boolean supportsVolumeControl(Device<?, ?, ?> device) {
         org.fourthline.cling.model.meta.Service renderingControl = device.findService(new org.fourthline.cling.model.types.UDAServiceId("RenderingControl"));
-        return renderingControl != null && renderingControl.getAction("GetVolume") != null;
+        return (renderingControl != null && renderingControl.getAction("GetVolume") != null) || hasOpenHomeVolume(device, renderingControl);
+    }
+
+    /** A device that speaks OpenHome and has no RenderingControl: volume and mute are those of its OpenHome volume service. */
+    private static boolean hasOpenHomeVolume(Device<?, ?, ?> device, org.fourthline.cling.model.meta.Service renderingControl) {
+        return renderingControl == null && de.yaacc.player.OpenHomeChoice.offersOpenHome(device)
+                && de.yaacc.upnp.callback.openhome.ClingOhControl.findService(device, "Volume") != null;
     }
 
     /**
@@ -1222,6 +1228,6 @@ final class ReceiverRowBinder {
      */
     boolean supportsMuteControl(Device<?, ?, ?> device) {
         org.fourthline.cling.model.meta.Service renderingControl = device.findService(new org.fourthline.cling.model.types.UDAServiceId("RenderingControl"));
-        return renderingControl != null && renderingControl.getAction("GetMute") != null;
+        return (renderingControl != null && renderingControl.getAction("GetMute") != null) || hasOpenHomeVolume(device, renderingControl);
     }
 }

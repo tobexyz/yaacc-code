@@ -514,4 +514,13 @@ public class OhRemoteTest {
 
         assertEquals(false, remote.standby());
     }
+
+    @Test
+    public void theVolumeAndMuteCanBeReadAndSetOnTheirOwn() throws Exception {
+        remote.setVolumePercent(35);
+        remote.setMute(true);
+
+        assertEquals(35, remote.volumePercent());
+        assertEquals(true, remote.muted());
+    }
 }

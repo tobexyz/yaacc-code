@@ -218,12 +218,22 @@ public class OpenHomePlayer extends AbstractPlayer {
     }
 
     private void publish() {
-        List<PlayableItem> list = new ArrayList<>(ids.size());
+        List<PlayableItem> list;
         int index = 0;
-        for (int i = 0; i < ids.size(); i++) {
-            list.add(itemsById.get(ids.get(i)));
-            if (ids.get(i) == state.id) {
-                index = i;
+        fileQueueActive = fileQueue != null;
+        fileSentForScreen = fileSent;
+        if (fileQueue != null) {
+            // the picked files: the screen shows all of them, also the ones the device does not have yet
+            list = new ArrayList<>(fileQueue);
+            Integer current = fileIndexById.get(state.id);
+            index = current != null ? current : Math.max(0, fileCurrent);
+        } else {
+            list = new ArrayList<>(ids.size());
+            for (int i = 0; i < ids.size(); i++) {
+                list.add(itemsById.get(ids.get(i)));
+                if (ids.get(i) == state.id) {
+                    index = i;
+                }
             }
         }
         OhRemote.State current = state;
@@ -267,16 +277,32 @@ public class OpenHomePlayer extends AbstractPlayer {
     }
 
     @Override
-    public void previous() {
-        command("previous", () -> remote.previous());
-    }
-
-    @Override
     public void playItemAt(int index) {
         command("play item", () -> {
+            if (fileQueue != null && index >= 0 && index < fileQueue.size()) {
+                // a file of the picked queue: shared and given to the device now, whichever it was before
+                if (sendFiles(index)) {
+                    remote.play();
+                }
+                return;
+            }
             List<Long> current = ids;
             if (index >= 0 && index < current.size()) {
                 remote.seekId(current.get(index));
+            }
+        });
+    }
+
+    @Override
+    public void previous() {
+        command("previous", () -> {
+            if (fileQueue != null && fileCurrent > 0) {
+                // the share of the file before is gone: shared again and given to the device
+                if (sendFiles(fileCurrent - 1)) {
+                    remote.play();
+                }
+            } else {
+                remote.previous();
             }
         });
     }
@@ -310,54 +336,82 @@ public class OpenHomePlayer extends AbstractPlayer {
             // nothing the device could play: its queue stays as it is
             return;
         }
-        command("set playlist", () -> remote.replace(tracks));
+        command("set playlist", () -> {
+            leaveFileMode();
+            remote.replace(tracks);
+        });
     }
 
     // ---- files picked on this phone: shared with the device just in time (the current and the next file), as for AVTransport
 
     // worker only
     private List<PlayableItem> fileQueue;
+    // the same for the screen's thread
+    private volatile boolean fileQueueActive;
+    private volatile int fileSentForScreen;
     private final Map<Long, Integer> fileIndexById = new HashMap<>();
     private int fileSent;
     private int fileCurrent = -1;
 
     /**
-     * Puts the first two files into the queue of the device (the share of a file exists while it plays and while it is next);
-     * {@link #feedFiles} adds each following file when the device moves on.
+     * The files of the picked queue: the screen shows all of them; the device gets the first two (the share of a file exists while
+     * it plays and while it is next), {@link #feedFiles} adds each following file when the device moves on.
      */
     private void startFiles(List<PlayableItem> files) {
         command("set files", () -> {
             fileQueue = files;
-            fileIndexById.clear();
             fileCurrent = -1;
-            PlayableItem second = files.size() > 1 ? files.get(1) : null;
-            if (!getShareLease().moveToItems(files.get(0), second)) {
-                YaaccLogger.w(getClass().getName(), "The share of the first file could not be created");
-                return;
-            }
-            List<PlayableItem> toSend = new ArrayList<>();
-            toSend.add(files.get(0));
-            if (second != null) {
-                toSend.add(second);
-            }
-            List<Integer> indexes = new ArrayList<>();
-            List<OhRemote.Track> tracks = new ArrayList<>();
-            for (int i = 0; i < toSend.size(); i++) {
-                List<OhRemote.Track> one = tracks(java.util.Collections.singletonList(toSend.get(i)));
-                if (!one.isEmpty()) {
-                    tracks.add(one.get(0));
-                    indexes.add(i);
-                }
-            }
-            fileSent = toSend.size();
-            if (tracks.isEmpty()) {
-                return;
-            }
-            List<Long> ids = remote.replace(tracks);
-            for (int k = 0; k < ids.size() && k < indexes.size(); k++) {
-                fileIndexById.put(ids.get(k), indexes.get(k));
+            if (!sendFiles(0)) {
+                leaveFileMode();
             }
         });
+    }
+
+    /** Back to the plain queue of the device: the picked files are not followed any more. */
+    private void leaveFileMode() {
+        fileQueue = null;
+        fileIndexById.clear();
+        fileCurrent = -1;
+        fileSent = 0;
+    }
+
+    /**
+     * Shares the file at the index and the one after it and puts them into the queue of the device, instead of what is there.
+     *
+     * @return false when the share of the file could not be created
+     */
+    private boolean sendFiles(int index) throws OhControlException {
+        PlayableItem first = fileQueue.get(index);
+        PlayableItem second = index + 1 < fileQueue.size() ? fileQueue.get(index + 1) : null;
+        if (!getShareLease().moveToItems(first, second)) {
+            YaaccLogger.w(getClass().getName(), "The share of a file could not be created");
+            return false;
+        }
+        List<PlayableItem> toSend = new ArrayList<>();
+        toSend.add(first);
+        if (second != null) {
+            toSend.add(second);
+        }
+        List<Integer> indexes = new ArrayList<>();
+        List<OhRemote.Track> tracks = new ArrayList<>();
+        for (int i = 0; i < toSend.size(); i++) {
+            List<OhRemote.Track> one = tracks(java.util.Collections.singletonList(toSend.get(i)));
+            if (!one.isEmpty()) {
+                tracks.add(one.get(0));
+                indexes.add(index + i);
+            }
+        }
+        fileSent = index + toSend.size();
+        fileIndexById.clear();
+        fileCurrent = -1;
+        if (tracks.isEmpty()) {
+            return false;
+        }
+        List<Long> ids = remote.replace(tracks);
+        for (int k = 0; k < ids.size() && k < indexes.size(); k++) {
+            fileIndexById.put(ids.get(k), indexes.get(k));
+        }
+        return true;
     }
 
     /** When the device plays another of our files: shares it and the one after it, and gives the device that next file. */
@@ -389,16 +443,38 @@ public class OpenHomePlayer extends AbstractPlayer {
 
     @Override
     public void addItems(List<PlayableItem> playableItems) {
-        final List<OhRemote.Track> tracks = tracks(playableItems);
+        final List<PlayableItem> added = new ArrayList<>(playableItems);
+        if (getShareLease() != null && fileQueueActive) {
+            // the picked files go on: the new items come after them
+            command("add to playlist", () -> {
+                if (fileQueue != null) {
+                    fileQueue.addAll(added);
+                } else {
+                    appendTracks(added);
+                }
+            });
+            return;
+        }
+        final List<OhRemote.Track> tracks = tracks(added);
         if (tracks.isEmpty()) {
             return;
         }
         command("add to playlist", () -> remote.append(tracks));
     }
 
+    private void appendTracks(List<PlayableItem> items) throws OhControlException {
+        List<OhRemote.Track> tracks = tracks(items);
+        if (!tracks.isEmpty()) {
+            remote.append(tracks);
+        }
+    }
+
     @Override
     public void clear() {
-        command("clear playlist", () -> remote.deleteAll());
+        command("clear playlist", () -> {
+            leaveFileMode();
+            remote.deleteAll();
+        });
     }
 
     @Override
@@ -411,6 +487,15 @@ public class OpenHomePlayer extends AbstractPlayer {
         if (itemIndex < 0 || itemIndex >= getItems().size()) {
             return false;
         }
+        if (fileQueueActive) {
+            // a file that the device has not got yet only leaves the list; the ones it has are the device's
+            command("delete file", () -> {
+                if (fileQueue != null && itemIndex >= fileSent && itemIndex < fileQueue.size()) {
+                    fileQueue.remove(itemIndex);
+                }
+            });
+            return itemIndex >= fileSentForScreen;
+        }
         command("delete track", () -> {
             List<Long> current = ids;
             if (itemIndex < current.size()) {
@@ -420,10 +505,13 @@ public class OpenHomePlayer extends AbstractPlayer {
         return true;
     }
 
-    /** The device decides what it plays next: nothing of the playlist is locked. */
+    /**
+     * The device decides what it plays next: nothing of the playlist is locked, except the picked files it was given already (a
+     * file the device has not got yet can still be taken out of the list).
+     */
     @Override
     public boolean isPlaylistPositionLocked(int position) {
-        return false;
+        return fileQueueActive && position < fileSentForScreen;
     }
 
     /** Moving needs OpenHome Playlist version 2 or later and is not offered. */

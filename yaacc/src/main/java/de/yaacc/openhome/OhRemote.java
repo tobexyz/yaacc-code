@@ -370,6 +370,16 @@ public final class OhRemote {
         return volumeMax;
     }
 
+    /** @return the volume of the device in percent */
+    public int volumePercent() throws OhControlException {
+        return OhVolume.toPercent(number(get(call(VOLUME, "Volume"), "Value"), 0), volumeMax());
+    }
+
+    /** @return true if the device is muted */
+    public boolean muted() throws OhControlException {
+        return OhSources.parseBoolean(get(call(VOLUME, "Mute"), "Value"), false);
+    }
+
     public void setVolumePercent(int percent) throws OhControlException {
         call(VOLUME, "SetVolume", "Value", String.valueOf(OhVolume.fromPercent(percent, volumeMax())));
     }
