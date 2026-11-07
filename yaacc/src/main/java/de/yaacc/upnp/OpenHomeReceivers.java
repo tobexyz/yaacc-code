@@ -60,6 +60,11 @@ public final class OpenHomeReceivers {
         return result;
     }
 
+    /** @return true if the device offers an OpenHome playlist and no AVTransport service */
+    public static boolean isOpenHomeOnly(Device<?, ?, ?> device) {
+        return device != null && ClingOhControl.offersPlaylist(device) && device.findService(new UDAServiceType("AVTransport")) == null;
+    }
+
     private static String udn(Device<?, ?, ?> device) {
         return device.getIdentity() == null || device.getIdentity().getUdn() == null
                 ? "" : device.getIdentity().getUdn().getIdentifierString();

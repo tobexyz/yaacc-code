@@ -266,4 +266,5 @@
     <string name="openhome_source_failed">The sources of the device could not be read or switched.</string>
     <string name="openhome_source_none">The device lists no sources.</string>
     <string name="openhome_action_settings">OpenHome settings</string>
+    <string name="openhome_files_not_supported">Files of this phone can not be played on this device yet: it only speaks OpenHome.</string>
 </resources>

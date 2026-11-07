@@ -55,6 +55,7 @@ import de.yaacc.share.QueueShareBinder;
 import de.yaacc.share.QueueShareWindow;
 import de.yaacc.share.ShareAddressResolver;
 import de.yaacc.share.ShareService;
+import de.yaacc.upnp.OpenHomeReceivers;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.util.NotificationId;
 import de.yaacc.util.YaaccLogger;
@@ -395,7 +396,13 @@ public class PlayerService extends MediaSessionService {
             if (built.items().isEmpty()) {
                 continue;
             }
-            Player player = createPlayer(upnpClient, device, video, image, music);
+            if (!local && OpenHomeReceivers.isOpenHomeOnly(device)) {
+                // no AVTransport to serve the files to: not supported yet
+                notifyFilesNotSupported(upnpClient);
+                continue;
+            }
+            // files of this phone are played with AVTransport, also on a device that offers OpenHome
+            Player player = createPlayer(upnpClient, device, video, image, music, false);
             if (player == null) {
                 continue;
             }
@@ -415,6 +422,12 @@ public class PlayerService extends MediaSessionService {
             player.setItems(built.items().toArray(new PlayableItem[0]));
             resultList.add(player);
         }
+    }
+
+    private void notifyFilesNotSupported(UpnpClient upnpClient) {
+        android.content.Context context = upnpClient.getContext();
+        new android.os.Handler(android.os.Looper.getMainLooper()).post(() ->
+                android.widget.Toast.makeText(context, R.string.openhome_files_not_supported, android.widget.Toast.LENGTH_LONG).show());
     }
 
     /** The key bookkeeping of the app's registries for the shares of a queue. */
@@ -498,6 +511,15 @@ public class PlayerService extends MediaSessionService {
     @OptIn(markerClass = UnstableApi.class)
     private Player createPlayer(UpnpClient upnpClient, Device receiverDevice,
                                 boolean video, boolean image, boolean music) {
+        return createPlayer(upnpClient, receiverDevice, video, image, music, true);
+    }
+
+    /**
+     * @param allowOpenHome false for content an OpenHome device can not take: files of this phone are served to a receiver one at
+     *                      a time, and the OpenHome player sends the whole playlist with http addresses
+     */
+    private Player createPlayer(UpnpClient upnpClient, Device receiverDevice,
+                                boolean video, boolean image, boolean music, boolean allowOpenHome) {
         if (receiverDevice == null) {
             Toast toast = Toast.makeText(upnpClient.getContext(), upnpClient.getContext().getString(R.string.error_no_receiver_device_found), Toast.LENGTH_SHORT);
             toast.show();
@@ -515,7 +537,7 @@ public class PlayerService extends MediaSessionService {
             } else if (!video && !image && music) {
                 contentType = "music";
             }
-            if (OpenHomeChoice.useOpenHome(upnpClient.getContext(), receiverDevice, music && !video && !image)) {
+            if (allowOpenHome && OpenHomeChoice.useOpenHome(upnpClient.getContext(), receiverDevice, music && !video && !image)) {
                 for (Player player : getCurrentPlayersOfType(OpenHomePlayer.class)) {
                     if (((OpenHomePlayer) player).getDeviceId().equals(receiverDevice.getIdentity().getUdn().getIdentifierString())) {
                         shutdown(player);

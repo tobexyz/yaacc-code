@@ -93,4 +93,12 @@ public class OpenHomeReceiversTest {
 
         assertEquals(0, OpenHomeReceivers.onlyOpenHome(Collections.singletonList(none), Collections.emptyList()).size());
     }
+
+    @Test
+    public void onlyADeviceWithOpenHomeAndWithoutAvTransportIsOpenHomeOnly() throws Exception {
+        org.junit.Assert.assertTrue(OpenHomeReceivers.isOpenHomeOnly(device("only", true, false)));
+        org.junit.Assert.assertFalse(OpenHomeReceivers.isOpenHomeOnly(device("both", true, true)));
+        org.junit.Assert.assertFalse(OpenHomeReceivers.isOpenHomeOnly(device("av", false, true)));
+        org.junit.Assert.assertFalse(OpenHomeReceivers.isOpenHomeOnly(null));
+    }
 }
