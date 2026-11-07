@@ -516,7 +516,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     }
 
     /**
-     * Returns all registered UpnpDevices with an AVTransport Service.
+     * Returns all registered UpnpDevices with an AVTransport Service, and those that offer an OpenHome playlist without one.
      *
      * @return the upnpDevices
      */
@@ -524,6 +524,10 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         List<Device<?, ?, ?>> result = new ArrayList<>();
         if (isInitialized()) {
             result.addAll(getRegistry().getDevices(new UDAServiceType("AVTransport")));
+            // devices that speak OpenHome only (no AVTransport) are receivers too
+            result.addAll(OpenHomeReceivers.onlyOpenHome(
+                    new ArrayList<>(getRegistry().getDevices(new org.fourthline.cling.model.types.ServiceType(
+                            de.yaacc.upnp.callback.openhome.ClingOhControl.NAMESPACE, "Playlist", 1))), result));
         }
         result = sortDevices(result);
         Collections.reverse(result);
