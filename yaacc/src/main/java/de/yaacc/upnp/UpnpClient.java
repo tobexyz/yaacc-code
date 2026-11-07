@@ -529,11 +529,38 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
                     new ArrayList<>(getRegistry().getDevices(new org.fourthline.cling.model.types.ServiceType(
                             de.yaacc.upnp.callback.openhome.ClingOhControl.NAMESPACE, "Playlist", 1))), result));
         }
+        logDevicesOnce();
         result = sortDevices(result);
         Collections.reverse(result);
         result.add(getLocalDummyDevice());
         Collections.reverse(result);
         return result;
+    }
+
+    private String lastDeviceSummary = "";
+
+    /**
+     * Writes the devices of the registry to the log (info level) when they change: name, type, and whether the device is listed
+     * as an AVTransport or an OpenHome receiver. Shows why a device is missing from the receiver list.
+     */
+    private void logDevicesOnce() {
+        try {
+            StringBuilder summary = new StringBuilder();
+            for (Device<?, ?, ?> device : getRegistry().getDevices()) {
+                summary.append("\n  ").append(device.getDetails() == null ? "?" : device.getDetails().getFriendlyName())
+                        .append(" [").append(device.getType() == null ? "?" : device.getType().toString()).append("]")
+                        .append(" avTransport=").append(device.findService(new UDAServiceType("AVTransport")) != null)
+                        .append(" openHome=").append(de.yaacc.upnp.callback.openhome.ClingOhControl.offersPlaylist(device))
+                        .append(" services=").append(device.findServiceTypes().length);
+            }
+            String text = summary.toString();
+            if (!text.equals(lastDeviceSummary)) {
+                lastDeviceSummary = text;
+                YaaccLogger.i(getClass().getName(), "Devices in the registry:" + text);
+            }
+        } catch (RuntimeException e) {
+            YaaccLogger.d(getClass().getName(), "Devices not logged: " + e);
+        }
     }
 
     private List<Device<?, ?, ?>> sortDevices(Collection<Device<?, ?, ?>> devices) {
