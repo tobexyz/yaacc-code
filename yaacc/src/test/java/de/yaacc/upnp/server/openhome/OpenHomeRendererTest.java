@@ -497,6 +497,20 @@ public class OpenHomeRendererTest {
     }
 
     @Test
+    public void aTrackAddedAtThePlayerBehindATrackAControlPointDeletedKeepsItsPlace() {
+        long a = add(0, "http://h/a.mp3");
+        long k = add(a, "http://h/k.mp3");
+        renderer.play();
+
+        player().addItems(Collections.singletonList(trackTitled("http://h/x.mp3"))); // the user adds x behind k ...
+        renderer.core().queue().delete(k);                                           // ... and a control point deletes k
+        renderer.trackDeleted(1, k);
+
+        assertEquals(Arrays.asList("http://h/a.mp3", "http://h/x.mp3"), queueUris());
+        assertEquals(Arrays.asList("http://h/a.mp3", "http://h/x.mp3"), titles(player()));
+    }
+
+    @Test
     public void theRenderersKnowledgeOfTheItemsFollowsTheQueueAlsoForIdsAbove127() {
         long last = 0;
         for (int i = 0; i < 130; i++) {

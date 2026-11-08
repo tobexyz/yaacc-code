@@ -407,3 +407,40 @@ Reviewing: commit fd24389b (fixes of the 4 Warnings of cycle 4)
 - [ ] Coverage adequate for the change: no. The renderer test for "player edit first" passes on the old code (see Warning), and the `idByItem` clean-up has no test.
 
 ### Verdict: FAIL
+
+## Cycle 6 - fixes of cycle 5 — 2026-11-08
+Reviewing: commit f8b91bf7 (fixes of the 2 Warnings of cycle 5, plus the changed condition in `takeOverFromPlayer`)
+
+### Critical
+- none
+
+### Warning
+- [yaacc/src/main/java/de/yaacc/upnp/server/openhome/OpenHomeRenderer.java:539] The new condition (`id == null` only, line 521) keeps a known track in
+  `newIds` although a control point deleted it from the queue, and step 3 still sets `previous = id` for it. The next track the user added behind it
+  then calls `queue.insert(previous, ...)` with an id that is not in the queue: `OhQueue.insert` throws 800 (`idNotFound`, OhQueue.java:112-114),
+  `takeOverFromPlayer` catches it as "refused" and the new track is removed from the player again, silently. Failure scenario: player [a,K], the user adds X
+  behind K at the phone, a control point deletes K before the poll looked: `trackDeleted` -> `sync()` -> `adoptPlayerEdits` finds [a,K,X(null)]; K is no longer
+  resurrected (good), but X is inserted after the deleted K, refused, and lost (every further new track behind K is lost as well). Before f8b91bf7 K was re-inserted and X survived,
+  so the user's own edit is lost in this window now. Narrow race, but it is a data loss of a user edit and has no test. Fix: advance `previous` only while the
+  track is in the queue (`if (queue.indexOf(id) >= 0) previous = id;`, so X follows the last live predecessor), and add a test next to
+  `anEditAtThePlayerIsTakenOverBeforeAControlPointEditIsSynced` (player [a,K,X], `queue.delete(K)` then `trackDeleted`: expected queue and player [a,X]).
+
+### Suggestion
+- [OpenHomeRenderer.java:734-736] `trackedItemsForTest` is fine as a test hook; `anEditAtThePlayerIsTakenOver...` and the 130-track test both go through it/`player()`, no change needed.
+- [OpenHomePlayer.java:440-457] (open since cycle 5) A retry of `feedFiles` after a failed `append` may append a file twice if the device executed the Insert but the answer was lost. A comment would help.
+- Still open from earlier cycles (not blocking): URI normalisation, strict base64, `trackDeleted` index race, Stopped flap after Play, ohPipeline behavior for deleting the playing track not verified against a real device.
+
+### Checked and fine
+1. `idByItem` clean-up (OpenHomeRenderer.java:385-387): `long gone = playerIds.remove(i)` unboxes, `removeIf(id -> id == gone)` compares by value (`Long == long`), so ids above 127 are removed.
+   `IdentityHashMap.values().remove/removeIf` semantics: the old call compared boxes by reference; `startFrom` boxes `entry.getId()` twice (`ids.add`, `idsByItem.put`), so for id 130 the boxes differ and the old
+   code left the entry. `theRenderersKnowledgeOfTheItemsFollowsTheQueueAlsoForIdsAbove127` (130 tracks, delete id 130, `trackDeleted(129, last)`) asserts 129 tracked items; on the old code it stays 130, so it fails without the fix. The queue ids are sequential from 1 and `tracksMax` is 1000, so the setup is valid.
+2. `anEditAtThePlayerIsTakenOverBeforeAControlPointEditIsSynced`: traced both versions. New code: player [a,b,c] playing c; user removes a (player [b,c]); control point deletes b (queue [a,c]); `sync` -> `adoptPlayerEdits` deletes a (not kept), b stays known, newIds [b,c], then `reconcile` removes b by its id: queue [c], player [c]. The pre-fd24389b code (reconcile only, by place, playerIds [a,b,c], wanted {a,c}) removes player index 1 (that is c) and leaves queue [a,c] / player [b]: the assertions fail. The assertion on queue AND player makes it index-sensitive. It also fails on the cycle-5 code (b would be re-inserted with a new id: queue [b',c]), so it covers the new condition too.
+3. Condition `id == null` (regression check): a known track deleted by a control point is no longer re-inserted; the playing track deleted by a control point together with a user edit now ends in `reconcile` -> `removeItem` refused -> `discardPlayer` with `startId` = next wanted track (same path as without a user edit; before it was resurrected). Moves: step 2 filters `order` by `queue.indexOf(id) >= 0`, and `inQueue` is built from `orderSet`, so both lists have the same size and the deleted track cannot make `inQueue.get(i)` fail or call `queue.move` with an unknown id. Deletes: step 1 uses `deleteQuietly`, so an id already deleted is harmless. The order delete -> move -> insert is right (a deleted track cannot be moved, the insert anchors use the moved order). The cleanup of the stale entry is done by the `reconcile` that every control point delete triggers (`trackDeleted` / `queueCleared` -> `sync()`); `playerIds` keeps the stale id only until then. Only the `previous` anchor is wrong (see Warning).
+4. `twoQuickDragsEachCountFromTheOrderTheFirstOneMade`: the test core has no `Move` handler, so `OhRemote.moveTrack` falls back to `Insert` + `DeleteId`; the gate holds the first job at `Insert` until both drags were posted (`pendingEdits` > 0 keeps the poll from rebuilding `ids` meanwhile). The second job therefore always starts from `ids = current` of job 1; without `ids = current` it would move d behind a (a d b c) and the assertions fail. Deterministic; gate is reset in `finally`, a 5 s timeout guards a hang, `stopWorkers` is called. It uses its own player (`other`), so the shared `player` field does not interfere.
+5. decisions.md: the entry "Edits at the renderer's own player are taken over before the queue is synced" (identity compare, once a second and at the start of `sync()`, deletes/moves via `OhQueue.move`/adds http(s) only, a known deleted track never re-inserted) matches the code. The entry "Closing the OpenHome player leaves the device playing" matches `onDestroy`. No entry is needed for the `idByItem` fix.
+
+### Tests
+- [x] All tests passing: not re-run here (coordinator: `assembleDebug`, `testDebugUnitTest` 3197 tests, `lintDebug` 0 at HEAD f8b91bf7).
+- [ ] Coverage adequate for the change: almost; the new `id == null` path has the delete case but no test for a user-added track behind a track a control point deleted (the Warning).
+
+### Verdict: FAIL

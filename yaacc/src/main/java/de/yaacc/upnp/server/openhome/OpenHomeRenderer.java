@@ -536,7 +536,9 @@ public final class OpenHomeRenderer implements OhPlayback {
                 }
             }
             newIds.add(id);
-            previous = id;
+            if (queue.indexOf(id) >= 0) {
+                previous = id; // a track a control point deleted meanwhile is no place to insert behind
+            }
         }
         for (int i = refused.size() - 1; i >= 0; i--) {
             final int index = refused.get(i);
