@@ -269,6 +269,43 @@ public class OhRemoteTest {
     }
 
     @Test
+    public void theBriefStateHasTheTransportAndTheTrackOnly() throws Exception {
+        long id = core.queue().insert(0, "http://h/a.mp3", "<meta/>");
+        core.setTransportState(OhTransportState.PAUSED);
+        core.setCurrentId(id);
+        core.setTrack("http://h/a.mp3", "<meta/>", 200);
+        core.setSeconds(17);
+        core.setVolumePercent(35);
+        java.util.List<String> actions = new ArrayList<>();
+        OhRemote brief = new OhRemote((service, action, args) -> {
+            actions.add(action);
+            return control.invoke(service, action, args);
+        }, millis -> {
+        });
+
+        OhRemote.State state = brief.readBrief();
+
+        assertEquals(OhTransportState.PAUSED, state.transportState);
+        assertEquals("http://h/a.mp3", state.uri);
+        assertEquals("<meta/>", state.metadata);
+        assertEquals(0, state.volumePercent);
+        assertEquals(0, state.seconds);
+        assertEquals(java.util.Arrays.asList("TransportState", "Track"), actions);
+    }
+
+    @Test
+    public void theBriefStateOfADeviceThatDoesNotAnswerFails() {
+        control.unreachable = true;
+
+        try {
+            remote.readBrief();
+            fail();
+        } catch (OhControlException e) {
+            assertEquals(OhControlException.NO_ANSWER, e.getCode());
+        }
+    }
+
+    @Test
     public void volumeAndMuteReachTheDevice() throws Exception {
         remote.setVolumePercent(60);
         remote.setMute(true);

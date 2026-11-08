@@ -535,6 +535,31 @@ public class PlayerService extends MediaSessionService {
     }
 
 
+    private OpenHomePlayer newOpenHomePlayer(UpnpClient upnpClient, Device receiverDevice) {
+        String deviceName = receiverDevice.getDetails().getFriendlyName() + " - " + receiverDevice.getDisplayString();
+        return new OpenHomePlayer(upnpClient, receiverDevice, upnpClient.getContext()
+                .getString(R.string.playerNameAvTransport) + "-OpenHome@" + deviceName,
+                receiverDevice.getDetails().getFriendlyName());
+    }
+
+    /**
+     * Gives an OpenHome device that plays already a player that shows its playlist (see {@link OpenHomePlayer#attach()}).
+     *
+     * @return the player of the device: the one it has, else a new one
+     */
+    public Player attachOpenHomePlayer(UpnpClient upnpClient, Device<?, ?, ?> device) {
+        String deviceId = device.getIdentity().getUdn().getIdentifierString();
+        for (Player player : getCurrentPlayersOfType(OpenHomePlayer.class)) {
+            if (((OpenHomePlayer) player).getDeviceId().equals(deviceId)) {
+                return player;
+            }
+        }
+        OpenHomePlayer player = newOpenHomePlayer(upnpClient, device);
+        addPlayer(player);
+        player.attach();
+        return player;
+    }
+
     /**
      * creates a player for the given device
      *
@@ -571,9 +596,7 @@ public class PlayerService extends MediaSessionService {
                         shutdown(player);
                     }
                 }
-                return new OpenHomePlayer(upnpClient, receiverDevice, upnpClient.getContext()
-                        .getString(R.string.playerNameAvTransport) + "-OpenHome@" + deviceName,
-                        receiverDevice.getDetails().getFriendlyName());
+                return newOpenHomePlayer(upnpClient, receiverDevice);
             }
             for (Player player : getCurrentPlayersOfType(AVTransportPlayer.class)) {
                 if (((AVTransportPlayer) player).getDeviceId().equals(receiverDevice.getIdentity().getUdn().getIdentifierString())

@@ -1009,6 +1009,11 @@ final class ReceiverRowBinder {
             return;
         }
         Player player = primaryPlayer(device);
+        if (player == null && !isLocalDevice(device) && de.yaacc.player.OpenHomeChoice.useOpenHome(context, device, true)) {
+            // an OpenHome device keeps its playlist itself: it may play already, started by another controller or before the app
+            // was reinstalled. The player only shows what the device has.
+            player = upnpClient.attachOpenHomePlayer(device);
+        }
         if (player != null) {
             openPlayer(context, player);
         }

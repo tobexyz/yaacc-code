@@ -113,6 +113,20 @@ public class OpenHomePlayer extends AbstractPlayer {
         }, POLL_SECONDS, POLL_SECONDS, TimeUnit.SECONDS);
     }
 
+    /**
+     * Takes up a device that plays already (started by another controller, or by this app before it was reinstalled): the player
+     * reads the playlist and the state of the device and shows them. Nothing is sent to the device: it is not woken up, its source
+     * is not changed (that happens with the first command of the user).
+     */
+    public void attach() {
+        post(() -> {
+            if (remote == null) {
+                remote = new OhRemote(createControl());
+            }
+            refresh();
+        });
+    }
+
     // ---- the worker
 
     private interface Job {

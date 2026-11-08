@@ -113,7 +113,11 @@ public class RendererStatusMonitor {
         }
         Service avTransport = device.findService(new UDAServiceId("AVTransport"));
         if (avTransport == null) {
-            scheduleNextPoll(device, pollGeneration);
+            if (de.yaacc.player.OpenHomeChoice.offersOpenHome(device)) {
+                pollOpenHomeDevice(device, pollGeneration);
+            } else {
+                scheduleNextPoll(device, pollGeneration);
+            }
             return;
         }
 
@@ -127,6 +131,22 @@ public class RendererStatusMonitor {
             @Override
             public void failure(ActionInvocation invocation, UpnpResponse response, String msg) {
                 YaaccLogger.e(getClass().getName(), "GetTransportInfo failed: " + msg);
+                scheduleNextPoll(device, pollGeneration);
+            }
+        });
+    }
+
+    /** A device that speaks OpenHome only: its playlist's transport state and current track, whoever started them. */
+    private void pollOpenHomeDevice(Device device, int pollGeneration) {
+        executorService.execute(() -> {
+            try {
+                de.yaacc.openhome.OhRemote.State state = new de.yaacc.openhome.OhRemote(
+                        new de.yaacc.upnp.callback.openhome.ClingOhControl(device, httpRequestSender)).readBrief();
+                boolean plays = state.transportState != de.yaacc.openhome.OhTransportState.STOPPED;
+                updateStatus(device, OpenHomeStatus.upnpState(state.transportState),
+                        plays ? OpenHomeStatus.trackTitle(state.metadata, state.uri) : null, pollGeneration);
+            } catch (de.yaacc.openhome.OhControlException | RuntimeException e) {
+                YaaccLogger.d(getClass().getName(), "OpenHome status not read: " + de.yaacc.util.LogText.clean(e.getMessage()));
                 scheduleNextPoll(device, pollGeneration);
             }
         });

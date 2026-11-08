@@ -484,6 +484,8 @@ public class OpenHomePlayerTest {
     private final java.util.concurrent.atomic.AtomicBoolean failing = new java.util.concurrent.atomic.AtomicBoolean();
     /** While set, the Insert of a track waits (the first job of a drag is held back). */
     private volatile java.util.concurrent.CountDownLatch gate;
+    /** The actions the device was asked for through {@link #playerWithFailingDevice()}. */
+    private final List<String> invoked = new java.util.concurrent.CopyOnWriteArrayList<>();
     private final java.util.concurrent.atomic.AtomicBoolean failingAppend = new java.util.concurrent.atomic.AtomicBoolean();
 
     private OpenHomePlayer playerWithFailingDevice() throws Exception {
@@ -502,6 +504,7 @@ public class OpenHomePlayerTest {
             @Override
             protected OhControl createControl() {
                 return (service, action, arguments) -> {
+                    invoked.add(action);
                     java.util.concurrent.CountDownLatch held = gate;
                     if (held != null && "Insert".equals(action)) {
                         try {
@@ -609,5 +612,47 @@ public class OpenHomePlayerTest {
         }
         assertTrue(player.artMayBeFetched("http://h/0.jpg")); // forgotten long ago
         assertFalse(player.artMayBeFetched("http://h/99.jpg"));
+    }
+
+    @Test
+    public void aDeviceThatPlaysAlreadyIsShownWithoutSendingAnythingToIt() throws Exception {
+        long a = core.queue().insert(0, "http://h/a.mp3", "");
+        long b = core.queue().insert(a, "http://h/b.mp3", "");
+        core.setTransportState(OhTransportState.PLAYING);
+        core.setCurrentId(b);
+        core.setSeconds(30);
+        OpenHomePlayer other = playerWithFailingDevice();
+        try {
+            other.attach();
+
+            await(() -> other.getItems().size() == 2 && other.getCurrentItemIndex() == 1 && other.isPlaying());
+            assertEquals(java.util.Arrays.asList("http://h/a.mp3", "http://h/b.mp3"), titles(other));
+            // it only read: no wake-up, no change of the source, no command
+            for (String action : invoked) {
+                assertFalse("the device was sent " + action, action.startsWith("Set") || action.equals("Play")
+                        || action.equals("Insert") || action.equals("Pause") || action.equals("Stop"));
+            }
+            assertTrue(device.calls.isEmpty());
+        } finally {
+            other.stopWorkers();
+        }
+    }
+
+    @Test
+    public void theFirstCommandAfterTheAttachPreparesTheDevice() throws Exception {
+        core.queue().insert(0, "http://h/a.mp3", "");
+        OpenHomePlayer other = playerWithFailingDevice();
+        try {
+            other.attach();
+            await(() -> other.getItems().size() == 1);
+            invoked.clear();
+
+            other.pause();
+
+            await(() -> device.calls.contains("pause"));
+            assertTrue(invoked.contains("SetSourceIndex") || invoked.contains("Standby") || invoked.contains("SourceIndex"));
+        } finally {
+            other.stopWorkers();
+        }
     }
 }
