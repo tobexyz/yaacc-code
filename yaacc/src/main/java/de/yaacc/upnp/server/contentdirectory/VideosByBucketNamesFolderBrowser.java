@@ -56,16 +56,16 @@ public class VideosByBucketNamesFolderBrowser extends VideoBrowser {
     @Override
     public List<Container> browseContainer(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
         List<Container> all = new ArrayList<>();
-        for (VideoGalleries.Gallery gallery : galleries(contentDirectory)) {
+        for (MediaGalleries.Gallery gallery : galleries(contentDirectory)) {
             all.add(new StorageFolder(ContentDirectoryIDs.VIDEOS_BY_BUCKET_NAME_PREFIX.getId() + gallery.id,
                     ContentDirectoryIDs.VIDEOS_BY_BUCKET_NAMES_FOLDER.getId(), gallery.name, "yaacc", gallery.count, null));
         }
         // sorted by the name without regard to the case, then paged: a page of galleries, not of rows of the media store
         Map<String, Function<DIDLObject, String>> accessors = new HashMap<>();
-        accessors.put(SortSupport.PROPERTY_TITLE, VideoGalleries::titleKey);
-        Comparator<DIDLObject> tieBreaker = VideoGalleries.inTitleOrder();
+        accessors.put(SortSupport.PROPERTY_TITLE, MediaGalleries::titleKey);
+        Comparator<DIDLObject> tieBreaker = MediaGalleries.inTitleOrder();
         all.sort(SortSupport.toComparator(orderby, accessors, tieBreaker).thenComparing(tieBreaker));
-        return VideoGalleries.page(all, firstResult, maxResults);
+        return MediaGalleries.page(all, firstResult, maxResults);
     }
 
     @Override

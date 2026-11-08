@@ -55,7 +55,7 @@ public class VideosByBucketNameFolderBrowser extends VideoBrowser {
     public DIDLObject browseMeta(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
         String bucketId = bucketId(myId);
         // the name comes from the list of all galleries: a gallery named like another one has the same suffix here as there
-        for (VideoGalleries.Gallery gallery : galleries(contentDirectory)) {
+        for (MediaGalleries.Gallery gallery : galleries(contentDirectory)) {
             if (gallery.id.equals(bucketId)) {
                 return new StorageFolder(myId, ContentDirectoryIDs.VIDEOS_BY_BUCKET_NAMES_FOLDER.getId(), gallery.name, "yaacc",
                         gallery.count, null);

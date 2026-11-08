@@ -171,7 +171,8 @@ public class MediaPathFilterBrowsersTest {
 
     @Test
     public void aGalleryOfImagesHasItsNameAndTheCountOfItsImagesInTheMediaPaths() {
-        answer = () -> MediaCursors.of(new String[]{"bucket_display_name"}, new Object[]{"Camera"}, new Object[]{"Camera"});
+        answer = () -> MediaCursors.of(new String[]{"bucket_id", "bucket_display_name"},
+                new Object[]{"7", "Camera"}, new Object[]{"7", "Camera"}, new Object[]{"8", "Other"});
         ImagesByBucketNameFolderBrowser browser = new ImagesByBucketNameFolderBrowser(context);
 
         org.fourthline.cling.support.model.container.Container gallery =
@@ -180,6 +181,7 @@ public class MediaPathFilterBrowsersTest {
         assertEquals("Camera", gallery.getTitle()); // the name of the directory, not the bucket id
         assertEquals(Integer.valueOf(2), gallery.getChildCount());
         assertEquals("2109997", gallery.getId());
+        assertTrue(selections.get(0), selections.get(0).startsWith("(_data like ? escape '\\' or _data like ? escape '\\' )"));
     }
 
     // ---- music
@@ -201,19 +203,16 @@ public class MediaPathFilterBrowsersTest {
 
     @Test
     public void theChildCountOfAGalleryInTheListIsTheCountOfItsImagesInTheMediaPaths() {
-        // the list of galleries: first the rows of the buckets, then one count per bucket
-        List<Cursor> answers = new ArrayList<>();
-        answers.add(MediaCursors.of(new String[]{"bucket_id", "bucket_display_name"}, new Object[]{"7", "Camera"}));             // the galleries
-        answers.add(MediaCursors.of(new String[]{"bucket_id"}, new Object[]{"7"}, new Object[]{"7"}));                          // the count of bucket 7
-        int[] call = {0};
-        answer = () -> answers.get(Math.min(call[0]++, answers.size() - 1));
+        // one query for the list: the rows of the images in the media paths, grouped by bucket
+        answer = () -> MediaCursors.of(new String[]{"bucket_id", "bucket_display_name"}, new Object[]{"7", "Camera"}, new Object[]{"7", "Camera"});
 
         List<org.fourthline.cling.support.model.container.Container> galleries =
                 new ImagesByBucketNamesFolderBrowser(context).browseContainer(directory, "200999", 0, Long.MAX_VALUE, NO_SORT);
 
         assertEquals(1, galleries.size());
         assertEquals(Integer.valueOf(2), galleries.get(0).getChildCount());
-        int last = selections.size() - 1;
-        assertFiltered(last, "bucket_id=?", "7");
+        assertEquals(1, selections.size()); // no query per gallery
+        assertTrue(selections.get(0), selections.get(0).startsWith("(_data like ? escape '\\' or _data like ? escape '\\' )"));
+        assertTrue(selectionArgs.get(0).containsAll(Arrays.asList("%/a%", "%/b%")));
     }
 }

@@ -341,3 +341,96 @@ Not run: Gradle, device (reading only). State reported for HEAD: build, 3339 tes
 No Critical, no Warning. The three Warnings of cycle 2 are closed (W1 `ImagesByBucketNamesFolderBrowser.java:86-99`, W2 `YaaccUpnpServerContentHttpHandler.java:247/678`, W3
 `SafFolderBrowser.java:280-287` + `YaaccUpnpServerContentHttpHandler.java:775` with `SafDocumentUris.java:88-125`). The suggestions above do not block; the two I would not
 ship without a look: the manual check of `ESCAPE` on an Android 11+ device, and the anchoring of the media paths.
+
+## Cycle 4 — 2026-11-08
+Reviewing: Group 4, uncommitted (`git diff HEAD` + `ImageGalleryListTest.java`): `ImagesByBucketNamesFolderBrowser` (rows of the images read once with the
+media-path filter, grouped with `MediaGalleries`, sorted, paged), `ImagesByBucketNameFolderBrowser.browseMeta` (name and count from that list),
+`VideoGalleries` -> `MediaGalleries` rename (mechanical in `VideoBrowser`, `VideosBy*`, `VideosFolderBrowser`). Attack surface unchanged (ContentDirectory SOAP, no
+authentication, every LAN host). Not run: Gradle, device (reading only).
+
+### Critical
+- none
+
+### Warning
+- none
+
+### Suggestion
+- [ImagesByBucketNamesFolderBrowser.java:78-92] `readGalleries` keeps one `String[]{id, name}` per image (the cursor's `getString` makes new strings per
+  row, nothing is shared) until the Browse ends, then groups. Old code: `getSize` held only a `HashSet` of bucket ids and the page was cut from the
+  cursor, so heap was O(galleries); now O(images) per Browse (roughly 150-200 bytes per row, 15-20 MB for 100k photos, per concurrent request). Time is not
+  worse than before (the old list also walked every row, and ran one extra query per gallery of the page). A LAN host that sends many parallel Browses of
+  `200999` on a very large library can raise heap pressure; there is a thread pool of 100 on the UDP side but I did not verify the HTTP/SOAP concurrency
+  limit. Same pattern as the video galleries (cycle 1 Suggestion), so I treat it the same way. Cheap fix: fold the rows into the `names`/`counts` maps while reading
+  (`MediaGalleries.group` already works on maps), so only one entry per bucket is retained.
+- [ImagesByBucketNameFolderBrowser.java:51-59] `BrowseMetadata` of one image gallery used to run three queries filtered by `bucket_id=?`; it now reads
+  all image rows in the media paths (O(images) instead of an index lookup). Bounded, once per request, and it is what makes name and count agree with the
+  list; noted as the one place where the new code does more work than the old.
+- [pre-existing, unchanged] `ImagesByBucketNameFolderBrowser.browseItem` does `Long.valueOf(SIZE)` without a null check: one image row with a null size
+  makes the whole gallery page fail (ACTION_FAILED, fail closed; the row must be in the media store, i.e. local).
+
+### What was checked and is fine
+1. Media-path filter on every answer of the image galleries:
+   - list and total: `readGalleries` selection is `(<DATA like ? escape '\' ...>)` with `getMediaPathesForLikeClause()` as arguments, count of
+     placeholders from `getMediaPathes().size()` (same helper pair as everywhere); `getSize` = `galleries().size()`, `browseContainer` = the same list, so total,
+     page and child counts are all derived from rows that passed the filter. A directory that only has files outside the paths has no row, so no
+     gallery, no name, no count.
+   - `ImagesByBucketNameFolderBrowser.browseMeta`: only a gallery found in that filtered list is returned, otherwise `null` -> NO_SUCH_OBJECT (same
+     result as the old `getSize()==0`); name and count of a bucket outside the paths cannot be read. `getSize` and `browseItem` unchanged:
+     `BUCKET_ID=? and (DATA like ...)`, args `[bucket, paths...]` in the order of the placeholders. List count equals the gallery's `getSize` (same predicate).
+   - The old `getName` query is gone; nothing else reads `BUCKET_DISPLAY_NAME` unfiltered (`grep`: the only users of the class are `YaaccContentDirectory`
+     routing and `ImagesFolderBrowser.browseMeta`, which only asks for the size).
+2. Injection: the client's bucket id (`myId.substring(prefix)`) is used in `browseMeta` only in `String.equals` against ids from the media store, and in
+   `getSize`/`browseItem` as a bound argument (selection text is a constant plus generated placeholders). Hostile ids (`' OR 1=1--`, empty, negative,
+   very long) give no row / null. Sort criteria in `browseContainer` go to `SortSupport.toComparator` with a fixed accessor map (in-memory comparator, no SQL);
+   `browseItem` still uses the `toMediaStoreSortOrder` whitelist. No new SQL text built from request data.
+3. Output escaping: gallery names (directory names, plus " (n)" or the string resource for a missing name) go to the DIDL writer, which escapes
+   `& < > "` (see cycle 3 item 8). Bucket ids are in the object id only as the text the media store gave (a hash number).
+4. Null/odd rows: null bucket id rows are skipped (cannot produce an id "null"); null/blank name -> `gallery_unnamed`; null or empty cursor -> empty list, no NPE
+   (`cursor != null && moveToFirst()`); a query that throws (filter on with no usable paths) escapes as ACTION_FAILED, fail closed, as before. Two directories
+   with the same name get " (2)" ordered by bucket id, independent of row order, so the id in the object id stays unique and `browseMeta` finds the same name as
+   the list (a real directory called "x (2)" only shares a title, the ids differ; the title tie-break includes the id). `MediaGalleries.page` clamps
+   negative/huge `first` and `max` (`Long.MAX_VALUE` safe: no `start + max` overflow).
+5. Resource use versus the old code: per Browse one browser instance, `YaaccContentDirectory` calls `getSize` and `browseContainer` on the same instance and the list is
+   cached in a field (one scan per Browse, not two); `BrowseMetadata` of the names folder and the Images root (`ImagesFolderBrowser` -> size) scan once each. The old list
+   scanned every row in `getSize` and up to the end of the page in `browseContainer`, plus one count query per gallery on the page (N+1), so the number of queries
+   is lower (1 instead of up to 1+50). The only new cost is memory (Suggestion 1) and the meta of one gallery (Suggestion 2). No cache that outlives a Browse, so no
+   stale data and no state a client can grow.
+6. Information exposure: names and counts come only from rows inside the media paths (item 1); with the filter off the set is everything, as before. The new
+   "(root folder)" label covers files directly in a volume root only if they are inside the paths. Logging: the old per-gallery debug line (name, id) is gone; nothing
+   new is logged.
+7. Rename `VideoGalleries` -> `MediaGalleries`: diff of `VideoBrowser`, `VideosByBucketName(s)FolderBrowser`, `VideosFolderBrowser` is type/method names only;
+   no change to selections or arguments of the video routes.
+8. Tests read: `ImageGalleryListTest` (page of galleries, pages add up, total, case-insensitive sort, counts, same-name counter, meta name = list name) and
+   `MediaPathFilterBrowsersTest` (updated: gallery meta and list each issue exactly one query starting with the LIKE clause, path arguments present, "no query per
+   gallery"). Gap: no test with the filter on for a bucket id outside the paths through `browseMeta` (covered by reading item 1; the old `getSize()==0` test was replaced).
+
+### Tests
+- Not run (as instructed). Read only.
+
+### Verdict: PASS
+No Critical, no Warning. The media-path filter is applied to the list, the total, the child counts, the metadata and the items of the image galleries; ids are
+never concatenated into SQL; names are escaped by the DIDL writer. Two Suggestions (heap per Browse is now O(images); metadata of one gallery scans all rows) do not block.
+
+## Cycle 5 — 2026-11-08
+Reviewing: Group 5 (uncommitted: `ImagesFolderBrowser.browseContainer`, `ImagesFolderBrowserTest`, CHANGELOG line). Read only, tests not run.
+
+### Critical
+- none
+
+### Warning
+- none
+
+### Suggestion
+- none new. (Cycle 4 Suggestions stand.)
+
+### Checked
+1. Paging with hostile `StartingIndex` / `RequestedCount` through `MediaGalleries.page(all, first, max)` on the fixed 2-element list (`size` = 2):
+   - `start = (int) Math.max(0, Math.min(first, size))`: the `min` is done in `long`, so `Long.MIN_VALUE` and negatives -> 0, `Long.MAX_VALUE` and any value >= 2 -> 2; the cast to `int` only sees 0..2, so no truncation or wrap.
+   - `end = max >= size - start ? size : start + (int) Math.max(0, max)`: no `start + max` in `long`, so no overflow for `Long.MAX_VALUE`; the `else` branch only runs when `max < size - start` (so `max` is 0 or 1 there, or negative -> clamped to 0), the cast cannot wrap (a count like 4294967297 takes the first branch), `end` is in `[start, size]`.
+   - `subList(start, end)` therefore always has `0 <= start <= end <= size`: no IndexOutOfBounds / IllegalArgumentException; the result is copied into a new `ArrayList` (no view of the internal list); no array is sized from the request, so no NegativeArraySize / OOM from `max`. Cases (first, max): (MIN, MIN), (MIN, MAX), (MAX, MIN), (MAX, MAX), (-1, -1), (0, 0), (2, x), (1, 1) all give a valid sublist, empty past the end (the old bug that returned the last folder again is gone). `ImagesFolderBrowserTest` covers 0/1/2/MAX/4294967297 and a page past the end; `Long.MIN_VALUE` / negative `max` have no test (`MediaGalleriesTest` has -3 and 0 only); covered by the clamping reading above, a test with `Long.MIN_VALUE` would be a cheap addition.
+2. Sort: `SortSupport.toComparator` uses a fixed accessor map; unknown properties are skipped, `null`/empty criteria use the no-op comparator; `MediaGalleries::titleKey` is null-safe and uses `Locale.ROOT` (no locale-dependent surprises). In-memory on 2 objects, no SQL; the sort is applied before paging, so a page is a cut of the sorted list.
+3. Data answered unchanged: the two folders' metadata are built by `ImagesAllFolderBrowser.browseMeta` / `ImagesByBucketNamesFolderBrowser.browseMeta`, which ignore `firstResult`/`maxResults` and only call `getSize`. `getSize` of "All images" is still the `DATA like` clause over `getMediaPathesForLikeClause()` (placeholders from `getMediaPathes().size()`), and of "Galleries" `galleries().size()` from the filtered rows. The constants `(0, 1)` replace request values that were not used there, so no request value reaches any query and the counts stay filtered by the media paths. `ImagesFolderBrowser.getSize` is the constant 2, `browseItem` returns an empty list.
+4. Leaks / errors: no new logging, no exception text, no new field or cache (a browser instance per Browse); the ids and titles are constants of the app (string resources). Cost per Browse is unchanged (one count query and one gallery scan), nothing grows with the request, so no new DoS lever.
+5. Test class: mocks only (no real files, network, secrets); the `MockedStatic<PreferenceManager>` is closed in `@After`. No dependency change in the diff.
+
+### Verdict: PASS

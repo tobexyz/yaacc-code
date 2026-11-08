@@ -28,7 +28,7 @@ import java.util.Collections;
 import java.util.List;
 
 /** Grouping the rows of the media store to galleries: one per bucket, counted, with names that tell them apart. */
-public class VideoGalleriesTest {
+public class MediaGalleriesTest {
 
     private static List<String[]> rows(String... idAndName) {
         List<String[]> rows = new ArrayList<>();
@@ -38,9 +38,9 @@ public class VideoGalleriesTest {
         return rows;
     }
 
-    private static List<String> names(List<VideoGalleries.Gallery> galleries) {
+    private static List<String> names(List<MediaGalleries.Gallery> galleries) {
         List<String> names = new ArrayList<>();
-        for (VideoGalleries.Gallery gallery : galleries) {
+        for (MediaGalleries.Gallery gallery : galleries) {
             names.add(gallery.name);
         }
         return names;
@@ -48,7 +48,7 @@ public class VideoGalleriesTest {
 
     @Test
     public void everyBucketIsOneGalleryInTheOrderItWasSeenAndIsCounted() {
-        List<VideoGalleries.Gallery> galleries = VideoGalleries.group(
+        List<MediaGalleries.Gallery> galleries = MediaGalleries.group(
                 rows("1", "Camera", "1", "Camera", "2", "CapCut", "1", "Camera"), "(root)");
 
         assertEquals(Arrays.asList("Camera", "CapCut"), names(galleries));
@@ -61,8 +61,8 @@ public class VideoGalleriesTest {
     @Test
     public void aSecondGalleryWithTheNameOfAnotherOneGetsACounterInTheOrderOfTheIds() {
         // the cursor may deliver the buckets in any order: the names must not depend on it
-        List<VideoGalleries.Gallery> forwards = VideoGalleries.group(rows("5", "Camera", "9", "Camera", "7", "Camera"), "(root)");
-        List<VideoGalleries.Gallery> backwards = VideoGalleries.group(rows("7", "Camera", "9", "Camera", "5", "Camera"), "(root)");
+        List<MediaGalleries.Gallery> forwards = MediaGalleries.group(rows("5", "Camera", "9", "Camera", "7", "Camera"), "(root)");
+        List<MediaGalleries.Gallery> backwards = MediaGalleries.group(rows("7", "Camera", "9", "Camera", "5", "Camera"), "(root)");
 
         assertEquals("Camera", forwards.get(0).name);
         assertEquals("Camera (2)", forwards.get(2).name);   // id 7
@@ -75,7 +75,7 @@ public class VideoGalleriesTest {
     @Test
     public void idsAreComparedAsNumbersAlsoWhenNegative() {
         // a bucket id is the hash of the path, an int: "-5" < "10" as numbers, but not as text
-        List<VideoGalleries.Gallery> galleries = VideoGalleries.group(rows("10", "Movies", "-5", "Movies"), "(root)");
+        List<MediaGalleries.Gallery> galleries = MediaGalleries.group(rows("10", "Movies", "-5", "Movies"), "(root)");
 
         assertEquals("Movies", galleries.get(1).name);       // id -5
         assertEquals("Movies (2)", galleries.get(0).name);   // id 10
@@ -83,26 +83,26 @@ public class VideoGalleriesTest {
 
     @Test
     public void aBucketWithoutANameGetsTheGivenText() {
-        List<VideoGalleries.Gallery> galleries = VideoGalleries.group(rows("4", null, "6", ""), "(root)");
+        List<MediaGalleries.Gallery> galleries = MediaGalleries.group(rows("4", null, "6", ""), "(root)");
 
         assertEquals(Arrays.asList("(root)", "(root) (2)"), names(galleries));
     }
 
     @Test
     public void noRowsNoGalleries() {
-        assertTrue(VideoGalleries.group(Collections.emptyList(), "(root)").isEmpty());
+        assertTrue(MediaGalleries.group(Collections.emptyList(), "(root)").isEmpty());
     }
 
     @Test
     public void aPageIsCutFromTheList() {
         List<Integer> all = Arrays.asList(1, 2, 3, 4, 5);
 
-        assertEquals(Arrays.asList(1, 2), VideoGalleries.page(all, 0, 2));
-        assertEquals(Arrays.asList(3, 4, 5), VideoGalleries.page(all, 2, Long.MAX_VALUE));
-        assertEquals(Arrays.asList(5), VideoGalleries.page(all, 4, 10));
-        assertTrue(VideoGalleries.page(all, 5, 10).isEmpty());
-        assertTrue(VideoGalleries.page(all, 99, 10).isEmpty());
-        assertTrue(VideoGalleries.page(all, 0, 0).isEmpty());
-        assertEquals(all, VideoGalleries.page(all, -3, 99));
+        assertEquals(Arrays.asList(1, 2), MediaGalleries.page(all, 0, 2));
+        assertEquals(Arrays.asList(3, 4, 5), MediaGalleries.page(all, 2, Long.MAX_VALUE));
+        assertEquals(Arrays.asList(5), MediaGalleries.page(all, 4, 10));
+        assertTrue(MediaGalleries.page(all, 5, 10).isEmpty());
+        assertTrue(MediaGalleries.page(all, 99, 10).isEmpty());
+        assertTrue(MediaGalleries.page(all, 0, 0).isEmpty());
+        assertEquals(all, MediaGalleries.page(all, -3, 99));
     }
 }

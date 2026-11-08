@@ -16,3 +16,15 @@ Gate: `ANDROID_HOME=/root/android-sdk ./gradlew :yaacc:assembleDebug :yaacc:test
 
 ## Group 3: Documentation
 - [x] 3.1 `docs/index.md`, `CHANGELOG.md`
+
+## Group 4: Image galleries list (owner's report: the app shows 1 gallery, Home Assistant 9)
+- [x] 4.1 Tests first: `ImageGalleryListTest` (page of galleries, pages add up, total, sort without case, counts, same names, name in gallery = name in list); `MediaPathFilterBrowsersTest` adapted | `yaacc/src/test/.../contentdirectory/`
+- [x] 4.2 `VideoGalleries` -> `MediaGalleries`; `ImagesByBucketNamesFolderBrowser` groups, sorts, pages; `ImagesByBucketNameFolderBrowser.browseMeta` takes name and count from the list | `contentdirectory/`
+- [x] 4.3 `docs/index.md`, `CHANGELOG.md`, `decisions.md`
+- [x] 4.4 Review gate: reviewer PASS (cycle 6), then security-reviewer PASS (cycle 4)
+
+## Group 5: Images folder paging (owner asked)
+- [x] 5.1 Test first: `ImagesFolderBrowserTest` (order, pages, past the end, huge count, sort); the past-the-end test failed on the old arithmetic | `yaacc/src/test/.../contentdirectory/`
+- [x] 5.2 `ImagesFolderBrowser` uses `MediaGalleries.page` | `contentdirectory/`
+- [x] 5.3 `CHANGELOG.md`, `decisions.md`
+- [x] 5.4 Review gate: reviewer PASS (cycles 7 FAIL on a doc line, 8 PASS), then security-reviewer PASS (cycle 5)

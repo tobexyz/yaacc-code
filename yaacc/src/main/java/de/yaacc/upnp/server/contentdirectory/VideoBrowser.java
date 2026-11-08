@@ -106,11 +106,11 @@ abstract class VideoBrowser extends ContentBrowser {
     }
 
     // a browser lives for one Browse: the count, the page and the metadata of it read the media store once
-    private List<VideoGalleries.Gallery> galleries;
+    private List<MediaGalleries.Gallery> galleries;
 
-    /** The galleries of the videos in the media paths, in the order of the rows (see {@link VideoGalleries#group}). */
+    /** The galleries of the videos in the media paths, in the order of the rows (see {@link MediaGalleries#group}). */
     @SuppressLint("Range")
-    List<VideoGalleries.Gallery> galleries(YaaccContentDirectory contentDirectory) {
+    List<MediaGalleries.Gallery> galleries(YaaccContentDirectory contentDirectory) {
         if (galleries == null) {
             galleries = readGalleries(contentDirectory);
         }
@@ -118,7 +118,7 @@ abstract class VideoBrowser extends ContentBrowser {
     }
 
     @SuppressLint("Range")
-    private List<VideoGalleries.Gallery> readGalleries(YaaccContentDirectory contentDirectory) {
+    private List<MediaGalleries.Gallery> readGalleries(YaaccContentDirectory contentDirectory) {
         List<String[]> rows = new ArrayList<>();
         try (Cursor cursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
                 GALLERY_PROJECTION, mediaPathSelection(), mediaPathArguments().toArray(new String[0]), null)) {
@@ -133,6 +133,6 @@ abstract class VideoBrowser extends ContentBrowser {
                 } while (cursor.moveToNext());
             }
         }
-        return VideoGalleries.group(rows, getContext().getString(R.string.gallery_unnamed));
+        return MediaGalleries.group(rows, getContext().getString(R.string.gallery_unnamed));
     }
 }

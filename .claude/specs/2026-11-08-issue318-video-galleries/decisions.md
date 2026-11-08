@@ -9,7 +9,7 @@ Two buckets with the same name (internal storage and an SD card) are told apart 
 phone to every host of the network; images show both under the same name.
 
 ## 2026-11-08 — Problems found in the image browsers, not part of this change
-- `ImagesByBucketNamesFolderBrowser.browseContainer` cuts the page after the rows (one per image), then removes duplicates: paging through galleries with many images skips or repeats galleries.
+- (fixed later in this branch, see the last entry) `ImagesByBucketNamesFolderBrowser.browseContainer` cuts the page after the rows (one per image), then removes duplicates: paging through galleries with many images skips or repeats galleries.
 - `ImagesByBucketNameFolderBrowser.getName` returns the bucket id (first column of the projection) instead of the bucket name; `getSize` passes the prefix with the id, so the count of a gallery is wrong; the items of a gallery ignore the media paths.
 - `ImagesFolderBrowser.browseContainer` computes its page with an `end` that ignores `start`.
 
@@ -39,3 +39,18 @@ granted tree visible once one folder of it is selected. A document is in the sel
 the folder's id with `/`, as the ids of the external storage are paths), or when the whole tree is selected; for providers whose ids are no paths
 `DocumentsContract.isChildDocument` decides (`SafSelection`, fails closed on an error). The top of a selection has the SAF folder as parent in
 the metadata, so a client does not navigate up into a folder that is not shown. Refusals are logged at debug level (a probing client must not fill the log).
+
+## 2026-11-08 — The list of image galleries is grouped, sorted and paged like the video galleries (owner's report)
+The owner saw the same server twice: the YAACC app listed one image gallery ("Camera"), Home Assistant nine. Cause: the list cut its page
+after the rows of the images (the app asks for 50 at a time, the first 50 images were all of "Camera"; Home Assistant asks for everything), and
+sorted case-sensitively in SQL. `ImagesByBucketNamesFolderBrowser` now reads the rows once, groups them with `MediaGalleries` (renamed from
+`VideoGalleries`; same names, counts and " (2)" counter as the videos), sorts by title without regard to the case and pages the galleries;
+the total is the number of galleries, the child count comes from the grouping (no query per gallery). The metadata of one gallery takes its name and
+count from the same list, so name and count agree with the list. Visible change for images: same-named directories get " (2)", files in the
+root of a volume are in "(root folder)", the order ignores the case. `ImagesFolderBrowser` (fixed two containers) is not touched.
+
+## 2026-11-08 — `ImagesFolderBrowser` pages with `MediaGalleries.page` (owner asked to fix it too)
+Its own arithmetic clamped `start` to the last entry, so a page behind the end (`first >= 2`) returned "Galleries" again instead of nothing (the only defect; the count was
+handled right). It uses the paging of the Videos folder now. The two folders were also built with the page arguments of the caller
+for their metadata; they get `0, 1`, as in the Videos folder (the arguments are not used by them).
+The sort by title ignores the case now, as in the Videos folder (`MediaGalleries::titleKey`).

@@ -52,11 +52,15 @@ public class ImagesByBucketNameFolderBrowser extends ContentBrowser {
 
     @Override
     public DIDLObject browseMeta(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
-        if (getSize(contentDirectory, myId) == 0) {
-            return null; // no such gallery in the media paths
+        String bucketId = myId.substring(ContentDirectoryIDs.IMAGES_BY_BUCKET_NAME_PREFIX.getId().length());
+        // the name comes from the list of all galleries: a gallery named like another one has the same suffix here as there
+        for (MediaGalleries.Gallery gallery : new ImagesByBucketNamesFolderBrowser(getContext()).galleries(contentDirectory)) {
+            if (gallery.id.equals(bucketId)) {
+                return new StorageFolder(myId, ContentDirectoryIDs.IMAGES_BY_BUCKET_NAMES_FOLDER.getId(), gallery.name, "yaacc",
+                        gallery.count, null);
+            }
         }
-        return new StorageFolder(myId, ContentDirectoryIDs.IMAGES_BY_BUCKET_NAMES_FOLDER.getId(), getName(
-                contentDirectory, myId), "yaacc", getSize(contentDirectory, myId), null);
+        return null; // no such gallery in the media paths
     }
 
     @Override
@@ -80,23 +84,6 @@ public class ImagesByBucketNameFolderBrowser extends ContentBrowser {
         args.add(myId.substring(ContentDirectoryIDs.IMAGES_BY_BUCKET_NAME_PREFIX.getId().length()));
         args.addAll(getMediaPathesForLikeClause());
         return args.toArray(new String[0]);
-    }
-
-    private String getName(YaaccContentDirectory contentDirectory, String myId) {
-        String result = "";
-        String[] projection = {MediaStore.Images.Media.BUCKET_DISPLAY_NAME};
-        try (Cursor cursor = contentDirectory
-                .getContext()
-                .getContentResolver()
-                .query(MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-                        projection, bucketSelection(), bucketSelectionArgs(myId), null)) {
-            if (cursor != null && cursor.getCount() > 0) {
-                cursor.moveToFirst();
-                result = cursor.getString(0);
-
-            }
-        }
-        return result;
     }
 
     @Override

@@ -65,10 +65,10 @@ public class VideosFolderBrowser extends ContentBrowser {
                 ContentDirectoryIDs.VIDEOS_BY_BUCKET_NAMES_FOLDER.getId(), 0, 1, orderby));
         // the fixed order "All videos", "Galleries" unless a client asks for a sort
         Map<String, Function<DIDLObject, String>> accessors = new HashMap<>();
-        accessors.put(SortSupport.PROPERTY_TITLE, VideoGalleries::titleKey);
+        accessors.put(SortSupport.PROPERTY_TITLE, MediaGalleries::titleKey);
         Comparator<DIDLObject> fixedOrder = (a, b) -> 0;
         all.sort(SortSupport.toComparator(orderby, accessors, fixedOrder));
-        return VideoGalleries.page(all, firstResult, maxResults);
+        return MediaGalleries.page(all, firstResult, maxResults);
     }
 
     @Override

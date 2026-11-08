@@ -29,13 +29,13 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * The galleries of the videos: one per bucket of the media store (a directory). Pure logic, so that it can be tested without a device.
+ * The galleries of the videos and the images: one per bucket of the media store (a directory). Pure logic, so that it can be tested without a device.
  */
-final class VideoGalleries {
-    private VideoGalleries() {
+final class MediaGalleries {
+    private MediaGalleries() {
     }
 
-    /** One gallery: the bucket id, the name to show (unique among the galleries) and the number of videos. */
+    /** One gallery: the bucket id, the name to show (unique among the galleries) and the number of files. */
     static final class Gallery {
         final String id;
         final String name;
@@ -58,9 +58,9 @@ final class VideoGalleries {
     };
 
     /**
-     * Groups the rows of the media store (one per video) to galleries.
+     * Groups the rows of the media store (one per image or video) to galleries.
      *
-     * @param rows    {bucket id, bucket name} per video, the name may be null
+     * @param rows    {bucket id, bucket name} per file, the name may be null
      * @param unnamed the name of a bucket without one (the files in the root of a volume)
      * @return the galleries in the order the buckets were first seen; two galleries with the same name are told apart by a counter
      * (" (2)", " (3)") in the order of the bucket ids, so the names do not depend on the order of the rows
@@ -106,7 +106,7 @@ final class VideoGalleries {
      * and a client that pages gets every folder once.
      */
     static Comparator<DIDLObject> inTitleOrder() {
-        return Comparator.comparing(VideoGalleries::titleKey)
+        return Comparator.comparing(MediaGalleries::titleKey)
                 .thenComparing(object -> object.getTitle() == null ? "" : object.getTitle())
                 .thenComparing(DIDLObject::getId);
     }

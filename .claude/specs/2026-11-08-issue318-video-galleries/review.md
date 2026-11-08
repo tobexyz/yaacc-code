@@ -230,3 +230,87 @@ Checked and in order:
 
 ### Verdict: PASS
 Zero Critical, zero Warning. The cycle 4 Warning is closed: the selection is checked per selected folder in the metadata, size, both listings and the `/saf/` content, the provider decides for ids that are no paths and any error fails closed, and docs, changelog and decision log match the code.
+
+## Cycle 6 - Image galleries list (owner's report: app 1 gallery, Home Assistant 9) - 2026-11-08
+Reviewing: Group 4 (uncommitted: `git diff HEAD` and the new `ImageGalleryListTest`). Gradle not run (reported by the orchestrator: assembleDebug, 3346 tests, 0 failures, lint 0 issues).
+
+Checked and in order:
+- Cause and fix: the old list cut the page by rows of images (the app's first 50 rows were all "Camera"), sorted in SQL case-sensitively and issued one count query per gallery. `ImagesByBucketNamesFolderBrowser` now reads the rows once per browser (cached in `galleries`), groups with `MediaGalleries.group`, sorts, then pages galleries with `MediaGalleries.page`; `getSize` is `galleries().size()`, so the total and the pages come from the same list. Rows with a null bucket id are skipped (they could never match `bucket_id=?` in the gallery anyway).
+- Paging: `page(all, first, max)` clamps `first` into `[0, size]`, `end = max >= size - start ? size : start + max` (no `start + max` overflow for `Long.MAX_VALUE`, `max` < `size - start` fits an int), a first index beyond the end and `max == 0` give an empty list, a negative `max` gives empty (`Math.max(0, max)`), a negative `first` starts at 0. `MediaGalleriesTest.aPageIsCutFromTheList` covers these (including 99, 5, `Long.MAX_VALUE`); `ImageGalleryListTest` covers it through the browser (`list(7, 3)` is empty, pages 0/3/6 add up to the full list).
+- Sort: ascending default is `inTitleOrder()` (lower-case key, then the title with upper case first, then the id); with a client sort `SortSupport.toComparator(...)` on `dc:title` uses the lower-case key, `.thenComparing(tieBreaker)` keeps the order deterministic for equal keys (the tie-breaker is ascending also for a descending sort, so a page boundary can never repeat or skip a gallery). An unknown sort property falls back to the default. Descending is tested (`Slack, musiccastImages, DCIM, Camera`).
+- Media path filter: the single query of `readGalleries` carries `makeLikeClause`/`getMediaPathesForLikeClause` (escaped LIKE), so list, total and counts only see images in the media paths. `ImagesByBucketNameFolderBrowser.browseMeta` takes name and count from the same list and answers null when the gallery is not in it (outside the media paths, unknown id); `getSize` and `browseItem` keep `bucketSelection()` (id first, then the paths). Nothing reads the media store without the filter. `ImagesFolderBrowser` calls `browseMeta` of the galleries folder, which now goes through `getSize` -> the list.
+- Naming consistency: list and meta use the same `group()` (same " (2)" counter in the order of the bucket ids, same "(root folder)" text), so the name in the gallery equals the name in the list (`theNameInTheGalleryIsTheNameInTheList`); the bucket prefix `210999` is cut the same way in `browseMeta` and `bucketSelectionArgs`.
+- Dead code / imports: `getName` and `getBucketNameFolderSize` are gone; `ImagesByBucketNamesFolderBrowser` imports are all used (`SuppressLint` on `readGalleries`, `Cursor`, `MediaStore`, `Comparator`, `HashMap`, `Map`, `Function`, `R`; `YaaccLogger`, `HashSet`, `LinkedHashMap`, `Set` were removed); `ImagesByBucketNameFolderBrowser` imports all still used (`Cursor`, `MediaStore`, `YaaccLogger`, `Photo`, `MimeType` by `browseItem`/`getSize`). The unused `@SuppressLint("Range")` on `getSize` was removed with the cursor code.
+- Rename: no `VideoGalleries` left in `yaacc/src` (main, test), `docs/`, `README`, `CHANGELOG.md`. Remaining hits are in the spec folder only: `review.md`, `security-review.md` (historic, allowed), `design.md:18,21`, `tasks.md:9,12` (the historic Group 1/2 entries), and `decisions.md:47`/`tasks.md:22` (which name the rename on purpose). `VideoRoutingTest` still routes `200999` / `2109991` to the image browsers.
+- Docs: `docs/index.md` (same-name counter and "(root folder)" now for both kinds, media paths for the images in a gallery, sorting without regard to the case, paged list equals the full list), `CHANGELOG.md` (cause, fix, what changes for images, one query) and `decisions.md` (new entry, and the earlier "problem found" bullet marked fixed) match the code. The second bullet of that earlier entry (`getName` returned the bucket id, wrong count) was fixed in cycle 3/4 and the line is unchanged; not wrong, only older text.
+- Tests: `ImageGalleryListTest` (7 tests) uses a fake cursor that ignores the selection and the paging arguments, so a page cut in SQL or by rows cannot pass: `aPageHoldsGalleriesNotRowsOfImages` (120 rows of "Camera" first, page of 50), pages-add-up, total, case-insensitive sort asc/desc, counts, same names, name in gallery equals name in list. That 6 of 7 fail against the old code is plausible by reading (the old code paged rows, sorted in SQL, counted per query, and had no " (2)"). `MediaPathFilterBrowsersTest` was adapted correctly: one query, no count query per gallery (`assertEquals(1, selections.size())`), the escaped LIKE clause and the media paths as arguments are asserted for both the list and the meta; the outside-the-paths test still pins null / 0 / empty.
+
+### Critical
+- none
+
+### Warning
+- none
+
+### Suggestion
+- [MediaGalleries.java:32, 38, 61, 63] The class Javadoc was widened to videos and images, but the field/param docs still say "the number of videos", "one per video", "per video". Say "media" (or "files") so the shared class reads right.
+- [design.md:18, 21] The design still describes `VideoGalleries` only (Group 2 history). One line "renamed to `MediaGalleries` and shared with the image galleries (Group 4)" would keep the spec and the code in step; not needed for the code.
+- [ImagesByBucketNamesFolderBrowser.readGalleries] Every page request reads one row per image (a library of tens of thousands of photos is an array per row, per request, and the app asks for 50 galleries at a time). Same approach as the video galleries and cheaper than before (no query per gallery); a `GROUP BY` through the query bundle (API 26+) would avoid the rows, but is not worth the churn now.
+- [ImagesByBucketNameFolderBrowser.browseMeta] Constructs a new `ImagesByBucketNamesFolderBrowser` to reuse `galleries()`; fine and package private, but `VideoBrowser` shares this through inheritance. If a third kind appears, move the reading into `MediaGalleries` or a common base.
+- [ImageGalleryListTest] No test for a null bucket id row, for equal lower-case names that differ in case ("camera" / "Camera") in a page boundary, or for the filter on in the list test (covered in `MediaPathFilterBrowsersTest`). Optional.
+- Open from earlier cycles and unchanged: `escape '\'` on a device (Android 11+ strict grammar), filter on with no media path.
+
+### Tests
+- [x] All tests passing (reported by the orchestrator: build, 3346 tests, 0 failures, lint 0 issues; Gradle not run in this review)
+- [x] Coverage adequate for the change: paging (first beyond the end, `Long.MAX_VALUE`, pages add up), total, sort asc/desc, counts, same names, name/count from the same list and the media path filter on list and meta are covered and fail against the row-paged implementation.
+
+### Verdict: PASS
+Zero Critical, zero Warning. The list pages galleries, not rows; total, pages, counts and the metadata of one gallery come from the same grouped list under the same media path filter; no dead code or stale references in source, tests or user docs.
+
+## Cycle 7 - Images folder paging (Group 5) - 2026-11-08
+Reviewing: Group 5 (uncommitted: `git diff HEAD` and the new `ImagesFolderBrowserTest`). Gradle run for the three affected classes only: `ImagesFolderBrowserTest` 5/5, `VideoBrowsersTest` 24/24, `ImageGalleryListTest` 7/7, 0 failures.
+
+Checked and in order:
+- Paging: `ImagesFolderBrowser.browseContainer` ends in `MediaGalleries.page(result, firstResult, maxResults)`, same call as `VideosFolderBrowser`. Sort happens before paging. By reading `page`: (0, MAX) and (1, MAX) give everything / the second; (2, n), (2, MAX), (MAX, 1) clamp `start` to 2 and give an empty list; max 0 gives an empty list (also at start 2, where `0 >= 0` takes `end = size` = `start`); no `start + max` overflow; no `(int)` of a client number except after `max < size - start`.
+- Sort + page: descending `dc:title` gives ["Galleries", "All images"], page (1, 1) of it gives "All images"; no sort keeps the fixed order (the no-op comparator relies on the stable sort).
+- Children ignore the page arguments: `ImagesAllFolderBrowser.browseMeta` and `ImagesByBucketNamesFolderBrowser.browseMeta` only call `getSize(contentDirectory, myId)` (a count query / the grouped list); `firstResult`, `maxResults` and `orderby` are not read. `(0, 1)` is therefore the same as before, and equal to the Videos folder.
+- Tests: with the old arithmetic `aPagePastTheEndIsEmptyNotTheLastFolderAgain` fails (first 2 gave `start = 1`, "Galleries" again) and the other four pass (order, `(0,1)`, `(1,1)`, `(1,MAX)`, `(0,0)`, descending sort and `(1,1)` of it all agreed with the old code), which matches the task note. The tests use the real browser classes with a mocked resolver, so they also pin that the metadata of the two children builds with an empty media store. They are useful as a pin for the shared `page` through this browser.
+- CHANGELOG line: "a client that asked for entries after the two folders got the last folder a second time. It uses the same paging as *Videos* now" is true.
+
+### Critical
+- none
+
+### Warning
+- [decisions.md, last entry] "`(int) maxResults` could wrap for counts above 2^31" is not true of the old code: it reached `start + (int) maxResults` only when `maxResults <= size - 1` (= 1), a larger value took `end = result.size()` first. Nothing wrapped, and `aHugeCountIsNoSmallNumber` passes on the old code (the task says four of five did, consistently). Remove the cast sentence from the decision (the only defect was the page behind the end); the test may stay as a guard but its comment "(int) of it is 1" describes a bug that did not exist. The log is there so nobody re-litigates a decision on a false reason.
+
+### Suggestion
+- [ImagesFolderBrowser.java:70] The accessor is `DIDLObject::getTitle`, `VideosFolderBrowser` uses `MediaGalleries::titleKey` (without regard to the case, as the galleries list and docs/index.md say). With the two English titles it makes no difference; a translation that starts with a lower case letter would sort after upper case ones. Use `titleKey` for both kinds to keep them one behaviour.
+- [ImagesFolderBrowser.java:67-73] The comment above the no-op comparator names "By bucket name"; the folder is called "Galleries". Cosmetic.
+
+### Tests
+- [x] All tests passing (the three affected classes run here: 5 + 24 + 7, 0 failures; the whole suite not run, as agreed)
+- [x] Coverage adequate for the change: past the end, `Long.MAX_VALUE` first and max, max 0, sort ascending/descending and paging after the sort are covered; the past-the-end test fails on the old code.
+
+### Verdict: FAIL
+Code and tests are correct (zero Critical), but one Warning: the decision log gives a defect (int cast wrap) that the old code did not have. Delete that sentence and the verdict is PASS; no code change needed.
+
+## Cycle 8 - Images folder paging, fixes of cycle 7 - 2026-11-08
+Reviewing: the Warning and the Suggestions of cycle 7. The three affected classes run again: `ImagesFolderBrowserTest` 5/5, `VideoBrowsersTest` 24/24, `ImageGalleryListTest` 7/7, 0 failures (whole suite not run).
+
+- Warning closed: the decisions.md entry now names the page behind the end as the only defect ("the count was handled right"); the cast sentence is gone. The test is `aHugeCountGivesBothFolders`, without the comment about the cast.
+- Suggestions taken: the sort accessor is `MediaGalleries::titleKey` (as `VideosFolderBrowser`; a line in decisions.md says so), the comment says "Galleries".
+- No new finding: the diff of `ImagesFolderBrowser` is the two `(0, 1)` calls, the accessor, the comment and `MediaGalleries.page`; `DIDLObject` is still used by the map/comparator types, so the imports stand.
+
+### Critical
+- none
+
+### Warning
+- none
+
+### Suggestion
+- none
+
+### Tests
+- [x] All tests passing (the three affected classes)
+- [x] Coverage adequate for the change
+
+### Verdict: PASS
