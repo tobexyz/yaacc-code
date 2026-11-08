@@ -124,8 +124,8 @@ public class FileDownloader extends AsyncTask<DIDLObject, Void, Void> {
                 upnpClient.getContext(), Yaacc.NOTIFICATION_CHANNEL_ID).setOngoing(true)
                 .setSmallIcon(R.drawable.ic_notification_default)
                 .setSilent(true)
-                .setContentTitle("Yaacc file download")
-                .setContentText("download to: " + outdir);
+                .setContentTitle(upnpClient.getContext().getString(R.string.notification_download_title))
+                .setContentText(upnpClient.getContext().getString(R.string.notification_download_to, outdir));
 
         NotificationManager mNotificationManager = (NotificationManager) upnpClient.getContext()
                 .getSystemService(Context.NOTIFICATION_SERVICE);

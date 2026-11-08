@@ -262,4 +262,28 @@
     <string name="openhome_source_none">设备没有列出任何音源。</string>
     <string name="openhome_action_settings">OpenHome 设置</string>
     <string name="openhome_files_not_supported">此设备只支持 OpenHome，只能播放音乐。</string>
+    <!-- the notification of the player service -->
+    <string name="player_service_title">播放服务</string>
+    <string name="player_service_idle">运行中</string>
+    <string name="player_service_status">%1$s（%2$s）</string>
+    <string name="player_service_state_separator">，</string>
+    <plurals name="player_service_players">
+        <item quantity="other">%d 个播放器</item>
+    </plurals>
+    <plurals name="player_service_playing">
+        <item quantity="other">%d 个播放中</item>
+    </plurals>
+    <plurals name="player_service_paused">
+        <item quantity="other">%d 个已暂停</item>
+    </plurals>
+    <plurals name="player_service_stopped">
+        <item quantity="other">%d 个已停止</item>
+    </plurals>
+    <!-- texts of the notifications -->
+    <string name="notification_upnp_service_title">Yaacc UPnP 服务</string>
+    <string name="notification_no_network_interface">未找到可用的网络接口</string>
+    <string name="notification_indexing">正在索引</string>
+    <string name="notification_player_title">Yaacc 播放器</string>
+    <string name="notification_download_title">Yaacc 文件下载</string>
+    <string name="notification_download_to">下载到：%1$s</string>
 </resources>

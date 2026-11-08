@@ -262,4 +262,32 @@
     <string name="openhome_source_none">Das Gerät meldet keine Quellen.</string>
     <string name="openhome_action_settings">OpenHome-Einstellungen</string>
     <string name="openhome_files_not_supported">Dieses Gerät spricht nur OpenHome und kann nur Musik abspielen.</string>
+    <!-- the notification of the player service -->
+    <string name="player_service_title">Wiedergabedienst</string>
+    <string name="player_service_idle">Läuft</string>
+    <string name="player_service_status">%1$s (%2$s)</string>
+    <string name="player_service_state_separator">", "</string>
+    <plurals name="player_service_players">
+        <item quantity="one">%d Spieler</item>
+        <item quantity="other">%d Spieler</item>
+    </plurals>
+    <plurals name="player_service_playing">
+        <item quantity="one">%d spielt</item>
+        <item quantity="other">%d spielen</item>
+    </plurals>
+    <plurals name="player_service_paused">
+        <item quantity="one">%d pausiert</item>
+        <item quantity="other">%d pausiert</item>
+    </plurals>
+    <plurals name="player_service_stopped">
+        <item quantity="one">%d gestoppt</item>
+        <item quantity="other">%d gestoppt</item>
+    </plurals>
+    <!-- texts of the notifications -->
+    <string name="notification_upnp_service_title">Yaacc UPnP-Dienst</string>
+    <string name="notification_no_network_interface">Keine nutzbare Netzwerkschnittstelle gefunden</string>
+    <string name="notification_indexing">Indiziere</string>
+    <string name="notification_player_title">Yaacc-Spieler</string>
+    <string name="notification_download_title">Yaacc-Dateidownload</string>
+    <string name="notification_download_to">Download nach: %1$s</string>
 </resources>

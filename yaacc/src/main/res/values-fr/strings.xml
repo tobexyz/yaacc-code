@@ -262,4 +262,36 @@
     <string name="openhome_source_none">L\'appareil n\'indique aucune source.</string>
     <string name="openhome_action_settings">Réglages OpenHome</string>
     <string name="openhome_files_not_supported">Cet appareil ne parle qu\'OpenHome et ne peut lire que de la musique.</string>
+    <!-- the notification of the player service -->
+    <string name="player_service_title">Service de lecture</string>
+    <string name="player_service_idle">En cours</string>
+    <string name="player_service_status">%1$s (%2$s)</string>
+    <string name="player_service_state_separator">", "</string>
+    <plurals name="player_service_players">
+        <item quantity="one">%d lecteur</item>
+        <item quantity="many">%d lecteurs</item>
+        <item quantity="other">%d lecteurs</item>
+    </plurals>
+    <plurals name="player_service_playing">
+        <item quantity="one">%d en lecture</item>
+        <item quantity="many">%d en lecture</item>
+        <item quantity="other">%d en lecture</item>
+    </plurals>
+    <plurals name="player_service_paused">
+        <item quantity="one">%d en pause</item>
+        <item quantity="many">%d en pause</item>
+        <item quantity="other">%d en pause</item>
+    </plurals>
+    <plurals name="player_service_stopped">
+        <item quantity="one">%d arrêté</item>
+        <item quantity="many">%d arrêtés</item>
+        <item quantity="other">%d arrêtés</item>
+    </plurals>
+    <!-- texts of the notifications -->
+    <string name="notification_upnp_service_title">Service UPnP Yaacc</string>
+    <string name="notification_no_network_interface">Aucune interface réseau utilisable trouvée</string>
+    <string name="notification_indexing">Indexation</string>
+    <string name="notification_player_title">Lecteur Yaacc</string>
+    <string name="notification_download_title">Téléchargement de fichier Yaacc</string>
+    <string name="notification_download_to">Téléchargement vers : %1$s</string>
 </resources>

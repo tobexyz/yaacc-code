@@ -1253,7 +1253,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
                 .setSilent(true)
                 .setSmallIcon(R.drawable.ic_notification_default)
                 .setLargeIcon(getIcon())
-                .setContentTitle("Yaacc player")
+                .setContentTitle(getContext().getString(R.string.notification_player_title))
                 .setContentText(getShortName() == null ? "" : getShortName());
 
         // Add progress bar if duration is available
