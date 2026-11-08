@@ -40,7 +40,7 @@ In the classic layout all UPnP/DLNA servers in your network are listed on the
 first screen. Select one and the app will automatically switch to the content tab.
 It allows to browse the content provided by the selected server.
 
-![browse_servers](./screenshots/5.1.x/browse_servers.png){:height="30%" width="30%"}
+![browse_servers](./screenshots/6.0.x/browse_servers.png){:height="30%" width="30%"}
 
 Before playing content make sure you have chosen a receiver. In the classic
 layout you tick receivers on the receiver tab. In the new layout there is no
@@ -50,7 +50,7 @@ receivers, see [Choosing receivers](#choosing-receivers-new-layout) and
 Receivers are either UPnP/DLNA media renderers in your network or the
 android device itself.
 
-![browse_receiver](./screenshots/5.1.x/browse_receiver.png){:height="30%" width="30%"}
+![browse_receiver](./screenshots/6.0.x/browse_receiver.png){:height="30%" width="30%"}
 
 Normally senders and receivers will appear automatically.
 If not you can use the refresh button at the bottom of
@@ -140,7 +140,7 @@ ascending or descending. yaacc uses the server's own sort support when browsing
 a UPnP/DLNA server that offers it, falling back to sorting the results itself
 otherwise. The chosen sort order is remembered across app restarts.
 
-![browse_music_folder](./screenshots/5.1.x/browse_music_folder.png){:height="30%" width="30%"}
+![browse_music_folder](./screenshots/6.0.x/browse_music_folder.png){:height="30%" width="30%"}
 
 ### Choosing receivers (new layout)
 
@@ -181,15 +181,15 @@ no player tab: every running player has a row in the mini-player (on the top lev
 the device sheet under the receiver it plays on. Depending on the content type
 and if the content is played by YAACC itself or a network device, the player ui differs.
 
-![browse_player](./screenshots/5.1.x/browse_player.png){:height="30%" width="30%"}
+![browse_player](./screenshots/6.0.x/browse_player.png){:height="30%" width="30%"}
 
 YAACC includes a player for music and image shows.
 Videos are played using a third parties app on the device.
 The video app will start automatically, if video content is selected for playing
 
-![music_player](./screenshots/5.1.x/music_player.png){:height="30%" width="30%"}
+![music_player](./screenshots/6.0.x/music_player.png){:height="30%" width="30%"}
 
-![image_player_show_menu](./screenshots/5.1.x/image_player_show_menu.png){:height="30%" width="30%"}
+![image_player_show_menu](./screenshots/6.0.x/image_player_show_menu.png){:height="30%" width="30%"}
 
 ### Receiver controls
 
@@ -202,7 +202,7 @@ Each renderer displays:
 * Volume control
 * Mute button
 
-![browse_receiver](./screenshots/5.1.x/browse_receiver.png){:height="30%" width="30%"}
+![browse_receiver](./screenshots/6.0.x/browse_receiver.png){:height="30%" width="30%"}
 
 You can control playback directly from the receiver tab without opening the player view.
 The controls work for both local playback and remote UPnP devices.
@@ -305,7 +305,7 @@ In the server control view, you can add SAF folders to share:
 3. Grant permission when prompted
 4. The folder appears in the server content directory
 
-![server_control](./screenshots/5.1.x/server_control.png){:height="30%" width="30%"}
+![server_control](./screenshots/6.0.x/server_control.png){:height="30%" width="30%"}
 
 ### New files and folders
 
@@ -416,7 +416,7 @@ YAACC includes a media server service, which has to be enabled separately.
 A switch for this is located at the bottom of the server list tab
 (in the new layout: at the bottom of the Servers screen).
 
-![browse_servers](./screenshots/5.1.x/browse_servers.png){:height="30%" width="30%"}
+![browse_servers](./screenshots/6.0.x/browse_servers.png){:height="30%" width="30%"}
 
 Depending on the configurations for the server in the settings,
 the server service is used as media provider, media renderer or proxy.
@@ -442,7 +442,7 @@ gallery outside them gets "no such object" (and no thumbnail or cover), and a me
 the name is no wildcard). A folder you deselect in *SAF content* is no longer listed or sent, also not to a client that
 remembers its ids.
 
-![server_control](./screenshots/5.1.x/server_control.png){:height="30%" width="30%"}
+![server_control](./screenshots/6.0.x/server_control.png){:height="30%" width="30%"}
 
 The server control view is accessible through the settings button next to the server
 switch at the bottom of the server list, or the YAACC server service notification.
@@ -612,9 +612,9 @@ is displayed. In the new layout the timer is the symbol in the toolbar instead: 
 while a timer runs to stop it (the remaining time is shown under the title of the toolbar); otherwise a tap opens the
 duration picker, and confirming a duration above 0 starts the timer.
 
-![browse_servers](./screenshots/5.1.x/browse_servers.png){:height="30%" width="30%"}
+![browse_servers](./screenshots/6.0.x/browse_servers.png){:height="30%" width="30%"}
 
-![shutdown_timer](./screenshots/5.1.x/shutdown_timer.png){:height="30%" width="30%"}
+![shutdown_timer](./screenshots/6.0.x/shutdown_timer.png){:height="30%" width="30%"}
 
 ## OpenHome
 

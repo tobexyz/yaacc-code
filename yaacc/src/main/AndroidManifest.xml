@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
-    android:versionCode="50500"
-    android:versionName="5.5.0-SNAPSHOT">
+    android:versionCode="60000"
+    android:versionName="6.0.0">
 
     <!-- Phones have a touchscreen, Android TV boxes usually do not: do not hide the app from TVs -->
     <uses-feature

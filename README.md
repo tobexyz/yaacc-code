@@ -22,8 +22,8 @@ height="80">](https://f-droid.org/packages/de.yaacc/)
 ![Downloads (all time)](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fgithub.com%2Fkitswas%2Ffdroid-metrics-dashboard%2Fraw%2Frefs%2Fheads%2Fmain%2Fprocessed%2Ftotal%2Fde.yaacc.json&query=%24.total_downloads&logo=fdroid&label=Downloads%20(all%20time))
 
 
-<img src="./docs/screenshots/5.4.x/browse_servers.png" alt= “” width="30%" height="30%"> <img src="./docs/screenshots/5.4.x/browse_image_folder.png" alt= “” width="30%" height="30%"> <img src="./docs/screenshots/5.4.x/browse_receiver.png" alt= “” width="30%" height="30%">
-<img src="./docs/screenshots/5.4.x/music_player.png" alt= “” width="30%" height="30%"> <img src="./docs/screenshots/5.4.x/playlist_fully_editable.png" alt= “” width="30%" height="30%"> <img src="./docs/screenshots/5.4.x/image_player_show_menu.png" alt= “” width="30%" height="30%">
+<img src="./docs/screenshots/6.0.x/browse_servers.png" alt= “” width="30%" height="30%"> <img src="./docs/screenshots/6.0.x/browse_image_folder.png" alt= “” width="30%" height="30%"> <img src="./docs/screenshots/6.0.x/browse_receiver.png" alt= “” width="30%" height="30%">
+<img src="./docs/screenshots/6.0.x/music_player.png" alt= “” width="30%" height="30%"> <img src="./docs/screenshots/6.0.x/playlist_fully_editable.png" alt= “” width="30%" height="30%"> <img src="./docs/screenshots/6.0.x/image_player_show_menu.png" alt= “” width="30%" height="30%">
 
 ## Description
 
@@ -34,15 +34,17 @@ in order to play media from your device on any UPnP renderer in your network.
 ## Features
 
 * UPnP/DLNA Server - share files of your device in the network
+* Images and videos are offered in galleries by directory, and as one list of all
 * UPnP/DLNA Client - receive media from other devices on your device
 * UPnP/DLNA Controller - control media renderer in the network
 * Live streaming - stream system audio and screen to network devices (Android 10+)
 * SAF support - browse and share files from external storage, USB drives, SD cards
 * Lock screen controls - hardware volume buttons and media controls
-* Receiver controls - play/pause/stop directly from receiver tab (classic) or the receiver sheet (new layout) with status display
-* Optional single-screen layout with a mini-player (Settings > Appearance > Layout); a fresh install starts in the single screen, an updated installation keeps the classic tabs
+* Receiver controls - play/pause/stop directly from the receiver tab (classic) or the receivers list and sheet (new layout) with status display
+* Single-screen layout (Settings > Appearance > Layout): servers, receivers and the running players on one page; a fresh install starts in the single screen, an updated installation keeps the classic tabs
 * Sort browsed folders by name or date added, with server-side sorting when supported
 * Control multiple media renderer
+* OpenHome: play on OpenHome devices (the device keeps and shows its playlist, which you can edit), and let OpenHome control points play on the app
 * Yamaha MusicCast devices: link them into a group, group volume, now playing and controls of their own sources, presets, device settings (see the documentation)
 * Allow download files to the device
 * Share a link or one audio, video or image file from another app and play it on the receivers you pick
