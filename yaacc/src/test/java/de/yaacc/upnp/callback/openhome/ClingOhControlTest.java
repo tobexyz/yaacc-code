@@ -143,6 +143,18 @@ public class ClingOhControlTest {
     }
 
     @Test
+    public void anAnswerThatFillsTheMemoryIsNoAnswerEither() {
+        try {
+            ClingOhControl.runGuarded(() -> {
+                throw new OutOfMemoryError();
+            });
+            org.junit.Assert.fail();
+        } catch (de.yaacc.openhome.OhControlException e) {
+            org.junit.Assert.assertEquals(de.yaacc.openhome.OhControlException.NO_ANSWER, e.getCode());
+        }
+    }
+
+    @Test
     public void aNormalActionIsJustRun() throws Exception {
         boolean[] ran = new boolean[1];
 

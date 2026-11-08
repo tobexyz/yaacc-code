@@ -22,7 +22,7 @@ import org.fourthline.cling.support.model.DIDLObject;
 import java.net.URI;
 
 /** The album art address of a track. */
-final class AlbumArt {
+public final class AlbumArt {
     private AlbumArt() {
     }
 
@@ -37,7 +37,7 @@ final class AlbumArt {
      * address that is not http or https: the item comes from another device and the app fetches the address (a {@code file:} or
      * {@code content:} address would read from this phone)
      */
-    static URI of(DIDLObject item) {
+    public static URI of(DIDLObject item) {
         if (item == null) {
             return null;
         }

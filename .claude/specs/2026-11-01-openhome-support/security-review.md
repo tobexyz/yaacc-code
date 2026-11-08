@@ -355,3 +355,80 @@ Threat model as before: any LAN host can call every OpenHome action without auth
 - [ ] No test covers the player-level compare with `deviceIds` (a poll of a device whose queue is over the budget calls `queue()` once), a nested SOAP envelope, or a duplicated item in `takeOverFromPlayer`. Suggested, not blocking.
 
 ### Verdict: PASS
+
+## Cycle 5 — 2026-11-08
+Reviewing: commits ade16c7d (size, time and count limits for everything the network sends: the six suggestions of cycle 4) and 776af0ed (start and end of the renderer are never dropped, limits for images and album art relaxed), with decisions.md
+(last three entries). Only this change set. Gradle not run; two things were verified outside the repo with a probe (httpclient5 5.3.1 / httpcore5 5.3.6 from the Gradle cache, program in the scratchpad).
+
+### Critical
+None.
+
+### Warning
+1. [ReceivingSubscribe.java:171-175 (new cap), :146 and :178 (duration taken as requested), cling `LocalGENASubscription.setSubscriptionDuration`, `ExpirationDetails.hasExpired`] **The subscription cap can be filled for good by any host of the network.**
+   The requested `TIMEOUT` of a SUBSCRIBE or renewal is taken over without a limit: `Second-infinite` is `Integer.MAX_VALUE` (about 68 years) and `Second-0` is `UNLIMITED_AGE`, which `hasExpired` never reports as expired, so the
+   maintenance in `LocalItems` never removes such a subscription. The only other way out is `EventDeliveryHealth` (3 failed deliveries in a row), and a subscriber whose callback answers 200, or which simply sees no event because the device
+   is idle, stays. So about 30 SUBSCRIBE requests to one service (100 for all services) with `Second-infinite` and a callback that answers make every other control point get 503 for new subscriptions to that service (or to all) until the
+   app is restarted; control points that need events (Linn Kazoo, BubbleUPnP, Home Assistant for OpenHome state) then show no state. Before the change the same host could only exhaust memory and traffic, so the cap is the right
+   idea, but without a bound on the duration it turns a transient attack into a durable and very cheap lock-out of legitimate controllers, which is the scenario this review was asked to look for.
+   Fix (small): clamp the requested timeout in `processNewSubscription` and `processRenewal` to a range such as 60..1800 s (`Second-0`, `infinite`, missing and larger values give 1800), so a hostile subscriber has to renew every 30 minutes and
+   stays visible; optionally add a per-remote-address share (for example 10 subscriptions per `getInputMessage().getRemoteAddress()` / callback host) next to the global 100 and the 30 per service. A test for the clamp is a one-liner on `Second-infinite`.
+2. [HttpRequestSender.java:170-190 `readBounded` in `createResponse`, called from `send` :101] **The size limit protects the memory, the 120 s deadline and the "stop at the limit" do not work for a body that keeps coming.**
+   `readBounded` throws out of a try-with-resources on the entity stream. In httpclient5 5.3.1 `ResponseEntityProxy.streamClosed` calls `wrapped.close()` ("assumes that closing the stream will consume the remainder"), and httpcore5
+   5.3.6 `ChunkedInputStream.close()` / `ContentLengthInputStream.close()` read and discard the rest of the body. So when the limit or the deadline is hit, the exception is only delivered after the rest of the answer has been drained.
+   Probe: a server that sends an endless-style chunked body for 8 s, limit 1 MiB, deadline 2 s: `execute` threw "too large" after 8179 ms (that is, when the server stopped). With a body that never ends (or one byte every few seconds, under the 10 s socket
+   timeout), the caller thread, and one of the 25 connections of the shared `PoolingHttpClientConnectionManager` (5 per route), is held for ever. The same `send` is used for descriptor retrieval of every device that is announced
+   (`RetrieveRemoteDescriptors`), for all SOAP actions (`SendingAction`), and for the delivery of events to subscribers (`SendingEvent`): a hostile host that announces a device, or subscribes with up to 30 callbacks on different ports and
+   answers the event POST with an endless chunked body, pins the pool until nobody can browse or control. Only an honest `Content-Length` above the limit is refused before streaming (that path does not drain). Memory is safe (the
+   main point of cycle 4 item 3), threads and connections are not, and the decision text "read up to 32 MiB and 120 s" is not what happens.
+   Fix (a few lines): do not close the entity stream on the failure path. Read without try-with-resources, close it only after a complete read, and on the limit / deadline exception abort the request (`request.abort()` / `HttpUriRequestBase.cancel()`)
+   or just let the exception leave `execute`, whose `response.close()` discards the connection without draining. A test that serves a never-ending chunked body from a local server and asserts that `send` returns within the deadline plus
+   one socket timeout.
+
+### Suggestion
+1. [AndroidOhThreads.java:60-69 `work`, BoundedWork.java:33] The cap of 2000 waiting tasks keeps the memory in bounds but is shared by all senders: a host that fills it makes the commands of real control points disappear with a 200 answer (the SOAP
+   answer is sent before the worker runs). Before, they were delayed for minutes instead, so this is no new exposure (UPnP has no authentication; the same host can send Stop), and the dropped `Play`/`Pause` is repaired by the next action; the
+   renderer's own `refreshNow` poll is not dropped (`every` is not counted). Optionally count per remote address, or give `Stop` a reserved slot. Not blocking.
+2. [ClingOhControl.java:155, HttpRequestSender.MAX_RESPONSE_BYTES = 32 MiB] A 32 MiB SOAP answer is parsed by the DOM parser of Cling; an answer of tiny nested elements is far larger as a tree than as text, and `runGuarded` only catches
+   `StackOverflowError`, not `OutOfMemoryError` (the image downloader does). A hostile device could still end the app by memory with an answer that is within the limit. Catch `OutOfMemoryError` next to `StackOverflowError` (NO_ANSWER), and
+   use a lower limit (4-8 MiB) for everything that is not a ContentDirectory action. The nested-answer part of the old suggestion is closed.
+3. [ImageDownloader.java:86 and :155-170] The cap of 64 MiB means up to about three times that in memory while reading (`ByteArrayOutputStream` growth plus `toByteArray`), 10 parallel pool threads for thumbnails; the `OutOfMemoryError` catch
+   helps only for the thread that fails first. There is no total deadline (30 s read timeout per read, so a drip feed holds a pool thread; accepted in decisions.md). Suggest 16 MiB for thumbnails and album art (`retrieveImageWithCertainSize`
+   with 512 px), the full size only for the viewer, and a deadline in `readAllBytes`.
+4. [BrowseContentItemAdapter.java:774, :481 area, AVTransportPlayerWrapper.java:481] Still unfiltered: the `albumArtURI` of a ContentDirectory item or of an AVTransport renderer goes to the downloader with any scheme (`file:`, `jar:` read from this phone
+   and shown as a thumbnail only; `http://127.0.0.1:...` is a blind GET). Use `AlbumArt.of` there too. Pre-existing, accepted.
+5. [ReceivingSubscribe.java:171-175] Check and add are not atomic (accepted in decisions.md); the overshoot is bounded by the number of concurrent handler threads, so it is harmless.
+6. [UpnpClient.java:333, 346, 360, 374, 387, 406] `getDisplayString()` of remote devices is still logged raw (verbose level only; the cleaned `logDevicesOnce` is info). `LogText.clean` removes ASCII control characters only (not U+0085, U+2028/2029); fine for logcat.
+7. [OhPlayableItems.java:57-58] A device track whose address `OhUriPolicy` refuses (host with underscore such as `nas_01`, user info) now gets a null `Uri` in the mirror. Players only send `isSendable` items, `FileDownloader` and the share action in
+   `BrowseContentItemAdapter` call `getUri().toString()` but are not reached from the OpenHome mirror; if a "share" or "download" action is ever added to the OpenHome queue screen, it must check for null.
+8. [BoundedEntityConsumer.java:36-42] The body limit throws from `data()`; there is no overall deadline for a slow request body (the reactor's idle timeout applies), and a 413 answer is not sent (accepted in decisions.md).
+
+### What was checked and is fine
+- **Nested SOAP answer -> NO_ANSWER** (`ClingOhControl.runGuarded`): wraps the whole `ActionCallback.run()` (send, read, parse); the exception type is `OhControlException.NO_ANSWER`, so `unreachable` handling is unchanged; the other callers of Cling
+  actions in the app are not covered (old remark, see Suggestion 2).
+- **Image downloader**: http(s) uses `URLConnection` with 5 s connect / 30 s read timeouts and `readAllBytes(in, 64 MiB)` (exception before the buffer grows past the limit, `long` arithmetic, no overflow); the stream is closed in try-with-resources
+  (Android's HttpURLConnection discards the rest); `OutOfMemoryError` and `Exception` are caught in the same try; other schemes keep the old `getContent()` behaviour. `OpenHomePlayer.artMayBeFetched`: synchronized, 32 addresses of at most 4096
+  characters (`OhUriPolicy`) are kept, one attempt per address and minute; a device that cycles through more than 32 addresses only gets a retry earlier, no unbounded growth.
+- **HttpRequestSender.readBounded**: refuses an honest `Content-Length` over the limit before reading, counts the decoded bytes (so a gzip bomb is cut at 32 MiB), `long` arithmetic, returns null for no entity as `EntityUtils` did (see Warning 2 for the close).
+- **BoundedEntityConsumer** in both server request handlers (`YaaccUpnpServerProtocolRequestHandler`, `YaaccUpnpServerContentHttpHandler`): counts the bytes of the body that reach `data()`, chunked and with `Content-Length`; over 2 MiB it throws and the
+  connection is closed by the reactor (the handlers' `Throwable` -> 500 path still applies to what gets through); a real SOAP / SUBSCRIBE request is a few KB. No other consumer of request bodies was left.
+- **LogText.clean**: null-safe, cuts to 200 before replacing `\p{Cntrl}`, used for fault texts, image errors, the device list; the device list still prints the registry content at info only.
+- **albumArtURI**: `AlbumArt.of` returns only http/https URIs (null scheme and empty are null); the OpenHome controller side (`getAlbumArt`) is stricter (`OhUriPolicy`); `AVTransportPlayer` and `LocalMediaSessionPlayer` use `AlbumArt.of`.
+- **Duplicate item in `takeOverFromPlayer`**: identity set, the repeat is added to `refused` and removed from the player in descending index order, an unremovable one falls back to `discardPlayer()`; `order` has no duplicates, so the
+  `IndexOutOfBounds` of cycle 4 cannot occur.
+- **Lifecycle bypass** (`AndroidOhThreads.lifecycle`): called only from `OpenHomeRenderer.start()/shutdown()` (app side, not reachable from the network), not counted, so it cannot unbalance `BoundedWork`; a rejected execute after `close()` is logged
+  and ignored. `work` pairs every `tryAcquire` with exactly one `done()` (finally in the task, or the `RejectedExecutionException` path); `BoundedWork` is a CAS loop, correct. The default `lifecycle` in the interface falls back to `work`. The cap of 2000 is above a
+  full load (1000); the log line is rate limited (every hundredth drop).
+- **Subscription counting**: `RegistryImpl.getLocalSubscriptionCount` is synchronized like the other registry methods and counts by identity of the `LocalService`; renewals are not counted again (separate branch before the check); refused
+  subscriptions get 503 and are not registered; `Registry` interface change is compile-checked (HEAD is green).
+- **OhPlayableItems / address policy**: the DIDL of the device is kept, but the mirror's `Uri` is only set for addresses `OhUriPolicy` accepts; sending back goes through `isSendable` as before.
+- No secrets, no new permissions or exported components, no new dependency in the two commits; `CHANGELOG.md` and decisions.md edits only.
+
+### Tests
+- [x] Not run by me (instruction). Orchestrator: HEAD green, 3223 tests, lint 0.
+- [x] New tests exist for: nested answer (`ClingOhControlTest`), bounded reads (`HttpRequestSenderBoundedReadTest`, `BitmapSamplingReadTest`), `BoundedEntityConsumerTest`, `ReceivingSubscribeLimitTest` (mocks the count, so it does not show that a duration is bounded),
+  `BoundedWorkTest`, lifecycle under flood (`OpenHomeRendererTest`), `LogTextTest`, `AlbumArtTest`, `OhPlayableItemsTest`, duplicate (`OpenHomeRendererTest`).
+- [ ] `HttpRequestSenderBoundedReadTest` reads from an in-memory entity; it does not run through httpclient5's streams, so it cannot show Warning 2 (the probe did). No test covers a `Second-infinite` / `Second-0` SUBSCRIBE (Warning 1).
+
+### Verdict: FAIL
+Two Warnings (1: cap can be held for good because the subscription timeout is unbounded; 2: `readBounded` drains the rest of the body when it closes the stream, so the deadline and the stop at the limit do not release the thread / connection). Both fixes are a few
+lines. The six suggestions are otherwise closed as described; no Critical.

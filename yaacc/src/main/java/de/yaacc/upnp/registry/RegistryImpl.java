@@ -348,6 +348,10 @@ public class RegistryImpl implements Registry {
         return localItems.countSubscriptions(service);
     }
 
+    synchronized public int getLocalSubscriptionCountForHost(String host) {
+        return localItems.countSubscriptionsForHost(host);
+    }
+
     synchronized public LocalGENASubscription getLocalSubscription(String subscriptionId) {
         return localItems.getSubscription(subscriptionId);
     }

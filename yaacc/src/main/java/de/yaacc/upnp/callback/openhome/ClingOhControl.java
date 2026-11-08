@@ -147,13 +147,15 @@ public final class ClingOhControl implements OhControl {
 
     /**
      * Runs the action. The answer of a device is parsed as XML; one that nests its elements without end overflows the stack of the
-     * parser, which must not end the thread of the caller: it is no answer.
+     * parser, and one with millions of tiny elements fills the memory. Neither must end the thread of the caller: it is no answer.
      */
     static void runGuarded(Runnable action) throws OhControlException {
         try {
             action.run();
         } catch (StackOverflowError e) {
             throw new OhControlException(OhControlException.NO_ANSWER, "the answer of the device is nested too deeply");
+        } catch (OutOfMemoryError e) {
+            throw new OhControlException(OhControlException.NO_ANSWER, "the answer of the device is too big for the memory");
         }
     }
 

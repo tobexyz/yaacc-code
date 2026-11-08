@@ -67,8 +67,11 @@ public class HttpRequestSender {
      */
     static final Timeout CONTENT_DIRECTORY_RESPONSE_TIMEOUT = Timeout.of(30, TimeUnit.SECONDS);
 
-    /** The most bytes of the body of an answer that are read (a Browse of a huge folder is some megabytes). */
+    /** The most bytes of the body of the answer to a ContentDirectory action (a Browse of a huge folder is some megabytes). */
     static final int MAX_RESPONSE_BYTES = 32 * 1024 * 1024;
+
+    /** The most bytes of any other answer: descriptions, control and event answers are some kilobytes. */
+    static final int MAX_OTHER_RESPONSE_BYTES = 8 * 1024 * 1024;
 
     /** How long reading the body of an answer may take altogether; the socket timeout only limits the wait for the next bytes. */
     static final long RESPONSE_DEADLINE_MILLIS = 120_000;
@@ -76,8 +79,17 @@ public class HttpRequestSender {
     private static final String CONTENT_DIRECTORY_SERVICE_TYPE = ":service:ContentDirectory:";
 
     final private CloseableHttpClient httpClient;
+    private final int maxResponseBytes;
+    private final long responseDeadlineMillis;
 
     public HttpRequestSender() {
+        this(MAX_RESPONSE_BYTES, RESPONSE_DEADLINE_MILLIS);
+    }
+
+    /** For tests: other limits for the body of an answer. */
+    HttpRequestSender(int maxResponseBytes, long responseDeadlineMillis) {
+        this.maxResponseBytes = maxResponseBytes;
+        this.responseDeadlineMillis = responseDeadlineMillis;
         PoolingHttpClientConnectionManager connectionManager = new PoolingHttpClientConnectionManager();
         connectionManager.setDefaultConnectionConfig(ConnectionConfig.custom()
                 .setConnectTimeout(Timeout.of(5, TimeUnit.SECONDS))  // Connection timeout
@@ -98,7 +110,16 @@ public class HttpRequestSender {
         if (isContentDirectoryAction(requestMessage)) {
             request.setConfig(RequestConfig.custom().setResponseTimeout(CONTENT_DIRECTORY_RESPONSE_TIMEOUT).build());
         }
-        return httpClient.execute(request, this::createResponse);
+        int limit = isContentDirectoryAction(requestMessage) ? maxResponseBytes : Math.min(maxResponseBytes, MAX_OTHER_RESPONSE_BYTES);
+        return httpClient.execute(request, response -> {
+            try {
+                return createResponse(response, limit);
+            } catch (IOException | RuntimeException e) {
+                // the connection is dropped at once: leaving the handler would read the rest of a body that may never end
+                request.abort();
+                throw e;
+            }
+        });
     }
 
     private static boolean isContentDirectoryAction(StreamRequestMessage requestMessage) {
@@ -175,27 +196,33 @@ public class HttpRequestSender {
             throw new IOException("the answer is larger than " + maxBytes + " bytes");
         }
         long end = System.nanoTime() + deadlineMillis * 1_000_000L;
-        try (InputStream in = entity.getContent()) {
-            if (in == null) {
-                return null;
-            }
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
-            byte[] chunk = new byte[8192];
-            int read;
-            while ((read = in.read(chunk)) != -1) {
-                if (out.size() + (long) read > maxBytes) {
-                    throw new IOException("the answer is larger than " + maxBytes + " bytes");
-                }
-                out.write(chunk, 0, read);
-                if (System.nanoTime() - end > 0) {
-                    throw new IOException("the answer took longer than " + deadlineMillis + " ms");
-                }
-            }
-            return out.toByteArray();
+        InputStream in = entity.getContent();
+        if (in == null) {
+            return null;
         }
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        byte[] chunk = new byte[8192];
+        int read;
+        while ((read = in.read(chunk)) != -1) {
+            if (out.size() + (long) read > maxBytes) {
+                // the stream is NOT closed here: closing reads the rest of the body, which may never end. The exception leaves
+                // the client, which drops the connection.
+                throw new IOException("the answer is larger than " + maxBytes + " bytes");
+            }
+            out.write(chunk, 0, read);
+            if (System.nanoTime() - end > 0) {
+                throw new IOException("the answer took longer than " + deadlineMillis + " ms");
+            }
+        }
+        in.close(); // read completely: the connection goes back to the pool
+        return out.toByteArray();
     }
 
     protected StreamResponseMessage createResponse(ClassicHttpResponse response) throws IOException {
+        return createResponse(response, maxResponseBytes);
+    }
+
+    private StreamResponseMessage createResponse(ClassicHttpResponse response, int maxBytes) throws IOException {
         YaaccLogger.d(getClass().getName(), "Received response code: " + response.getCode());
         UpnpResponse.Status mappedStatus = UpnpResponse.Status.getByStatusCode(response.getCode());
         UpnpResponse responseOperation;
@@ -223,7 +250,7 @@ public class HttpRequestSender {
         }
         responseMessage.setHeaders(headers);
         // Body
-        byte[] bytes = readBounded(response.getEntity(), MAX_RESPONSE_BYTES, RESPONSE_DEADLINE_MILLIS);
+        byte[] bytes = readBounded(response.getEntity(), maxBytes, responseDeadlineMillis);
         if (bytes != null && bytes.length > 0 && responseMessage.isContentTypeMissingOrText()) {
             YaaccLogger.d(getClass().getName(), "Response contains textual entity body, converting then setting string on message");
             try {
