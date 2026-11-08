@@ -37,18 +37,18 @@ the content of a server both stay. The Receivers header has no second refresh bu
 the Players header. The activity binds the bar and the mini-player only while the content is on top, the page binds its own player rows only
 while it is started.
 
-## 2026-11-08 — Larger section names (owner's request)
-The section names (Servers, Receivers, Players) use the large text appearance (22sp instead of 18sp) and their icons are 36dp instead of 32dp.
-A style change only; checked by the resource tests, no separate review cycle.
+## 2026-11-08 — Style changes after the owner tried the page (no separate review cycle)
+- Section names are 22sp (was 18sp), their icons 36dp (was 32dp).
+- The player rows have the spacing of the other cards: `MiniPlayerAdapter(actions, cardSpacing = true)` sets `cardUseCompatPadding` and clears the margins,
+  the relative `layout_marginStart/End` too (`setMargins` does not clear them). The bar below the content keeps its tight rows.
+- Every player was listed twice (under its receiver and in the Players section): the page's receiver list is `DeviceSheetAdapter.receiversOnly`
+  (`listsRow` decides); the sheet and the picker are unchanged.
+- Line above the server footer (it was the line of the bottom stack); the Spanish, French and Portuguese "Players" are Reproductores, Lecteurs, Reprodutores (the tab titles read as game players).
 
-## 2026-11-08 — The player rows have the spacing of the other cards (owner's request)
-The mini-player rows are tight (2dp margin) because they sit in a small bar below the content. As the Players section of the page they get the
-spacing of the server and receiver cards: `MiniPlayerAdapter(actions, cardSpacing = true)` sets `cardUseCompatPadding` on the row card and
-removes its margin (page mode of `MiniPlayerBar` only; the bar below the content is unchanged). A style change; no separate review cycle.
-
-## 2026-11-08 — No player rows under the receivers on the page; side margins of the player rows (owner approved after seeing the page)
-The screenshots showed every player twice: under its receiver (the sheet's session rows) and in the Players section. The page's receiver list is
-`DeviceSheetAdapter.receiversOnly` (no session rows; `listsRow` decides, the sheet and the picker are unchanged). The player rows were
-narrower than the cards: the row declares `layout_marginStart/End`, which `setMargins(0,0,0,0)` does not clear; `setMarginStart(0)` and
-`setMarginEnd(0)` are called too. Style/list change; no separate review cycle.
+## Open follow-ups (not in this change)
+- `RendererStatusMonitor` never drops the poll chain of a device that left the registry; `ReceiverRowBinder` logs some device strings uncleaned.
+- The Players rows are emptied on `onStop` and refilled on `onStart` (a short flicker, album art looked up again).
+- D-pad focus on a TV after a rebuild of the receiver rows (no stable ids across the parts) is not checked.
+- The bind rule of the bottom stack (started and content on top) and `ReceiverLiveUpdates.forApp` are only reviewed, not unit-tested.
+- Once in the full suite `OpenHomeRendererTest.thePlayerIsOnlyTouchedOnItsOwnThread` failed (no player created); it passed alone and on the rerun. Cause not found.
 

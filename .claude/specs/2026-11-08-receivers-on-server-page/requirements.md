@@ -1,36 +1,38 @@
-# Receivers on the top-level page (new layout)
+# Receivers and players on the top-level page (new layout)
 
 ## Problem Statement
-Receivers got as important as servers, but in the new layout they are only reachable through the receiver bar at the bottom (a half-height
-modal sheet, whose text can say "No receiver playing"). The top-level page lists the servers only. The server button in the header of the
-content list uses the broadcast icon without any hint what it leads to, and the page it leads to ("Servers") shows no icon.
+Receivers got as important as servers, but in the new layout they were only reachable through the receiver bar at the bottom (a half-height
+modal sheet whose text can say "No receiver playing"), next to a mini-player of the running players. The top-level page listed the servers
+only, and the server button in the header of the content list used the broadcast icon without any hint where it leads.
 
-## Goals
-- The top-level page of the new layout has two sections in one scrolling list: **Servers** (with the card "Play from this device") and
-  **Receivers** (every receiver with its controls and the yaacc players running on it, the rows of the device sheet).
-- Both section headers show their icon in front of the label (broadcast icon for servers, devices icon for receivers), the same icons
-  the rows, the content footer and the receiver bar use.
-- Device search: one refresh button, in the Servers header (one search finds servers and receivers).
-- While only this phone is listed as a receiver (the local renderer is always in the list), the Receivers section shows the hint "No other receivers found yet.".
-- The receiver rows are live like in the sheet: status of the receivers, group/power/source of devices with group support, local status,
-  volume and mute of the visible rows, new/ended players, and receivers that are found after the page started. Updates run only while the page is started and are dropped when it stops.
-- The server button in the header of the content list says what it is: tooltip on long press (the existing content description).
-- A third section, **Players**: the running players as the compact rows of the mini-player (hidden with its header while no player runs). The receiver bar and the mini-player at the bottom are only shown below the content of a server; the top level has the sections instead (owner's request after trying it). The device sheet is unchanged.
-- A thin line separates the sections.
+## Goals (as built)
+- The top level of the new layout is one scrolling list in three sections with a thin line between them:
+  **Servers** (the servers, the card "Play from this device", the one refresh button), **Receivers** (every receiver with the rows and controls
+  of the device sheet) and **Players** (the running players as the compact rows of the mini-player; the section and its header are only there
+  while a player runs).
+- Every header shows the icon of its kind of device in front of its (large) name: broadcast icon for servers, devices icon for receivers,
+  playlist icon for players. One refresh button, in the Servers header: one search finds servers and receivers.
+- The receiver rows are live like in the sheet: status, group/power/source of devices with group support, local status, volume and mute of the
+  visible rows, receivers found after the page started. Updates run only while the page is started and are dropped when it stops.
+- While only this phone is listed (the local renderer is always in the list), the Receivers section says "No other receivers found yet.".
+- Every player is listed once on the page (in the Players section, not under its receiver); the device sheet and the picker are unchanged.
+- The receiver bar and the mini-player at the bottom are shown below the content of a server only; the top level has the sections instead.
+- The server button in the header of the content list shows its name on a long press.
 
 ## Non-Goals
-- The classic layout (tabs): unchanged, it keeps its Receiver tab.
-- A receiver icon in the content header, a segmented control/tabs on the top level.
-- A different sheet (the sheet stays modal and half height).
+- The classic layout (tabs): unchanged, it keeps its Receiver tab and its footer.
+- A receiver icon in the content header, tabs or a segmented control on the top level.
+- A different sheet (it stays modal, half height, with the player rows under the receivers).
 - Selection checkboxes on the receiver rows (receivers are chosen per action in the picker).
 
 ## Success Metrics
-- Server page: header "Servers" with icon, servers, "Play from this device", header "Receivers" with icon, receivers with their players.
-- Opening and closing the page does not leak subscriptions (status monitor, group feed, player list listener, poller, volume updater).
-- Unit tests: lifecycle of the live updates (start/stop/restart, nothing after stop, refresh only when the list is stale), resources
-  (layouts, ids, strings in 7 locales). Build gate green, lint 0.
+- Page: header "Servers", servers, the pick card, line, header "Receivers", receivers, line, header "Players", players.
+- Opening and closing the page leaks no subscriptions (status monitor, group feed, player list listener, poller, volume updater, executors).
+- Unit tests for the lifecycle of the live updates, the cap and the coalescing, the positions in a `ConcatAdapter`, the resources (layouts,
+  ids, strings in 7 locales). Build, tests and lint green, lint 0.
 
 ## Constraints
-- Plain JVM unit tests; `assembleDebug testDebugUnitTest lintDebug` stays green.
-- Android TV: the headers' refresh buttons are focusable, the label is not; the rows keep their D-pad handling.
-- Untrusted LAN strings (names of devices, tracks) only through `setText` as in the sheet.
+- Plain JVM unit tests (`android.database.Observable` of the platform stub has no observer list: adapters cannot notify there).
+- Android TV: the refresh button is focusable, the labels are not; the rows keep their D-pad handling.
+- Untrusted LAN strings (names of devices, tracks, art URIs) only through `setText` / `IconDownloadTask`, as in the sheet and the mini-player.
+- At most 64 receivers are listed and polled (a host of the network can announce any number of devices).
