@@ -1009,14 +1009,41 @@ final class ReceiverRowBinder {
             return;
         }
         Player player = primaryPlayer(device);
-        if (player == null && !isLocalDevice(device) && de.yaacc.player.OpenHomeChoice.useOpenHome(context, device, true)) {
+        if (player == null && !isLocalDevice(device) && de.yaacc.player.OpenHomeChoice.useOpenHome(context, device, true)
+                && !executorService.isShutdown()) {
             // an OpenHome device keeps its playlist itself: it may play already, started by another controller or before the app
-            // was reinstalled. The player only shows what the device has.
-            player = upnpClient.attachOpenHomePlayer(device);
+            // was reinstalled. The player only shows what the device has. The player service may have to be started first: that
+            // waits, so not on the main thread.
+            android.os.Handler main = new android.os.Handler(android.os.Looper.getMainLooper());
+            attachInBackground(executorService, () -> upnpClient.attachOpenHomePlayer(device),
+                    attached -> main.post(() -> openPlayer(context, attached)));
+            return;
         }
         if (player != null) {
             openPlayer(context, player);
         }
+    }
+
+    /**
+     * Gets the player of a device that plays already on a background thread and hands it over when there is one.
+     *
+     * @param attach what makes the player (it may take a while)
+     * @param opened gets the player, called on the background thread
+     */
+    static void attachInBackground(java.util.concurrent.Executor background, java.util.function.Supplier<Player> attach,
+                                   java.util.function.Consumer<Player> opened) {
+        background.execute(() -> {
+            try {
+                Player attached = attach.get();
+                if (attached != null) {
+                    opened.accept(attached);
+                } else {
+                    YaaccLogger.w(ReceiverRowBinder.class.getName(), "No player for the OpenHome device: the player service is not there");
+                }
+            } catch (RuntimeException e) {
+                YaaccLogger.w(ReceiverRowBinder.class.getName(), "The OpenHome device could not be opened", e);
+            }
+        });
     }
 
     /**
