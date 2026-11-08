@@ -50,7 +50,7 @@
 
 ## 2026-11-08 — The six suggestions of security review cycle 4 done
 **Context**: The owner asked for all six suggestions of cycle 4 (they do not block the verdict).
-**Decision** (limits chosen so that no real use hits them):
+**Decision** (superseded in part by the next entry: images 64 MiB and 30 s read timeout, 2000 waiting tasks; limits chosen so that no real use hits them):
 1. `ClingOhControl.runGuarded`: a `StackOverflowError` while a device's SOAP answer is parsed is "no answer" (`OhControlException.NO_ANSWER`).
 2. `ImageDownloader`: http(s) images are fetched with 5 s connect and 10 s read timeouts and at most 32 MiB; an `OutOfMemoryError` gives no image. `OpenHomePlayer.getIcon` starts a download of one address at most once a minute (32 addresses remembered). `AlbumArt.of` (renderer side, also the AVTransport renderer) only returns http(s) addresses.
 3. `HttpRequestSender.readBounded`: answers are read up to 32 MiB and 120 s. The server's request bodies (`BoundedEntityConsumer`) are limited to 2 MiB.
@@ -63,3 +63,6 @@
 **Context**: The review of the hardening commit found one Warning: the cap on waiting tasks also dropped `start()` and `shutdown()` of the renderer.
 **Decision**: Start and end go through `Threads.lifecycle`, which is never counted or dropped; the cap is 2000 (a full playlist load is 1000 tasks); the log of dropped tasks is one line per hundred. Of the suggestions: album art only needs `http`/`https` as scheme (hosts like `nas_01` are no valid `java.net.URI` hosts but real addresses); images up to 64 MiB and 30 s read timeout. Not done (low value): atomic check-and-add of subscribers, a 413 answer for long request bodies, a total deadline for images, cleaning the other log lines that print device names, import cleanup.
 **Rationale**: The Warning loses the end of the renderer under load; the rest are limits chosen so real use does not meet them.
+
+## 2026-11-08 — Album art of an OpenHome device keeps the strict address check
+`OpenHomePlayer.getAlbumArt` uses `OhUriPolicy` (host without underscore, no user info), the other players only check the scheme. A device whose address has an underscore in the host name gets no album art in the notification on an OpenHome player; accepted: the same address would be refused as a track address, and it is a rare naming.

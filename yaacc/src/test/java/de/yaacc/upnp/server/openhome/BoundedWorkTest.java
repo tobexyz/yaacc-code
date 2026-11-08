@@ -44,6 +44,6 @@ public class BoundedWorkTest {
 
     @Test
     public void theDefaultLimitIsFarAboveWhatAControlPointSends() {
-        assertTrue(BoundedWork.MAX_WAITING >= 200);
+        assertTrue(BoundedWork.MAX_WAITING >= 1000);
     }
 }

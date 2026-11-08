@@ -553,3 +553,51 @@ Reviewing: HEAD ade16c7d "size, time and count limits for everything the network
 
 ### Verdict: FAIL
 One Warning (life-cycle tasks `start`/`shutdown` fall under the drop cap, so an orphaned player and no poll are possible under a flood or a large playlist load). No Critical. Everything else is a Suggestion.
+
+## Cycle 9 - fix of cycle 8 — 2026-11-08
+Reviewing: HEAD 776af0ed "start and end of the renderer are never dropped, limits for images and album art relaxed" (the Warning of cycle 8 and its suggestions)
+
+### Critical
+- none
+
+### Warning
+- none
+
+### Suggestion
+- [AndroidOhThreads.java:59-66] `dropped` is never reset, so after a first flood of e.g. 150 drops a later small flood (fewer than 100 drops) may log nothing at all; and the fully qualified
+  `java.util.concurrent.atomic.AtomicInteger` should be an import (the file already imports from `java.util.concurrent`). Overflow is harmless: after 2^31 drops the value wraps negative, `% 100` is then
+  <= 0 and still hits 0 once per hundred.
+- [AndroidOhThreads.java:85-92] `lifecycle()` itself is untested (the class needs `Looper`; no Robolectric test); the test only proves that `start`/`shutdown` call `lifecycle`. The branch is a three-line copy of
+  `work()` without the counter, so the risk is low. Note the task still queues behind up to 2000 waiting tasks (FIFO), i.e. `shutdown` is late, not lost; acceptable.
+- [BoundedWorkTest.java:47] `MAX_WAITING >= 200` no longer states the reason for the value (a 1000-track load); `>= 1000` would pin the decision made in cycle 8.
+- [OpenHomePlayer.java:715 vs AlbumArt.java:46] The OpenHome device's own `getAlbumArt()` still uses `OhUriPolicy`, so a device with a host like `nas_01` gets no art in the notification of the OpenHome player, while the
+  other players now show it. Intended (the policy is the one of the OpenHome mirror) but inconsistent; decide and say so in decisions.md or use the same scheme check.
+- [decisions.md hardening entry, items 2 and 6] still say "10 s read timeout / 32 MiB" and "beyond 500 waiting ones"; superseded by the cycle 8 entry (64 MiB, 30 s, 2000), a reader of only the first entry is misled.
+- [AlbumArt.java:46] With the scheme-only check the length, control character and user-info limits of `OhUriPolicy` no longer apply to album art of the AVTransport and local players (same as before the hardening
+  commit; the Android `URL` fetch handles them). Fine; named only for completeness.
+
+### Checked and fine
+1. `Threads.lifecycle` default `work(work)`: inside the interface the parameter name does not shadow the method call (compiles, behaviour is `work`), so any other implementation (the test `Threads` at
+   OpenHomeRendererTest:808 and :928 implement only the abstract methods and inherit the default) keeps working. `AndroidOhThreads.lifecycle`: not counted, wrapped by `guarded` (a RuntimeException does not end the
+   worker), `RejectedExecutionException` logged at debug level. Counting is balanced: `work()` still releases in `finally` and on rejection; `lifecycle` never acquires, so never needs `done()`.
+2. `OpenHomeRenderer.start/shutdown`: both use `lifecycle`; `shutdown` queues the task (stop poll, `discardPlayer`) and only then `threads.close()` -> `worker.shutdown()`, which runs queued tasks first
+   (javadoc of `close`: "runs what is queued"), so the order "discardPlayer, then close" holds; periodic tasks are cancelled by `stopPolling.run()` and by the shutdown policy. No other caller of `threads.work` is a
+   life-cycle task (`YaaccUpnpServerService:1015` only constructs; start/shutdown are the two entry points).
+3. `BoundedWork` 2000: 1000 `trackInserted` tasks of a full playlist load plus normal traffic fit; memory bound stays small (a task is a closure). The drop log is `getAndIncrement() % 100 == 0`: first drop logged,
+   then every hundredth, as the comment says.
+4. `AlbumArt.of` users: `LocalMediaSessionPlayer:183,365,419` and `AVTransportPlayer:737` (all through `AlbumArt.of`, all now scheme-only); `OpenHomePlayer.getAlbumArt` keeps `OhUriPolicy` (see Suggestion).
+   Scheme-only is safe for the fetch: `ImageDownloader.getUriAsStream` uses `openConnection` with timeouts for http(s), and `file:`, `content:`, `ftp:` can no longer reach the `url.getContent()` branch from album art.
+   The test line (`http://nas_01:8200/art.jpg`) fails on the old code: `new URI(...)` parses it as registry authority, `getHost()` is null, `OhUriPolicy` returned false, `AlbumArt.of` null.
+5. `ImageDownloader`: 64 MiB / 30 s read, connect timeout unchanged at 5 s; `readAllBytes(stream, max)` still bounds memory; OOM catch unchanged. No constant is referenced by a test with a literal (grep: only the class itself).
+6. New tests fail without the fix: (a) `aKnownItemTwiceInThePlayerCountsOnceAndTheRepeatIsTakenOut`: player [a,b,a], without `orderSet.add(id)` `order` = [a,b,a] and `inQueue.get(2)` throws `IndexOutOfBoundsException`,
+   `adoptPlayerEdits` catches it and `discardPlayer()`s, the repeat is never removed from the player (items stay [a,b,a], assertion on the titles fails). With the fix: `order` [a,b], the second a goes to `refused` via the
+   identity `seen` set and is removed; queue and player [a,b]. (b) `theLifeCycleOfTheRendererRunsEvenWhenThreadsDropWork`: `work` is overridden to drop; without the `lifecycle` calls `ran` stays empty (and
+   without the interface method the `@Override` does not compile); with them `ran` = [lifecycle, lifecycle]. (c) the underscore host: see 4.
+7. `InlineThreads` changed from `final` to non-final only for the subclass in the test; no production effect.
+
+### Tests
+- [x] All tests passing: not re-run here (coordinator: `assembleDebug`, `testDebugUnitTest` 3223 tests, `lintDebug` green at HEAD 776af0ed).
+- [x] Coverage adequate for the change: the three new tests each fail without their fix; `AndroidOhThreads.lifecycle` wiring is the one untested line group (Suggestion).
+
+### Verdict: PASS
+No Critical, no Warning. The Warning of cycle 8 is fixed: `start()` and `shutdown()` bypass the cap and keep their order; the remaining items are Suggestions.
