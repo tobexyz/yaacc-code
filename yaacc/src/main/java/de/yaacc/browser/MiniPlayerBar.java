@@ -75,7 +75,7 @@ final class MiniPlayerBar implements PlayerListChangeNotifier.Listener, MiniPlay
     private final android.content.Context context;
     private final Consumer<Boolean> visibility;
     private final UpnpClient upnpClient;
-    private final MiniPlayerAdapter adapter = new MiniPlayerAdapter(this);
+    private final MiniPlayerAdapter adapter;
     private final Handler handler = new Handler(Looper.getMainLooper());
 
     private final Runnable pollRunnable = new Runnable() {
@@ -97,7 +97,7 @@ final class MiniPlayerBar implements PlayerListChangeNotifier.Listener, MiniPlay
 
     /** The bar below the content of a server: the rows are the list itself, which is hidden while no player exists. */
     MiniPlayerBar(@NonNull RecyclerView list, @NonNull UpnpClient upnpClient) {
-        this(list.getContext(), upnpClient, visible -> list.setVisibility(visible ? View.VISIBLE : View.GONE));
+        this(list.getContext(), upnpClient, visible -> list.setVisibility(visible ? View.VISIBLE : View.GONE), false);
         list.setLayoutManager(new LinearLayoutManager(list.getContext()));
         list.setItemAnimator(null); // no flashing on live updates
         list.setAdapter(adapter);
@@ -108,6 +108,13 @@ final class MiniPlayerBar implements PlayerListChangeNotifier.Listener, MiniPlay
      * list; {@code visibility} is told whether there is any row (the page hides the section header with no player).
      */
     MiniPlayerBar(@NonNull android.content.Context context, @NonNull UpnpClient upnpClient, @NonNull Consumer<Boolean> visibility) {
+        this(context, upnpClient, visibility, true);
+    }
+
+    /** @param cardSpacing true when the rows are cards of a longer list: they get the spacing of the other cards (page mode) */
+    private MiniPlayerBar(@NonNull android.content.Context context, @NonNull UpnpClient upnpClient,
+                          @NonNull Consumer<Boolean> visibility, boolean cardSpacing) {
+        this.adapter = new MiniPlayerAdapter(this, cardSpacing);
         this.context = context;
         this.upnpClient = upnpClient;
         this.visibility = visibility;

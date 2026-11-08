@@ -41,3 +41,8 @@ while it is started.
 The section names (Servers, Receivers, Players) use the large text appearance (22sp instead of 18sp) and their icons are 36dp instead of 32dp.
 A style change only; checked by the resource tests, no separate review cycle.
 
+## 2026-11-08 — The player rows have the spacing of the other cards (owner's request)
+The mini-player rows are tight (2dp margin) because they sit in a small bar below the content. As the Players section of the page they get the
+spacing of the server and receiver cards: `MiniPlayerAdapter(actions, cardSpacing = true)` sets `cardUseCompatPadding` on the row card and
+removes its margin (page mode of `MiniPlayerBar` only; the bar below the content is unchanged). A style change; no separate review cycle.
+

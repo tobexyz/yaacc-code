@@ -36,6 +36,8 @@ import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 import androidx.recyclerview.widget.DiffUtil;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.google.android.material.card.MaterialCardView;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -133,12 +135,22 @@ final class MiniPlayerAdapter extends RecyclerView.Adapter<MiniPlayerAdapter.Row
     }
 
     private final Actions actions;
+    private final boolean cardSpacing;
     private final MiniPlayerArtKeys artKeys = new MiniPlayerArtKeys();
     // the one getIcon() result per player and key: restores the icon of a recycled holder
     private final SparseArray<Bitmap> icons = new SparseArray<>();
     private List<Row> rows = Collections.emptyList();
 
     MiniPlayerAdapter(@NonNull Actions actions) {
+        this(actions, false);
+    }
+
+    /**
+     * @param cardSpacing true for rows that are part of a list of cards (the Players section of the top-level page): they get the
+     *                    spacing of the server and receiver cards, not the tight rows of the bar below the content
+     */
+    MiniPlayerAdapter(@NonNull Actions actions, boolean cardSpacing) {
+        this.cardSpacing = cardSpacing;
         this.actions = actions;
         setHasStableIds(true);
     }
@@ -183,6 +195,9 @@ final class MiniPlayerAdapter extends RecyclerView.Adapter<MiniPlayerAdapter.Row
     @Override
     public RowHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
         View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.mini_player_row, parent, false);
+        if (cardSpacing) {
+            useCardSpacing(view);
+        }
         RowHolder holder = new RowHolder(view);
         holder.previous.setOnClickListener(v -> command(holder, Command.PREVIOUS));
         holder.playPause.setOnClickListener(v -> command(holder, Command.PLAY_PAUSE));
@@ -281,6 +296,20 @@ final class MiniPlayerAdapter extends RecyclerView.Adapter<MiniPlayerAdapter.Row
                 art.getResources(), player.getIconResourceId(), art.getContext().getTheme());
         if (placeholder != null) {
             art.setImageDrawable(ThemeHelper.tintDrawable(placeholder, art.getContext().getTheme()));
+        }
+    }
+
+    /**
+     * The spacing of the cards of the server and receiver rows: the card pads itself for its shadow ({@code cardUseCompatPadding}), so
+     * the rows have no margin of their own (the tight 2dp margin is for the bar below the content).
+     */
+    private static void useCardSpacing(View row) {
+        if (row instanceof MaterialCardView) {
+            ((MaterialCardView) row).setUseCompatPadding(true);
+        }
+        ViewGroup.LayoutParams params = row.getLayoutParams();
+        if (params instanceof ViewGroup.MarginLayoutParams) {
+            ((ViewGroup.MarginLayoutParams) params).setMargins(0, 0, 0, 0);
         }
     }
 
