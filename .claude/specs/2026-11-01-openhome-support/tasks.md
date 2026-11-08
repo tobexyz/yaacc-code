@@ -40,6 +40,7 @@ Gate: `ANDROID_HOME=/root/android-sdk ./gradlew --offline :yaacc:assembleDebug :
 - [x] 7.1 docs/index.md, tech.md as built, CHANGELOG, strings in 7 languages
 - [x] 7.2 Tests against real devices (owner / tester), captures as fixtures
 
-## Status 2026-11-06
-- Done: renderer (groups 2-4; review PASS, security review cycle 1 fixed), controller basics (5.1-5.3: `OhRemote`, `ClingOhControl`, `OpenHomePlayer`, default OpenHome for audio, per-device switch by long tap on the device name).
-- Open: poll with GENA subscriptions instead of ~9 SOAP calls / 2 s, 6.1 (mini player and row use the mirrored state already; playlist dialog edits = delete only, no move), gates 5.4 / 6.2, docs (7.1), tests with real devices (7.2).
+## Status 2026-11-08: done
+- All groups are finished; the reviews passed (`review.md` cycle 9 PASS; its cycle 10 Warning was fixed and read by `security-review.md` cycle 6 PASS; both files are condensed) and the owner tested with real devices (Home Assistant, the Docker test device in `testdevice/`, Upplay as a second controller).
+- Added after the plan (see `decisions.md`): standby of the renderer as an app state, the Radio facade and the root-device services for Home Assistant, files and folders picked on the phone, volume in the row, reorder by dragging, edits at the phone's own player reach the queue, a device that plays already is shown and its playlist opened by a tap, limits for everything the network sends, translated notifications.
+- Not done, by decision: Songcast, radio and tuner sources, queues of more than 1000 tracks, GENA subscriptions for the controller (it polls every two seconds), a total deadline for images and request bodies, an atomic subscriber count (list in `decisions.md`).
