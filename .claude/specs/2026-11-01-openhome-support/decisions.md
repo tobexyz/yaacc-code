@@ -74,3 +74,7 @@
 
 ## 2026-11-08 — Per-host subscriber cap is a soft limit
 The host of a callback is the one the control point names in its CALLBACK header, so it can name another one. The per-host cap of 25 only stops the ordinary case (one control point taking everything); the total (100), per-service (30) and the 30-minute duration still bound the damage of a hostile host.
+
+## 2026-11-08 — Shorter deadline for small answers
+**Context**: Security review cycle 6, Suggestion 1: the 120 s deadline for reading an answer was the same for event, SOAP and description answers, so a hostile host could pin a connection of the small shared pool (10, 5 per route) for two minutes per round.
+**Decision**: Only the answers to ContentDirectory actions may take 120 s; all others at most 15 s (`HttpRequestSender.deadlineFor`). A request waits at most 10 s for a free connection of the pool (the default is three minutes). Done without a new review round (owner's decision: only this suggestion).
