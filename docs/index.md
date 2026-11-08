@@ -71,8 +71,8 @@ There are no tabs. The screen shows one level at a time:
   entry has the live streaming buttons (see [Live streaming](#live-streaming-android-10)). Its header has
   the refresh button to search for devices again (one search finds servers and receivers). The
   "Receivers" section (devices icon) lists every receiver with the same rows and controls as the
-  device sheet, and under each receiver the YAACC players running on it, see
-  [Receiver controls](#receiver-controls); while only this phone is listed it says that no other
+  device sheet, see [Receiver controls](#receiver-controls) (the players that run on a receiver are in the
+  "Players" section, not under the receiver as in the sheet); while only this phone is listed it says that no other
   receiver was found yet. The "Players" section lists every running player as one compact row, like
   the mini-player below the content (see below); it is only there while a player runs. The rows update
   live while this level is shown. This level has neither the receiver bar nor the mini-player at the

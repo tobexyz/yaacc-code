@@ -309,7 +309,11 @@ final class MiniPlayerAdapter extends RecyclerView.Adapter<MiniPlayerAdapter.Row
         }
         ViewGroup.LayoutParams params = row.getLayoutParams();
         if (params instanceof ViewGroup.MarginLayoutParams) {
-            ((ViewGroup.MarginLayoutParams) params).setMargins(0, 0, 0, 0);
+            ViewGroup.MarginLayoutParams margins = (ViewGroup.MarginLayoutParams) params;
+            margins.setMargins(0, 0, 0, 0);
+            // the row declares layout_marginStart/End (relative margins), which setMargins leaves alone
+            margins.setMarginStart(0);
+            margins.setMarginEnd(0);
         }
     }
 

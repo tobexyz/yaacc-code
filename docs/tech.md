@@ -1304,8 +1304,8 @@ Both layouts use the same ids (`serverList`, `serverListRefreshButton`,
 `ConcatAdapter` with three sections, and a footer. The sections:
 `SectionHeaderAdapter` "Servers" (broadcast icon, the one refresh button), `BrowseDeviceAdapter`
 (shared with classic), `PickCardAdapter`, `SectionHeaderAdapter` "Receivers"
-(devices icon, a line above), `DeviceSheetAdapter` (the
-sheet's adapter in normal mode: receivers and their players), `SectionHintAdapter`
+(devices icon, a line above), `DeviceSheetAdapter.receiversOnly` (the
+sheet's adapter without the player session rows: the Players section lists them; the sheet keeps them), `SectionHintAdapter`
 ("No other receivers found yet." while only the local device, which is always listed, is a receiver; updated after every `DeviceSheetAdapter.refresh()` through `setOnRefreshed`), then `SectionHeaderAdapter` "Players" (hidden while there is no player)
 and the rows of a `MiniPlayerBar` created in page mode (`MiniPlayerBar(Context, UpnpClient, Consumer<Boolean>)`: its adapter is a part of
 the page's list and it reports whether there is any row; bound between `onStart` and `onStop` of the page). The headers carry

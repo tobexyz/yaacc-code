@@ -349,7 +349,7 @@ public class ServerListFragment extends Fragment implements
                 // no cross-fade of a row that is updated live (the sheet has no animator at all; here rows still move smoothly)
                 ((SimpleItemAnimator) animator).setSupportsChangeAnimations(false);
             }
-            receiverAdapter = new DeviceSheetAdapter(requireContext(), upnpClient);
+            receiverAdapter = DeviceSheetAdapter.receiversOnly(requireContext(), upnpClient);
             receiversHint = new SectionHintAdapter();
             // after every rebuild of the rows (also those of player events): "none found" while only this phone is listed
             receiverAdapter.setOnRefreshed(() -> {

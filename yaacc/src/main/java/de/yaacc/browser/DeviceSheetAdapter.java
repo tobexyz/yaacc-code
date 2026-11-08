@@ -102,6 +102,8 @@ final class DeviceSheetAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
     // Stable ids keep D-pad focus on the same row across refreshes.
     private final Map<String, Long> stableIds = new HashMap<>();
     private final boolean pickMode;
+    // false: the receivers only, the player sessions are listed elsewhere (the page's Players section)
+    private final boolean showSessions;
     // Pick mode: the ticked receiver ids. Only this adapter writes it; it is never UpnpClient's stored set.
     private final Set<String> picked = new LinkedHashSet<>();
     private final ReceiverVolumeLiveUpdater volumeUpdater;
@@ -113,7 +115,15 @@ final class DeviceSheetAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
 
     /** The normal sheet: receivers with their controls, and their player sessions. */
     DeviceSheetAdapter(Context context, UpnpClient upnpClient) {
-        this(context, upnpClient, false, null);
+        this(context, upnpClient, false, null, true);
+    }
+
+    /**
+     * The receivers with their controls and no player sessions below them: the Receivers section of the top-level page, whose Players
+     * section lists the players.
+     */
+    static DeviceSheetAdapter receiversOnly(Context context, UpnpClient upnpClient) {
+        return new DeviceSheetAdapter(context, upnpClient, false, null, false);
     }
 
     /**
@@ -121,6 +131,12 @@ final class DeviceSheetAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
      * @param initiallyPicked the receiver ids that start ticked (pick mode only), may be null
      */
     DeviceSheetAdapter(Context context, UpnpClient upnpClient, boolean pickMode, Collection<String> initiallyPicked) {
+        this(context, upnpClient, pickMode, initiallyPicked, true);
+    }
+
+    private DeviceSheetAdapter(Context context, UpnpClient upnpClient, boolean pickMode, Collection<String> initiallyPicked,
+                               boolean showSessions) {
+        this.showSessions = showSessions;
         this.context = context;
         this.upnpClient = upnpClient;
         this.pickMode = pickMode;
@@ -198,6 +214,14 @@ final class DeviceSheetAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
         return result;
     }
 
+    /**
+     * Whether a row of the grouper is listed: the receivers always; the player sessions below them in the sheet only (not in the
+     * picker, and not on the page, which has a Players section).
+     */
+    static boolean listsRow(Row.Kind kind, boolean pickMode, boolean showSessions) {
+        return kind == Row.Kind.RECEIVER || (!pickMode && showSessions);
+    }
+
     /** The ids of the receivers listed now, in list order. */
     List<String> receiverIds() {
         List<String> ids = new ArrayList<>();
@@ -249,7 +273,7 @@ final class DeviceSheetAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
                 PlayerRef primary = DeviceSessionGrouper.primarySession(row.deviceId(), refs);
                 receiver.primaryPlayerId = primary == null ? 0 : primary.playerId();
                 newEntries.add(receiver);
-            } else if (!pickMode) {
+            } else if (listsRow(row.kind(), pickMode, showSessions)) {
                 Player player = playersById.get(row.playerId());
                 if (player != null) {
                     newEntries.add(new Entry(Row.Kind.PLAYER_SESSION, row.deviceId(), null, player,

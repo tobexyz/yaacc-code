@@ -46,3 +46,9 @@ The mini-player rows are tight (2dp margin) because they sit in a small bar belo
 spacing of the server and receiver cards: `MiniPlayerAdapter(actions, cardSpacing = true)` sets `cardUseCompatPadding` on the row card and
 removes its margin (page mode of `MiniPlayerBar` only; the bar below the content is unchanged). A style change; no separate review cycle.
 
+## 2026-11-08 — No player rows under the receivers on the page; side margins of the player rows (owner approved after seeing the page)
+The screenshots showed every player twice: under its receiver (the sheet's session rows) and in the Players section. The page's receiver list is
+`DeviceSheetAdapter.receiversOnly` (no session rows; `listsRow` decides, the sheet and the picker are unchanged). The player rows were
+narrower than the cards: the row declares `layout_marginStart/End`, which `setMargins(0,0,0,0)` does not clear; `setMarginStart(0)` and
+`setMarginEnd(0)` are called too. Style/list change; no separate review cycle.
+
