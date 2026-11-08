@@ -21,6 +21,7 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.View;
 
 import androidx.activity.OnBackPressedCallback;
 import androidx.appcompat.app.AppCompatActivity;
@@ -68,6 +69,9 @@ public class BrowserActivity extends AppCompatActivity implements BrowserHost {
     // created once the UpnpClient exists; bound between onStart and onStop
     private ReceiverBarController receiverBarController;
     private MiniPlayerBar miniPlayerBar;
+    // receiver bar and mini-player show below the content of a server only; the top level has sections for them
+    private View bottomStack;
+    private boolean started;
 
     // last timer state, applied to the menu item whenever it exists (it is created lazily)
     private MenuItem shutdownTimerItem;
@@ -118,6 +122,9 @@ public class BrowserActivity extends AppCompatActivity implements BrowserHost {
         receiverBarController = new ReceiverBarController(findViewById(R.id.browserReceiverBar),
                 upnpClient, this::showReceivers);
         miniPlayerBar = new MiniPlayerBar(findViewById(R.id.miniPlayerBar), upnpClient);
+        bottomStack = findViewById(R.id.browserBottomStack);
+        getSupportFragmentManager().addOnBackStackChangedListener(this::updateBottomStack);
+        updateBottomStack(); // after a recreation the content may be on top already
         shareIntentHandler = new ShareIntentHandler(getApplicationContext(), upnpClient);
         handOverShare(getIntent());
     }
@@ -148,24 +155,46 @@ public class BrowserActivity extends AppCompatActivity implements BrowserHost {
         if (shutdownTimerController != null) {
             shutdownTimerController.attach(this::showShutdownTimer);
         }
-        // both follow the client's events only while this activity is started
-        if (receiverBarController != null) {
-            receiverBarController.bind();
+        started = true;
+        updateBottomStack();
+    }
+
+    /**
+     * The receiver bar and the mini-player are shown below the content of a server and follow the client's events only then (and only
+     * while this activity is started): the top level shows the receivers and the players as sections of its page, with their own
+     * subscriptions.
+     */
+    private void updateBottomStack() {
+        boolean shown = getSupportFragmentManager().findFragmentById(R.id.browserContainer) instanceof ContentListFragment;
+        if (bottomStack != null) {
+            bottomStack.setVisibility(shown ? View.VISIBLE : View.GONE);
         }
-        if (miniPlayerBar != null) {
-            miniPlayerBar.bind();
+        if (started && shown) {
+            if (receiverBarController != null) {
+                receiverBarController.bind();
+            }
+            if (miniPlayerBar != null) {
+                miniPlayerBar.bind();
+            }
+        } else {
+            unbindBottomStack();
         }
     }
 
-    @Override
-    protected void onStop() {
-        // the display is this activity: the application must not keep it while it is stopped
+    private void unbindBottomStack() {
         if (miniPlayerBar != null) {
             miniPlayerBar.unbind();
         }
         if (receiverBarController != null) {
             receiverBarController.unbind();
         }
+    }
+
+    @Override
+    protected void onStop() {
+        // the display is this activity: the application must not keep it while it is stopped
+        started = false;
+        unbindBottomStack();
         if (shutdownTimerController != null) {
             shutdownTimerController.detach();
         }

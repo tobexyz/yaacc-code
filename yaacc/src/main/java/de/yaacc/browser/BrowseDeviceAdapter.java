@@ -130,7 +130,8 @@ public class BrowseDeviceAdapter extends RecyclerView.Adapter<BrowseDeviceAdapte
         view.setOnClickListener(new ServerListClickListener(deviceList, this, upnpClient, context));
         view.setOnKeyListener((v, keyCode, event) -> {
             if (event.getAction() != android.view.KeyEvent.ACTION_DOWN) return false;
-            int position = deviceList.getChildAdapterPosition(v);
+            // in the servers adapter, not in the list: other rows may come before the servers (the top-level page has a header)
+            int position = AdapterPositions.bindingPosition(deviceList, v);
             if (position == RecyclerView.NO_POSITION) return false;
             switch (keyCode) {
                 case android.view.KeyEvent.KEYCODE_DPAD_CENTER:

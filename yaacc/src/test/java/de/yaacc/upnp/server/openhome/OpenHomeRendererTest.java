@@ -961,6 +961,9 @@ public class OpenHomeRendererTest {
         long first = q.insert(0, "http://h/1.mp3", "");
         checked.trackInserted(0, q.read(first));
         checked.play();
+        // the worker reads the queue when it runs the play: wait for it before the queue is edited again, or (on a busy machine) it can
+        // find the queue empty already and create no player
+        drain(worker);
         long second = q.insert(first, "http://h/2.mp3", "");
         checked.trackInserted(1, q.read(second));
         checked.setRepeat(true);
@@ -983,6 +986,13 @@ public class OpenHomeRendererTest {
 
         assertEquals(new ArrayList<Throwable>(), failures);
         assertEquals(1, created.size());
+    }
+
+    /** Waits until the single worker thread has run everything that was queued so far. */
+    private static void drain(java.util.concurrent.ExecutorService worker) throws Exception {
+        java.util.concurrent.CountDownLatch drained = new java.util.concurrent.CountDownLatch(1);
+        worker.execute(drained::countDown);
+        assertEquals(true, drained.await(10, java.util.concurrent.TimeUnit.SECONDS));
     }
 
     // ---- modes and volume

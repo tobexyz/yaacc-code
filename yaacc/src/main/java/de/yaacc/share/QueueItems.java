@@ -26,8 +26,13 @@ import java.util.List;
 import de.yaacc.player.PlayableItem;
 
 /**
- * The items of the players of a picked queue. Duration is unknown (-1): nothing starts a timer for
- * the next item, the receiver's transport state or the local player tells when an item ended.
+ * The items of the players of a picked queue. The duration of audio and video is unknown (-1) until their
+ * share is bound: nothing starts a timer for the next item, the receiver's transport state or the local
+ * player tells when an item ended. An image has no length and no end of its own, so it gets the "default
+ * duration" setting (what browsed images get): the player shows it that long and then the next one; the
+ * setting "never" (-1) leaves it until the user goes on. This is for the items of other receivers
+ * ({@link #placeholders}); this phone's own image viewer ({@link #direct}) changes the image by its own
+ * slideshow time and does not read the item's duration.
  */
 public final class QueueItems {
 
@@ -62,11 +67,11 @@ public final class QueueItems {
      * Items that are shared just in time: they carry name and type, a placeholder url and no key.
      * The entries come from {@link PickedQueue} (type and name are already checked and cleaned).
      */
-    public static Built placeholders(List<PickedQueue.Entry> entries) {
+    public static Built placeholders(List<PickedQueue.Entry> entries, long imageDurationMillis) {
         Built result = new Built();
         for (int i = 0; i < entries.size(); i++) {
             PickedQueue.Entry entry = entries.get(i);
-            result.add(entry, create(entry, Uri.parse(PENDING_SCHEME + ":" + i)));
+            result.add(entry, create(entry, Uri.parse(PENDING_SCHEME + ":" + i), imageDurationMillis));
         }
         return result;
     }
@@ -78,16 +83,18 @@ public final class QueueItems {
     public static Built direct(List<PickedQueue.Entry> entries) {
         Built result = new Built();
         for (PickedQueue.Entry entry : entries) {
-            result.add(entry, create(entry, Uri.parse(entry.getUri())));
+            // no image duration: this phone's image viewer changes the image by its own slideshow time (its settings)
+            result.add(entry, create(entry, Uri.parse(entry.getUri()), -1L));
         }
         return result;
     }
 
-    private static PlayableItem create(PickedQueue.Entry entry, Uri uri) {
+    private static PlayableItem create(PickedQueue.Entry entry, Uri uri, long imageDurationMillis) {
         PlayableItem item = SharedItemFactory.create(entry.getMimeType(), entry.getDisplayName(), uri,
                 entry.getSizeBytes(), 0L, 0L);
         if (item != null) {
-            item.setDuration(-1L);
+            boolean image = entry.getMimeType() != null && entry.getMimeType().startsWith("image/");
+            item.setDuration(image ? imageDurationMillis : -1L);
         }
         return item;
     }

@@ -66,7 +66,7 @@ import de.yaacc.util.image.IconDownloadTask;
  * <p>
  * Main thread only. Call {@link #release()} when the hosting view goes away.
  */
-final class DeviceSheetAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
+final class DeviceSheetAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> implements ReceiverLiveUpdates.Target {
     private static final int TYPE_RECEIVER = 0;
     private static final int TYPE_SESSION = 1;
     private static final int TYPE_PICK = 2;
@@ -102,17 +102,28 @@ final class DeviceSheetAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
     // Stable ids keep D-pad focus on the same row across refreshes.
     private final Map<String, Long> stableIds = new HashMap<>();
     private final boolean pickMode;
+    // false: the receivers only, the player sessions are listed elsewhere (the page's Players section)
+    private final boolean showSessions;
     // Pick mode: the ticked receiver ids. Only this adapter writes it; it is never UpnpClient's stored set.
     private final Set<String> picked = new LinkedHashSet<>();
     private final ReceiverVolumeLiveUpdater volumeUpdater;
     private String localStatusSignature;
+    private Runnable onRefreshed;
     private boolean focusFirstReceiver;
     // Non-null exactly while the adapter is set on the sheet's list; see onAttachedToRecyclerView.
     private RecyclerView recyclerView;
 
     /** The normal sheet: receivers with their controls, and their player sessions. */
     DeviceSheetAdapter(Context context, UpnpClient upnpClient) {
-        this(context, upnpClient, false, null);
+        this(context, upnpClient, false, null, true);
+    }
+
+    /**
+     * The receivers with their controls and no player sessions below them: the Receivers section of the top-level page, whose Players
+     * section lists the players.
+     */
+    static DeviceSheetAdapter receiversOnly(Context context, UpnpClient upnpClient) {
+        return new DeviceSheetAdapter(context, upnpClient, false, null, false);
     }
 
     /**
@@ -120,6 +131,12 @@ final class DeviceSheetAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
      * @param initiallyPicked the receiver ids that start ticked (pick mode only), may be null
      */
     DeviceSheetAdapter(Context context, UpnpClient upnpClient, boolean pickMode, Collection<String> initiallyPicked) {
+        this(context, upnpClient, pickMode, initiallyPicked, true);
+    }
+
+    private DeviceSheetAdapter(Context context, UpnpClient upnpClient, boolean pickMode, Collection<String> initiallyPicked,
+                               boolean showSessions) {
+        this.showSessions = showSessions;
         this.context = context;
         this.upnpClient = upnpClient;
         this.pickMode = pickMode;
@@ -147,19 +164,20 @@ final class DeviceSheetAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
         super.onDetachedFromRecyclerView(recyclerView);
     }
 
-    /** The receiver rows that are laid out right now, for {@link ReceiverVolumeLiveUpdater}. */
+    /**
+     * The receiver rows that are laid out right now, for {@link ReceiverVolumeLiveUpdater}. Found through the holders of the list and
+     * their position in this adapter: the adapter may be one part of a {@code ConcatAdapter} (the top-level page), where the
+     * positions of the list are not the positions in {@link #entries}.
+     */
     private Map<Device<?, ?, ?>, ReceiverRowBinder.RowViews> visibleReceiverRows() {
         Map<Device<?, ?, ?>, ReceiverRowBinder.RowViews> result = new LinkedHashMap<>();
         if (recyclerView == null) {
             return result;
         }
-        for (int i = 0; i < entries.size(); i++) {
-            Entry entry = entries.get(i);
-            if (entry.kind == Row.Kind.RECEIVER && entry.device != null) {
-                RecyclerView.ViewHolder holder = recyclerView.findViewHolderForAdapterPosition(i);
-                if (holder instanceof ReceiverHolder) {
-                    result.put(entry.device, ((ReceiverHolder) holder).views);
-                }
+        for (Map.Entry<Integer, ReceiverHolder> row : AdapterPositions.laidOutRows(recyclerView, this, ReceiverHolder.class).entrySet()) {
+            Entry entry = entryAt(row.getKey());
+            if (entry != null && entry.kind == Row.Kind.RECEIVER && entry.device != null) {
+                result.put(entry.device, row.getValue().views);
             }
         }
         return result;
@@ -169,14 +187,16 @@ final class DeviceSheetAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
      * From the sheet's onStart: the receiver rows follow the volume and mute of their receivers (and of
      * this phone) until {@link #stopLiveVolume()}. Not for the picker, whose rows have no controls.
      */
-    void startLiveVolume() {
+    @Override
+    public void startLiveVolume() {
         if (!pickMode) {
             volumeUpdater.start();
         }
     }
 
     /** From the sheet's onStop: drops the system volume listener and the reads of the receivers. */
-    void stopLiveVolume() {
+    @Override
+    public void stopLiveVolume() {
         volumeUpdater.stop();
     }
 
@@ -195,14 +215,39 @@ final class DeviceSheetAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
     }
 
     /**
+     * Whether a row of the grouper is listed: the receivers always; the player sessions below them in the sheet only (not in the
+     * picker, and not on the page, which has a Players section).
+     */
+    static boolean listsRow(Row.Kind kind, boolean pickMode, boolean showSessions) {
+        return kind == Row.Kind.RECEIVER || (!pickMode && showSessions);
+    }
+
+    /** The ids of the receivers listed now, in list order. */
+    List<String> receiverIds() {
+        List<String> ids = new ArrayList<>();
+        for (Entry entry : entries) {
+            if (entry.kind == Row.Kind.RECEIVER) {
+                ids.add(entry.deviceId);
+            }
+        }
+        return ids;
+    }
+
+    /** Called after every {@link #refresh()} (main thread), e.g. to show or hide a hint about the list; may be null. */
+    void setOnRefreshed(Runnable onRefreshed) {
+        this.onRefreshed = onRefreshed;
+    }
+
+    /**
      * Rebuilds the rows from the current receivers and players. Receivers are
      * the devices offering AVTransport, in the same order the Receiver tab's
      * source list has (local device first, then by name), each resolved by id
      * through {@link UpnpClient#getDevice(String)}.
      */
-    void refresh() {
+    @Override
+    public void refresh() {
         Map<String, Device<?, ?, ?>> receiversById = new LinkedHashMap<>();
-        for (Device<?, ?, ?> listed : upnpClient.getDevicesProvidingAvTransportService()) {
+        for (Device<?, ?, ?> listed : ReceiverLiveUpdates.watched(upnpClient.getDevicesProvidingAvTransportService())) {
             String id = listed.getIdentity().getUdn().getIdentifierString();
             if (!receiversById.containsKey(id)) {
                 Device<?, ?, ?> device = upnpClient.getDevice(id);
@@ -228,7 +273,7 @@ final class DeviceSheetAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
                 PlayerRef primary = DeviceSessionGrouper.primarySession(row.deviceId(), refs);
                 receiver.primaryPlayerId = primary == null ? 0 : primary.playerId();
                 newEntries.add(receiver);
-            } else if (!pickMode) {
+            } else if (listsRow(row.kind(), pickMode, showSessions)) {
                 Player player = playersById.get(row.playerId());
                 if (player != null) {
                     newEntries.add(new Entry(Row.Kind.PLAYER_SESSION, row.deviceId(), null, player,
@@ -277,6 +322,9 @@ final class DeviceSheetAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
         entries.clear();
         entries.addAll(newEntries);
         diff.dispatchUpdatesTo(this);
+        if (onRefreshed != null) {
+            onRefreshed.run();
+        }
     }
 
     /** Asks for focus on the first receiver's row once it is bound (D-pad start). */
@@ -285,7 +333,8 @@ final class DeviceSheetAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
     }
 
     /** A status from {@link RendererStatusMonitor}: refreshes that receiver's row. */
-    void onStatusChanged(RendererStatus status) {
+    @Override
+    public void onStatusChanged(RendererStatus status) {
         rowBinder.updateStatus(status);
         String deviceId = status.getDevice().getIdentity().getUdn().getIdentifierString();
         int position = receiverPosition(deviceId);
@@ -295,7 +344,8 @@ final class DeviceSheetAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
     }
 
     /** The power, input or group of a device with group support changed: rebinds that row's status part. */
-    void onGroupStateChanged(String udn) {
+    @Override
+    public void onGroupStateChanged(String udn) {
         int position = receiverPosition(udn);
         if (position != RecyclerView.NO_POSITION) {
             notifyItemChanged(position, ReceiverRowBinder.PAYLOAD_STATUS);
@@ -308,7 +358,8 @@ final class DeviceSheetAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
      * poll), and session titles change with every track. Only rows whose
      * shown state changed are rebound.
      */
-    void refreshLiveState() {
+    @Override
+    public void refreshLiveState() {
         int localPosition = receiverPosition(UpnpClient.LOCAL_UID);
         if (localPosition != RecyclerView.NO_POSITION) {
             Device<?, ?, ?> localDevice = entries.get(localPosition).device;

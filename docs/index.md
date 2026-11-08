@@ -25,7 +25,8 @@ layout: default
 * A Shutdown timer stops the running players and the app after a given time
 * Sort browsed content by name or date, ascending or descending
 * Android TV support (leanback launcher)
-* Two layouts: the classic tabs or a single screen (the default of a fresh install) with a mini-player, chosen in the settings
+* Two layouts: the classic tabs or a single screen (the default of a fresh install) with servers, receivers and the running players on one page, chosen in the settings
+* Share an item you browse (the file or its link) with other apps, see [Content browsing](#content-browsing)
 
 # Usage
 
@@ -40,7 +41,7 @@ In the classic layout all UPnP/DLNA servers in your network are listed on the
 first screen. Select one and the app will automatically switch to the content tab.
 It allows to browse the content provided by the selected server.
 
-![browse_servers](./screenshots/5.1.x/browse_servers.png){:height="30%" width="30%"}
+![browse_servers](./screenshots/6.0.x/browse_servers.png){:height="30%" width="30%"}
 
 Before playing content make sure you have chosen a receiver. In the classic
 layout you tick receivers on the receiver tab. In the new layout there is no
@@ -50,7 +51,7 @@ receivers, see [Choosing receivers](#choosing-receivers-new-layout) and
 Receivers are either UPnP/DLNA media renderers in your network or the
 android device itself.
 
-![browse_receiver](./screenshots/5.1.x/browse_receiver.png){:height="30%" width="30%"}
+![browse_receiver](./screenshots/6.0.x/browse_receiver.png){:height="30%" width="30%"}
 
 Normally senders and receivers will appear automatically.
 If not you can use the refresh button at the bottom of
@@ -65,10 +66,18 @@ the new layout (also on Android TV, where it has not been checked with a TV
 remote yet); an updated installation without a stored layout starts in the new layout.
 There are no tabs. The screen shows one level at a time:
 
-* **Servers** is the top level. The "Servers" header has the refresh button to
-  search for devices again. Below it all UPnP/DLNA servers in your network are
-  listed; the YAACC entry has the live streaming buttons (see
-  [Live streaming](#live-streaming-android-10)). At the bottom are the YAACC
+* **Servers, receivers and players** is the top level, one list in three sections with a
+  thin line between them. The "Servers" section (broadcast icon in front of the header) lists
+  all UPnP/DLNA servers in your network with the card "Play from this device" below them; the YAACC
+  entry has the live streaming buttons (see [Live streaming](#live-streaming-android-10)). Its header has
+  the refresh button to search for devices again (one search finds servers and receivers). The
+  "Receivers" section (devices icon) lists every receiver with the same rows and controls as the
+  device sheet, see [Receiver controls](#receiver-controls) (the players that run on a receiver are in the
+  "Players" section, not under the receiver as in the sheet); while only this phone is listed it says that no other
+  receiver was found yet. The "Players" section lists every running player as one compact row, like
+  the mini-player below the content (see below); it is only there while a player runs. The rows update
+  live while this level is shown. This level has neither the receiver bar nor the mini-player at the
+  bottom, because the sections show the same. At the bottom of the screen are the YAACC
   server switch with the button for the server settings, and the icons showing
   whether the device acts as media provider, media renderer or proxy
   (see [Media server](#media-server)). These bottom controls exist only on
@@ -77,19 +86,19 @@ There are no tabs. The screen shows one level at a time:
   The arrow in front of the path and the system back button go back one step at a
   time: from a folder to the parent folder, from the root of a server to the
   server list, and from the server list the app exits. The server button in the
-  header of the content (next to the sort and the view buttons) shows the server
-  list at once from any folder depth, so you can change the server without going
-  back folder by folder.
+  header of the content (the broadcast icon, the same one as in front of the "Servers"
+  header; a long press shows its name) shows the server list at once from any folder
+  depth, so you can change the server without going back folder by folder.
 * **Toolbar**: the timer symbol is the [shutdown timer](#shutdown-timer) and its
   only entry. While a timer runs, a tap stops it and the remaining time is shown
   under the title of the toolbar. Otherwise a tap opens the duration picker; confirming a
   duration above 0 starts the timer. The overflow menu has the settings, the log
   and the about page, and the exit button quits the app.
-* **Receiver bar**: at the bottom of every level. It shows the names of the
+* **Receiver bar**: at the bottom of the content of a server (the top level has the Receivers section instead). It shows the names of the
   receivers that are playing something right now (a paused player counts), or
   "No receiver playing". It does not show a selection. Tap it to open the device
   sheet, see [Receiver controls](#receiver-controls).
-* **Mini-player**: directly above the receiver bar. It shows every running player
+* **Mini-player**: directly above the receiver bar, below the content of a server (the top level has the Players section instead). It shows every running player
   as one compact row: the album art when available, the title, the name of the
   receiver it plays on, and the buttons previous, play/pause, next, stop and exit (stop only stops the
   playback, exit removes the player). Tap a row itself to open that player's screen. The rows are in the same order as the
@@ -106,6 +115,7 @@ Behind each content entry different symbols are showing the possible actions:
 * download the item
 * play the item
 * play all items on the same directory level
+* share the item with another app: the symbol (and the share entry in the menu of the image viewer) offers *Share file*, which copies the item to the cache of YAACC and hands it to the app you choose (so it works also for a server that is only reachable in your network), and *Share link*, which hands over the address of the item
 
 The bread crumb starts with the name of the selected server. The arrow in front
 of it goes up one folder (in the new layout it also leaves the server at its
@@ -117,7 +127,7 @@ each with its icon. They only display the current selection; choose the
 receivers on the receiver tab. Playing while no receiver is selected shows a
 message asking you to select one there.
 
-In the new layout the receiver bar at the bottom shows the receivers that are
+In the new layout the receiver bar at the bottom of the content shows the receivers that are
 playing; tap it to open the device sheet. Playing does not use a stored selection:
 play, play all, tapping an item, and add to playlist first open the "Play on…"
 list, see [Choosing receivers](#choosing-receivers-new-layout).
@@ -132,7 +142,7 @@ ascending or descending. yaacc uses the server's own sort support when browsing
 a UPnP/DLNA server that offers it, falling back to sorting the results itself
 otherwise. The chosen sort order is remembered across app restarts.
 
-![browse_music_folder](./screenshots/5.1.x/browse_music_folder.png){:height="30%" width="30%"}
+![browse_music_folder](./screenshots/6.0.x/browse_music_folder.png){:height="30%" width="30%"}
 
 ### Choosing receivers (new layout)
 
@@ -169,19 +179,19 @@ on your device, starting a movie on a TV or play music on a
 smart speaker at the same time.
 
 Each player is displayed in the player tab (classic layout). The new layout has
-no player tab: every running player has a row in the mini-player and is listed in
+no player tab: every running player has a row in the mini-player (on the top level: in the Players section) and is listed in
 the device sheet under the receiver it plays on. Depending on the content type
 and if the content is played by YAACC itself or a network device, the player ui differs.
 
-![browse_player](./screenshots/5.1.x/browse_player.png){:height="30%" width="30%"}
+![browse_player](./screenshots/6.0.x/browse_player.png){:height="30%" width="30%"}
 
 YAACC includes a player for music and image shows.
 Videos are played using a third parties app on the device.
 The video app will start automatically, if video content is selected for playing
 
-![music_player](./screenshots/5.1.x/music_player.png){:height="30%" width="30%"}
+![music_player](./screenshots/6.0.x/music_player.png){:height="30%" width="30%"}
 
-![image_player_show_menu](./screenshots/5.1.x/image_player_show_menu.png){:height="30%" width="30%"}
+![image_player_show_menu](./screenshots/6.0.x/image_player_show_menu.png){:height="30%" width="30%"}
 
 ### Receiver controls
 
@@ -194,13 +204,13 @@ Each renderer displays:
 * Volume control
 * Mute button
 
-![browse_receiver](./screenshots/5.1.x/browse_receiver.png){:height="30%" width="30%"}
+![browse_receiver](./screenshots/6.0.x/browse_receiver.png){:height="30%" width="30%"}
 
 You can control playback directly from the receiver tab without opening the player view.
 The controls work for both local playback and remote UPnP devices.
 
-In the new layout there is no receiver tab: tap the receiver bar at the bottom of any
-screen (or select it with the D-pad) to open the device sheet. The classic layout does not
+In the new layout there is no receiver tab: the top level lists the receivers below the servers, and the receiver bar
+below the content of a server (or selected with the D-pad) opens the device sheet. The classic layout does not
 have the sheet; use the receiver tab and the player tab there.
 The sheet is titled "Receivers". It lists every receiver with its status, play/pause/stop, volume and mute controls,
 and under each receiver the YAACC players currently running on it, in the order they were started.
@@ -228,6 +238,8 @@ previous/next buttons (the image viewer in its menu bar).
 * **Shuffle** plays the items in a random order, every item once per round. Switching
   it on or off while playing keeps the current item; previous goes back through the
   order that was played.
+
+With shuffle on, the playlist dialog lists the items in the order they will play, with the playing item marked at its place; dragging an item changes the play order and leaves your list as it is, deleting removes the item from both. Without shuffle it shows the list as before.
 
 The settings *Repeat for new players* and *Shuffle for new players* (see [Settings](settings.html); they
 were called *replay playlist* and *shuffle music*) only give the mode a new player starts with. They are not a switch
@@ -297,7 +309,7 @@ In the server control view, you can add SAF folders to share:
 3. Grant permission when prompted
 4. The folder appears in the server content directory
 
-![server_control](./screenshots/5.1.x/server_control.png){:height="30%" width="30%"}
+![server_control](./screenshots/6.0.x/server_control.png){:height="30%" width="30%"}
 
 ### New files and folders
 
@@ -408,7 +420,7 @@ YAACC includes a media server service, which has to be enabled separately.
 A switch for this is located at the bottom of the server list tab
 (in the new layout: at the bottom of the Servers screen).
 
-![browse_servers](./screenshots/5.1.x/browse_servers.png){:height="30%" width="30%"}
+![browse_servers](./screenshots/6.0.x/browse_servers.png){:height="30%" width="30%"}
 
 Depending on the configurations for the server in the settings,
 the server service is used as media provider, media renderer or proxy.
@@ -434,7 +446,7 @@ gallery outside them gets "no such object" (and no thumbnail or cover), and a me
 the name is no wildcard). A folder you deselect in *SAF content* is no longer listed or sent, also not to a client that
 remembers its ids.
 
-![server_control](./screenshots/5.1.x/server_control.png){:height="30%" width="30%"}
+![server_control](./screenshots/6.0.x/server_control.png){:height="30%" width="30%"}
 
 The server control view is accessible through the settings button next to the server
 switch at the bottom of the server list, or the YAACC server service notification.
@@ -539,6 +551,10 @@ not have to run.
   chosen receiver: a folder with songs, a video and photos starts the music
   player, the video player and the image show at the same time. A receiver that
   cannot play a kind fails for that player only.
+* On other receivers the image show changes to the next image after the default
+  duration of the settings (the same time as for images you start from a server;
+  "never" keeps an image until you go on yourself). This phone's own image viewer
+  uses the slideshow time of its own settings.
 * This phone plays audio and images straight from the files you picked. For any
   other receiver (and for video on this phone) a file is offered on the network
   only while it is the file being played: it gets its own random address when its
@@ -594,7 +610,7 @@ a light title bar.
 
 The log opens from the overflow menu ("log"). It shows the entries of the level chosen in the settings
 (*Appearance* > *Log level*), refreshes every two seconds while it is open and scrolls down by itself only while you are
-at the end. The clear button hides all entries from before the moment you pressed it.
+at the end. The clear button hides all entries from before the moment you pressed it. The pause button stops the automatic refresh, so you can select and copy text; it starts again when you press it again.
 
 ## Shutdown timer
 
@@ -604,9 +620,9 @@ is displayed. In the new layout the timer is the symbol in the toolbar instead: 
 while a timer runs to stop it (the remaining time is shown under the title of the toolbar); otherwise a tap opens the
 duration picker, and confirming a duration above 0 starts the timer.
 
-![browse_servers](./screenshots/5.1.x/browse_servers.png){:height="30%" width="30%"}
+![browse_servers](./screenshots/6.0.x/browse_servers.png){:height="30%" width="30%"}
 
-![shutdown_timer](./screenshots/5.1.x/shutdown_timer.png){:height="30%" width="30%"}
+![shutdown_timer](./screenshots/6.0.x/shutdown_timer.png){:height="30%" width="30%"}
 
 ## OpenHome
 

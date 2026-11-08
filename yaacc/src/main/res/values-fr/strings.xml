@@ -140,6 +140,9 @@
     <string name="reset_shared_folders">reset shared folders</string>
     <string name="shutdown_timer">Minuterie d\'arrêt</string>
     <string name="browser_servers_header">Serveurs</string>
+    <string name="browser_receivers_header">Récepteurs</string>
+    <string name="browser_receivers_none">Aucun autre récepteur trouvé pour l’instant.</string>
+    <string name="browser_players_header">Lecteurs</string>
     <string name="add_saf_content">ajouter une source</string>
     <string name="clear_saf_cache">vider le cache SAF</string>
     <string name="saf_content">lié</string>
