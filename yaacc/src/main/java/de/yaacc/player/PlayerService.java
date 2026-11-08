@@ -208,24 +208,31 @@ public class PlayerService extends MediaSessionService {
     /**
      * The text of the notification of the service: how many players there are and what they do, for example
      * "3 players (1 playing, 1 paused, 1 stopped)".
+     *
+     * @param idle         the text when there is no player
+     * @param players      the number of players as text ("3 players")
+     * @param states       the states that occur, as text ("1 playing"), in the order they are shown
+     * @param statusFormat puts the two together: {@code %1$s} the players, {@code %2$s} the states
+     * @param separator    between the states
      */
-    static String statusText(int total, int playing, int paused, String playingWord, String pausedWord, String stoppedWord) {
+    static String statusText(int total, String idle, String players, java.util.List<String> states, String statusFormat,
+                             String separator) {
         if (total == 0) {
-            return "running";
+            return idle;
         }
-        StringBuilder states = new StringBuilder();
-        appendState(states, playing, playingWord);
-        appendState(states, paused, pausedWord);
-        appendState(states, total - playing - paused, stoppedWord);
-        return total + " player" + (total > 1 ? "s" : "") + " (" + states + ")";
+        StringBuilder joined = new StringBuilder();
+        for (String state : states) {
+            if (joined.length() > 0) {
+                joined.append(separator);
+            }
+            joined.append(state);
+        }
+        return String.format(java.util.Locale.getDefault(), statusFormat, players, joined);
     }
 
-    private static void appendState(StringBuilder states, int count, String word) {
+    private void addState(java.util.List<String> states, int plurals, int count) {
         if (count > 0) {
-            if (states.length() > 0) {
-                states.append(", ");
-            }
-            states.append(count).append(' ').append(word);
+            states.add(getResources().getQuantityString(plurals, count, count));
         }
     }
 
@@ -245,14 +252,17 @@ public class PlayerService extends MediaSessionService {
                 pausedCount++;
             }
         }
-        String statusText = statusText(totalPlayers, playingCount, pausedCount,
-                getString(R.string.playing).toLowerCase(java.util.Locale.getDefault()),
-                getString(R.string.paused).toLowerCase(java.util.Locale.getDefault()),
-                getString(R.string.stopped).toLowerCase(java.util.Locale.getDefault()));
+        java.util.List<String> states = new java.util.ArrayList<>();
+        addState(states, R.plurals.player_service_playing, playingCount);
+        addState(states, R.plurals.player_service_paused, pausedCount);
+        addState(states, R.plurals.player_service_stopped, totalPlayers - playingCount - pausedCount);
+        String statusText = statusText(totalPlayers, getString(R.string.player_service_idle),
+                getResources().getQuantityString(R.plurals.player_service_players, totalPlayers, totalPlayers), states,
+                getString(R.string.player_service_status), getString(R.string.player_service_state_separator));
 
         Notification notification = new NotificationCompat.Builder(this, Yaacc.NOTIFICATION_CHANNEL_ID)
                 .setGroup(Yaacc.NOTIFICATION_GROUP_KEY)
-                .setContentTitle("Player Service")
+                .setContentTitle(getString(R.string.player_service_title))
                 .setSilent(true)
                 .setContentText(statusText)
                 .setSmallIcon(R.drawable.ic_notification_default)

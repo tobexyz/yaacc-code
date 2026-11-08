@@ -443,13 +443,13 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
                 if (!"0.0.0.0".equals(iface[0])) {
                     statusBuilder.append(" | ").append(iface[1]).append(":").append(iface[0]);
                 } else {
-                    statusBuilder.append(" | No usable network interface found");
+                    statusBuilder.append(" | ").append(getString(R.string.notification_no_network_interface));
                 }
             } catch (Exception e) {
                 YaaccLogger.d(getClass().getName(), "Failed to get network interface info", e);
             }
         } else {
-            statusBuilder.append(" | No usable network interface found");
+            statusBuilder.append(" | ").append(getString(R.string.notification_no_network_interface));
         }
 
         // Server/Renderer status
@@ -479,7 +479,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         YaaccLogger.d(getClass().getName(), "showNotification: isPreloading=" + isPreloading + ", cacheSize=" + cacheManager.getCacheSize() + ", filesIndexed=" + cacheFilesIndexed);
         
         if (isPreloading) {
-            statusBuilder.append(" | ⏳ Indexing: ").append(cacheFilesIndexed);
+            statusBuilder.append(" | ⏳ ").append(getString(R.string.notification_indexing)).append(": ").append(cacheFilesIndexed);
             if (!cacheCurrentFolder.isEmpty()) {
                 statusBuilder.append(" (").append(cacheCurrentFolder).append(")");
             }
@@ -495,7 +495,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
                 .setOngoing(true)
                 .setSmallIcon(R.drawable.ic_notification_default)
                 .setSilent(true)
-                .setContentTitle("Yaacc UPnP Service")
+                .setContentTitle(getString(R.string.notification_upnp_service_title))
                 .setGroup(Yaacc.NOTIFICATION_GROUP_KEY)
                 .setContentText(statusBuilder.toString());
         mBuilder.setContentIntent(contentIntent);
