@@ -1,10 +1,10 @@
 Version 6.0.0
 - new single-screen layout: servers, receivers and running players on one page
-- OpenHome devices: play on them, the device keeps the playlist
-- Yamaha MusicCast: groups, group volume, now playing, presets
+- OpenHome device support
+- Yamaha MusicCast: link devices, device controls
 - improved support for Home Assistant
-- video galleries
-- play files or folders directly of your phone remotely
-- direct share of server content with other apps
-- improved share from links, file or content from other apps to your receivers
+- improvements for server and renderer
+- play files or folders of your phone directly on other receivers
+- share server content directly with other apps
+- improved sharing of links, files and content from other apps to your receivers
 - Material 3 look, many fixes
