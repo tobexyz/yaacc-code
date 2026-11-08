@@ -15,12 +15,16 @@ gallery lists them with its own id as parent). One id per video makes controller
 - `VideosFolderBrowser`: now the two containers (size 2), as `ImagesFolderBrowser`.
 - `VideosAllFolderBrowser`: the old item listing of `VideosFolderBrowser`.
 - `VideosByBucketNamesFolderBrowser`: the galleries. One query over the media paths with `BUCKET_ID` and `BUCKET_DISPLAY_NAME`, grouped in
-  Java (`VideoGalleries`), then sorted and paged: the page is cut after grouping, not after the rows.
+  Java (`MediaGalleries`), then sorted and paged: the page is cut after grouping, not after the rows.
 - `VideosByBucketNameFolderBrowser`: the videos of one bucket (media paths and bucket id in the selection).
 - `VideoBrowser` (abstract base of the four video browsers that read the media store): the projection, the media path selection, the query with paging and sort order, the conversion of a cursor row into an item, the grouped galleries (read once per browser).
-- `VideoGalleries` (pure): grouping of the rows to galleries (first seen order, count per bucket), unique names (a second gallery
+- `MediaGalleries` (pure, shared by the videos and the images): grouping of the rows to galleries (first seen order, count per bucket), unique names (a second gallery
   named like another one gets " (2)", " (3)" ... in bucket id order), a name for a bucket without one, paging of a list.
 - `YaaccContentDirectory.findBrowserFor`: three routes.
+
+## Images and the media paths
+- `ImagesByBucketNamesFolderBrowser` groups, sorts and pages the image galleries exactly like the videos (rows read once, `MediaGalleries`); `ImagesByBucketNameFolderBrowser.browseMeta` takes name and count from that list. `ImagesFolderBrowser` and `VideosFolderBrowser` page their two folders with `MediaGalleries.page`.
+- Every id-based answer filters by the media paths (`makeLikeClause ... escape '\'`, patterns from `MediaPathFilter.escapeLike`): items, galleries, album / artist / genre, `/thumb`, `/album`. SAF documents are answered only when they are in a selected folder (`SafDocumentUris`, `SafSelection`).
 
 ## Paging, sort, counts
 - Items: `moveToPosition(firstResult)` then up to `maxResults` rows; sort order from `SortSupport.toMediaStoreSortOrder` (title, date added).

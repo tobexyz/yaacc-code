@@ -8,8 +8,8 @@ of a video item still resolves, a bookmark of the old "Videos" listing shows the
 Two buckets with the same name (internal storage and an SD card) are told apart by " (2)". A path would show the storage layout of the
 phone to every host of the network; images show both under the same name.
 
-## 2026-11-08 — Problems found in the image browsers, not part of this change
-- (fixed later in this branch, see the last entry) `ImagesByBucketNamesFolderBrowser.browseContainer` cuts the page after the rows (one per image), then removes duplicates: paging through galleries with many images skips or repeats galleries.
+## 2026-11-08 — Problems found in the image browsers (all fixed later in this branch: the media path filter, the list of galleries, the paging of the Images folder)
+- `ImagesByBucketNamesFolderBrowser.browseContainer` cuts the page after the rows (one per image), then removes duplicates: paging through galleries with many images skips or repeats galleries.
 - `ImagesByBucketNameFolderBrowser.getName` returns the bucket id (first column of the projection) instead of the bucket name; `getSize` passes the prefix with the id, so the count of a gallery is wrong; the items of a gallery ignore the media paths.
 - `ImagesFolderBrowser.browseContainer` computes its page with an `end` that ignores `start`.
 
@@ -47,7 +47,7 @@ sorted case-sensitively in SQL. `ImagesByBucketNamesFolderBrowser` now reads the
 `VideoGalleries`; same names, counts and " (2)" counter as the videos), sorts by title without regard to the case and pages the galleries;
 the total is the number of galleries, the child count comes from the grouping (no query per gallery). The metadata of one gallery takes its name and
 count from the same list, so name and count agree with the list. Visible change for images: same-named directories get " (2)", files in the
-root of a volume are in "(root folder)", the order ignores the case. `ImagesFolderBrowser` (fixed two containers) is not touched.
+root of a volume are in "(root folder)", the order ignores the case. `ImagesFolderBrowser` (fixed two containers) follows in the next entry.
 
 ## 2026-11-08 — `ImagesFolderBrowser` pages with `MediaGalleries.page` (owner asked to fix it too)
 Its own arithmetic clamped `start` to the last entry, so a page behind the end (`first >= 2`) returned "Galleries" again instead of nothing (the only defect; the count was
