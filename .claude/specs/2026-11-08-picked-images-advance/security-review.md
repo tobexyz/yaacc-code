@@ -1,31 +1,13 @@
-# Security Review: Picked images advance on other receivers
+# Security Review: images of picked files and folders change to the next image, summary
 
-## Cycle 1 — 2026-11-08
-Reviewing: the uncommitted change on `prepareRelease`: `QueueItems.placeholders(entries, imageDurationMillis)` / `create(...)`, `PlayerService.createQueuePlayers` (reads `UpnpClient.getDefaultDuration()` once per type), `QueueItemsTest`, `QueueShareBinderTest` (new image case). `QueueItems.direct` is unchanged in behaviour (still -1).
+Condensed: the verdict, the blocking findings and the suggestions that are still open; the long text is in the git history of this file.
 
-### Critical
-- none
+## Cycle 1 — 2026-11-08 — PASS
+No Critical, no Warning. The duration comes from the user's own setting (a numeric list preference, -1 to 60000 ms), not from a file or the network; a share is held
+only while its item plays (at most the current and the next one per player), so a short timer cannot pile up shares.
 
-### Warning
-- none
-
-### Suggestion
-- [UpnpClient.java:1428-1441, AbstractPlayer.java:1064 `startTimer(duration + silence)`] (PRE-EXISTING mechanism, newly reachable for picked image queues) both settings offer "0" (the silence list `duration_values` starts with "0", the default-duration list with "-1" and "0"). With default duration 0 and silence 0 the next-item alarm fires at once, so a picked image queue to another receiver advances as fast as the receiver and the share bind allow, and with repeat all it loops without end (one exact alarm, one `ShareService.prepare` and one file open per step). It needs the user to choose 0 and 0 and starts a queue; browsed images already behave the same. It is bounded (see checked 2), so not a Warning. Cheap hardening: a floor for picked images (for example `Math.max(imageMillis, 1000)` when `imageMillis >= 0`), or leave as is and accept that the user asked for it.
-- [PlayerService.createQueuePlayers, new call `upnpClient.getDefaultDuration()`] `Integer.parseInt` is not guarded; a non-numeric value would throw out of the queue creation instead of falling back. Not reachable by outsiders (see checked 3), and the same unguarded call is already used on every browse/play path, so the new call site adds no new exposure. If wanted, make `getDefaultDuration()` return its default on `NumberFormatException` (helps all callers).
-- [AbstractPlayer.java:1137-1143] (PRE-EXISTING, not part of this change) the alarm intent is an implicit broadcast with an action and the player id (`PendingIntent` is immutable and one-shot, the receiver is registered `RECEIVER_NOT_EXPORTED`). `setPackage(getContext().getPackageName())` would also keep other apps from seeing the broadcast; the only content is a player id. Noted because picked image queues now use this timer more.
-
-### Checked
-1. **Value handling of the duration (timer with 0, -1, huge).**
-   - `-1` ("never") is kept as -1 and `doPostLoadItem` starts no timer (`duration > -1`); any other negative value (corrupt preference) also starts none.
-   - `0` is accepted as a real duration (see the suggestion). Large values: the setting is an `int` converted to `long`, the sum with the silence duration is a long, `System.currentTimeMillis() + duration` cannot overflow, and the list offers 60 s at most. A timer is cancelled by `cancelTimer()` on stop/pause/next, so a long timer does not outlive its player.
-   - Audio and video stay at -1 (and the bind may replace it by the real length read from the file, as before); the new test `anImageKeepsItsDurationWhenItsShareIsBound` shows that `QueueShareBinder.bind` (`setItem`/`setUri` only; `setDuration` only when a duration > 0 was read, which `ContentDuration.read` never does for images) leaves the image duration alone. `direct` is explicit -1.
-   - A queue with one image has no timer (`items.size() > 1`, unless repeat one).
-2. **Share lifetime and bind rate.** `QueueShareWindow.Lease` holds exactly the current and the next item per player (at most two shares per player, released when the player moves on and all at once on stop/exit via `releaseAll`/`drop`), so a short timer cannot accumulate shares. A bind happens once per advance, so the rate is at most one new share per (duration + silence); binds are serialized by `BIND_LOCK`, refused when the registry has no room (`keys.hasRoom()`), limited by the provider gate/`BoundedCall` (`PROVIDER_MAX_TRACKED = 3`), and every share is removed at once on release (no idle grace). Compared with before: images never advanced by themselves on a receiver (the user advanced them, or the receiver's transport state did for audio/video), so share turnover can now be faster for image queues, bounded by the user's settings; with the default 2000 + 2000 ms it is one bind per 4 s. A short timer can end the previous image's share while a slow receiver still loads it (it then fails to fetch); that is availability of that image only, and the share is more restrictive, not less (allowed addresses are fixed at the confirm and unchanged).
-3. **Parsing and who can write the preference.** `Integer.parseInt` of a `ListPreference` value: the values come from `duration_values_with_never` (`-1`, `0` ... `60000`), the default `2000` is installed at app start (`Yaacc.java:102`, `setDefaultValues`), so the fallback `"0"` in code is not used in practice. The preference lives in the app's private shared preferences; backup and device transfer exclude `sharedpref` (`allowBackup=false`, `data_extraction_rules.xml`), no component exports a way to write it, and no intent or UPnP action writes it. A `NumberFormatException` would need a corrupted or tampered file (root); no external actor can cause it.
-4. **Untrusted input.** The change adds no new input: the mime type is the one `PickedQueue`/`SharedContentPolicy` already normalised (lower case, validated) and the new check is `startsWith("image/")` on it, consistent with `SharedItemFactory`; null is handled. Names, uris and sizes are passed on exactly as before (placeholder uri `yaacc-pending:<index>`, no key, no real uri in the item). The duration is a number from the user's own setting, not from the file or the network.
-5. **Logging.** The change logs nothing. `startTimer` logs the numeric duration only (pre-existing); `QueueShareBinder` logs exception class names only, never uri, key or name.
-6. **Exported surface.** No manifest, permission, intent, provider or dependency change; `QueueItems` and `PlayerService.createQueuePlayers` are in-process only.
-7. **New vs pre-existing.** New: image items of other receivers carry the default duration so the existing next-item timer runs for them; the single read of the setting; tests. Pre-existing: the timer/alarm mechanism, the settings and their parsing, the share window, bind lock and registry limits, the possible 0 + 0 tight loop for browsed images.
-
-### Verdict: PASS
-Zero Critical, zero Warning. The change only feeds an existing, bounded timer and share window with a user-chosen number; the suggestions are hardening (a floor for 0 + 0, a guarded parse).
+## Suggestions still open (none blocks)
+- With the default duration and the silence duration both at 0, a queue of images on a receiver changes as fast as the receiver and the share bind allow (and loops with repeat all):
+  browsed images behave the same way. A floor such as one second would harden it.
+- `UpnpClient.getDefaultDuration()` could fall back to its default on a `NumberFormatException` (the value comes from a fixed list; only a tampered preference file would fail).
+- Pre-existing: the alarm of `AbstractPlayer.startTimer` is an implicit broadcast that carries only the player id; `setPackage(...)` would keep other apps from seeing it.
