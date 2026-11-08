@@ -129,4 +129,25 @@ public class ClingOhControlTest {
                 org.fourthline.cling.model.types.ErrorCode.ACTION_FAILED, "the device said so")));
         org.junit.Assert.assertEquals(800, ClingOhControl.codeOf(new org.fourthline.cling.model.action.ActionException(800, "Id not found")));
     }
+
+    @Test
+    public void anAnswerThatOverflowsTheParsersStackIsNoAnswerNotACrash() {
+        try {
+            ClingOhControl.runGuarded(() -> {
+                throw new StackOverflowError();
+            });
+            org.junit.Assert.fail();
+        } catch (de.yaacc.openhome.OhControlException e) {
+            org.junit.Assert.assertEquals(de.yaacc.openhome.OhControlException.NO_ANSWER, e.getCode());
+        }
+    }
+
+    @Test
+    public void aNormalActionIsJustRun() throws Exception {
+        boolean[] ran = new boolean[1];
+
+        ClingOhControl.runGuarded(() -> ran[0] = true);
+
+        assertTrue(ran[0]);
+    }
 }

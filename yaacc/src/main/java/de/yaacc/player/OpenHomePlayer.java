@@ -726,6 +726,9 @@ public class OpenHomePlayer extends AbstractPlayer {
             if (bitmap != null) {
                 return bitmap;
             }
+            if (!artMayBeFetched(artUri.toString())) {
+                return super.getIcon();
+            }
             ((Yaacc) getContext().getApplicationContext()).getContentLoadExecutor().execute(() -> {
                 try {
                     Bitmap loaded = new ImageDownloader().retrieveImageWithCertainSize(artUri, 512, 512);
@@ -739,6 +742,29 @@ public class OpenHomePlayer extends AbstractPlayer {
             });
         }
         return super.getIcon();
+    }
+
+    private static final long ART_RETRY_MILLIS = 60_000;
+    private static final int ART_ATTEMPTS_KEPT = 32;
+    // when the download of an album art address was started last: the screen asks for the icon again and again, and an address that
+    // does not answer must not start a download every time
+    private final java.util.Map<String, Long> artAttempts = new java.util.LinkedHashMap<String, Long>() {
+        @Override
+        protected boolean removeEldestEntry(java.util.Map.Entry<String, Long> eldest) {
+            return size() > ART_ATTEMPTS_KEPT;
+        }
+    };
+
+    boolean artMayBeFetched(String address) {
+        long now = System.currentTimeMillis();
+        synchronized (artAttempts) {
+            Long last = artAttempts.get(address);
+            if (last != null && now - last < ART_RETRY_MILLIS) {
+                return false;
+            }
+            artAttempts.put(address, now);
+            return true;
+        }
     }
 
     /** The name of the device this player plays on, for the player screen. */

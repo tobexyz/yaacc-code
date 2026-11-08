@@ -527,6 +527,21 @@ public class OpenHomeRendererTest {
     }
 
     @Test
+    public void theSameItemTwiceInThePlayerLeavesTheQueueOnceAndTheRepeatIsTakenOut() {
+        long a = add(0, "http://h/a.mp3");
+        add(a, "http://h/b.mp3");
+        renderer.play();
+
+        PlayableItem x = trackTitled("http://h/x.mp3");
+        player().addItems(Collections.singletonList(x));
+        player().addItems(Collections.singletonList(x)); // the very same object again
+        renderer.refresh();
+
+        assertEquals(Arrays.asList("http://h/a.mp3", "http://h/b.mp3", "http://h/x.mp3"), queueUris());
+        assertEquals(Arrays.asList("http://h/a.mp3", "http://h/b.mp3", "http://h/x.mp3"), titles(player()));
+    }
+
+    @Test
     public void aTrackAControlPointDeletedIsNotBroughtBackByTheEditCheck() {
         long a = add(0, "http://h/a.mp3");
         long b = add(a, "http://h/b.mp3");

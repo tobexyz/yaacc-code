@@ -79,6 +79,10 @@ import de.yaacc.util.YaaccLogger;
 public class ReceivingSubscribe extends ReceivingSync<StreamRequestMessage, OutgoingSubscribeResponseMessage> {
 
 
+    /** The most subscribers of all services of this device together, and of one service. */
+    static final int MAX_SUBSCRIPTIONS = 100;
+    static final int MAX_SUBSCRIPTIONS_PER_SERVICE = 30;
+
     private final Registry registry;
     private final HttpRequestSender httpRequestSender;
     private final ExecutorService executorService;
@@ -161,6 +165,13 @@ public class ReceivingSubscribe extends ReceivingSync<StreamRequestMessage, Outg
         if (!requestMessage.hasNotificationHeader()) {
             YaaccLogger.v(getClass().getName(), "Missing or invalid NT header in subscribe request: " + getInputMessage());
             return new OutgoingSubscribeResponseMessage(UpnpResponse.Status.PRECONDITION_FAILED);
+        }
+
+        // every host of the network may subscribe: the number of subscribers is limited, each one costs memory and traffic
+        if (registry.getLocalSubscriptionCount(null) >= MAX_SUBSCRIPTIONS
+                || registry.getLocalSubscriptionCount(service) >= MAX_SUBSCRIPTIONS_PER_SERVICE) {
+            YaaccLogger.w(getClass().getName(), "Too many event subscribers, subscription refused");
+            return new OutgoingSubscribeResponseMessage(UpnpResponse.Status.SERVICE_UNAVAILABLE);
         }
 
         Integer timeoutSeconds;

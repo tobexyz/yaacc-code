@@ -22,6 +22,7 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.util.DisplayMetrics;
+import de.yaacc.util.LogText;
 import de.yaacc.util.YaaccLogger;
 
 import java.io.IOException;
@@ -34,6 +35,10 @@ import java.net.MalformedURLException;
  * @author Christoph Hähnel (eyeless)
  */
 public class ImageDownloader {
+    /** The most bytes of an image that are read (a photo of a camera is some ten megabytes). */
+    static final int MAX_IMAGE_BYTES = 32 * 1024 * 1024;
+    private static final int CONNECT_TIMEOUT_MILLIS = 5_000;
+    private static final int READ_TIMEOUT_MILLIS = 10_000;
 
     public ImageDownloader() {
     }
@@ -77,7 +82,10 @@ public class ImageDownloader {
 
         try {
             YaaccLogger.d(this.getClass().getName(), "image uri to load: " + imageUri.toString());
-            byte[] imageBytes = BitmapSampling.readAllBytes(getUriAsStream(imageUri));
+            byte[] imageBytes;
+            try (InputStream stream = getUriAsStream(imageUri)) {
+                imageBytes = BitmapSampling.readAllBytes(stream, MAX_IMAGE_BYTES);
+            }
 
             BitmapFactory.Options boundsOptions = new BitmapFactory.Options();
             boundsOptions.inJustDecodeBounds = true;
@@ -127,7 +135,10 @@ public class ImageDownloader {
             }
 
         } catch (Exception e) {
-            YaaccLogger.d(this.getClass().getName(), "while decoding image: " + e.getMessage());
+            YaaccLogger.d(this.getClass().getName(), "while decoding image: " + LogText.clean(e.getMessage()));
+        } catch (OutOfMemoryError e) {
+            // an image that is too big for the memory of the phone is no image
+            YaaccLogger.w(this.getClass().getName(), "image too big for the memory");
         }
 
         return bitmap;
@@ -146,8 +157,16 @@ public class ImageDownloader {
         InputStream is;
         YaaccLogger.d(getClass().getName(), "Start load: " + System.currentTimeMillis());
 
-        is = (InputStream) new java.net.URL(imageUri.toString())
-                .getContent();
+        java.net.URL url = new java.net.URL(imageUri.toString());
+        if ("http".equalsIgnoreCase(url.getProtocol()) || "https".equalsIgnoreCase(url.getProtocol())) {
+            // the address may come from another device: it must not keep the thread for ever
+            java.net.URLConnection connection = url.openConnection();
+            connection.setConnectTimeout(CONNECT_TIMEOUT_MILLIS);
+            connection.setReadTimeout(READ_TIMEOUT_MILLIS);
+            is = connection.getInputStream();
+        } else {
+            is = (InputStream) url.getContent();
+        }
         YaaccLogger.d(getClass().getName(), "Stop load: " + System.currentTimeMillis());
         YaaccLogger.d(getClass().getName(), "InputStream: " + is);
         return is;

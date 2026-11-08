@@ -47,3 +47,14 @@
 ## 2026-11-08 — Last warning of review cycle 6 fixed after the cycle cap
 **Context**: Cycle 6 (third cycle of the controller group) found one Warning: in `takeOverFromPlayer` a known track deleted by a control point still served as the insert anchor, so a track the user added right behind it was refused and dropped from the player.
 **Decision**: The anchor is only advanced over tracks that are still in the queue (one line plus a test). Fixed after the cap of three cycles, so this fix has not been reviewed again; the owner decides whether another cycle is wanted.
+
+## 2026-11-08 — The six suggestions of security review cycle 4 done
+**Context**: The owner asked for all six suggestions of cycle 4 (they do not block the verdict).
+**Decision** (limits chosen so that no real use hits them):
+1. `ClingOhControl.runGuarded`: a `StackOverflowError` while a device's SOAP answer is parsed is "no answer" (`OhControlException.NO_ANSWER`).
+2. `ImageDownloader`: http(s) images are fetched with 5 s connect and 10 s read timeouts and at most 32 MiB; an `OutOfMemoryError` gives no image. `OpenHomePlayer.getIcon` starts a download of one address at most once a minute (32 addresses remembered). `AlbumArt.of` (renderer side, also the AVTransport renderer) only returns http(s) addresses.
+3. `HttpRequestSender.readBounded`: answers are read up to 32 MiB and 120 s. The server's request bodies (`BoundedEntityConsumer`) are limited to 2 MiB.
+4. `LogText.clean` for names and types of devices in the registry log and for fault texts.
+5. A PlayableItem object that appears twice in the player counts once in the reverse sync; the repeat is taken out of the player.
+6. At most 100 event subscribers per device and 30 per service (`SERVICE_UNAVAILABLE` above); `BoundedWork` drops tasks for the renderer's worker beyond 500 waiting ones; the mirror of a device's track keeps its address only if `OhUriPolicy` accepts it.
+**Rationale**: The device is reachable by every host of the network and consumes data from every device on it; every input gets a size, a time or a count limit.

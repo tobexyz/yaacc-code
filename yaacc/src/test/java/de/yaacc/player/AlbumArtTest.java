@@ -52,4 +52,12 @@ public class AlbumArtTest {
         assertNull(AlbumArt.of(track(null)));
         assertNull(AlbumArt.of(null));
     }
+
+    @Test
+    public void onlyHttpAndHttpsAddressesCountAsAlbumArt() {
+        assertNull(AlbumArt.of(track("file:///data/data/de.yaacc/databases/x")));
+        assertNull(AlbumArt.of(track("content://media/external/images/1")));
+        assertNull(AlbumArt.of(track("ftp://h/art.jpg")));
+        assertEquals(URI.create("https://h/art.jpg"), AlbumArt.of(track("https://h/art.jpg")));
+    }
 }

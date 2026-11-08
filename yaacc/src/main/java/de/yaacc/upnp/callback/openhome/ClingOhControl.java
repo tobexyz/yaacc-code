@@ -113,7 +113,7 @@ public final class ClingOhControl implements OhControl {
         }
         final String[] failure = new String[1];
         final int[] code = {OhControlException.NO_ANSWER};
-        new ActionCallback(invocation, sender) {
+        ActionCallback callback = new ActionCallback(invocation, sender) {
             @Override
             public void success(ActionInvocation invocation) {
                 // read below
@@ -127,7 +127,8 @@ public final class ClingOhControl implements OhControl {
                     failure[0] = invocation.getFailure().getMessage();
                 }
             }
-        }.run();
+        };
+        runGuarded(callback);
         if (failure[0] != null || invocation.getFailure() != null) {
             YaaccLogger.d(getClass().getName(), "OpenHome action " + serviceName + "." + actionName + " failed: " + clean(failure[0]));
             throw new OhControlException(code[0], failure[0] == null ? "action failed" : clean(failure[0]));
@@ -144,12 +145,20 @@ public final class ClingOhControl implements OhControl {
         return failure instanceof UpnpTransportException ? OhControlException.NO_ANSWER : failure.getErrorCode();
     }
 
+    /**
+     * Runs the action. The answer of a device is parsed as XML; one that nests its elements without end overflows the stack of the
+     * parser, which must not end the thread of the caller: it is no answer.
+     */
+    static void runGuarded(Runnable action) throws OhControlException {
+        try {
+            action.run();
+        } catch (StackOverflowError e) {
+            throw new OhControlException(OhControlException.NO_ANSWER, "the answer of the device is nested too deeply");
+        }
+    }
+
     /** The text of a fault comes from the device: shortened, without control characters, before it is logged. */
     private static String clean(String text) {
-        if (text == null) {
-            return "";
-        }
-        String shortened = text.length() > 200 ? text.substring(0, 200) : text;
-        return shortened.replaceAll("\\p{Cntrl}", " ");
+        return de.yaacc.util.LogText.clean(text);
     }
 }

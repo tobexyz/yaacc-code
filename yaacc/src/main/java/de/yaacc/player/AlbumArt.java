@@ -21,6 +21,8 @@ import org.fourthline.cling.support.model.DIDLObject;
 
 import java.net.URI;
 
+import de.yaacc.openhome.OhUriPolicy;
+
 /** The album art address of a track. */
 final class AlbumArt {
     private AlbumArt() {
@@ -28,7 +30,9 @@ final class AlbumArt {
 
     /**
      * @return the {@code albumArtURI} of the DIDL-Lite item; null if it has none or an empty one (Home Assistant sends an empty
-     * address with every track it plays: that must not count as "has art", the other sources of art are tried then)
+     * address with every track it plays: that must not count as "has art", the other sources of art are tried then), and null for an
+     * address that is not http or https: the item comes from another device and the app fetches the address (a {@code file:} or
+     * {@code content:} address would read from this phone)
      */
     static URI of(DIDLObject item) {
         if (item == null) {
@@ -36,6 +40,6 @@ final class AlbumArt {
         }
         DIDLObject.Property<URI> property = item.getFirstProperty(DIDLObject.Property.UPNP.ALBUM_ART_URI.class);
         URI uri = property == null ? null : property.getValue();
-        return uri == null || uri.toString().trim().isEmpty() ? null : uri;
+        return uri == null || !OhUriPolicy.isAcceptable(uri.toString()) ? null : uri;
     }
 }

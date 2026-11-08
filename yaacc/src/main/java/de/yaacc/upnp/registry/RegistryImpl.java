@@ -344,6 +344,10 @@ public class RegistryImpl implements Registry {
         localItems.addSubscription(subscription);
     }
 
+    synchronized public int getLocalSubscriptionCount(org.fourthline.cling.model.meta.LocalService<?> service) {
+        return localItems.countSubscriptions(service);
+    }
+
     synchronized public LocalGENASubscription getLocalSubscription(String subscriptionId) {
         return localItems.getSubscription(subscriptionId);
     }

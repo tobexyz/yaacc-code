@@ -55,11 +55,25 @@ public final class AndroidOhThreads implements OpenHomeRenderer.Threads {
         };
     }
 
+    private final BoundedWork waiting = new BoundedWork();
+
     @Override
     public void work(Runnable work) {
+        if (!waiting.tryAcquire()) {
+            YaaccLogger.w(getClass().getName(), "OpenHome renderer is flooded with work, a task is dropped");
+            return;
+        }
+        Runnable guarded = guarded(work);
         try {
-            worker.execute(guarded(work));
+            worker.execute(() -> {
+                try {
+                    guarded.run();
+                } finally {
+                    waiting.done();
+                }
+            });
         } catch (RejectedExecutionException e) {
+            waiting.done();
             YaaccLogger.d(getClass().getName(), "OpenHome renderer is shut down, work dropped");
         }
     }
