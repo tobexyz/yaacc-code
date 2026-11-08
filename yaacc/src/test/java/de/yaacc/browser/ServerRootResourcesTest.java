@@ -75,6 +75,16 @@ public class ServerRootResourcesTest {
     }
 
     @Test
+    public void theSectionNamesAreLargerThanTheTextOfTheRows() throws Exception {
+        String xml = read("src/main/res/layout/server_list_section_header.xml");
+
+        assertTrue("the label is large", Pattern.compile("@\\+id/sectionHeaderLabel\"[^>]*TextAppearance\\.Material\\.Large",
+                Pattern.DOTALL).matcher(xml).find());
+        assertTrue("the icon grows with the label", Pattern.compile("@\\+id/sectionHeaderIcon\"[^>]*android:layout_width=\"36dp\"",
+                Pattern.DOTALL).matcher(xml).find());
+    }
+
+    @Test
     public void theHintLayoutHasItsText() throws Exception {
         assertTrue(read("src/main/res/layout/server_list_section_hint.xml").contains("@+id/sectionHintText"));
     }

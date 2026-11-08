@@ -37,3 +37,7 @@ the content of a server both stay. The Receivers header has no second refresh bu
 the Players header. The activity binds the bar and the mini-player only while the content is on top, the page binds its own player rows only
 while it is started.
 
+## 2026-11-08 — Larger section names (owner's request)
+The section names (Servers, Receivers, Players) use the large text appearance (22sp instead of 18sp) and their icons are 36dp instead of 32dp.
+A style change only; checked by the resource tests, no separate review cycle.
+

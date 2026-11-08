@@ -44,8 +44,8 @@
 
         <ImageView
             android:id="@+id/sectionHeaderIcon"
-            android:layout_width="32dp"
-            android:layout_height="32dp"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
             android:layout_marginEnd="8dp"
             android:focusable="false"
             android:importantForAccessibility="no" />
@@ -58,7 +58,7 @@
             android:ellipsize="end"
             android:focusable="false"
             android:maxLines="1"
-            android:textAppearance="@android:style/TextAppearance.Material.Medium"
+            android:textAppearance="@android:style/TextAppearance.Material.Large"
             android:textColor="?attr/colorOnSurface" />
 
         <ImageButton
