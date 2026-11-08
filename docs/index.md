@@ -422,6 +422,18 @@ are accessible for other UPnP/DLNA devices in you network.
 The shareable folders have to be configured using the server control view.
 All included files and folders are accessible for other devices in your network.
 
+The media of the phone are listed in the folders *Images*, *Videos* and *Music*. *Images* and *Videos* both
+offer *All images* / *All videos* and *Galleries*: a gallery is one directory of the phone that holds images or videos
+(for example *Camera*, *Download*, *Movies*), named like the directory. In the galleries, two directories with
+the same name are told apart by a number (*Camera (2)*), files directly in the root of a storage volume are listed in a
+gallery named *(root folder)* (in the language of the app), and the media paths of the server settings apply to the list of
+galleries and to the images or videos in a gallery. The list of galleries is sorted by name without regard to the case, and a client that
+asks for it page by page gets the same galleries as one that asks for all of them.
+The media paths apply to everything the server answers: a client that guesses the id of an image, a video, an album or a
+gallery outside them gets "no such object" (and no thumbnail or cover), and a media path is matched literally (a `_` or `%` in
+the name is no wildcard). A folder you deselect in *SAF content* is no longer listed or sent, also not to a client that
+remembers its ids.
+
 ![server_control](./screenshots/5.1.x/server_control.png){:height="30%" width="30%"}
 
 The server control view is accessible through the settings button next to the server

@@ -87,6 +87,8 @@
     <string name="playerTimeElapsed">Verstreken</string>
     <string name="bucket_names">Galerijen</string>
     <string name="all_images">Alle afbeeldingen</string>
+    <string name="all_videos">Alle video\'s</string>
+    <string name="gallery_unnamed">(hoofdmap)</string>
     <string name="images">Afbeeldingen</string>
     <string name="albums">Album</string>
     <string name="all">Alle</string>

@@ -87,6 +87,8 @@
     <string name="playerTimeElapsed">已播放时间</string>
     <string name="bucket_names">图库</string>
     <string name="all_images">所有图片</string>
+    <string name="all_videos">所有视频</string>
+    <string name="gallery_unnamed">（根目录）</string>
     <string name="images">图片</string>
     <string name="albums">专辑</string>
     <string name="all">所有</string>

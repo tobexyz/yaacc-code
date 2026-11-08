@@ -48,6 +48,29 @@ public class ContentDirectoryIDsTest {
     }
 
     @Test
+    public void theVideoGalleryIdsExistAndKeepTheOldVideoIds() {
+        assertEquals("430999", ContentDirectoryIDs.VIDEOS_ALL_FOLDER.getId());
+        assertEquals("440999", ContentDirectoryIDs.VIDEOS_BY_BUCKET_NAMES_FOLDER.getId());
+        assertEquals("450999", ContentDirectoryIDs.VIDEOS_BY_BUCKET_NAME_PREFIX.getId());
+        assertEquals("400999", ContentDirectoryIDs.VIDEOS_FOLDER.getId());
+        assertEquals("410999", ContentDirectoryIDs.VIDEO_PREFIX.getId());
+    }
+
+    @Test
+    public void noIdIsThePrefixOfAnotherOneThatIsRoutedByPrefix() {
+        // findBrowserFor routes the ids that end in a database id by their start: none of these may start with another one
+        ContentDirectoryIDs[] prefixed = {ContentDirectoryIDs.VIDEO_PREFIX, ContentDirectoryIDs.VIDEOS_BY_BUCKET_NAME_PREFIX,
+                ContentDirectoryIDs.IMAGES_BY_BUCKET_NAME_PREFIX, ContentDirectoryIDs.IMAGE_BY_BUCKET_PREFIX, ContentDirectoryIDs.IMAGE_ALL_PREFIX};
+        for (ContentDirectoryIDs a : prefixed) {
+            for (ContentDirectoryIDs other : ContentDirectoryIDs.values()) {
+                if (a != other) {
+                    assertFalse(a.name() + " is a prefix of " + other.name(), other.getId().startsWith(a.getId()));
+                }
+            }
+        }
+    }
+
+    @Test
     public void testMusicFolderId() {
         assertEquals("500999", ContentDirectoryIDs.MUSIC_FOLDER.getId());
     }
@@ -86,8 +109,8 @@ public class ContentDirectoryIDsTest {
 
     @Test
     public void testValuesLength() {
-        // Should have 28 values
-        assertEquals(28, ContentDirectoryIDs.values().length);
+        // Should have 31 values
+        assertEquals(31, ContentDirectoryIDs.values().length);
     }
 
     @Test

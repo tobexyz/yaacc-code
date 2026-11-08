@@ -52,7 +52,9 @@ public class MusicArtistFolderBrowser extends ContentBrowser {
     @Override
     public DIDLObject browseMeta(YaaccContentDirectory contentDirectory,
                                  String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
-
+        if (getSize(contentDirectory, myId) == 0) {
+            return null; // nothing of it in the media paths: no such object for the network (the name alone would tell what is on the phone)
+        }
         return new MusicAlbum(myId, ContentDirectoryIDs.MUSIC_ARTISTS_FOLDER.getId(), getName(
                 contentDirectory, myId), "yaacc", getSize(
                 contentDirectory, myId), browseItem(contentDirectory,

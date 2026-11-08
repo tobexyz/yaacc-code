@@ -31,7 +31,10 @@ import java.util.regex.Pattern;
  * granted tree has the form {@code content://<authority>/tree/<tree id>/document/<document id>} (both ids
  * percent-encoded); the granted folder itself is the document whose id equals the tree id.
  */
-final class SafDocumentUris {
+public final class SafDocumentUris {
+
+    /** A tree uri, or a document uri in a tree: the authority, the tree id and (optional) the document id. */
+    private static final Pattern TREE_BASED_URI = Pattern.compile("^content://([^/?#]+)/tree/([^/?#]+)(?:/document/([^/?#]+))?$");
 
     private static final Pattern DOCUMENT_URI = Pattern.compile("^(content://[^/?#]+/tree/([^/?#]+))/document/([^/?#]+)$");
 
@@ -60,6 +63,67 @@ final class SafDocumentUris {
         String documentUri(String otherDocumentId) {
             return treeUri + "/document/" + encode(otherDocumentId);
         }
+    }
+
+    /** Asks the document provider whether a document is somewhere below another one (for ids that are not paths). */
+    public interface ChildCheck {
+        boolean isChild(String parentDocumentUri, String childDocumentUri);
+    }
+
+    /**
+     * Whether a document is in one of the folders the user selected for the server. The selection holds the uri of the ticked folder
+     * (a granted tree, or a folder of a tree); a short id of the SAF cache stays valid after its folder was deselected (and the
+     * permission of the app for the tree stays), so the id alone says nothing about what may be shown.
+     * <p>
+     * A document is in a selected folder when it is that folder, or its id continues the folder's id with {@code /} (the ids of the
+     * external storage are paths), or the whole tree is selected, or the provider says it is a child ({@code check}, for ids that are
+     * no paths; without it such a document is only found when the whole tree is selected).
+     *
+     * @param documentUri      a tree uri or a document uri in a tree ({@code content://authority/tree/id[/document/id]})
+     * @param selectedFolders  the folders of the server settings, in the same forms
+     * @param check            the provider's answer for ids that are no paths, may be null
+     * @return false for anything else, a uri that is no tree uri included
+     */
+    public static boolean isInSelectedTrees(String documentUri, java.util.Collection<String> selectedFolders, ChildCheck check) {
+        Matcher document = documentUri == null ? null : TREE_BASED_URI.matcher(documentUri);
+        if (document == null || !document.matches() || selectedFolders == null) {
+            return false;
+        }
+        String treeId = decode(document.group(2));
+        String documentId = document.group(3) == null ? treeId : decode(document.group(3));
+        for (String selected : selectedFolders) {
+            Matcher folder = selected == null ? null : TREE_BASED_URI.matcher(selected);
+            if (folder == null || !folder.matches() || !folder.group(1).equalsIgnoreCase(document.group(1))
+                    || !decode(folder.group(2)).equals(treeId)) {
+                continue;
+            }
+            String folderId = folder.group(3) == null ? treeId : decode(folder.group(3));
+            if (folderId.equals(treeId) // the whole tree
+                    || documentId.equals(folderId) || documentId.startsWith(folderId + "/")
+                    || (check != null && check.isChild(selected, documentUri))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Whether the document is itself one of the selected folders (the top of a selection: its parent is the SAF folder, not a document). */
+    public static boolean isSelectedFolder(String documentUri, java.util.Collection<String> selectedFolders) {
+        Matcher document = documentUri == null ? null : TREE_BASED_URI.matcher(documentUri);
+        if (document == null || !document.matches() || selectedFolders == null) {
+            return false;
+        }
+        String treeId = decode(document.group(2));
+        String documentId = document.group(3) == null ? treeId : decode(document.group(3));
+        for (String selected : selectedFolders) {
+            Matcher folder = selected == null ? null : TREE_BASED_URI.matcher(selected);
+            if (folder != null && folder.matches() && folder.group(1).equalsIgnoreCase(document.group(1))
+                    && decode(folder.group(2)).equals(treeId)
+                    && (folder.group(3) == null ? treeId : decode(folder.group(3))).equals(documentId)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // ---- object ids ----

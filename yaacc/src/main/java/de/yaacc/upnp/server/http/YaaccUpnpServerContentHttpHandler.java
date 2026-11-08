@@ -79,6 +79,7 @@ import de.yaacc.share.ShareRegistry;
 import de.yaacc.upnp.server.YaaccUpnpServerService;
 import de.yaacc.upnp.server.contentdirectory.ContentDirectoryIDs;
 import de.yaacc.upnp.server.contentdirectory.MediaPathFilter;
+import de.yaacc.upnp.server.contentdirectory.SafSelection;
 import de.yaacc.util.SAFCacheManager;
 import de.yaacc.upnp.server.media.SystemAudioCaptureService;
 import de.yaacc.util.HttpRange;
@@ -242,9 +243,9 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
             YaaccLogger.d(getClass().getName(), "Resource with id " + contentId
                     + albumId + thumbId + pathSegments.get(1) + " not found");
             responseBuilder.setStatus(HttpStatus.SC_NOT_FOUND);
-            String response = "<html><body>Resource with id " + contentId + albumId
-                    + thumbId + pathSegments.get(1) + " not found</body></html>";
-            responseBuilder.setEntity(AsyncEntityProducers.create(response, ContentType.TEXT_HTML));
+            // the page does not repeat what the client sent (a path segment is decoded text a browser would run as HTML)
+            responseBuilder.setHeader("X-Content-Type-Options", "nosniff");
+            responseBuilder.setEntity(AsyncEntityProducers.create(NOT_FOUND_PAGE, ContentType.TEXT_HTML));
         } else {
             // The status and Content-Range come from the plan (full size of the resource, also for HEAD).
             RangeResponsePlan plan = contentHolder.getRangePlan();
@@ -255,6 +256,7 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
                     + " status=" + plan.status()
                     + (plan.contentRange() != null ? " Content-Range: " + plan.contentRange() : ""));
             plan.applyTo(responseBuilder);
+            responseBuilder.setHeader("X-Content-Type-Options", "nosniff");
 
             // Add essential streaming headers for UPnP renderers
             responseBuilder.setHeader(HttpHeaders.CONNECTION, "close");
@@ -581,6 +583,11 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
             return result;
         }
         albumId = canonicalId.toString();
+        if (!isInMediaPaths(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, MediaStore.Audio.Media.ALBUM_ID, MediaStore.Audio.Media.DATA, albumId)) {
+            // an album without a track in the media paths: its cover is not served
+            YaaccLogger.d(getClass().getName(), "Album not in the media paths, generic icon");
+            return result;
+        }
         if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
             YaaccLogger.d(getClass().getName(), "System media store lookup album: "
                     + albumId);
@@ -652,12 +659,31 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
     }
 
     /**
+     * Whether the media store has a row with the id whose file is in the media paths of the server settings.
+     *
+     * @param idColumn   the column the id is compared with ({@code _id}, or the album id of the tracks)
+     * @param dataColumn the column of the path of the file
+     */
+    private boolean isInMediaPaths(Uri table, String idColumn, String dataColumn, String id) {
+        String selection = idColumn + "=? and (" + MediaPathFilter.makeLikeClause(dataColumn, MediaPathFilter.getMediaPathes(getContext()).size()) + ")";
+        List<String> args = new ArrayList<>();
+        args.add(id);
+        args.addAll(MediaPathFilter.getMediaPathesForLikeClause(getContext()));
+        try (Cursor cursor = getContext().getContentResolver().query(table, new String[]{idColumn}, selection, args.toArray(new String[0]), null)) {
+            return cursor != null && cursor.getCount() > 0;
+        }
+    }
+
+    /** The answer for a resource that does not exist: no text of the request in it. */
+    static final String NOT_FOUND_PAGE = "<html><body>Resource not found</body></html>";
+
+    /**
      * Lookup a thumbnail content in the mediastore
      *
      * @param idStr the id of the thumbnail
      * @return the content description
      */
-    private ContentHolder lookupThumbnail(String idStr, List<HttpRange> ranges) {
+    ContentHolder lookupThumbnail(String idStr, List<HttpRange> ranges) {
 
         ContentHolder result = new ContentHolder(MimeType.valueOf("image/png"),
                 getDefaultIcon(), ranges, context);
@@ -676,6 +702,11 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
             return result;
         }
 
+        if (!isInMediaPaths(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, MediaStore.Images.Media._ID, MediaStore.Images.Media.DATA, idStr)) {
+            // an image outside the media paths: its picture is not served (the id is a number any host of the network can count through)
+            YaaccLogger.d(getClass().getName(), "Thumbnail not in the media paths");
+            return result;
+        }
         YaaccLogger.d(getClass().getName(), "System media store lookup thumbnail: "
                 + idStr);
         Bitmap bitmap = MediaStore.Images.Thumbnails.getThumbnail(getContext()
@@ -696,7 +727,7 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
         return result;
     }
 
-    private ContentHolder lookupSafContent(String contentKey, String contentEnc, List<HttpRange> ranges) {
+    ContentHolder lookupSafContent(String contentKey, String contentEnc, List<HttpRange> ranges) {
         YaaccLogger.d(getClass().getName(), "lookupSafContent: contentKey=" + contentKey + ", contentEnc=" + contentEnc);
         
         if (!contentKey.startsWith(ContentDirectoryIDs.SAF_PREFIX.getId())) {
@@ -738,6 +769,11 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
         
         if (contentUri == null) {
             YaaccLogger.e(getClass().getName(), "SAF short ID not found in cache: " + shortId);
+            return null;
+        }
+        // a short id outlives the selection of its tree: only what is in a selected tree is served
+        if (!SafSelection.contains(getContext(), contentUri)) {
+            YaaccLogger.d(getClass().getName(), "SAF content is not in a selected folder: " + shortId);
             return null;
         }
 
@@ -792,26 +828,6 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
             }
         }
 
-        // Check if contentUri or its parents are included in selectedSafPathes
-        // FIXME
-        /*
-         * Set<String> selectedSafPathes =
-         * MediaPathFilter.getSelectedSafPathes(getContext());
-         * boolean isPathAllowed = false;
-         *
-         * for (String selectedPath : selectedSafPathes) {
-         * if (contentUri.startsWith(selectedPath)) {
-         * isPathAllowed = true;
-         * break;
-         * }
-         * }
-         *
-         * if (!isPathAllowed) {
-         * YaaccLogger.d(getClass().getName(), "SAF content URI not in selected paths: " +
-         * contentUri);
-         * return null;
-         * }
-         */
         String targetUri = contentUri;
         // Pass the DocumentFile instance to avoid re-creating it during streaming
         return new SafContentHolder(mimeType, targetUri, ranges, context, file);

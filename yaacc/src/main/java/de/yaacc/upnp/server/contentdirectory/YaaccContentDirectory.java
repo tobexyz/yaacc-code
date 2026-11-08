@@ -482,6 +482,12 @@ public class YaaccContentDirectory {
             result = new ImagesFolderBrowser(getContext());
         } else if (ContentDirectoryIDs.VIDEOS_FOLDER.getId().equals(objectID)) {
             result = new VideosFolderBrowser(getContext());
+        } else if (ContentDirectoryIDs.VIDEOS_ALL_FOLDER.getId().equals(objectID)) {
+            result = new VideosAllFolderBrowser(getContext());
+        } else if (ContentDirectoryIDs.VIDEOS_BY_BUCKET_NAMES_FOLDER.getId().equals(objectID)) {
+            result = new VideosByBucketNamesFolderBrowser(getContext());
+        } else if (objectID.startsWith(ContentDirectoryIDs.VIDEOS_BY_BUCKET_NAME_PREFIX.getId())) {
+            result = new VideosByBucketNameFolderBrowser(getContext());
         } else if (ContentDirectoryIDs.MUSIC_FOLDER.getId().equals(objectID)) {
             result = new MusicFolderBrowser(getContext());
         } else if (ContentDirectoryIDs.MUSIC_GENRES_FOLDER.getId().equals(objectID)) {
