@@ -770,8 +770,8 @@ public class BrowseContentItemAdapter extends RecyclerView.Adapter<BrowseContent
         if (!showThumbnails) {
             return null;
         }
-        DIDLObject.Property<URI> albumArt = object.getFirstProperty(DIDLObject.Property.UPNP.ALBUM_ART_URI.class);
-        return albumArt == null ? null : Uri.parse(albumArt.getValue().toString());
+        URI albumArt = de.yaacc.player.AlbumArt.of(object); // only http(s): the address comes from the server
+        return albumArt == null ? null : Uri.parse(albumArt.toString());
     }
 
     /**

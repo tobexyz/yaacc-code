@@ -388,6 +388,15 @@ public interface Registry {
     public void addLocalSubscription(LocalGENASubscription subscription);
 
     /**
+     * @param service the service whose subscribers are counted, {@code null} for the subscribers of all services
+     * @return how many event subscribers this device has
+     */
+    public int getLocalSubscriptionCount(org.fourthline.cling.model.meta.LocalService<?> service);
+
+    /** @return how many event subscribers have a callback address on the host (the host of the control point) */
+    public int getLocalSubscriptionCountForHost(String host);
+
+    /**
      * Called internally by the UPnP stack, during GENA protocol execution.
      */
     public LocalGENASubscription getLocalSubscription(String subscriptionId);

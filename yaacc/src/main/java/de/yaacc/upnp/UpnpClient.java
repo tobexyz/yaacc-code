@@ -547,8 +547,8 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         try {
             StringBuilder summary = new StringBuilder();
             for (Device<?, ?, ?> device : getRegistry().getDevices()) {
-                summary.append("\n  ").append(device.getDetails() == null ? "?" : device.getDetails().getFriendlyName())
-                        .append(" [").append(device.getType() == null ? "?" : device.getType().toString()).append("]")
+                summary.append("\n  ").append(device.getDetails() == null ? "?" : de.yaacc.util.LogText.clean(device.getDetails().getFriendlyName()))
+                        .append(" [").append(device.getType() == null ? "?" : de.yaacc.util.LogText.clean(device.getType().toString())).append("]")
                         .append(" avTransport=").append(device.findService(new UDAServiceType("AVTransport")) != null)
                         .append(" openHome=").append(de.yaacc.upnp.callback.openhome.ClingOhControl.offersPlaylist(device))
                         .append(" services=").append(device.findServiceTypes().length);

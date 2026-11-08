@@ -55,7 +55,8 @@ public final class OhPlayableItems {
             item.setTitle(uri);
             item.setDuration(defaultDurationMillis);
         }
-        item.setUri(Uri.parse(uri));
+        // the address comes from the device: an item that shows it must not keep an address the app would not fetch
+        item.setUri(OhUriPolicy.isAcceptable(uri) ? Uri.parse(uri) : null);
         if (item.getMimeType() == null || item.getMimeType().isEmpty()) {
             String extension = MimeTypeMap.getFileExtensionFromUrl(uri);
             String mimeType = extension == null ? null : MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension);

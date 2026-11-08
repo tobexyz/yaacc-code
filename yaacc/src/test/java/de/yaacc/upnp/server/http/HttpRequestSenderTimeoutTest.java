@@ -42,6 +42,18 @@ public class HttpRequestSenderTimeoutTest {
     }
 
     @Test
+    public void onlyContentDirectoryAnswersMayTakeTheLongDeadline() {
+        assertEquals(120_000, HttpRequestSender.deadlineFor(true, 120_000));
+        assertEquals(15_000, HttpRequestSender.deadlineFor(false, 120_000));
+        assertEquals(500, HttpRequestSender.deadlineFor(false, 500)); // a shorter configured one stays
+    }
+
+    @Test
+    public void aRequestWaitsForAFreeConnectionOnlyBriefly() {
+        assertTrue(HttpRequestSender.CONNECTION_REQUEST_TIMEOUT.toSeconds() <= 15);
+    }
+
+    @Test
     public void theLongTimeoutIsLongerThanTheDefaultSocketTimeoutOfTenSeconds() {
         assertEquals(30, HttpRequestSender.CONTENT_DIRECTORY_RESPONSE_TIMEOUT.toSeconds());
         assertTrue(HttpRequestSender.CONTENT_DIRECTORY_RESPONSE_TIMEOUT.toMilliseconds() > TimeUnit.SECONDS.toMillis(10));

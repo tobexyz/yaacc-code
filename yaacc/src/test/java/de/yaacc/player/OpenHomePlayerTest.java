@@ -594,4 +594,20 @@ public class OpenHomePlayerTest {
             other.stopWorkers();
         }
     }
+
+    @Test
+    public void anAlbumArtAddressIsNotFetchedAgainAndAgainWhenItDoesNotAnswer() {
+        assertTrue(player.artMayBeFetched("http://h/a.jpg"));
+        assertFalse(player.artMayBeFetched("http://h/a.jpg")); // the screen asks for the icon again at once
+        assertTrue(player.artMayBeFetched("http://h/b.jpg"));
+    }
+
+    @Test
+    public void onlyAFewAlbumArtAttemptsAreRemembered() {
+        for (int i = 0; i < 100; i++) {
+            assertTrue(player.artMayBeFetched("http://h/" + i + ".jpg"));
+        }
+        assertTrue(player.artMayBeFetched("http://h/0.jpg")); // forgotten long ago
+        assertFalse(player.artMayBeFetched("http://h/99.jpg"));
+    }
 }

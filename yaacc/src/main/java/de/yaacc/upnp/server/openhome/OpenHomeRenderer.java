@@ -87,6 +87,14 @@ public final class OpenHomeRenderer implements OhPlayback {
         /** Runs the work on the worker thread, after what was handed over before. Returns at once. */
         void work(Runnable work);
 
+        /**
+         * As {@link #work(Runnable)} for the start and the end of the renderer: it must run even when the worker is flooded with
+         * the work of control points (which may be dropped then).
+         */
+        default void lifecycle(Runnable work) {
+            work(work);
+        }
+
         /** Runs the work on the worker thread again and again; the result stops it. */
         Runnable every(Runnable work, long periodMillis);
 
@@ -146,7 +154,7 @@ public final class OpenHomeRenderer implements OhPlayback {
 
     /** Starts the once-a-second look at the player. */
     public void start() {
-        threads.work(() -> {
+        threads.lifecycle(() -> {
             if (stopPolling == null) {
                 stopPolling = threads.every(this::refreshNow, POLL_MILLIS);
                 refreshNow();
@@ -156,7 +164,7 @@ public final class OpenHomeRenderer implements OhPlayback {
 
     /** Ends the look at the player and the player itself. */
     public void shutdown() {
-        threads.work(() -> {
+        threads.lifecycle(() -> {
             if (stopPolling != null) {
                 stopPolling.run();
                 stopPolling = null;
@@ -494,12 +502,12 @@ public final class OpenHomeRenderer implements OhPlayback {
         }
         // 2. tracks the user moved: the order of the kept tracks in the queue becomes the one of the player
         List<Long> order = new ArrayList<>();
+        Set<Long> orderSet = new HashSet<>();
         for (Long id : found) {
-            if (id != null && queue.indexOf(id) >= 0) {
+            if (id != null && queue.indexOf(id) >= 0 && orderSet.add(id)) { // an item twice in the player counts once
                 order.add(id);
             }
         }
-        Set<Long> orderSet = new HashSet<>(order);
         for (int i = 0; i < order.size(); i++) {
             List<Long> inQueue = new ArrayList<>();
             for (long id : queue.idArray()) {
@@ -515,8 +523,14 @@ public final class OpenHomeRenderer implements OhPlayback {
         List<Integer> refused = new ArrayList<>();
         long previous = OhIds.NONE;
         List<Long> newIds = new ArrayList<>();
+        Set<PlayableItem> seen = java.util.Collections.newSetFromMap(new IdentityHashMap<>());
         for (int i = 0; i < items.size(); i++) {
             Long id = found.get(i);
+            if (!seen.add(items.get(i))) {
+                // the same item twice in the player: only one place can have its queue id, the repeat leaves the player again
+                refused.add(i);
+                continue;
+            }
             // a known track stays known although a control point deleted it from the queue meanwhile: the sync takes it out of the player
             if (id == null) {
                 PlayableItem item = items.get(i);
