@@ -432,3 +432,68 @@ None.
 ### Verdict: FAIL
 Two Warnings (1: cap can be held for good because the subscription timeout is unbounded; 2: `readBounded` drains the rest of the body when it closes the stream, so the deadline and the stop at the limit do not release the thread / connection). Both fixes are a few
 lines. The six suggestions are otherwise closed as described; no Critical.
+
+
+## Cycle 6 — 2026-11-08
+Reviewing: the fixes of cycle 5 (commits d48ed80b and 60470b53): subscription time limit and per-host cap, abort in `HttpRequestSender.send`, `readBounded` without close on failure, per-request limits, `runGuarded` OOM, `AlbumArt.of` at two more places.
+
+### Critical
+- none
+
+### Warning
+- none
+
+### Suggestion
+1. [HttpRequestSender.java:35-40 `RESPONSE_DEADLINE_MILLIS = 120_000`, :99 `setMaxTotal(10)`, `send` :113] Closed in kind, but the time bound is generous for small answers. The deadline is the same 120 s for an event POST answer, a SOAP control answer and a
+   description, which are some kilobytes. A hostile LAN host that subscribes (callback to itself) and answers each event POST with a body that keeps coming now holds a pool thread (registry executor: 50) and a pooled connection (10 in total, 5 per route) for at most 120 s per event instead
+   of for ever. The initial event is sent at once on subscribe, so about 10 subscriptions pin the whole shared connection pool for 120 s (browse and control calls wait for a lease); the per-host cap (25, soft), the total of 100 and the 3-failures rule bound how often it can be repeated
+   (a few rounds, then the subscriptions have to expire or be dropped), and a fake SSDP device with a slow description reaches the same pool without any subscription (announcements have no cap). So it is not a lock-out like cycle 5 Warning 1/2 and is not blocking.
+   Optional: a shorter deadline (10-15 s) for everything that is not a ContentDirectory action (`limit` is already chosen per request at :113, the deadline can be chosen the same way), and a `connectionRequestTimeout` shorter than the 3 minutes default.
+2. [HttpRequestSender.java:99-100] The deadline is tested between reads and the socket timeout (10 s, 30 s response for ContentDirectory) covers one wait; a server that drips the status line or the headers is only bounded by those per-read timeouts (httpcore does not limit the header
+   count or line length by default). Same class as Suggestion 1, pre-existing, not touched by the fix.
+3. [ReceivingSubscribe.java:151-158 `tooManyForTheHost`] Soft limit as written in decisions.md (the host is the one in the CALLBACK header). Confirmed: the other limits (100 / 30 per service / 1800 s) hold for a hostile host that names other hosts. An attacker who wants to keep slots has
+   to renew every 30 minutes, which is visible in the log (renewals are logged at verbose level only; a warning line when the cap refuses a subscription already exists at :200).
+4. [SendingEvent.java:120-126] Only `IOException` calls `deliveryListener.failed`; a `RuntimeException` from `send` (the new handler rethrows it after the abort) leaves the failure count alone. Pre-existing path, the exception was possible before too; the subscription is still bounded by its
+   1800 s. Catch `RuntimeException` there as well if you touch the class.
+5. Carried over, unchanged and accepted in decisions.md: no atomic check-and-add for subscribers; no total deadline for images and request bodies; task cap shared by all senders (cycle 5 Suggestions 1, 3, 5, 6, 7, 8). I see no new impact for them.
+
+### What was checked and is fine
+**(a) Warning 1, subscriptions without end**
+- `ReceivingSubscribe.clampTimeout` (:96-101): null, 0, negative, `Integer.MAX_VALUE` (`Second-infinite`) give 1800; 1..59 give 60; above 1800 gives 1800. Used at both call sites: `processNewSubscription` :205 (value goes into the `EventSendingSubscription` constructor, which calls
+  `LocalGENASubscription.setSubscriptionDuration` and so `setActualSubscriptionDurationSeconds`) and `processRenewal` :172 (before `registry.updateLocalSubscription`). A `Second-` value that does not parse (over `int`) makes the header invalid, and the result is null, which is 1800 again.
+- Reaches the registry: `LocalItems`/`RegistryItems.addSubscription` builds the `RegistryItem` with `subscription.getActualDurationSeconds()` (RegistryItems.java:161-171), `updateSubscription` removes and adds again, so a renewal creates a new `ExpirationDetails(1800)` with a new refresh time. `LocalItems.maintain()` (:323-333)
+  tests `hasExpired(false)` for every subscription item and then removes and ends it; `UNLIMITED_AGE` (0) can not occur any more because the clamp never gives 0. `maintain()` returns early only when there is no local device (then there are no subscriptions either: `remove(device)` and `shutdown()` clear them).
+  The answer to the control point carries the same clamped value (`getActualDurationSeconds`), so a correct control point renews in time.
+- No other way to keep a subscription alive: the only writers of the expiry of a local subscription are `addLocalSubscription` (ReceivingSubscribe :216, and the in-process `SubscriptionCallback` :145, which has no network input) and `updateLocalSubscription` (renewal only); an event delivery, a successful or
+  failed `SendingEvent` and `EventDeliveryHealth` never refresh it (`stampLastRefresh` is used for local devices only, LocalItems :320). A renewal of an unknown or expired id gets 412, and `updateSubscription` returns false for an id that went away, so a subscription can not be revived.
+- Per-host cap: `tooManyForTheHost` checks every callback URL of the request against `Registry.getLocalSubscriptionCountForHost` (synchronized, case-insensitive host match, a subscription with several callbacks counts once, null callbacks and null host are safe). The check comes before the object is built and
+  registered; refusals are 503 and nothing is added. Together with the total (100) and per service (30) caps. Tests: `ReceivingSubscribeTimeoutTest` (clamp values, 503 at the per-host cap with `addLocalSubscription` never called, `Second-infinite` renewal calls `setSubscriptionDuration(1800)`, `Second-0` new subscription has
+  `getActualDurationSeconds() == 1800`), `LocalItemsSubscriptionCountTest`. The review's mutation check (tests fail without the clamp) is plausible from the assertions.
+- Remaining exposure, not blocking: see Suggestion 3. A host that renews every 30 minutes can keep slots, but only up to the caps and visibly.
+
+**(b) Warning 2, bodies that never end**
+- `HttpRequestSender.send` (:113-122): the response handler catches `IOException | RuntimeException` from `createResponse` (status, headers, size check, `readBounded`) and calls `request.abort()` before rethrowing, so the connection is discarded and not read to its end. The limit is chosen per request at :113: ContentDirectory
+  actions 32 MiB, every other request `min(32 MiB, 8 MiB)`; the field `maxResponseBytes` is only lowered by the test constructor, which is package private. `createResponse(response)` (protected, one argument) keeps the instance limit for subclasses/tests.
+- `readBounded` (:191-219): an honest `Content-Length` over the limit is refused before reading (the exception is raised inside the handler, so the abort applies too); the count is on decoded bytes (`long` arithmetic, no overflow), the deadline is checked after each read; on the failure paths the stream is not closed
+  (closing would drain), `in.close()` only after `read` returned -1. An `IOException` from `close()` itself is also inside the handler and aborts. The reason of the old cycle 5 probe (try-with-resources close drains the body) is gone.
+- `HttpRequestSenderRealServerTest` is a real socket (loopback `ServerSocket`, chunked body 1 KiB every 50 ms for 8 s): limit case and deadline case must end below 4 s although the server goes on for 8 s (the old code took 8.2 s), and a third test shows that the sender is usable (the pool is not poisoned) after a cut off
+  answer. The test constructor is not reachable from production code. Not run by me (instruction); I read the code and the assertions.
+- Event delivery: `SendingEvent.executeSync` turns the `IOException` of an aborted or too big answer into `deliveryListener.failed` (and rethrows), `EventDeliveryHealth.failed()` returns true only for the third failure in a row, then `giveUp` removes the subscription and ends it; a delivered event resets the count.
+  The 8 MiB limit for an event answer only matters for a hostile subscriber. Descriptor retrieval (`RetrieveRemoteDescriptors`, both variants), `SendingAction`, `SendingSubscribe`, `SendingRenewal`, `SendingUnsubscribe` all go through `send` and already handle `IOException` as before (the exception type did not change);
+  a description or SOAP answer larger than 8 MiB is now refused, which no real device reaches (a Browse is the only large one and keeps 32 MiB). No caller reads from the returned response a second time or from the connection, so the abort has no effect on a successful answer. See Suggestion 1 for the time.
+- Calling `request.abort()` inside the handler: the exception is rethrown unchanged by `HttpClient.execute` (try-with-resources closes the response, which after the abort only releases the dropped endpoint), `IOException` reaches the callers as before, and the same sender is used afterwards (third test).
+
+**(c) Other changes of the commit**
+- `ClingOhControl.runGuarded` (:149-160): `OutOfMemoryError` is turned into `OhControlException.NO_ANSWER` next to `StackOverflowError`. Catching OOM is a recovery attempt only (the allocation that failed is the oversized parse, whose garbage is released when the frame ends); it does not hide a bug, the exception type is the existing `NO_ANSWER`,
+  nothing is logged with the device's text. A test was added (`ClingOhControlTest`). Together with the 8 MiB limit the memory a hostile device can ask for is smaller than before.
+- `AlbumArt.of` is public now and used by `BrowseContentItemAdapter` (:773) and `AVTransportPlayerWrapper` (:481): only `http`/`https` addresses survive, so a `file:`, `jar:`, `content:` album art address from a ContentDirectory item or an AVTransport renderer is no longer given to the image downloader (closes cycle 5 Suggestion 4). Null handling is
+  better than before (no NPE for a property without value). Making the class public widens the API inside the app only; it has a private constructor and one static pure method. The thumbnail still goes through `ImageDownloader` with its timeouts and 64 MiB limit.
+- No new dependency, permission, exported component, secret or log of untrusted text in the two commits; `decisions.md`, `review.md`, `security-review.md` edits only besides code and tests. `CHANGELOG.md` is not touched by these commits.
+
+### Tests
+- [x] Not run by me (instruction). Orchestrator: HEAD green, 3233 tests, lint green.
+- [x] Present and relevant: `ReceivingSubscribeTimeoutTest` (both call sites), `LocalItemsSubscriptionCountTest`, `HttpRequestSenderRealServerTest` (real socket), `ClingOhControlTest` (OOM).
+- [ ] No test drives the real `LocalGENASubscription` through `RegistryImpl.maintain()` with a clamped duration (the chain `clamp -> getActualDurationSeconds -> ExpirationDetails -> maintain` was checked by reading, each link is plain code); optional.
+
+### Verdict: PASS
+Both Warnings of cycle 5 are closed: the subscription time is limited to 60..1800 s at both call sites and reaches the registry's expiry, and a body that is too long or too slow now drops the connection without being read to its end (real-socket test). Zero Critical, zero Warning. Suggestions 1-5 do not block.
