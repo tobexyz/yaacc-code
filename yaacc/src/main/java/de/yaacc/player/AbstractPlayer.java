@@ -69,6 +69,8 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
 
     public static final String PLAYER_ID = "PlayerId";
     public static final String PROPERTY_ITEM = "item";
+    /** Fired when the player is paused or resumed (the "playing" property is fired when it starts or stops playing). */
+    public static final String PROPERTY_PAUSED = "paused";
     private final PropertyChangeSupport pcs = new PropertyChangeSupport(this);
     // copy on write: a player whose list lives on a device replaces it from its own thread while the screen reads it
     private volatile List<PlayableItem> items = new CopyOnWriteArrayList<>();
@@ -241,7 +243,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
         setProcessingCommand(true);
 
 
-        paused = false;
+        setPaused(false);
         previousIndex = currentIndex;
         cancelTimer();
         if (!moveToNext(itemEnded)) {
@@ -306,7 +308,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
         }
         setProcessingCommand(true);
 
-        paused = false;
+        setPaused(false);
         previousIndex = currentIndex;
         cancelTimer();
         moveToPrevious();
@@ -347,8 +349,8 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
                         toast.show();
                     });
                 }
+                setPaused(true);
                 setPlaying(false);
-                paused = true;
                 doPause();
                 updatePlaybackState(PlaybackStateCompat.STATE_PAUSED);
                 updateMetadata();
@@ -398,7 +400,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
                     }
                     setPlaying(true);
                     if (paused) {
-                        paused = false;  // Clear paused flag when resuming
+                        setPaused(false);  // Clear paused flag when resuming
                         doResume();
                     } else {
                         loadItem(previousIndex, currentIndex);
@@ -444,7 +446,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
                 }
                 dropShares();
                 setPlaying(false);
-                paused = false;
+                setPaused(false);
                 updatePlaybackState(PlaybackStateCompat.STATE_STOPPED);
                 setProcessingCommand(false);
                 // Whoever stopped it (the end of the playlist, the stop button, the media renderer): the media
@@ -719,7 +721,39 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
     }
 
     protected void setPaused(boolean paused) {
+        boolean was = this.paused;
         this.paused = paused;
+        if (was != paused) {
+            firePropertyChange(PROPERTY_PAUSED, was, paused);
+        }
+    }
+
+    /**
+     * Another controller than this app paused the playback (the media notification, the lock screen, a headset or the loss of the
+     * audio focus): the engine is paused already, only what the app knows about its player and shows is brought up to date.
+     */
+    protected final void adoptExternalPause() {
+        if (!isPlaying) {
+            return;
+        }
+        cancelTimer();
+        setPaused(true);
+        setPlaying(false);
+        updatePlaybackState(PlaybackStateCompat.STATE_PAUSED);
+        updateMetadata();
+        showNotification();
+    }
+
+    /** The playback that was paused goes on without a command of this app (see {@link #adoptExternalPause()}). */
+    protected final void adoptExternalResume() {
+        if (isPlaying || !paused) {
+            return;
+        }
+        setPlaying(true);
+        setPaused(false);
+        updatePlaybackState(PlaybackStateCompat.STATE_PLAYING);
+        updateMetadata();
+        showNotification();
     }
 
     public boolean isStopped() {
@@ -803,7 +837,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
         }
         previousIndex = currentIndex;
         currentIndex = newIndex;
-        paused = nowPaused;
+        setPaused(nowPaused);
         setPlaying(nowPlaying);
         if (listChanged) {
             firePropertyChange(PROPERTY_PLAYLIST, null, null);
@@ -867,7 +901,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
         if (isProcessingCommand()) {
             return;
         }
-        paused = false;
+        setPaused(false);
         previousIndex = currentIndex;
         cancelTimer();
         playOrder.fit(items.size(), currentIndex);
@@ -1038,7 +1072,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
 
     protected void doResume() {
         //default replay current item
-        paused = false;
+        setPaused(false);
         loadItem(currentIndex, currentIndex);
     }
 

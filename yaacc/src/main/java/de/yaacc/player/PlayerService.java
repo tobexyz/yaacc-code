@@ -127,9 +127,10 @@ public class PlayerService extends MediaSessionService {
         }
         playerListChangeNotifier.putAndNotify(currentActivePlayer, player);
 
-        // Listen for playing state changes
+        // Listen for the state changes: playing, paused, stopped
         player.addPropertyChangeListener(evt -> {
-            if ("playing".equals(evt.getPropertyName())) {
+            String name = evt.getPropertyName();
+            if ("playing".equals(name) || AbstractPlayer.PROPERTY_PAUSED.equals(name) || Player.PROPERTY_STOPPED.equals(name)) {
                 updateForegroundState();
             }
         });
@@ -204,6 +205,30 @@ public class PlayerService extends MediaSessionService {
         }
     }
 
+    /**
+     * The text of the notification of the service: how many players there are and what they do, for example
+     * "3 players (1 playing, 1 paused, 1 stopped)".
+     */
+    static String statusText(int total, int playing, int paused, String playingWord, String pausedWord, String stoppedWord) {
+        if (total == 0) {
+            return "running";
+        }
+        StringBuilder states = new StringBuilder();
+        appendState(states, playing, playingWord);
+        appendState(states, paused, pausedWord);
+        appendState(states, total - playing - paused, stoppedWord);
+        return total + " player" + (total > 1 ? "s" : "") + " (" + states + ")";
+    }
+
+    private static void appendState(StringBuilder states, int count, String word) {
+        if (count > 0) {
+            if (states.length() > 0) {
+                states.append(", ");
+            }
+            states.append(count).append(' ').append(word);
+        }
+    }
+
     private void updateServiceNotification() {
         Intent notificationIntent = new Intent(this, BrowserLauncher.targetClass(this));
         PendingIntent pendingIntent = PendingIntent.getActivity(this,
@@ -212,15 +237,18 @@ public class PlayerService extends MediaSessionService {
         // Build status text
         int totalPlayers = currentActivePlayer.size();
         int playingCount = 0;
+        int pausedCount = 0;
         for (Player player : currentActivePlayer.values()) {
             if (player.isPlaying()) {
                 playingCount++;
+            } else if (player.isPaused()) {
+                pausedCount++;
             }
         }
-
-        String statusText = totalPlayers == 0 ? "running" :
-                totalPlayers + " player" + (totalPlayers > 1 ? "s" : "") +
-                        (playingCount > 0 ? " (" + playingCount + " playing)" : " (paused)");
+        String statusText = statusText(totalPlayers, playingCount, pausedCount,
+                getString(R.string.playing).toLowerCase(java.util.Locale.getDefault()),
+                getString(R.string.paused).toLowerCase(java.util.Locale.getDefault()),
+                getString(R.string.stopped).toLowerCase(java.util.Locale.getDefault()));
 
         Notification notification = new NotificationCompat.Builder(this, Yaacc.NOTIFICATION_CHANNEL_ID)
                 .setGroup(Yaacc.NOTIFICATION_GROUP_KEY)

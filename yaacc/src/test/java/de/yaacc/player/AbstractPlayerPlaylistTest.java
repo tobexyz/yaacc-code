@@ -152,6 +152,38 @@ public class AbstractPlayerPlaylistTest {
         return titles;
     }
 
+    // --- a pause or resume from outside (media notification, headset), the "paused" event
+
+    @Test
+    public void aPauseFromOutsideMakesThePlayerPausedAndTellsTheListeners() {
+        TestPlayer player = player(2);
+        player.setPlaying(true);
+        events.clear();
+
+        player.adoptExternalPause();
+
+        assertFalse(player.isPlaying());
+        assertTrue(player.isPaused());
+        assertEquals(Arrays.asList("paused", "playing"), events);
+    }
+
+    @Test
+    public void aResumeFromOutsidePlaysAgainAndAPauseWhileNotPlayingChangesNothing() {
+        TestPlayer player = player(2);
+        player.adoptExternalPause(); // the app says it does not play: nothing to follow
+        assertFalse(player.isPaused());
+        assertTrue(events.isEmpty());
+
+        player.setPlaying(true);
+        player.adoptExternalPause();
+        events.clear();
+        player.adoptExternalResume();
+
+        assertTrue(player.isPlaying());
+        assertFalse(player.isPaused());
+        assertEquals(Arrays.asList("playing", "paused"), events);
+    }
+
     // --- what is shown
 
     @Test
