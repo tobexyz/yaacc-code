@@ -35,6 +35,7 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.function.Consumer;
 
 import de.yaacc.browser.DeviceSessionGrouper.PlayerRef;
 import de.yaacc.browser.MiniPlayerAdapter.Command;
@@ -71,9 +72,10 @@ final class MiniPlayerBar implements PlayerListChangeNotifier.Listener, MiniPlay
     /** Commands change the state asynchronously; look again shortly after sending one. */
     private static final long REFRESH_AFTER_COMMAND_MS = 500;
 
-    private final RecyclerView list;
+    private final android.content.Context context;
+    private final Consumer<Boolean> visibility;
     private final UpnpClient upnpClient;
-    private final MiniPlayerAdapter adapter = new MiniPlayerAdapter(this);
+    private final MiniPlayerAdapter adapter;
     private final Handler handler = new Handler(Looper.getMainLooper());
 
     private final Runnable pollRunnable = new Runnable() {
@@ -93,12 +95,34 @@ final class MiniPlayerBar implements PlayerListChangeNotifier.Listener, MiniPlay
     // resolved receiver names per device id; cleared on unbind so a renamed device is picked up
     private final Map<String, String> receiverNames = new HashMap<>();
 
+    /** The bar below the content of a server: the rows are the list itself, which is hidden while no player exists. */
     MiniPlayerBar(@NonNull RecyclerView list, @NonNull UpnpClient upnpClient) {
-        this.list = list;
-        this.upnpClient = upnpClient;
+        this(list.getContext(), upnpClient, visible -> list.setVisibility(visible ? View.VISIBLE : View.GONE), false);
         list.setLayoutManager(new LinearLayoutManager(list.getContext()));
         list.setItemAnimator(null); // no flashing on live updates
         list.setAdapter(adapter);
+    }
+
+    /**
+     * The players as a section of another list (the top-level page): the rows are {@link #adapter()}, which the page adds to its
+     * list; {@code visibility} is told whether there is any row (the page hides the section header with no player).
+     */
+    MiniPlayerBar(@NonNull android.content.Context context, @NonNull UpnpClient upnpClient, @NonNull Consumer<Boolean> visibility) {
+        this(context, upnpClient, visibility, true);
+    }
+
+    /** @param cardSpacing true when the rows are cards of a longer list: they get the spacing of the other cards (page mode) */
+    private MiniPlayerBar(@NonNull android.content.Context context, @NonNull UpnpClient upnpClient,
+                          @NonNull Consumer<Boolean> visibility, boolean cardSpacing) {
+        this.adapter = new MiniPlayerAdapter(this, cardSpacing);
+        this.context = context;
+        this.upnpClient = upnpClient;
+        this.visibility = visibility;
+    }
+
+    /** The rows, for a page that shows them as a part of its own list. */
+    RecyclerView.Adapter<?> adapter() {
+        return adapter;
     }
 
     /** Starts following the players: listener, poll and command thread. Shows the current state. */
@@ -132,7 +156,7 @@ final class MiniPlayerBar implements PlayerListChangeNotifier.Listener, MiniPlay
         // the rows drop their players and art bookkeeping; a late art result drops itself on the
         // tag compare (recycled holders clear their tag)
         adapter.clear();
-        list.setVisibility(View.GONE);
+        visibility.accept(false);
         // a renamed device must not keep showing its old name after the next bind
         receiverNames.clear();
     }
@@ -187,7 +211,7 @@ final class MiniPlayerBar implements PlayerListChangeNotifier.Listener, MiniPlay
             }
         }
         adapter.submit(rows);
-        list.setVisibility(rows.isEmpty() ? View.GONE : View.VISIBLE);
+        visibility.accept(!rows.isEmpty());
     }
 
     private MiniPlayerAdapter.Row rowFor(Player player, PlayerRef ref) {
@@ -237,7 +261,7 @@ final class MiniPlayerBar implements PlayerListChangeNotifier.Listener, MiniPlay
             return;
         }
         // the player's own explicit, immutable PendingIntent with an empty fill-in
-        ReceiverRowBinder.openPlayer(list.getContext(), player);
+        ReceiverRowBinder.openPlayer(context, player);
     }
 
     @Override

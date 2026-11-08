@@ -31,6 +31,7 @@ import android.widget.Toast;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
+import androidx.appcompat.widget.TooltipCompat;
 import androidx.core.content.res.ResourcesCompat;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentActivity;
@@ -239,6 +240,8 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         View serversButton = contentlistView.findViewById(R.id.contentListServersButton);
         if (serversButton != null) {
             serversButton.setVisibility(showsBackAtContentRoot() ? View.VISIBLE : View.GONE);
+            // the broadcast icon alone does not say where the button leads: a long press shows its name
+            TooltipCompat.setTooltipText(serversButton, getString(R.string.server_list_button));
             serversButton.setOnClickListener(v -> {
                 BrowserHost host = browserHost();
                 if (host != null) {

@@ -46,7 +46,12 @@ public class ServerListClickListener implements View.OnClickListener {
 
     @Override
     public void onClick(View view) {
-        upnpClient.setProviderDevice((Device<?, ?, ?>) adapter.getItem(deviceListView.getChildAdapterPosition(view)));
+        // the position in the servers adapter: the list may hold other rows before the servers (the top-level page has a header)
+        int position = AdapterPositions.bindingPosition(deviceListView, view);
+        if (position == RecyclerView.NO_POSITION) {
+            return; // the row is being removed
+        }
+        upnpClient.setProviderDevice((Device<?, ?, ?>) adapter.getItem(position));
         if (parent instanceof BrowserHost) {
             ((BrowserHost) parent).showContent();
         }
