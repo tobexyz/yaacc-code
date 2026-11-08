@@ -894,6 +894,23 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      * @param didlObject the object which describes the content to be played
      * @return the player
      */
+    /**
+     * The player of an OpenHome device that plays already, for its playlist screen: the device keeps its queue, the player only shows it.
+     * Starts the player service when it is not running (it is only started when something is played), and waits for it: not for the
+     * main thread.
+     *
+     * @return the player, null if the player service did not come up
+     */
+    public Player attachOpenHomePlayer(Device<?, ?, ?> device) {
+        if (playerService == null && !startService()) {
+            return null;
+        }
+        if (!waitForPlayerServiceComeUp()) {
+            return null;
+        }
+        return playerService.attachOpenHomePlayer(this, device);
+    }
+
     public List<Player> initializePlayers(DIDLObject didlObject) {
         return initializePlayers(toItemList(didlObject));
     }

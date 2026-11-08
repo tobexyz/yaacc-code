@@ -420,6 +420,27 @@ public final class OhRemote {
     // ---- state
 
     /** Reads what the device does. A service the device does not answer leaves its part of the state as it was empty. */
+    /**
+     * The transport state and the current track only (two calls): for a status line of a device that this app does not control.
+     * {@code volume}, {@code seconds} and the like stay at their defaults.
+     */
+    public State readBrief() throws OhControlException {
+        State state = new State();
+        OhTransportState transport = OhTransportState.fromValue(get(call(PLAYLIST, "TransportState"), "Value"));
+        state.transportState = transport == null ? OhTransportState.STOPPED : transport;
+        try {
+            Map<String, String> track = call(INFO, "Track");
+            state.uri = get(track, "Uri");
+            state.metadata = get(track, "Metadata");
+        } catch (OhControlException e) {
+            if (e.getCode() == OhControlException.NO_ANSWER) {
+                throw e;
+            }
+            // the device refuses a service that is only nice to have
+        }
+        return state;
+    }
+
     public State readState() throws OhControlException {
         State state = new State();
         OhTransportState transport = OhTransportState.fromValue(get(call(PLAYLIST, "TransportState"), "Value"));
