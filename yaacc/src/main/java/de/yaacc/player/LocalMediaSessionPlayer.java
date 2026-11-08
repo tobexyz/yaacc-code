@@ -167,6 +167,22 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
             }
 
             @Override
+            public void onPlayWhenReadyChanged(boolean playWhenReady, int reason) {
+                // paused or resumed by the media notification, the lock screen, a headset or a phone call: the app's state, its
+                // notification and the transport state of the media renderer follow
+                switch (ExternalPlayState.decide(playWhenReady, reason, isPlaying(), isPaused())) {
+                    case PAUSE:
+                        adoptExternalPause();
+                        break;
+                    case RESUME:
+                        adoptExternalResume();
+                        break;
+                    default:
+                        break;
+                }
+            }
+
+            @Override
             public void onMediaItemTransition(@Nullable MediaItem mediaItem, int reason) {
                 ExoPlayer player = exoPlayer;
                 if (mediaItem != null && player != null
